@@ -176,11 +176,11 @@ impl ShaCompressChip {
         let vars = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
         ];
-        for i in 0..8 {
+        for (i, var) in vars.iter().enumerate() {
             builder
                 .when(is_initialize)
                 .when(local.octet[i])
-                .assert_word_eq(vars[i], *local.mem.value());
+                .assert_word_eq(*var, *local.mem.value());
         }
     }
 

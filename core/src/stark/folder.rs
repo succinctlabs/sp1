@@ -23,7 +23,7 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
 }
 
 impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
-    type F = SC::Val;
+    type F = Val<SC>;
     type Expr = PackedVal<SC>;
     type Var = PackedVal<SC>;
     type M = TwoRowMatrixView<'a, PackedVal<SC>>;

@@ -5,31 +5,13 @@ use std::{
 
 use bincode::{deserialize_from, Error};
 use p3_air::TwoRowMatrixView;
-use p3_commit::{OpenedValues, Pcs};
-use p3_field::ExtensionField;
-use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
-use super::StarkGenericConfig;
-
-pub type Val<SC> = <SC as StarkGenericConfig>::Val;
-pub type PackedVal<SC> = <<SC as StarkGenericConfig>::Val as Field>::Packing;
-pub type PackedChallenge<SC> = <Challenge<SC> as ExtensionField<Val<SC>>>::ExtensionPacking;
-pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
-pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
-pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
-pub type Challenger<SC> = <SC as StarkGenericConfig>::Challenger;
-#[allow(dead_code)]
-type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
-type ValMat<SC> = RowMajorMatrix<Val<SC>>;
-pub type Com<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
-pub type PcsProverData<SC> =
-    <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
-pub type PcsProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
+use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -37,7 +19,7 @@ pub type QuotientOpenedValues<T> = Vec<T>;
 #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
 #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
 pub struct ShardMainData<SC: StarkGenericConfig> {
-    pub traces: Vec<ValMat<SC>>,
+    pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub main_commit: Com<SC>,
     pub main_data: PcsProverData<SC>,
     pub chip_ids: Vec<String>,
@@ -46,7 +28,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
     pub fn new(
-        traces: Vec<ValMat<SC>>,
+        traces: Vec<RowMajorMatrix<Val<SC>>>,
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
         chip_ids: Vec<String>,
@@ -124,7 +106,7 @@ pub struct ChipOpenedValues<T: Serialize> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
     pub permutation: AirOpenedValues<T>,
-    pub quotient: Vec<T>,
+    pub quotient: Vec<Vec<T>>,
     pub cumulative_sum: T,
     pub log_degree: usize,
 }
@@ -136,6 +118,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 
 #[cfg(feature = "perf")]
 #[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub index: usize,
     pub commitment: ShardCommitment<Com<SC>>,
@@ -148,34 +131,34 @@ pub struct ShardProof<SC: StarkGenericConfig> {
 #[derive(Serialize, Deserialize)]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub main_commit: Com<SC>,
-    pub traces: Vec<ValMat<SC>>,
+    pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub permutation_traces: Vec<ChallengeMat<SC>>,
     pub chip_ids: Vec<String>,
 }
 
-impl<T: Serialize> ShardOpenedValues<T> {
-    pub fn into_values(self) -> OpenedValues<T> {
-        let mut main_vals = vec![];
-        let mut permutation_vals = vec![];
-        let mut quotient_vals = vec![];
+// impl<T: Serialize> ShardOpenedValues<T> {
+//     pub fn into_values(self) -> OpenedValues<T> {
+//         let mut main_vals = vec![];
+//         let mut permutation_vals = vec![];
+//         let mut quotient_vals = vec![];
 
-        let to_values = |values: AirOpenedValues<T>| vec![values.local, values.next];
-        for chip_values in self.chips {
-            let ChipOpenedValues {
-                main,
-                permutation,
-                quotient,
-                ..
-            } = chip_values;
+//         let to_values = |values: AirOpenedValues<T>| vec![values.local, values.next];
+//         for chip_values in self.chips {
+//             let ChipOpenedValues {
+//                 main,
+//                 permutation,
+//                 quotient,
+//                 ..
+//             } = chip_values;
 
-            main_vals.push(to_values(main));
-            permutation_vals.push(to_values(permutation));
-            quotient_vals.push(vec![quotient]);
-        }
+//             main_vals.push(to_values(main));
+//             permutation_vals.push(to_values(permutation));
+//             quotient_vals.push(vec![quotient]);
+//         }
 
-        vec![main_vals, permutation_vals, quotient_vals]
-    }
-}
+//         vec![main_vals, permutation_vals, quotient_vals]
+//     }
+// }
 
 #[cfg(feature = "perf")]
 impl<T> AirOpenedValues<T> {
@@ -196,6 +179,7 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 }
 
 #[derive(Serialize, Deserialize)]
+#[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
 }

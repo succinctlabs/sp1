@@ -33,15 +33,13 @@ pub use io::*;
 
 use crate::stark::RiscvAir;
 use anyhow::Result;
-use p3_commit::Pcs;
-use p3_matrix::dense::RowMajorMatrix;
 use runtime::{Program, Runtime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use stark::StarkGenericConfig;
-use stark::{OpeningProof, ProgramVerificationError, Proof, ShardMainData};
+use stark::{Com, OpeningProof, PcsProverData, ProgramVerificationError, Proof, ShardMainData};
+use stark::{StarkGenericConfig, Val};
 use std::fs;
-use utils::{prove_core, BabyBearBlake3, StarkUtils};
+use utils::{prove_core, BabyBearBlake3};
 
 /// A prover that can prove RISCV ELFs.
 pub struct SP1Prover;
@@ -93,13 +91,13 @@ impl SP1Prover {
         config: SC,
     ) -> Result<SP1ProofWithIO<SC>>
     where
-        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone,
+        SC: StarkGenericConfig,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
-        <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
+        Val<SC>: p3_field::PrimeField32,
     {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
@@ -138,13 +136,13 @@ impl SP1Verifier {
         config: SC,
     ) -> Result<(), ProgramVerificationError>
     where
-        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned,
+        SC: StarkGenericConfig,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
-        <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
+        SC::Val: p3_field::PrimeField32,
     {
         let mut challenger = config.challenger();
         let machine = RiscvAir::machine(config);

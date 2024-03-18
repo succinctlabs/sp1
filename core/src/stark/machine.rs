@@ -15,21 +15,22 @@ use super::Chip;
 use super::Proof;
 use super::Prover;
 use super::StarkGenericConfig;
+use super::Val;
 use super::VerificationError;
 use super::Verifier;
 
-pub type MachineChip<SC, A> = Chip<<SC as StarkGenericConfig>::Val, A>;
+pub type MachineChip<SC, A> = Chip<Val<SC>, A>;
 
 /// A STARK for proving RISC-V execution.
 pub struct MachineStark<SC: StarkGenericConfig, A> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
-    chips: Vec<Chip<SC::Val, A>>,
+    chips: Vec<Chip<Val<SC>, A>>,
 }
 
 impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
-    pub fn new(config: SC, chips: Vec<Chip<SC::Val, A>>) -> Self {
+    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>) -> Self {
         Self { config, chips }
     }
 }
@@ -46,7 +47,7 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
     marker: std::marker::PhantomData<SC>,
 }
 
-impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
@@ -115,9 +116,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
-            + Air<InteractionBuilder<SC::Val>>
+            + Air<InteractionBuilder<Val<SC>>>
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         tracing::debug!("sharding the execution record");
         let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
