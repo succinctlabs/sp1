@@ -12,6 +12,7 @@ use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::FieldType;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -69,7 +70,12 @@ pub struct WeierstrassAddAssignChip<E> {
 impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
-        rt.record_mut().weierstrass_add_events.push(event.clone());
+        match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => rt.record_mut().secp256k1_add_events.push(event.clone()),
+            FieldType::Bn254 => rt.record_mut().bn254_add_events.push(event.clone()),
+            // any other curve is not supported.
+            _ => panic!("Unsupported curve"),
+        }
         event.p_ptr + 1
     }
 
@@ -94,8 +100,6 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     ) {
         // This populates necessary field operations to calculate the addition of two points on a
         // Weierstrass curve.
-
-        println!("Curve name: {:?}", E::BaseField::NAME);
 
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
@@ -151,7 +155,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        format!("WeierstrassAddAssign{}", E::BaseField::NAME)
+        format!("{}AddAssign", E::BaseField::FIELD_TYPE)
     }
 
     fn generate_trace(
@@ -159,18 +163,19 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        // collects the events based on the curve type.
+        let events = match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => &input.secp256k1_add_events,
+            FieldType::Bn254 => &input.bn254_add_events,
+            _ => panic!("Unsupported curve"),
+        };
+
         let mut rows = Vec::new();
 
         let mut new_field_events = Vec::new();
 
-        for i in 0..input.weierstrass_add_events.len() {
-            let event = input.weierstrass_add_events[i].clone();
-
-            // check if the event corresponds to the chip corresponding to the current curve.
-            // If we don't do this, then trace for all curves will be generated for each curve.
-            if event.curve_name != E::BaseField::NAME {
-                continue;
-            }
+        for i in 0..events.len() {
+            let event = events[i].clone();
 
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
             let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
@@ -222,7 +227,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.weierstrass_add_events.is_empty()
+        match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
+            FieldType::Bn254 => !shard.bn254_add_events.is_empty(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 }
 
@@ -355,9 +364,17 @@ where
 
 #[cfg(test)]
 mod tests {
+    use p3_baby_bear::BabyBear;
+
     use crate::{
-        runtime::Program,
-        utils::{run_test, setup_logger, tests::BN254_ADD_ELF, tests::SECP256K1_ADD_ELF},
+        lookup::{debug_interactions_with_all_chips, InteractionKind},
+        runtime::{Program, Runtime},
+        stark::RiscvAir,
+        utils::{
+            run_test, setup_logger,
+            tests::{BN254_ADD_ELF, SECP256K1_ADD_ELF},
+            BabyBearBlake3,
+        },
     };
 
     #[test]
@@ -372,5 +389,20 @@ mod tests {
         setup_logger();
         let program = Program::from(BN254_ADD_ELF);
         run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_bn254_add_memory_lookup_interactions() {
+        setup_logger();
+        let program = Program::from(BN254_ADD_ELF);
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+
+        let machine = RiscvAir::machine(BabyBearBlake3::new());
+        debug_interactions_with_all_chips::<BabyBearBlake3, RiscvAir<BabyBear>>(
+            machine.chips(),
+            &runtime.record,
+            vec![InteractionKind::Memory],
+        );
     }
 }

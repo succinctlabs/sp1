@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::field::{FieldParameters, FieldType, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 use k256::FieldElement;
 use num::traits::FromBytes;
@@ -25,6 +25,8 @@ pub type Secp256k1 = SwCurve<Secp256k1Parameters>;
 pub struct Secp256k1BaseField;
 
 impl FieldParameters for Secp256k1BaseField {
+    const FIELD_TYPE: FieldType = FieldType::Secp256k1;
+
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
 
     const NB_LIMBS: usize = NUM_LIMBS;
@@ -39,8 +41,6 @@ impl FieldParameters for Secp256k1BaseField {
 
     /// A rough witness-offset estimate given the size of the limbs and the size of the field.
     const WITNESS_OFFSET: usize = 1usize << 14;
-
-    const NAME: &'static str = "Secp256k1";
 
     fn modulus() -> BigUint {
         BigUint::from_bytes_le(&Self::MODULUS)

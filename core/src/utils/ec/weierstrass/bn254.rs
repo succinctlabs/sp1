@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::field::{FieldParameters, FieldType, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -17,6 +17,8 @@ pub type Bn254 = SwCurve<Bn254Parameters>;
 pub struct Bn254BaseField;
 
 impl FieldParameters for Bn254BaseField {
+    const FIELD_TYPE: FieldType = FieldType::Bn254;
+
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
 
     const NB_LIMBS: usize = NUM_LIMBS;
@@ -31,8 +33,6 @@ impl FieldParameters for Bn254BaseField {
     ];
 
     const WITNESS_OFFSET: usize = 1usize << 13;
-
-    const NAME: &'static str = "Bn254BaseField";
 
     // The modulus have been taken from starkyx
     // https://github.com/succinctlabs/starkyx/blob/ad8eb4b/starkyx/src/chip/ec/weierstrass/bn254.rs#L25-L27

@@ -12,6 +12,7 @@ use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::FieldType;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -71,9 +72,12 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
-        rt.record_mut()
-            .weierstrass_double_events
-            .push(event.clone());
+        match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event.clone()),
+            FieldType::Bn254 => rt.record_mut().bn254_double_events.push(event.clone()),
+            // any other curve is not supported.
+            _ => panic!("Unsupported curve"),
+        }
         event.p_ptr + 1
     }
 
@@ -168,7 +172,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
-        "WeierstrassDoubleAssign".to_string()
+        format!("{}DoubleAssign", E::BaseField::FIELD_TYPE)
     }
 
     #[instrument(
@@ -181,11 +185,17 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let chunk_size = std::cmp::max(input.weierstrass_double_events.len() / num_cpus::get(), 1);
+        // collects the events based on the curve type.
+        let events = match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => &input.secp256k1_add_events,
+            FieldType::Bn254 => &input.bn254_add_events,
+            _ => panic!("Unsupported curve"),
+        };
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows_and_records = input
-            .weierstrass_double_events
+        let rows_and_records = events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
@@ -193,9 +203,6 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
                 let rows = events
                     .iter()
-                    // check if the event corresponds to the chip corresponding to the current curve.
-                    // If we don't do this, then trace for all curves will be generated for each curve.
-                    .filter(|event| event.curve_name == E::BaseField::NAME)
                     .map(|event| {
                         let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
                         let cols: &mut WeierstrassDoubleAssignCols<F> =
@@ -250,7 +257,11 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.weierstrass_double_events.is_empty()
+        match E::BaseField::FIELD_TYPE {
+            FieldType::Secp256k1 => !shard.secp256k1_double_events.is_empty(),
+            FieldType::Bn254 => !shard.bn254_double_events.is_empty(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 }
 

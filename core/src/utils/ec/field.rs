@@ -5,20 +5,36 @@ use crate::operations::field::params::NUM_LIMBS;
 use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter, Result};
 
 pub const MAX_NB_LIMBS: usize = 32;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum FieldType {
+    Secp256k1,
+    Bn254,
+    Ed25519,
+}
+
+impl Display for FieldType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            FieldType::Secp256k1 => write!(f, "Secp256k1"),
+            FieldType::Bn254 => write!(f, "Bn254"),
+            FieldType::Ed25519 => write!(f, "Ed25519"),
+        }
+    }
+}
 
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
 {
+    const FIELD_TYPE: FieldType;
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize = NUM_LIMBS;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
     const WITNESS_OFFSET: usize = 1usize << 13;
     const MODULUS: [u8; NUM_LIMBS];
-
-    const NAME: &'static str;
 
     fn modulus() -> BigUint {
         biguint_from_limbs(&Self::MODULUS)
