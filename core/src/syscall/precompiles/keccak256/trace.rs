@@ -102,7 +102,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                             let col: &mut KeccakMemCols<F> = mem_row.borrow_mut();
                             col.shard = F::from_canonical_u32(shard);
-                            col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
+                            col.clk = F::from_canonical_u32(start_clk);
 
                             // if this is the first row, then populate read memory accesses
                             if i == 0 && is_real_permutation {
@@ -115,6 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                                 col.state_addr = F::from_canonical_u32(event.unwrap().state_addr);
                                 col.do_memory_check = F::one();
+                                col.ecall_receive = F::one();
                             }
 
                             // if this is the last row, then populate write memory accesses

@@ -17,7 +17,7 @@ const PI: [usize; 24] = [
 
 impl Syscall for KeccakPermuteChip {
     fn num_extra_cycles(&self) -> u32 {
-        NUM_ROUNDS as u32
+        1
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
@@ -84,7 +84,8 @@ impl Syscall for KeccakPermuteChip {
             state[0] ^= RC[i];
         }
 
-        rt.clk += self.num_extra_cycles() - 4;
+        // Increment the clk by 1 before writing because we read from memory at start_clk.
+        rt.clk += 1;
         let mut values_to_write = Vec::new();
         // TODO: where does this 25 come from.
         for i in 0..25 {
@@ -96,8 +97,6 @@ impl Syscall for KeccakPermuteChip {
 
         let write_records = rt.mw_slice(state_ptr, values_to_write.as_slice());
         state_write_records.extend_from_slice(&write_records);
-
-        rt.clk += 4;
 
         // Push the Keccak permute event.
         let shard = rt.current_shard();

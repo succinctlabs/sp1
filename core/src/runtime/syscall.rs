@@ -44,7 +44,7 @@ pub enum SyscallCode {
     SHA_EXTEND = 0x00_30_01_00,
 
     /// Executes the `SHA_COMPRESS` precompile.
-    SHA_COMPRESS = 0x00_80_01_01,
+    SHA_COMPRESS = 0x00_01_01_01,
 
     /// Executes the `ED_ADD` precompile.
     ED_ADD = 0x00_01_01_02,
@@ -53,7 +53,7 @@ pub enum SyscallCode {
     ED_DECOMPRESS = 0x00_00_01_03,
 
     /// Executes the `KECCAK_PERMUTE` precompile.
-    KECCAK_PERMUTE = 0x00_18_01_04,
+    KECCAK_PERMUTE = 0x00_01_01_04,
 
     /// Executes the `SECP256K1_ADD` precompile.
     SECP256K1_ADD = 0x00_01_01_05,
@@ -65,7 +65,7 @@ pub enum SyscallCode {
     SECP256K1_DECOMPRESS = 0x00_00_01_07,
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
-    BLAKE3_COMPRESS_INNER = 0x00_80_01_08,
+    BLAKE3_COMPRESS_INNER = 0x00_38_01_08,
 }
 
 impl SyscallCode {
@@ -78,10 +78,10 @@ impl SyscallCode {
             0x00_00_00_03 => SyscallCode::ENTER_UNCONSTRAINED,
             0x00_00_00_04 => SyscallCode::EXIT_UNCONSTRAINED,
             0x00_30_01_00 => SyscallCode::SHA_EXTEND,
-            0x00_80_01_01 => SyscallCode::SHA_COMPRESS,
+            0x00_01_01_01 => SyscallCode::SHA_COMPRESS,
             0x00_01_01_02 => SyscallCode::ED_ADD,
             0x00_00_01_03 => SyscallCode::ED_DECOMPRESS,
-            0x00_18_01_04 => SyscallCode::KECCAK_PERMUTE,
+            0x00_01_01_04 => SyscallCode::KECCAK_PERMUTE,
             0x00_01_01_05 => SyscallCode::SECP256K1_ADD,
             0x00_00_01_06 => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_07 => SyscallCode::SECP256K1_DECOMPRESS,
@@ -271,7 +271,7 @@ mod tests {
 
     #[test]
     fn test_encoding_roundtrip() {
-        for (syscall_code, syscall_impl) in default_syscall_map().iter() {
+        for (syscall_code, _) in default_syscall_map().iter() {
             assert_eq!(SyscallCode::from_u32(*syscall_code as u32), *syscall_code);
         }
     }
