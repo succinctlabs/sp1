@@ -1,14 +1,14 @@
-use duplicate::duplicate_item;
 use super::params::Limbs;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
+use duplicate::duplicate_item;
 use num::BigUint;
 use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
 use sp1_derive::field_cols_with_limbs;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
@@ -25,8 +25,8 @@ pub struct Den<T>(Limbs<T, 32>); // => generates FieldDenCols32
 pub struct Den<T>(Limbs<T, 48>); // => generates FieldDenCols48
 
 #[duplicate_item(
-    den_type;
-    [ FieldDenCols32 ];
+    den_type            nb_limbs;
+    [ FieldDenCols32 ]  [ 32 ];
 )]
 impl<F: PrimeField32> den_type<F> {
     pub fn populate<P: FieldParameters>(
@@ -54,11 +54,11 @@ impl<F: PrimeField32> den_type<F> {
         debug_assert!(carry < p);
         debug_assert_eq!(&carry * &p, &equation_lhs - &equation_rhs);
 
-        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
-        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
-        let p_p: Polynomial<F> = P::to_limbs_field::<F>(&p).into();
-        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
-        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
+        let p_a: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(b).into();
+        let p_p: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(&p).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(&carry).into();
 
         // Compute the vanishing polynomial.
         let vanishing_poly = if sign {
@@ -88,7 +88,7 @@ impl<F: PrimeField32> den_type<F> {
     den_type            nb_limbs;
     [ FieldDenCols32 ]  [ 32 ];
 )]
-impl<V: Copy> den_type <V> {
+impl<V: Copy> den_type<V> {
     #[allow(unused_variables)]
     pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
@@ -151,14 +151,16 @@ mod tests {
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
-    #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T> {
-        pub a: Limbs<T, 32>,
-        pub b: Limbs<T, 32>,
-        pub a_den_b: FieldDenCols32<T>,
-    }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    pub const NB_LIMBS: usize = 32;
+
+    #[derive(AlignedBorrow, Debug, Clone)]
+    pub struct TestCols<T> {
+        pub a: Limbs<T, NB_LIMBS>,
+        pub b: Limbs<T, NB_LIMBS>,
+        pub a_den_b: FieldDenCols32<T>,
+    }
 
     struct FieldDenChip<P: FieldParameters> {
         pub sign: bool,
@@ -211,8 +213,8 @@ mod tests {
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
+                    cols.a = P::to_limbs_field::<F, NB_LIMBS>(a);
+                    cols.b = P::to_limbs_field::<F, NB_LIMBS>(b);
                     cols.a_den_b.populate::<P>(a, b, self.sign);
                     row
                 })

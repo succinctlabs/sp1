@@ -1,14 +1,14 @@
 use super::params::Limbs;
-use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
+use duplicate::duplicate_item;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
+use sp1_derive::{AlignedBorrow, field_cols_with_limbs};
 use std::fmt::Debug;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -22,17 +22,14 @@ pub enum FieldOperation {
 /// A set of columns to compute `FieldOperation(a, b)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
-#[derive(Debug, Clone, AlignedBorrow)]
-#[repr(C)]
-pub struct FieldOpCols<T> {
-    /// The result of `a op b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
-    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
-}
+#[field_cols_with_limbs]
+pub struct Op<T>(Limbs<T, 32>); // => generates FieldOpCols32
 
-impl<F: PrimeField32> FieldOpCols<F> {
+#[duplicate_item(
+    op_type             nb_limbs;
+    [ FieldOpCols32 ]   [ 32 ];
+)]
+impl<F: PrimeField32> op_type<F> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
@@ -59,7 +56,7 @@ impl<F: PrimeField32> FieldOpCols<F> {
             // Note that this reversal means we have to flip result, a correspondingly in
             // the `eval` function.
             self.populate::<P>(&result, b, FieldOperation::Add);
-            self.result = P::to_limbs_field::<F>(&result);
+            self.result = P::to_limbs_field::<F, nb_limbs>(&result);
             return result;
         }
 
@@ -76,12 +73,12 @@ impl<F: PrimeField32> FieldOpCols<F> {
             // Note that this reversal means we have to flip result, a correspondingly in the `eval`
             // function.
             self.populate::<P>(&result, b, FieldOperation::Mul);
-            self.result = P::to_limbs_field::<F>(&result);
+            self.result = P::to_limbs_field::<F, nb_limbs>(&result);
             return result;
         }
 
-        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
-        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
+        let p_a: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(b).into();
 
         // Compute field addition in the integers.
         let modulus = &P::modulus();
@@ -99,9 +96,9 @@ impl<F: PrimeField32> FieldOpCols<F> {
         }
 
         // Make little endian polynomial limbs.
-        let p_modulus: Polynomial<F> = P::to_limbs_field::<F>(modulus).into();
-        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
-        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
+        let p_modulus: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(modulus).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F, nb_limbs>(&carry).into();
 
         // Compute the vanishing polynomial.
         let p_op = match op {
@@ -128,7 +125,11 @@ impl<F: PrimeField32> FieldOpCols<F> {
     }
 }
 
-impl<V: Copy> FieldOpCols<V> {
+#[duplicate_item(
+    op_type             nb_limbs;
+    [ FieldOpCols32 ]   [32];
+)]
+impl<V: Copy> op_type<V> {
     #[allow(unused_variables)]
     pub fn eval<
         AB: SP1AirBuilder<Var = V>,
@@ -171,7 +172,7 @@ mod tests {
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
 
-    use super::{FieldOpCols, FieldOperation, Limbs};
+    use super::{FieldOpCols32, FieldOperation, Limbs};
 
     use crate::air::MachineAir;
 
@@ -190,14 +191,15 @@ mod tests {
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    pub const NB_LIMBS: usize = 32;
+
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {
-        pub a: Limbs<T>,
-        pub b: Limbs<T>,
-        pub a_op_b: FieldOpCols<T>,
+        pub a: Limbs<T, NB_LIMBS>,
+        pub b: Limbs<T, NB_LIMBS>,
+        pub a_op_b: FieldOpCols32<T>,
     }
-
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
     struct FieldOpChip<P: FieldParameters> {
         pub operation: FieldOperation,
@@ -250,8 +252,8 @@ mod tests {
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
+                    cols.a = P::to_limbs_field::<F, NB_LIMBS>(a);
+                    cols.b = P::to_limbs_field::<F, NB_LIMBS>(b);
                     cols.a_op_b.populate::<P>(a, b, self.operation);
                     row
                 })

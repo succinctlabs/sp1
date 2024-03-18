@@ -9,14 +9,14 @@ use std::fmt::Debug;
 
 pub const MAX_NB_LIMBS: usize = 32;
 
-pub trait FieldParameters<const N: usize = NUM_LIMBS>:
+pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
 {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-    const NB_LIMBS: usize = N;
+    const NB_LIMBS: usize = NUM_LIMBS;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
     const WITNESS_OFFSET: usize = 1usize << 13;
-    const MODULUS: [u8; N];
+    const MODULUS: [u8; NUM_LIMBS];
 
     fn modulus() -> BigUint {
         biguint_from_limbs(&Self::MODULUS)
@@ -33,7 +33,7 @@ pub trait FieldParameters<const N: usize = NUM_LIMBS>:
             .take(Self::NB_LIMBS)
     }
 
-    fn to_limbs(x: &BigUint) -> Limbs<u8, N> {
+    fn to_limbs<const N: usize>(x: &BigUint) -> Limbs<u8, N> {
         let mut bytes = x.to_bytes_le();
         bytes.resize(Self::NB_LIMBS, 0u8);
         let mut limbs = [0u8; N];
@@ -41,9 +41,9 @@ pub trait FieldParameters<const N: usize = NUM_LIMBS>:
         Limbs(limbs)
     }
 
-    fn to_limbs_field<F: Field>(x: &BigUint) -> Limbs<F, {self::NUM_LIMBS}> {
+    fn to_limbs_field<F: Field, const N: usize>(x: &BigUint) -> Limbs<F, N> {
         Limbs(
-            Self::to_limbs(x)
+            Self::to_limbs::<N>(x)
                 .0
                 .into_iter()
                 .map(|x| F::from_canonical_u8(x))

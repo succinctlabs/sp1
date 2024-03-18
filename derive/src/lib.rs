@@ -113,6 +113,7 @@ pub fn field_cols_with_limbs(_metadata: TokenStream, input: TokenStream) -> Toke
 
     let result = quote! {
         #[derive(Debug, Clone, AlignedBorrow)]
+        #[repr(C)]
         pub struct #bident #ty_generics {
             pub result: #t_limbs,
             pub(crate) carry: #t_limbs,

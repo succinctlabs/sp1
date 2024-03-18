@@ -3,8 +3,9 @@ use crate::air::SP1AirBuilder;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOpCols32;
 use crate::operations::field::field_op::FieldOperation;
+use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
 use crate::runtime::Syscall;
@@ -33,6 +34,7 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
+const NUM_LIMBS: usize = 32;
 
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
 ///
@@ -49,15 +51,15 @@ pub struct WeierstrassAddAssignCols<T> {
     pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
     pub q_access: [MemoryReadCols<T>; NUM_WORDS_EC_POINT],
-    pub(crate) slope_denominator: FieldOpCols<T>,
-    pub(crate) slope_numerator: FieldOpCols<T>,
-    pub(crate) slope: FieldOpCols<T>,
-    pub(crate) slope_squared: FieldOpCols<T>,
-    pub(crate) p_x_plus_q_x: FieldOpCols<T>,
-    pub(crate) x3_ins: FieldOpCols<T>,
-    pub(crate) p_x_minus_x: FieldOpCols<T>,
-    pub(crate) y3_ins: FieldOpCols<T>,
-    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T>,
+    pub(crate) slope_denominator: FieldOpCols32<T>,
+    pub(crate) slope_numerator: FieldOpCols32<T>,
+    pub(crate) slope: FieldOpCols32<T>,
+    pub(crate) slope_squared: FieldOpCols32<T>,
+    pub(crate) p_x_plus_q_x: FieldOpCols32<T>,
+    pub(crate) x3_ins: FieldOpCols32<T>,
+    pub(crate) p_x_minus_x: FieldOpCols32<T>,
+    pub(crate) y3_ins: FieldOpCols32<T>,
+    pub(crate) slope_times_p_x_minus_x: FieldOpCols32<T>,
 }
 
 #[derive(Default)]
@@ -230,11 +232,11 @@ where
         let main = builder.main();
         let row: &WeierstrassAddAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-        let p_x = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let p_y = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
+        let p_x: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS> = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let p_y: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS>  = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
 
-        let q_x = limbs_from_prev_access(&row.q_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let q_y = limbs_from_prev_access(&row.q_access[NUM_WORDS_FIELD_ELEMENT..]);
+        let q_x: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS>  = limbs_from_prev_access(&row.q_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let q_y: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS>  = limbs_from_prev_access(&row.q_access[NUM_WORDS_FIELD_ELEMENT..]);
 
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {

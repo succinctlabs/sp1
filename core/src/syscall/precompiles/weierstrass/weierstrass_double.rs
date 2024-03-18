@@ -2,8 +2,9 @@ use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOpCols32;
 use crate::operations::field::field_op::FieldOperation;
+use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::stark::MachineRecord;
@@ -36,6 +37,7 @@ use std::marker::PhantomData;
 use tracing::instrument;
 
 pub const NUM_WEIERSTRASS_DOUBLE_COLS: usize = size_of::<WeierstrassDoubleAssignCols<u8>>();
+const NUM_LIMBS: usize = 32;
 
 /// A set of columns to double a point on a Weierstrass curve.
 ///
@@ -49,17 +51,17 @@ pub struct WeierstrassDoubleAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
-    pub(crate) slope_denominator: FieldOpCols<T>,
-    pub(crate) slope_numerator: FieldOpCols<T>,
-    pub(crate) slope: FieldOpCols<T>,
-    pub(crate) p_x_squared: FieldOpCols<T>,
-    pub(crate) p_x_squared_times_3: FieldOpCols<T>,
-    pub(crate) slope_squared: FieldOpCols<T>,
-    pub(crate) p_x_plus_p_x: FieldOpCols<T>,
-    pub(crate) x3_ins: FieldOpCols<T>,
-    pub(crate) p_x_minus_x: FieldOpCols<T>,
-    pub(crate) y3_ins: FieldOpCols<T>,
-    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T>,
+    pub(crate) slope_denominator: FieldOpCols32<T>,
+    pub(crate) slope_numerator: FieldOpCols32<T>,
+    pub(crate) slope: FieldOpCols32<T>,
+    pub(crate) p_x_squared: FieldOpCols32<T>,
+    pub(crate) p_x_squared_times_3: FieldOpCols32<T>,
+    pub(crate) slope_squared: FieldOpCols32<T>,
+    pub(crate) p_x_plus_p_x: FieldOpCols32<T>,
+    pub(crate) x3_ins: FieldOpCols32<T>,
+    pub(crate) p_x_minus_x: FieldOpCols32<T>,
+    pub(crate) y3_ins: FieldOpCols32<T>,
+    pub(crate) slope_times_p_x_minus_x: FieldOpCols32<T>,
 }
 
 #[derive(Default)]
@@ -264,11 +266,11 @@ where
         let main = builder.main();
         let row: &WeierstrassDoubleAssignCols<AB::Var> = main.row_slice(0).borrow();
 
-        let p_x = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let p_y = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
+        let p_x: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS>  = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let p_y: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS>  = limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
 
         // a in the Weierstrass form: y^2 = x^3 + a * x + b.
-        let a = limbs_from_biguint::<AB, E::BaseField>(&E::a_int());
+        let a = limbs_from_biguint::<AB, E::BaseField, NUM_LIMBS>(&E::a_int());
 
         // slope = slope_numerator / slope_denominator.
         let slope = {
@@ -284,7 +286,7 @@ where
                 row.p_x_squared_times_3.eval::<AB, E::BaseField, _, _>(
                     builder,
                     &row.p_x_squared.result,
-                    &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(3u32)),
+                    &limbs_from_biguint::<AB, E::BaseField, NUM_LIMBS>(&BigUint::from(3u32)),
                     FieldOperation::Mul,
                 );
 
@@ -299,7 +301,7 @@ where
             // slope_denominator = 2 * y.
             row.slope_denominator.eval::<AB, E::BaseField, _, _>(
                 builder,
-                &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(2u32)),
+                &limbs_from_biguint::<AB, E::BaseField, NUM_LIMBS>(&BigUint::from(2u32)),
                 &p_y,
                 FieldOperation::Mul,
             );

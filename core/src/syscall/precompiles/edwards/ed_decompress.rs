@@ -4,9 +4,10 @@ use crate::air::SP1AirBuilder;
 use crate::air::WORD_SIZE;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOpCols32;
 use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::field_sqrt::FieldSqrtCols;
+use crate::operations::field::field_sqrt::FieldSqrtCols32;
+use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
@@ -55,6 +56,7 @@ pub struct EdDecompressEvent {
 }
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
+const NUM_LIMBS: usize = 32;
 
 /// A set of columns to compute `EdDecompress` given a pointer to a 16 word slice formatted as such:
 /// The 31st byte of the slice is the sign bit. The second half of the slice is the 255-bit
@@ -70,13 +72,13 @@ pub struct EdDecompressCols<T> {
     pub ptr: T,
     pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) yy: FieldOpCols<T>,
-    pub(crate) u: FieldOpCols<T>,
-    pub(crate) dyy: FieldOpCols<T>,
-    pub(crate) v: FieldOpCols<T>,
-    pub(crate) u_div_v: FieldOpCols<T>,
-    pub(crate) x: FieldSqrtCols<T>,
-    pub(crate) neg_x: FieldOpCols<T>,
+    pub(crate) yy: FieldOpCols32<T>,
+    pub(crate) u: FieldOpCols32<T>,
+    pub(crate) dyy: FieldOpCols32<T>,
+    pub(crate) v: FieldOpCols32<T>,
+    pub(crate) u_div_v: FieldOpCols32<T>,
+    pub(crate) x: FieldSqrtCols32<T>,
+    pub(crate) neg_x: FieldOpCols32<T>,
 }
 
 impl<F: PrimeField32> EdDecompressCols<F> {
@@ -128,7 +130,7 @@ impl<V: Copy> EdDecompressCols<V> {
             self.x_access[NUM_WORDS_FIELD_ELEMENT - 1].prev_value[WORD_SIZE - 1].into();
         builder.assert_bool(sign.clone());
 
-        let y = limbs_from_prev_access(&self.y_access);
+        let y: Limbs<V, NUM_LIMBS> = limbs_from_prev_access(&self.y_access);
         self.yy
             .eval::<AB, P, _, _>(builder, &y, &y, FieldOperation::Mul);
         self.u.eval::<AB, P, _, _>(
@@ -138,7 +140,7 @@ impl<V: Copy> EdDecompressCols<V> {
             FieldOperation::Sub,
         );
         let d_biguint = E::d_biguint();
-        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
+        let d_const = E::BaseField::to_limbs_field::<AB::F, NUM_LIMBS>(&d_biguint);
         self.dyy
             .eval::<AB, P, _, _>(builder, &d_const, &self.yy.result, FieldOperation::Mul);
         self.v.eval::<AB, P, _, _>(
@@ -180,7 +182,7 @@ impl<V: Copy> EdDecompressCols<V> {
             );
         }
 
-        let x_limbs = limbs_from_access(&self.x_access);
+        let x_limbs: Limbs<V, NUM_LIMBS>  = limbs_from_access(&self.x_access);
         builder
             .when(self.is_real)
             .when(sign.clone())

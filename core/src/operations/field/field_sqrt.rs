@@ -1,7 +1,8 @@
-use super::field_op::FieldOpCols;
+use super::field_op::FieldOpCols32;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
+use duplicate::duplicate_item;
 use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -11,15 +12,19 @@ use std::fmt::Debug;
 /// limb lives.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldSqrtCols<T> {
+pub struct FieldSqrtCols32<T> {
     /// The multiplication operation to verify that the sqrt and the input match.
     ///
     /// In order to save space, we actually store the sqrt of the input in `multiplication.result`
     /// since we'll receive the input again in the `eval` function.
-    pub multiplication: FieldOpCols<T>,
+    pub multiplication: FieldOpCols32<T>,
 }
 
-impl<F: PrimeField32> FieldSqrtCols<F> {
+#[duplicate_item(
+    sqrt_type           nb_limbs;
+    [ FieldSqrtCols32 ] [ 32 ];
+)]
+impl<F: PrimeField32> sqrt_type<F> {
     /// Populates the trace.
     ///
     /// `P` is the parameter of the field that each limb lives in.
@@ -30,7 +35,7 @@ impl<F: PrimeField32> FieldSqrtCols<F> {
     ) -> BigUint {
         let sqrt = sqrt_fn(a);
 
-        // Use FieldOpCols to compute result * result.
+        // Use FieldOpCols32 to compute result * result.
         let sqrt_squared =
             self.multiplication
                 .populate::<P>(&sqrt, &sqrt, super::field_op::FieldOperation::Mul);
@@ -38,20 +43,24 @@ impl<F: PrimeField32> FieldSqrtCols<F> {
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
 
-        // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in the
+        // This is a hack to save a column in FieldSqrtCols32. We will receive the value a again in the
         // eval function, so we'll overwrite it with the sqrt.
-        self.multiplication.result = P::to_limbs_field::<F>(&sqrt);
+        self.multiplication.result = P::to_limbs_field::<F, nb_limbs>(&sqrt);
 
         sqrt
     }
 }
 
-impl<V: Copy> FieldSqrtCols<V> {
+#[duplicate_item(
+    sqrt_type            nb_limbs;
+    [ FieldSqrtCols32 ]  [ 32 ];
+)]
+impl<V: Copy> sqrt_type<V> {
     /// Calculates the square root of `a`.
     pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var>,
+        a: &Limbs<AB::Var, nb_limbs>,
     ) where
         V: Into<AB::Expr>,
     {
@@ -63,7 +72,7 @@ impl<V: Copy> FieldSqrtCols<V> {
         multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in P since we want its BaseField to be the mod.
-        multiplication.eval::<AB, P, Limbs<V>, Limbs<V>>(
+        multiplication.eval::<AB, P, Limbs<V, nb_limbs>, Limbs<V, nb_limbs>>(
             builder,
             &sqrt,
             &sqrt,
@@ -78,7 +87,7 @@ mod tests {
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
 
-    use super::{FieldSqrtCols, Limbs};
+    use super::{FieldSqrtCols32, Limbs};
 
     use crate::air::MachineAir;
 
@@ -96,13 +105,15 @@ mod tests {
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
-    #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T> {
-        pub a: Limbs<T>,
-        pub sqrt: FieldSqrtCols<T>,
-    }
 
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    pub const NB_LIMBS: usize = 32;
+
+    #[derive(AlignedBorrow, Debug, Clone)]
+    pub struct TestCols<T> {
+        pub a: Limbs<T, NB_LIMBS>,
+        pub sqrt: FieldSqrtCols32<T>,
+    }
 
     struct EdSqrtChip<P: FieldParameters> {
         pub _phantom: std::marker::PhantomData<P>,
@@ -148,7 +159,7 @@ mod tests {
                 .map(|a| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.a = P::to_limbs_field::<F>(a);
+                    cols.a = P::to_limbs_field::<F, NB_LIMBS>(a);
                     cols.sqrt.populate::<P>(a, ed25519_sqrt);
                     row
                 })

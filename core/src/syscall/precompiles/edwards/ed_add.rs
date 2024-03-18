@@ -5,8 +5,8 @@ use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_den::FieldDenCols32;
-use crate::operations::field::field_inner_product::FieldInnerProductCols;
-use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_inner_product::FieldInnerProductCols32;
+use crate::operations::field::field_op::FieldOpCols32;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
@@ -37,6 +37,7 @@ use std::marker::PhantomData;
 use tracing::instrument;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
+const NUM_LIMBS: usize = 32;
 
 /// A set of columns to compute `EdAdd` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
@@ -52,12 +53,12 @@ pub struct EdAddAssignCols<T> {
     pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; 16],
     pub q_access: [MemoryReadCols<T>; 16],
-    pub(crate) x3_numerator: FieldInnerProductCols<T>,
-    pub(crate) y3_numerator: FieldInnerProductCols<T>,
-    pub(crate) x1_mul_y1: FieldOpCols<T>,
-    pub(crate) x2_mul_y2: FieldOpCols<T>,
-    pub(crate) f: FieldOpCols<T>,
-    pub(crate) d_mul_f: FieldOpCols<T>,
+    pub(crate) x3_numerator: FieldInnerProductCols32<T>,
+    pub(crate) y3_numerator: FieldInnerProductCols32<T>,
+    pub(crate) x1_mul_y1: FieldOpCols32<T>,
+    pub(crate) x2_mul_y2: FieldOpCols32<T>,
+    pub(crate) f: FieldOpCols32<T>,
+    pub(crate) d_mul_f: FieldOpCols32<T>,
     pub(crate) x3_ins: FieldDenCols32<T>,
     pub(crate) y3_ins: FieldDenCols32<T>,
 }
@@ -238,8 +239,8 @@ where
         // d * f.
         let f = row.f.result;
         let d_biguint = E::d_biguint();
-        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
-        let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
+        let d_const = E::BaseField::to_limbs_field::<AB::F, NUM_LIMBS>(&d_biguint);
+        let d_const_expr = Limbs::<AB::Expr, NUM_LIMBS>(d_const.0.map(|x| x.into()));
         row.d_mul_f
             .eval::<AB, E::BaseField, _, _>(builder, &f, &d_const_expr, FieldOperation::Mul);
 

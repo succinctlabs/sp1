@@ -118,10 +118,10 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDo
     }
 }
 
-pub fn limbs_from_biguint<AB, F: FieldParameters>(value: &BigUint) -> Limbs<AB::Expr>
+pub fn limbs_from_biguint<AB, F: FieldParameters, const N: usize>(value: &BigUint) -> Limbs<AB::Expr, N>
 where
     AB: SP1AirBuilder,
 {
-    let a_const = F::to_limbs_field::<AB::F>(value);
-    Limbs::<AB::Expr>(a_const.0.map(|x| x.into()))
+    let a_const = F::to_limbs_field::<AB::F, N>(value);
+    Limbs::<AB::Expr, N>(a_const.0.map(|x| x.into()))
 }
