@@ -128,22 +128,20 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
         let k256_decompress = K256DecompressChip::default();
         chips.push(RiscvAir::K256Decompress(k256_decompress));
-        let weierstrass_add_assign =
-            WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Add(weierstrass_add_assign));
-        let weierstrass_double_assign =
+        let secp256k1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
+        chips.push(RiscvAir::Secp256k1Add(secp256k1_add_assign));
+        let secp256k1_double_assign =
             WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new();
-        chips.push(RiscvAir::Secp256k1Double(weierstrass_double_assign));
+        chips.push(RiscvAir::Secp256k1Double(secp256k1_double_assign));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
         chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
-        let weierstrass_add_assign_r1 =
-            WeierstrassAddAssignChip::<SwCurve<Secp256r1Parameters>>::new();
-        chips.push(RiscvAir::Secp256r1Add(weierstrass_add_assign_r1));
-        let weierstrass_double_assign_r1 =
+        let secp256r1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256r1Parameters>>::new();
+        chips.push(RiscvAir::Secp256r1Add(secp256r1_add_assign));
+        let secp256r1_double_assign =
             WeierstrassDoubleAssignChip::<SwCurve<Secp256r1Parameters>>::new();
-        chips.push(RiscvAir::Secp256r1Double(weierstrass_double_assign_r1));
+        chips.push(RiscvAir::Secp256r1Double(secp256r1_double_assign));
         let add = AddChip::default();
         chips.push(RiscvAir::Add(add));
         let sub = SubChip::default();
