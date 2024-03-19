@@ -158,6 +158,8 @@ impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
     ) {
         let lhs = lhs.into();
         let rhs = rhs.into();
+        Felt::<C::F>::assert_eq(lhs.sibling_value, rhs.sibling_value, builder);
+        Array::<C, Hash<C>>::assert_eq(lhs.opening_proof, rhs.opening_proof, builder);
     }
 
     fn assert_ne(
@@ -165,13 +167,19 @@ impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
         rhs: impl Into<Self::Expression>,
         builder: &mut Builder<C>,
     ) {
-        todo!()
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+        Felt::<C::F>::assert_ne(lhs.sibling_value, rhs.sibling_value, builder);
+        Array::<C, Hash<C>>::assert_ne(lhs.opening_proof, rhs.opening_proof, builder);
     }
 }
 
 impl<C: Config> MemVariable<C> for FmtCommitPhaseProofStep<C> {
     fn size_of() -> usize {
-        todo!()
+        let mut size = 0;
+        size += <Felt<C::F> as MemVariable<C>>::size_of();
+        size += Array::<C, Hash<C>>::size_of();
+        size
     }
 
     fn load(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {

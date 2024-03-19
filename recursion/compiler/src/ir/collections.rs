@@ -81,8 +81,8 @@ impl<C: Config> Builder<C> {
 impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
     type Expression = Self;
 
-    fn uninit(builder: &mut Builder<C>) -> Self {
-        builder.array(Usize::Const(0))
+    fn uninit(_: &mut Builder<C>) -> Self {
+        panic!("cannot allocate arrays on stack")
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
@@ -176,6 +176,30 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
                 });
             }
             _ => panic!("cannot compare arrays of different types"),
+        }
+    }
+}
+
+impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
+    fn size_of() -> usize {
+        1
+    }
+
+    fn load(&self, src: Ptr<C::N>, builder: &mut Builder<C>) {
+        match self {
+            Array::Fixed(_) => panic!("cannot load on fixed arrays"),
+            Array::Dyn(dst, _) => {
+                builder.assign(*dst, src);
+            }
+        }
+    }
+
+    fn store(&self, dst: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        match self {
+            Array::Fixed(_) => panic!("cannot store on fixed arrays"),
+            Array::Dyn(src, _) => {
+                builder.assign(dst, *src);
+            }
         }
     }
 }
