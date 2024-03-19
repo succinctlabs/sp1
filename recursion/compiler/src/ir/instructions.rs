@@ -70,6 +70,7 @@ pub enum DslIR<C: Config> {
     AssertNeFI(Felt<C::F>, C::F),
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
+
     // Memory instructions.
     /// Allocate (ptr, len) a memory slice of length len
     Alloc(Ptr<C::N>, Usize<C::N>),
@@ -85,4 +86,9 @@ pub enum DslIR<C: Config> {
     StoreF(Ptr<C::N>, Felt<C::F>),
     /// Store extension field at adress
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
+
+    // Miscellaneous instructions.
+    TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
+    ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
+    ExpUsize(Felt<C::F>, Felt<C::F>, Usize<C::N>),
 }

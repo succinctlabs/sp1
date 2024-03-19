@@ -3,6 +3,7 @@ use super::types::FriConfig;
 use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
+use crate::prelude::DslIR;
 use crate::prelude::Felt;
 use crate::prelude::Usize;
 use crate::prelude::Var;
@@ -27,19 +28,26 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L302
     #[allow(unused_variables)]
     pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
-        todo!()
+        let result = self.uninit();
+        self.operations.push(DslIR::TwoAdicGenerator(result, bits));
+        result
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
     #[allow(unused_variables)]
     pub fn reverse_bits_len(&mut self, index: Usize<C::N>, bit_len: Usize<C::N>) -> Usize<C::N> {
-        todo!()
+        let result = self.uninit();
+        self.operations
+            .push(DslIR::ReverseBitsLen(result, index, bit_len));
+        result
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
     pub fn exp_usize(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
-        todo!()
+        let result = self.uninit();
+        self.operations.push(DslIR::ExpUsize(result, x, power));
+        result
     }
 
     /// Verifies a FRI query.
