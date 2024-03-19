@@ -12,6 +12,7 @@ use crate::{
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
+use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 
@@ -28,7 +29,6 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
-#[cfg(test)]
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
@@ -47,13 +47,10 @@ pub fn run_test_io(
         stdout,
     })
 }
-#[cfg(test)]
+
 pub fn run_test(
     program: Program,
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
-    #[cfg(not(feature = "perf"))]
-    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -62,13 +59,9 @@ pub fn run_test(
     run_test_core(runtime)
 }
 
-#[cfg(test)]
 pub fn run_test_core(
     runtime: Runtime,
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
-    #[cfg(not(feature = "perf"))]
-    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
-
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());

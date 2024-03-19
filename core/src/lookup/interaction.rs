@@ -22,7 +22,7 @@ pub enum InteractionKind {
     /// Interaction with instruction oracle.
     Instruction = 3,
 
-    /// Interaction with the Coprocessing operations including ALU and precompiles.
+    /// Interaction with the ALU operations.
     Alu = 4,
 
     /// Interaction with the byte lookup table for byte operations.
@@ -34,7 +34,7 @@ pub enum InteractionKind {
     /// Interaction with the field op table for field operations.
     Field = 7,
 
-    /// Interaction with ecall.
+    /// Interaction with a syscall.
     Syscall = 8,
 }
 
@@ -92,7 +92,7 @@ impl Display for InteractionKind {
             InteractionKind::Byte => write!(f, "Byte"),
             InteractionKind::Range => write!(f, "Range"),
             InteractionKind::Field => write!(f, "Field"),
-            InteractionKind::Syscall => write!(f, "Ecall"),
+            InteractionKind::Syscall => write!(f, "Syscall"),
         }
     }
 }

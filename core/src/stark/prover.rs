@@ -28,9 +28,6 @@ use super::{Com, OpeningProof};
 use crate::air::MachineAir;
 use crate::utils::env;
 
-#[cfg(not(feature = "perf"))]
-use crate::stark::debug_constraints;
-
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut result = Vec::new();
     while !vec.is_empty() {

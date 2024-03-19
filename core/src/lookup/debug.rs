@@ -124,7 +124,7 @@ where
 {
     let mut final_map = BTreeMap::new();
 
-    let mut total = BabyBear::zero();
+    let mut total = SC::Val::zero();
 
     for chip in chips.iter() {
         let (_, count) = debug_interactions::<SC, A>(chip, segment, interaction_kinds.clone());
@@ -168,9 +168,9 @@ where
     } else {
         tracing::info!("Positive values mean sent more than received.");
         tracing::info!("Negative values mean received more than sent.");
-        if total != BabyBear::zero() {
-            tracing::info!("Total send-receive discrepancy: {}", babybear_to_int(total));
-            if babybear_to_int(total) > 0 {
+        if total != SC::Val::zero() {
+            tracing::info!("Total send-receive discrepancy: {}", field_to_int(total));
+            if field_to_int(total) > 0 {
                 tracing::info!("you're sending more than you are receiving");
             } else {
                 tracing::info!("you're receiving more than you are sending");

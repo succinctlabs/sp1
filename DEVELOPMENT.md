@@ -12,18 +12,11 @@ cargo test
 ```
 
 
-```
-cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --release -- --nocapture
-```
+
 **Debug Constraint Failure**
 
-```
-RUS_LOG=info cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --release --features debug --no-default-features -- --nocapture
-```
+To debug constraint failures, you can use the `--features debug` feature alongside `--no-default-features` to eliminate the "perf" feature. For example:
 
-You need `--no-default-features` to make sure the "perf" feature is not enabled.
 ```
-RUST_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --features debug --no-default-features --release -- --nocapture
+RUS_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --release --features debug --no-default-features -- --nocapture
 ```
-
-RUST_LOG=info RUST_BACKTRACE=1 cargo test syscall::precompiles::edwards::ed_add::tests::test_ed_add_simple --no-default-features --release -- --nocapture

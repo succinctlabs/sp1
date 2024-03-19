@@ -779,7 +779,7 @@ impl Runtime {
         if self.emit_events {
             self.emit_cpu(
                 self.shard(),
-                self.state.clk,
+                clk,
                 pc,
                 instruction,
                 a,
@@ -805,7 +805,6 @@ impl Runtime {
 
         // Increment the clock.
         self.state.global_clk += 1;
-        self.state.clk += 4;
 
         // If there's not enough cycles left for another instruction, move to the next shard.
         // We multiply by 4 because clk is incremented by 4 for each normal instruction.

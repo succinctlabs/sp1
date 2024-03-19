@@ -289,7 +289,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
         ));
     }
 
-    /// Sends an syscall operation to be processed (witih "ECALL" opcode).
+    /// Sends an syscall operation to be processed (with "ECALL" opcode).
     fn send_syscall<EShard, EClk, Ea, Eb, Ec, EMult>(
         &mut self,
         shard: EShard,
