@@ -1,3 +1,5 @@
+use std::hash::Hash;
+
 use super::types::Dimensions;
 use super::types::FmtQueryProof;
 use super::types::FriConfig;
@@ -164,14 +166,7 @@ pub fn verify_query<C: Config>(
             width: 2,
             height: Usize::Var(log_folded_height),
         };
-        verify_batch(
-            builder,
-            &commit,
-            &[dims],
-            index,
-            &[evals],
-            &step.opening_proof,
-        );
+        verify_batch(builder, &commit, &[dims], index, evals, &step.opening_proof);
 
         let beta = builder.get(betas, i);
         let xs = [x; 2];
@@ -196,21 +191,20 @@ pub fn verify_batch<C: Config>(
     commit: &Commitment<C>,
     dims: &[Dimensions<C>],
     index: usize,
-    opened_values: &[[Felt<C::F>; 2]],
+    opened_values: [Felt<C::F>; 2],
     proof: &Array<C, Commitment<C>>,
 ) {
     let height: Var<_> = builder.materialize(dims[0].height);
     let curr_height_padded: Var<C::N> = builder.eval(height * C::N::from_canonical_usize(2));
 
-    // TODO: once hashing is added to IR.
+    let two: Var<_> = builder.eval(C::N::from_canonical_u32(2));
+    let array = builder.array::<Felt<_>, _>(Usize::Var(two));
+    let root = builder.poseidon2_hash(array);
 
-    // let mut root = self.hash.hash_iter_slices(
-    //     heights_tallest_first
-    //         .peeking_take_while(|(_, dims)| {
-    //             dims.height.next_power_of_two() == curr_height_padded
-    //         })
-    //         .map(|(i, _)| opened_values[i].as_slice()),
-    // );
+    let start = Usize::Const(0);
+    let end = proof.len();
+    let index_bits = todo!();
+    builder.range(start, end).for_each(|i, builder| todo!());
 
     // for &sibling in proof.iter() {
     //     let (left, right) = if index & 1 == 0 {
