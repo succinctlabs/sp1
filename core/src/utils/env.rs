@@ -25,3 +25,14 @@ pub fn reconstruct_commitments() -> bool {
         Err(_) => true,
     }
 }
+
+/// Gets the max number of shards that can go in one batch. If set to 0, there will only be 1 batch.
+///
+/// The prover will generate the events for a whole batch at once, so this param should be the
+/// largest number of shards that can be executed and proven at once, subject to memory constraints.
+pub fn shard_batch_size() -> u32 {
+    match std::env::var("SHARD_BATCH_SIZE") {
+        Ok(val) => val.parse().unwrap(),
+        Err(_) => 0,
+    }
+}

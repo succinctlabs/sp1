@@ -9,6 +9,8 @@ p3-baby-bear = { workspace = true }
 p3-air = { workspace = true }
 p3-matrix = { workspace = true }
 p3-maybe-rayon = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
 sp1-derive = { path = "../../derive" }
 tracing = "0.1.40"
 sp1-core = { path = "../../core" }

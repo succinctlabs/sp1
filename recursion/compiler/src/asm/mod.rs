@@ -1,7 +1,7 @@
-mod builder;
 mod code;
+mod compiler;
 mod instruction;
 
-pub use builder::*;
 pub use code::*;
+pub use compiler::*;
 pub use instruction::*;

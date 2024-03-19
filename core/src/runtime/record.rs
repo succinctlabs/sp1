@@ -1,5 +1,5 @@
-use hashbrown::HashMap;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
 
@@ -19,6 +19,7 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// A record of the execution of a program. Contains event data for everything that happened during
@@ -198,8 +199,6 @@ impl MachineRecord for ExecutionRecord {
     }
 
     fn append(&mut self, other: &mut ExecutionRecord) {
-        assert_eq!(self.index, other.index, "Shard index mismatch");
-
         self.cpu_events.append(&mut other.cpu_events);
         self.add_events.append(&mut other.add_events);
         self.sub_events.append(&mut other.sub_events);
@@ -438,7 +437,8 @@ impl ExecutionRecord {
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
-        for opcode in alu_events.keys() {
+        let keys = alu_events.keys().sorted();
+        for opcode in keys {
             match opcode {
                 Opcode::ADD => {
                     self.add_events.extend_from_slice(&alu_events[opcode]);

@@ -1,5 +1,6 @@
+use std::collections::HashMap;
+
 use crate::runtime::{ForkState, Syscall, SyscallContext};
-use hashbrown::HashMap;
 
 pub struct SyscallEnterUnconstrained;
 
@@ -59,5 +60,17 @@ impl Syscall for SyscallExitUnconstrained {
         }
         ctx.rt.unconstrained_state = ForkState::default();
         None
+    }
+}
+
+impl Default for SyscallEnterUnconstrained {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for SyscallExitUnconstrained {
+    fn default() -> Self {
+        Self::new()
     }
 }

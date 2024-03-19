@@ -9,20 +9,20 @@ use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 
-use super::{MachineChip, StarkGenericConfig};
+use super::{MachineChip, StarkGenericConfig, Val};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     chip: &MachineChip<SC, A>,
-    preprocessed: Option<&RowMajorMatrix<SC::Val>>,
-    main: &RowMajorMatrix<SC::Val>,
+    preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
+    main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
 ) where
-    SC::Val: PrimeField32,
-    A: for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+    Val<SC>: PrimeField32,
+    A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
 {
     assert_eq!(main.height(), perm.height());
     let height = main.height();
@@ -38,13 +38,13 @@ pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
 
         let main_local = main.row_slice(i);
         let main_next = main.row_slice(i_next);
-        let preprocessed_local = if preprocessed.is_some() {
-            preprocessed.as_ref().unwrap().row_slice(i)
+        let preprocessed_local = if let Some(preprocessed) = preprocessed {
+            preprocessed.row_slice(i)
         } else {
             &[]
         };
-        let preprocessed_next = if preprocessed.is_some() {
-            preprocessed.as_ref().unwrap().row_slice(i_next)
+        let preprocessed_next = if let Some(preprocessed) = preprocessed {
+            preprocessed.row_slice(i_next)
         } else {
             &[]
         };
@@ -66,16 +66,16 @@ pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
             },
             perm_challenges,
             cumulative_sum,
-            is_first_row: SC::Val::zero(),
-            is_last_row: SC::Val::zero(),
-            is_transition: SC::Val::one(),
+            is_first_row: Val::<SC>::zero(),
+            is_last_row: Val::<SC>::zero(),
+            is_transition: Val::<SC>::one(),
         };
         if i == 0 {
-            builder.is_first_row = SC::Val::one();
+            builder.is_first_row = Val::<SC>::one();
         }
         if i == height - 1 {
-            builder.is_last_row = SC::Val::one();
-            builder.is_transition = SC::Val::zero();
+            builder.is_last_row = Val::<SC>::one();
+            builder.is_transition = Val::<SC>::zero();
         }
         let result = catch_unwind(AssertUnwindSafe(|| {
             chip.eval(&mut builder);

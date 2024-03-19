@@ -20,7 +20,7 @@
     ],
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
-        // Examples.
+        // // Examples.
         // "examples/chess/program/Cargo.toml",
         // "examples/chess/script/Cargo.toml",
         // "examples/ed25519/script/Cargo.toml",
@@ -55,8 +55,11 @@
         // "tests/sha-compress/Cargo.toml",
         // "tests/sha-extend/Cargo.toml",
         // "tests/sha2/Cargo.toml",
-        // Eval.
-        "eval/Cargo.toml"
+        // // Eval.
+        // "eval/Cargo.toml"
     ],
-    "rust-analyzer.showUnlinkedFileNotification": false
+    "rust-analyzer.showUnlinkedFileNotification": false,
+    "rust-analyzer.check.workspace": false,
+    "rust-analyzer.check.invocationStrategy": "once",
+    "rust-analyzer.cargo.buildScripts.invocationStrategy": "once",
 }
