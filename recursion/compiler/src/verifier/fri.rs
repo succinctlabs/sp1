@@ -17,6 +17,8 @@ use p3_field::TwoAdicField;
 
 impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
     pub fn poseidon2_permute(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
         let output = match array {
             Array::Fixed(values) => {
@@ -33,6 +35,8 @@ impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 compression function to the given array.
     ///
     /// Assumes we are doing a 2-1 compression function with 8 element chunks.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/symmetric/src/compression.rs#L35
     pub fn poseidon2_compress(
         &mut self,
         left: &Array<C, Felt<C::F>>,
@@ -57,6 +61,8 @@ impl<C: Config> Builder<C> {
     }
 
     /// Applies the Poseidon2 hash function to the given array using a padding-free sponge.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/symmetric/src/sponge.rs#L32
     pub fn poseidon2_hash(&mut self, input: Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
         let len = match input {
             Array::Fixed(_) => Usize::Const(PERMUTATION_WIDTH),
@@ -74,19 +80,6 @@ impl<C: Config> Builder<C> {
         });
         state
     }
-
-    // fn hash_iter<I>(&self, input: I) -> [T; OUT]
-    // where
-    //     I: IntoIterator<Item = T>,
-    // {
-    //     // static_assert(RATE < WIDTH)
-    //     let mut state = [T::default(); WIDTH];
-    //     for input_chunk in &input.into_iter().chunks(RATE) {
-    //         state.iter_mut().zip(input_chunk).for_each(|(s, i)| *s = i);
-    //         state = self.permutation.permute(state);
-    //     }
-    //     state[..OUT].try_into().unwrap()
-    // }
 
     /// Materializes a usize into a variable.
     pub fn materialize(&mut self, num: Usize<C::N>) -> Var<C::N> {
