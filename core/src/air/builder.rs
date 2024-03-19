@@ -8,6 +8,7 @@ use super::BinomialExtension;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
+use crate::runtime::MAX_SHARD_SIZE;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
 
@@ -315,7 +316,8 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // Verify that the diff is calculated and decomposed correctly.
         self.assert_eq(
             access.ts_diff.clone(),
-            current_time_value_expr - prev_time_value_expr,
+            Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4)
+                - (current_time_value_expr - prev_time_value_expr),
         );
 
         self.assert_eq(

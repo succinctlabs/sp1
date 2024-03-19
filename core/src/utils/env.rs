@@ -1,3 +1,5 @@
+use crate::runtime::MAX_SHARD_SIZE;
+
 /// Gets the number of rows which by default should be used for each chip to maximize padding.
 pub fn shard_size() -> usize {
     let value = match std::env::var("SHARD_SIZE") {
@@ -5,7 +7,7 @@ pub fn shard_size() -> usize {
         Err(_) => 1 << 19,
     };
 
-    if value > 1 << 22 {
+    if value > MAX_SHARD_SIZE {
         panic!("Shard size must be at most 2^22");
     }
 

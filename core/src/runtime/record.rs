@@ -86,6 +86,8 @@ pub struct ExecutionRecord {
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
 }
 
+pub const MAX_SHARD_SIZE: usize = 1 << 22;
+
 pub struct ShardingConfig {
     pub shard_size: usize,
     pub add_len: usize,

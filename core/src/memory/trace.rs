@@ -1,6 +1,8 @@
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode::{U16Range, U8Range};
-use crate::runtime::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
+use crate::runtime::{
+    MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, MAX_SHARD_SIZE,
+};
 use p3_field::PrimeField32;
 
 use super::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};
@@ -133,8 +135,9 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         };
         self.current_time_value = F::from_canonical_u32(current_time_value);
 
-        self.ts_diff =
-            F::from_canonical_u32(1 << 24) - (self.current_time_value - self.prev_time_value);
+        // We multiply MAX_SHARD_SIZE by 4, since each clock cycle is incremented by 4.
+        self.ts_diff = F::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4)
+            - (self.current_time_value - self.prev_time_value);
         let ts_diff_16bit_limb = self.ts_diff.as_canonical_u32() & 0xffff;
         self.ts_diff_16bit_limb = F::from_canonical_u32(ts_diff_16bit_limb);
         let ts_diff_8bit_limb = (self.ts_diff.as_canonical_u32() >> 16) & 0xff;
