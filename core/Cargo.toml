@@ -58,13 +58,9 @@ tiny-keccak = { version = "2.0.2", features = ["keccak"] }
 tracing = "0.1.40"
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-log = "0.2.0"
-<<<<<<< HEAD
-tracing-subscriber = {version = "0.3.17", features = ["std", "env-filter"]}
+tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
 strum_macros = "0.26.2"
 strum = "0.26.2"
-=======
-tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
->>>>>>> main
 
 [dev-dependencies]
 criterion = "0.5.1"

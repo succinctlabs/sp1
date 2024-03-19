@@ -7,6 +7,7 @@ use crate::cpu::columns::CpuCols;
 use crate::disassembler::WORD_SIZE;
 use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
+use crate::runtime::MemoryRecordEnum;
 use crate::runtime::{ExecutionRecord, Opcode};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;

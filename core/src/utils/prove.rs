@@ -29,7 +29,6 @@ pub fn get_cycles(program: Program) -> u64 {
 }
 
 #[cfg(test)]
-<<<<<<< HEAD
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
@@ -55,10 +54,6 @@ pub fn run_test(
     #[cfg(not(feature = "perf"))]
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
 
-=======
-#[cfg(not(debug))]
-pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
->>>>>>> main
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();

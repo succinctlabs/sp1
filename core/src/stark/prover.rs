@@ -5,6 +5,7 @@ use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
+use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::Pcs;

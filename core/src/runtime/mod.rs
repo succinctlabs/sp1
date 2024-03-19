@@ -862,16 +862,6 @@ impl Runtime {
             self.initialize();
         }
 
-<<<<<<< HEAD
-            // Increment the global clock that keeps track of the total number of cycles.
-            self.state.global_clk += 1;
-
-            // If there's not enough cycles left for another instruction, move to the next shard.
-            // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-            if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
-                self.state.current_shard += 1;
-                self.state.clk = 0;
-=======
         let mut cycles = 0_u64;
         let mut done = false;
         // Loop until we've executed the maximum number of cycles or the program has finished.
@@ -882,7 +872,6 @@ impl Runtime {
             }
             if !self.unconstrained {
                 cycles += 1;
->>>>>>> main
             }
         }
 
