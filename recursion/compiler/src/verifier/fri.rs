@@ -224,32 +224,9 @@ pub fn verify_batch<C: Config>(
                 builder.assign(left.clone(), sibling.clone());
                 builder.assign(right.clone(), root.clone());
             },
-        )
+        );
+
+        let new_root = builder.poseidon2_compress(&left, &right);
+        builder.assign(root, new_root);
     });
-
-    // for &sibling in proof.iter() {
-    //     let (left, right) = if index & 1 == 0 {
-    //         (root, sibling)
-    //     } else {
-    //         (sibling, root)
-    //     };
-
-    //     root = self.compress.compress([left, right]);
-    //     index >>= 1;
-    //     curr_height_padded >>= 1;
-
-    //     let next_height = heights_tallest_first
-    //         .peek()
-    //         .map(|(_, dims)| dims.height)
-    //         .filter(|h| h.next_power_of_two() == curr_height_padded);
-    //     if let Some(next_height) = next_height {
-    //         let next_height_openings_digest = self.hash.hash_iter_slices(
-    //             heights_tallest_first
-    //                 .peeking_take_while(|(_, dims)| dims.height == next_height)
-    //                 .map(|(i, _)| opened_values[i].as_slice()),
-    //         );
-
-    //         root = self.compress.compress([root, next_height_openings_digest]);
-    //     }
-    // }
 }
