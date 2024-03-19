@@ -227,6 +227,14 @@ pub fn verify_batch<C: Config>(
         );
 
         let new_root = builder.poseidon2_compress(&left, &right);
-        builder.assign(root, new_root);
+        builder.assign(root.clone(), new_root);
     });
+
+    let start = Usize::Const(0);
+    let end = Usize::Const(DIGEST_SIZE);
+    builder.range(start, end).for_each(|i, builder| {
+        let lhs = builder.get(commit, i);
+        let rhs = builder.get(&root, i);
+        builder.assert_felt_eq(lhs, rhs);
+    })
 }
