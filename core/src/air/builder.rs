@@ -8,6 +8,7 @@ use super::BinomialExtension;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
+use crate::memory::MemoryAccessCols;
 use crate::runtime::MAX_SHARD_SIZE;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
@@ -267,7 +268,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         clk: EClk,
         addr: Ea,
         memory_access: &M,
-        verify_memory_access: EVerify,
+        do_check: EVerify,
     ) where
         EShard: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
@@ -276,99 +277,90 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         EVerify: Into<Self::Expr>,
         M: MemoryCols<Eb>,
     {
-        let verify_memory_access_expr: Self::Expr = verify_memory_access.into();
-        self.assert_bool(verify_memory_access_expr.clone());
+        let do_check: Self::Expr = do_check.into();
+        let shard: Self::Expr = shard.into();
+        let clk: Self::Expr = clk.into();
 
-        let access = memory_access.access();
+        self.assert_bool(do_check.clone());
 
-        //// Check that this memory access occurs after the previous one.
-        // First check if we need to compare between the shard or the clk.
-        let use_clk_comparison_expr: Self::Expr = access.use_clk_comparison.clone().into();
-        let current_shard_expr: Self::Expr = shard.into();
-        let prev_shard_expr: Self::Expr = access.prev_shard.clone().into();
-        let current_clk_expr: Self::Expr = clk.into();
-        let prev_clk_expr: Self::Expr = access.prev_clk.clone().into();
+        // Verify all the materialized memory access columns.
+        let mem_access = memory_access.access();
+        mem_access.verify_materialized_columns(self, clk.clone(), shard.clone(), do_check.clone());
 
-        self.when(verify_memory_access_expr.clone())
-            .assert_bool(use_clk_comparison_expr.clone());
-        self.when(verify_memory_access_expr.clone())
-            .when(use_clk_comparison_expr.clone())
-            .assert_eq(current_shard_expr.clone(), prev_shard_expr.clone());
+        // Verify that the current memory access time is greater than the previous's.
+        self.verify_mem_access_ts(mem_access, do_check.clone());
 
-        // Verify the previous and current time value that should be used for comparison.
-        let one = Self::Expr::one();
-        let calculated_prev_time_value = use_clk_comparison_expr.clone() * prev_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * prev_shard_expr.clone();
-        let calculated_current_time_value = use_clk_comparison_expr.clone()
-            * current_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * current_shard_expr.clone();
-
-        let prev_time_value_expr: Self::Expr = access.prev_time_value.clone().into();
-        let current_time_value_expr: Self::Expr = access.current_time_value.clone().into();
-        self.when(verify_memory_access_expr.clone())
-            .assert_eq(prev_time_value_expr.clone(), calculated_prev_time_value);
-
-        self.when(verify_memory_access_expr.clone()).assert_eq(
-            current_time_value_expr.clone(),
-            calculated_current_time_value,
-        );
-
-        // Verify that the diff is calculated and decomposed correctly.
-        self.when(verify_memory_access_expr.clone()).assert_eq(
-            access.ts_diff.clone(),
-            Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4)
-                - (current_time_value_expr - prev_time_value_expr),
-        );
-
-        self.when(verify_memory_access_expr.clone()).assert_eq(
-            access.ts_diff.clone(),
-            access.ts_diff_16bit_limb.clone().into()
-                + access.ts_diff_8bit_limb.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
-        );
-
-        // Send the range checks for the limbs.
-        self.send_byte(
-            Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            access.ts_diff_16bit_limb.clone(),
-            Self::Expr::zero(),
-            Self::Expr::zero(),
-            verify_memory_access_expr.clone(),
-        );
-
-        self.send_byte(
-            Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
-            Self::Expr::zero(),
-            Self::Expr::zero(),
-            access.ts_diff_8bit_limb.clone(),
-            verify_memory_access_expr.clone(),
-        );
-
-        //// Check the previous and current memory access via a lookup to the memory table.
-        let addr_expr = addr.into();
-        let prev_values = once(prev_shard_expr)
-            .chain(once(prev_clk_expr))
-            .chain(once(addr_expr.clone()))
+        // Check the previous and current memory access via a lookup to the memory table.
+        let addr = addr.into();
+        let prev_shard = mem_access.prev_shard.clone().into();
+        let prev_clk = mem_access.prev_clk.clone().into();
+        let prev_values = once(prev_shard)
+            .chain(once(prev_clk))
+            .chain(once(addr.clone()))
             .chain(memory_access.prev_value().clone().map(Into::into))
             .collect();
-        let current_values = once(current_shard_expr)
-            .chain(once(current_clk_expr))
-            .chain(once(addr_expr.clone()))
+        let current_values = once(shard)
+            .chain(once(clk))
+            .chain(once(addr.clone()))
             .chain(memory_access.value().clone().map(Into::into))
             .collect();
 
         // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
             prev_values,
-            verify_memory_access_expr.clone(),
+            do_check.clone(),
             InteractionKind::Memory,
         ));
 
         // The current values get "received", i.e. multiplicity = -1
         self.receive(AirInteraction::new(
             current_values,
-            verify_memory_access_expr.clone(),
+            do_check.clone(),
             InteractionKind::Memory,
         ));
+    }
+
+    fn verify_mem_access_ts<Eb, Everify>(
+        &mut self,
+        mem_access: &MemoryAccessCols<Eb>,
+        do_check: Everify,
+    ) where
+        Eb: Into<Self::Expr> + Clone,
+        Everify: Into<Self::Expr>,
+    {
+        let current_ts: Self::Expr = mem_access.current_ts.clone().into();
+        let prev_ts: Self::Expr = mem_access.prev_ts.clone().into();
+        let do_check: Self::Expr = do_check.into();
+
+        // Verify that the diff is calculated and decomposed correctly.
+        self.when(do_check.clone()).assert_eq(
+            mem_access.ts_diff.clone(),
+            Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4) - (current_ts - prev_ts),
+        );
+
+        self.when(do_check.clone()).assert_eq(
+            mem_access.ts_diff.clone(),
+            mem_access.ts_diff_16bit_limb.clone().into()
+                + mem_access.ts_diff_8bit_limb.clone().into()
+                    * Self::Expr::from_canonical_u32(1 << 16),
+        );
+
+        // Send the range checks for the limbs.
+        self.send_byte(
+            Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            mem_access.ts_diff_16bit_limb.clone(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            do_check.clone(),
+        );
+
+        self.send_byte(
+            Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            mem_access.ts_diff_8bit_limb.clone(),
+            do_check,
+        )
     }
 
     /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
