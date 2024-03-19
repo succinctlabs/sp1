@@ -2,6 +2,7 @@ use super::types::Dimensions;
 use super::types::FmtQueryProof;
 use super::types::FriConfig;
 use super::types::DIGEST_SIZE;
+use super::types::PERMUTATION_WIDTH;
 use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
@@ -15,12 +16,44 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 
 impl<C: Config> Builder<C> {
-    /// Apply the Poseidon2 permutation to the given array.
-    pub fn poseidon2(&mut self, array: &Array<C, C::N>) {
-        if let Array::Fixed(values) = &array {
-            assert!(values.len() == DIGEST_SIZE);
-        }
-        self.operations.push(DslIR::Poseidon2Permute(array.clone()));
+    /// Applies the Poseidon2 permutation to the given array.
+    pub fn poseidon2_permute(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
+        let output = match array {
+            Array::Fixed(values) => {
+                assert_eq!(values.len(), PERMUTATION_WIDTH);
+                self.array::<Felt<C::F>, _>(Usize::Const(PERMUTATION_WIDTH))
+            }
+            Array::Dyn(_, len) => self.array::<Felt<C::F>, _>(*len),
+        };
+        self.operations
+            .push(DslIR::Poseidon2Permute(output.clone(), array.clone()));
+        output
+    }
+
+    /// Applies the Poseidon2 compression function to the given array.
+    ///
+    /// Assumes we are doing a 2-1 compression function with 8 element chunks.
+    pub fn poseidon2_compress(
+        &mut self,
+        left: &Array<C, Felt<C::F>>,
+        right: &Array<C, Felt<C::F>>,
+    ) -> Array<C, Felt<C::F>> {
+        let output = match left {
+            Array::Fixed(values) => {
+                assert_eq!(values.len(), DIGEST_SIZE);
+                self.array::<Felt<C::F>, _>(Usize::Const(DIGEST_SIZE))
+            }
+            Array::Dyn(_, _) => {
+                let len: Var<C::N> = self.eval(C::N::from_canonical_usize(DIGEST_SIZE));
+                self.array::<Felt<C::F>, _>(Usize::Var(len))
+            }
+        };
+        self.operations.push(DslIR::Poseidon2Compress(
+            output.clone(),
+            left.clone(),
+            right.clone(),
+        ));
+        output
     }
 
     /// Materializes a usize into a variable.

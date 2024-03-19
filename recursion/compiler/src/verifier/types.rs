@@ -1,6 +1,9 @@
 use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Ptr, Usize, Variable};
 use std::marker::PhantomData;
 
+/// The width of the Poseidon2 permutation.
+pub const PERMUTATION_WIDTH: usize = 16;
+
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
 pub const DIGEST_SIZE: usize = 8;
 
