@@ -88,6 +88,7 @@ pub enum DslIR<C: Config> {
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
 
     // Miscellaneous instructions.
+    Poseidon2Permute(Ptr<C::N>),
     TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
     ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
     ExpUsize(Felt<C::F>, Felt<C::F>, Usize<C::N>),
