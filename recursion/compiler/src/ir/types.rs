@@ -8,18 +8,17 @@ use super::MemVariable;
 use super::Ptr;
 use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Variable};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var<N>(pub u32, pub PhantomData<N>);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 
 pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
 
-#[derive(Debug, Clone, Copy)]
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Usize<N> {
     Const(usize),
     Var(Var<N>),
