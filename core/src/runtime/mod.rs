@@ -966,15 +966,12 @@ impl Runtime {
         self.record.program_memory_record = program_memory_record;
     }
 
-    fn get_syscall(&self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
-        self.syscall_map.get(&code)
-    }
-
+    /// Retrieves the syscall implementation.
     fn get_syscall_impl(&self) -> Rc<dyn Syscall> {
         let t0 = Register::X5;
         let syscall_id = self.register(t0);
         let syscall = SyscallCode::from_u32(syscall_id);
-        let syscall_impl = self.get_syscall(syscall).cloned();
+        let syscall_impl = self.syscall_map.get(&syscall).cloned();
 
         if let Some(syscall_impl) = syscall_impl {
             syscall_impl
@@ -983,6 +980,7 @@ impl Runtime {
         }
     }
 
+    /// Retrieves the number of cycles used by the given instruction.
     fn get_instruction_count(&self, instruction: Instruction) -> u32 {
         match instruction.opcode {
             Opcode::ECALL => {
