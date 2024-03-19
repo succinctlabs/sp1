@@ -133,16 +133,17 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         };
         self.current_time_value = F::from_canonical_u32(current_time_value);
 
-        self.ts_diff = self.current_time_value - self.prev_time_value;
+        self.ts_diff =
+            F::from_canonical_u32(1 << 24) - (self.current_time_value - self.prev_time_value);
         let ts_diff_16bit_limb = self.ts_diff.as_canonical_u32() & 0xffff;
         self.ts_diff_16bit_limb = F::from_canonical_u32(ts_diff_16bit_limb);
         let ts_diff_8bit_limb = (self.ts_diff.as_canonical_u32() >> 16) & 0xff;
         self.ts_diff_8bit_limb = F::from_canonical_u32(ts_diff_8bit_limb);
 
         // Add a byte table lookup with the 16Range op
-        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, ts_diff_16bit_limb));
+        new_blu_events.push(ByteLookupEvent::new(U16Range, ts_diff_16bit_limb, 0, 0, 0));
 
         // Add a byte table lookup with the U8Range op
-        new_blu_events.push(ByteLookupEvent::new(U16Range, ts_diff_16bit_limb, 0, 0, 0));
+        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, ts_diff_8bit_limb));
     }
 }

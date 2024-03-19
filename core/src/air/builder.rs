@@ -143,39 +143,6 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 }
 
-/// A trait which contains methods for field interactions in an AIR.
-pub trait FieldAirBuilder: BaseAirBuilder {
-    /// Sends a field operation to be processed.
-    fn send_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
-    where
-        Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
-    {
-        self.send(AirInteraction::new(
-            vec![a.into(), b.into(), c.into()],
-            multiplicity.into(),
-            InteractionKind::Field,
-        ));
-    }
-
-    /// Receives a field operation to be processed.
-    fn receive_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
-    where
-        Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
-    {
-        self.receive(AirInteraction::new(
-            vec![a.into(), b.into(), c.into()],
-            multiplicity.into(),
-            InteractionKind::Field,
-        ));
-    }
-}
-
 /// A trait which contains methods related to words in an AIR.
 pub trait WordAirBuilder: ByteAirBuilder {
     /// Asserts that the two words are equal.
@@ -345,11 +312,32 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             calculated_current_time_value,
         );
 
-        // Do the actual comparison via a lookup to the field op table.
-        self.send_field_op(
-            one,
-            prev_time_value_expr,
-            current_time_value_expr,
+        // Verify that the diff is calculated and decomposed correctly.
+        self.assert_eq(
+            access.ts_diff.clone(),
+            current_time_value_expr - prev_time_value_expr,
+        );
+
+        self.assert_eq(
+            access.ts_diff.clone(),
+            access.ts_diff_16bit_limb.clone().into()
+                + access.ts_diff_8bit_limb.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+        );
+
+        // Send the range checks for the limbs.
+        self.send_byte(
+            Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            access.ts_diff_16bit_limb.clone(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            verify_memory_access_expr.clone(),
+        );
+
+        self.send_byte(
+            Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            access.ts_diff_8bit_limb.clone(),
             verify_memory_access_expr.clone(),
         );
 
@@ -506,7 +494,6 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
