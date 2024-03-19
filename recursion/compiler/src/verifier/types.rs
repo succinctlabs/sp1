@@ -183,10 +183,16 @@ impl<C: Config> MemVariable<C> for FmtCommitPhaseProofStep<C> {
     }
 
     fn load(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        todo!()
+        let address = builder.eval(ptr + Usize::Const(0));
+        self.sibling_value.load(address, builder);
+        let address = builder.eval(ptr + Usize::Const(<Felt<C::F> as MemVariable<C>>::size_of()));
+        self.opening_proof.load(address, builder);
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        todo!()
+        let address = builder.eval(ptr + Usize::Const(0));
+        self.sibling_value.store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(<Felt<C::F> as MemVariable<C>>::size_of()));
+        self.opening_proof.store(address, builder);
     }
 }

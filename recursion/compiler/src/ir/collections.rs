@@ -185,18 +185,30 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
         1
     }
 
+    #[allow(clippy::needless_range_loop)]
     fn load(&self, src: Ptr<C::N>, builder: &mut Builder<C>) {
         match self {
-            Array::Fixed(_) => panic!("cannot load on fixed arrays"),
+            Array::Fixed(vec) => {
+                for i in 0..vec.len() {
+                    let addr = builder.eval(src + Usize::Const(i));
+                    vec[i].clone().load(addr, builder);
+                }
+            }
             Array::Dyn(dst, _) => {
                 builder.assign(*dst, src);
             }
         }
     }
 
+    #[allow(clippy::needless_range_loop)]
     fn store(&self, dst: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
         match self {
-            Array::Fixed(_) => panic!("cannot store on fixed arrays"),
+            Array::Fixed(vec) => {
+                for i in 0..vec.len() {
+                    let addr = builder.eval(dst + Usize::Const(i));
+                    vec[i].clone().store(addr, builder);
+                }
+            }
             Array::Dyn(src, _) => {
                 builder.assign(dst, *src);
             }
