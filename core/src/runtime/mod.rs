@@ -791,6 +791,13 @@ impl Runtime {
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch();
 
+        // Check to see if the instruction will cause us to go over the shard size.
+        let instruction_count = self.get_instruction_count(instruction);
+        if !self.unconstrained && self.state.clk + instruction_count > self.shard_size {
+            self.state.current_shard += 1;
+            self.state.clk = 0;
+        }
+
         // Log the current state of the runtime.
         self.log(&instruction);
 
@@ -800,13 +807,6 @@ impl Runtime {
         // Increment the clock.
         self.state.global_clk += 1;
         self.state.clk += 4;
-
-        // If there's not enough cycles left for another instruction, move to the next shard.
-        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
-            self.state.current_shard += 1;
-            self.state.clk = 0;
-        }
 
         self.state.pc.wrapping_sub(self.program.pc_base)
             >= (self.program.instructions.len() * 4) as u32
@@ -969,8 +969,26 @@ impl Runtime {
         self.record.program_memory_record = program_memory_record;
     }
 
-    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
+    fn get_syscall(&self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
         self.syscall_map.get(&code)
+    }
+
+    fn get_instruction_count(&self, instruction: Instruction) -> u32 {
+        match instruction.opcode {
+            Opcode::ECALL => {
+                let t0 = Register::X5;
+                let syscall_id = self.register(t0);
+                let syscall = SyscallCode::from_u32(syscall_id);
+                let syscall_impl = self.get_syscall(syscall).cloned();
+
+                if let Some(syscall_impl) = syscall_impl {
+                    syscall_impl.num_extra_cycles()
+                } else {
+                    panic!("Unsupported syscall: {:?}", syscall);
+                }
+            }
+            _ => 4,
+        }
     }
 }
 
