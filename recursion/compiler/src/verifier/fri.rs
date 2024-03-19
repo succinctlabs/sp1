@@ -1,3 +1,4 @@
+use super::types::Dimensions;
 use super::types::FmtQueryProof;
 use super::types::FriConfig;
 use crate::prelude::Array;
@@ -7,7 +8,7 @@ use crate::prelude::DslIR;
 use crate::prelude::Felt;
 use crate::prelude::Usize;
 use crate::prelude::Var;
-use crate::verifier::types::Hash;
+use crate::verifier::types::Commitment;
 
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
@@ -60,7 +61,7 @@ impl<C: Config> Builder<C> {
     pub fn verify_query(
         builder: &mut Builder<C>,
         config: &FriConfig,
-        commit_phase_commits: &Array<C, Hash<C>>,
+        commit_phase_commits: &Array<C, Commitment<C>>,
         mut index: usize,
         proof: &FmtQueryProof<C>,
         betas: &Array<C, Felt<C::F>>,
@@ -86,14 +87,22 @@ impl<C: Config> Builder<C> {
             let index_pair = index >> 1;
 
             let step = builder.get(&proof.commit_phase_openings, i);
-            let mut evals = [folded_eval; 2];
+            let mut evals = vec![folded_eval; 2];
             evals[index_sibling % 2] = step.sibling_value;
 
-            // let dims = &[Dimensions {
-            //     width: 2,
-            //     height: (1 << log_folded_height),
-            // }];
-            // TODO: verify_batch(config, commit, step).
+            let commit = builder.get(commit_phase_commits, i);
+            let dims = Dimensions::<C> {
+                width: 2,
+                height: Usize::Var(log_folded_height),
+            };
+            Self::verify_batch(
+                builder,
+                &commit,
+                dims,
+                index,
+                &[evals.clone()],
+                &step.opening_proof,
+            );
 
             let beta = builder.get(betas, i);
             let xs = [x; 2];
@@ -107,9 +116,6 @@ impl<C: Config> Builder<C> {
             index = index_pair;
             builder.assign(x, x * x);
         });
-
-        // debug_assert!(index < config.blowup(), "index was {}", index);
-        // debug_assert_eq!(x.exp_power_of_2(config.log_blowup), F::one());
     }
 
     /// Verifies a batch opening.
@@ -118,9 +124,11 @@ impl<C: Config> Builder<C> {
     #[allow(unused_variables)]
     pub fn verify_batch(
         builder: &mut Builder<C>,
-        config: &FriConfig,
-        height: Usize<C::N>,
-        index: Usize<C::N>,
+        commit: &Commitment<C>,
+        dims: Dimensions<C>,
+        index: usize,
+        opened_values: &[Vec<Felt<C::F>>],
+        proof: &Array<C, Commitment<C>>,
     ) {
         todo!()
     }

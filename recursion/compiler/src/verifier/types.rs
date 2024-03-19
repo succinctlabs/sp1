@@ -6,7 +6,7 @@ pub const DIGEST_SIZE: usize = 8;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L54
 #[allow(type_alias_bounds)]
-pub type Hash<C: Config> = [Felt<C::F>; DIGEST_SIZE];
+pub type Commitment<C: Config> = [Felt<C::F>; DIGEST_SIZE];
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
 pub struct FriConfig {
@@ -25,11 +25,17 @@ pub struct FmtQueryProof<C: Config> {
 #[derive(Clone)]
 pub struct FmtCommitPhaseProofStep<C: Config> {
     pub sibling_value: Felt<C::F>,
-    pub opening_proof: Array<C, Hash<C>>,
+    pub opening_proof: Array<C, Commitment<C>>,
     pub phantom: PhantomData<C>,
 }
 
-impl<C: Config> Variable<C> for Hash<C> {
+/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/matrix/src/lib.rs#L38
+pub struct Dimensions<C: Config> {
+    pub width: usize,
+    pub height: Usize<C::N>,
+}
+
+impl<C: Config> Variable<C> for Commitment<C> {
     type Expression = Self;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
@@ -91,7 +97,7 @@ impl<C: Config> Variable<C> for Hash<C> {
     }
 }
 
-impl<C: Config> MemVariable<C> for Hash<C> {
+impl<C: Config> MemVariable<C> for Commitment<C> {
     fn size_of() -> usize {
         <Felt<C::F> as MemVariable<C>>::size_of() * DIGEST_SIZE
     }
@@ -159,7 +165,7 @@ impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
         let lhs = lhs.into();
         let rhs = rhs.into();
         Felt::<C::F>::assert_eq(lhs.sibling_value, rhs.sibling_value, builder);
-        Array::<C, Hash<C>>::assert_eq(lhs.opening_proof, rhs.opening_proof, builder);
+        Array::<C, Commitment<C>>::assert_eq(lhs.opening_proof, rhs.opening_proof, builder);
     }
 
     fn assert_ne(
@@ -170,7 +176,7 @@ impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
         let lhs = lhs.into();
         let rhs = rhs.into();
         Felt::<C::F>::assert_ne(lhs.sibling_value, rhs.sibling_value, builder);
-        Array::<C, Hash<C>>::assert_ne(lhs.opening_proof, rhs.opening_proof, builder);
+        Array::<C, Commitment<C>>::assert_ne(lhs.opening_proof, rhs.opening_proof, builder);
     }
 }
 
@@ -178,7 +184,7 @@ impl<C: Config> MemVariable<C> for FmtCommitPhaseProofStep<C> {
     fn size_of() -> usize {
         let mut size = 0;
         size += <Felt<C::F> as MemVariable<C>>::size_of();
-        size += Array::<C, Hash<C>>::size_of();
+        size += Array::<C, Commitment<C>>::size_of();
         size
     }
 
