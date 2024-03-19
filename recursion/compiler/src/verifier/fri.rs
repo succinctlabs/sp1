@@ -48,6 +48,7 @@ impl<C: Config> Builder<C> {
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L101
     #[allow(clippy::too_many_arguments)]
+    #[allow(unused_variables)]
     pub fn verify_query(
         builder: &mut Builder<C>,
         config: &FriConfig,
@@ -106,6 +107,7 @@ impl<C: Config> Builder<C> {
     /// Verifies a batch opening.
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L92
+    #[allow(unused_variables)]
     pub fn verify_batch(
         builder: &mut Builder<C>,
         config: &FriConfig,
