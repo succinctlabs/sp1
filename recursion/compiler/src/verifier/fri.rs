@@ -56,6 +56,35 @@ impl<C: Config> Builder<C> {
         output
     }
 
+    /// Applies the Poseidon2 hash function to the given array using a padding-free sponge.
+    pub fn poseidon2_hash(&mut self, input: Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
+        let len = match input {
+            Array::Fixed(_) => Usize::Const(PERMUTATION_WIDTH),
+            Array::Dyn(_, _) => {
+                let len: Var<_> = self.eval(C::N::from_canonical_usize(PERMUTATION_WIDTH));
+                Usize::Var(len)
+            }
+        };
+        let state = self.array::<Felt<C::F>, _>(len);
+        let start: Usize<C::N> = Usize::Const(0);
+        let end = input.len();
+        self.range(start, end).for_each(|i, builder| {});
+        todo!()
+    }
+
+    // fn hash_iter<I>(&self, input: I) -> [T; OUT]
+    // where
+    //     I: IntoIterator<Item = T>,
+    // {
+    //     // static_assert(RATE < WIDTH)
+    //     let mut state = [T::default(); WIDTH];
+    //     for input_chunk in &input.into_iter().chunks(RATE) {
+    //         state.iter_mut().zip(input_chunk).for_each(|(s, i)| *s = i);
+    //         state = self.permutation.permute(state);
+    //     }
+    //     state[..OUT].try_into().unwrap()
+    // }
+
     /// Materializes a usize into a variable.
     pub fn materialize(&mut self, num: Usize<C::N>) -> Var<C::N> {
         match num {
@@ -131,7 +160,7 @@ pub fn verify_query<C: Config>(
         let index_pair = index >> 1;
 
         let step = builder.get(&proof.commit_phase_openings, i);
-        let mut evals = vec![folded_eval; 2];
+        let mut evals = [folded_eval; 2];
         evals[index_sibling % 2] = step.sibling_value;
 
         let commit = builder.get(commit_phase_commits, i);
@@ -171,7 +200,7 @@ pub fn verify_batch<C: Config>(
     commit: &Commitment<C>,
     dims: &[Dimensions<C>],
     index: usize,
-    opened_values: &[Vec<Felt<C::F>>],
+    opened_values: &[[Felt<C::F>; 2]],
     proof: &Array<C, Commitment<C>>,
 ) {
     let height: Var<_> = builder.materialize(dims[0].height);
