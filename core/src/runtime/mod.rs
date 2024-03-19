@@ -440,7 +440,6 @@ impl Runtime {
         let mut memory_store_value: Option<u32> = None;
         self.memory_accesses = MemoryAccessRecord::default();
 
-        // println!("instruction = {:#?}", instruction);
         match instruction.opcode {
             // Arithmetic instructions.
             Opcode::ADD => {
@@ -650,11 +649,15 @@ impl Runtime {
 
                 let (precompile_next_pc, precompile_cycles) =
                     if let Some(syscall_impl) = syscall_impl {
+                        // Executing a syscall optionally returns a value to write to the t0 register.
+                        // If it returns None, we just keep the syscall_id in t0.
+                        // Only the "LWA" syscall actually writes to t0, most syscalls don't return a value.
                         let res = syscall_impl.execute(&mut precompile_rt, b, c);
                         if let Some(val) = res {
-                            a = val; // This is basically only used for the LWA opcode that actually writes to that register.
+                            a = val;
                         } else {
-                            a = syscall_id; // By default just keep the register value the same as it was before.
+                            // Default to syscall_id if no value is returned from syscall execution.
+                            a = syscall_id;
                         }
                         (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
                     } else {
@@ -662,7 +665,7 @@ impl Runtime {
                         (0, 0)
                     };
 
-                self.rw(Register::X5, a);
+                self.rw(t0, a);
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
             }
@@ -757,9 +760,6 @@ impl Runtime {
     /// Execute the program.
     pub fn run(&mut self) {
         let max_syscall_cycles = self.max_syscall_cycles();
-        // We start the clk at 1 because the MemoryInit table is at shard=0, clk=0
-        // TODO: Although maybe we should just start at shard=1 and then clk=0 for consistency's sake?
-        // TODO: do we really need this, given that we start at shard 0?
         self.state.clk = 1;
 
         tracing::info!("loading memory image");

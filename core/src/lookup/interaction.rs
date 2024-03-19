@@ -35,7 +35,7 @@ pub enum InteractionKind {
     Field = 7,
 
     /// Interaction with ecall.
-    Ecall = 8,
+    Syscall = 8,
 }
 
 impl InteractionKind {
@@ -48,7 +48,7 @@ impl InteractionKind {
             InteractionKind::Byte,
             InteractionKind::Range,
             InteractionKind::Field,
-            InteractionKind::Ecall,
+            InteractionKind::Syscall,
         ]
     }
 }
@@ -92,7 +92,7 @@ impl Display for InteractionKind {
             InteractionKind::Byte => write!(f, "Byte"),
             InteractionKind::Range => write!(f, "Range"),
             InteractionKind::Field => write!(f, "Field"),
-            InteractionKind::Ecall => write!(f, "Ecall"),
+            InteractionKind::Syscall => write!(f, "Ecall"),
         }
     }
 }

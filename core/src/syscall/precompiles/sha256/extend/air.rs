@@ -176,10 +176,10 @@ where
             local.is_real,
         );
 
-        builder.receive_ecall(
+        builder.receive_syscall(
             local.shard,
             local.clk,
-            AB::F::from_canonical_u32(SyscallCode::SHA_EXTEND.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::SHA_EXTEND.to_syscall_id()),
             local.w_ptr,
             AB::Expr::zero(),
             local.cycle_48_start,

@@ -15,5 +15,5 @@ fn fibonacci(n: u32) -> u32 {
 
 pub fn main() {
     let result = black_box(fibonacci(black_box(50)));
-    // println!("result: {}", result);
+    println!("result: {}", result);
 }

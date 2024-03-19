@@ -40,10 +40,10 @@ where
             local.start,
             local.is_real * local.octet[0] * local.octet_num[0],
         );
-        builder.receive_ecall(
+        builder.receive_syscall(
             local.shard,
             local.clk,
-            AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.to_syscall_id()),
             local.w_ptr,
             local.h_ptr,
             local.start,

@@ -168,12 +168,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<SC::Val>> MachineStark<SC, A> {
         let mut sum = SC::Challenge::zero();
         #[cfg(feature = "perf")]
         {
-            println!("in perf");
             for proof in proof.shard_proofs.iter() {
                 sum += proof.cumulative_sum();
             }
         }
-        println!("sum: {:?}", sum);
         match sum.is_zero() {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),

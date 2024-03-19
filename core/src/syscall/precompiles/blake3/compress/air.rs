@@ -34,12 +34,12 @@ where
 
         self.constrain_g_operation(builder, local);
 
-        // TODO: constraint ecall_receive
-        // TODO: have to constraint the clk to increment by 1 each time.
-        builder.receive_ecall(
+        // TODO: constraint ecall_receive column.
+        // TODO: constraint clk column to increment by 1 within same invocation of syscall.
+        builder.receive_syscall(
             local.segment, // TODO: rename this to "shard"
             local.clk,
-            AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.to_syscall_id()),
             local.state_ptr,
             local.message_ptr,
             local.ecall_receive,

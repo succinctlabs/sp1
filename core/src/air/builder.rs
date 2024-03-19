@@ -289,8 +289,8 @@ pub trait AluAirBuilder: BaseAirBuilder {
         ));
     }
 
-    /// Sends an ecall operation to be processed.
-    fn send_ecall<EShard, EClk, Ea, Eb, Ec, EMult>(
+    /// Sends an syscall operation to be processed (witih "ECALL" opcode).
+    fn send_syscall<EShard, EClk, Ea, Eb, Ec, EMult>(
         &mut self,
         shard: EShard,
         clk: EClk,
@@ -315,12 +315,12 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 arg2.clone().into(),
             ],
             multiplicity.into(),
-            InteractionKind::Ecall,
+            InteractionKind::Syscall,
         ));
     }
 
-    /// Receives a ecall operation to be processed.
-    fn receive_ecall<EShard, EClk, Ea, Eb, Ec, EMult>(
+    /// Receives a syscall operation to be processed.
+    fn receive_syscall<EShard, EClk, Ea, Eb, Ec, EMult>(
         &mut self,
         shard: EShard,
         clk: EClk,
@@ -345,7 +345,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
                 arg2.clone().into(),
             ],
             multiplicity.into(),
-            InteractionKind::Ecall,
+            InteractionKind::Syscall,
         ));
     }
 }

@@ -274,10 +274,10 @@ impl<V: Copy> K256DecompressCols<V> {
             );
         }
 
-        builder.receive_ecall(
+        builder.receive_syscall(
             self.shard,
             self.clk,
-            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.to_syscall_id()),
             self.ptr,
             self.is_odd,
             self.is_real,
@@ -301,7 +301,6 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
 
         for i in 0..input.k256_decompress_events.len() {
             let event = input.k256_decompress_events[i].clone();
-            // println!("event: {:?}", event);
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate(event.clone(), output);

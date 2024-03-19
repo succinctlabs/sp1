@@ -4,7 +4,6 @@ use crate::lookup::InteractionBuilder;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
-use itertools::izip;
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::{Pcs, UnivariatePcs, UnivariatePcsWithLde};
@@ -449,7 +448,6 @@ where
         // Check that the table-specific constraints are correct for each chip.
         #[cfg(not(feature = "perf"))]
         tracing::info_span!("debug constraints").in_scope(|| {
-            println!("debugging constraints");
             for i in 0..chips.len() {
                 debug_constraints::<SC, A>(
                     &chips[i],

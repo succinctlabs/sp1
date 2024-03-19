@@ -14,7 +14,7 @@ impl Syscall for ShaExtendChip {
         let clk_init = rt.clk;
         let w_ptr = arg1;
         if arg2 != 0 {
-            panic!("")
+            panic!("arg2 must be 0")
         }
 
         let w_ptr_init = w_ptr;

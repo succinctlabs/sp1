@@ -150,8 +150,6 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                     let q = AffinePoint::<E>::from_words_le(q);
                     let (q_x, q_y) = (q.x, q.y);
 
-                    println!("event: {:?}", event);
-
                     // Populate basic columns.
                     cols.is_real = F::one();
                     cols.shard = F::from_canonical_u32(event.shard);
@@ -284,10 +282,10 @@ where
             );
         }
 
-        builder.receive_ecall(
+        builder.receive_syscall(
             row.shard,
             row.clk,
-            AB::F::from_canonical_u32(SyscallCode::ED_ADD.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::ED_ADD.to_syscall_id()),
             row.p_ptr,
             row.q_ptr,
             row.is_real,

@@ -1,7 +1,5 @@
 use hashbrown::HashMap;
-use num::traits::ToBytes;
 use std::rc::Rc;
-use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 use crate::runtime::{Register, Runtime};
@@ -22,6 +20,12 @@ use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::Memory
 use sp1_derive::CheckSyscallConsistency;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
+/// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
+/// - The first byte is the syscall id.
+/// - The second byte is 0/1 depending on whether the syscall has a separate table. This is used
+/// in the CPU table to determine whether to lookup the syscall using the syscall interaction.
+/// - The third byte is the number of additional cycles the syscall uses.
+/// - The fourth byte is 0/1 depending on whether the syscall is the HALT syscall.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, CheckSyscallConsistency)]
 #[allow(non_camel_case_types)]
 pub enum SyscallCode {
@@ -41,31 +45,31 @@ pub enum SyscallCode {
     EXIT_UNCONSTRAINED = 0x00_00_00_04,
 
     /// Executes the `SHA_EXTEND` precompile.
-    SHA_EXTEND = 0x00_30_01_00,
+    SHA_EXTEND = 0x00_30_01_05,
 
     /// Executes the `SHA_COMPRESS` precompile.
-    SHA_COMPRESS = 0x00_01_01_01,
+    SHA_COMPRESS = 0x00_01_01_06,
 
     /// Executes the `ED_ADD` precompile.
-    ED_ADD = 0x00_01_01_02,
+    ED_ADD = 0x00_01_01_07,
 
     /// Executes the `ED_DECOMPRESS` precompile.
-    ED_DECOMPRESS = 0x00_00_01_03,
+    ED_DECOMPRESS = 0x00_00_01_08,
 
     /// Executes the `KECCAK_PERMUTE` precompile.
-    KECCAK_PERMUTE = 0x00_01_01_04,
+    KECCAK_PERMUTE = 0x00_01_01_09,
 
     /// Executes the `SECP256K1_ADD` precompile.
-    SECP256K1_ADD = 0x00_01_01_05,
+    SECP256K1_ADD = 0x00_01_01_0A,
 
     /// Executes the `SECP256K1_DOUBLE` precompile.
-    SECP256K1_DOUBLE = 0x00_00_01_06,
+    SECP256K1_DOUBLE = 0x00_00_01_0B,
 
     /// Executes the `SECP256K1_DECOMPRESS` precompile.
-    SECP256K1_DECOMPRESS = 0x00_00_01_07,
+    SECP256K1_DECOMPRESS = 0x00_00_01_0C,
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
-    BLAKE3_COMPRESS_INNER = 0x00_38_01_08,
+    BLAKE3_COMPRESS_INNER = 0x00_38_01_0D,
 }
 
 impl SyscallCode {
@@ -90,7 +94,7 @@ impl SyscallCode {
         }
     }
 
-    pub fn to_ecall_identifier(&self) -> u32 {
+    pub fn to_syscall_id(&self) -> u32 {
         (*self as u32).to_le_bytes()[0].into()
     }
 
@@ -98,16 +102,20 @@ impl SyscallCode {
         (*self as u32).to_le_bytes()[1].into()
     }
 
-    pub fn encoded_num_cycles(&self) -> u32 {
+    pub fn num_cycles(&self) -> u32 {
         (*self as u32).to_le_bytes()[2].into()
+    }
+
+    pub fn is_halt(&self) -> u32 {
+        (*self == SyscallCode::HALT).into()
     }
 }
 
 pub trait Syscall {
     /// Execute the syscall and return the resulting value of register a0. `arg1` and `arg2` are the
     /// values in registers X10 and X11, respectively. While not a hard requirement, the convention
-    /// is that the return value is only for system calls such as `LWA`. Precompiles use `arg1` and
-    /// `arg2` to denote the addresses of the input data, and write the result to the memory at
+    /// is that the return value is only for system calls such as `LWA`. Most precompiles use `arg1`
+    /// and `arg2` to denote the addresses of the input data, and write the result to the memory at
     /// `arg1`.
     fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32>;
 
@@ -254,7 +262,6 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
 #[cfg(test)]
 mod tests {
     use super::{default_syscall_map, SyscallCode};
-    // use sp1_derive::check_syscall_enum_consistency;
     use strum::IntoEnumIterator;
 
     #[test]
@@ -268,7 +275,7 @@ mod tests {
     #[test]
     fn test_syscall_num_cycles_encoding() {
         for (syscall_code, syscall_impl) in default_syscall_map().iter() {
-            let encoded_num_cycles = syscall_code.encoded_num_cycles();
+            let encoded_num_cycles = syscall_code.num_cycles();
             assert_eq!(syscall_impl.num_extra_cycles(), encoded_num_cycles);
         }
     }

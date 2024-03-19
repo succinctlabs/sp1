@@ -49,10 +49,10 @@ where
         }
 
         // TODO: constraint "ecall_receive"
-        builder.receive_ecall(
+        builder.receive_syscall(
             local_mem.shard,
             local_mem.clk,
-            AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.to_syscall_id()),
             local_mem.state_addr,
             AB::Expr::zero(),
             local_mem.ecall_receive,

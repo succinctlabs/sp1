@@ -40,28 +40,28 @@ pub const ENTER_UNCONSTRAINED: u32 = 0x00_00_00_03;
 pub const EXIT_UNCONSTRAINED: u32 = 0x00_00_00_04;
 
 /// Executes `SHA_EXTEND`.
-pub const SHA_EXTEND: u32 = 0x00_30_01_00;
+pub const SHA_EXTEND: u32 = 0x00_30_01_05;
 
 /// Executes `SHA_COMPRESS`.
-pub const SHA_COMPRESS: u32 = 0x00_01_01_01;
+pub const SHA_COMPRESS: u32 = 0x00_01_01_06;
 
 /// Executes `ED_ADD`.
-pub const ED_ADD: u32 = 0x00_01_01_02;
+pub const ED_ADD: u32 = 0x00_01_01_07;
 
 /// Executes `ED_DECOMPRESS`.
-pub const ED_DECOMPRESS: u32 = 0x00_00_01_03;
+pub const ED_DECOMPRESS: u32 = 0x00_00_01_08;
 
 /// Executes `KECCAK_PERMUTE`.
-pub const KECCAK_PERMUTE: u32 = 0x00_01_01_04;
+pub const KECCAK_PERMUTE: u32 = 0x00_01_01_09;
 
 /// Executes `SECP256K1_ADD`.
-pub const SECP256K1_ADD: u32 = 0x00_01_01_05;
+pub const SECP256K1_ADD: u32 = 0x00_01_01_0A;
 
 /// Executes `SECP256K1_DOUBLE`.
-pub const SECP256K1_DOUBLE: u32 = 0x00_00_01_06;
+pub const SECP256K1_DOUBLE: u32 = 0x00_00_01_0B;
 
 /// Executes `K256_DECOMPRESS`.
-pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_07;
+pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
-pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_08;
+pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;

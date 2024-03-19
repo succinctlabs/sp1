@@ -7,7 +7,6 @@ use crate::{
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
-use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_commit::Pcs;
 use p3_field::PrimeField32;
@@ -96,7 +95,6 @@ pub fn run_test_core(
 
     #[cfg(not(feature = "perf"))]
     {
-        println!("In debug");
         // First shard the record
         let record_clone_2 = runtime.record.clone();
         let shards = machine.shard(

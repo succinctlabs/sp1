@@ -331,10 +331,10 @@ where
             row.is_real,
         );
 
-        builder.receive_ecall(
+        builder.receive_syscall(
             row.shard,
             row.clk,
-            AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.to_syscall_id()),
             row.p_ptr,
             row.q_ptr,
             row.is_real,

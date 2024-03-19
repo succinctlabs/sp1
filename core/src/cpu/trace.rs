@@ -164,25 +164,10 @@ impl CpuChip {
         self.populate_branch(cols, event, &mut new_alu_events);
         self.populate_jump(cols, event, &mut new_alu_events);
         self.populate_auipc(cols, event, &mut new_alu_events);
+        self.populate_ecall(cols, event);
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
-
-        if cols.selectors.is_ecall == F::one() {
-            if let Some(MemoryRecordEnum::Write(record)) = event.a_record {
-                let syscall_id = record.prev_value;
-                let send_to_table = SyscallCode::from_u32(syscall_id).send_to_table();
-                cols.ecall_mul_send_to_table =
-                    cols.selectors.is_ecall * F::from_canonical_u32(send_to_table);
-                println!(
-                    "syscall_id {} {}",
-                    syscall_id,
-                    SyscallCode::from_u32(syscall_id).to_ecall_identifier()
-                );
-            } else {
-                panic!("ecall_a_record should be set if is_ecall is set");
-            }
-        }
 
         (row, new_alu_events, new_blu_events, new_field_events)
     }
@@ -479,6 +464,15 @@ impl CpuChip {
                 .entry(Opcode::ADD)
                 .and_modify(|op_new_events| op_new_events.push(add_event))
                 .or_insert(vec![add_event]);
+        }
+    }
+
+    /// Populate columns related to ECALL.
+    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) {
+        if cols.selectors.is_ecall == F::one() {
+            // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
+            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
+            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
         }
     }
 

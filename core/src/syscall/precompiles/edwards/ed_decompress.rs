@@ -190,10 +190,10 @@ impl<V: Copy> EdDecompressCols<V> {
             .when_not(self.sign)
             .assert_all_eq(self.x.multiplication.result, x_limbs);
 
-        builder.receive_ecall(
+        builder.receive_syscall(
             self.shard,
             self.clk,
-            AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.to_ecall_identifier()),
+            AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.to_syscall_id()),
             self.ptr,
             self.sign,
             self.is_real,
