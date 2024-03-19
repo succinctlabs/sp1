@@ -102,4 +102,16 @@ impl<C: Config> Builder<C> {
         // debug_assert!(index < config.blowup(), "index was {}", index);
         // debug_assert_eq!(x.exp_power_of_2(config.log_blowup), F::one());
     }
+
+    /// Verifies a batch opening.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L92
+    pub fn verify_batch(
+        builder: &mut Builder<C>,
+        config: &FriConfig,
+        height: Usize<C::N>,
+        index: Usize<C::N>,
+    ) {
+        todo!()
+    }
 }
