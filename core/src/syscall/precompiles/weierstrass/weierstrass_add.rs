@@ -368,16 +368,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use p3_baby_bear::BabyBear;
 
     use crate::{
-        lookup::{debug_interactions_with_all_chips, InteractionKind},
-        runtime::{Program, Runtime},
-        stark::RiscvAir,
+        runtime::Program,
         utils::{
             run_test, setup_logger,
-            tests::{BN254_ADD_ELF, SECP256K1_ADD_ELF},
-            BabyBearBlake3,
+            tests::{BN254_ADD_ELF, BN254_MUL_ELF, SECP256K1_ADD_ELF},
         },
     };
 
@@ -396,17 +392,9 @@ mod tests {
     }
 
     #[test]
-    fn test_bn254_add_memory_lookup_interactions() {
+    fn test_bn254_mul_simple() {
         setup_logger();
-        let program = Program::from(BN254_ADD_ELF);
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-
-        let machine = RiscvAir::machine(BabyBearBlake3::new());
-        debug_interactions_with_all_chips::<BabyBearBlake3, RiscvAir<BabyBear>>(
-            machine.chips(),
-            &runtime.record,
-            vec![InteractionKind::Memory],
-        );
+        let program = Program::from(BN254_MUL_ELF);
+        run_test(program).unwrap();
     }
 }

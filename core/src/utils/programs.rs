@@ -78,4 +78,7 @@ pub mod tests {
 
     pub const BN254_DOUBLE_ELF: &[u8] =
         include_bytes!("../../../tests/bn254-double/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-mul/elf/riscv32im-succinct-zkvm-elf");
 }
