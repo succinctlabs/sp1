@@ -828,7 +828,7 @@ impl Runtime {
     }
 
     fn initialize(&mut self) {
-        self.state.clk = 1;
+        self.state.clk = 0;
 
         tracing::info!("loading memory image");
         for (addr, value) in self.program.memory_image.iter() {
