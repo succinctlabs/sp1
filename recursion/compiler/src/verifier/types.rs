@@ -9,7 +9,7 @@ pub const DIGEST_SIZE: usize = 8;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L54
 #[allow(type_alias_bounds)]
-pub type Commitment<C: Config> = [Felt<C::F>; DIGEST_SIZE];
+pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
 pub struct FriConfig {
@@ -36,112 +36,6 @@ pub struct FmtCommitPhaseProofStep<C: Config> {
 pub struct Dimensions<C: Config> {
     pub width: usize,
     pub height: Usize<C::N>,
-}
-
-impl<C: Config> Variable<C> for Commitment<C> {
-    type Expression = Self;
-
-    fn uninit(builder: &mut Builder<C>) -> Self {
-        [
-            Felt::uninit(builder),
-            Felt::uninit(builder),
-            Felt::uninit(builder),
-            Felt::uninit(builder),
-            Felt::uninit(builder),
-            Felt::uninit(builder),
-            Felt::uninit(builder),
-            Felt::uninit(builder),
-        ]
-    }
-
-    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
-        builder.assign(self[0], src[0]);
-        builder.assign(self[1], src[1]);
-        builder.assign(self[2], src[2]);
-        builder.assign(self[3], src[3]);
-        builder.assign(self[4], src[4]);
-        builder.assign(self[5], src[5]);
-        builder.assign(self[6], src[6]);
-        builder.assign(self[7], src[7]);
-    }
-
-    fn assert_eq(
-        lhs: impl Into<Self::Expression>,
-        rhs: impl Into<Self::Expression>,
-        builder: &mut Builder<C>,
-    ) {
-        let lhs = lhs.into();
-        let rhs = rhs.into();
-        builder.assert_felt_eq(lhs[0], rhs[0]);
-        builder.assert_felt_eq(lhs[1], rhs[1]);
-        builder.assert_felt_eq(lhs[2], rhs[2]);
-        builder.assert_felt_eq(lhs[3], rhs[3]);
-        builder.assert_felt_eq(lhs[4], rhs[4]);
-        builder.assert_felt_eq(lhs[5], rhs[5]);
-        builder.assert_felt_eq(lhs[6], rhs[6]);
-        builder.assert_felt_eq(lhs[7], rhs[7]);
-    }
-
-    fn assert_ne(
-        lhs: impl Into<Self::Expression>,
-        rhs: impl Into<Self::Expression>,
-        builder: &mut Builder<C>,
-    ) {
-        let lhs = lhs.into();
-        let rhs = rhs.into();
-        builder.assert_felt_ne(lhs[0], rhs[0]);
-        builder.assert_felt_ne(lhs[1], rhs[1]);
-        builder.assert_felt_ne(lhs[2], rhs[2]);
-        builder.assert_felt_ne(lhs[3], rhs[3]);
-        builder.assert_felt_ne(lhs[4], rhs[4]);
-        builder.assert_felt_ne(lhs[5], rhs[5]);
-        builder.assert_felt_ne(lhs[6], rhs[6]);
-        builder.assert_felt_ne(lhs[7], rhs[7]);
-    }
-}
-
-impl<C: Config> MemVariable<C> for Commitment<C> {
-    fn size_of() -> usize {
-        <Felt<C::F> as MemVariable<C>>::size_of() * DIGEST_SIZE
-    }
-
-    fn load(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        let address = builder.eval(ptr + Usize::Const(0));
-        self[0].load(address, builder);
-        let address = builder.eval(ptr + Usize::Const(1));
-        self[1].load(address, builder);
-        let address = builder.eval(ptr + Usize::Const(2));
-        self[2].load(address, builder);
-        let address = builder.eval(ptr + Usize::Const(3));
-        self[3].load(address, builder);
-        let address = builder.eval(ptr + Usize::Const(4));
-        self[4].load(address, builder);
-        let address = builder.eval(ptr + Usize::Const(5));
-        self[5].load(address, builder);
-        let address = builder.eval(ptr + Usize::Const(6));
-        self[6].load(address, builder);
-        let address = builder.eval(ptr + Usize::Const(7));
-        self[7].load(address, builder);
-    }
-
-    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        let address = builder.eval(ptr + Usize::Const(0));
-        self[0].store(address, builder);
-        let address = builder.eval(ptr + Usize::Const(1));
-        self[1].store(address, builder);
-        let address = builder.eval(ptr + Usize::Const(2));
-        self[2].store(address, builder);
-        let address = builder.eval(ptr + Usize::Const(3));
-        self[3].store(address, builder);
-        let address = builder.eval(ptr + Usize::Const(4));
-        self[4].store(address, builder);
-        let address = builder.eval(ptr + Usize::Const(5));
-        self[5].store(address, builder);
-        let address = builder.eval(ptr + Usize::Const(6));
-        self[6].store(address, builder);
-        let address = builder.eval(ptr + Usize::Const(7));
-        self[7].store(address, builder);
-    }
 }
 
 impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {

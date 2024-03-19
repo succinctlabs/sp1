@@ -1,5 +1,3 @@
-use std::hash::Hash;
-
 use super::types::Dimensions;
 use super::types::FmtQueryProof;
 use super::types::FriConfig;
@@ -18,6 +16,13 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 
 impl<C: Config> Builder<C> {
+    /// Converts a usize to a fixed lenght of bits.
+    pub fn num_to_bits(&mut self, num: Usize<C::N>) -> Array<C, Var<C::N>> {
+        let output = self.array::<Var<_>, _>(Usize::Const(29));
+        self.operations.push(DslIR::Num2Bits29(output.clone(), num));
+        output
+    }
+
     /// Applies the Poseidon2 permutation to the given array.
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
@@ -203,8 +208,24 @@ pub fn verify_batch<C: Config>(
 
     let start = Usize::Const(0);
     let end = proof.len();
-    let index_bits = todo!();
-    builder.range(start, end).for_each(|i, builder| todo!());
+    let index_bits = builder.num_to_bits(Usize::Const(index));
+    builder.range(start, end).for_each(|i, builder| {
+        let bit = builder.get(&index_bits, i);
+        let left: Array<C, Felt<C::F>> = builder.uninit();
+        let right: Array<C, Felt<C::F>> = builder.uninit();
+        let one: Var<_> = builder.eval(C::N::one());
+        let sibling = builder.get(proof, i);
+        builder.if_eq(bit, one).then_or_else(
+            |builder| {
+                builder.assign(left.clone(), root.clone());
+                builder.assign(right.clone(), sibling.clone());
+            },
+            |builder| {
+                builder.assign(left.clone(), sibling.clone());
+                builder.assign(right.clone(), root.clone());
+            },
+        )
+    });
 
     // for &sibling in proof.iter() {
     //     let (left, right) = if index & 1 == 0 {
