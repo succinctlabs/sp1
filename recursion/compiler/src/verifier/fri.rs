@@ -1,6 +1,7 @@
 use super::types::Dimensions;
 use super::types::FmtQueryProof;
 use super::types::FriConfig;
+use super::types::DIGEST_SIZE;
 use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
@@ -14,6 +15,14 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 
 impl<C: Config> Builder<C> {
+    /// Apply the Poseidon2 permutation to the given array.
+    pub fn poseidon2(&mut self, array: &Array<C, C::N>) {
+        if let Array::Fixed(values) = &array {
+            assert!(values.len() == DIGEST_SIZE);
+        }
+        self.operations.push(DslIR::Poseidon2Permute(array.clone()));
+    }
+
     /// Materializes a usize into a variable.
     pub fn materialize(&mut self, num: Usize<C::N>) -> Var<C::N> {
         match num {
