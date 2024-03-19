@@ -1,5 +1,7 @@
 use super::types::Dimensions;
+use super::types::FriChallenges;
 use super::types::FriConfig;
+use super::types::FriProof;
 use super::types::FriQueryProof;
 use super::types::DIGEST_SIZE;
 use super::types::PERMUTATION_WIDTH;
@@ -127,7 +129,13 @@ impl<C: Config> Builder<C> {
     }
 }
 
-pub fn verify_shape_and_sample_challenges(config: &FriConfig) {
+/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
+#[allow(unused_variables)]
+pub fn verify_shape_and_sample_challenges<C: Config>(
+    config: &FriConfig,
+    proof: &FriProof<C>,
+    challenges: &FriChallenges<C>,
+) {
     todo!()
 }
 
