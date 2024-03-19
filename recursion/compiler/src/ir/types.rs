@@ -77,6 +77,78 @@ impl<F, EF> Ext<F, EF> {
     }
 }
 
+impl<C: Config> Variable<C> for Usize<C::N> {
+    type Expression = Self;
+
+    fn uninit(_: &mut Builder<C>) -> Self {
+        Usize::Const(0)
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        match self {
+            Usize::Const(_) => {
+                panic!("cannot assign to a constant usize")
+            }
+            Usize::Var(v) => match src {
+                Usize::Const(src) => {
+                    builder.assign(*v, C::N::from_canonical_usize(src));
+                }
+                Usize::Var(src) => {
+                    builder.assign(*v, src);
+                }
+            },
+        }
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (Usize::Const(lhs), Usize::Const(rhs)) => {
+                assert_eq!(lhs, rhs, "constant usizes do not match");
+            }
+            (Usize::Const(lhs), Usize::Var(rhs)) => {
+                builder.push(DslIR::AssertEqVI(rhs, C::N::from_canonical_usize(lhs)));
+            }
+            (Usize::Var(lhs), Usize::Const(rhs)) => {
+                builder.push(DslIR::AssertEqVI(lhs, C::N::from_canonical_usize(rhs)));
+            }
+            (Usize::Var(lhs), Usize::Var(rhs)) => {
+                builder.push(DslIR::AssertEqV(lhs, rhs));
+            }
+        }
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (Usize::Const(lhs), Usize::Const(rhs)) => {
+                assert_ne!(lhs, rhs, "constant usizes do not match");
+            }
+            (Usize::Const(lhs), Usize::Var(rhs)) => {
+                builder.push(DslIR::AssertNeVI(rhs, C::N::from_canonical_usize(lhs)));
+            }
+            (Usize::Var(lhs), Usize::Const(rhs)) => {
+                builder.push(DslIR::AssertNeVI(lhs, C::N::from_canonical_usize(rhs)));
+            }
+            (Usize::Var(lhs), Usize::Var(rhs)) => {
+                builder.push(DslIR::AssertNeV(lhs, rhs));
+            }
+        }
+    }
+}
+
 impl<C: Config> Variable<C> for Var<C::N> {
     type Expression = SymbolicVar<C::N>;
 

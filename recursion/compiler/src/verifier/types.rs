@@ -139,11 +139,16 @@ impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
     type Expression = Self;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        todo!()
+        Self {
+            sibling_value: builder.uninit(),
+            opening_proof: Array::Dyn(builder.uninit(), builder.uninit()),
+            phantom: PhantomData,
+        }
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
-        todo!()
+        self.sibling_value.assign(src.sibling_value.into(), builder);
+        self.opening_proof.assign(src.opening_proof, builder);
     }
 
     fn assert_eq(
@@ -151,7 +156,8 @@ impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
         rhs: impl Into<Self::Expression>,
         builder: &mut Builder<C>,
     ) {
-        todo!()
+        let lhs = lhs.into();
+        let rhs = rhs.into();
     }
 
     fn assert_ne(

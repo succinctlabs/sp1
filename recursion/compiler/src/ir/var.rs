@@ -1,7 +1,7 @@
 use super::{Builder, Config, Ptr};
 
 pub trait Variable<C: Config>: Clone {
-    type Expression;
+    type Expression: From<Self>;
 
     fn uninit(builder: &mut Builder<C>) -> Self;
 

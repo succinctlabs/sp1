@@ -12,28 +12,34 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 
 impl<C: Config> Builder<C> {
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L306
-    pub fn generator(&mut self) -> Felt<C::F> {
-        self.eval(C::F::from_canonical_u32(0x78000000))
-    }
-
-    pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
-        todo!()
-    }
-
-    pub fn reverse_bits_len(&mut self, index: Usize<C::N>, bit_len: Usize<C::N>) -> Usize<C::N> {
-        todo!()
-    }
-
-    pub fn exp_usize(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
-        todo!()
-    }
-
     pub fn materialize(&mut self, num: Usize<C::N>) -> Var<C::N> {
         match num {
             Usize::Const(num) => self.eval(C::N::from_canonical_usize(num)),
             Usize::Var(num) => num,
         }
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L306
+    pub fn generator(&mut self) -> Felt<C::F> {
+        self.eval(C::F::from_canonical_u32(0x78000000))
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L302
+    #[allow(unused_variables)]
+    pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
+        todo!()
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
+    #[allow(unused_variables)]
+    pub fn reverse_bits_len(&mut self, index: Usize<C::N>, bit_len: Usize<C::N>) -> Usize<C::N> {
+        todo!()
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
+    #[allow(unused_variables)]
+    pub fn exp_usize(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
+        todo!()
     }
 
     /// Verifies a FRI query.
