@@ -84,6 +84,9 @@ pub struct Runtime {
     pub emit_events: bool,
 }
 
+// The clk increment for all non-precompile instruction.
+const CLK_INCREMENT: u32 = 4;
+
 impl Runtime {
     // Create a new runtime from a program.
     pub fn new(program: Program) -> Self {
@@ -800,7 +803,7 @@ impl Runtime {
 
         // Increment the clock.
         self.state.global_clk += 1;
-        self.state.clk += 4;
+        self.state.clk += CLK_INCREMENT;
 
         self.state.pc.wrapping_sub(self.program.pc_base)
             >= (self.program.instructions.len() * 4) as u32
@@ -986,7 +989,7 @@ impl Runtime {
                 let syscall_impl = self.get_syscall_impl();
                 syscall_impl.num_extra_cycles()
             }
-            _ => 4,
+            _ => CLK_INCREMENT,
         }
     }
 }
