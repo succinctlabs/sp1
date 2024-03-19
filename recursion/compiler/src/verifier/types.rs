@@ -61,14 +61,16 @@ impl<C: Config> Variable<C> for Hash<C> {
         rhs: impl Into<Self::Expression>,
         builder: &mut Builder<C>,
     ) {
-        builder.assert_felt_eq(lhs.into()[0], rhs.into()[0]);
-        builder.assert_felt_eq(lhs.into()[1], rhs.into()[1]);
-        builder.assert_felt_eq(lhs.into()[2], rhs.into()[2]);
-        builder.assert_felt_eq(lhs.into()[3], rhs.into()[3]);
-        builder.assert_felt_eq(lhs.into()[4], rhs.into()[4]);
-        builder.assert_felt_eq(lhs.into()[5], rhs.into()[5]);
-        builder.assert_felt_eq(lhs.into()[6], rhs.into()[6]);
-        builder.assert_felt_eq(lhs.into()[7], rhs.into()[7]);
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+        builder.assert_felt_eq(lhs[0], rhs[0]);
+        builder.assert_felt_eq(lhs[1], rhs[1]);
+        builder.assert_felt_eq(lhs[2], rhs[2]);
+        builder.assert_felt_eq(lhs[3], rhs[3]);
+        builder.assert_felt_eq(lhs[4], rhs[4]);
+        builder.assert_felt_eq(lhs[5], rhs[5]);
+        builder.assert_felt_eq(lhs[6], rhs[6]);
+        builder.assert_felt_eq(lhs[7], rhs[7]);
     }
 
     fn assert_ne(
@@ -76,14 +78,16 @@ impl<C: Config> Variable<C> for Hash<C> {
         rhs: impl Into<Self::Expression>,
         builder: &mut Builder<C>,
     ) {
-        builder.assert_felt_ne(lhs.into()[0], rhs.into()[0]);
-        builder.assert_felt_ne(lhs.into()[1], rhs.into()[1]);
-        builder.assert_felt_ne(lhs.into()[2], rhs.into()[2]);
-        builder.assert_felt_ne(lhs.into()[3], rhs.into()[3]);
-        builder.assert_felt_ne(lhs.into()[4], rhs.into()[4]);
-        builder.assert_felt_ne(lhs.into()[5], rhs.into()[5]);
-        builder.assert_felt_ne(lhs.into()[6], rhs.into()[6]);
-        builder.assert_felt_ne(lhs.into()[7], rhs.into()[7]);
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+        builder.assert_felt_ne(lhs[0], rhs[0]);
+        builder.assert_felt_ne(lhs[1], rhs[1]);
+        builder.assert_felt_ne(lhs[2], rhs[2]);
+        builder.assert_felt_ne(lhs[3], rhs[3]);
+        builder.assert_felt_ne(lhs[4], rhs[4]);
+        builder.assert_felt_ne(lhs[5], rhs[5]);
+        builder.assert_felt_ne(lhs[6], rhs[6]);
+        builder.assert_felt_ne(lhs[7], rhs[7]);
     }
 }
 
