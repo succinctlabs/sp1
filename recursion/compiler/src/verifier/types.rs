@@ -1,4 +1,4 @@
-use crate::prelude::{Builder, Config, Felt, MemVariable, Ptr, Usize, Variable};
+use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Ptr, Usize, Variable};
 use std::marker::PhantomData;
 
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
@@ -17,14 +17,15 @@ pub struct FriConfig {
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
 pub struct FmtQueryProof<C: Config> {
-    pub commit_phase_openings: Vec<FmtCommitPhaseProofStep<C>>,
+    pub commit_phase_openings: Array<C, FmtCommitPhaseProofStep<C>>,
     pub phantom: PhantomData<C>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
+#[derive(Clone)]
 pub struct FmtCommitPhaseProofStep<C: Config> {
     pub sibling_value: Felt<C::F>,
-    pub opening_proof: Vec<Hash<C>>,
+    pub opening_proof: Array<C, Hash<C>>,
     pub phantom: PhantomData<C>,
 }
 
@@ -108,6 +109,63 @@ impl<C: Config> MemVariable<C> for Hash<C> {
         self[6].load(address, builder);
         let address = builder.eval(ptr + Usize::Const(7));
         self[7].load(address, builder);
+    }
+
+    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        let address = builder.eval(ptr + Usize::Const(0));
+        self[0].store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(1));
+        self[1].store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(2));
+        self[2].store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(3));
+        self[3].store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(4));
+        self[4].store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(5));
+        self[5].store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(6));
+        self[6].store(address, builder);
+        let address = builder.eval(ptr + Usize::Const(7));
+        self[7].store(address, builder);
+    }
+}
+
+impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
+    type Expression = Self;
+
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        todo!()
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        todo!()
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        todo!()
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        todo!()
+    }
+}
+
+impl<C: Config> MemVariable<C> for FmtCommitPhaseProofStep<C> {
+    fn size_of() -> usize {
+        todo!()
+    }
+
+    fn load(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        todo!()
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
