@@ -790,7 +790,7 @@ impl Runtime {
 
         // Check to see if the instruction will cause us to go over the shard size.
         let instruction_count = self.get_instruction_count(instruction);
-        if !self.unconstrained && self.state.clk + instruction_count > self.shard_size {
+        if !self.unconstrained && self.state.clk + instruction_count >= self.shard_size {
             self.state.current_shard += 1;
             self.state.clk = 0;
         }
