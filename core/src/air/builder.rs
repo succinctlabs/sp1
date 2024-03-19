@@ -10,6 +10,7 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::runtime::MAX_SHARD_SIZE;
+use crate::utils::{env, log2_strict_usize};
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
 
@@ -339,12 +340,19 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let prev_ts: Self::Expr = mem_access.prev_ts.clone().into();
         let do_check: Self::Expr = do_check.into();
 
-        // Verify that the diff is calculated and decomposed correctly.
+        // Verify that ts_diff is calculated correctly correctly.
+        let max_shard_size = env::shard_size();
+        let shift_amount = log2_strict_usize(MAX_SHARD_SIZE) - log2_strict_usize(max_shard_size);
+
+        let shifted_diff =
+            (current_ts - prev_ts) * Self::Expr::from_canonical_u32(1 << shift_amount);
+
         self.when(do_check.clone()).assert_eq(
             mem_access.ts_diff.clone(),
-            Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4) - (current_ts - prev_ts),
+            Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4) - shifted_diff,
         );
 
+        // Verified that it is decomposed correctly.
         self.when(do_check.clone()).assert_eq(
             mem_access.ts_diff.clone(),
             mem_access.ts_diff_16bit_limb.clone().into()
