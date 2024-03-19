@@ -314,13 +314,13 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         );
 
         // Verify that the diff is calculated and decomposed correctly.
-        self.assert_eq(
+        self.when(verify_memory_access_expr.clone()).assert_eq(
             access.ts_diff.clone(),
             Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4)
-                - (current_time_value_expr - prev_time_value_expr - one.clone()),
+                - (current_time_value_expr - prev_time_value_expr),
         );
 
-        self.assert_eq(
+        self.when(verify_memory_access_expr.clone()).assert_eq(
             access.ts_diff.clone(),
             access.ts_diff_16bit_limb.clone().into()
                 + access.ts_diff_8bit_limb.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
