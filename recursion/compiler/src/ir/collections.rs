@@ -41,14 +41,14 @@ impl<C: Config> Builder<C> {
         match slice {
             Array::Fixed(slice) => {
                 if let Usize::Const(idx) = index {
-                    slice[idx]
+                    slice[idx].clone()
                 } else {
                     panic!("Cannot index into a fixed slice with a variable size")
                 }
             }
             Array::Dyn(ptr, _) => {
-                let var = self.uninit();
-                self.load(var, *ptr + index * V::size_of());
+                let var: V = self.uninit();
+                self.load(var.clone(), *ptr + index * V::size_of());
                 var
             }
         }
@@ -65,7 +65,7 @@ impl<C: Config> Builder<C> {
         match slice {
             Array::Fixed(slice) => {
                 if let Usize::Const(idx) = index {
-                    self.assign(slice[idx], value);
+                    self.assign(slice[idx].clone(), value);
                 } else {
                     panic!("Cannot index into a fixed slice with a variable size")
                 }

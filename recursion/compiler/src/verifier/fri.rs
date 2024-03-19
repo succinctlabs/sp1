@@ -1,6 +1,5 @@
 use super::types::FmtQueryProof;
 use super::types::FriConfig;
-use crate::builder;
 use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
@@ -9,12 +8,15 @@ use crate::prelude::Usize;
 use crate::prelude::Var;
 use crate::verifier::types::Hash;
 
-use itertools::izip;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-use p3_matrix::Dimensions;
 
 impl<C: Config> Builder<C> {
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L306
+    pub fn generator(&mut self) -> Felt<C::F> {
+        self.eval(C::F::from_canonical_u32(0x78000000))
+    }
+
     pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
         todo!()
     }
@@ -27,9 +29,18 @@ impl<C: Config> Builder<C> {
         todo!()
     }
 
+    pub fn materialize(&mut self, num: Usize<C::N>) -> Var<C::N> {
+        match num {
+            Usize::Const(num) => self.eval(C::N::from_canonical_usize(num)),
+            Usize::Var(num) => num,
+        }
+    }
+
     /// Verifies a FRI query.
     ///
-    /// Currently assumes the index and log_max_height are constants.
+    /// Currently assumes the index that is accessed is constant.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L101
     #[allow(clippy::too_many_arguments)]
     pub fn verify_query(
         builder: &mut Builder<C>,
@@ -44,20 +55,13 @@ impl<C: Config> Builder<C> {
         C::F: TwoAdicField,
     {
         let folded_eval: Felt<_> = builder.eval(C::F::zero());
-        let generator = builder.two_adic_generator(Usize::Const(1));
         let two_adic_generator = builder.two_adic_generator(log_max_height);
         let power = builder.reverse_bits_len(Usize::Const(index), log_max_height);
         let x = builder.exp_usize(two_adic_generator, power);
 
         let start = Usize::Const(0);
         let end = log_max_height;
-        let end_var: Var<C::N> = match log_max_height {
-            Usize::Const(log_max_height) => {
-                builder.eval(C::N::from_canonical_usize(log_max_height))
-            }
-            Usize::Var(log_max_height) => log_max_height,
-        };
-
+        let end_var = builder.materialize(end);
         builder.range(start, end).for_each(|i, builder| {
             let log_folded_height: Var<_> = builder.eval(end_var - i);
             let reduced_opening_term = builder.get(reduced_openings, log_folded_height);
@@ -67,7 +71,7 @@ impl<C: Config> Builder<C> {
             let index_pair = index >> 1;
 
             let step = builder.get(&proof.commit_phase_openings, i);
-            let mut evals = vec![folded_eval; 2];
+            let mut evals = [folded_eval; 2];
             evals[index_sibling % 2] = step.sibling_value;
 
             // let dims = &[Dimensions {
@@ -78,6 +82,7 @@ impl<C: Config> Builder<C> {
 
             let beta = builder.get(betas, i);
             let xs = [x; 2];
+            let generator = builder.generator();
             builder.assign(xs[index_sibling % 2], xs[index_sibling % 2] * generator);
             builder.assign(
                 folded_eval,
