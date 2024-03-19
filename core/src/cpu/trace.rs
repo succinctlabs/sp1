@@ -8,13 +8,13 @@ use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
 use crate::runtime::MemoryRecordEnum;
 use crate::runtime::{ExecutionRecord, Opcode};
-use hashbrown::HashMap;
-use p3_field::{PrimeField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
+use std::collections::HashMap;
 use tracing::instrument;
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
@@ -56,6 +56,11 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         });
 
         // Add the dependency events to the shard.
+        for (_, value) in new_alu_events.iter_mut() {
+            value.sort_unstable_by_key(|event| event.clk);
+        }
+        new_blu_events.sort_unstable_by_key(|event| event.a1);
+        new_field_events.sort_unstable_by_key(|event| event.b);
         output.add_alu_events(new_alu_events);
         output.add_byte_lookup_events(new_blu_events);
 
@@ -89,11 +94,17 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
             })
             .collect::<Vec<_>>();
 
-        events.into_iter().for_each(|(alu_events, blu_events)| {
-            // Add the dependency events to the shard.
-            output.add_alu_events(alu_events);
-            output.add_byte_lookup_events(blu_events);
-        });
+        events
+            .into_iter()
+            .for_each(|(mut alu_events, mut blu_events, mut field_events)| {
+                for (_, value) in alu_events.iter_mut() {
+                    value.sort_unstable_by_key(|event| event.clk);
+                }
+                // Add the dependency events to the shard.
+                output.add_alu_events(alu_events);
+                blu_events.sort_unstable_by_key(|event| event.a1);
+                output.add_byte_lookup_events(blu_events);
+            });
     }
 
     fn included(&self, _: &Self::Record) -> bool {

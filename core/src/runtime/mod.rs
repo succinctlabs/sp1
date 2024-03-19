@@ -24,9 +24,9 @@ use self::state::ExecutionState;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
-use hashbrown::hash_map::Entry;
-use hashbrown::HashMap;
 use nohash_hasher::BuildNoHashHasher;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
@@ -56,8 +56,10 @@ pub struct Runtime {
     /// The maximum size of each shard.
     pub shard_size: u32,
 
+    pub shard_batch_size: u32,
+
     /// A counter for the number of cycles that have been executed in certain functions.
-    pub cycle_tracker: HashMap<String, (u32, u32)>,
+    pub cycle_tracker: HashMap<String, (u64, u32)>,
 
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
@@ -76,6 +78,10 @@ pub struct Runtime {
     pub(crate) unconstrained_state: ForkState,
 
     pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
+
+    pub max_syscall_cycles: u32,
+
+    pub emit_events: bool,
 }
 
 impl Runtime {
@@ -98,20 +104,44 @@ impl Runtime {
             None
         };
 
+        let syscall_map = default_syscall_map();
+        // Determine the maximum number of cycles for any syscall.
+        let max_syscall_cycles = syscall_map
+            .values()
+            .map(|syscall| syscall.num_extra_cycles())
+            .max()
+            .unwrap_or(0);
+
+        let shard_size = env::shard_size() as u32;
+
         Self {
             record,
             state: ExecutionState::new(program.pc_start),
             program,
             memory_accesses: MemoryAccessRecord::default(),
-            shard_size: env::shard_size() as u32 * 4,
+            shard_size: shard_size * 4,
+            shard_batch_size: env::shard_batch_size() as u32 * shard_size,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
             fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
-            syscall_map: default_syscall_map(),
+            syscall_map,
+            emit_events: true,
+            max_syscall_cycles,
         }
+    }
+
+    /// Recover runtime state from a program and existing execution state.
+    pub fn recover(program: Program, state: ExecutionState) -> Self {
+        let mut runtime = Self::new(program);
+        runtime.state = state;
+        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+            .try_into()
+            .unwrap();
+        runtime.record.index = index;
+        runtime
     }
 
     /// Get the current values of the registers.
@@ -243,7 +273,7 @@ impl Runtime {
         let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained {
+        if !self.unconstrained && self.emit_events {
             match position {
                 MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
                 MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
@@ -396,7 +426,9 @@ impl Runtime {
     /// Set the destination register with the result and emit an ALU event.
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
-        self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        if self.emit_events {
+            self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        }
     }
 
     /// Fetch the input operand values for a load instruction.
@@ -435,7 +467,7 @@ impl Runtime {
     }
 
     /// Execute the given instruction over the current state of the runtime.
-    fn execute(&mut self, instruction: Instruction) {
+    fn execute_instruction(&mut self, instruction: Instruction) {
         let pc = self.state.pc;
         let mut next_pc = self.state.pc.wrapping_add(4);
 
@@ -738,22 +770,64 @@ impl Runtime {
         self.state.pc = next_pc;
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(
-            self.shard(),
-            self.state.clk,
-            pc,
-            instruction,
-            a,
-            b,
-            c,
-            memory_store_value,
-            self.memory_accesses,
-        );
+        if self.emit_events {
+            self.emit_cpu(
+                self.shard(),
+                self.state.clk,
+                pc,
+                instruction,
+                a,
+                b,
+                c,
+                memory_store_value,
+                self.memory_accesses,
+            );
+        }
     }
 
-    /// Execute the program.
-    pub fn run(&mut self) {
-        let max_syscall_cycles = self.max_syscall_cycles();
+    /// Executes one cycle of the program, returning whether the program has finished.
+    #[inline]
+    fn execute_cycle(&mut self) -> bool {
+        // Fetch the instruction at the current program counter.
+        let instruction = self.fetch();
+
+        // Log the current state of the runtime.
+        self.log(&instruction);
+
+        // Execute the instruction.
+        self.execute_instruction(instruction);
+
+        // Increment the clock.
+        self.state.global_clk += 1;
+        self.state.clk += 4;
+
+        // If there's not enough cycles left for another instruction, move to the next shard.
+        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
+        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
+            self.state.current_shard += 1;
+            self.state.clk = 0;
+        }
+
+        self.state.pc.wrapping_sub(self.program.pc_base)
+            >= (self.program.instructions.len() * 4) as u32
+    }
+
+    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
+    pub fn execute_record(&mut self) -> (ExecutionRecord, bool) {
+        self.emit_events = true;
+        let done = self.execute();
+        (std::mem::take(&mut self.record), done)
+    }
+
+    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
+    pub fn execute_state(&mut self) -> (ExecutionState, bool) {
+        self.emit_events = false;
+        let state = self.state.clone();
+        let done = self.execute();
+        (state, done)
+    }
+
+    fn initialize(&mut self) {
         self.state.clk = 1;
 
         tracing::info!("loading memory image");
@@ -769,39 +843,45 @@ impl Runtime {
         }
 
         tracing::info!("starting execution");
-        while self.state.pc.wrapping_sub(self.program.pc_base)
-            < (self.program.instructions.len() * 4) as u32
-        {
-            // Fetch the instruction at the current program counter.
-            let instruction = self.fetch();
+    }
 
-            // Log the current state of the runtime.
-            self.log(&instruction);
+    pub fn run(&mut self) {
+        self.emit_events = true;
+        while !self.execute() {}
+    }
 
-            // Execute the instruction.
-            self.execute(instruction);
+    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
+    fn execute(&mut self) -> bool {
+        if self.state.global_clk == 0 {
+            self.initialize();
+        }
 
-            // Increment the clock.
-            self.state.global_clk += 1;
-            self.state.clk += 4;
-
-            // If there's not enough cycles left for another instruction, move to the next shard.
-            // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-            if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
-                self.state.current_shard += 1;
-                self.state.clk = 0;
+        let mut cycles = 0_u64;
+        let mut done = false;
+        // Loop until we've executed the maximum number of cycles or the program has finished.
+        while self.shard_batch_size == 0 || cycles < self.shard_batch_size as u64 {
+            if self.execute_cycle() {
+                done = true;
+                break;
+            }
+            if !self.unconstrained {
+                cycles += 1;
             }
         }
 
+        if done {
+            self.postprocess();
+        }
+
+        done
+    }
+
+    fn postprocess(&mut self) {
         tracing::info!(
             "finished execution clk = {} pc = 0x{:x?}",
             self.state.global_clk,
             self.state.pc
         );
-
-        if let Some(ref mut buf) = self.trace_buf {
-            buf.flush().unwrap();
-        }
         // Flush remaining stdout/stderr
         for (fd, buf) in self.io_buf.iter() {
             if !buf.is_empty() {
@@ -817,12 +897,12 @@ impl Runtime {
             }
         }
 
-        // Call postprocess to set up all variables needed for global accounts, like memory
-        // argument or any other deferred tables.
-        self.postprocess();
-    }
+        // Flush trace buf
+        if let Some(ref mut buf) = self.trace_buf {
+            buf.flush().unwrap();
+        }
 
-    fn postprocess(&mut self) {
+        // Set up all variables needed for memory argument.
         let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
         for (key, value) in &self.program.memory_image {
             // By default we assume that the program_memory is used.
@@ -891,14 +971,6 @@ impl Runtime {
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
         self.syscall_map.get(&code)
-    }
-
-    fn max_syscall_cycles(&self) -> u32 {
-        self.syscall_map
-            .values()
-            .map(|syscall| syscall.num_extra_cycles())
-            .max()
-            .unwrap_or(0)
     }
 }
 
