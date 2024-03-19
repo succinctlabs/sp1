@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use p3_field::AbstractField;
 use rand::{thread_rng, Rng};
 use sp1_core::stark::StarkGenericConfig;
@@ -52,6 +54,41 @@ fn test_compiler_arithmetic() {
     }
 
     let program = builder.compile();
+
+    let mut runtime = Runtime::<F, EF>::new(&program);
+    runtime.run();
+}
+
+#[test]
+fn test_compiler_caching_arithmetic() {
+    let num_tests = 3;
+    let mut rng = thread_rng();
+    type SC = BabyBearPoseidon2;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    let mut builder = VmBuilder::<F, EF>::default();
+
+    let one: Felt<_> = builder.eval(F::one());
+    let random: Felt<_> = builder.eval(F::from_canonical_u32(rng.gen::<u32>()));
+
+    let num_ops = 1000;
+    let mut a: SymbolicFelt<_> = one.into();
+    let mut b: SymbolicFelt<_> = one.into();
+    let mut c = a.clone() + a.clone() + a.clone();
+    for _ in 0..num_ops {
+        a += one.into();
+        b *= a.clone() + random;
+        c += a.clone() + b.clone();
+    }
+    let d = a + b + c;
+    let _: Felt<_> = builder.eval(d);
+
+    let code = builder.compile_to_asm();
+    println!("{}", code);
+
+    let program = code.machine_code();
+
+    println!("Program length: {:?}", program.instructions.len());
 
     let mut runtime = Runtime::<F, EF>::new(&program);
     runtime.run();
