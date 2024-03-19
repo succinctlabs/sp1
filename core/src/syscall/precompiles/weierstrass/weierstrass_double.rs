@@ -11,8 +11,8 @@ use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::field::FieldEnum;
 use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::FieldType;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -73,8 +73,8 @@ impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssi
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_double_event::<E>(rt);
         match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event.clone()),
-            FieldType::Bn254 => rt.record_mut().bn254_double_events.push(event.clone()),
+            FieldEnum::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event.clone()),
+            FieldEnum::Bn254 => rt.record_mut().bn254_double_events.push(event.clone()),
             // any other curve is not supported.
             _ => panic!("Unsupported curve"),
         }
@@ -173,8 +173,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn name(&self) -> String {
         match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => "Secp256k1Double".to_owned(),
-            FieldType::Bn254 => "Bn254Double".to_owned(),
+            FieldEnum::Secp256k1 => "Secp256k1Double".to_owned(),
+            FieldEnum::Bn254 => "Bn254Double".to_owned(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -191,8 +191,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) -> RowMajorMatrix<F> {
         // collects the events based on the curve type.
         let events = match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => &input.secp256k1_double_events,
-            FieldType::Bn254 => &input.bn254_double_events,
+            FieldEnum::Secp256k1 => &input.secp256k1_double_events,
+            FieldEnum::Bn254 => &input.bn254_double_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -262,8 +262,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn included(&self, shard: &Self::Record) -> bool {
         match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => !shard.secp256k1_double_events.is_empty(),
-            FieldType::Bn254 => !shard.bn254_double_events.is_empty(),
+            FieldEnum::Secp256k1 => !shard.secp256k1_double_events.is_empty(),
+            FieldEnum::Bn254 => !shard.bn254_double_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }

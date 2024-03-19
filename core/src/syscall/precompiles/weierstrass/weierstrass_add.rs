@@ -11,8 +11,8 @@ use crate::runtime::Register;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::field::FieldEnum;
 use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::FieldType;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
@@ -71,8 +71,8 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext) -> u32 {
         let event = create_ec_add_event::<E>(rt);
         match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => rt.record_mut().secp256k1_add_events.push(event.clone()),
-            FieldType::Bn254 => rt.record_mut().bn254_add_events.push(event.clone()),
+            FieldEnum::Secp256k1 => rt.record_mut().secp256k1_add_events.push(event.clone()),
+            FieldEnum::Bn254 => rt.record_mut().bn254_add_events.push(event.clone()),
             // any other curve is not supported.
             _ => panic!("Unsupported curve"),
         }
@@ -156,8 +156,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn name(&self) -> String {
         match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => "Secp256k1Add".to_owned(),
-            FieldType::Bn254 => "Bn254Add".to_owned(),
+            FieldEnum::Secp256k1 => "Secp256k1Add".to_owned(),
+            FieldEnum::Bn254 => "Bn254Add".to_owned(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -169,8 +169,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) -> RowMajorMatrix<F> {
         // collects the events based on the curve type.
         let events = match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => &input.secp256k1_add_events,
-            FieldType::Bn254 => &input.bn254_add_events,
+            FieldEnum::Secp256k1 => &input.secp256k1_add_events,
+            FieldEnum::Bn254 => &input.bn254_add_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -232,8 +232,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
     fn included(&self, shard: &Self::Record) -> bool {
         match E::BaseField::FIELD_TYPE {
-            FieldType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
-            FieldType::Bn254 => !shard.bn254_add_events.is_empty(),
+            FieldEnum::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
+            FieldEnum::Bn254 => !shard.bn254_add_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -373,7 +373,7 @@ mod tests {
         runtime::Program,
         utils::{
             run_test, setup_logger,
-            tests::{BN254_ADD_ELF, BN254_MUL_ELF, SECP256K1_ADD_ELF},
+            tests::{BN254_ADD_ELF, BN254_MUL_ELF, SECP256K1_ADD_ELF, SECP256K1_MUL_ELF},
         },
     };
 
@@ -395,6 +395,13 @@ mod tests {
     fn test_bn254_mul_simple() {
         setup_logger();
         let program = Program::from(BN254_MUL_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_secp256k1_mul_simple() {
+        setup_logger();
+        let program = Program::from(SECP256K1_MUL_ELF);
         run_test(program).unwrap();
     }
 }

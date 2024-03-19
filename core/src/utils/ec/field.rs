@@ -10,18 +10,18 @@ use std::fmt::{Debug, Display, Formatter, Result};
 pub const MAX_NB_LIMBS: usize = 32;
 
 #[derive(Debug, PartialEq, Eq)]
-pub enum FieldType {
+pub enum FieldEnum {
     Secp256k1,
     Bn254,
     Ed25519,
 }
 
-impl Display for FieldType {
+impl Display for FieldEnum {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
-            FieldType::Secp256k1 => write!(f, "Secp256k1"),
-            FieldType::Bn254 => write!(f, "Bn254"),
-            FieldType::Ed25519 => write!(f, "Ed25519"),
+            FieldEnum::Secp256k1 => write!(f, "Secp256k1"),
+            FieldEnum::Bn254 => write!(f, "Bn254"),
+            FieldEnum::Ed25519 => write!(f, "Ed25519"),
         }
     }
 }
@@ -29,7 +29,7 @@ impl Display for FieldType {
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
 {
-    const FIELD_TYPE: FieldType;
+    const FIELD_TYPE: FieldEnum;
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize = NUM_LIMBS;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;

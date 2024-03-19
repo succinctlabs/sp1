@@ -2,6 +2,7 @@ pub mod bn254;
 pub mod io;
 pub mod secp256k1;
 pub mod unconstrained;
+pub mod utils;
 
 extern "C" {
     pub fn syscall_halt(exit_code: u8) -> !;
