@@ -675,21 +675,15 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
-                let syscall_id = self.register(t0);
-                let syscall = SyscallCode::from_u32(syscall_id);
+                let syscall_impl = self.get_syscall_impl();
 
                 let init_clk = self.state.clk;
-                let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt);
-                    next_pc = precompile_rt.next_pc;
-                    self.state.clk = precompile_rt.clk;
-                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                a = syscall_impl.execute(&mut precompile_rt);
+                next_pc = precompile_rt.next_pc;
+                self.state.clk = precompile_rt.clk;
+                assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
 
                 // We have to do this AFTER the precompile execution because the CPU event
                 // gets emitted at the end of this loop with the incremented clock.
@@ -973,19 +967,24 @@ impl Runtime {
         self.syscall_map.get(&code)
     }
 
+    fn get_syscall_impl(&self) -> Rc<dyn Syscall> {
+        let t0 = Register::X5;
+        let syscall_id = self.register(t0);
+        let syscall = SyscallCode::from_u32(syscall_id);
+        let syscall_impl = self.get_syscall(syscall).cloned();
+
+        if let Some(syscall_impl) = syscall_impl {
+            syscall_impl
+        } else {
+            panic!("Unsupported syscall: {:?}", syscall);
+        }
+    }
+
     fn get_instruction_count(&self, instruction: Instruction) -> u32 {
         match instruction.opcode {
             Opcode::ECALL => {
-                let t0 = Register::X5;
-                let syscall_id = self.register(t0);
-                let syscall = SyscallCode::from_u32(syscall_id);
-                let syscall_impl = self.get_syscall(syscall).cloned();
-
-                if let Some(syscall_impl) = syscall_impl {
-                    syscall_impl.num_extra_cycles()
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                let syscall_impl = self.get_syscall_impl();
+                syscall_impl.num_extra_cycles()
             }
             _ => 4,
         }
