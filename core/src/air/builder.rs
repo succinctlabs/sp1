@@ -262,6 +262,9 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
+    ///
+    /// This method verifies that a memory access ts is greater than the previous ts.  It will also
+    /// add to the memory argument.
     fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
         &mut self,
         shard: EShard,
@@ -288,9 +291,9 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         mem_access.verify_materialized_columns(self, clk.clone(), shard.clone(), do_check.clone());
 
         // Verify that the current memory access time is greater than the previous's.
-        self.verify_mem_access_ts(mem_access, do_check.clone());
+        self.verify_mem_access_ts_diff(mem_access, do_check.clone());
 
-        // Check the previous and current memory access via a lookup to the memory table.
+        // Add to the memory argument.
         let addr = addr.into();
         let prev_shard = mem_access.prev_shard.clone().into();
         let prev_clk = mem_access.prev_clk.clone().into();
@@ -320,7 +323,11 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         ));
     }
 
-    fn verify_mem_access_ts<Eb, Everify>(
+    /// Verifies the memory access timestamp.
+    ///
+    /// This method verifier that the diff between the current and previous memory access ts is
+    /// valid.  Specifically it will ensure that the diff is no larger than the maximum shard size.
+    fn verify_mem_access_ts_diff<Eb, Everify>(
         &mut self,
         mem_access: &MemoryAccessCols<Eb>,
         do_check: Everify,
