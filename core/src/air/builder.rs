@@ -317,7 +317,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         self.assert_eq(
             access.ts_diff.clone(),
             Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4)
-                - (current_time_value_expr - prev_time_value_expr),
+                - (current_time_value_expr - prev_time_value_expr - one.clone()),
         );
 
         self.assert_eq(
