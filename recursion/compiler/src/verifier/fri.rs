@@ -67,9 +67,12 @@ impl<C: Config> Builder<C> {
         };
         let state = self.array::<Felt<C::F>, _>(len);
         let start: Usize<C::N> = Usize::Const(0);
-        let end = input.len();
-        self.range(start, end).for_each(|i, builder| {});
-        todo!()
+        let end = len;
+        self.range(start, end).for_each(|_, builder| {
+            let new_state = builder.poseidon2_permute(&state);
+            builder.assign(state.clone(), new_state);
+        });
+        state
     }
 
     // fn hash_iter<I>(&self, input: I) -> [T; OUT]
@@ -173,7 +176,7 @@ pub fn verify_query<C: Config>(
             &commit,
             &[dims],
             index,
-            &[evals.clone()],
+            &[evals],
             &step.opening_proof,
         );
 
