@@ -1,4 +1,4 @@
-use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Ptr, Usize, Variable};
+use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Ptr, Usize, Var, Variable};
 use std::marker::PhantomData;
 
 /// The width of the Poseidon2 permutation.
@@ -18,15 +18,23 @@ pub struct FriConfig {
     pub proof_of_work_bits: usize,
 }
 
+/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
+pub struct FriProof<C: Config> {
+    pub commit_phase_commits: Array<C, Commitment<C>>,
+    pub query_proofs: Array<C, FriQueryProof<C>>,
+    pub final_poly: Felt<C::F>,
+    pub pow_witness: Var<C::N>,
+}
+
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
-pub struct FmtQueryProof<C: Config> {
-    pub commit_phase_openings: Array<C, FmtCommitPhaseProofStep<C>>,
+pub struct FriQueryProof<C: Config> {
+    pub commit_phase_openings: Array<C, FriCommitPhaseProofStep<C>>,
     pub phantom: PhantomData<C>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
 #[derive(Clone)]
-pub struct FmtCommitPhaseProofStep<C: Config> {
+pub struct FriCommitPhaseProofStep<C: Config> {
     pub sibling_value: Felt<C::F>,
     pub opening_proof: Array<C, Commitment<C>>,
     pub phantom: PhantomData<C>,
@@ -38,7 +46,7 @@ pub struct Dimensions<C: Config> {
     pub height: Usize<C::N>,
 }
 
-impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
+impl<C: Config> Variable<C> for FriCommitPhaseProofStep<C> {
     type Expression = Self;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
@@ -77,7 +85,7 @@ impl<C: Config> Variable<C> for FmtCommitPhaseProofStep<C> {
     }
 }
 
-impl<C: Config> MemVariable<C> for FmtCommitPhaseProofStep<C> {
+impl<C: Config> MemVariable<C> for FriCommitPhaseProofStep<C> {
     fn size_of() -> usize {
         let mut size = 0;
         size += <Felt<C::F> as MemVariable<C>>::size_of();

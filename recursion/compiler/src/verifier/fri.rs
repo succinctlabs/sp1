@@ -1,6 +1,6 @@
 use super::types::Dimensions;
-use super::types::FmtQueryProof;
 use super::types::FriConfig;
+use super::types::FriQueryProof;
 use super::types::DIGEST_SIZE;
 use super::types::PERMUTATION_WIDTH;
 use crate::prelude::Array;
@@ -127,6 +127,10 @@ impl<C: Config> Builder<C> {
     }
 }
 
+pub fn verify_shape_and_sample_challenges(config: &FriConfig) {
+    todo!()
+}
+
 /// Verifies a FRI query.
 ///
 /// Currently assumes the index that is accessed is constant.
@@ -139,7 +143,7 @@ pub fn verify_query<C: Config>(
     config: &FriConfig,
     commit_phase_commits: &Array<C, Commitment<C>>,
     mut index: usize,
-    proof: &FmtQueryProof<C>,
+    proof: &FriQueryProof<C>,
     betas: &Array<C, Felt<C::F>>,
     reduced_openings: &Array<C, Felt<C::F>>,
     log_max_height: Usize<C::N>,
