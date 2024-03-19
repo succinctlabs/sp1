@@ -100,7 +100,7 @@ pub fn verify_query<C: Config>(
         verify_batch(
             builder,
             &commit,
-            dims,
+            &[dims],
             index,
             &[evals.clone()],
             &step.opening_proof,
@@ -127,10 +127,47 @@ pub fn verify_query<C: Config>(
 pub fn verify_batch<C: Config>(
     builder: &mut Builder<C>,
     commit: &Commitment<C>,
-    dims: Dimensions<C>,
+    dims: &[Dimensions<C>],
     index: usize,
     opened_values: &[Vec<Felt<C::F>>],
     proof: &Array<C, Commitment<C>>,
 ) {
-    todo!()
+    let height: Var<_> = builder.materialize(dims[0].height);
+    let curr_height_padded: Var<C::N> = builder.eval(height * C::N::from_canonical_usize(2));
+
+    // TODO: once hashing is added to IR.
+
+    // let mut root = self.hash.hash_iter_slices(
+    //     heights_tallest_first
+    //         .peeking_take_while(|(_, dims)| {
+    //             dims.height.next_power_of_two() == curr_height_padded
+    //         })
+    //         .map(|(i, _)| opened_values[i].as_slice()),
+    // );
+
+    // for &sibling in proof.iter() {
+    //     let (left, right) = if index & 1 == 0 {
+    //         (root, sibling)
+    //     } else {
+    //         (sibling, root)
+    //     };
+
+    //     root = self.compress.compress([left, right]);
+    //     index >>= 1;
+    //     curr_height_padded >>= 1;
+
+    //     let next_height = heights_tallest_first
+    //         .peek()
+    //         .map(|(_, dims)| dims.height)
+    //         .filter(|h| h.next_power_of_two() == curr_height_padded);
+    //     if let Some(next_height) = next_height {
+    //         let next_height_openings_digest = self.hash.hash_iter_slices(
+    //             heights_tallest_first
+    //                 .peeking_take_while(|(_, dims)| dims.height == next_height)
+    //                 .map(|(i, _)| opened_values[i].as_slice()),
+    //         );
+
+    //         root = self.compress.compress([root, next_height_openings_digest]);
+    //     }
+    // }
 }
