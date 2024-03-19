@@ -43,8 +43,18 @@ pub struct MemoryAccessCols<T> {
     pub prev_time_value: T,
     // This will be true if the current shard == prev_access's shard, else false.
     pub use_clk_comparison: T,
-    // This materialized column is equal to use_clk_comparison ? current_clk : current_shard
+    // This materialized column is equal to use_clk_comparison ? current_clk : current_shard.
     pub current_time_value: T,
+
+    // This column is equal to current_time_value - prev_time_value.
+    // This should be less than 2^24.
+    pub ts_diff: T,
+
+    // This column is the least significant 16 bit limb of ts_diff.
+    pub ts_diff_16bit_limb: T,
+
+    // This columns is the most signficant 8 bit limb of ts_diff.
+    pub ts_diff_8bit_limb: T,
 }
 
 /// The common columns for all memory access types.

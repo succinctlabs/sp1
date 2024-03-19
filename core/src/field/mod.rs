@@ -30,7 +30,7 @@ pub struct FieldLtuChip;
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldLtuCols<T> {
-    /// The result of the `LT` operation on `a` and `b`
+    /// The result of the `LT` operation on `b` and `c`
     pub lt: T,
 
     /// The first field operand.

@@ -5,12 +5,11 @@ use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::CpuCols;
 use crate::disassembler::WORD_SIZE;
-use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
 use crate::runtime::MemoryRecordEnum;
 use crate::runtime::{ExecutionRecord, Opcode};
 use hashbrown::HashMap;
-use p3_field::PrimeField;
+use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
@@ -18,7 +17,7 @@ use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-impl<F: PrimeField> MachineAir<F> for CpuChip {
+impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
@@ -33,7 +32,6 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
     ) -> RowMajorMatrix<F> {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
-        let mut new_field_events: Vec<FieldEvent> = Vec::new();
 
         // Generate the trace rows for each event.
         let rows_with_events = input
@@ -44,7 +42,7 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
         let mut rows = Vec::<F>::new();
         rows_with_events.into_iter().for_each(|row_with_events| {
-            let (row, alu_events, blu_events, field_events) = row_with_events;
+            let (row, alu_events, blu_events) = row_with_events;
             rows.extend(row);
             for (key, value) in alu_events {
                 new_alu_events
@@ -55,13 +53,11 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
                     .or_insert(value);
             }
             new_blu_events.extend(blu_events);
-            new_field_events.extend(field_events);
         });
 
         // Add the dependency events to the shard.
         output.add_alu_events(new_alu_events);
         output.add_byte_lookup_events(new_blu_events);
-        output.add_field_events(&new_field_events);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(rows, NUM_CPU_COLS);
@@ -82,27 +78,22 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
             .map(|ops: &[CpuEvent]| {
                 let mut alu = HashMap::new();
                 let mut blu: Vec<_> = Vec::default();
-                let mut field: Vec<_> = Vec::default();
                 ops.iter().for_each(|op| {
-                    let (_, alu_events, blu_events, field_events) = self.event_to_row::<F>(*op);
+                    let (_, alu_events, blu_events) = self.event_to_row::<F>(*op);
                     alu_events.into_iter().for_each(|(key, value)| {
                         alu.entry(key).or_insert(Vec::default()).extend(value);
                     });
                     blu.extend(blu_events);
-                    field.extend(field_events);
                 });
-                (alu, blu, field)
+                (alu, blu)
             })
             .collect::<Vec<_>>();
 
-        events
-            .into_iter()
-            .for_each(|(alu_events, blu_events, field_events)| {
-                // Add the dependency events to the shard.
-                output.add_alu_events(alu_events);
-                output.add_byte_lookup_events(blu_events);
-                output.add_field_events(&field_events);
-            });
+        events.into_iter().for_each(|(alu_events, blu_events)| {
+            // Add the dependency events to the shard.
+            output.add_alu_events(alu_events);
+            output.add_byte_lookup_events(blu_events);
+        });
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -112,18 +103,16 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
 impl CpuChip {
     /// Create a row from an event.
-    fn event_to_row<F: PrimeField>(
+    fn event_to_row<F: PrimeField32>(
         &self,
         event: CpuEvent,
     ) -> (
         [F; NUM_CPU_COLS],
         HashMap<Opcode, Vec<alu::AluEvent>>,
         Vec<ByteLookupEvent>,
-        Vec<FieldEvent>,
     ) {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
-        let mut new_field_events = Vec::new();
 
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
@@ -140,13 +129,13 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access.populate(record, &mut new_field_events)
+            cols.op_a_access.populate(record, &mut new_blu_events)
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access.populate(record, &mut new_field_events)
+            cols.op_b_access.populate(record, &mut new_blu_events)
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access.populate(record, &mut new_field_events)
+            cols.op_c_access.populate(record, &mut new_blu_events)
         }
 
         // Populate memory accesses for reading from memory.
@@ -155,7 +144,7 @@ impl CpuChip {
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(record, &mut new_field_events)
+                .populate(record, &mut new_blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
@@ -167,7 +156,7 @@ impl CpuChip {
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
-        (row, new_alu_events, new_blu_events, new_field_events)
+        (row, new_alu_events, new_blu_events)
     }
 
     /// Populates columns related to memory.
