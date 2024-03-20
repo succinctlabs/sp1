@@ -84,6 +84,9 @@ pub struct Runtime {
     pub emit_events: bool,
 }
 
+// The clk increment for all non-precompile instruction.
+const CLK_INCREMENT: u32 = 4;
+
 impl Runtime {
     // Create a new runtime from a program.
     pub fn new(program: Program) -> Self {
@@ -675,21 +678,15 @@ impl Runtime {
             Opcode::ECALL => {
                 let t0 = Register::X5;
                 let a0 = Register::X10;
-                let syscall_id = self.register(t0);
-                let syscall = SyscallCode::from_u32(syscall_id);
+                let syscall_impl = self.get_syscall_impl();
 
                 let init_clk = self.state.clk;
-                let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt);
-                    next_pc = precompile_rt.next_pc;
-                    self.state.clk = precompile_rt.clk;
-                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                a = syscall_impl.execute(&mut precompile_rt);
+                next_pc = precompile_rt.next_pc;
+                self.state.clk = precompile_rt.clk;
+                assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
 
                 // We have to do this AFTER the precompile execution because the CPU event
                 // gets emitted at the end of this loop with the incremented clock.
@@ -791,6 +788,13 @@ impl Runtime {
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch();
 
+        // Check to see if the instruction will cause us to go over the shard size.
+        let instruction_count = self.get_instruction_count(instruction);
+        if !self.unconstrained && self.state.clk + instruction_count >= self.shard_size {
+            self.state.current_shard += 1;
+            self.state.clk = 0;
+        }
+
         // Log the current state of the runtime.
         self.log(&instruction);
 
@@ -799,14 +803,7 @@ impl Runtime {
 
         // Increment the clock.
         self.state.global_clk += 1;
-        self.state.clk += 4;
-
-        // If there's not enough cycles left for another instruction, move to the next shard.
-        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
-            self.state.current_shard += 1;
-            self.state.clk = 0;
-        }
+        self.state.clk += CLK_INCREMENT;
 
         self.state.pc.wrapping_sub(self.program.pc_base)
             >= (self.program.instructions.len() * 4) as u32
@@ -969,8 +966,29 @@ impl Runtime {
         self.record.program_memory_record = program_memory_record;
     }
 
-    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
-        self.syscall_map.get(&code)
+    /// Retrieves the syscall implementation.
+    fn get_syscall_impl(&self) -> Rc<dyn Syscall> {
+        let t0 = Register::X5;
+        let syscall_id = self.register(t0);
+        let syscall = SyscallCode::from_u32(syscall_id);
+        let syscall_impl = self.syscall_map.get(&syscall).cloned();
+
+        if let Some(syscall_impl) = syscall_impl {
+            syscall_impl
+        } else {
+            panic!("Unsupported syscall: {:?}", syscall);
+        }
+    }
+
+    /// Retrieves the number of cycles used by the given instruction.
+    fn get_instruction_count(&self, instruction: Instruction) -> u32 {
+        match instruction.opcode {
+            Opcode::ECALL => {
+                let syscall_impl = self.get_syscall_impl();
+                syscall_impl.num_extra_cycles()
+            }
+            _ => CLK_INCREMENT,
+        }
     }
 }
 
