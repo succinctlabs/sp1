@@ -146,21 +146,21 @@ pub struct K256DecompressCols<T> {
 
 impl<F: PrimeField32> K256DecompressCols<F> {
     pub fn populate(&mut self, event: K256DecompressEvent, record: &mut ExecutionRecord) {
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         self.is_odd = F::from_canonical_u32(event.is_odd as u32);
         for i in 0..8 {
-            self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
-            self.y_access[i].populate_write(event.y_memory_records[i], &mut new_field_events);
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+            self.y_access[i].populate_write(event.y_memory_records[i], &mut new_byte_lookup_events);
         }
 
         let x = &BigUint::from_bytes_le(&event.x_bytes);
         self.populate_field_ops(x);
 
-        record.add_field_events(&new_field_events);
+        record.add_byte_lookup_events(new_byte_lookup_events);
     }
 
     fn populate_field_ops(&mut self, x: &BigUint) {

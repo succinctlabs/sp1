@@ -20,7 +20,6 @@ pub(crate) mod riscv_chips {
     pub use crate::alu::SubChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::field::FieldLtuChip;
     pub use crate::memory::MemoryGlobalChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
@@ -67,8 +66,6 @@ pub enum RiscvAir<F: PrimeField32> {
     ShiftRight(ShiftRightChip),
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
-    /// An table for `less than` operation on field elements.
-    FieldLTU(FieldLtuChip),
     /// A table for initializing the memory state.
     MemoryInit(MemoryGlobalChip),
     /// A table for finalizing the memory state.
@@ -155,8 +152,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
-        let field_ltu = FieldLtuChip::default();
-        chips.push(RiscvAir::FieldLTU(field_ltu));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
 

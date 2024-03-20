@@ -1,13 +1,13 @@
 use std::borrow::BorrowMut;
 
-use p3_field::PrimeField;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{air::MachineAir, runtime::ExecutionRecord};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
-impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
+impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
@@ -21,7 +21,7 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
         for i in 0..input.sha_extend_events.len() {
             let event = input.sha_extend_events[i].clone();
             for j in 0..48usize {
@@ -34,13 +34,13 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
                 cols.w_ptr = F::from_canonical_u32(event.w_ptr);
 
                 cols.w_i_minus_15
-                    .populate(event.w_i_minus_15_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_15_reads[j], &mut new_byte_lookup_events);
                 cols.w_i_minus_2
-                    .populate(event.w_i_minus_2_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_2_reads[j], &mut new_byte_lookup_events);
                 cols.w_i_minus_16
-                    .populate(event.w_i_minus_16_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_16_reads[j], &mut new_byte_lookup_events);
                 cols.w_i_minus_7
-                    .populate(event.w_i_minus_7_reads[j], &mut new_field_events);
+                    .populate(event.w_i_minus_7_reads[j], &mut new_byte_lookup_events);
 
                 // Compute `s0`.
                 let w_i_minus_15 = event.w_i_minus_15_reads[j].value;
@@ -68,13 +68,13 @@ impl<F: PrimeField> MachineAir<F> for ShaExtendChip {
                 cols.s2.populate(output, w_i_minus_16, s0, w_i_minus_7, s1);
 
                 cols.w_i
-                    .populate(event.w_i_writes[j], &mut new_field_events);
+                    .populate(event.w_i_writes[j], &mut new_byte_lookup_events);
 
                 rows.push(row);
             }
         }
 
-        output.add_field_events(&new_field_events);
+        output.add_byte_lookup_events(new_byte_lookup_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();

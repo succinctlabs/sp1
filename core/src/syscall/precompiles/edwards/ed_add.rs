@@ -1,6 +1,6 @@
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
-use crate::field::event::FieldEvent;
+use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
@@ -134,46 +134,50 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let (mut rows, new_field_events_list): (Vec<[F; NUM_ED_ADD_COLS]>, Vec<Vec<FieldEvent>>) =
-            input
-                .ed_add_events
-                .par_iter()
-                .map(|event| {
-                    let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                    let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+        let (mut rows, new_byte_lookup_events): (
+            Vec<[F; NUM_ED_ADD_COLS]>,
+            Vec<Vec<ByteLookupEvent>>,
+        ) = input
+            .ed_add_events
+            .par_iter()
+            .map(|event| {
+                let mut row = [F::zero(); NUM_ED_ADD_COLS];
+                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
-                    // Decode affine points.
-                    let p = &event.p;
-                    let q = &event.q;
-                    let p = AffinePoint::<E>::from_words_le(p);
-                    let (p_x, p_y) = (p.x, p.y);
-                    let q = AffinePoint::<E>::from_words_le(q);
-                    let (q_x, q_y) = (q.x, q.y);
+                // Decode affine points.
+                let p = &event.p;
+                let q = &event.q;
+                let p = AffinePoint::<E>::from_words_le(p);
+                let (p_x, p_y) = (p.x, p.y);
+                let q = AffinePoint::<E>::from_words_le(q);
+                let (q_x, q_y) = (q.x, q.y);
 
-                    // Populate basic columns.
-                    cols.is_real = F::one();
-                    cols.shard = F::from_canonical_u32(event.shard);
-                    cols.clk = F::from_canonical_u32(event.clk);
-                    cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-                    cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+                // Populate basic columns.
+                cols.is_real = F::one();
+                cols.shard = F::from_canonical_u32(event.shard);
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+                cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-                    Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
+                Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
 
-                    // Populate the memory access columns.
-                    let mut new_field_events = Vec::new();
-                    for i in 0..16 {
-                        cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
-                    }
-                    for i in 0..16 {
-                        cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
-                    }
+                // Populate the memory access columns.
+                let mut new_byte_lookup_events = Vec::new();
+                for i in 0..16 {
+                    cols.q_access[i]
+                        .populate(event.q_memory_records[i], &mut new_byte_lookup_events);
+                }
+                for i in 0..16 {
+                    cols.p_access[i]
+                        .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
+                }
 
-                    (row, new_field_events)
-                })
-                .unzip();
+                (row, new_byte_lookup_events)
+            })
+            .unzip();
 
-        for new_field_events in new_field_events_list {
-            output.add_field_events(&new_field_events);
+        for byte_lookup_events in new_byte_lookup_events {
+            output.add_byte_lookup_events(byte_lookup_events);
         }
 
         pad_rows(&mut rows, || {
