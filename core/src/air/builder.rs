@@ -411,7 +411,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // We know that diff_minus_one will have the possible values of [-MAX_SHARD_SIZE, MAX_SHARD_SIZE - 2]
         // (in other words [BABYBEAR_P - 1 - MAX_SHARD_SIZE, BABYBEAR_P - 1] union [0, MAX_SHARD_SIZE - 2]),
         // since we do a range check for all clk values to be within [0, MAX_SHARD_SIZE - 1].
-        // We want to ensure that diff_minus_one is [0, MAX_SHARD_SIZE - 2], so we do a 24 bit
+        // We want to ensure that diff_minus_one is within [0, MAX_SHARD_SIZE - 2], so we do a 24 bit
         // range check on it.
         let diff_minus_one = current_comp_val - prev_comp_val - Self::Expr::one();
 
