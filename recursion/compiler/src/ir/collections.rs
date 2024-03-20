@@ -1,4 +1,5 @@
 use super::{Builder, Config, MemVariable, Ptr, Usize, Var, Variable};
+use itertools::Itertools;
 use p3_field::AbstractField;
 
 #[derive(Debug, Clone)]
@@ -88,7 +89,7 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
         match (self, src.clone()) {
             (Array::Fixed(lhs), Array::Fixed(rhs)) => {
-                for (l, r) in lhs.iter().zip(rhs.iter()) {
+                for (l, r) in lhs.iter().zip_eq(rhs.iter()) {
                     builder.assign(l.clone(), r.clone());
                 }
             }
@@ -119,7 +120,7 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
 
         match (lhs.clone(), rhs.clone()) {
             (Array::Fixed(lhs), Array::Fixed(rhs)) => {
-                for (l, r) in lhs.iter().zip(rhs.iter()) {
+                for (l, r) in lhs.iter().zip_eq(rhs.iter()) {
                     T::assert_eq(
                         T::Expression::from(l.clone()),
                         T::Expression::from(r.clone()),
@@ -154,7 +155,7 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
 
         match (lhs.clone(), rhs.clone()) {
             (Array::Fixed(lhs), Array::Fixed(rhs)) => {
-                for (l, r) in lhs.iter().zip(rhs.iter()) {
+                for (l, r) in lhs.iter().zip_eq(rhs.iter()) {
                     T::assert_ne(
                         T::Expression::from(l.clone()),
                         T::Expression::from(r.clone()),
