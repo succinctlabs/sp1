@@ -1,3 +1,5 @@
+use p3_field::AbstractField;
+
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Opcode {
@@ -37,4 +39,10 @@ pub enum Opcode {
 
     // System instructions.
     TRAP = 30,
+}
+
+impl Opcode {
+    pub fn as_field<F: AbstractField>(&self) -> F {
+        F::from_canonical_u32(*self as u32)
+    }
 }

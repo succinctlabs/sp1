@@ -1,4 +1,4 @@
-use crate::{cpu::columns::InstructionCols, runtime::ExecutionRecord};
+use crate::{cpu::InstructionCols, runtime::ExecutionRecord};
 use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
