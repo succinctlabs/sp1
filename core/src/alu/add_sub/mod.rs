@@ -19,7 +19,11 @@ use crate::utils::pad_to_power_of_two;
 /// The number of main trace columns for `AddSubChip`.
 pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
 
-/// A chip that implements addition for the opcode ADD.
+/// A chip that implements additiona for the opcode ADD and SUB.
+///
+/// SUB is basically an ADD with a re-arrangment of the operands and result.
+/// E.g. given the standard ALU op variable name and positioning of `a` = `b` OP `c`,
+/// ADD verifies `a` = `b` + `c`, and SUB verifies `b` = `a` + `c` (e.g. `a` = `b` - `c`).
 #[derive(Default)]
 pub struct AddSubChip;
 
@@ -33,13 +37,14 @@ pub struct AddSubCols<T> {
     pub is_sub: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
+    /// It's result will be `a` for the add operation and `b` for the sub operation.
     pub add_operation: AddOperation<T>,
 
-    /// The first input operand.
-    pub b: Word<T>,
+    /// The first input operand.  This will be `b` for add operations and `c` for sub operations
+    pub operand_1: Word<T>,
 
-    /// The second input operand.
-    pub c: Word<T>,
+    /// The second input operand.  This will be `c` for both operations.
+    pub operand_2: Word<T>,
 }
 
 impl<F: PrimeField> MachineAir<F> for AddSubChip {
@@ -79,16 +84,13 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         cols.is_add = F::from_bool(is_add);
                         cols.is_sub = F::from_bool(!is_add);
 
-                        // SUB is basically an ADD with a re-arrangment of the operands.
-                        // E.g. ADD verifies a = b + c, and SUB verifies b = a + c.
-                        // We assign the operands for the add operation depending on the opcode.
                         let operand_1 = if is_add { event.b } else { event.a };
                         let operand_2 = event.c;
 
                         cols.add_operation
                             .populate(&mut record, operand_1, operand_2);
-                        cols.b = Word::from(operand_1);
-                        cols.c = Word::from(operand_2);
+                        cols.operand_1 = Word::from(operand_1);
+                        cols.operand_2 = Word::from(operand_2);
                         row
                     })
                     .collect::<Vec<_>>();
@@ -139,30 +141,37 @@ where
         builder.assert_bool(is_real.clone());
 
         // Evaluate the addition operation.
-        AddOperation::<AB::F>::eval(builder, local.b, local.c, local.add_operation, is_real);
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.operand_1,
+            local.operand_2,
+            local.add_operation,
+            is_real,
+        );
 
         // Receive the arguments.
         // For add, the result and operand ordering is a = b + c.
         builder.receive_alu(
             Opcode::ADD.as_field::<AB::F>(),
             local.add_operation.value,
-            local.b,
-            local.c,
+            local.operand_1,
+            local.operand_2,
             local.is_add,
         );
 
         // For sub, the result and operand ordering is b = a + c.
         builder.receive_alu(
             Opcode::SUB.as_field::<AB::F>(),
-            local.b,
+            local.operand_1,
             local.add_operation.value,
-            local.c,
+            local.operand_2,
             local.is_sub,
         );
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
-            local.b[0] * local.b[0] * local.c[0] - local.b[0] * local.b[0] * local.c[0],
+            local.operand_1[0] * local.operand_1[0] * local.operand_1[0]
+                - local.operand_1[0] * local.operand_1[0] * local.operand_1[0],
         );
     }
 }
