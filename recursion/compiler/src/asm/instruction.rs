@@ -355,10 +355,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::FADDEI(dst, lhs, rhs) => Instruction::new(
                 Opcode::EFADD,
                 i32_f(dst),
-                i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
+                i32_f_arr(lhs),
                 true,
-                true,
+                false,
             ),
             AsmInstruction::ESUBF(dst, lhs, rhs) => Instruction::new(
                 Opcode::EFSUB,
