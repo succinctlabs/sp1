@@ -176,7 +176,7 @@ enum Condition<N> {
 }
 
 impl<'a, C: Config> IfBuilder<'a, C> {
-    pub fn then(mut self, f: impl FnOnce(&mut Builder<C>)) {
+    pub fn then(mut self, mut f: impl FnMut(&mut Builder<C>)) {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
 
@@ -222,8 +222,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
     pub fn then_or_else(
         mut self,
-        then_f: impl FnOnce(&mut Builder<C>),
-        else_f: impl FnOnce(&mut Builder<C>),
+        mut then_f: impl FnMut(&mut Builder<C>),
+        mut else_f: impl FnMut(&mut Builder<C>),
     ) {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
@@ -353,7 +353,7 @@ pub struct RangeBuilder<'a, C: Config> {
 }
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
-    pub fn for_each(self, f: impl FnOnce(Var<C::N>, &mut Builder<C>)) {
+    pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,
