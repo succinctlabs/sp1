@@ -1,9 +1,12 @@
+use std::time::Instant;
+
 use p3_field::AbstractField;
-use sp1_core::stark::StarkGenericConfig;
+use sp1_core::stark::{LocalProver, StarkGenericConfig};
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::Runtime;
+use sp1_recursion_core::stark::RecursionAir;
 
 fn fibonacci(n: u32) -> u32 {
     if n == 0 {
@@ -51,4 +54,17 @@ fn main() {
 
     let mut runtime = Runtime::<F, EF>::new(&program);
     runtime.run();
+
+    let config = SC::new();
+    let machine = RecursionAir::machine(config);
+    let (pk, vk) = machine.setup(&program);
+    let mut challenger = machine.config().challenger();
+
+    let start = Instant::now();
+    let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+    let duration = start.elapsed().as_secs();
+
+    let mut challenger = machine.config().challenger();
+    machine.verify(&vk, &proof, &mut challenger).unwrap();
+    println!("proving duration = {}", duration);
 }
