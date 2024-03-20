@@ -8,6 +8,7 @@ use super::BinomialExtension;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
+use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 use p3_field::{AbstractField, Field};
 
@@ -53,6 +54,17 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         for (left, right) in left.into_iter().zip(right) {
             self.assert_eq(left, right);
         }
+    }
+
+    /// Will return `a` if `condition` is 1, else `b`.  This assumes that `condition` is already
+    /// checked to be a boolean.
+    fn if_else<ECond, EA, EB>(&mut self, condition: ECond, a: EA, b: EB) -> Self::Expr
+    where
+        ECond: Into<Self::Expr> + Clone,
+        EA: Into<Self::Expr> + Clone,
+        EB: Into<Self::Expr> + Clone,
+    {
+        condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
     }
 }
 
@@ -139,39 +151,6 @@ pub trait ByteAirBuilder: BaseAirBuilder {
             vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
             multiplicity.into(),
             InteractionKind::Byte,
-        ));
-    }
-}
-
-/// A trait which contains methods for field interactions in an AIR.
-pub trait FieldAirBuilder: BaseAirBuilder {
-    /// Sends a field operation to be processed.
-    fn send_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
-    where
-        Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
-    {
-        self.send(AirInteraction::new(
-            vec![a.into(), b.into(), c.into()],
-            multiplicity.into(),
-            InteractionKind::Field,
-        ));
-    }
-
-    /// Receives a field operation to be processed.
-    fn receive_field_op<Ea, Eb, Ec, EMult>(&mut self, a: Ea, b: Eb, c: Ec, multiplicity: EMult)
-    where
-        Ea: Into<Self::Expr>,
-        Eb: Into<Self::Expr>,
-        Ec: Into<Self::Expr>,
-        EMult: Into<Self::Expr>,
-    {
-        self.receive(AirInteraction::new(
-            vec![a.into(), b.into(), c.into()],
-            multiplicity.into(),
-            InteractionKind::Field,
         ));
     }
 }
@@ -353,13 +332,16 @@ pub trait AluAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
+    ///
+    /// This method verifies that a memory access timestamp (shard, clk) is greater than the
+    /// previous access's timestamp.  It will also add to the memory argument.
     fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
         &mut self,
         shard: EShard,
         clk: EClk,
         addr: Ea,
         memory_access: &M,
-        verify_memory_access: EVerify,
+        do_check: EVerify,
     ) where
         EShard: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
@@ -368,77 +350,119 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         EVerify: Into<Self::Expr>,
         M: MemoryCols<Eb>,
     {
-        let verify_memory_access_expr: Self::Expr = verify_memory_access.into();
-        self.assert_bool(verify_memory_access_expr.clone());
+        let do_check: Self::Expr = do_check.into();
+        let shard: Self::Expr = shard.into();
+        let clk: Self::Expr = clk.into();
+        let mem_access = memory_access.access();
 
-        let access = memory_access.access();
+        self.assert_bool(do_check.clone());
 
-        //// Check that this memory access occurs after the previous one.
-        // First check if we need to compare between the shard or the clk.
-        let use_clk_comparison_expr: Self::Expr = access.use_clk_comparison.clone().into();
-        let current_shard_expr: Self::Expr = shard.into();
-        let prev_shard_expr: Self::Expr = access.prev_shard.clone().into();
-        let current_clk_expr: Self::Expr = clk.into();
-        let prev_clk_expr: Self::Expr = access.prev_clk.clone().into();
+        // Verify that the current memory access time is greater than the previous's.
+        self.verify_mem_access_ts(mem_access, do_check.clone(), shard.clone(), clk.clone());
 
-        self.when(verify_memory_access_expr.clone())
-            .assert_bool(use_clk_comparison_expr.clone());
-        self.when(verify_memory_access_expr.clone())
-            .when(use_clk_comparison_expr.clone())
-            .assert_eq(current_shard_expr.clone(), prev_shard_expr.clone());
-
-        // Verify the previous and current time value that should be used for comparison.
-        let one = Self::Expr::one();
-        let calculated_prev_time_value = use_clk_comparison_expr.clone() * prev_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * prev_shard_expr.clone();
-        let calculated_current_time_value = use_clk_comparison_expr.clone()
-            * current_clk_expr.clone()
-            + (one.clone() - use_clk_comparison_expr.clone()) * current_shard_expr.clone();
-
-        let prev_time_value_expr: Self::Expr = access.prev_time_value.clone().into();
-        let current_time_value_expr: Self::Expr = access.current_time_value.clone().into();
-        self.when(verify_memory_access_expr.clone())
-            .assert_eq(prev_time_value_expr.clone(), calculated_prev_time_value);
-
-        self.when(verify_memory_access_expr.clone()).assert_eq(
-            current_time_value_expr.clone(),
-            calculated_current_time_value,
-        );
-
-        // Do the actual comparison via a lookup to the field op table.
-        self.send_field_op(
-            one,
-            prev_time_value_expr,
-            current_time_value_expr,
-            verify_memory_access_expr.clone(),
-        );
-
-        //// Check the previous and current memory access via a lookup to the memory table.
-        let addr_expr = addr.into();
-        let prev_values = once(prev_shard_expr)
-            .chain(once(prev_clk_expr))
-            .chain(once(addr_expr.clone()))
+        // Add to the memory argument.
+        let addr = addr.into();
+        let prev_shard = mem_access.prev_shard.clone().into();
+        let prev_clk = mem_access.prev_clk.clone().into();
+        let prev_values = once(prev_shard)
+            .chain(once(prev_clk))
+            .chain(once(addr.clone()))
             .chain(memory_access.prev_value().clone().map(Into::into))
             .collect();
-        let current_values = once(current_shard_expr)
-            .chain(once(current_clk_expr))
-            .chain(once(addr_expr.clone()))
+        let current_values = once(shard)
+            .chain(once(clk))
+            .chain(once(addr.clone()))
             .chain(memory_access.value().clone().map(Into::into))
             .collect();
 
         // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
             prev_values,
-            verify_memory_access_expr.clone(),
+            do_check.clone(),
             InteractionKind::Memory,
         ));
 
         // The current values get "received", i.e. multiplicity = -1
         self.receive(AirInteraction::new(
             current_values,
-            verify_memory_access_expr.clone(),
+            do_check.clone(),
             InteractionKind::Memory,
         ));
+    }
+
+    /// Verifies the memory access timestamp.
+    ///
+    /// This method verifies that the diff between the current and previous memory access ts is
+    /// valid.  Specifically it will ensure the following.
+    /// If the previous memory access is within the same shard, then the current_mem_clk_ts -
+    /// prev_mem_clk_ts is within [1, MAX_SHARD_CLK].
+    /// If the previous memory access is in a different shard, then the current_mem_shard_ts -
+    /// prev_mem_shard_ts is within [1, MAX_SHARD_CLK].
+    fn verify_mem_access_ts<Eb, Everify, EShard, EClk>(
+        &mut self,
+        mem_access: &MemoryAccessCols<Eb>,
+        do_check: Everify,
+        shard: EShard,
+        clk: EClk,
+    ) where
+        Eb: Into<Self::Expr> + Clone,
+        Everify: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
+        EClk: Into<Self::Expr>,
+    {
+        let do_check: Self::Expr = do_check.into();
+        let compare_clk: Self::Expr = mem_access.compare_clk.clone().into();
+        let shard: Self::Expr = shard.into();
+        let prev_shard: Self::Expr = mem_access.prev_shard.clone().into();
+
+        // First verify that compare_clk's value is correct.
+        self.when(do_check.clone()).assert_bool(compare_clk.clone());
+        self.when(do_check.clone())
+            .when(compare_clk.clone())
+            .assert_eq(shard.clone(), prev_shard);
+
+        // Get the comparison timestamp values for the current and previous memory access.
+        let prev_comp_value = self.if_else(
+            mem_access.compare_clk.clone(),
+            mem_access.prev_clk.clone(),
+            mem_access.prev_shard.clone(),
+        );
+
+        let current_comp_val = self.if_else(compare_clk.clone(), clk.into(), shard);
+
+        // Assert `current_comp_val > prev_comp_val`. We check this by asserting that
+        // `0 <= current_comp_val-prev_comp_val-1 < 2^24`.
+        // The equivalence of these statements comes from the fact that if `current_comp_val <= prev_comp_val`,
+        // then `current_comp_val-prev_comp_val-1 < 0` and will underflow in the prime field,
+        // resulting in a value that is `>= 2^24` as long as both `current_comp_val, prev_comp_val` are
+        // range-checked to be `<2^24` and as long as we're working in a field larger than `2 * 2^24`
+        // (which is true of the BabyBear and Mersenne31 prime).
+        let diff_minus_one = current_comp_val - prev_comp_value - Self::Expr::one();
+
+        // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb + mem_access.ts_diff_8bit_limb * 2^16.
+        self.when(do_check.clone()).assert_eq(
+            diff_minus_one,
+            mem_access.diff_16bit_limb.clone().into()
+                + mem_access.diff_8bit_limb.clone().into()
+                    * Self::Expr::from_canonical_u32(1 << 16),
+        );
+
+        // Send the range checks for the limbs.
+        self.send_byte(
+            Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            mem_access.diff_16bit_limb.clone(),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            do_check.clone(),
+        );
+
+        self.send_byte(
+            Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+            Self::Expr::zero(),
+            Self::Expr::zero(),
+            mem_access.diff_8bit_limb.clone(),
+            do_check,
+        )
     }
 
     /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
@@ -566,7 +590,6 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> FieldAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
