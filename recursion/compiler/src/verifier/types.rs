@@ -50,7 +50,7 @@ pub struct FriChallenges<C: Config> {
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/matrix/src/lib.rs#L38
 pub struct Dimensions<C: Config> {
     pub width: usize,
-    pub height: Usize<C::N>,
+    pub height: Var<C::N>,
 }
 
 impl<C: Config> Variable<C> for FriQueryProof<C> {

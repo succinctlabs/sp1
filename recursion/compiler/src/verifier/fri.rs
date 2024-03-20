@@ -262,13 +262,16 @@ where
         let index_pair = index >> 1;
 
         let step = builder.get(&proof.commit_phase_openings, i);
-        let mut evals = [folded_eval; 2];
-        evals[index_sibling % 2] = step.sibling_value;
+
+        let evals = builder.array(2);
+        // TODO: FIX
+        // let mut evals = [folded_eval; 2];
+        // evals[index_sibling % 2] = step.sibling_value;
 
         let commit = builder.get(commit_phase_commits, i);
         let dims = Dimensions::<C> {
             width: 2,
-            height: Usize::Var(log_folded_height),
+            height: log_folded_height,
         };
         verify_batch(builder, &commit, &[dims], index, evals, &step.opening_proof);
 
@@ -276,10 +279,13 @@ where
         let xs = [x; 2];
         let generator = builder.generator();
         builder.assign(xs[index_sibling % 2], xs[index_sibling % 2] * generator);
-        builder.assign(
-            folded_eval,
-            evals[0] + (beta - xs[0]) * (evals[1] - evals[0]) / (xs[1] - xs[0]),
-        );
+
+        // let evals_0 = builder.get(&evals, 0);
+        // let evals_1 = builder.get(&evals, 1);
+        // builder.assign(
+        //     folded_eval,
+        //     evals_0 + (beta - xs[0]) * (evals_1 - evals_0) / (xs[1] - xs[0]),
+        // );
 
         index = index_pair;
         builder.assign(x, x * x);
@@ -297,11 +303,11 @@ pub fn verify_batch<C: Config>(
     commit: &Commitment<C>,
     dims: &[Dimensions<C>],
     index: usize,
-    opened_values: [Felt<C::F>; 2],
+    opened_values: Array<C, Array<C, Felt<C::F>>>,
     proof: &Array<C, Commitment<C>>,
 ) {
-    let height: Var<_> = builder.materialize(dims[0].height);
-    let curr_height_padded: Var<C::N> = builder.eval(height * C::N::from_canonical_usize(2));
+    let curr_height_padded: Var<C::N> =
+        builder.eval(dims[0].height * C::N::from_canonical_usize(2));
 
     let two: Var<_> = builder.eval(C::N::from_canonical_u32(2));
     let array = builder.array::<Felt<_>, _>(Usize::Var(two));
