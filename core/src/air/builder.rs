@@ -392,12 +392,10 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 
     /// Verifies the memory access timestamp.
     ///
-    /// This method verifies that the diff between the current and previous memory access ts is
-    /// valid.  Specifically it will ensure the following.
-    /// If the previous memory access is within the same shard, then the current_mem_clk_ts -
-    /// prev_mem_clk_ts is within [1, MAX_SHARD_CLK].
-    /// If the previous memory access is in a different shard, then the current_mem_shard_ts -
-    /// prev_mem_shard_ts is within [1, MAX_SHARD_CLK].
+    /// This method verifies that the current memory access happend after the previous one's.  Specifically
+    /// it will ensure that if the current and previous access are in the same shard, then the
+    /// current's clk val is greater than the previous's.  If they are not in the same shard, then
+    /// it will ensure that the current's shard val is greater than the previous's.
     fn verify_mem_access_ts<Eb, Everify, EShard, EClk>(
         &mut self,
         mem_access: &MemoryAccessCols<Eb>,
@@ -432,6 +430,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 
         // Assert `current_comp_val > prev_comp_val`. We check this by asserting that
         // `0 <= current_comp_val-prev_comp_val-1 < 2^24`.
+        //
         // The equivalence of these statements comes from the fact that if `current_comp_val <= prev_comp_val`,
         // then `current_comp_val-prev_comp_val-1 < 0` and will underflow in the prime field,
         // resulting in a value that is `>= 2^24` as long as both `current_comp_val, prev_comp_val` are
