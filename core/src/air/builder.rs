@@ -327,7 +327,11 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Verifies the memory access timestamp.
     ///
     /// This method verifies that the diff between the current and previous memory access ts is
-    /// valid.  Specifically it will ensure that the difference is within [1, maximum shard size].
+    /// valid.  Specifically it will ensure the following.
+    /// If the previous memory access is within the same shard, then the current_mem_clk_ts -
+    /// prev_mem_clk_ts is within [1, MAX_SHARD_SIZE - 1].
+    /// If the previous memory access is in a different shard, then the current_mem_shard_ts -
+    /// prev_mem_shard_ts is within [1, MAX_SHARD_SIZE - 1].
     fn verify_mem_access_ts_diff<Eb, Everify>(
         &mut self,
         mem_access: &MemoryAccessCols<Eb>,
@@ -341,18 +345,26 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let do_check: Self::Expr = do_check.into();
 
         // Verify that ts_diff is calculated correctly correctly.
-        let max_shard_size = env::shard_size();
-        let shift_amount = log2_strict_usize(MAX_SHARD_SIZE) - log2_strict_usize(max_shard_size);
+        let user_set_shard_size = env::shard_size();
 
+        // We have a 24 bit range checker (using a combination of both the 16 bit and 8 bit byte
+        // range checkers).  When the ts diff is checked, it needs to be left shifted by the
+        // difference between log_2(MAX_SHARD_SIZE) and log_2(user_set_shard_size).  Note that
+        // log_2(MAX_SHARD_SIZE) = 24.
+        let shift_amount =
+            log2_strict_usize(MAX_SHARD_SIZE) - log2_strict_usize(user_set_shard_size);
         let shifted_diff =
             (current_ts - prev_ts) * Self::Expr::from_canonical_u32(1 << shift_amount);
 
+        // We want to range check MAX_SHARD_SIZE - shifted_diff.
+        // If shifted_diff is [1, MAX_SHARD_SIZE), then that range check will succeed.
+        // If the shifted diff is (-MAX_SHARD_SIZE, 0], then the range check will fail.
         self.when(do_check.clone()).assert_eq(
             mem_access.ts_diff.clone(),
             Self::Expr::from_canonical_u32(MAX_SHARD_SIZE as u32 * 4) - shifted_diff,
         );
 
-        // Verified that it is decomposed correctly.
+        // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb + mem_access.ts_diff_8bit_limb * 2^16.
         self.when(do_check.clone()).assert_eq(
             mem_access.ts_diff.clone(),
             mem_access.ts_diff_16bit_limb.clone().into()

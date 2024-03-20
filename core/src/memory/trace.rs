@@ -139,9 +139,8 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         let max_shard_size = env::shard_size();
         let shift_amount = log2_strict_usize(MAX_SHARD_SIZE) - log2_strict_usize(max_shard_size);
 
-        // We multiply MAX_SHARD_SIZE by 4, since each clock cycle is incremented by 4.
         let ts_diff =
-            MAX_SHARD_SIZE as u32 * 4 - ((current_time_value - prev_time_value) << shift_amount);
+            MAX_SHARD_SIZE as u32 - ((current_time_value - prev_time_value) << shift_amount);
         self.ts_diff = F::from_canonical_u32(ts_diff);
         let ts_diff_16bit_limb = self.ts_diff.as_canonical_u32() & 0xffff;
         self.ts_diff_16bit_limb = F::from_canonical_u32(ts_diff_16bit_limb);
