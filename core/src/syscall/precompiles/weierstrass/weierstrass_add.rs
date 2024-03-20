@@ -334,7 +334,7 @@ where
         builder.receive_syscall(
             row.shard,
             row.clk,
-            AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.to_syscall_id()),
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id()),
             row.p_ptr,
             row.q_ptr,
             row.is_real,

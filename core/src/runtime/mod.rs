@@ -694,7 +694,6 @@ impl Runtime {
                         (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
                     } else {
                         panic!("Unsupported syscall: {:?}", syscall);
-                        (0, 0)
                     };
 
                 self.rw(t0, a);

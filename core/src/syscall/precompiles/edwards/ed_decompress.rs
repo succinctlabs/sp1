@@ -192,7 +192,7 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.receive_syscall(
             self.shard,
             self.clk,
-            AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.to_syscall_id()),
+            AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
             self.ptr,
             self.sign,
             self.is_real,

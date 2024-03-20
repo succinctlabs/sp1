@@ -94,11 +94,11 @@ impl SyscallCode {
         }
     }
 
-    pub fn to_syscall_id(&self) -> u32 {
+    pub fn syscall_id(&self) -> u32 {
         (*self as u32).to_le_bytes()[0].into()
     }
 
-    pub fn send_to_table(&self) -> u32 {
+    pub fn should_send(&self) -> u32 {
         (*self as u32).to_le_bytes()[1].into()
     }
 
@@ -107,7 +107,7 @@ impl SyscallCode {
     }
 
     pub fn is_halt(&self) -> u32 {
-        (*self == SyscallCode::HALT).into()
+        (*self as u32).to_le_bytes()[3].into()
     }
 }
 

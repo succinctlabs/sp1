@@ -39,7 +39,7 @@ where
         builder.receive_syscall(
             local.segment, // TODO: rename this to "shard"
             local.clk,
-            AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.to_syscall_id()),
+            AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.syscall_id()),
             local.state_ptr,
             local.message_ptr,
             local.ecall_receive,

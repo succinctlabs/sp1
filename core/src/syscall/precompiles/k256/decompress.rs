@@ -277,7 +277,7 @@ impl<V: Copy> K256DecompressCols<V> {
         builder.receive_syscall(
             self.shard,
             self.clk,
-            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.to_syscall_id()),
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.syscall_id()),
             self.ptr,
             self.is_odd,
             self.is_real,

@@ -43,7 +43,7 @@ where
         builder.receive_syscall(
             local.shard,
             local.clk,
-            AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.to_syscall_id()),
+            AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.syscall_id()),
             local.w_ptr,
             local.h_ptr,
             local.start,
