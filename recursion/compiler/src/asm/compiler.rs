@@ -123,8 +123,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::AddEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EADDI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddEF(_dst, _lhs, _rhs) => todo!(),
-                DslIR::AddEFFI(_dst, _lhs, _rhs) => todo!(),
+                DslIR::AddEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EADDF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::AddEFFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::FADDEI(dst.fp(), lhs.fp(), rhs));
+                }
                 DslIR::AddEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EADDI(
                         dst.fp(),
@@ -171,7 +175,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::InvF(dst, src) => {
                     self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::DivEF(_dst, _lhs, _rhs) => todo!(),
+                DslIR::DivEF(dst, _lhs, _rhs) => todo!(),
                 DslIR::DivEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EDIVI(
                         dst.fp(),
@@ -205,7 +209,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         rhs.fp(),
                     ));
                 }
-                DslIR::SubEF(_dst, _lhs, _rhs) => todo!(),
+                DslIR::SubEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::ESUBF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
                 DslIR::SubEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ESUBI(
                         dst.fp(),
@@ -243,8 +249,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::MulEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EMULI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::MulEF(_dst, _lhs, _rhs) => todo!(),
-                DslIR::MulEFI(_dst, _lhs, _rhs) => todo!(),
+                DslIR::MulEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EMULF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::MulEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EMULI(
+                        dst.fp(),
+                        lhs.fp(),
+                        EF::from_base(rhs),
+                    ));
+                }
                 DslIR::IfEq(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
                         compiler: self,
@@ -384,8 +398,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::StoreV(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreF(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreE(ptr, var) => self.push(AsmInstruction::SE(ptr.fp(), var.fp())),
-                DslIR::Num2BitsF(array, felt) => {}
-                _ => unimplemented!(),
+                DslIR::Num2BitsF(_, _) => unimplemented!(),
+                DslIR::Num2BitsV(_, _) => unimplemented!(),
+                DslIR::Poseidon2Compress(_, _, _) => unimplemented!(),
+                DslIR::Poseidon2Permute(_, _) => unimplemented!(),
+                DslIR::ReverseBitsLen(_, _, _) => unimplemented!(),
+                DslIR::ExpUsize(_, _, _) => unimplemented!(),
+                DslIR::TwoAdicGenerator(_, _) => unimplemented!(),
             }
         }
     }
