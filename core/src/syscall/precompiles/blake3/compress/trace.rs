@@ -61,6 +61,10 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                             cols.msg_schedule[i] =
                                 F::from_canonical_usize(MSG_SCHEDULE[round][2 * operation + i]);
                         }
+
+                        if round == 0 && operation == 0 {
+                            cols.ecall_receive = F::one();
+                        }
                     }
 
                     // Memory columns.
@@ -96,7 +100,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                         cols.g.populate(output, input);
                     }
 
-                    clk += 4;
+                    clk += 1;
 
                     cols.is_real = F::one();
 

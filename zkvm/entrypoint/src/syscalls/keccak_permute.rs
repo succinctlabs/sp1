@@ -10,7 +10,8 @@ pub extern "C" fn syscall_keccak_permute(state: *mut u64) {
         asm!(
             "ecall",
             in("t0") crate::syscalls::KECCAK_PERMUTE,
-            in("a0") state
+            in("a0") state,
+            in("a1") 0
         );
     }
 

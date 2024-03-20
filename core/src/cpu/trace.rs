@@ -173,6 +173,7 @@ impl CpuChip {
         self.populate_branch(cols, event, &mut new_alu_events);
         self.populate_jump(cols, event, &mut new_alu_events);
         self.populate_auipc(cols, event, &mut new_alu_events);
+        self.populate_ecall(cols, event);
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -472,6 +473,15 @@ impl CpuChip {
                 .entry(Opcode::ADD)
                 .and_modify(|op_new_events| op_new_events.push(add_event))
                 .or_insert(vec![add_event]);
+        }
+    }
+
+    /// Populate columns related to ECALL.
+    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) {
+        if cols.selectors.is_ecall == F::one() {
+            // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
+            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
+            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
         }
     }
 

@@ -44,7 +44,7 @@ impl ExecutionState {
     pub fn new(pc_start: u32) -> Self {
         Self {
             global_clk: 0,
-            // Start at shard 1 since zero is reserved for memory initialization.
+            // Start at shard 1 since shard 0 is reserved for memory initialization.
             current_shard: 1,
             clk: 0,
             pc: pc_start,
