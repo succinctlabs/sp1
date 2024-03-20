@@ -1,9 +1,6 @@
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode::{U16Range, U8Range};
-use crate::runtime::{
-    MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord, MAX_SHARD_SIZE,
-};
-use crate::utils::{env, log2_strict_usize};
+use crate::runtime::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 use p3_field::PrimeField32;
 
 use super::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};
@@ -136,15 +133,10 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         };
         self.current_ts = F::from_canonical_u32(current_time_value);
 
-        let max_shard_size = env::shard_size();
-        let shift_amount = log2_strict_usize(MAX_SHARD_SIZE) - log2_strict_usize(max_shard_size);
-
-        let ts_diff =
-            MAX_SHARD_SIZE as u32 - ((current_time_value - prev_time_value) << shift_amount);
-        self.ts_diff = F::from_canonical_u32(ts_diff);
-        let ts_diff_16bit_limb = self.ts_diff.as_canonical_u32() & 0xffff;
+        let ts_diff_minus_one = current_time_value - prev_time_value - 1;
+        let ts_diff_16bit_limb = ts_diff_minus_one & 0xffff;
         self.ts_diff_16bit_limb = F::from_canonical_u32(ts_diff_16bit_limb);
-        let ts_diff_8bit_limb = (self.ts_diff.as_canonical_u32() >> 16) & 0xff;
+        let ts_diff_8bit_limb = (ts_diff_minus_one >> 16) & 0xff;
         self.ts_diff_8bit_limb = F::from_canonical_u32(ts_diff_8bit_limb);
 
         // Add a byte table lookup with the 16Range op

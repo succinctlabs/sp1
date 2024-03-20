@@ -48,11 +48,6 @@ pub struct MemoryAccessCols<T> {
     // This materialized column is equal to use_clk_comparison ? current_clk : current_shard.
     pub current_ts: T,
 
-    // This column is equal to 2^24 - ((current_time_value - prev_time_value) << shift_value).
-    // 2^24 is used since we can range check the value by using the 16 bit and 8 bit range checker.
-    // The shifted value is 24 - log_2(user set max shard size).
-    pub ts_diff: T,
-
     // This column is the least significant 16 bit limb of ts_diff.
     pub ts_diff_16bit_limb: T,
 
