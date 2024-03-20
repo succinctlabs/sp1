@@ -326,7 +326,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 
     /// Verifies the memory access timestamp.
     ///
-    /// This method verifier that the diff between the current and previous memory access ts is
+    /// This method verifies that the diff between the current and previous memory access ts is
     /// valid.  Specifically it will ensure that the diff is no larger than the maximum shard size.
     fn verify_mem_access_ts_diff<Eb, Everify>(
         &mut self,
