@@ -88,7 +88,8 @@ pub enum DslIR<C: Config> {
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
 
     // Miscellaneous instructions.
-    Num2Bits29(Array<C, Var<C::N>>, Usize<C::N>),
+    Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),
+    Num2BitsF(Array<C, Var<C::N>>, Felt<C::F>),
     Poseidon2Permute(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
     Poseidon2Compress(
         Array<C, Felt<C::F>>,

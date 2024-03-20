@@ -1,3 +1,4 @@
+use super::challenger::DuplexChallenger;
 use super::types::Dimensions;
 use super::types::FriChallenges;
 use super::types::FriConfig;
@@ -19,9 +20,15 @@ use p3_field::TwoAdicField;
 
 impl<C: Config> Builder<C> {
     /// Converts a usize to a fixed lenght of bits.
-    pub fn num_to_bits(&mut self, num: Usize<C::N>) -> Array<C, Var<C::N>> {
+    pub fn num2bits_v(&mut self, num: Usize<C::N>) -> Array<C, Var<C::N>> {
         let output = self.array::<Var<_>, _>(Usize::Const(29));
-        self.operations.push(DslIR::Num2Bits29(output.clone(), num));
+        self.operations.push(DslIR::Num2BitsV(output.clone(), num));
+        output
+    }
+
+    pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
+        let output = self.array::<Var<_>, _>(Usize::Const(29));
+        self.operations.push(DslIR::Num2BitsF(output.clone(), num));
         output
     }
 
@@ -132,11 +139,36 @@ impl<C: Config> Builder<C> {
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
 #[allow(unused_variables)]
 pub fn verify_shape_and_sample_challenges<C: Config>(
+    builder: &mut Builder<C>,
     config: &FriConfig,
     proof: &FriProof<C>,
     challenges: &FriChallenges<C>,
 ) {
-    todo!()
+    let mut challenger = DuplexChallenger::<C> {
+        nb_inputs: builder.eval(C::N::zero()),
+        nb_outputs: builder.eval(C::N::zero()),
+        sponge_state: builder.array(Usize::Const(PERMUTATION_WIDTH)),
+        input_buffer: builder.array(Usize::Const(PERMUTATION_WIDTH)),
+        output_buffer: builder.array(Usize::Const(PERMUTATION_WIDTH)),
+    };
+    let start = Usize::Const(0);
+    let end = proof.commit_phase_commits.len();
+    builder.range(start, end).for_each(|i, builder| {
+        let comm = builder.get(&proof.commit_phase_commits, i);
+        challenger.observe_commitment(builder, comm);
+    });
+
+    let a = builder.materialize(proof.commit_phase_commits.len());
+    let b = builder.materialize(Usize::Const(config.num_queries));
+    builder.if_ne(a, b).then(|builder| {
+        // TODO: throw error
+    });
+
+    // TODO: Check PoW.
+
+    let commit_phase_commits_len = builder.materialize(proof.commit_phase_commits.len());
+    let log_max_height: Var<_> =
+        builder.eval(commit_phase_commits_len + C::N::from_canonical_usize(config.log_blowup));
 }
 
 /// Verifies a FRI query.
@@ -220,7 +252,7 @@ pub fn verify_batch<C: Config>(
 
     let start = Usize::Const(0);
     let end = proof.len();
-    let index_bits = builder.num_to_bits(Usize::Const(index));
+    let index_bits = builder.num2bits_v(Usize::Const(index));
     builder.range(start, end).for_each(|i, builder| {
         let bit = builder.get(&index_bits, i);
         let left: Array<C, Felt<C::F>> = builder.uninit();
