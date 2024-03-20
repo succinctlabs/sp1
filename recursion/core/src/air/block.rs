@@ -56,7 +56,7 @@ impl<T: Clone> Block<T> {
         &self,
         base: AB::Expr,
     ) -> BinomialExtension<AB::Expr> {
-        let mut arr: [AB::Expr; 4] = self.0.clone().map(|x| AB::Expr::zero());
+        let mut arr: [AB::Expr; 4] = self.0.clone().map(|_| AB::Expr::zero());
         arr[0] = base;
 
         BinomialExtension(arr)

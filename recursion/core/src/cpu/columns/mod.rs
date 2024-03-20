@@ -1,10 +1,15 @@
-use crate::{air::Block, memory::MemoryReadWriteCols};
-use sp1_core::operations::IsZeroOperation;
+use crate::{
+    air::{Block, IsExtZeroOperation},
+    memory::MemoryReadWriteCols,
+};
 use sp1_derive::AlignedBorrow;
 
 mod alu;
+mod branch;
 mod instruction;
+mod jump;
 mod opcode;
+mod opcode_specific;
 
 pub use alu::*;
 pub use instruction::*;
@@ -26,8 +31,8 @@ pub struct CpuCols<T> {
 
     pub alu: AluCols<T>,
 
-    // c = a == b;
-    pub a_eq_b: IsZeroOperation<T>,
+    // result = operand_1 == operand_2;
+    pub eq_1_2: IsExtZeroOperation<T>,
 
     pub is_real: T,
 }

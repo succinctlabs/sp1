@@ -14,7 +14,6 @@ use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
 use sp1_core::lookup::InteractionKind;
-use sp1_core::operations::IsZeroOperation;
 use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
@@ -137,6 +136,12 @@ where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
+        // Constraints for the CPU chip.
+        //
+        // - Constraints for fetching the instruction.
+        // - Constraints for incrementing the internal state consisting of the program counter
+        //   and the clock.
+
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
@@ -224,12 +229,12 @@ where
         //     .assert_eq(local.a.value.0[3], AB::F::zero());
 
         // Compute if a == b.
-        IsZeroOperation::<AB::F>::eval::<AB>(
-            builder,
-            local.a.value.0[0] - local.b.value.0[0],
-            local.a_eq_b,
-            local.is_real.into(),
-        );
+        // IsZeroOperation::<AB::F>::eval::<AB>(
+        //     builder,
+        //     local.a.value.0[0] - local.b.value.0[0],
+        //     local.a_eq_b,
+        //     local.is_real.into(),
+        // );
 
         // Receive C.
         builder.receive(AirInteraction::new(
