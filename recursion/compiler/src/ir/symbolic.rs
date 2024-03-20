@@ -1010,3 +1010,11 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
         }
     }
 }
+
+impl<F: Field> Add<SymbolicFelt<F>> for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn add(self, rhs: SymbolicFelt<F>) -> Self::Output {
+        SymbolicFelt::<F>::from(self) + rhs
+    }
+}
