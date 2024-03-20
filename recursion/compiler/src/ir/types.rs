@@ -1,16 +1,13 @@
 use alloc::{format, string::String};
+use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::Field;
+use serde::Deserialize;
+use serde::Serialize;
 
 use core::marker::PhantomData;
-<<<<<<< HEAD
 use std::collections::HashMap;
 use std::hash::Hash;
-=======
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use serde::{Deserialize, Serialize};
->>>>>>> origin/main
 
 use super::MemVariable;
 use super::Ptr;
@@ -19,11 +16,7 @@ use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Vari
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var<N>(pub u32, pub PhantomData<N>);
 
-<<<<<<< HEAD
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-=======
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
->>>>>>> origin/main
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -87,21 +80,6 @@ impl<F, EF> Ext<F, EF> {
     }
 }
 
-<<<<<<< HEAD
-impl<N: Field> Var<N> {
-    fn assign_with_cache<C: Config<N = N>>(
-        &self,
-        src: SymbolicVar<N>,
-        builder: &mut Builder<C>,
-        cache: &mut HashMap<SymbolicVar<N>, Self>,
-    ) {
-        if let Some(v) = cache.get(&src) {
-            builder
-                .operations
-                .push(DslIR::AddVI(*self, *v, C::N::zero()));
-            return;
-        }
-=======
 impl<C: Config> Variable<C> for Usize<C::N> {
     type Expression = Self;
 
@@ -174,17 +152,19 @@ impl<C: Config> Variable<C> for Usize<C::N> {
     }
 }
 
-impl<C: Config> Variable<C> for Var<C::N> {
-    type Expression = SymbolicVar<C::N>;
-
-    fn uninit(builder: &mut Builder<C>) -> Self {
-        let var = Var(builder.var_count, PhantomData);
-        builder.var_count += 1;
-        var
-    }
-
-    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
->>>>>>> origin/main
+impl<N: Field> Var<N> {
+    fn assign_with_cache<C: Config<N = N>>(
+        &self,
+        src: SymbolicVar<N>,
+        builder: &mut Builder<C>,
+        cache: &mut HashMap<SymbolicVar<N>, Self>,
+    ) {
+        if let Some(v) = cache.get(&src) {
+            builder
+                .operations
+                .push(DslIR::AddVI(*self, *v, C::N::zero()));
+            return;
+        }
         match src {
             SymbolicVar::Const(c) => {
                 builder.operations.push(DslIR::Imm(*self, c));
