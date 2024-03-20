@@ -10,7 +10,7 @@ use std::iter::{Product, Sum};
 use std::mem;
 use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicVar<N> {
     Const(N),
     Val(Var<N>),
@@ -20,7 +20,7 @@ pub enum SymbolicVar<N> {
     Neg(Rc<SymbolicVar<N>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicFelt<F> {
     Const(F),
     Val(Felt<F>),
@@ -31,7 +31,7 @@ pub enum SymbolicFelt<F> {
     Neg(Rc<SymbolicFelt<F>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicExt<F, EF> {
     Const(EF),
     Base(Rc<SymbolicFelt<F>>),
