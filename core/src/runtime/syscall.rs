@@ -1,7 +1,3 @@
-use std::collections::HashMap;
-use std::rc::Rc;
-use strum_macros::EnumIter;
-
 use crate::runtime::{Register, Runtime};
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
@@ -18,6 +14,10 @@ use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 use sp1_derive::CheckSyscallConsistency;
+use std::collections::HashMap;
+use std::rc::Rc;
+use strum::IntoEnumIterator;
+use strum_macros::EnumIter;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 /// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
@@ -81,15 +81,15 @@ impl SyscallCode {
             0x00_00_00_02 => SyscallCode::WRITE,
             0x00_00_00_03 => SyscallCode::ENTER_UNCONSTRAINED,
             0x00_00_00_04 => SyscallCode::EXIT_UNCONSTRAINED,
-            0x00_30_01_00 => SyscallCode::SHA_EXTEND,
-            0x00_01_01_01 => SyscallCode::SHA_COMPRESS,
-            0x00_01_01_02 => SyscallCode::ED_ADD,
-            0x00_00_01_03 => SyscallCode::ED_DECOMPRESS,
-            0x00_01_01_04 => SyscallCode::KECCAK_PERMUTE,
-            0x00_01_01_05 => SyscallCode::SECP256K1_ADD,
-            0x00_00_01_06 => SyscallCode::SECP256K1_DOUBLE,
-            0x00_00_01_07 => SyscallCode::SECP256K1_DECOMPRESS,
-            0x00_38_01_08 => SyscallCode::BLAKE3_COMPRESS_INNER,
+            0x00_30_01_05 => SyscallCode::SHA_EXTEND,
+            0x00_01_01_06 => SyscallCode::SHA_COMPRESS,
+            0x00_01_01_07 => SyscallCode::ED_ADD,
+            0x00_00_01_08 => SyscallCode::ED_DECOMPRESS,
+            0x00_01_01_09 => SyscallCode::KECCAK_PERMUTE,
+            0x00_01_01_0A => SyscallCode::SECP256K1_ADD,
+            0x00_00_01_0B => SyscallCode::SECP256K1_DOUBLE,
+            0x00_00_01_0C => SyscallCode::SECP256K1_DECOMPRESS,
+            0x00_38_01_0D => SyscallCode::BLAKE3_COMPRESS_INNER,
             _ => panic!("invalid syscall number: {}", value),
         }
     }

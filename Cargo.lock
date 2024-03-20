@@ -2548,6 +2548,7 @@ dependencies = [
  "serial_test",
  "size",
  "sp1-derive",
+ "sp1-zkvm",
  "strum",
  "strum_macros",
  "tempfile",
