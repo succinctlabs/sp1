@@ -86,10 +86,6 @@ pub struct ExecutionRecord {
     pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
 }
 
-// Note that the max allowed value of the clk column is actually MAX_SHARD_SIZE - 1, since we will be
-// doing a 24 bit range check on that column's values.
-pub const MAX_SHARD_SIZE: usize = 1 << 24;
-
 pub struct ShardingConfig {
     pub shard_size: usize,
     pub add_len: usize,

@@ -55,6 +55,17 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
             self.assert_eq(left, right);
         }
     }
+
+    /// Will return `a` if `condition` is 1, else `b`.  This assumes that `condition` is already
+    /// checked to be a boolean.
+    fn if_else<ECond, EA, EB>(&mut self, condition: ECond, a: EA, b: EB) -> Self::Expr
+    where
+        ECond: Into<Self::Expr> + Clone,
+        EA: Into<Self::Expr> + Clone,
+        EB: Into<Self::Expr> + Clone,
+    {
+        condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
+    }
 }
 
 /// A trait which contains methods for byte interactions in an AIR.
@@ -322,8 +333,8 @@ pub trait AluAirBuilder: BaseAirBuilder {
 pub trait MemoryAirBuilder: BaseAirBuilder {
     /// Constraints a memory read or write.
     ///
-    /// This method verifies that a memory access ts is greater than the previous ts.  It will also
-    /// add to the memory argument.
+    /// This method verifies that a memory access timestamp (shard, clk) is greater than the
+    /// previous access's timestamp.  It will also add to the memory argument.
     fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
         &mut self,
         shard: EShard,
@@ -342,15 +353,12 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let do_check: Self::Expr = do_check.into();
         let shard: Self::Expr = shard.into();
         let clk: Self::Expr = clk.into();
+        let mem_access = memory_access.access();
 
         self.assert_bool(do_check.clone());
 
-        // Verify all the materialized memory access columns.
-        let mem_access = memory_access.access();
-        mem_access.verify_materialized_columns(self, clk.clone(), shard.clone(), do_check.clone());
-
         // Verify that the current memory access time is greater than the previous's.
-        self.verify_mem_access_ts(mem_access, do_check.clone());
+        self.verify_mem_access_ts(mem_access, do_check.clone(), shard.clone(), clk.clone());
 
         // Add to the memory argument.
         let addr = addr.into();
@@ -387,33 +395,49 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     /// This method verifies that the diff between the current and previous memory access ts is
     /// valid.  Specifically it will ensure the following.
     /// If the previous memory access is within the same shard, then the current_mem_clk_ts -
-    /// prev_mem_clk_ts is within [1, MAX_SHARD_SIZE - 1].
+    /// prev_mem_clk_ts is within [1, MAX_SHARD_CLK].
     /// If the previous memory access is in a different shard, then the current_mem_shard_ts -
-    /// prev_mem_shard_ts is within [1, MAX_SHARD_SIZE - 1].
-    fn verify_mem_access_ts<Eb, Everify>(
+    /// prev_mem_shard_ts is within [1, MAX_SHARD_CLK].
+    fn verify_mem_access_ts<Eb, Everify, EShard, EClk>(
         &mut self,
         mem_access: &MemoryAccessCols<Eb>,
         do_check: Everify,
+        shard: EShard,
+        clk: EClk,
     ) where
         Eb: Into<Self::Expr> + Clone,
         Everify: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
+        EClk: Into<Self::Expr>,
     {
-        // current_comp_val is the clk value at the current memory access if the previous memory access
-        // is within the same shard.  Otherwise, it is the shard value at the current memory access.
-        let current_comp_val: Self::Expr = mem_access.current_comp_val.clone().into();
-        // prev_comp_val is the clk value at the previous memory access if the current memory access
-        // is within the same shard.  Otherwise, it is the shard value at the previous memory access.
-        let prev_comp_val: Self::Expr = mem_access.prev_comp_val.clone().into();
         let do_check: Self::Expr = do_check.into();
+        let compare_clk: Self::Expr = mem_access.compare_clk.clone().into();
+        let shard: Self::Expr = shard.into();
+        let prev_shard: Self::Expr = mem_access.prev_shard.clone().into();
 
-        // Assert `current_comp_val > prev_comp_val`. We check this by asserting that `0 <= current_comp_val-prev_comp_val-1 < 2^24`. The equivalence of these statements comes from the fact that if `current_comp_val <= prev_comp_val`, then `current_comp_val-prev_comp_val-1 < 0` and will underflow in the prime field, resulting in a value that is `>= 2^24` as long as both `current_comp_val, prev_comp_val` are range-checked to be `<2^24`, as long as we're working in a field larger than `2 * 2^24` (which is true of the BabyBear and Mersenne31 prime).
-        //
-        // We know that diff_minus_one will have the possible values of [-MAX_SHARD_SIZE, MAX_SHARD_SIZE - 2]
-        // (in other words [BABYBEAR_P - 1 - MAX_SHARD_SIZE, BABYBEAR_P - 1] union [0, MAX_SHARD_SIZE - 2]),
-        // since we do a range check for all clk values to be within [0, MAX_SHARD_SIZE - 1].
-        // We want to ensure that diff_minus_one is within [0, MAX_SHARD_SIZE - 2], so we do a 24 bit
-        // range check on it.
-        let diff_minus_one = current_comp_val - prev_comp_val - Self::Expr::one();
+        // First verify that compare_clk's value is correct.
+        self.when(do_check.clone()).assert_bool(compare_clk.clone());
+        self.when(do_check.clone())
+            .when(compare_clk.clone())
+            .assert_eq(shard.clone(), prev_shard);
+
+        // Get the comparison timestamp values for the current and previous memory access.
+        let prev_comp_value = self.if_else(
+            mem_access.compare_clk.clone(),
+            mem_access.prev_clk.clone(),
+            mem_access.prev_shard.clone(),
+        );
+
+        let current_comp_val = self.if_else(compare_clk.clone(), clk.into(), shard);
+
+        // Assert `current_comp_val > prev_comp_val`. We check this by asserting that
+        // `0 <= current_comp_val-prev_comp_val-1 < 2^24`.
+        // The equivalence of these statements comes from the fact that if `current_comp_val <= prev_comp_val`,
+        // then `current_comp_val-prev_comp_val-1 < 0` and will underflow in the prime field,
+        // resulting in a value that is `>= 2^24` as long as both `current_comp_val, prev_comp_val` are
+        // range-checked to be `<2^24` and as long as we're working in a field larger than `2 * 2^24`
+        // (which is true of the BabyBear and Mersenne31 prime).
+        let diff_minus_one = current_comp_val - prev_comp_value - Self::Expr::one();
 
         // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb + mem_access.ts_diff_8bit_limb * 2^16.
         self.when(do_check.clone()).assert_eq(

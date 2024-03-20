@@ -1,4 +1,4 @@
-use crate::runtime::MAX_SHARD_SIZE;
+use crate::runtime::MAX_SHARD_CLK;
 use crate::utils::log2_strict_usize;
 
 /// Gets the number of rows which by default should be used for each chip to maximize padding.
@@ -8,10 +8,10 @@ pub fn shard_size() -> usize {
         Err(_) => 1 << 19,
     };
 
-    if value > MAX_SHARD_SIZE {
+    if value > MAX_SHARD_CLK {
         panic!(
-            "Shard size must be at most 2^{}",
-            log2_strict_usize(MAX_SHARD_SIZE)
+            "Shard size must be at most 2^{} - 1",
+            log2_strict_usize(MAX_SHARD_CLK + 1)
         );
     }
 

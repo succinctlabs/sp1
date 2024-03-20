@@ -125,13 +125,11 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         } else {
             prev_record.shard
         };
-        self.prev_comp_val = F::from_canonical_u32(prev_time_value);
         let current_time_value = if use_clk_comparison {
             current_record.timestamp
         } else {
             current_record.shard
         };
-        self.current_comp_val = F::from_canonical_u32(current_time_value);
 
         let diff_minus_one = current_time_value - prev_time_value - 1;
         let diff_16bit_limb = diff_minus_one & 0xffff;
