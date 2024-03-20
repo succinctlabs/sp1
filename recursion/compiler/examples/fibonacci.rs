@@ -55,16 +55,16 @@ fn main() {
     let mut runtime = Runtime::<F, EF>::new(&program);
     runtime.run();
 
-    let config = SC::new();
-    let machine = RecursionAir::machine(config);
-    let (pk, vk) = machine.setup(&program);
-    let mut challenger = machine.config().challenger();
+    // let config = SC::new();
+    // let machine = RecursionAir::machine(config);
+    // let (pk, vk) = machine.setup(&program);
+    // let mut challenger = machine.config().challenger();
 
-    let start = Instant::now();
-    let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-    let duration = start.elapsed().as_secs();
+    // let start = Instant::now();
+    // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+    // let duration = start.elapsed().as_secs();
 
-    let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger).unwrap();
-    println!("proving duration = {}", duration);
+    // let mut challenger = machine.config().challenger();
+    // machine.verify(&vk, &proof, &mut challenger).unwrap();
+    // println!("proving duration = {}", duration);
 }
