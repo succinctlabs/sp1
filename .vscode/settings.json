@@ -58,8 +58,8 @@
         // // Eval.
         // "eval/Cargo.toml"
     ],
-    "rust-analyzer.showUnlinkedFileNotification": false,
-    "rust-analyzer.check.workspace": false,
-    "rust-analyzer.check.invocationStrategy": "once",
-    "rust-analyzer.cargo.buildScripts.invocationStrategy": "once",
+    // "rust-analyzer.showUnlinkedFileNotification": false,
+    // "rust-analyzer.check.workspace": false,
+    // "rust-analyzer.check.invocationStrategy": "once",
+    // "rust-analyzer.cargo.buildScripts.invocationStrategy": "once",
 }
