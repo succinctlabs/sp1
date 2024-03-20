@@ -1,9 +1,13 @@
+use std::marker::PhantomData;
+
 use p3_air::Air;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::ChipOpenedValues;
+use sp1_core::stark::StarkAir;
+use sp1_core::stark::VerifierConstraintFolder;
 use sp1_core::stark::{AirOpenedValues, MachineChip, StarkGenericConfig};
 
 use crate::prelude::ExtConst;
@@ -114,7 +118,9 @@ impl<C: Config> Builder<C> {
     ) where
         SC: StarkGenericConfig,
         C: Config<F = SC::Val, EF = SC::Challenge>,
-        A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+        A: MachineAir<SC::Val>
+            + StarkAir<SC>
+            + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
         let g_inv_val = g_val.inverse();
         let g: Felt<_> = self.eval(g_val);
@@ -138,58 +144,52 @@ impl<C: Config> Builder<C> {
         self.assert_ext_eq(is_last_row, is_last_row_val.cons());
         self.assert_ext_eq(is_transition, is_transition_val.cons());
 
-        // let preprocessed = self.const_opened_values(&opening.preprocessed);
-        // let main = self.const_opened_values(&opening.main);
-        // let perm = self.const_opened_values(&opening.permutation);
+        let preprocessed = self.const_opened_values(&opening.preprocessed);
+        let main = self.const_opened_values(&opening.main);
+        let perm = self.const_opened_values(&opening.permutation);
 
-        // let zero: Ext<SC::Val, SC::Challenge> = self.eval(SC::Val::zero());
-        // let cumulative_sum = self.eval(SC::Val::zero());
-        // let mut folder = RecursiveVerifierConstraintFolder {
-        //     builder: self,
-        //     preprocessed: preprocessed.view(),
-        //     main: main.view(),
-        //     perm: perm.view(),
-        //     perm_challenges: &[SC::Challenge::one(), SC::Challenge::one()],
-        //     cumulative_sum,
-        //     is_first_row,
-        //     is_last_row,
-        //     is_transition,
-        //     alpha,
-        //     accumulator: zero,
-        // };
+        let zero: Ext<SC::Val, SC::Challenge> = self.eval(SC::Val::zero());
+        let cumulative_sum = self.eval(SC::Val::zero());
+        let alpha = self.eval(alpha_val.cons());
+        let mut folder = RecursiveVerifierConstraintFolder {
+            builder: self,
+            preprocessed: preprocessed.view(),
+            main: main.view(),
+            perm: perm.view(),
+            perm_challenges: &[SC::Challenge::one(), SC::Challenge::one()],
+            cumulative_sum,
+            is_first_row,
+            is_last_row,
+            is_transition,
+            alpha,
+            accumulator: zero,
+        };
+
+        chip.eval(&mut folder);
+        let folded_constraints = folder.accumulator;
+
+        let mut test_folder = VerifierConstraintFolder::<SC> {
+            preprocessed: opening.preprocessed.view(),
+            main: opening.main.view(),
+            perm: opening.permutation.view(),
+            perm_challenges: &[SC::Challenge::one(), SC::Challenge::one()],
+            cumulative_sum: SC::Challenge::zero(),
+            is_first_row: is_first_row_val,
+            is_last_row: is_last_row_val,
+            is_transition: is_transition_val,
+            alpha: alpha_val,
+            accumulator: SC::Challenge::zero(),
+            _marker: PhantomData,
+        };
 
         // let monomials = (0..SC::Challenge::D)
         //     .map(SC::Challenge::monomial)
         //     .collect::<Vec<_>>();
 
-        // let quotient_parts = opening
-        //     .quotient
-        //     .iter()
-        //     .map(|chunk| {
-        //         chunk
-        //             .iter()
-        //             .zip(monomials.iter())
-        //             .map(|(x, m)| *x * *m)
-        //             .sum()
-        //     })
-        //     .collect::<Vec<SC::Challenge>>();
+        chip.eval(&mut test_folder);
+        let folded_constraints_val = test_folder.accumulator;
 
-        // chip.eval(&mut folder);
-        // let folded_constraints = folder.accumulator;
-
-        // let mut zeta_powers = zeta;
-        // let quotient: Ext<SC::Val, SC::Challenge> = self.eval(SC::Val::zero());
-        // let quotient_expr: SymbolicExt<SC::Val, SC::Challenge> = quotient.into();
-        // for quotient_part in quotient_parts {
-        //     zeta_powers = self.eval(zeta_powers * zeta);
-        //     self.assign(quotient, zeta_powers * quotient_part);
-        // }
-        // let quotient: Ext<SC::Val, SC::Challenge> = self.eval(quotient_expr);
-
-        // let expected_folded_constraints = z_h * quotient;
-        // self.assert_ext_eq(folded_constraints, expected_folded_constraints);
-
-        // folder.accumulator
+        self.assert_ext_eq(folded_constraints, folded_constraints_val.cons());
     }
 
     pub fn verify_constraints<SC, A>(

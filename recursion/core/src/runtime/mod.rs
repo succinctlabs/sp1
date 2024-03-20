@@ -245,14 +245,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::ESUB | Opcode::EFSUB => {
+                Opcode::ESUB | Opcode::EFSUB | Opcode::FESUB => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(diff.as_base_slice());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EDIV | Opcode::EFDIV => {
+                Opcode::EDIV | Opcode::EFDIV | Opcode::FEDIV => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(quotient.as_base_slice());

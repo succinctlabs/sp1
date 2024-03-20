@@ -18,8 +18,10 @@ pub enum Opcode {
     // Mixed arithmetic operations.
     EFADD = 20,
     EFSUB = 21,
+    FESUB = 24,
     EFMUL = 22,
     EFDIV = 23,
+    FEDIV = 25,
 
     // Memory instructions.
     LW = 4,

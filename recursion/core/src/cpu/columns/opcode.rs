@@ -27,8 +27,10 @@ pub struct OpcodeSelectorCols<T> {
     // Mixed arithmetic operations.
     pub is_efadd: T,
     pub is_efsub: T,
+    pub is_fesub: T,
     pub is_efmul: T,
     pub is_efdiv: T,
+    pub is_fediv: T,
 
     // Memory instructions.
     pub is_lw: T,
@@ -69,8 +71,10 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::EDIV => self.is_ediv = F::one(),
             Opcode::EFADD => self.is_efadd = F::one(),
             Opcode::EFSUB => self.is_efsub = F::one(),
+            Opcode::FESUB => self.is_fesub = F::one(),
             Opcode::EFMUL => self.is_efmul = F::one(),
             Opcode::EFDIV => self.is_efdiv = F::one(),
+            Opcode::FEDIV => self.is_fediv = F::one(),
             Opcode::LW => self.is_lw = F::one(),
             Opcode::SW => self.is_sw = F::one(),
             Opcode::LE => self.is_le = F::one(),
@@ -103,8 +107,10 @@ impl<T> IntoIterator for OpcodeSelectorCols<T> {
             self.is_ediv,
             self.is_efadd,
             self.is_efsub,
+            self.is_fesub,
             self.is_efmul,
             self.is_efdiv,
+            self.is_fediv,
             self.is_lw,
             self.is_sw,
             self.is_le,

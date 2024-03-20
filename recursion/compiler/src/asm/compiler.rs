@@ -22,7 +22,9 @@ pub(crate) const STACK_START_OFFSET: i32 = 16;
 pub(crate) const ZERO: i32 = 0;
 pub(crate) const HEAP_PTR: i32 = -4;
 
+#[allow(dead_code)]
 pub(crate) const A0: i32 = -8;
+#[allow(dead_code)]
 pub(crate) const A1: i32 = -12;
 
 pub type VmBuilder<F, EF> = Builder<AsmConfig<F, EF>>;
@@ -175,7 +177,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::InvF(dst, src) => {
                     self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::DivEF(dst, _lhs, _rhs) => todo!(),
+                DslIR::DivEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EDIVF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
                 DslIR::DivEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EDIVI(
                         dst.fp(),

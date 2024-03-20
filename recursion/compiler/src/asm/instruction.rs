@@ -385,15 +385,15 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
             ),
             AsmInstruction::FSUBE(dst, lhs, rhs) => Instruction::new(
-                Opcode::EFSUB,
+                Opcode::FESUB,
                 i32_f(dst),
-                i32_f_arr(lhs),
                 i32_f_arr(rhs),
+                i32_f_arr(lhs),
                 false,
                 false,
             ),
             AsmInstruction::FSUBEI(dst, lhs, rhs) => Instruction::new(
-                Opcode::EFSUB,
+                Opcode::FESUB,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
@@ -401,7 +401,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
             ),
             AsmInstruction::FSUBEIN(dst, lhs, rhs) => Instruction::new(
-                Opcode::EFSUB,
+                Opcode::FESUB,
                 i32_f(dst),
                 lhs.as_base_slice().try_into().unwrap(),
                 i32_f_arr(rhs),
@@ -429,7 +429,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f(dst),
                 i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
-                true,
+                false,
                 true,
             ),
             AsmInstruction::EDIVF(dst, lhs, rhs) => Instruction::new(
@@ -449,7 +449,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
             ),
             AsmInstruction::EDIVFIN(dst, lhs, rhs) => Instruction::new(
-                Opcode::EFDIV,
+                Opcode::FEDIV,
                 i32_f(dst),
                 f_u32(lhs),
                 i32_f_arr(rhs),
@@ -457,7 +457,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
             ),
             AsmInstruction::FDIVI(dst, lhs, rhs) => Instruction::new(
-                Opcode::EFDIV,
+                Opcode::FEDIV,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
