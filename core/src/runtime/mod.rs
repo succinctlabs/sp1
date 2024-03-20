@@ -217,13 +217,7 @@ impl Runtime {
         record.timestamp = timestamp;
 
         // Construct the memory read record.
-        MemoryReadRecord {
-            value,
-            shard,
-            timestamp,
-            prev_shard,
-            prev_timestamp,
-        }
+        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
     }
 
     /// Write a word to memory and create an access record.
@@ -254,14 +248,14 @@ impl Runtime {
         record.timestamp = timestamp;
 
         // Construct the memory write record.
-        MemoryWriteRecord {
+        MemoryWriteRecord::new(
             value,
-            prev_value,
             shard,
             timestamp,
+            prev_value,
             prev_shard,
             prev_timestamp,
-        }
+        )
     }
 
     /// Read from memory, assuming that all addresses are aligned.
@@ -469,6 +463,7 @@ impl Runtime {
     /// Execute the given instruction over the current state of the runtime.
     fn execute_instruction(&mut self, instruction: Instruction) {
         let pc = self.state.pc;
+        let clk = self.state.clk;
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
@@ -674,28 +669,36 @@ impl Runtime {
             // System instructions.
             Opcode::ECALL => {
                 let t0 = Register::X5;
-                let a0 = Register::X10;
+                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this register
+                // is that we write to it later.
                 let syscall_id = self.register(t0);
+                c = self.rr(Register::X11, MemoryAccessPosition::C);
+                b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                let init_clk = self.state.clk;
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt);
-                    next_pc = precompile_rt.next_pc;
-                    self.state.clk = precompile_rt.clk;
-                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                let (precompile_next_pc, precompile_cycles) =
+                    if let Some(syscall_impl) = syscall_impl {
+                        // Executing a syscall optionally returns a value to write to the t0 register.
+                        // If it returns None, we just keep the syscall_id in t0.
+                        // Only the "LWA" syscall actually writes to t0, most syscalls don't return a value.
+                        let res = syscall_impl.execute(&mut precompile_rt, b, c);
+                        if let Some(val) = res {
+                            a = val;
+                        } else {
+                            // Default to syscall_id if no value is returned from syscall execution.
+                            a = syscall_id;
+                        }
+                        (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
+                    } else {
+                        panic!("Unsupported syscall: {:?}", syscall);
+                    };
 
-                // We have to do this AFTER the precompile execution because the CPU event
-                // gets emitted at the end of this loop with the incremented clock.
-                // TODO: fix this.
-                self.rw(a0, a);
-                (b, c) = (self.rr(t0, MemoryAccessPosition::B), 0);
+                self.rw(t0, a);
+                next_pc = precompile_next_pc;
+                self.state.clk += precompile_cycles;
             }
 
             Opcode::EBREAK => {
@@ -768,12 +771,14 @@ impl Runtime {
 
         // Update the program counter.
         self.state.pc = next_pc;
+        // Update the clk to the next cycle.
+        self.state.clk += 4;
 
         // Emit the CPU event for this cycle.
         if self.emit_events {
             self.emit_cpu(
                 self.shard(),
-                self.state.clk,
+                clk,
                 pc,
                 instruction,
                 a,
@@ -799,7 +804,6 @@ impl Runtime {
 
         // Increment the clock.
         self.state.global_clk += 1;
-        self.state.clk += 4;
 
         // If there's not enough cycles left for another instruction, move to the next shard.
         // We multiply by 4 because clk is incremented by 4 for each normal instruction.
@@ -982,7 +986,7 @@ pub mod tests {
         utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -1003,8 +1007,8 @@ pub mod tests {
 
     pub fn ecall_lwa_program() -> Program {
         let instructions = vec![
-            Instruction::new(Opcode::ADD, 5, 0, 101, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::LWA as u32, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ];
         Program::new(instructions, 0, 0)
     }

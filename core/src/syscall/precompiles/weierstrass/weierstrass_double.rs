@@ -7,6 +7,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
@@ -68,16 +69,14 @@ pub struct WeierstrassDoubleAssignChip<E> {
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_double_event::<E>(rt);
-        rt.record_mut()
-            .weierstrass_double_events
-            .push(event.clone());
-        event.p_ptr + 1
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let event = create_ec_double_event::<E>(rt, arg1, arg2);
+        rt.record_mut().weierstrass_double_events.push(event);
+        None
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        8
+        0
     }
 }
 
@@ -369,9 +368,18 @@ where
 
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+            row.clk.into(),
             row.p_ptr,
             &row.p_access,
+            row.is_real,
+        );
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id()),
+            row.p_ptr,
+            AB::Expr::zero(),
             row.is_real,
         );
     }

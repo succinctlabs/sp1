@@ -8,6 +8,7 @@ use crate::memory::MemoryCols;
 use crate::operations::{
     AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
 };
+use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -33,6 +34,20 @@ where
         self.constrain_compression_ops(builder, local);
 
         self.constrain_finalize_ops(builder, local);
+
+        // TODO: move to "constraint ecall" or something similar
+        builder.assert_eq(
+            local.start,
+            local.is_real * local.octet[0] * local.octet_num[0],
+        );
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.syscall_id()),
+            local.w_ptr,
+            local.h_ptr,
+            local.start,
+        );
     }
 }
 
@@ -43,6 +58,7 @@ impl ShaCompressChip {
         local: &ShaCompressCols<AB::Var>,
         next: &ShaCompressCols<AB::Var>,
     ) {
+        // TODO: we have to constraint that the clk is incremented by 1 between the compress and finalize phase.
         //// Constrain octet columns
         // Verify that all of the octet columns are bool.
         for i in 0..8 {
@@ -128,7 +144,7 @@ impl ShaCompressChip {
         let is_finalize = local.octet_num[9];
         builder.constraint_memory_access(
             local.shard,
-            local.clk,
+            local.clk + is_finalize,
             local.mem_addr,
             &local.mem,
             is_initialize + local.is_compression + is_finalize,
@@ -149,15 +165,13 @@ impl ShaCompressChip {
         // Verify correct mem address for initialize phase
         builder.when(is_initialize).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
-                + (AB::Expr::from_canonical_u32(64 * 4)
-                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
+            local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
 
         // Verify correct mem address for compression phase
         builder.when(local.is_compression).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
+            local.w_ptr
                 + (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8))
                     + cycle_step.clone())
                     * AB::Expr::from_canonical_u32(4),
@@ -166,9 +180,7 @@ impl ShaCompressChip {
         // Verify correct mem address for finalize phase
         builder.when(is_finalize).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
-                + (AB::Expr::from_canonical_u32(64 * 4)
-                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
+            local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
 
         // In the initialize phase, verify that local.a, local.b, ... is correctly set to the

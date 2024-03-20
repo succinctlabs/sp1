@@ -80,6 +80,10 @@ pub struct CpuCols<T: Copy> {
     /// The unsigned memory value is the value after the offset logic is applied. Used for the load
     /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
     pub unsigned_mem_val: Word<T>,
+
+    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
+    /// TODO: this can be moved into `opcode_specific_columns` for ECALL.
+    pub ecall_mul_send_to_table: T,
 }
 
 impl<T: Copy> CpuCols<T> {

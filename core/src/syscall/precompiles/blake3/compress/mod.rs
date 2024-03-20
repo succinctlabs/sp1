@@ -159,7 +159,7 @@ pub mod compress_tests {
             ),
             Instruction::new(Opcode::ADD, Register::X10 as u32, 0, state_ptr, false, true),
             Instruction::new(Opcode::ADD, Register::X11 as u32, 0, msg_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
         Program::new(instructions, 0, 0)
     }
