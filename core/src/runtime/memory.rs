@@ -29,8 +29,8 @@ pub enum MemoryRecordEnum {
     Write(MemoryWriteRecord),
 }
 
+#[allow(clippy::manual_non_exhaustive)]
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
-#[non_exhaustive]
 pub struct MemoryReadRecord {
     pub value: u32,
     pub shard: u32,
@@ -40,8 +40,8 @@ pub struct MemoryReadRecord {
     _private: (),
 }
 
+#[allow(clippy::manual_non_exhaustive)]
 #[derive(Debug, Copy, Clone, Default, Serialize, Deserialize)]
-#[non_exhaustive]
 pub struct MemoryWriteRecord {
     pub value: u32,
     pub shard: u32,
