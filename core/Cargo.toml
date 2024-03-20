@@ -33,6 +33,7 @@ p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
 rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 sp1-derive = { path = "../derive" }
+sp1-zkvm = { path = "../zkvm/entrypoint" }
 
 anyhow = "1.0.79"
 blake3 = "1.5"
@@ -59,6 +60,8 @@ tracing = "0.1.40"
 tracing-forest = { version = "0.1.6", features = ["ansi", "smallvec"] }
 tracing-log = "0.2.0"
 tracing-subscriber = { version = "0.3.17", features = ["std", "env-filter"] }
+strum_macros = "0.26.2"
+strum = "0.26.2"
 
 [dev-dependencies]
 criterion = "0.5.1"

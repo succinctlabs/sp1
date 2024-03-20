@@ -12,6 +12,7 @@ use crate::{
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
+use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 
@@ -28,14 +29,39 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
-#[cfg(test)]
-#[cfg(not(debug))]
-pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+pub fn run_test_io(
+    program: Program,
+    inputs: SP1Stdin,
+) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Runtime::new(program);
+        runtime.write_stdin_slice(&inputs.buffer.data);
+        runtime.run();
+        runtime
+    });
+    let stdout = SP1Stdout::from(&runtime.state.output_stream);
+    let proof = run_test_core(runtime)?;
+    Ok(SP1ProofWithIO {
+        proof,
+        stdin: inputs,
+        stdout,
+    })
+}
+
+pub fn run_test(
+    program: Program,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
     });
+    run_test_core(runtime)
+}
+
+pub fn run_test_core(
+    runtime: Runtime,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
@@ -60,7 +86,7 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
         Size::from_bytes(nb_bytes),
     );
 
-    Ok(())
+    Ok(proof)
 }
 
 fn trace_checkpoint(program: Program, file: &File) -> (ExecutionRecord, Vec<u8>) {
