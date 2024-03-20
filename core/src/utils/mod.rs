@@ -120,3 +120,10 @@ pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     }
     result
 }
+
+#[inline]
+pub fn log2_strict_usize(n: usize) -> usize {
+    let res = n.trailing_zeros();
+    assert_eq!(n.wrapping_shr(res), 1, "Not a power of two: {n}");
+    res as usize
+}

@@ -8,7 +8,6 @@ use super::Opcode;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
-use crate::field::event::FieldEvent;
 use crate::runtime::MemoryRecord;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
@@ -61,9 +60,6 @@ pub struct ExecutionRecord {
 
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
-
-    /// A trace of field LTU events.
-    pub field_events: Vec<FieldEvent>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
@@ -161,7 +157,6 @@ impl MachineRecord for ExecutionRecord {
         );
         stats.insert("divrem_events".to_string(), self.divrem_events.len());
         stats.insert("lt_events".to_string(), self.lt_events.len());
-        stats.insert("field_events".to_string(), self.field_events.len());
         stats.insert(
             "sha_extend_events".to_string(),
             self.sha_extend_events.len(),
@@ -209,7 +204,6 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.shift_right_events);
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
-        self.field_events.append(&mut other.field_events);
         self.sha_extend_events.append(&mut other.sha_extend_events);
         self.sha_compress_events
             .append(&mut other.sha_compress_events);
@@ -326,15 +320,6 @@ impl MachineRecord for ExecutionRecord {
             shard.lt_events.extend_from_slice(lt_chunk);
         }
 
-        // Shard the field events.
-        take(&mut self.field_events)
-            .into_iter()
-            .enumerate()
-            .for_each(|(i, event)| {
-                let shard = &mut shards[i / config.field_len];
-                shard.field_events.push(event);
-            });
-
         // Keccak-256 permute events.
         for (keccak_chunk, shard) in take(&mut self.keccak_permute_events)
             .chunks_mut(config.keccak_len)
@@ -419,14 +404,6 @@ impl ExecutionRecord {
 
     pub fn add_lt_event(&mut self, lt_event: AluEvent) {
         self.lt_events.push(lt_event);
-    }
-
-    pub fn add_field_event(&mut self, field_event: FieldEvent) {
-        self.field_events.push(field_event);
-    }
-
-    pub fn add_field_events(&mut self, field_events: &[FieldEvent]) {
-        self.field_events.extend_from_slice(field_events);
     }
 
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
