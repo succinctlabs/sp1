@@ -142,20 +142,24 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfig,
     proof: &FriProof<C>,
-    challenges: &FriChallenges<C>,
-) {
-    let mut challenger = DuplexChallenger::<C> {
-        nb_inputs: builder.eval(C::N::zero()),
-        nb_outputs: builder.eval(C::N::zero()),
-        sponge_state: builder.array(Usize::Const(PERMUTATION_WIDTH)),
-        input_buffer: builder.array(Usize::Const(PERMUTATION_WIDTH)),
-        output_buffer: builder.array(Usize::Const(PERMUTATION_WIDTH)),
-    };
+    challenger: &mut DuplexChallenger<C>,
+) -> FriChallenges<C> {
+    // let mut challenger = DuplexChallenger::<C> {
+    //     nb_inputs: builder.eval(C::N::zero()),
+    //     nb_outputs: builder.eval(C::N::zero()),
+    //     sponge_state: builder.array(Usize::Const(PERMUTATION_WIDTH)),
+    //     input_buffer: builder.array(Usize::Const(PERMUTATION_WIDTH)),
+    //     output_buffer: builder.array(Usize::Const(PERMUTATION_WIDTH)),
+    // };
+
+    let mut betas: Array<C, Felt<C::F>> = builder.array(proof.commit_phase_commits.len());
     let start = Usize::Const(0);
     let end = proof.commit_phase_commits.len();
     builder.range(start, end).for_each(|i, builder| {
         let comm = builder.get(&proof.commit_phase_commits, i);
         challenger.observe_commitment(builder, comm);
+        let sample = challenger.sample(builder);
+        builder.set(&mut betas, i, sample);
     });
 
     let a = builder.materialize(proof.commit_phase_commits.len());
@@ -169,6 +173,19 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     let commit_phase_commits_len = builder.materialize(proof.commit_phase_commits.len());
     let log_max_height: Var<_> =
         builder.eval(commit_phase_commits_len + C::N::from_canonical_usize(config.log_blowup));
+
+    let mut query_indices = builder.array::<Var<_>, _>(Usize::Const(config.num_queries));
+    let start = Usize::Const(0);
+    let end = Usize::Const(config.num_queries);
+    builder.range(start, end).for_each(|i, builder| {
+        let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
+        builder.set(&mut query_indices, i, index);
+    });
+
+    FriChallenges {
+        query_indices,
+        betas,
+    }
 }
 
 /// Verifies a FRI query.
