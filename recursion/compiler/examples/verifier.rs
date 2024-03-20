@@ -21,7 +21,7 @@ fn main() {
 
     // Generate a dummy proof.
     utils::setup_logger();
-    let elf = include_bytes!("../../../examples/ed25519/program/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     let proofs = SP1Prover::prove(elf, SP1Stdin::new())
         .unwrap()
         .proof
