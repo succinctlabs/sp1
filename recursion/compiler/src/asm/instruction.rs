@@ -12,6 +12,7 @@ use super::ZERO;
 
 #[derive(Debug, Clone)]
 pub enum AsmInstruction<F, EF> {
+    // Field operations
     /// Load work (dst, src) : load a value from the address stored at src(fp) into dstfp).
     LW(i32, i32),
     /// Store word (dst, src) : store a value from src(fp) into the address stored at dest(fp).
@@ -38,6 +39,13 @@ pub enum AsmInstruction<F, EF> {
     DIVI(i32, i32, F),
     /// Divide value from immediate, dst = lhs / rhs.
     DIVIN(i32, F, i32),
+
+    // Store the 4 most significant bits of the source into a contiguous chunk of memory at the
+    // address stored in the destination.
+    HintBits(i32, i32, usize),
+    /// Compute srarting at the address stored in the source and store the result at the
+    /// destination.
+    Bits4toNum(i32, i32, usize),
 
     // Extension operations
     /// Load an ext value (dst, src) : load a value from the address stored at src(fp) into dst(fp).
@@ -411,6 +419,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::TRAP => {
                 Instruction::new(Opcode::TRAP, F::zero(), zero, zero, false, false)
             }
+            _ => unimplemented!(),
         }
     }
 
@@ -575,6 +584,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 )
             }
             AsmInstruction::TRAP => write!(f, "trap"),
+            _ => unimplemented!(),
         }
     }
 }
