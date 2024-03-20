@@ -13,10 +13,8 @@ use crate::syscall::{
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
-use sp1_derive::CheckSyscallConsistency;
 use std::collections::HashMap;
 use std::rc::Rc;
-use strum::IntoEnumIterator;
 use strum_macros::EnumIter;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
@@ -26,7 +24,7 @@ use strum_macros::EnumIter;
 /// in the CPU table to determine whether to lookup the syscall using the syscall interaction.
 /// - The third byte is the number of additional cycles the syscall uses.
 /// - The fourth byte is 0/1 depending on whether the syscall is the HALT syscall.
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter, CheckSyscallConsistency)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
 #[allow(non_camel_case_types)]
 pub enum SyscallCode {
     /// Halts the program.
@@ -284,6 +282,47 @@ mod tests {
     fn test_encoding_roundtrip() {
         for (syscall_code, _) in default_syscall_map().iter() {
             assert_eq!(SyscallCode::from_u32(*syscall_code as u32), *syscall_code);
+        }
+    }
+
+    #[test]
+    /// Check that the Syscall number match the zkVM crate's.
+    fn test_syscall_consistency_zkvm() {
+        for code in SyscallCode::iter() {
+            match code {
+                SyscallCode::HALT => assert_eq!(code as u32, sp1_zkvm::syscalls::HALT),
+                SyscallCode::LWA => assert_eq!(code as u32, sp1_zkvm::syscalls::LWA),
+                SyscallCode::WRITE => assert_eq!(code as u32, sp1_zkvm::syscalls::WRITE),
+                SyscallCode::ENTER_UNCONSTRAINED => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::ENTER_UNCONSTRAINED)
+                }
+                SyscallCode::EXIT_UNCONSTRAINED => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::EXIT_UNCONSTRAINED)
+                }
+                SyscallCode::SHA_EXTEND => assert_eq!(code as u32, sp1_zkvm::syscalls::SHA_EXTEND),
+                SyscallCode::SHA_COMPRESS => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SHA_COMPRESS)
+                }
+                SyscallCode::ED_ADD => assert_eq!(code as u32, sp1_zkvm::syscalls::ED_ADD),
+                SyscallCode::ED_DECOMPRESS => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::ED_DECOMPRESS)
+                }
+                SyscallCode::KECCAK_PERMUTE => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::KECCAK_PERMUTE)
+                }
+                SyscallCode::SECP256K1_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_ADD)
+                }
+                SyscallCode::SECP256K1_DOUBLE => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DOUBLE)
+                }
+                SyscallCode::BLAKE3_COMPRESS_INNER => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLAKE3_COMPRESS_INNER)
+                }
+                SyscallCode::SECP256K1_DECOMPRESS => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
+                }
+            }
         }
     }
 }
