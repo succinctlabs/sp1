@@ -19,13 +19,14 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 
 impl<C: Config> Builder<C> {
-    /// Converts a usize to a fixed lenght of bits.
+    /// Converts a usize to a fixed length of bits.
     pub fn num2bits_v(&mut self, num: Usize<C::N>) -> Array<C, Var<C::N>> {
         let output = self.array::<Var<_>, _>(Usize::Const(29));
         self.operations.push(DslIR::Num2BitsV(output.clone(), num));
         output
     }
 
+    /// Converts a felt to a fixed length of bits.
     pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
         let output = self.array::<Var<_>, _>(Usize::Const(29));
         self.operations.push(DslIR::Num2BitsF(output.clone(), num));
