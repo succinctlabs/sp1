@@ -1,7 +1,7 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField};
+use p3_air::{Air, BaseAir};
+use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::ParallelIterator;
@@ -27,9 +27,10 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
-    /// Boolean to indicate whether the row is for an add or sub operations.  Is true if it's and
-    /// add operation, and false if it's a sub operation.
+    /// Boolean to indicate whether the row is for an add operation.
     pub is_add: T,
+    /// Boolean to indicate whether the row is for a sub operation.
+    pub is_sub: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     pub add_operation: AddOperation<T>,
@@ -39,9 +40,6 @@ pub struct AddSubCols<T> {
 
     /// The second input operand.
     pub c: Word<T>,
-
-    /// Selector to know whether this row is enabled.
-    pub is_real: T,
 }
 
 impl<F: PrimeField> MachineAir<F> for AddSubChip {
@@ -79,6 +77,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let is_add = event.opcode == Opcode::ADD;
                         cols.is_add = F::from_bool(is_add);
+                        cols.is_sub = F::from_bool(!is_add);
 
                         // A SUB operations is basically an ADD operation with the operands an result
                         // re-arranged.
@@ -92,7 +91,6 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                             .populate(&mut record, operand_1, operand_2);
                         cols.b = Word::from(operand_1);
                         cols.c = Word::from(operand_2);
-                        cols.is_real = F::one();
                         row
                     })
                     .collect::<Vec<_>>();
@@ -137,26 +135,29 @@ where
         let main = builder.main();
         let local: &AddSubCols<AB::Var> = main.row_slice(0).borrow();
 
-        builder.when(local.is_real).assert_bool(local.is_add);
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        let is_real = local.is_add + local.is_sub;
+        builder.assert_bool(is_real.clone());
 
         // Evaluate the addition operation.
-        AddOperation::<AB::F>::eval(
-            builder,
+        AddOperation::<AB::F>::eval(builder, local.b, local.c, local.add_operation, is_real);
+        // Receive the arguments.
+        builder.receive_alu(
+            Opcode::ADD.as_field::<AB::F>(),
+            local.add_operation.value,
             local.b,
             local.c,
-            local.add_operation,
-            local.is_real,
+            local.is_add,
         );
 
-        let opcode = local.is_add * Opcode::ADD.as_field::<AB::F>()
-            + (AB::Expr::one() - local.is_add) * Opcode::SUB.as_field::<AB::F>();
-
-        let result = builder.select_word(local.is_add, local.add_operation.value, local.b);
-        let operand_1 = builder.select_word(local.is_add, local.b, local.add_operation.value);
-        let operand_2 = local.c;
-
-        // Receive the arguments.
-        builder.receive_alu(opcode, result, operand_1, operand_2, local.is_real);
+        builder.receive_alu(
+            Opcode::SUB.as_field::<AB::F>(),
+            local.b,
+            local.add_operation.value,
+            local.c,
+            local.is_sub,
+        );
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
