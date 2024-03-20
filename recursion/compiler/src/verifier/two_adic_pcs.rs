@@ -91,7 +91,6 @@ pub fn verify_two_adic_pcs<C: Config>(
             });
         });
     })
-    // TODO:g
 
     // TODO: verify_challenges
 }

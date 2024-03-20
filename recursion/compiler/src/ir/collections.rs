@@ -15,6 +15,23 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
             Self::Dyn(_, len) => *len,
         }
     }
+
+    pub fn shift(&self, builder: &mut Builder<C>, shift: Var<C::N>) -> Array<C, V> {
+        match self {
+            Self::Fixed(vec) => {
+                todo!()
+            }
+            Self::Dyn(ptr, len) => {
+                let new_address = builder.eval(ptr.address + shift);
+                let new_ptr = Ptr::<C::N> {
+                    address: new_address,
+                };
+                let len_var = len.materialize(builder);
+                let new_length = builder.eval(len_var - shift);
+                Array::Dyn(new_ptr, Usize::Var(new_length))
+            }
+        }
+    }
 }
 
 impl<C: Config> Builder<C> {
