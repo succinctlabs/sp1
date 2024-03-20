@@ -13,6 +13,7 @@ use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
+use crate::utils::bytes_to_words_struct_le;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
@@ -318,17 +319,9 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
             )
             .unwrap();
             let dummy_bytes = dummy_value.to_bytes_le();
-            // TODO: clean up into "bytes to words" util
-            let mut full_dummy_bytes = [0u8; COMPRESSED_POINT_BYTES];
-            full_dummy_bytes[0..32].copy_from_slice(&dummy_bytes);
+            let dummy_words: [Word<F>; 8] = bytes_to_words_struct_le(&dummy_bytes);
             for i in 0..8 {
-                let word_bytes = dummy_bytes[i * 4..(i + 1) * 4]
-                    .iter()
-                    .map(|x| F::from_canonical_u8(*x))
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
-                cols.x_access[i].access.value = Word(word_bytes);
+                cols.x_access[i].access.value = dummy_words[i];
             }
             cols.populate_field_ops(&dummy_value);
             row

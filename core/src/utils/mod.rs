@@ -9,13 +9,14 @@ mod tracer;
 
 pub use buffer::*;
 pub use logger::*;
+use p3_field::PrimeField32;
 pub use prove::*;
 pub use tracer::*;
 
 #[cfg(test)]
 pub use programs::*;
 
-use crate::{memory::MemoryCols, operations::field::params::Limbs};
+use crate::{air::Word, memory::MemoryCols, operations::field::params::Limbs};
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];
@@ -90,6 +91,23 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
     bytes
         .chunks_exact(4)
         .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
+}
+
+pub fn bytes_to_words_struct_le<F: PrimeField32, const W: usize>(bytes: &[u8]) -> [Word<F>; W] {
+    debug_assert_eq!(bytes.len(), W * 4);
+    bytes
+        .chunks_exact(4)
+        .map(|chunk| {
+            Word([
+                F::from_canonical_u8(chunk[0]),
+                F::from_canonical_u8(chunk[1]),
+                F::from_canonical_u8(chunk[2]),
+                F::from_canonical_u8(chunk[3]),
+            ])
+        })
         .collect::<Vec<_>>()
         .try_into()
         .unwrap()
