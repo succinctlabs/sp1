@@ -406,7 +406,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let prev_comp_val: Self::Expr = mem_access.prev_comp_val.clone().into();
         let do_check: Self::Expr = do_check.into();
 
-        // Subtract one since current_comp_val shouldn't equal prev_comp_val.
+        // Assert `current_comp_val > prev_comp_val`. We check this by asserting that `0 <= current_comp_val-prev_comp_val-1 < 2^24`. The equivalence of these statements comes from the fact that if `current_comp_val <= prev_comp_val`, then `current_comp_val-prev_comp_val-1 < 0` and will underflow in the prime field, resulting in a value that is `>= 2^24` as long as both `current_comp_val, prev_comp_val` are range-checked to be `<2^24`, as long as we're working in a field larger than `2 * 2^24` (which is true of the BabyBear and Mersenne31 prime).
         //
         // We know that diff_minus_one will have the possible values of [-MAX_SHARD_SIZE, MAX_SHARD_SIZE - 2]
         // (in other words [BABYBEAR_P - 1 - MAX_SHARD_SIZE, BABYBEAR_P - 1] union [0, MAX_SHARD_SIZE - 2]),
