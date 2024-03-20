@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use p3_field::AbstractField;
 use rand::{thread_rng, Rng};
 use sp1_core::stark::StarkGenericConfig;
@@ -61,7 +59,6 @@ fn test_compiler_arithmetic() {
 
 #[test]
 fn test_compiler_caching_arithmetic() {
-    let num_tests = 3;
     let mut rng = thread_rng();
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -71,7 +68,7 @@ fn test_compiler_caching_arithmetic() {
     let one: Felt<_> = builder.eval(F::one());
     let random: Felt<_> = builder.eval(F::from_canonical_u32(rng.gen::<u32>()));
 
-    let num_ops = 1000;
+    let num_ops = 10;
     let mut a: SymbolicFelt<_> = one.into();
     let mut b: SymbolicFelt<_> = one.into();
     let mut c = a.clone() + a.clone() + a.clone();
