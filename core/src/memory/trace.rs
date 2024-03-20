@@ -119,30 +119,30 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
 
         // Fill columns used for verifying current memory access time value is greater than previous's.
         let use_clk_comparison = prev_record.shard == current_record.shard;
-        self.use_clk_comparison = F::from_bool(use_clk_comparison);
+        self.compare_clk = F::from_bool(use_clk_comparison);
         let prev_time_value = if use_clk_comparison {
             prev_record.timestamp
         } else {
             prev_record.shard
         };
-        self.prev_ts = F::from_canonical_u32(prev_time_value);
+        self.prev_comp_val = F::from_canonical_u32(prev_time_value);
         let current_time_value = if use_clk_comparison {
             current_record.timestamp
         } else {
             current_record.shard
         };
-        self.current_ts = F::from_canonical_u32(current_time_value);
+        self.current_comp_val = F::from_canonical_u32(current_time_value);
 
-        let ts_diff_minus_one = current_time_value - prev_time_value - 1;
-        let ts_diff_16bit_limb = ts_diff_minus_one & 0xffff;
-        self.ts_diff_16bit_limb = F::from_canonical_u32(ts_diff_16bit_limb);
-        let ts_diff_8bit_limb = (ts_diff_minus_one >> 16) & 0xff;
-        self.ts_diff_8bit_limb = F::from_canonical_u32(ts_diff_8bit_limb);
+        let diff_minus_one = current_time_value - prev_time_value - 1;
+        let diff_16bit_limb = diff_minus_one & 0xffff;
+        self.diff_16bit_limb = F::from_canonical_u32(diff_16bit_limb);
+        let diff_8bit_limb = (diff_minus_one >> 16) & 0xff;
+        self.diff_8bit_limb = F::from_canonical_u32(diff_8bit_limb);
 
         // Add a byte table lookup with the 16Range op
-        new_blu_events.push(ByteLookupEvent::new(U16Range, ts_diff_16bit_limb, 0, 0, 0));
+        new_blu_events.push(ByteLookupEvent::new(U16Range, diff_16bit_limb, 0, 0, 0));
 
         // Add a byte table lookup with the U8Range op
-        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, ts_diff_8bit_limb));
+        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, diff_8bit_limb));
     }
 }

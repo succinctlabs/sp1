@@ -290,7 +290,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         mem_access.verify_materialized_columns(self, clk.clone(), shard.clone(), do_check.clone());
 
         // Verify that the current memory access time is greater than the previous's.
-        self.verify_mem_access_ts_diff(mem_access, do_check.clone());
+        self.verify_mem_access_ts(mem_access, do_check.clone());
 
         // Add to the memory argument.
         let addr = addr.into();
@@ -330,7 +330,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     /// prev_mem_clk_ts is within [1, MAX_SHARD_SIZE - 1].
     /// If the previous memory access is in a different shard, then the current_mem_shard_ts -
     /// prev_mem_shard_ts is within [1, MAX_SHARD_SIZE - 1].
-    fn verify_mem_access_ts_diff<Eb, Everify>(
+    fn verify_mem_access_ts<Eb, Everify>(
         &mut self,
         mem_access: &MemoryAccessCols<Eb>,
         do_check: Everify,
@@ -338,25 +338,29 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         Eb: Into<Self::Expr> + Clone,
         Everify: Into<Self::Expr>,
     {
-        let current_ts: Self::Expr = mem_access.current_ts.clone().into();
-        let prev_ts: Self::Expr = mem_access.prev_ts.clone().into();
+        // current_comp_val is the clk value at the current memory access if the previous memory access
+        // is within the same shard.  Otherwise, it is the shard value at the current memory access.
+        let current_comp_val: Self::Expr = mem_access.current_comp_val.clone().into();
+        // prev_comp_val is the clk value at the previous memory access if the current memory access
+        // is within the same shard.  Otherwise, it is the shard value at the previous memory access.
+        let prev_comp_val: Self::Expr = mem_access.prev_comp_val.clone().into();
         let do_check: Self::Expr = do_check.into();
 
-        // Subtract one since current_ts shouldn't equal prev_ts.
-        let diff_minus_one = current_ts - prev_ts - Self::Expr::one();
+        // Subtract one since current_comp_val shouldn't equal prev_comp_val.
+        let diff_minus_one = current_comp_val - prev_comp_val - Self::Expr::one();
 
         // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb + mem_access.ts_diff_8bit_limb * 2^16.
         self.when(do_check.clone()).assert_eq(
             diff_minus_one,
-            mem_access.ts_diff_16bit_limb.clone().into()
-                + mem_access.ts_diff_8bit_limb.clone().into()
+            mem_access.diff_16bit_limb.clone().into()
+                + mem_access.diff_8bit_limb.clone().into()
                     * Self::Expr::from_canonical_u32(1 << 16),
         );
 
         // Send the range checks for the limbs.
         self.send_byte(
             Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            mem_access.ts_diff_16bit_limb.clone(),
+            mem_access.diff_16bit_limb.clone(),
             Self::Expr::zero(),
             Self::Expr::zero(),
             do_check.clone(),
@@ -366,7 +370,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
             Self::Expr::zero(),
             Self::Expr::zero(),
-            mem_access.ts_diff_8bit_limb.clone(),
+            mem_access.diff_8bit_limb.clone(),
             do_check,
         )
     }

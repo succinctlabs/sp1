@@ -42,17 +42,17 @@ pub struct MemoryAccessCols<T> {
     // These materialized columns' value will need to be verified in the air.
 
     // This will be true if the current shard == prev_access's shard, else false.
-    pub use_clk_comparison: T,
-    // This materialized column is equal to use_clk_comparison ? prev_clk : prev_shard
-    pub prev_ts: T,
-    // This materialized column is equal to use_clk_comparison ? current_clk : current_shard.
-    pub current_ts: T,
+    pub compare_clk: T,
+    // This materialized column is equal to compare_clk ? prev_clk : prev_shard
+    pub prev_comp_val: T,
+    // This materialized column is equal to compare_clk ? current_clk : current_shard.
+    pub current_comp_val: T,
 
-    // This column is the least significant 16 bit limb of ts_diff.
-    pub ts_diff_16bit_limb: T,
+    // This column is the least significant 16 bit limb of current_comp_val - prev_comp_val.
+    pub diff_16bit_limb: T,
 
-    // This column is the most signficant 8 bit limb of ts_diff.
-    pub ts_diff_8bit_limb: T,
+    // This column is the most signficant 8 bit limb of current_comp_val - prev_comp_val.
+    pub diff_8bit_limb: T,
 }
 
 impl<T> MemoryAccessCols<T> {
@@ -66,33 +66,33 @@ impl<T> MemoryAccessCols<T> {
     ) where
         T: Into<AB::Expr> + Clone,
     {
-        let use_clk_comparison: AB::Expr = self.use_clk_comparison.clone().into();
+        let compare_clk: AB::Expr = self.compare_clk.clone().into();
         let prev_clk: AB::Expr = self.prev_clk.clone().into();
         let prev_shard: AB::Expr = self.prev_shard.clone().into();
         let one = AB::Expr::one();
 
-        // Verify self.use_clk_comparison's value.
+        // Verify self.compare_clk's value.
         builder
             .when(do_check.clone())
-            .assert_bool(use_clk_comparison.clone());
+            .assert_bool(compare_clk.clone());
         builder
             .when(do_check.clone())
-            .when(use_clk_comparison.clone())
+            .when(compare_clk.clone())
             .assert_eq(current_shard.clone(), prev_shard.clone());
 
         // Verify self.prev_time_value's value.
-        let expected_prev_time_value = use_clk_comparison.clone() * prev_clk.clone()
-            + (one.clone() - use_clk_comparison.clone()) * prev_shard.clone();
+        let expected_prev_time_value = compare_clk.clone() * prev_clk.clone()
+            + (one.clone() - compare_clk.clone()) * prev_shard.clone();
         builder
             .when(do_check.clone())
-            .assert_eq(self.prev_ts.clone(), expected_prev_time_value);
+            .assert_eq(self.prev_comp_val.clone(), expected_prev_time_value);
 
         // Verify self.current_time_value's value.
         let expected_current_time_value =
-            use_clk_comparison.clone() * current_clk + (one - use_clk_comparison) * current_shard;
+            compare_clk.clone() * current_clk + (one - compare_clk) * current_shard;
         builder
             .when(do_check)
-            .assert_eq(self.current_ts.clone(), expected_current_time_value);
+            .assert_eq(self.current_comp_val.clone(), expected_current_time_value);
     }
 }
 
