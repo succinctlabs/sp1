@@ -68,6 +68,13 @@ impl<F> Felt<F> {
     pub fn id(&self) -> String {
         format!("felt{}", self.0)
     }
+
+    pub fn inverse(&self) -> SymbolicFelt<F>
+    where
+        F: Field,
+    {
+        SymbolicFelt::from(F::one()) / *self
+    }
 }
 
 impl<F, EF> Ext<F, EF> {

@@ -40,7 +40,7 @@ impl<C: Config> Builder<C> {
         C: Config<F = SC::Val, EF = SC::Challenge>,
         A: MachineAir<SC::Val> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
-        let g_inv: Felt<SC::Val> = self.eval(g / SC::Val::one());
+        let g_inv: Felt<SC::Val> = self.eval(g.inverse());
         let z_h: Ext<SC::Val, SC::Challenge> = self.exp_power_of_2(zeta, opening.log_degree);
         let one: Ext<SC::Val, SC::Challenge> = self.eval(SC::Val::one());
         let is_first_row = self.eval(z_h / (zeta - one));

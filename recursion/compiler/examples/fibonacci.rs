@@ -50,10 +50,11 @@ fn main() {
     let code = builder.compile_to_asm();
     println!("{}", code);
 
-    let program = code.machine_code();
+    // let program = code.machine_code();
+    // println!("Program size = {}", program.instructions.len());
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
-    runtime.run();
+    // let mut runtime = Runtime::<F, EF>::new(&program);
+    // runtime.run();
 
     // let config = SC::new();
     // let machine = RecursionAir::machine(config);

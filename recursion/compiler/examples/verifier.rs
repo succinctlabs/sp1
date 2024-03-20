@@ -1,4 +1,6 @@
 use p3_field::AbstractField;
+use rand::thread_rng;
+use rand::Rng;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::RiscvAir;
 use sp1_core::stark::StarkGenericConfig;
@@ -14,6 +16,8 @@ fn main() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
+
+    let mut rng = thread_rng();
 
     // Generate a dummy proof.
     utils::setup_logger();
@@ -38,14 +42,15 @@ fn main() {
     // Run the verify inside the DSL.
     let mut builder = VmBuilder::<F, EF>::default();
     let g: Felt<F> = builder.eval(F::one());
-    let zeta: Ext<F, EF> = builder.eval(F::one());
-    let alpha: Ext<F, EF> = builder.eval(F::one());
+    let zeta: Ext<F, EF> = builder.eval(rng.gen::<F>());
+    let alpha: Ext<F, EF> = builder.eval(rng.gen::<F>());
     builder.verify_constraints::<SC, _>(chip, opened_values, g, zeta, alpha);
 
     let code = builder.compile_to_asm();
     println!("{}", code);
 
     let program = code.machine_code();
+    println!("Program size = {}", program.instructions.len());
 
     let mut runtime = Runtime::<F, EF>::new(&program);
     runtime.run();
