@@ -15,12 +15,12 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	fieldChip := babybear.NewChip(api)
 	
 	// Variables.
-	var felt1 *babybear.Variable
-	var felt0 *babybear.Variable
 	var backend0 frontend.Variable
-	var felt2 *babybear.Variable
 	var backend1 frontend.Variable
 	var var0 frontend.Variable
+	var felt0 *babybear.Variable
+	var felt1 *babybear.Variable
+	var felt2 *babybear.Variable
 	
 	// Operations.
 	var0 = frontend.Variable(0)

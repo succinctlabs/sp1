@@ -1,4 +1,7 @@
-mod constraints;
+pub mod challenger;
+pub mod constraints;
+pub mod fri;
+pub mod types;
 
 use std::marker::PhantomData;
 
