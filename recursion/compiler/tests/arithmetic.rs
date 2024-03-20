@@ -68,7 +68,7 @@ fn test_compiler_caching_arithmetic() {
     let one: Felt<_> = builder.eval(F::one());
     let random: Felt<_> = builder.eval(F::from_canonical_u32(rng.gen::<u32>()));
 
-    let num_ops = 10;
+    let num_ops = 1000;
     let mut a: SymbolicFelt<_> = one.into();
     let mut b: SymbolicFelt<_> = one.into();
     let mut c = a.clone() + a.clone() + a.clone();

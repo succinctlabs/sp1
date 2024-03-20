@@ -4,6 +4,7 @@ use p3_field::Field;
 
 use core::marker::PhantomData;
 use std::collections::HashMap;
+use std::fmt::Display;
 use std::hash::Hash;
 
 use super::MemVariable;
@@ -24,6 +25,12 @@ pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
 pub enum Usize<N> {
     Const(usize),
     Var(Var<N>),
+}
+
+impl<F: Field> Display for Felt<F> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "felt{}", self.0)
+    }
 }
 
 impl<N> Usize<N> {
@@ -382,47 +389,47 @@ impl<F: Field> Felt<F> {
             return;
         }
         match src {
-            SymbolicFelt::Const(c) => {
+            SymbolicFelt::Const(c, _) => {
                 builder.operations.push(DslIR::ImmFelt(*self, c));
             }
-            SymbolicFelt::Val(v) => {
+            SymbolicFelt::Val(v, _) => {
                 builder
                     .operations
                     .push(DslIR::AddFI(*self, v, C::F::zero()));
             }
-            SymbolicFelt::Add(lhs, rhs) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+            SymbolicFelt::Add(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let sum = *lhs + *rhs;
                     builder.operations.push(DslIR::ImmFelt(*self, sum));
                 }
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.operations.push(DslIR::AddFI(*self, *rhs, *lhs));
                 }
-                (SymbolicFelt::Const(lhs), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddFI(*self, rhs_value, *lhs));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIR::AddFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIR::AddF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::AddFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
@@ -438,39 +445,39 @@ impl<F: Field> Felt<F> {
                     builder.push(DslIR::AddF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Mul(lhs, rhs) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+            SymbolicFelt::Mul(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let product = *lhs * *rhs;
                     builder.push(DslIR::ImmFelt(*self, product));
                 }
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIR::MulFI(*self, *rhs, *lhs));
                 }
-                (SymbolicFelt::Const(lhs), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulFI(*self, rhs_value, *lhs));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIR::MulFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIR::MulF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::MulFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
@@ -486,39 +493,39 @@ impl<F: Field> Felt<F> {
                     builder.push(DslIR::MulF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Sub(lhs, rhs) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+            SymbolicFelt::Sub(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let difference = *lhs - *rhs;
                     builder.push(DslIR::ImmFelt(*self, difference));
                 }
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIR::SubFIN(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Const(lhs), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubFIN(*self, *lhs, rhs_value));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIR::SubFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIR::SubF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::SubFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
@@ -534,39 +541,39 @@ impl<F: Field> Felt<F> {
                     builder.push(DslIR::SubF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Div(lhs, rhs) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+            SymbolicFelt::Div(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let quotient = *lhs / *rhs;
                     builder.push(DslIR::ImmFelt(*self, quotient));
                 }
-                (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIR::DivFIN(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Const(lhs), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivFIN(*self, *lhs, rhs_value));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIR::DivFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIR::DivF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
                     cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::DivFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
                     cache.insert(lhs.clone(), lhs_value);
@@ -582,12 +589,12 @@ impl<F: Field> Felt<F> {
                     builder.push(DslIR::DivF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Neg(operand) => match &*operand {
-                SymbolicFelt::Const(operand) => {
+            SymbolicFelt::Neg(operand, _) => match &*operand {
+                SymbolicFelt::Const(operand, _) => {
                     let negated = -*operand;
                     builder.push(DslIR::ImmFelt(*self, negated));
                 }
-                SymbolicFelt::Val(operand) => {
+                SymbolicFelt::Val(operand, _) => {
                     builder.push(DslIR::SubFIN(*self, C::F::zero(), *operand));
                 }
                 operand => {
@@ -623,24 +630,24 @@ impl<C: Config> Variable<C> for Felt<C::F> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIR::AssertEqFI(rhs, lhs));
             }
-            (SymbolicFelt::Const(lhs), rhs) => {
+            (SymbolicFelt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIR::AssertEqFI(rhs_value, lhs));
             }
-            (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 builder.push(DslIR::AssertEqFI(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIR::AssertEqF(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs), rhs) => {
+            (SymbolicFelt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIR::AssertEqF(lhs, rhs_value));
@@ -664,24 +671,24 @@ impl<C: Config> Variable<C> for Felt<C::F> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 assert_ne!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIR::AssertNeFI(rhs, lhs));
             }
-            (SymbolicFelt::Const(lhs), rhs) => {
+            (SymbolicFelt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIR::AssertNeFI(rhs_value, lhs));
             }
-            (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 builder.push(DslIR::AssertNeFI(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs), SymbolicFelt::Val(rhs)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIR::AssertNeF(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs), rhs) => {
+            (SymbolicFelt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIR::AssertNeF(lhs, rhs_value));
@@ -729,12 +736,12 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
         }
         match src {
             SymbolicExt::Base(v) => match &*v {
-                SymbolicFelt::Const(c) => {
+                SymbolicFelt::Const(c, _) => {
                     builder
                         .operations
                         .push(DslIR::ImmExt(*self, C::EF::from_base(*c)));
                 }
-                SymbolicFelt::Val(v) => {
+                SymbolicFelt::Val(v, _) => {
                     builder
                         .operations
                         .push(DslIR::AddEFFI(*self, *v, C::EF::zero()));
