@@ -187,7 +187,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
-                let mut new_field_events = Vec::new();
+                let mut new_byte_lookup_events = Vec::new();
 
                 let rows = events
                     .iter()
@@ -212,12 +212,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         // Populate the memory access columns.
                         for i in 0..NUM_WORDS_EC_POINT {
                             cols.p_access[i]
-                                .populate(event.p_memory_records[i], &mut new_field_events);
+                                .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
                         }
                         row
                     })
                     .collect::<Vec<_>>();
-                record.add_field_events(&new_field_events);
+                record.add_byte_lookup_events(new_byte_lookup_events);
                 (rows, record)
             })
             .collect::<Vec<_>>();
