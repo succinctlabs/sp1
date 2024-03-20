@@ -79,11 +79,9 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         cols.is_add = F::from_bool(is_add);
                         cols.is_sub = F::from_bool(!is_add);
 
-                        // A SUB operations is basically an ADD operation with the operands an result
-                        // re-arranged.
-                        // Specifically, for an ADD, the chip verifies that a = b + c.
-                        // For a SUB, the chip should verify that b = a + c.
-
+                        // SUB is basically an ADD with a re-arrangment of the operands.
+                        // E.g. ADD verifies a = b + c, and SUB verifies b = a + c.
+                        // We assign the operands for the add operation depending on the opcode.
                         let operand_1 = if is_add { event.b } else { event.a };
                         let operand_2 = event.c;
 
@@ -142,7 +140,9 @@ where
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(builder, local.b, local.c, local.add_operation, is_real);
+
         // Receive the arguments.
+        // For add, the result and operand ordering is a = b + c.
         builder.receive_alu(
             Opcode::ADD.as_field::<AB::F>(),
             local.add_operation.value,
@@ -151,6 +151,7 @@ where
             local.is_add,
         );
 
+        // For sub, the result and operand ordering is b = a + c.
         builder.receive_alu(
             Opcode::SUB.as_field::<AB::F>(),
             local.b,

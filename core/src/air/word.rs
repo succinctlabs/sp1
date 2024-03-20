@@ -46,16 +46,6 @@ impl<T: AbstractField> Word<T> {
             AB::Expr::zero(),
         ])
     }
-
-    /// Zero word.
-    pub fn zero<AB: SP1AirBuilder<Expr = T>>() -> Self {
-        Word([
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-        ])
-    }
 }
 
 impl<F: Field> Word<F> {

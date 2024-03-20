@@ -229,25 +229,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
             );
         });
     }
-
-    /// Select on two input words.
-    fn select_word<ESel: Into<Self::Expr>, I: Into<Self::Expr>>(
-        &mut self,
-        selector: ESel,
-        a: Word<I>,
-        b: Word<I>,
-    ) -> Word<Self::Expr>
-    where
-        ESel: Into<Self::Expr> + Copy,
-        I: Into<Self::Expr>,
-    {
-        let mut result = Word::zero::<Self>();
-        for (result_limb, (a_limb, b_limb)) in result.0.iter_mut().zip(a.0.into_iter().zip(b.0)) {
-            *result_limb = selector.into() * a_limb.into()
-                + (Self::Expr::one() - selector.into()) * b_limb.into();
-        }
-        result
-    }
 }
 
 /// A trait which contains methods related to ALU interactions in an AIR.
@@ -267,12 +248,6 @@ pub trait AluAirBuilder: BaseAirBuilder {
         Ec: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        // We have a special case for SUB operation, since SUB is basically an ADD with
-        // a re-arrangment of the operands.
-        // E.g. ADD verifies a = b + c, and SUB verifies b = a + c.
-        // We convert a SUB request to an ADD request by sending an ADD operation with those
-        // rearranged operands.
-
         let values = once(opcode.into())
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
