@@ -12,6 +12,7 @@ use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::edwards::EdwardsParameters;
@@ -50,7 +51,6 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; 16],
     pub q_access: [MemoryReadCols<T>; 16],
     pub(crate) x3_numerator: FieldInnerProductCols<T>,
@@ -111,13 +111,13 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
 
 impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     fn num_extra_cycles(&self) -> u32 {
-        8
+        1
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
-        rt.record_mut().ed_add_events.push(event.clone());
-        event.p_ptr + 1
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let event = create_ec_add_event::<E>(rt, arg1, arg2);
+        rt.record_mut().ed_add_events.push(event);
+        None
     }
 }
 
@@ -167,8 +167,6 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                     for i in 0..16 {
                         cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
                     }
-                    cols.q_ptr_access
-                        .populate(event.q_ptr_record, &mut new_field_events);
 
                     (row, new_field_events)
                 })
@@ -265,13 +263,6 @@ where
                 .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
-        builder.constraint_memory_access(
-            row.shard,
-            row.clk, // clk + 0 -> C
-            AB::F::from_canonical_u32(11),
-            &row.q_ptr_access,
-            row.is_real,
-        );
         for i in 0..16 {
             builder.constraint_memory_access(
                 row.shard,
@@ -284,35 +275,41 @@ where
         for i in 0..16 {
             builder.constraint_memory_access(
                 row.shard,
-                row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+                row.clk + AB::F::from_canonical_u32(1), // The clk for p is moved by 1.
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
                 &row.p_access[i as usize],
                 row.is_real,
             );
         }
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
+            row.p_ptr,
+            row.q_ptr,
+            row.is_real,
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
-
-    use crate::{
-        utils::{
-            self,
-            tests::{ED25519_ELF, ED_ADD_ELF},
-        },
-        SP1Prover, SP1Stdin,
-    };
+    use crate::utils;
+    use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
+    use crate::Program;
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
-        SP1Prover::prove(ED_ADD_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(ED_ADD_ELF);
+        utils::run_test(program).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
-        SP1Prover::prove(ED25519_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(ED25519_ELF);
+        utils::run_test(program).unwrap();
     }
 }

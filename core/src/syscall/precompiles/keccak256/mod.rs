@@ -37,6 +37,7 @@ impl KeccakPermuteChip {
 
 #[cfg(test)]
 pub mod permute_tests {
+    use crate::runtime::SyscallCode;
     use crate::utils::run_test;
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
@@ -53,9 +54,16 @@ pub mod permute_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 106, false, true),
+            Instruction::new(
+                Opcode::ADD,
+                5,
+                0,
+                SyscallCode::KECCAK_PERMUTE as u32,
+                false,
+                true,
+            ),
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
 
         Program::new(instructions, 0, 0)
@@ -63,6 +71,7 @@ pub mod permute_tests {
 
     #[test]
     pub fn test_keccak_permute_program_execute() {
+        utils::setup_logger();
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
         runtime.run()

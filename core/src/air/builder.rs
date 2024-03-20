@@ -288,6 +288,66 @@ pub trait AluAirBuilder: BaseAirBuilder {
             InteractionKind::Alu,
         ));
     }
+
+    /// Sends an syscall operation to be processed (with "ECALL" opcode).
+    fn send_syscall<EShard, EClk, Ea, Eb, Ec, EMult>(
+        &mut self,
+        shard: EShard,
+        clk: EClk,
+        syscall_id: Ea,
+        arg1: Eb,
+        arg2: Ec,
+        multiplicity: EMult,
+    ) where
+        EShard: Into<Self::Expr> + Clone,
+        EClk: Into<Self::Expr> + Clone,
+        Ea: Into<Self::Expr> + Clone,
+        Eb: Into<Self::Expr> + Clone,
+        Ec: Into<Self::Expr> + Clone,
+        EMult: Into<Self::Expr>,
+    {
+        self.send(AirInteraction::new(
+            vec![
+                shard.clone().into(),
+                clk.clone().into(),
+                syscall_id.clone().into(),
+                arg1.clone().into(),
+                arg2.clone().into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Syscall,
+        ));
+    }
+
+    /// Receives a syscall operation to be processed.
+    fn receive_syscall<EShard, EClk, Ea, Eb, Ec, EMult>(
+        &mut self,
+        shard: EShard,
+        clk: EClk,
+        syscall_id: Ea,
+        arg1: Eb,
+        arg2: Ec,
+        multiplicity: EMult,
+    ) where
+        EShard: Into<Self::Expr> + Clone,
+        EClk: Into<Self::Expr> + Clone,
+        Ea: Into<Self::Expr> + Clone,
+        Eb: Into<Self::Expr> + Clone,
+        Ec: Into<Self::Expr> + Clone,
+        EMult: Into<Self::Expr>,
+    {
+        self.receive(AirInteraction::new(
+            vec![
+                shard.clone().into(),
+                clk.clone().into(),
+                syscall_id.clone().into(),
+                arg1.clone().into(),
+                arg2.clone().into(),
+            ],
+            multiplicity.into(),
+            InteractionKind::Syscall,
+        ));
+    }
 }
 
 /// A trait which contains methods related to memory interactions in an AIR.

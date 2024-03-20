@@ -6,6 +6,7 @@ use crate::memory::MemoryCols;
 use crate::operations::{
     Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
 };
+use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
@@ -26,7 +27,6 @@ where
         let local: &ShaExtendCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();
         let i_start = AB::F::from_canonical_u32(16);
-        let nb_cycles_per_extend = AB::F::from_canonical_u64(20);
         let nb_bytes_in_word = AB::F::from_canonical_u32(4);
 
         // Evaluate the control flags.
@@ -49,7 +49,7 @@ where
         // Read w[i-15].
         builder.constraint_memory_access(
             local.shard,
-            local.clk + (local.i - i_start) * nb_cycles_per_extend,
+            local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(15)) * nb_bytes_in_word,
             &local.w_i_minus_15,
             local.is_real,
@@ -58,7 +58,7 @@ where
         // Read w[i-2].
         builder.constraint_memory_access(
             local.shard,
-            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(4),
+            local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * nb_bytes_in_word,
             &local.w_i_minus_2,
             local.is_real,
@@ -67,7 +67,7 @@ where
         // Read w[i-16].
         builder.constraint_memory_access(
             local.shard,
-            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(8),
+            local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * nb_bytes_in_word,
             &local.w_i_minus_16,
             local.is_real,
@@ -76,7 +76,7 @@ where
         // Read w[i-7].
         builder.constraint_memory_access(
             local.shard,
-            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(12),
+            local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * nb_bytes_in_word,
             &local.w_i_minus_7,
             local.is_real,
@@ -170,10 +170,19 @@ where
         // Write `s2` to `w[i]`.
         builder.constraint_memory_access(
             local.shard,
-            local.clk + (local.i - i_start) * nb_cycles_per_extend + AB::F::from_canonical_u32(16),
+            local.clk + (local.i - i_start),
             local.w_ptr + local.i * nb_bytes_in_word,
             &local.w_i,
             local.is_real,
+        );
+
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            AB::F::from_canonical_u32(SyscallCode::SHA_EXTEND.syscall_id()),
+            local.w_ptr,
+            AB::Expr::zero(),
+            local.cycle_48_start,
         );
     }
 }

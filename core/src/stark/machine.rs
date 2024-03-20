@@ -178,7 +178,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         for proof in proof.shard_proofs.iter() {
             sum += proof.cumulative_sum();
         }
-
         match sum.is_zero() {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
@@ -311,18 +310,21 @@ pub mod tests {
 
     #[test]
     fn test_simple_prove() {
+        utils::setup_logger();
         let program = simple_program();
         run_test(program).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
+        utils::setup_logger();
         let program = ecall_lwa_program();
         run_test(program).unwrap();
     }
 
     #[test]
     fn test_shift_prove() {
+        utils::setup_logger();
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
         let operands = [
             (1, 1),
@@ -346,6 +348,7 @@ pub mod tests {
 
     #[test]
     fn test_sub_prove() {
+        utils::setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
