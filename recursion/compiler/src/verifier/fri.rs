@@ -189,6 +189,42 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     }
 }
 
+/// Verifies a set of FRI challenges.
+///
+/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L67
+#[allow(unused_variables)]
+pub fn verify_challenges<C: Config>(
+    builder: &mut Builder<C>,
+    config: &FriConfig,
+    proof: &FriProof<C>,
+    challenges: &FriChallenges<C>,
+    reduced_openings: &Array<C, Array<C, Felt<C::F>>>,
+) where
+    C::F: TwoAdicField,
+{
+    let commit_phase_commits_len = builder.materialize(proof.commit_phase_commits.len());
+    let log_max_height: Var<_> =
+        builder.eval(commit_phase_commits_len + C::N::from_canonical_usize(config.log_blowup));
+    let start = Usize::Const(0);
+    let end = challenges.query_indices.len();
+    builder.range(start, end).for_each(|i, builder| {
+        let index = builder.get(&challenges.query_indices, i);
+        let query_proof = builder.get(&proof.query_proofs, i);
+        let ro = builder.get(reduced_openings, i);
+        let folded_eval = verify_query(
+            builder,
+            config,
+            &proof.commit_phase_commits,
+            0, // TODO: FIX
+            &query_proof,
+            &challenges.betas,
+            &ro,
+            Usize::Var(log_max_height),
+        );
+        builder.assert_felt_eq(folded_eval, proof.final_poly);
+    });
+}
+
 /// Verifies a FRI query.
 ///
 /// Currently assumes the index that is accessed is constant.
@@ -205,7 +241,8 @@ pub fn verify_query<C: Config>(
     betas: &Array<C, Felt<C::F>>,
     reduced_openings: &Array<C, Felt<C::F>>,
     log_max_height: Usize<C::N>,
-) where
+) -> Felt<C::F>
+where
     C::F: TwoAdicField,
 {
     let folded_eval: Felt<_> = builder.eval(C::F::zero());
@@ -247,6 +284,8 @@ pub fn verify_query<C: Config>(
         index = index_pair;
         builder.assign(x, x * x);
     });
+
+    folded_eval
 }
 
 /// Verifies a batch opening.

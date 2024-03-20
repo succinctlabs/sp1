@@ -27,6 +27,7 @@ pub struct FriProof<C: Config> {
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
+#[derive(Clone)]
 pub struct FriQueryProof<C: Config> {
     pub commit_phase_openings: Array<C, FriCommitPhaseProofStep<C>>,
     pub phantom: PhantomData<C>,
@@ -50,6 +51,66 @@ pub struct FriChallenges<C: Config> {
 pub struct Dimensions<C: Config> {
     pub width: usize,
     pub height: Usize<C::N>,
+}
+
+impl<C: Config> Variable<C> for FriQueryProof<C> {
+    type Expression = Self;
+
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        FriQueryProof {
+            commit_phase_openings: Array::Dyn(builder.uninit(), builder.uninit()),
+            phantom: PhantomData,
+        }
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        self.commit_phase_openings
+            .assign(src.commit_phase_openings, builder);
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+        Array::<C, FriCommitPhaseProofStep<C>>::assert_eq(
+            lhs.commit_phase_openings,
+            rhs.commit_phase_openings,
+            builder,
+        );
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+        Array::<C, FriCommitPhaseProofStep<C>>::assert_ne(
+            lhs.commit_phase_openings,
+            rhs.commit_phase_openings,
+            builder,
+        );
+    }
+}
+
+impl<C: Config> MemVariable<C> for FriQueryProof<C> {
+    fn size_of() -> usize {
+        1
+    }
+
+    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
+        let address = builder.eval(ptr + Usize::Const(0));
+        self.commit_phase_openings.load(address, builder);
+    }
+
+    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        let address = builder.eval(ptr + Usize::Const(0));
+        self.commit_phase_openings.store(address, builder);
+    }
 }
 
 impl<C: Config> Variable<C> for FriCommitPhaseProofStep<C> {
