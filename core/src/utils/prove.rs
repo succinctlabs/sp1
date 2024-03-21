@@ -89,13 +89,12 @@ pub fn run_test_core(
     Ok(proof)
 }
 
-fn trace_checkpoint(program: Program, file: &File) -> (ExecutionRecord, Vec<u8>) {
+fn trace_checkpoint(program: Program, file: &File) -> ExecutionRecord {
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Runtime::recover(program.clone(), state);
     let (events, _) = tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record());
-    let stdout = std::mem::take(&mut runtime.state.output_stream);
-    (events, stdout)
+    events
 }
 
 fn reset_seek(file: &mut File) {
@@ -125,18 +124,21 @@ where
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
+    // If we don't need to batch, we can just run the program normally and prove it.
+    if !should_batch {
+        runtime.run();
+        let stdout = std::mem::take(&mut runtime.state.output_stream);
+        let proof = prove_core(machine.config().clone(), runtime);
+        return (proof, stdout);
+    }
+
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
-        // Get checkpoint. If we're not batching, don't actually run the runtime here because we'll
-        // run the whole thing at once in proving.
-        let (state, done) = if should_batch {
-            runtime.execute_state()
-        } else {
-            (runtime.state.clone(), true)
-        };
+    let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
+        // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
+        let (state, done) = runtime.execute_state();
         let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
         let mut writer = std::io::BufWriter::new(&mut tempfile);
         bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
@@ -161,11 +163,7 @@ where
     let mut all_shards = None;
 
     for file in checkpoints.iter_mut() {
-        let (events, checkpoint_stdout) = trace_checkpoint(program.clone(), file);
-        // If we're not batching, we didn't actually run the runtime earlier so we need stdout here.
-        if !should_batch {
-            stdout = checkpoint_stdout;
-        }
+        let events = trace_checkpoint(program.clone(), file);
         reset_seek(&mut *file);
         cycles += events.cpu_events.len();
         let shards =
@@ -189,7 +187,7 @@ where
         let shards = if reuse_shards {
             Option::take(&mut all_shards).unwrap()
         } else {
-            let (events, _) = trace_checkpoint(program.clone(), &file);
+            let events = trace_checkpoint(program.clone(), &file);
             reset_seek(&mut file);
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
         };
