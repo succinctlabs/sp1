@@ -1,4 +1,4 @@
-use std::marker::PhantomData;
+pub mod utils;
 
 use p3_air::Air;
 use p3_field::AbstractExtensionField;
@@ -6,32 +6,11 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::ChipOpenedValues;
-use sp1_core::stark::{
-    AirOpenedValues, GenericVerifierConstraintFolder, MachineChip, StarkGenericConfig,
-};
+use sp1_core::stark::{GenericVerifierConstraintFolder, MachineChip, StarkGenericConfig};
+use std::marker::PhantomData;
 
-use crate::prelude::{Builder, Config, Ext, Felt, SymbolicExt};
+use crate::prelude::{Builder, Ext, Felt, SymbolicExt};
 use crate::verifier::StarkGenericBuilderConfig;
-
-impl<C: Config> Builder<C> {
-    pub fn const_opened_values(
-        &mut self,
-        opened_values: &AirOpenedValues<C::EF>,
-    ) -> AirOpenedValues<Ext<C::F, C::EF>> {
-        AirOpenedValues::<Ext<C::F, C::EF>> {
-            local: opened_values
-                .local
-                .iter()
-                .map(|s| self.eval(SymbolicExt::Const(*s)))
-                .collect(),
-            next: opened_values
-                .next
-                .iter()
-                .map(|s| self.eval(SymbolicExt::Const(*s)))
-                .collect(),
-        }
-    }
-}
 
 pub fn verify_constraints<N: Field, SC: StarkGenericConfig + Clone, A: MachineAir<SC::Val>>(
     builder: &mut Builder<StarkGenericBuilderConfig<N, SC>>,

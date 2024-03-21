@@ -18,7 +18,7 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
 
     pub fn shift(&self, builder: &mut Builder<C>, shift: Var<C::N>) -> Array<C, V> {
         match self {
-            Self::Fixed(vec) => {
+            Self::Fixed(_) => {
                 todo!()
             }
             Self::Dyn(ptr, len) => {
@@ -35,10 +35,10 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
 
     pub fn truncate(&self, builder: &mut Builder<C>, len: Usize<C::N>) {
         match self {
-            Self::Fixed(vec) => {
+            Self::Fixed(_) => {
                 todo!()
             }
-            Self::Dyn(ptr, old_len) => {
+            Self::Dyn(_, old_len) => {
                 builder.assign(*old_len, len);
             }
         };
