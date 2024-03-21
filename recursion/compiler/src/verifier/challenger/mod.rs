@@ -93,4 +93,20 @@ impl<C: Config> DuplexChallenger<C> {
         });
         sum
     }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/grinding_challenger.rs#L16
+    pub fn check_witness(
+        &mut self,
+        builder: &mut Builder<C>,
+        nb_bits: Usize<C::N>,
+        witness: Felt<C::F>,
+    ) -> Var<C::N> {
+        self.observe(builder, witness);
+        let element = self.sample_bits(builder, nb_bits);
+        let result = builder.eval(C::N::zero());
+        builder
+            .if_eq(element, C::N::zero())
+            .then(|builder| builder.assign(result, C::N::one()));
+        result
+    }
 }
