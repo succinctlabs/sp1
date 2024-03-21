@@ -1184,3 +1184,17 @@ impl<N: Field> Sub<Usize<N>> for Usize<N> {
         SymbolicUsize::from(self) - rhs
     }
 }
+
+impl<F: Field> MulAssign<Felt<F>> for SymbolicFelt<F> {
+    fn mul_assign(&mut self, rhs: Felt<F>) {
+        *self = Self::from(rhs);
+    }
+}
+
+impl<F: Field> Mul<SymbolicFelt<F>> for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn mul(self, rhs: SymbolicFelt<F>) -> Self::Output {
+        SymbolicFelt::<F>::from(self) * rhs
+    }
+}

@@ -49,11 +49,11 @@ impl<C: Config> Builder<C> {
         result
     }
 
-    pub fn power_of_2_usize(&mut self, power: Usize<C::N>) -> Usize<C::N> {
+    pub fn power_of_two_usize(&mut self, power: Usize<C::N>) -> Usize<C::N> {
         self.sll(Usize::Const(1), power)
     }
 
-    pub fn power_of_two_variable(&mut self, power: Usize<C::N>) -> Var<C::N> {
+    pub fn power_of_two_var(&mut self, power: Usize<C::N>) -> Var<C::N> {
         self.sll(C::N::one(), power)
     }
 

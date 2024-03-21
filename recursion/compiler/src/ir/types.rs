@@ -105,8 +105,8 @@ impl<F, EF> Ext<F, EF> {
 impl<C: Config> Variable<C> for Usize<C::N> {
     type Expression = SymbolicUsize<C::N>;
 
-    fn uninit(_: &mut Builder<C>) -> Self {
-        Usize::Const(0)
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        builder.uninit::<Var<C::N>>().into()
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {

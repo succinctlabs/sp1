@@ -200,7 +200,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     {
         let sels = trace_domain.selectors_at_point(zeta);
 
-        let quotient = Self::recompute_quotient(&opening, qc_domains, zeta);
+        let quotient = Self::recompute_quotient(&opening, &qc_domains, zeta);
         let folded_constraints =
             Self::eval_constraints(chip, &opening, &sels, alpha, permutation_challenges);
 
@@ -262,7 +262,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     #[cfg(feature = "perf")]
     pub fn recompute_quotient(
         opening: &ChipOpenedValues<SC::Challenge>,
-        qc_domains: Vec<Domain<SC>>,
+        qc_domains: &[Domain<SC>],
         zeta: SC::Challenge,
     ) -> SC::Challenge {
         use p3_field::Field;
