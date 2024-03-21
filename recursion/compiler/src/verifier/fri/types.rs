@@ -13,10 +13,11 @@ pub const DIGEST_SIZE: usize = 8;
 pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
+#[derive(DslVariable, Clone)]
 pub struct FriConfig<C: Config> {
-    pub log_blowup: Usize<C::N>,
-    pub num_queries: Usize<C::N>,
-    pub proof_of_work_bits: Usize<C::N>,
+    pub log_blowup: Var<C::N>,
+    pub num_queries: Var<C::N>,
+    pub proof_of_work_bits: Var<C::N>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12

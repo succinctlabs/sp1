@@ -98,11 +98,11 @@ impl<C: Config> DuplexChallenger<C> {
     pub fn check_witness(
         &mut self,
         builder: &mut Builder<C>,
-        nb_bits: Usize<C::N>,
+        nb_bits: Var<C::N>,
         witness: Felt<C::F>,
     ) {
         self.observe(builder, witness);
-        let element = self.sample_bits(builder, nb_bits);
+        let element = self.sample_bits(builder, Usize::Var(nb_bits));
         builder
             .if_eq(element, C::N::one())
             .then(|builder| builder.error());
