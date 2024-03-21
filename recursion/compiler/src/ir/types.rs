@@ -19,8 +19,7 @@ pub struct Var<N>(pub u32, pub PhantomData<N>);
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -80,7 +79,7 @@ impl<F> Felt<F> {
     where
         F: Field,
     {
-        SymbolicFelt::from(F::one()) / *self
+        SymbolicFelt::<F>::one() / *self
     }
 }
 
@@ -91,6 +90,14 @@ impl<F, EF> Ext<F, EF> {
 
     pub fn id(&self) -> String {
         format!("ext{}", self.0)
+    }
+
+    pub fn inverse(&self) -> SymbolicExt<F, EF>
+    where
+        F: Field,
+        EF: ExtensionField<F>,
+    {
+        SymbolicExt::<F, EF>::one() / *self
     }
 }
 

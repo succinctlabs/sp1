@@ -410,7 +410,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::TwoAdicGenerator(_, _) => unimplemented!(),
                 DslIR::ExpUsizeV(_, _, _) => unimplemented!(),
                 DslIR::ExpUsizeF(_, _, _) => unimplemented!(),
-                DslIR::Error() => unimplemented!(),
+                DslIR::Error() => self.push(AsmInstruction::TRAP),
             }
         }
     }
