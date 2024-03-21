@@ -2,6 +2,20 @@ use p3_field::{AbstractField, Field};
 
 mod external;
 
+pub use external::*;
+
+/// The number of external rounds in the Poseidon permutation.
+pub(crate) const ROUNDS_F: usize = 8;
+
+// The number of internal rounds in the Poseidon permutation.
+pub(crate) const ROUNDS_P: usize = 22;
+
+// The total number of rounds in the Poseidon permutation.
+pub(crate) const ROUNDS: usize = ROUNDS_F + ROUNDS_P;
+
+pub(crate) const ROUNDS_F_BEGINNING: usize = ROUNDS_F / 2;
+pub(crate) const P_END: usize = ROUNDS_F_BEGINNING + ROUNDS_P;
+
 // TODO: Make this public inside Plonky3 and import directly.
 pub fn apply_m_4<AF>(x: &mut [AF])
 where

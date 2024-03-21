@@ -1,3 +1,4 @@
+use crate::memory::{MemoryReadWriteCols, MemoryRecord};
 use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::AirBuilder;
@@ -15,13 +16,24 @@ use tracing::instrument;
 
 use crate::runtime::ExecutionRecord;
 
-use super::{apply_m_4, matmul_internal, MATRIX_DIAG_16_BABYBEAR_U32};
+use super::{
+    apply_m_4, matmul_internal, MATRIX_DIAG_16_BABYBEAR_U32, P_END, ROUNDS, ROUNDS_F_BEGINNING,
+};
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
+
+#[derive(Debug, Clone)]
+pub struct Poseidon2Event<T> {
+    pub state_ptr: T,
+    pub pre_state: [T; WIDTH],
+    pub post_state: [T; WIDTH],
+    pub state_read_records: Vec<MemoryRecord<T>>,
+    pub state_write_records: Vec<MemoryRecord<T>>,
+}
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
@@ -31,12 +43,14 @@ pub struct Poseidon2Chip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
-    pub input: [T; WIDTH],
+    // each memory records value are made up of blocks of 4 Ts.
+    pub pre_state: [MemoryReadWriteCols<T>; WIDTH / 4],
     pub rounds: [T; 31],
     pub add_rc: [T; WIDTH],
     pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
-    pub output: [T; WIDTH],
+    // each memory records value are made up of blocks of 4 Ts.
+    pub post_state: [MemoryReadWriteCols<T>; WIDTH / 4],
     pub is_initial: T,
     pub is_internal: T,
     pub is_external: T,
@@ -52,50 +66,76 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
-        _: &ExecutionRecord<F>,
-        _: &mut ExecutionRecord<F>,
+        input: &ExecutionRecord<F>,
+        _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let mut input = [F::one(); WIDTH];
-        let rows = (0..128)
-            .map(|i| {
+        let mut rows = Vec::new();
+
+        for i in 0..input.poseidon2_events.len() {
+            let event = input.poseidon2_events[i].clone();
+
+            let mut input_memory_record = event.state_read_records;
+
+            let mut pre_state: [F; WIDTH] = input_memory_record
+                .iter()
+                .take(WIDTH / 4)
+                .flat_map(|block| block.value.0)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+
+            for i in 0..32 {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
-                cols.input = input;
+
+                cols.pre_state
+                    .iter_mut()
+                    .zip(input_memory_record.iter())
+                    .for_each(|(pre_state_j, input_j)| {
+                        pre_state_j.populate(input_j);
+                    });
 
                 let r = i % 31;
-                let rounds_f = 8;
-                let rounds_p = 22;
-                let rounds = rounds_f + rounds_p;
-                let rounds_f_beginning = rounds_f / 2;
-                let p_end = rounds_f_beginning + rounds_p;
 
                 cols.rounds[r] = F::one();
                 let is_initial_layer = r == 0;
                 let is_external_layer = r != 0
-                    && (((r - 1) < rounds_f_beginning) || (p_end <= (r - 1) && (r - 1) < rounds));
+                    && (((r - 1) < ROUNDS_F_BEGINNING) || (P_END <= (r - 1) && (r - 1) < ROUNDS));
 
                 if is_initial_layer {
                     // Mark the selector as initial.
                     cols.is_initial = F::one();
 
-                    // Don't apply the round constants.
-                    cols.add_rc.copy_from_slice(&cols.input);
+                    // initialize the pre_state from the memory records.
+                    // Don't apply the round constants and copy the `input_pre_state` as it is.
+                    cols.add_rc.copy_from_slice(&pre_state);
                 } else if is_external_layer {
                     // Mark the selector as external.
                     cols.is_external = F::one();
 
                     // Apply the round constants.
-                    for j in 0..WIDTH {
-                        cols.add_rc[j] =
-                            cols.input[j] + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
-                    }
+                    // Apply the round constants.
+                    cols.add_rc
+                        .iter_mut()
+                        .zip(pre_state.iter().zip(RC_16_30_U32[r - 1].iter()))
+                        .for_each(|(add_rc_j, (&pre_state_j, &rc_j))| {
+                            *add_rc_j = pre_state_j + F::from_wrapped_u32(rc_j);
+                        });
                 } else {
                     // Mark the selector as internal.
                     cols.is_internal = F::one();
 
-                    // Apply the round constants only on the first element.
-                    cols.add_rc.copy_from_slice(&cols.input);
-                    cols.add_rc[0] = cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
+                    cols.add_rc
+                        .iter_mut()
+                        .zip(pre_state.iter())
+                        .enumerate()
+                        .for_each(|(j, (add_rc_j, &pre_state_j))| {
+                            *add_rc_j = pre_state_j;
+                            // Apply the round constants only on the first element.
+                            if j == 0 {
+                                *add_rc_j += F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
+                            }
+                        });
                 };
 
                 // Apply the sbox.
@@ -136,14 +176,17 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     matmul_internal(&mut state, matmul_constants);
                 }
 
+                pre_state = state;
                 // Copy the state to the output.
-                cols.output.copy_from_slice(&state);
+                for j in 0..(WIDTH / 4) {
+                    cols.post_state[j].populate(&event.state_write_records[j]);
+                }
 
-                input = cols.output;
+                input_memory_record = event.state_write_records.clone();
 
-                row
-            })
-            .collect::<Vec<_>>();
+                rows.push(row);
+            }
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -177,10 +220,6 @@ where
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
 
-        let rounds_f = 8;
-        let rounds_p = 22;
-        let rounds = rounds_f + rounds_p;
-
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
             .iter()
@@ -189,14 +228,30 @@ where
             .try_into()
             .unwrap();
 
+        let input_memory_record = local.pre_state;
+
+        let pre_state = input_memory_record
+            .iter()
+            .take(WIDTH / 4)
+            .flat_map(|block| block.value.0)
+            .collect::<Vec<_>>();
+
+        let output_memory_record = local.post_state;
+
+        let post_state = output_memory_record
+            .iter()
+            .take(WIDTH / 4)
+            .flat_map(|block| block.value.0)
+            .collect::<Vec<_>>();
+
         // Apply the round constants.
         //
         // Initial Layer: Don't apply the round constants.
         // External Layers: Apply the round constants.
         // Internal Layers: Only apply the round constants to the first element.
         for i in 0..WIDTH {
-            let mut result: AB::Expr = local.input[i].into();
-            for r in 0..rounds {
+            let mut result: AB::Expr = pre_state[i].into();
+            for r in 0..ROUNDS {
                 if i == 0 {
                     result += local.rounds[r + 1]
                         * constants[r][i]
@@ -270,7 +325,7 @@ where
                 state[i] += sums[i % 4].clone();
                 builder
                     .when(local.is_external + local.is_initial)
-                    .assert_eq(state[i].clone(), local.output[i]);
+                    .assert_eq(state[i].clone(), post_state[i]);
             }
         }
 
@@ -289,7 +344,7 @@ where
             for i in 0..WIDTH {
                 builder
                     .when(local.is_internal)
-                    .assert_eq(state[i].clone(), local.output[i]);
+                    .assert_eq(state[i].clone(), post_state[i]);
             }
         }
 
@@ -375,7 +430,17 @@ mod tests {
             .try_into()
             .unwrap();
         let cols: &mut Poseidon2Cols<BabyBear> = row.as_mut_slice().borrow_mut();
-        assert_eq!(cols.output, output);
+
+        let output_memory_record = cols.post_state;
+        let output_state: [BabyBear; WIDTH] = output_memory_record
+            .iter()
+            .take(WIDTH / 4)
+            .flat_map(|block| block.value.0)
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        assert_eq!(output_state, output);
 
         uni_stark_prove(&config, &chip, &mut challenger, trace);
     }
