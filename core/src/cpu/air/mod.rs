@@ -144,42 +144,7 @@ where
         //     )
         //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        builder.when_first_row().assert_zero(local.clk);
-        let clk_increment = AB::Expr::from_canonical_u32(4) + num_cycles;
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.clk + clk_increment, next.clk);
-
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            local.shard,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            local.is_real,
-        );
-
-        builder.when(local.is_real).assert_eq(
-            local.clk,
-            local.clk_16bit_limb.into()
-                + local.clk_8bit_limb.into() * AB::Expr::from_canonical_u32(1 << 16),
-        );
-
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            local.clk_16bit_limb,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            local.is_real,
-        );
-
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            local.clk_8bit_limb,
-            local.is_real,
-        );
+        self.shard_clk_eval(builder, local, next, num_cycles);
 
         // Range checks.
         builder.assert_bool(local.is_real);
@@ -329,6 +294,56 @@ impl CpuChip {
         // builder.when_first_row().assert_one(local.is_real);
         // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
         (num_cycles * is_ecall_instruction, is_halt)
+    }
+
+    /// Constraints related to the shard and pc.
+    pub(crate) fn shard_clk_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+        num_cycles: AB::Expr,
+    ) {
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.shard, next.shard);
+
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            local.shard,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.is_real,
+        );
+
+        builder.when_first_row().assert_zero(local.clk);
+        let clk_increment = AB::Expr::from_canonical_u32(4) + num_cycles;
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.clk + clk_increment, next.clk);
+        builder.when(local.is_real).assert_eq(
+            local.clk,
+            local.clk_16bit_limb.into()
+                + local.clk_8bit_limb.into() * AB::Expr::from_canonical_u32(1 << 16),
+        );
+
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            local.clk_16bit_limb,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.is_real,
+        );
+
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.clk_8bit_limb,
+            local.is_real,
+        );
     }
 }
 

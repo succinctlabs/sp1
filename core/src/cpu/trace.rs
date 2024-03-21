@@ -131,18 +131,10 @@ impl CpuChip {
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
 
+        // Populate shard and clk columns.
+        self.populate_shard_clk(cols, event, &mut new_blu_events);
+
         // Populate basic fields.
-        cols.shard = F::from_canonical_u32(event.shard);
-        new_blu_events.push(ByteLookupEvent::new(U16Range, event.shard, 0, 0, 0));
-
-        cols.clk = F::from_canonical_u32(event.clk);
-        let clk_16bit_limb = event.clk & 0xffff;
-        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
-        let clk_8bit_limb = (event.clk >> 16) & 0xff;
-        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
-        new_blu_events.push(ByteLookupEvent::new(U16Range, clk_16bit_limb, 0, 0, 0));
-        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, clk_8bit_limb));
-
         cols.pc = F::from_canonical_u32(event.pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
@@ -181,6 +173,25 @@ impl CpuChip {
         cols.is_real = F::one();
 
         (row, new_alu_events, new_blu_events)
+    }
+
+    /// Populates the shard and clk related rows.
+    fn populate_shard_clk<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        new_blu_events: &mut Vec<ByteLookupEvent>,
+    ) {
+        cols.shard = F::from_canonical_u32(event.shard);
+        new_blu_events.push(ByteLookupEvent::new(U16Range, event.shard, 0, 0, 0));
+
+        cols.clk = F::from_canonical_u32(event.clk);
+        let clk_16bit_limb = event.clk & 0xffff;
+        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
+        let clk_8bit_limb = (event.clk >> 16) & 0xff;
+        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
+        new_blu_events.push(ByteLookupEvent::new(U16Range, clk_16bit_limb, 0, 0, 0));
+        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, clk_8bit_limb));
     }
 
     /// Populates columns related to memory.
