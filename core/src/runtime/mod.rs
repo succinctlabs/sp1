@@ -33,6 +33,8 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
+pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
+
 /// An implementation of a runtime for the SP1 VM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur

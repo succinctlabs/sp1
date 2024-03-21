@@ -86,21 +86,21 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         event: EdDecompressEvent,
         record: &mut ExecutionRecord,
     ) {
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
         self.sign = F::from_bool(event.sign);
         for i in 0..8 {
-            self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
-            self.y_access[i].populate(event.y_memory_records[i], &mut new_field_events);
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+            self.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_field_ops::<P, E>(y);
 
-        record.add_field_events(&new_field_events);
+        record.add_byte_lookup_events(new_byte_lookup_events);
     }
 
     fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {

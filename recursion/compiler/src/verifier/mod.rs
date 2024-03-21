@@ -1,11 +1,12 @@
-mod constraints;
+pub mod challenger;
+pub mod constraints;
+pub mod fri;
 
-use std::marker::PhantomData;
-
-#[allow(unused_imports)]
 pub use constraints::*;
+
 use p3_field::Field;
 use sp1_core::stark::StarkGenericConfig;
+use std::marker::PhantomData;
 
 use crate::prelude::Config;
 

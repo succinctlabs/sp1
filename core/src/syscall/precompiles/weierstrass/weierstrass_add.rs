@@ -157,7 +157,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
 
         for i in 0..input.weierstrass_add_events.len() {
             let event = input.weierstrass_add_events[i].clone();
@@ -183,15 +183,15 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
             // Populate the memory access columns.
             for i in 0..NUM_WORDS_EC_POINT {
-                cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
+                cols.q_access[i].populate(event.q_memory_records[i], &mut new_byte_lookup_events);
             }
             for i in 0..NUM_WORDS_EC_POINT {
-                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_byte_lookup_events);
             }
 
             rows.push(row);
         }
-        output.add_field_events(&new_field_events);
+        output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];

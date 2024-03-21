@@ -60,6 +60,14 @@ impl<C: Config> Variable<C> for Ptr<C::N> {
     }
 }
 
+impl<N> From<Ptr<N>> for SymbolicPtr<N> {
+    fn from(ptr: Ptr<N>) -> Self {
+        SymbolicPtr {
+            address: SymbolicVar::Val(ptr.address),
+        }
+    }
+}
+
 impl<N> Add for Ptr<N> {
     type Output = SymbolicPtr<N>;
 
