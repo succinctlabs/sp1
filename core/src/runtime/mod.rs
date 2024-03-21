@@ -700,10 +700,6 @@ impl Runtime {
 
                 self.rw(t0, a);
                 next_pc = precompile_next_pc;
-                println!(
-                    "syscall_id is {}, precompile_cycles is {}",
-                    syscall_id, precompile_cycles
-                );
                 self.state.clk += precompile_cycles;
             }
 
