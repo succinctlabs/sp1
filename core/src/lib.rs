@@ -8,7 +8,8 @@
     clippy::type_complexity,
     clippy::unnecessary_unwrap,
     clippy::default_constructed_unit_structs,
-    clippy::box_default
+    clippy::box_default,
+    incomplete_features
 )]
 #![feature(generic_const_exprs)]
 

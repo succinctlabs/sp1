@@ -131,7 +131,7 @@ mod tests {
 
     use crate::air::MachineAir;
 
-    use crate::operations::field::params::{NumLimbs32};
+    use crate::operations::field::params::NumLimbs32;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
@@ -154,9 +154,6 @@ mod tests {
         pub b: [Limbs<T, Limbs32>; 1],
         pub a_ip_b: FieldInnerProductCols<T, NumLimbs32>,
     }
-
-    const NUM_LIMBS: usize = 32;
-    const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
     type Limbs32 = U32;
 
