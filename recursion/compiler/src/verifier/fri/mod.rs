@@ -46,10 +46,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
             builder.error();
         });
 
-    // TODO: Check PoW.
-    // if !challenger.check_witness(config.proof_of_work_bits, proof.pow_witness) {
-    //     return Err(FriError::InvalidPowWitness);
-    // }
+    challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_blowup = config.log_blowup.materialize(builder);
     let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + log_blowup);

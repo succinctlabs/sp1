@@ -24,7 +24,7 @@ pub struct FriProof<C: Config> {
     pub commit_phase_commits: Array<C, Commitment<C>>,
     pub query_proofs: Array<C, FriQueryProof<C>>,
     pub final_poly: Felt<C::F>,
-    pub pow_witness: Var<C::N>,
+    pub pow_witness: Felt<C::F>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23

@@ -100,13 +100,11 @@ impl<C: Config> DuplexChallenger<C> {
         builder: &mut Builder<C>,
         nb_bits: Usize<C::N>,
         witness: Felt<C::F>,
-    ) -> Var<C::N> {
+    ) {
         self.observe(builder, witness);
         let element = self.sample_bits(builder, nb_bits);
-        let result = builder.eval(C::N::zero());
         builder
-            .if_eq(element, C::N::zero())
-            .then(|builder| builder.assign(result, C::N::one()));
-        result
+            .if_eq(element, C::N::one())
+            .then(|builder| builder.error());
     }
 }
