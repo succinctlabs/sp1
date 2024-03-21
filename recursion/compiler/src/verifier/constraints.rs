@@ -1,15 +1,10 @@
-use std::marker::PhantomData;
-
 use p3_air::Air;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use p3_field::Field;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::ChipOpenedValues;
 use sp1_core::stark::{AirOpenedValues, MachineChip, StarkGenericConfig};
-use sp1_core::stark::{StarkAir, VerifierConstraintFolder};
 
-use crate::ir::ExtConst;
 use crate::ir::{Builder, Config, Ext, Felt, SymbolicExt};
 
 use super::folder::RecursiveVerifierConstraintFolder;
@@ -31,86 +26,6 @@ impl<C: Config> Builder<C> {
                 .map(|s| self.eval(SymbolicExt::Const(*s)))
                 .collect(),
         }
-    }
-
-    pub fn eval_constraints_test<SC, A>(
-        &mut self,
-        chip: &MachineChip<SC, A>,
-        opening: &ChipOpenedValues<SC::Challenge>,
-        g_val: SC::Val,
-        zeta_val: SC::Challenge,
-        alpha_val: SC::Challenge,
-    ) where
-        SC: StarkGenericConfig,
-        C: Config<F = SC::Val, EF = SC::Challenge>,
-        A: MachineAir<SC::Val>
-            + StarkAir<SC>
-            + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
-    {
-        let g_inv_val = g_val.inverse();
-        let g: Felt<_> = self.eval(g_val);
-        let g_inv: Felt<SC::Val> = self.eval(g.inverse());
-        self.assert_felt_eq(g_inv, g_inv_val);
-
-        let z_h_val = zeta_val.exp_power_of_2(opening.log_degree);
-        let zeta: Ext<C::F, C::EF> = self.eval(zeta_val.cons());
-        let z_h: Ext<SC::Val, SC::Challenge> = self.exp_power_of_2(zeta, opening.log_degree);
-        self.assert_ext_eq(z_h, z_h_val.cons());
-        let one: Ext<SC::Val, SC::Challenge> = self.eval(SC::Val::one());
-        let is_first_row: Ext<_, _> = self.eval(z_h / (zeta - one));
-        let is_last_row: Ext<_, _> = self.eval(z_h / (zeta - g_inv));
-        let is_transition: Ext<_, _> = self.eval(zeta - g_inv);
-
-        let is_first_row_val = z_h_val / (zeta_val - SC::Challenge::one());
-        let is_last_row_val = z_h_val / (zeta_val - g_inv_val);
-        let is_transition_val = zeta_val - g_inv_val;
-
-        self.assert_ext_eq(is_first_row, is_first_row_val.cons());
-        self.assert_ext_eq(is_last_row, is_last_row_val.cons());
-        self.assert_ext_eq(is_transition, is_transition_val.cons());
-
-        let preprocessed = self.const_opened_values(&opening.preprocessed);
-        let main = self.const_opened_values(&opening.main);
-        let perm = self.const_opened_values(&opening.permutation);
-
-        let zero: Ext<SC::Val, SC::Challenge> = self.eval(SC::Val::zero());
-        let cumulative_sum = self.eval(SC::Val::zero());
-        let alpha = self.eval(alpha_val.cons());
-        let mut folder = RecursiveVerifierConstraintFolder {
-            builder: self,
-            preprocessed: preprocessed.view(),
-            main: main.view(),
-            perm: perm.view(),
-            perm_challenges: &[SC::Challenge::one(), SC::Challenge::one()],
-            cumulative_sum,
-            is_first_row,
-            is_last_row,
-            is_transition,
-            alpha,
-            accumulator: zero,
-        };
-
-        chip.eval(&mut folder);
-        let folded_constraints = folder.accumulator;
-
-        let mut test_folder = VerifierConstraintFolder::<SC> {
-            preprocessed: opening.preprocessed.view(),
-            main: opening.main.view(),
-            perm: opening.permutation.view(),
-            perm_challenges: &[SC::Challenge::one(), SC::Challenge::one()],
-            cumulative_sum: SC::Challenge::zero(),
-            is_first_row: is_first_row_val,
-            is_last_row: is_last_row_val,
-            is_transition: is_transition_val,
-            alpha: alpha_val,
-            accumulator: SC::Challenge::zero(),
-            _marker: PhantomData,
-        };
-
-        chip.eval(&mut test_folder);
-        let folded_constraints_val = test_folder.accumulator;
-
-        self.assert_ext_eq(folded_constraints, folded_constraints_val.cons());
     }
 
     pub fn verify_constraints<SC, A>(
