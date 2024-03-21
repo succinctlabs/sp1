@@ -407,8 +407,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::Poseidon2Compress(_, _, _) => unimplemented!(),
                 DslIR::Poseidon2Permute(_, _) => unimplemented!(),
                 DslIR::ReverseBitsLen(_, _, _) => unimplemented!(),
-                DslIR::ExpUsize(_, _, _) => unimplemented!(),
                 DslIR::TwoAdicGenerator(_, _) => unimplemented!(),
+                DslIR::ExpUsizeV(_, _, _) => unimplemented!(),
+                DslIR::ExpUsizeF(_, _, _) => unimplemented!(),
+                DslIR::Error() => unimplemented!(),
             }
         }
     }
