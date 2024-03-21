@@ -248,7 +248,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         _next: &CpuCols<AB::Var>,
-    ) -> (AB::Expr, AB::Var) {
+    ) -> (AB::Expr, AB::Expr) {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -293,7 +293,10 @@ impl CpuChip {
         //     .assert_eq(next.is_real, AB::Expr::zero());
         // builder.when_first_row().assert_one(local.is_real);
         // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
-        (num_cycles * is_ecall_instruction, is_halt)
+        (
+            num_cycles * is_ecall_instruction.clone(),
+            is_halt * is_ecall_instruction,
+        )
     }
 
     /// Constraints related to the shard and pc.
