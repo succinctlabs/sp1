@@ -125,8 +125,11 @@ impl<F: PrimeField32, N: NumLimbs> FieldOpCols<F, N> {
 
         self.result = p_result.into();
         self.carry = p_carry.into();
-        self.witness_low = p_witness_low.try_into().unwrap();
-        self.witness_high = p_witness_high.try_into().unwrap();
+        use typenum::Unsigned;
+        println!("low len: {}", p_witness_low.len());
+        println!("limbs : {}", N::Witness::USIZE);
+        self.witness_low = Limbs(p_witness_low.try_into().unwrap());
+        self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         result
     }

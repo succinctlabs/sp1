@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
-use typenum::{U32, U60};
+use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::{NumLimbs, NB_BITS_PER_LIMB};
@@ -51,7 +51,7 @@ impl FieldParameters for Secp256k1BaseField {
 
 impl NumLimbs for Secp256k1BaseField {
     type Limbs = U32;
-    type Witness = U60;
+    type Witness = U62;
 }
 
 impl EllipticCurveParameters for Secp256k1Parameters {
