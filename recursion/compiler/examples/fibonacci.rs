@@ -48,7 +48,21 @@ fn main() {
     println!("{}", code);
 
     let program = code.machine_code();
+    println!("Program size = {}", program.instructions.len());
 
     let mut runtime = Runtime::<F, EF>::new(&program);
     runtime.run();
+
+    // let config = SC::new();
+    // let machine = RecursionAir::machine(config);
+    // let (pk, vk) = machine.setup(&program);
+    // let mut challenger = machine.config().challenger();
+
+    // let start = Instant::now();
+    // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+    // let duration = start.elapsed().as_secs();
+
+    // let mut challenger = machine.config().challenger();
+    // machine.verify(&vk, &proof, &mut challenger).unwrap();
+    // println!("proving duration = {}", duration);
 }
