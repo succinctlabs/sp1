@@ -1,7 +1,6 @@
 pub mod challenger;
 pub mod constraints;
 pub mod fri;
-// pub mod two_adic_pcs;
 
 pub use constraints::*;
 
