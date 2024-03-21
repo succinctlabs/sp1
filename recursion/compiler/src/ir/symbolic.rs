@@ -1018,3 +1018,9 @@ impl<F: Field> Add<SymbolicFelt<F>> for Felt<F> {
         SymbolicFelt::<F>::from(self) + rhs
     }
 }
+
+impl<F: Field, EF: ExtensionField<F>> From<Felt<F>> for SymbolicExt<F, EF> {
+    fn from(value: Felt<F>) -> Self {
+        SymbolicExt::Base(Rc::new(SymbolicFelt::Val(value)))
+    }
+}
