@@ -34,11 +34,14 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         let mut new_blu_events = Vec::new();
 
         // Generate the trace rows for each event.
-        let rows_with_events = input
+        let mut rows_with_events = input
             .cpu_events
             .par_iter()
             .map(|op: &CpuEvent| self.event_to_row::<F>(*op))
             .collect::<Vec<_>>();
+
+        // No need to sort by the shard, since the cpu events are already partitioned by that.
+        rows_with_events.sort_unstable_by_key(|(event, _, _)| event[CPU_COL_MAP.clk]);
 
         let mut rows = Vec::<F>::new();
         rows_with_events.into_iter().for_each(|row_with_events| {

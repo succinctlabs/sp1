@@ -144,6 +144,7 @@ where
         //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         // TODO: update the clk.
+        builder.when_first_row().assert_zero(local.clk);
         // let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
         // builder
         //     .when_transition()
