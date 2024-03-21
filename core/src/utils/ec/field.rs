@@ -50,7 +50,7 @@ pub trait FieldParameters:
 /// Convert a vec of u8 limbs to a Limbs of NUM_LIMBS.
 pub fn limbs_from_vec<F: Field, N: ArrayLength>(limbs: Vec<F>) -> Limbs<F, N> {
     debug_assert_eq!(limbs.len(), N::USIZE);
-    let mut result = GenericArray::<F, N>::generate(|i| F::zero());
+    let mut result = GenericArray::<F, N>::generate(|_i| F::zero());
     for (i, limb) in limbs.into_iter().enumerate() {
         result[i] = limb;
     }

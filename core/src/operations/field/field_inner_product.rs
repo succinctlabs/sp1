@@ -4,7 +4,7 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
-use core::borrow::Borrow;
+
 use num::BigUint;
 use num::Zero;
 use p3_field::{AbstractField, PrimeField32};
@@ -131,7 +131,7 @@ mod tests {
 
     use crate::air::MachineAir;
 
-    use crate::operations::field::params::{NumLimbs, NumLimbs32};
+    use crate::operations::field::params::{NumLimbs32};
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::{limbs_from_vec, FieldParameters};

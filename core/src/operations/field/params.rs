@@ -6,9 +6,7 @@ use std::slice::Iter;
 use std::usize;
 use typenum::{U32, U62};
 
-// pub const NUM_LIMBS: usize = 32;
 pub const NB_BITS_PER_LIMB: usize = 8;
-// pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
 #[derive(Debug, Clone)]
 pub struct Limbs<T, N: ArrayLength>(pub GenericArray<T, N>);

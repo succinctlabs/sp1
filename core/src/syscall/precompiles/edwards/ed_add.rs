@@ -42,8 +42,6 @@ use std::marker::PhantomData;
 use tracing::instrument;
 use typenum::U32;
 
-use super::NUM_LIMBS;
-
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
 /// A set of columns to compute `EdAdd` where a, b are field elements.

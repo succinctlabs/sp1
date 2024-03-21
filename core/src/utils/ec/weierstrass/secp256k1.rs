@@ -15,9 +15,6 @@ use k256::FieldElement;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
 
-/// Number of `u8` limbs in the base field of Secp256k1.
-const NUM_LIMBS: usize = 32;
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 curve parameter
 pub struct Secp256k1Parameters;
@@ -31,7 +28,7 @@ pub struct Secp256k1BaseField;
 impl FieldParameters for Secp256k1BaseField {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
 
-    const NB_LIMBS: usize = NUM_LIMBS;
+    const NB_LIMBS: usize = 32;
 
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 

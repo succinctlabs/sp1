@@ -33,8 +33,6 @@ use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
-use super::NUM_LIMBS;
-
 pub const fn num_weierstrass_add_cols<N: NumLimbs>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, N>>()
 }

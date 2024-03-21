@@ -38,8 +38,6 @@ use std::marker::PhantomData;
 use tracing::instrument;
 use typenum::U32;
 
-use super::NUM_LIMBS;
-
 pub const fn num_weierstrass_double_cols<N: NumLimbs>() -> usize {
     size_of::<WeierstrassDoubleAssignCols<u8, N>>()
 }

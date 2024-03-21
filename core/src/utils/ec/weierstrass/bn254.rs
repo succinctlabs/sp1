@@ -7,8 +7,6 @@ use crate::operations::field::params::NumLimbs;
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 
-const NUM_LIMBS: usize = 16;
-
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bn254 curve parameter
 pub struct Bn254Parameters;
@@ -22,7 +20,7 @@ pub struct Bn254BaseField;
 impl FieldParameters for Bn254BaseField {
     const NB_BITS_PER_LIMB: usize = 16;
 
-    const NB_LIMBS: usize = NUM_LIMBS;
+    const NB_LIMBS: usize = 16;
 
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
 

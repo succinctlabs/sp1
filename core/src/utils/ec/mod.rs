@@ -55,11 +55,11 @@ impl<E> AffinePoint<E> {
         }
     }
 
-    pub fn to_words_le<const N: usize>(&self) -> [u32; 16] {
+    pub fn to_words_le(&self) -> [u32; 16] {
         let mut x_bytes = self.x.to_bytes_le();
-        x_bytes.resize(N, 0u8);
+        x_bytes.resize(32, 0u8);
         let mut y_bytes = self.y.to_bytes_le();
-        y_bytes.resize(N, 0u8);
+        y_bytes.resize(32, 0u8);
 
         let mut words = [0u32; 16];
         for i in 0..8 {

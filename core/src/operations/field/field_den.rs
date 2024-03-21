@@ -4,7 +4,7 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
-use core::borrow::Borrow;
+
 use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -164,9 +164,6 @@ mod tests {
         pub a_den_b: FieldDenCols<T, NumLimbs32>,
     }
 
-    const NUM_LIMBS: usize = 32;
-    const NUM_WITNESS_LIMBS: usize = NUM_LIMBS * 2 - 2;
-
     pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
     struct FieldDenChip<P: FieldParameters> {
@@ -275,7 +272,7 @@ mod tests {
     }
 
     #[test]
-    fn prove_field_den_babybear() {
+    fn prove_field() {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 

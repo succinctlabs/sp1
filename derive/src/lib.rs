@@ -38,22 +38,20 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let name = &ast.ident;
 
-    // Separate type generics and const generics
-    // First generic T
+    // Get first generic which must be a type (T in <T, N: NumLimbs>)
     let type_generic = ast
         .generics
         .params
         .iter()
-        .find_map(|param| {
-            if let GenericParam::Type(type_param) = param {
-                Some(&type_param.ident)
-            } else {
-                None
-            }
+        .map(|param| match param {
+            GenericParam::Type(type_param) => &type_param.ident,
+            _ => panic!("Expected first generic to be a type"),
         })
-        .expect("Expected at least one type generic");
+        .next()
+        .expect("Expected at least one generic");
 
-    let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
+    // Get generics after the first (N: NumLimbs, const M: usize in <T, N: NumLimbs, const M: usize>)
+    // We need this because when we assert the size, we want to substitute u8 for T.
     let non_first_generics = ast
         .generics
         .params
@@ -65,6 +63,9 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
             _ => None,
         })
         .collect::<Vec<_>>();
+
+    // Get impl generics (<T, N: NumLimbs>), type generics (<T, N>), where clause (where T: Clone)
+    let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
 
     let methods = quote! {
         impl #impl_generics core::borrow::Borrow<#name #type_generics> for [#type_generic] #where_clause {

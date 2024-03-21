@@ -61,15 +61,15 @@ where
         // As a space-saving hack, we store the sqrt of the input in `self.multiplication.result`
         // even though it's technically not the result of the multiplication. Now, we should
         // retrieve that value and overwrite that member variable with a.
-        let sqrt = &self.multiplication.result;
+        let sqrt = self.multiplication.result;
         let mut multiplication = self.multiplication.clone();
         multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in P since we want its BaseField to be the mod.
         multiplication.eval::<AB, P, Limbs<V, N::Limbs>, Limbs<V, N::Limbs>>(
             builder,
-            sqrt,
-            sqrt,
+            &sqrt,
+            &sqrt,
             super::field_op::FieldOperation::Mul,
         );
     }
