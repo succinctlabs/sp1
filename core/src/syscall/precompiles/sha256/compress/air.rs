@@ -337,7 +337,7 @@ impl ShaCompressChip {
             local.s0.value,
             local.maj.value,
             local.temp2,
-            local.is_compression,
+            local.is_compression.into(),
         );
 
         AddOperation::<AB::F>::eval(
@@ -345,7 +345,7 @@ impl ShaCompressChip {
             local.d,
             local.temp1.value,
             local.d_add_temp1,
-            local.is_compression,
+            local.is_compression.into(),
         );
 
         AddOperation::<AB::F>::eval(
@@ -353,7 +353,7 @@ impl ShaCompressChip {
             local.temp1.value,
             local.temp2.value,
             local.temp1_add_temp2,
-            local.is_compression,
+            local.is_compression.into(),
         );
     }
 
@@ -387,7 +387,7 @@ impl ShaCompressChip {
             local.mem.prev_value,
             local.finalized_operand,
             local.finalize_add,
-            is_finalize,
+            is_finalize.into(),
         );
 
         builder

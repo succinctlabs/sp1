@@ -473,10 +473,10 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         memory_access_slice: &[M],
         verify_memory_access: EVerify,
     ) where
-        EShard: Into<Self::Expr> + std::marker::Copy,
-        Ea: Into<Self::Expr> + std::marker::Copy,
-        Eb: Into<Self::Expr> + std::marker::Copy,
-        EVerify: Into<Self::Expr> + std::marker::Copy,
+        EShard: Into<Self::Expr> + Copy,
+        Ea: Into<Self::Expr> + Copy,
+        Eb: Into<Self::Expr> + Copy,
+        EVerify: Into<Self::Expr> + Copy,
         M: MemoryCols<Eb>,
     {
         for (i, access_slice) in memory_access_slice.iter().enumerate() {
