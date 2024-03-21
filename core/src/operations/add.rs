@@ -62,21 +62,15 @@ impl<F: Field> AddOperation<F> {
         cols: AddOperation<AB::Var>,
         is_real: AB::Expr,
     ) {
-        Self::eval_expr(
-            builder,
-            a.map(|x| x.into()),
-            b.map(|x| x.into()),
-            cols,
-            is_real,
-        );
+        Self::eval_expr(builder, a, b, cols, is_real);
     }
 
     pub fn eval_expr<AB: SP1AirBuilder>(
         builder: &mut AB,
-        a: Word<AB::Expr>,
-        b: Word<AB::Expr>,
+        a: Word<AB::Var>,
+        b: Word<AB::Var>,
         cols: AddOperation<AB::Var>,
-        is_real: AB::Var,
+        is_real: AB::Expr,
     ) {
         let one = AB::Expr::one();
         let base = AB::F::from_canonical_u32(256);
@@ -118,6 +112,6 @@ impl<F: Field> AddOperation<F> {
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
+        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
     }
 }

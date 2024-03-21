@@ -20,6 +20,7 @@ impl Syscall for ShaCompressChip {
 
         let start_clk = rt.clk;
         let mut h_read_records = Vec::new();
+        let mut h_write_records = Vec::new();
         let mut w_i_read_records = Vec::new();
 
         // Execute the "initialize" phase where we read in the h values.

@@ -9,9 +9,7 @@ use super::s1::S1Operation;
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
-use crate::operations::{
-    AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
-};
+use crate::operations::AddOperation;
 use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
@@ -233,17 +231,22 @@ impl ShaCompressChip {
 
         // TODO: We need to constrain temp1.
 
-        AddOperation::<AB::F>::eval(
-            builder,
-            local.s0.value,
-            local.maj.value,
-            local.temp2,
-            local.is_compression.into(),
-        );
+        // Calculate maj := (a and b) xor (a and c) xor (b and c).
+        let maj = {
+            MajOperation::<AB::F>::eval(
+                builder,
+                local.a,
+                local.b,
+                local.c,
+                local.maj,
+                local.is_compression,
+            );
+            local.maj.maj.value
+        };
 
         // Calculate temp2 := S0 + maj.
         let temp2 = {
-            AddOperation::<AB::F>::eval(builder, s0, maj, local.temp2, local.is_compression);
+            AddOperation::<AB::F>::eval(builder, s0, maj, local.temp2, local.is_compression.into());
             local.temp2.value
         };
 
@@ -286,18 +289,6 @@ impl ShaCompressChip {
                 filtered_operand.0[j] += *i * operand.0[j];
             }
         }
-
-        builder
-            .when(is_finalize)
-            .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
-
-        AddOperation::<AB::F>::eval(
-            builder,
-            local.mem.prev_value,
-            local.finalized_operand,
-            local.finalize_add,
-            is_finalize.into(),
-        );
 
         builder
             .when(is_finalize)

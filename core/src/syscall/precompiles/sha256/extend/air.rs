@@ -5,9 +5,7 @@ use super::s1::S1Operation;
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 use crate::air::{BaseAirBuilder, SP1AirBuilder};
 use crate::memory::MemoryCols;
-use crate::operations::{
-    Add4Operation, FixedRotateRightOperation, FixedShiftRightOperation, XorOperation,
-};
+use crate::operations::Add4Operation;
 use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
 use p3_field::AbstractField;
