@@ -1,5 +1,6 @@
-use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Ptr, Usize, Var, Variable};
 use std::marker::PhantomData;
+
+use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Ptr, Usize, Var, Variable};
 
 /// The width of the Poseidon2 permutation.
 pub const PERMUTATION_WIDTH: usize = 16;
@@ -12,10 +13,10 @@ pub const DIGEST_SIZE: usize = 8;
 pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
-pub struct FriConfig {
-    pub log_blowup: usize,
-    pub num_queries: usize,
-    pub proof_of_work_bits: usize,
+pub struct FriConfig<C: Config> {
+    pub log_blowup: Usize<C::N>,
+    pub num_queries: Usize<C::N>,
+    pub proof_of_work_bits: Usize<C::N>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
@@ -48,9 +49,59 @@ pub struct FriChallenges<C: Config> {
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/matrix/src/lib.rs#L38
+#[derive(Clone)]
 pub struct Dimensions<C: Config> {
-    pub width: usize,
-    pub height: Usize<C::N>,
+    pub height: Var<C::N>,
+}
+
+impl<C: Config> Variable<C> for Dimensions<C> {
+    type Expression = Self;
+
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        Dimensions {
+            height: builder.uninit(),
+        }
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        self.height.assign(src.height.into(), builder);
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+        Var::<C::N>::assert_eq(lhs.height, rhs.height, builder);
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+        Var::<C::N>::assert_ne(lhs.height, rhs.height, builder);
+    }
+}
+
+impl<C: Config> MemVariable<C> for Dimensions<C> {
+    fn size_of() -> usize {
+        1
+    }
+
+    fn load(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        let address = builder.eval(ptr + Usize::Const(0));
+        self.height.load(address, builder);
+    }
+
+    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        let address = builder.eval(ptr + Usize::Const(0));
+        self.height.store(address, builder);
+    }
 }
 
 impl<C: Config> Variable<C> for FriQueryProof<C> {

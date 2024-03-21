@@ -29,11 +29,18 @@ pub enum Usize<N> {
     Var(Var<N>),
 }
 
-impl<N> Usize<N> {
+impl<N: AbstractField> Usize<N> {
     pub fn value(&self) -> usize {
         match self {
             Usize::Const(c) => *c,
             Usize::Var(_) => panic!("Cannot get the value of a variable"),
+        }
+    }
+
+    pub fn materialize<C: Config<N = N>>(&self, builder: &mut Builder<C>) -> Var<C::N> {
+        match self {
+            Usize::Const(c) => builder.eval(C::N::from_canonical_usize(*c)),
+            Usize::Var(v) => v.clone(),
         }
     }
 }

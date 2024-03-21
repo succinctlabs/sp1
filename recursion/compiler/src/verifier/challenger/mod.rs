@@ -1,8 +1,12 @@
+pub mod utils;
+
 use p3_field::AbstractField;
 
-use super::types::{Commitment, PERMUTATION_WIDTH};
-use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Usize, Var};
+use crate::prelude::{Array, Builder, Config, Felt, Usize, Var};
+use crate::verifier::fri::types::Commitment;
+use crate::verifier::fri::types::PERMUTATION_WIDTH;
 
+/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
 pub struct DuplexChallenger<C: Config> {
     pub sponge_state: Array<C, Felt<C::F>>,
     pub nb_inputs: Var<C::N>,
@@ -11,14 +15,8 @@ pub struct DuplexChallenger<C: Config> {
     pub output_buffer: Array<C, Felt<C::F>>,
 }
 
-impl<C: Config> Builder<C> {
-    pub fn clear<V: MemVariable<C>>(&mut self, array: Array<C, V>) {
-        let empty = self.array::<V, _>(array.len());
-        self.assign(array.clone(), empty);
-    }
-}
-
 impl<C: Config> DuplexChallenger<C> {
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L38
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
         let start = Usize::Const(0);
         let end = self.input_buffer.len();
@@ -38,6 +36,7 @@ impl<C: Config> DuplexChallenger<C> {
         });
     }
 
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
     pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         builder.clear(self.output_buffer.clone());
 
@@ -54,6 +53,7 @@ impl<C: Config> DuplexChallenger<C> {
             })
     }
 
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L78
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
         let start = Usize::Const(0);
         let end = commitment.len();
@@ -63,6 +63,7 @@ impl<C: Config> DuplexChallenger<C> {
         });
     }
 
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L124
     pub fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         let zero: Var<_> = builder.eval(C::N::zero());
         builder
@@ -76,6 +77,7 @@ impl<C: Config> DuplexChallenger<C> {
         output
     }
 
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L144
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: Usize<C::N>) -> Var<C::N> {
         let rand_f = self.sample(builder);
         let bits = builder.num2bits_f(rand_f);
