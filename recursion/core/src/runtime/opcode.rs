@@ -37,4 +37,7 @@ pub enum Opcode {
 
     // System instructions.
     TRAP = 30,
+
+    // Poseidon2 instructions.
+    POSEIDON2 = 40,
 }

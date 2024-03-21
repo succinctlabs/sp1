@@ -10,9 +10,10 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 
-use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
+use crate::poseidon2::Poseidon2Event;
+use crate::{air::Block, poseidon2::WIDTH};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
@@ -78,7 +79,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
         }
     }
 
-    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
+    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> (MemoryRecord<F>, Block<F>) {
         let addr_usize = addr.as_canonical_u32() as usize;
         let entry = self.memory[addr.as_canonical_u32() as usize].clone();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
@@ -94,15 +95,15 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
             timestamp: self.timestamp(&position),
         };
         match position {
-            MemoryAccessPosition::A => self.access.a = Some(record),
-            MemoryAccessPosition::B => self.access.b = Some(record),
-            MemoryAccessPosition::C => self.access.c = Some(record),
+            MemoryAccessPosition::A => self.access.a = Some(record.clone()),
+            MemoryAccessPosition::B => self.access.b = Some(record.clone()),
+            MemoryAccessPosition::C => self.access.c = Some(record.clone()),
             _ => unreachable!(),
         };
-        prev_value
+        (record, prev_value)
     }
 
-    fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
+    fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) -> MemoryRecord<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
         let timestamp = self.timestamp(&position);
         let entry = &self.memory[addr_usize];
@@ -116,11 +117,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
         };
         self.memory[addr_usize] = MemoryEntry { value, timestamp };
         match position {
-            MemoryAccessPosition::A => self.access.a = Some(record),
-            MemoryAccessPosition::B => self.access.b = Some(record),
-            MemoryAccessPosition::C => self.access.c = Some(record),
+            MemoryAccessPosition::A => self.access.a = Some(record.clone()),
+            MemoryAccessPosition::B => self.access.b = Some(record.clone()),
+            MemoryAccessPosition::C => self.access.c = Some(record.clone()),
             _ => unreachable!(),
         };
+
+        record
     }
 
     fn timestamp(&self, position: &MemoryAccessPosition) -> F {
@@ -133,7 +136,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
         } else if instruction.imm_b {
             instruction.op_b
         } else {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
+            let (_, value) = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
+            value
         }
     }
 
@@ -143,7 +147,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
         } else if instruction.imm_c {
             instruction.op_c
         } else {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
+            let (_, value) = self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C);
+            value
         }
     }
 
@@ -165,7 +170,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
             instruction.op_b
         } else {
             let address = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            self.mr(address[0], MemoryAccessPosition::A)
+            let (_, value) = self.mr(address.1[0], MemoryAccessPosition::A);
+            value
         };
         (a_ptr, b)
     }
@@ -175,21 +181,23 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
         let a_ptr = if instruction.imm_b {
             self.fp + instruction.op_a
         } else {
-            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
+            let (_, value) = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+            value[0]
         };
         let b = if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
         } else if instruction.imm_b {
             instruction.op_b
         } else {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
+            let (_, value) = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
+            value
         };
         (a_ptr, b)
     }
 
     /// Fetch the input operand values for a branch instruction.
     fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
-        let a = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+        let (_, a) = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
         let b = self.get_b(instruction);
 
         let c = instruction.op_c[0];
@@ -261,7 +269,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                 }
                 Opcode::LW => {
                     let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let (_, prev_a) = self.mr(a_ptr, MemoryAccessPosition::A);
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
@@ -274,7 +282,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                 }
                 Opcode::SW => {
                     let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let (_, prev_a) = self.mr(a_ptr, MemoryAccessPosition::A);
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
@@ -325,7 +333,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     let imm = instruction.op_c;
                     let b_ptr = instruction.op_b[0] + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
-                    let b_val = self.mr(b_ptr, MemoryAccessPosition::B);
+                    let (_, b_val) = self.mr(b_ptr, MemoryAccessPosition::B);
                     let c_val = imm;
                     let a_val = Block::from(self.pc + F::one());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
@@ -336,7 +344,81 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                 Opcode::TRAP => {
                     panic!("TRAP instruction encountered")
                 }
-            };
+                Opcode::POSEIDON2 => {
+                    let state_ptr = self.fp + instruction.op_a;
+
+                    let mut memory_records = vec![];
+                    let mut read_records: Vec<MemoryRecord<F>> = vec![];
+
+                    for i in 0..32 {
+                        if i == 0 {
+                            let read_records = (0..WIDTH / 4)
+                                .map(|i| {
+                                    let addr = state_ptr + F::from_canonical_u32(i as u32 * 4);
+                                    let (record, _) = self.mr(addr, MemoryAccessPosition::A);
+                                    record
+                                })
+                                .collect::<Vec<_>>();
+
+                            memory_records.extend(read_records.clone());
+                        }
+
+                        // input state
+                        let state: [F; WIDTH] = read_records
+                            .iter()
+                            .take(WIDTH / 4)
+                            .flat_map(|block| block.value.0)
+                            .collect::<Vec<_>>()
+                            .try_into()
+                            .unwrap();
+
+                        // let poseidon2 = Poseidon2::new(
+                        //     ROUNDS_F,
+                        //     ROUNDS_P,
+                        //     RC_16_30.to_vec(),
+                        //     DiffusionMatrixBabybear,
+                        // );
+
+                        // perform one round of poseidon2
+                        // poseidon2.permute_mut(&mut state);
+
+                        let output = state.clone();
+
+                        // Update the memory with the output of the last round
+                        let write_records = (0..WIDTH / 4)
+                            .map(|i| {
+                                let addr = state_ptr + F::from_canonical_u32(i as u32 * 4);
+                                let out = [
+                                    output[i * 4],
+                                    output[i * 4 + 1],
+                                    output[i * 4 + 2],
+                                    output[i * 4 + 3],
+                                ];
+                                let value = Block::from(out);
+                                self.mw(addr, value, MemoryAccessPosition::A)
+                            })
+                            .collect::<Vec<_>>();
+
+                        memory_records.extend(write_records.clone());
+
+                        read_records = write_records.clone();
+                    }
+
+                    let poseidon2_event = Poseidon2Event {
+                        state_ptr,
+                        clk: self.clk,
+                        state_read_records: memory_records,
+                    };
+
+                    self.record.poseidon2_events.push(poseidon2_event);
+
+                    (a, b, c) = (
+                        Block::from([state_ptr, F::zero(), F::zero(), F::zero()]),
+                        Block::default(),
+                        Block::default(),
+                    );
+                }
+            }
 
             let event = CpuEvent {
                 clk: self.clk,

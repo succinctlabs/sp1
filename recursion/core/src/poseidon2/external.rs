@@ -31,7 +31,6 @@ pub struct Poseidon2Event<T> {
     pub state_ptr: T,
     pub clk: T,
     pub state_read_records: Vec<MemoryRecord<T>>,
-    pub state_write_records: Vec<MemoryRecord<T>>,
 }
 
 /// A chip that implements addition for the opcode ADD.
@@ -45,13 +44,11 @@ pub struct Poseidon2Cols<T> {
     pub state_ptr: T,
     pub clk: T,
     // each memory records value are made up of blocks of 4 Ts.
-    pub pre_state: [MemoryReadWriteCols<T>; WIDTH / 4],
+    pub state: [MemoryReadWriteCols<T>; WIDTH / 4],
     pub rounds: [T; 31],
     pub add_rc: [T; WIDTH],
     pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
-    // each memory records value are made up of blocks of 4 Ts.
-    pub post_state: [MemoryReadWriteCols<T>; WIDTH / 4],
     pub is_initial: T,
     pub is_internal: T,
     pub is_external: T,
@@ -75,30 +72,34 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         for i in 0..input.poseidon2_events.len() {
             let event = input.poseidon2_events[i].clone();
 
-            let mut input_memory_record = event.state_read_records;
+            // read the memory records.
+            let input_memory_record = event.state_read_records.clone();
 
-            let mut pre_state: [F; WIDTH] = input_memory_record
+            let all_states = input_memory_record
                 .iter()
-                .take(WIDTH / 4)
                 .flat_map(|block| block.value.0)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
+                .collect::<Vec<_>>();
 
             for i in 0..32 {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
 
+                let input: [F; WIDTH] = all_states
+                    .iter()
+                    .skip(i * WIDTH)
+                    .take(WIDTH)
+                    .copied()
+                    .collect::<Vec<_>>()
+                    .try_into()
+                    .unwrap();
+
                 cols.clk = event.clk + F::from_canonical_usize(i);
 
                 cols.state_ptr = event.state_ptr + F::from_canonical_usize(i * 4);
 
-                cols.pre_state
-                    .iter_mut()
-                    .zip(input_memory_record.iter())
-                    .for_each(|(pre_state_j, input_j)| {
-                        pre_state_j.populate(input_j);
-                    });
+                for j in 0..(WIDTH / 4) {
+                    cols.state[j].populate(&input_memory_record[j]);
+                }
 
                 let r = i % 31;
 
@@ -113,34 +114,22 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
                     // initialize the pre_state from the memory records.
                     // Don't apply the round constants and copy the `input_pre_state` as it is.
-                    cols.add_rc.copy_from_slice(&pre_state);
+                    cols.add_rc.copy_from_slice(&input);
                 } else if is_external_layer {
                     // Mark the selector as external.
                     cols.is_external = F::one();
 
                     // Apply the round constants.
-                    // Apply the round constants.
-                    cols.add_rc
-                        .iter_mut()
-                        .zip(pre_state.iter().zip(RC_16_30_U32[r - 1].iter()))
-                        .for_each(|(add_rc_j, (&pre_state_j, &rc_j))| {
-                            *add_rc_j = pre_state_j + F::from_wrapped_u32(rc_j);
-                        });
+                    for j in 0..WIDTH {
+                        cols.add_rc[j] = input[j] + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
+                    }
                 } else {
                     // Mark the selector as internal.
                     cols.is_internal = F::one();
 
-                    cols.add_rc
-                        .iter_mut()
-                        .zip(pre_state.iter())
-                        .enumerate()
-                        .for_each(|(j, (add_rc_j, &pre_state_j))| {
-                            *add_rc_j = pre_state_j;
-                            // Apply the round constants only on the first element.
-                            if j == 0 {
-                                *add_rc_j += F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
-                            }
-                        });
+                    // Apply the round constants only on the first element.
+                    cols.add_rc.copy_from_slice(&input);
+                    cols.add_rc[0] = input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
                 };
 
                 // Apply the sbox.
@@ -181,13 +170,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     matmul_internal(&mut state, matmul_constants);
                 }
 
-                pre_state = state;
                 // Copy the state to the output.
                 for j in 0..(WIDTH / 4) {
-                    cols.post_state[j].populate(&event.state_write_records[j]);
+                    cols.state[j].populate(&event.state_read_records[j]);
                 }
-
-                input_memory_record = event.state_write_records.clone();
 
                 rows.push(row);
             }
@@ -233,19 +219,15 @@ where
             .try_into()
             .unwrap();
 
-        let input_memory_record = local.pre_state;
+        let memory_record = local.state;
 
-        let pre_state = input_memory_record
+        let pre_state = memory_record
             .iter()
-            .take(WIDTH / 4)
-            .flat_map(|block| block.value.0)
+            .flat_map(|block| block.prev_value.0)
             .collect::<Vec<_>>();
 
-        let output_memory_record = local.post_state;
-
-        let post_state = output_memory_record
+        let post_state = memory_record
             .iter()
-            .take(WIDTH / 4)
             .flat_map(|block| block.value.0)
             .collect::<Vec<_>>();
 
@@ -436,10 +418,9 @@ mod tests {
             .unwrap();
         let cols: &mut Poseidon2Cols<BabyBear> = row.as_mut_slice().borrow_mut();
 
-        let output_memory_record = cols.post_state;
-        let output_state: [BabyBear; WIDTH] = output_memory_record
+        let memory_record = cols.state;
+        let output_state: [BabyBear; WIDTH] = memory_record
             .iter()
-            .take(WIDTH / 4)
             .flat_map(|block| block.value.0)
             .collect::<Vec<_>>()
             .try_into()
