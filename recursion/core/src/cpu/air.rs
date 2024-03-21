@@ -1,7 +1,5 @@
-use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
 use crate::cpu::CpuChip;
-use crate::runtime::Opcode;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -12,7 +10,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
-use sp1_core::air::BinomialExtension;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
@@ -49,7 +46,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
             .cpu_events
             .iter()
             .enumerate()
-            .map(|(i, event)| {
+            .map(|(_, event)| {
                 let mut row = [F::zero(); NUM_CPU_COLS];
                 let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
 

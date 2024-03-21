@@ -1,5 +1,4 @@
 use crate::air::Block;
-use p3_field::PrimeField;
 use sp1_derive::AlignedBorrow;
 
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
