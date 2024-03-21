@@ -4,6 +4,7 @@ use crate::air::MachineAir;
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::CpuCols;
+use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
 use crate::runtime::MemoryRecordEnum;
@@ -132,7 +133,16 @@ impl CpuChip {
 
         // Populate basic fields.
         cols.shard = F::from_canonical_u32(event.shard);
+        new_blu_events.push(ByteLookupEvent::new(U16Range, event.shard, 0, 0, 0));
+
         cols.clk = F::from_canonical_u32(event.clk);
+        let clk_16bit_limb = event.clk & 0xffff;
+        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
+        let clk_8bit_limb = (event.clk >> 16) & 0xff;
+        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
+        new_blu_events.push(ByteLookupEvent::new(U16Range, clk_16bit_limb, 0, 0, 0));
+        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, clk_8bit_limb));
+
         cols.pc = F::from_canonical_u32(event.pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);

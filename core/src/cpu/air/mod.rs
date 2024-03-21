@@ -9,6 +9,7 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
 use crate::air::{SP1AirBuilder, WordAirBuilder};
+use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
@@ -149,6 +150,36 @@ where
             .when_transition()
             .when(next.is_real)
             .assert_eq(local.clk + clk_increment, next.clk);
+
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            local.shard,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.is_real,
+        );
+
+        builder.when(local.is_real).assert_eq(
+            local.clk,
+            local.clk_16bit_limb.into()
+                + local.clk_8bit_limb.into() * AB::Expr::from_canonical_u32(1 << 16),
+        );
+
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            local.clk_16bit_limb,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.is_real,
+        );
+
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.clk_8bit_limb,
+            local.is_real,
+        );
 
         // Range checks.
         builder.assert_bool(local.is_real);

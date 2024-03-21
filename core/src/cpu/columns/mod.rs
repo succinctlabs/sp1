@@ -37,6 +37,9 @@ pub struct CpuCols<T: Copy> {
     /// The clock cycle value.
     pub clk: T,
 
+    pub clk_16bit_limb: T,
+    pub clk_8bit_limb: T,
+
     /// The program counter value.
     pub pc: T,
 
