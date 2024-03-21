@@ -88,6 +88,7 @@ pub enum DslIR<C: Config> {
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
 
     // Miscellaneous instructions.
+    Error(),
     Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),
     Num2BitsF(Array<C, Var<C::N>>, Felt<C::F>),
     Poseidon2Permute(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
@@ -98,5 +99,6 @@ pub enum DslIR<C: Config> {
     ),
     TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
     ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
-    ExpUsize(Felt<C::F>, Felt<C::F>, Usize<C::N>),
+    ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
+    ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
 }

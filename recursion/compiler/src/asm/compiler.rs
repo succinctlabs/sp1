@@ -17,8 +17,15 @@ use crate::ir::Usize;
 use crate::ir::{Config, DslIR, Ext, Felt, Ptr, Var};
 use p3_field::Field;
 
+pub(crate) const STACK_START_OFFSET: i32 = 16;
+
 pub(crate) const ZERO: i32 = 0;
 pub(crate) const HEAP_PTR: i32 = -4;
+
+#[allow(dead_code)]
+pub(crate) const A0: i32 = -8;
+#[allow(dead_code)]
+pub(crate) const A1: i32 = -12;
 
 pub type VmBuilder<F, EF> = Builder<AsmConfig<F, EF>>;
 
@@ -54,13 +61,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> VmBuilder<F, EF> {
 
 impl<F> Var<F> {
     fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 1 + 8)
+        -((self.0 as i32) * 3 + 1 + STACK_START_OFFSET)
     }
 }
 
 impl<F> Felt<F> {
     fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 2 + 8)
+        -((self.0 as i32) * 3 + 2 + STACK_START_OFFSET)
     }
 }
 
@@ -72,7 +79,7 @@ impl<F> Ptr<F> {
 
 impl<F, EF> Ext<F, EF> {
     pub fn fp(&self) -> i32 {
-        -((self.0 as i32) * 3 + 8)
+        -((self.0 as i32) * 3 + STACK_START_OFFSET)
     }
 }
 
@@ -118,8 +125,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::AddEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EADDI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddEF(_dst, _lhs, _rhs) => todo!(),
-                DslIR::AddEFFI(_dst, _lhs, _rhs) => todo!(),
+                DslIR::AddEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EADDF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::AddEFFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::FADDEI(dst.fp(), lhs.fp(), rhs));
+                }
                 DslIR::AddEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EADDI(
                         dst.fp(),
@@ -166,7 +177,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::InvF(dst, src) => {
                     self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::DivEF(_dst, _lhs, _rhs) => todo!(),
+                DslIR::DivEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EDIVF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
                 DslIR::DivEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EDIVI(
                         dst.fp(),
@@ -200,7 +213,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         rhs.fp(),
                     ));
                 }
-                DslIR::SubEF(_dst, _lhs, _rhs) => todo!(),
+                DslIR::SubEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::ESUBF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
                 DslIR::SubEFI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ESUBI(
                         dst.fp(),
@@ -238,8 +253,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::MulEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::EMULI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::MulEF(_dst, _lhs, _rhs) => todo!(),
-                DslIR::MulEFI(_dst, _lhs, _rhs) => todo!(),
+                DslIR::MulEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EMULF(dst.fp(), lhs.fp(), rhs.fp()));
+                }
+                DslIR::MulEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::EMULI(
+                        dst.fp(),
+                        lhs.fp(),
+                        EF::from_base(rhs),
+                    ));
+                }
                 DslIR::IfEq(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
                         compiler: self,
@@ -324,123 +347,51 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 }
                 DslIR::AssertEqV(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Val(rhs.fp()),
-                        is_eq: false,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), false)
                 }
                 DslIR::AssertEqVI(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Const(rhs),
-                        is_eq: false,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Const(rhs), false)
                 }
                 DslIR::AssertNeV(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Val(rhs.fp()),
-                        is_eq: true,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), true)
                 }
                 DslIR::AssertNeVI(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Const(rhs),
-                        is_eq: true,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Const(rhs), true)
                 }
                 DslIR::AssertEqF(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Val(rhs.fp()),
-                        is_eq: false,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), false)
                 }
                 DslIR::AssertEqFI(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Const(rhs),
-                        is_eq: false,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Const(rhs), false)
                 }
                 DslIR::AssertNeF(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Val(rhs.fp()),
-                        is_eq: true,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), true)
                 }
                 DslIR::AssertNeFI(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::Const(rhs),
-                        is_eq: true,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::Const(rhs), true)
                 }
                 DslIR::AssertEqE(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::ExtVal(rhs.fp()),
-                        is_eq: false,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::ExtVal(rhs.fp()), false)
                 }
                 DslIR::AssertEqEI(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::ExtConst(rhs),
-                        is_eq: false,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::ExtConst(rhs), false)
                 }
                 DslIR::AssertNeE(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::ExtVal(rhs.fp()),
-                        is_eq: true,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::ExtVal(rhs.fp()), true)
                 }
                 DslIR::AssertNeEI(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
-                    let if_compiler = IfCompiler {
-                        compiler: self,
-                        lhs: lhs.fp(),
-                        rhs: ValueOrConst::ExtConst(rhs),
-                        is_eq: true,
-                    };
-                    if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+                    self.assert(lhs.fp(), ValueOrConst::ExtConst(rhs), true)
                 }
                 DslIR::Alloc(ptr, len) => {
                     self.alloc(ptr, len);
@@ -451,7 +402,15 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::StoreV(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreF(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreE(ptr, var) => self.push(AsmInstruction::SE(ptr.fp(), var.fp())),
-                _ => unimplemented!(),
+                DslIR::Num2BitsF(_, _) => unimplemented!(),
+                DslIR::Num2BitsV(_, _) => unimplemented!(),
+                DslIR::Poseidon2Compress(_, _, _) => unimplemented!(),
+                DslIR::Poseidon2Permute(_, _) => unimplemented!(),
+                DslIR::ReverseBitsLen(_, _, _) => unimplemented!(),
+                DslIR::TwoAdicGenerator(_, _) => unimplemented!(),
+                DslIR::ExpUsizeV(_, _, _) => unimplemented!(),
+                DslIR::ExpUsizeF(_, _, _) => unimplemented!(),
+                DslIR::Error() => self.push(AsmInstruction::TRAP),
             }
         }
     }
@@ -468,6 +427,23 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 self.push(AsmInstruction::ADDI(ptr.fp(), HEAP_PTR, F::zero()));
                 self.push(AsmInstruction::ADD(HEAP_PTR, HEAP_PTR, len.fp()));
             }
+        }
+    }
+
+    pub fn assert(&mut self, lhs: i32, rhs: ValueOrConst<F, EF>, is_eq: bool) {
+        let if_compiler = IfCompiler {
+            compiler: self,
+            lhs,
+            rhs,
+            is_eq,
+        };
+        if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+    }
+
+    pub fn num_2_bits(&mut self, array_ptr: Ptr<F>, element: i32) {
+        // Store the bits of `F` in the array, storing `4` bits at a time.
+        for i in 0..4 {
+            self.push(AsmInstruction::HintBits(array_ptr.fp(), element, i));
         }
     }
 

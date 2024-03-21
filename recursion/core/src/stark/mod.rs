@@ -3,22 +3,23 @@ use crate::{
     memory::{MemoryChipKind, MemoryGlobalChip},
     program::ProgramChip,
 };
-use p3_field::PrimeField32;
+use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig};
 use sp1_derive::MachineAir;
+
+use crate::runtime::D;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
-pub enum RecursionAir<F: PrimeField32> {
+pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     Program(ProgramChip),
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
 }
 
-#[allow(dead_code)]
-impl<F: PrimeField32> RecursionAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> MachineStark<SC, Self> {
         let chips = Self::get_all()
             .into_iter()
