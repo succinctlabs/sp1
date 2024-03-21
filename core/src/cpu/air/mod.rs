@@ -304,11 +304,15 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
         num_cycles: AB::Expr,
     ) {
+        // Verify that all shard values are the same.
         builder
             .when_transition()
             .when(next.is_real)
             .assert_eq(local.shard, next.shard);
 
+        // Verify that the shard value is within a 16 bits.  This is needed for the memory access
+        // timestamp check [MemoryAirBuilder::verify_mem_access_ts], which assumes that shard values
+        // are < 2^24.
         builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
             local.shard,
@@ -317,18 +321,27 @@ impl CpuChip {
             local.is_real,
         );
 
+        // Verify that the first row has a clk value of 0.
         builder.when_first_row().assert_zero(local.clk);
+        // Verify that the clk increments are correct.  Most clk increment should be 4.  For some
+        // precompiles, there are additional cycles.
         let clk_increment = AB::Expr::from_canonical_u32(4) + num_cycles;
         builder
             .when_transition()
             .when(next.is_real)
             .assert_eq(local.clk + clk_increment, next.clk);
+
+        // Range check that the clk is within 24 bits using it's limb values.  This is needed for
+        // the memory access timestamp check [MemoryAirBuilder::verify_mem_access_ts], which assumes
+        // that clk values are < 2^24.
+        // First verify that the limb values are correct.
         builder.when(local.is_real).assert_eq(
             local.clk,
             local.clk_16bit_limb.into()
                 + local.clk_8bit_limb.into() * AB::Expr::from_canonical_u32(1 << 16),
         );
 
+        // Range check the two limbs.
         builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
             local.clk_16bit_limb,
