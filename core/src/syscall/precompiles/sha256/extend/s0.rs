@@ -70,7 +70,7 @@ impl<F: Field> S0Operation<F> {
                 cols.w_i_minus_15_rs_3,
                 is_real,
             );
-            cols.w_i_minus_15_rr_18.value
+            cols.w_i_minus_15_rs_3.value
         };
 
         let s0_intermediate = {
