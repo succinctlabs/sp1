@@ -38,7 +38,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let name = &ast.ident;
 
-    // Get first generic which must be a type (T in <T, N: NumLimbs>)
+    // Get first generic which must be type (ex. `T`) for input <T, N: NumLimbs, const M: usize>
     let type_generic = ast
         .generics
         .params
@@ -50,7 +50,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
         .next()
         .expect("Expected at least one generic");
 
-    // Get generics after the first (N: NumLimbs, const M: usize in <T, N: NumLimbs, const M: usize>)
+    // Get generics after the first (ex. `N: NumLimbs, const M: usize`)
     // We need this because when we assert the size, we want to substitute u8 for T.
     let non_first_generics = ast
         .generics
@@ -64,7 +64,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
         })
         .collect::<Vec<_>>();
 
-    // Get impl generics (<T, N: NumLimbs>), type generics (<T, N>), where clause (where T: Clone)
+    // Get impl generics (`<T, N: NumLimbs, const M: usize>`), type generics (`<T, N>`), where clause (`where T: Clone`)
     let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
 
     let methods = quote! {
