@@ -74,6 +74,7 @@ fn test_compiler_array() {
 
     let program = code.machine_code();
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }

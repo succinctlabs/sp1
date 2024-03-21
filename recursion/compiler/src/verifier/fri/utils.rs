@@ -46,8 +46,7 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(_, len) => self.array::<Felt<C::F>, _>(*len),
         };
-        self.operations
-            .push(DslIR::Poseidon2Permute(output.clone(), array.clone()));
+        self.operations.push(DslIR::Poseidon2Permute(array.clone()));
         output
     }
 
