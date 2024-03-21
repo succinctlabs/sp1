@@ -1,3 +1,4 @@
+pub mod pcs;
 pub mod types;
 pub mod utils;
 
@@ -9,6 +10,7 @@ use super::challenger::DuplexChallenger;
 use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
+use crate::prelude::Ext;
 use crate::prelude::Felt;
 use crate::prelude::SymbolicVar;
 use crate::prelude::Usize;
@@ -66,15 +68,16 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 /// Verifies a set of FRI challenges.
 ///
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L67
+#[allow(clippy::type_complexity)]
 #[allow(unused_variables)]
 pub fn verify_challenges<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfig<C>,
     proof: &FriProof<C>,
     challenges: &FriChallenges<C>,
-    reduced_openings: &Array<C, Array<C, Felt<C::F>>>,
+    reduced_openings: &Array<C, Array<C, Ext<C::F, C::EF>>>,
 ) where
-    C::F: TwoAdicField,
+    C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
     let log_blowup = config.log_blowup.materialize(builder);
@@ -115,11 +118,11 @@ pub fn verify_query<C: Config>(
     index: Var<C::N>,
     proof: &FriQueryProof<C>,
     betas: &Array<C, Felt<C::F>>,
-    reduced_openings: &Array<C, Felt<C::F>>,
+    reduced_openings: &Array<C, Ext<C::F, C::EF>>,
     log_max_height: Usize<C::N>,
 ) -> Felt<C::F>
 where
-    C::F: TwoAdicField,
+    C::EF: TwoAdicField,
 {
     let folded_eval: Felt<_> = builder.eval(C::F::zero());
     let two_adic_generator = builder.two_adic_generator(log_max_height);
