@@ -1,26 +1,43 @@
 use crate::air::Polynomial;
+use generic_array::{ArrayLength, GenericArray};
 use std::fmt::Debug;
 use std::ops::Index;
 use std::slice::Iter;
 use std::usize;
+use typenum::{U32, U62};
 
 // pub const NUM_LIMBS: usize = 32;
 pub const NB_BITS_PER_LIMB: usize = 8;
 // pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
-#[derive(Debug, Clone, Copy)]
-pub struct Limbs<T, const N: usize>(pub [T; N]);
+#[derive(Debug, Clone)]
+pub struct Limbs<T, N: ArrayLength>(pub GenericArray<T, N>);
 
-impl<T, const N: usize> Default for Limbs<T, N>
+impl<T: Copy, N: ArrayLength> Copy for Limbs<T, N> where N::ArrayType<T>: Copy {}
+
+pub trait NumLimbs: Clone + Debug {
+    type Limbs: ArrayLength + Debug;
+    type Witness: ArrayLength + Debug;
+}
+
+#[derive(Debug, Clone)]
+pub struct NumLimbs32;
+
+impl NumLimbs for NumLimbs32 {
+    type Limbs = U32;
+    type Witness = U62;
+}
+
+impl<T, N: ArrayLength> Default for Limbs<T, N>
 where
     T: Default + Copy,
 {
     fn default() -> Self {
-        Self([T::default(); N])
+        Self(GenericArray::default())
     }
 }
 
-impl<T, const N: usize> Index<usize> for Limbs<T, N> {
+impl<T, N: ArrayLength> Index<usize> for Limbs<T, N> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -28,16 +45,16 @@ impl<T, const N: usize> Index<usize> for Limbs<T, N> {
     }
 }
 
-impl<T, const N: usize> IntoIterator for Limbs<T, N> {
+impl<T, N: ArrayLength> IntoIterator for Limbs<T, N> {
     type Item = T;
-    type IntoIter = std::array::IntoIter<T, N>;
+    type IntoIter = <GenericArray<T, N> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl<Var: Into<Expr> + Clone, const N: usize, Expr: Clone> From<Limbs<Var, N>>
+impl<Var: Into<Expr> + Clone, N: ArrayLength, Expr: Clone> From<Limbs<Var, N>>
     for Polynomial<Expr>
 {
     fn from(value: Limbs<Var, N>) -> Self {
@@ -51,14 +68,14 @@ impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomia
     }
 }
 
-impl<T: Debug + Default + Clone, const N: usize> From<Polynomial<T>> for Limbs<T, N> {
+impl<T: Debug + Default + Clone, N: ArrayLength> From<Polynomial<T>> for Limbs<T, N> {
     fn from(value: Polynomial<T>) -> Self {
         let inner = value.as_coefficients().try_into().unwrap();
         Self(inner)
     }
 }
 
-impl<'a, T: Debug + Default + Clone, const N: usize> From<Iter<'a, T>> for Limbs<T, N> {
+impl<'a, T: Debug + Default + Clone, N: ArrayLength> From<Iter<'a, T>> for Limbs<T, N> {
     fn from(value: Iter<'a, T>) -> Self {
         let vec: Vec<T> = value.cloned().collect();
         let inner = vec.try_into().unwrap();

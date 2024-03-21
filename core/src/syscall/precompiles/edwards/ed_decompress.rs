@@ -10,6 +10,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::Limbs;
+use crate::operations::field::params::NumLimbs32;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::SyscallContext;
@@ -37,12 +38,11 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
 use std::marker::PhantomData;
+use typenum::U32;
 
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
-
-use super::{NUM_LIMBS, NUM_WITNESS_LIMBS};
 
 #[derive(Debug, Clone, Copy)]
 pub struct EdDecompressEvent {
@@ -72,13 +72,13 @@ pub struct EdDecompressCols<T> {
     pub ptr: T,
     pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) yy: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) u: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) dyy: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) v: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) u_div_v: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) x: FieldSqrtCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) neg_x: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) yy: FieldOpCols<T, NumLimbs32>,
+    pub(crate) u: FieldOpCols<T, NumLimbs32>,
+    pub(crate) dyy: FieldOpCols<T, NumLimbs32>,
+    pub(crate) v: FieldOpCols<T, NumLimbs32>,
+    pub(crate) u_div_v: FieldOpCols<T, NumLimbs32>,
+    pub(crate) x: FieldSqrtCols<T, NumLimbs32>,
+    pub(crate) neg_x: FieldOpCols<T, NumLimbs32>,
 }
 
 impl<F: PrimeField32> EdDecompressCols<F> {
@@ -130,7 +130,7 @@ impl<V: Copy> EdDecompressCols<V> {
             self.x_access[NUM_WORDS_FIELD_ELEMENT - 1].prev_value[WORD_SIZE - 1].into();
         builder.assert_bool(sign.clone());
 
-        let y: Limbs<V, NUM_LIMBS> = limbs_from_prev_access(&self.y_access);
+        let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
         self.yy
             .eval::<AB, P, _, _>(builder, &y, &y, FieldOperation::Mul);
         self.u.eval::<AB, P, _, _>(
@@ -141,7 +141,7 @@ impl<V: Copy> EdDecompressCols<V> {
         );
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
-        let d_const = limbs_from_vec::<AB::F, NUM_LIMBS>(d_const);
+        let d_const = limbs_from_vec::<AB::F, U32>(d_const);
         self.dyy
             .eval::<AB, P, _, _>(builder, &d_const, &self.yy.result, FieldOperation::Mul);
         self.v.eval::<AB, P, _, _>(
@@ -183,7 +183,7 @@ impl<V: Copy> EdDecompressCols<V> {
             );
         }
 
-        let x_limbs: Limbs<V, NUM_LIMBS> = limbs_from_access(&self.x_access);
+        let x_limbs: Limbs<V, U32> = limbs_from_access(&self.x_access);
         builder
             .when(self.is_real)
             .when(sign.clone())

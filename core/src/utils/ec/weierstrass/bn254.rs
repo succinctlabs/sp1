@@ -1,7 +1,9 @@
 use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
+use typenum::{U16, U30};
 
 use super::{SwCurve, WeierstrassParameters};
+use crate::operations::field::params::NumLimbs;
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 
@@ -38,6 +40,11 @@ impl FieldParameters for Bn254BaseField {
         )
         .unwrap()
     }
+}
+
+impl NumLimbs for Bn254BaseField {
+    type Limbs = U16;
+    type Witness = U30;
 }
 
 impl EllipticCurveParameters for Bn254Parameters {

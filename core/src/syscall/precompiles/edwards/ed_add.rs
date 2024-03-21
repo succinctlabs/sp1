@@ -9,6 +9,7 @@ use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
+use crate::operations::field::params::NumLimbs32;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::syscall::precompiles::create_ec_add_event;
@@ -23,6 +24,7 @@ use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use generic_array::functional::FunctionalSequence;
 use num::BigUint;
 use num::Zero;
 use p3_air::AirBuilder;
@@ -37,8 +39,9 @@ use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
+use typenum::U32;
 
-use super::{NUM_LIMBS, NUM_WITNESS_LIMBS};
+use super::NUM_LIMBS;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
@@ -56,14 +59,14 @@ pub struct EdAddAssignCols<T> {
     pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; 16],
     pub q_access: [MemoryReadCols<T>; 16],
-    pub(crate) x3_numerator: FieldInnerProductCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) y3_numerator: FieldInnerProductCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) x1_mul_y1: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) x2_mul_y2: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) f: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) d_mul_f: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) x3_ins: FieldDenCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) y3_ins: FieldDenCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) x3_numerator: FieldInnerProductCols<T, NumLimbs32>,
+    pub(crate) y3_numerator: FieldInnerProductCols<T, NumLimbs32>,
+    pub(crate) x1_mul_y1: FieldOpCols<T, NumLimbs32>,
+    pub(crate) x2_mul_y2: FieldOpCols<T, NumLimbs32>,
+    pub(crate) f: FieldOpCols<T, NumLimbs32>,
+    pub(crate) d_mul_f: FieldOpCols<T, NumLimbs32>,
+    pub(crate) x3_ins: FieldDenCols<T, NumLimbs32>,
+    pub(crate) y3_ins: FieldDenCols<T, NumLimbs32>,
 }
 
 #[derive(Default)]
@@ -237,11 +240,8 @@ where
         let f = row.f.result;
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
-        let d_const_expr = Limbs::<AB::Expr, NUM_LIMBS>(
-            limbs_from_vec::<AB::F, NUM_LIMBS>(d_const)
-                .0
-                .map(|x| x.into()),
-        );
+        let d_const_expr =
+            Limbs::<AB::Expr, U32>(limbs_from_vec::<AB::F, U32>(d_const).0.map(|x| x.into()));
         row.d_mul_f
             .eval::<AB, <E as EllipticCurveParameters>::BaseField, _, _>(
                 builder,

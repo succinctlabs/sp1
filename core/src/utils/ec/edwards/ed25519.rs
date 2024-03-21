@@ -2,9 +2,10 @@ use curve25519_dalek::edwards::CompressedEdwardsY;
 use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use typenum::{U32, U62};
 
 use super::NUM_LIMBS;
-use crate::operations::field::params::NB_BITS_PER_LIMB;
+use crate::operations::field::params::{NumLimbs, NB_BITS_PER_LIMB};
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
@@ -31,6 +32,11 @@ impl FieldParameters for Ed25519BaseField {
     fn modulus() -> BigUint {
         (BigUint::one() << 255) - BigUint::from(19u32)
     }
+}
+
+impl NumLimbs for Ed25519BaseField {
+    type Limbs = U32;
+    type Witness = U62;
 }
 
 impl EllipticCurveParameters for Ed25519Parameters {

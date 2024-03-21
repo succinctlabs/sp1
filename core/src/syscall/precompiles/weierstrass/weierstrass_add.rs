@@ -6,6 +6,7 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
+use crate::operations::field::params::NumLimbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Register;
 use crate::runtime::Syscall;
@@ -33,9 +34,10 @@ use std::fmt::Debug;
 use std::marker::PhantomData;
 
 use super::NUM_LIMBS;
-use super::NUM_WITNESS_LIMBS;
 
-pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u8>>();
+pub const fn num_weierstrass_add_cols<N: NumLimbs>() -> usize {
+    size_of::<WeierstrassAddAssignCols<u8, N>>()
+}
 
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
 ///
@@ -43,7 +45,7 @@ pub const NUM_WEIERSTRASS_ADD_COLS: usize = size_of::<WeierstrassAddAssignCols<u
 /// made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct WeierstrassAddAssignCols<T> {
+pub struct WeierstrassAddAssignCols<T, N: NumLimbs> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
@@ -52,15 +54,15 @@ pub struct WeierstrassAddAssignCols<T> {
     pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
     pub q_access: [MemoryReadCols<T>; NUM_WORDS_EC_POINT],
-    pub(crate) slope_denominator: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) slope_numerator: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) slope: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) slope_squared: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) p_x_plus_q_x: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) x3_ins: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) p_x_minus_x: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) y3_ins: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
-    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, NUM_LIMBS, NUM_WITNESS_LIMBS>,
+    pub(crate) slope_denominator: FieldOpCols<T, N>,
+    pub(crate) slope_numerator: FieldOpCols<T, N>,
+    pub(crate) slope: FieldOpCols<T, N>,
+    pub(crate) slope_squared: FieldOpCols<T, N>,
+    pub(crate) p_x_plus_q_x: FieldOpCols<T, N>,
+    pub(crate) x3_ins: FieldOpCols<T, N>,
+    pub(crate) p_x_minus_x: FieldOpCols<T, N>,
+    pub(crate) y3_ins: FieldOpCols<T, N>,
+    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, N>,
 }
 
 #[derive(Default)]
@@ -88,7 +90,7 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
     }
 
     fn populate_field_ops<F: PrimeField32>(
-        cols: &mut WeierstrassAddAssignCols<F>,
+        cols: &mut WeierstrassAddAssignCols<F, E::BaseField>,
         p_x: BigUint,
         p_y: BigUint,
         q_x: BigUint,
@@ -147,6 +149,8 @@ impl<E: EllipticCurve> WeierstrassAddAssignChip<E> {
 
 impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
     for WeierstrassAddAssignChip<E>
+where
+    [(); num_weierstrass_add_cols::<E::BaseField>()]:,
 {
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
@@ -163,8 +167,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 
         for i in 0..input.weierstrass_add_events.len() {
             let event = input.weierstrass_add_events[i];
-            let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
-            let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+            let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
+                row.as_mut_slice().borrow_mut();
 
             // Decode affine points.
             let p = &event.p;
@@ -198,8 +203,9 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_WEIERSTRASS_ADD_COLS];
-            let cols: &mut WeierstrassAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+            let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
+            let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
+                row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
             Self::populate_field_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
             row
@@ -208,33 +214,34 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_WEIERSTRASS_ADD_COLS,
+            num_weierstrass_add_cols::<E::BaseField>(),
         )
     }
 }
 
 impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
     fn width(&self) -> usize {
-        NUM_WEIERSTRASS_ADD_COLS
+        num_weierstrass_add_cols::<E::BaseField>()
     }
 }
 
 impl<AB, E: EllipticCurve> Air<AB> for WeierstrassAddAssignChip<E>
 where
     AB: SP1AirBuilder,
+    Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs>: Copy,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &WeierstrassAddAssignCols<AB::Var> = main.row_slice(0).borrow();
+        let row: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = main.row_slice(0).borrow();
 
-        let p_x: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS> =
+        let p_x: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let p_y: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS> =
+        let p_y: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
 
-        let q_x: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS> =
+        let q_x: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&row.q_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let q_y: Limbs<<AB as AirBuilder>::Var, NUM_LIMBS> =
+        let q_y: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&row.q_access[NUM_WORDS_FIELD_ELEMENT..]);
 
         // slope = (q.y - p.y) / (q.x - p.x).
@@ -260,15 +267,15 @@ where
                 FieldOperation::Div,
             );
 
-            row.slope.result
+            &row.slope.result
         };
 
         // x = slope * slope - self.x - other.x.
         let x = {
             row.slope_squared.eval::<AB, E::BaseField, _, _>(
                 builder,
-                &slope,
-                &slope,
+                slope,
+                slope,
                 FieldOperation::Mul,
             );
 
@@ -286,17 +293,17 @@ where
                 FieldOperation::Sub,
             );
 
-            row.x3_ins.result
+            &row.x3_ins.result
         };
 
         // y = slope * (p.x - x_3n) - q.y.
         {
             row.p_x_minus_x
-                .eval::<AB, E::BaseField, _, _>(builder, &p_x, &x, FieldOperation::Sub);
+                .eval::<AB, E::BaseField, _, _>(builder, &p_x, x, FieldOperation::Sub);
 
             row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
                 builder,
-                &slope,
+                slope,
                 &row.p_x_minus_x.result,
                 FieldOperation::Mul,
             );

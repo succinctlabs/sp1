@@ -6,6 +6,7 @@ pub mod sha256;
 pub mod weierstrass;
 
 use num::BigUint;
+use typenum::U32;
 
 use crate::air::SP1AirBuilder;
 use crate::operations::field::params::Limbs;
@@ -121,7 +122,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(rt: &mut SyscallContext) -> ECDo
     }
 }
 
-pub fn limbs_from_biguint<AB, F: FieldParameters>(value: &BigUint) -> Limbs<AB::Expr, NUM_LIMBS>
+pub fn limbs_from_biguint<AB, F: FieldParameters>(value: &BigUint) -> Limbs<AB::Expr, U32>
 where
     AB: SP1AirBuilder,
 {
@@ -129,5 +130,5 @@ where
     debug_assert_eq!(a_const.len(), NUM_LIMBS);
     let mut a = [AB::F::zero(); NUM_LIMBS];
     a[..NUM_LIMBS].copy_from_slice(&a_const[..NUM_LIMBS]);
-    Limbs::<AB::Expr, NUM_LIMBS>(a.map(|x| x.into()))
+    Limbs(a.map(|x| x.into()).into())
 }

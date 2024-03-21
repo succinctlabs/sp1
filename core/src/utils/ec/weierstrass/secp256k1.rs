@@ -5,9 +5,10 @@ use std::str::FromStr;
 
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
+use typenum::{U32, U60};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::NB_BITS_PER_LIMB;
+use crate::operations::field::params::{NumLimbs, NB_BITS_PER_LIMB};
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 use k256::FieldElement;
@@ -46,6 +47,11 @@ impl FieldParameters for Secp256k1BaseField {
     fn modulus() -> BigUint {
         BigUint::from_bytes_le(Self::MODULUS)
     }
+}
+
+impl NumLimbs for Secp256k1BaseField {
+    type Limbs = U32;
+    type Witness = U60;
 }
 
 impl EllipticCurveParameters for Secp256k1Parameters {

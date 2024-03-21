@@ -3,7 +3,7 @@ use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
 use p3_field::AbstractField;
 
-pub fn eval_field_operation<AB: SP1AirBuilder, const N: usize, P: FieldParameters>(
+pub fn eval_field_operation<AB: SP1AirBuilder, P: FieldParameters>(
     builder: &mut AB,
     p_vanishing: &Polynomial<AB::Expr>,
     p_witness_low: &Polynomial<AB::Expr>,

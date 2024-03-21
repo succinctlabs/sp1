@@ -1,16 +1,16 @@
-use super::params::Limbs;
+use super::params::{Limbs, NumLimbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
 use core::borrow::Borrow;
+use generic_array::ArrayLength;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
-use std::usize;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FieldOperation {
@@ -25,15 +25,15 @@ pub enum FieldOperation {
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldOpCols<T, const N: usize, const M: usize> {
+pub struct FieldOpCols<T, N: NumLimbs> {
     /// The result of `a op b`, where a, b are field elements
-    pub result: Limbs<T, N>,
-    pub(crate) carry: Limbs<T, N>,
-    pub(crate) witness_low: [T; M],
-    pub(crate) witness_high: [T; M],
+    pub result: Limbs<T, N::Limbs>,
+    pub(crate) carry: Limbs<T, N::Limbs>,
+    pub(crate) witness_low: Limbs<T, N::Witness>,
+    pub(crate) witness_high: Limbs<T, N::Witness>,
 }
 
-impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
+impl<F: PrimeField32, N: NumLimbs> FieldOpCols<F, N> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
@@ -60,7 +60,7 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
             // Note that this reversal means we have to flip result, a correspondingly in
             // the `eval` function.
             self.populate::<P>(&result, b, FieldOperation::Add);
-            self.result = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result));
+            self.result = limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(&result));
             return result;
         }
 
@@ -77,12 +77,12 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
             // Note that this reversal means we have to flip result, a correspondingly in the `eval`
             // function.
             self.populate::<P>(&result, b, FieldOperation::Mul);
-            self.result = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result));
+            self.result = limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(&result));
             return result;
         }
 
-        let p_a: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(a)).into();
-        let p_b: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(b)).into();
+        let p_a: Polynomial<F> = limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(a)).into();
+        let p_b: Polynomial<F> = limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(b)).into();
 
         // Compute field addition in the integers.
         let modulus = &P::modulus();
@@ -101,10 +101,11 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
 
         // Make little endian polynomial limbs.
         let p_modulus: Polynomial<F> =
-            limbs_from_vec::<F, N>(P::to_limbs_field::<F>(modulus)).into();
+            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(modulus)).into();
         let p_result: Polynomial<F> =
-            limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result)).into();
-        let p_carry: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&carry)).into();
+            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(&result)).into();
+        let p_carry: Polynomial<F> =
+            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(&carry)).into();
 
         // Compute the vanishing polynomial.
         let p_op = match op {
@@ -131,7 +132,7 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldOpCols<F, N, M> {
     }
 }
 
-impl<V: Copy, const N: usize, const M: usize> FieldOpCols<V, N, M> {
+impl<V: Copy, N: NumLimbs> FieldOpCols<V, N> {
     #[allow(unused_variables)]
     pub fn eval<
         AB: SP1AirBuilder<Var = V>,
@@ -146,6 +147,7 @@ impl<V: Copy, const N: usize, const M: usize> FieldOpCols<V, N, M> {
         op: FieldOperation,
     ) where
         V: Into<AB::Expr>,
+        Limbs<V, N::Limbs>: Copy,
     {
         let p_a_param: Polynomial<AB::Expr> = (*a).clone().into();
         let p_b: Polynomial<AB::Expr> = (*b).clone().into();
@@ -162,9 +164,9 @@ impl<V: Copy, const N: usize, const M: usize> FieldOpCols<V, N, M> {
         let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
         let p_vanishing = p_op_minus_result - &(&p_carry * &p_limbs);
-        let p_witness_low = self.witness_low.iter().into();
-        let p_witness_high = self.witness_high.iter().into();
-        eval_field_operation::<AB, N, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        let p_witness_low = self.witness_low.0.iter().into();
+        let p_witness_high = self.witness_high.0.iter().into();
+        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
     }
 }
 
@@ -173,11 +175,13 @@ mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
+    use typenum::U32;
 
     use super::{FieldOpCols, FieldOperation, Limbs};
 
     use crate::air::MachineAir;
 
+    use crate::operations::field::params::NumLimbs32;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
@@ -194,16 +198,15 @@ mod tests {
     use sp1_derive::AlignedBorrow;
 
     #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T, const N: usize, const M: usize> {
-        pub a: Limbs<T, N>,
-        pub b: Limbs<T, N>,
-        pub a_op_b: FieldOpCols<T, N, M>,
+    pub struct TestCols<T> {
+        pub a: Limbs<T, Limbs32>,
+        pub b: Limbs<T, Limbs32>,
+        pub a_op_b: FieldOpCols<T, NumLimbs32>,
     }
 
-    const NUM_LIMBS: usize = 32;
-    const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
+    type Limbs32 = U32;
 
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
     struct FieldOpChip<P: FieldParameters> {
         pub operation: FieldOperation,
@@ -253,10 +256,9 @@ mod tests {
                 .iter()
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
-                        row.as_mut_slice().borrow_mut();
-                    cols.a = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(a));
-                    cols.b = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(b));
+                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
+                    cols.a = limbs_from_vec::<F, Limbs32>(P::to_limbs_field::<F>(a));
+                    cols.b = limbs_from_vec::<F, Limbs32>(P::to_limbs_field::<F>(b));
                     cols.a_op_b.populate::<P>(a, b, self.operation);
                     row
                 })
@@ -286,8 +288,7 @@ mod tests {
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var, NUM_LIMBS, NUM_WITNESS_LIMBS> =
-                main.row_slice(0).borrow();
+            let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
             local
                 .a_op_b
                 .eval::<AB, P, _, _>(builder, &local.a, &local.b, self.operation);

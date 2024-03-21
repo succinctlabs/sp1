@@ -1,5 +1,7 @@
 use super::utils::biguint_from_limbs;
-use crate::operations::field::params::{Limbs, NB_BITS_PER_LIMB};
+use crate::operations::field::params::{Limbs, NumLimbs, NB_BITS_PER_LIMB};
+use generic_array::sequence::GenericSequence;
+use generic_array::{ArrayLength, GenericArray};
 use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
@@ -8,7 +10,7 @@ use std::fmt::Debug;
 pub const MAX_NB_LIMBS: usize = 32;
 
 pub trait FieldParameters:
-    Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned
+    Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned + NumLimbs
 {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize;
@@ -46,9 +48,9 @@ pub trait FieldParameters:
 }
 
 /// Convert a vec of u8 limbs to a Limbs of NUM_LIMBS.
-pub fn limbs_from_vec<F: Field, const N: usize>(limbs: Vec<F>) -> Limbs<F, N> {
-    debug_assert_eq!(limbs.len(), N);
-    let mut result = [F::zero(); N];
+pub fn limbs_from_vec<F: Field, N: ArrayLength>(limbs: Vec<F>) -> Limbs<F, N> {
+    debug_assert_eq!(limbs.len(), N::USIZE);
+    let mut result = GenericArray::<F, N>::generate(|i| F::zero());
     for (i, limb) in limbs.into_iter().enumerate() {
         result[i] = limb;
     }

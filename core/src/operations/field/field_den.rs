@@ -1,4 +1,4 @@
-use super::params::Limbs;
+use super::params::{Limbs, NumLimbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
@@ -19,15 +19,15 @@ use std::fmt::Debug;
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldDenCols<T, const N: usize, const M: usize> {
+pub struct FieldDenCols<T, N: NumLimbs> {
     /// The result of `a den b`, where a, b are field elements
-    pub result: Limbs<T, N>,
-    pub(crate) carry: Limbs<T, N>,
-    pub(crate) witness_low: [T; M],
-    pub(crate) witness_high: [T; M],
+    pub result: Limbs<T, N::Limbs>,
+    pub(crate) carry: Limbs<T, N::Limbs>,
+    pub(crate) witness_low: Limbs<T, N::Witness>,
+    pub(crate) witness_high: Limbs<T, N::Witness>,
 }
 
-impl<F: PrimeField32, const N: usize, const M: usize> FieldDenCols<F, N, M> {
+impl<F: PrimeField32, N: NumLimbs> FieldDenCols<F, N> {
     pub fn populate<P: FieldParameters>(
         &mut self,
         a: &BigUint,
@@ -53,12 +53,13 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldDenCols<F, N, M> {
         debug_assert!(carry < p);
         debug_assert_eq!(&carry * &p, &equation_lhs - &equation_rhs);
 
-        let p_a: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(a)).into();
-        let p_b: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(b)).into();
-        let p_p: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&p)).into();
+        let p_a: Polynomial<F> = limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(a)).into();
+        let p_b: Polynomial<F> = limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(b)).into();
+        let p_p: Polynomial<F> = limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(&p)).into();
         let p_result: Polynomial<F> =
-            limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&result)).into();
-        let p_carry: Polynomial<F> = limbs_from_vec::<F, N>(P::to_limbs_field::<F>(&carry)).into();
+            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(&result)).into();
+        let p_carry: Polynomial<F> =
+            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(&carry)).into();
 
         // Compute the vanishing polynomial.
         let vanishing_poly = if sign {
@@ -77,20 +78,23 @@ impl<F: PrimeField32, const N: usize, const M: usize> FieldDenCols<F, N, M> {
 
         self.result = p_result.into();
         self.carry = p_carry.into();
-        self.witness_low = p_witness_low.try_into().unwrap();
-        self.witness_high = p_witness_high.try_into().unwrap();
+        self.witness_low = Limbs(p_witness_low.try_into().unwrap());
+        self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         result
     }
 }
 
-impl<V: Copy, const N: usize, const M: usize> FieldDenCols<V, N, M> {
+impl<V: Copy, N: NumLimbs> FieldDenCols<V, N>
+where
+    Limbs<V, N::Limbs>: Copy,
+{
     #[allow(unused_variables)]
     pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var, N>,
-        b: &Limbs<AB::Var, N>,
+        a: &Limbs<AB::Var, N::Limbs>,
+        b: &Limbs<AB::Var, N::Limbs>,
         sign: bool,
     ) where
         V: Into<AB::Expr>,
@@ -116,10 +120,10 @@ impl<V: Copy, const N: usize, const M: usize> FieldDenCols<V, N, M> {
 
         let p_vanishing = p_lhs_minus_rhs - &p_carry * &p_limbs;
 
-        let p_witness_low = self.witness_low.iter().into();
-        let p_witness_high = self.witness_high.iter().into();
+        let p_witness_low = self.witness_low.0.iter().into();
+        let p_witness_high = self.witness_high.0.iter().into();
 
-        eval_field_operation::<AB, N, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
     }
 }
 
@@ -128,11 +132,13 @@ mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
+    use typenum::U32;
 
     use super::{FieldDenCols, Limbs};
 
     use crate::air::MachineAir;
 
+    use crate::operations::field::params::NumLimbs32;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
@@ -148,17 +154,19 @@ mod tests {
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
+    type Limbs32 = U32;
+
     #[derive(Debug, Clone, AlignedBorrow)]
-    pub struct TestCols<T, const N: usize, const M: usize> {
-        pub a: Limbs<T, N>,
-        pub b: Limbs<T, N>,
-        pub a_den_b: FieldDenCols<T, N, M>,
+    pub struct TestCols<T> {
+        pub a: Limbs<T, Limbs32>,
+        pub b: Limbs<T, Limbs32>,
+        pub a_den_b: FieldDenCols<T, NumLimbs32>,
     }
 
     const NUM_LIMBS: usize = 32;
     const NUM_WITNESS_LIMBS: usize = NUM_LIMBS * 2 - 2;
 
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, NUM_LIMBS, NUM_WITNESS_LIMBS>>();
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
 
     struct FieldDenChip<P: FieldParameters> {
         pub sign: bool,
@@ -208,10 +216,9 @@ mod tests {
                 .iter()
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F, NUM_LIMBS, NUM_WITNESS_LIMBS> =
-                        row.as_mut_slice().borrow_mut();
-                    cols.a = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(a));
-                    cols.b = limbs_from_vec::<F, NUM_LIMBS>(P::to_limbs_field::<F>(b));
+                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
+                    cols.a = limbs_from_vec::<F, Limbs32>(P::to_limbs_field::<F>(a));
+                    cols.b = limbs_from_vec::<F, Limbs32>(P::to_limbs_field::<F>(b));
                     cols.a_den_b.populate::<P>(a, b, self.sign);
                     row
                 })
@@ -239,8 +246,7 @@ mod tests {
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var, NUM_LIMBS, NUM_WITNESS_LIMBS> =
-                main.row_slice(0).borrow();
+            let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
             local
                 .a_den_b
                 .eval::<AB, P>(builder, &local.a, &local.b, self.sign);
