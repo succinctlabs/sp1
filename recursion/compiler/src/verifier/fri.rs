@@ -15,6 +15,7 @@ use crate::prelude::SymbolicVar;
 use crate::prelude::Usize;
 use crate::prelude::Var;
 use crate::verifier::types::Commitment;
+use p3_field::Field;
 
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
@@ -287,7 +288,7 @@ where
         builder.set(&mut dims_slice, 0, dims);
 
         let mut opened_values = builder.array(1);
-        builder.set(&mut opened_values, 0, evals);
+        builder.set(&mut opened_values, 0, evals.clone());
         verify_batch(
             builder,
             &commit,
@@ -323,54 +324,88 @@ where
 
 /// Verifies a batch opening.
 ///
-/// Assumes the dimensions have already been sorted.
+/// Assumes the dimensions have already been sorted by tallest first.
 ///
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L92
 #[allow(unused_variables)]
 pub fn verify_batch<C: Config>(
     builder: &mut Builder<C>,
     commit: &Commitment<C>,
-    dims: Array<C, Dimensions<C>>,
+    dimensions: Array<C, Dimensions<C>>,
     index_bits: Array<C, Var<C::N>>,
     opened_values: Array<C, Array<C, Felt<C::F>>>,
     proof: &Array<C, Commitment<C>>,
 ) {
-    // let curr_height_padded: Var<C::N> =
-    //     builder.eval(dims[0].height * C::N::from_canonical_usize(2));
+    // The index of which table to process next.
+    let index: Var<C::N> = builder.eval(C::N::zero());
 
-    // let two: Var<_> = builder.eval(C::N::from_canonical_u32(2));
-    // let array = builder.array::<Felt<_>, _>(Usize::Var(two));
-    // let root = builder.poseidon2_hash(array);
+    // The height of the current layer (padded).
+    let current_height = builder.get(&dimensions, index).height;
 
-    // let start = Usize::Const(0);
-    // let end = proof.len();
-    // let index_bits = builder.num2bits_v(Usize::Const(index));
-    // builder.range(start, end).for_each(|i, builder| {
-    //     let bit = builder.get(&index_bits, i);
-    //     let left: Array<C, Felt<C::F>> = builder.uninit();
-    //     let right: Array<C, Felt<C::F>> = builder.uninit();
-    //     let one: Var<_> = builder.eval(C::N::one());
-    //     let sibling = builder.get(proof, i);
-    //     builder.if_eq(bit, one).then_or_else(
-    //         |builder| {
-    //             builder.assign(left.clone(), root.clone());
-    //             builder.assign(right.clone(), sibling.clone());
-    //         },
-    //         |builder| {
-    //             builder.assign(left.clone(), sibling.clone());
-    //             builder.assign(right.clone(), root.clone());
-    //         },
-    //     );
+    // Reduce all the tables that have the same height to a single root.
+    let root = reduce(builder, index, &dimensions, current_height, &opened_values);
 
-    //     let new_root = builder.poseidon2_compress(&left, &right);
-    //     builder.assign(root.clone(), new_root);
-    // });
+    builder.range(0, proof.len()).for_each(|i, builder| {
+        let sibling = builder.get(proof, i);
+        let bit = builder.get(&index_bits, i);
+        let left: Array<C, Felt<C::F>> = builder.uninit();
+        let right: Array<C, Felt<C::F>> = builder.uninit();
+        builder.if_eq(bit, C::N::one()).then_or_else(
+            |builder| {
+                builder.assign(left.clone(), sibling.clone());
+                builder.assign(right.clone(), root.clone());
+            },
+            |builder| {
+                builder.assign(left.clone(), root.clone());
+                builder.assign(right.clone(), sibling.clone());
+            },
+        );
 
-    // let start = Usize::Const(0);
-    // let end = Usize::Const(DIGEST_SIZE);
-    // builder.range(start, end).for_each(|i, builder| {
-    //     let lhs = builder.get(commit, i);
-    //     let rhs = builder.get(&root, i);
-    //     builder.assert_felt_eq(lhs, rhs);
-    // })
+        let new_root = builder.poseidon2_compress(&left, &right);
+        builder.assign(root.clone(), new_root);
+        builder.assign(current_height, current_height * (C::N::two().inverse()));
+
+        let next_height = builder.get(&dimensions, index).height;
+        builder.if_eq(next_height, current_height).then(|builder| {
+            let next_height_openings_digest =
+                reduce(builder, index, &dimensions, current_height, &opened_values);
+            let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
+            builder.assign(root.clone(), new_root);
+        })
+    });
+
+    builder.range(0, commit.len()).for_each(|i, builder| {
+        let e1 = builder.get(commit, i);
+        let e2 = builder.get(&root, i);
+        builder.assert_felt_eq(e1, e2);
+    });
+}
+
+/// Reduces all the tables that have the same height to a single root.
+///
+/// Assumes the dimensions have already been sorted by tallest first.
+pub fn reduce<C: Config>(
+    builder: &mut Builder<C>,
+    dim_idx: Var<C::N>,
+    dims: &Array<C, Dimensions<C>>,
+    curr_height_padded: Var<C::N>,
+    opened_values: &Array<C, Array<C, Felt<C::F>>>,
+) -> Array<C, Felt<C::F>> {
+    let nb_opened_values = builder.eval(C::N::zero());
+    let mut flattened_opened_values = builder.array(dims.len());
+    builder.range(dim_idx, dims.len()).for_each(|i, builder| {
+        let height = builder.get(dims, i).height;
+        builder.if_eq(height, curr_height_padded).then(|builder| {
+            let opened_values = builder.get(opened_values, i);
+            builder
+                .range(0, opened_values.len())
+                .for_each(|j, builder| {
+                    let opened_value = builder.get(&opened_values, j);
+                    builder.set(&mut flattened_opened_values, nb_opened_values, opened_value);
+                    builder.assign(nb_opened_values, nb_opened_values + C::N::one());
+                });
+        });
+    });
+    flattened_opened_values.truncate(builder, Usize::Var(nb_opened_values));
+    builder.poseidon2_hash(flattened_opened_values)
 }

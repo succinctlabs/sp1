@@ -40,59 +40,59 @@ pub struct TwoAdicPcsMats<C: Config> {
 #[allow(unused_variables)]
 pub fn verify_two_adic_pcs<C: Config>(
     builder: &mut Builder<C>,
-    config: &FriConfig,
+    config: &FriConfig<C>,
     rounds: Array<C, TwoAdicPcsRound<C>>,
     proof: TwoAdicPcsProof<C>,
     challenger: &mut DuplexChallenger<C>,
 ) where
     C::F: TwoAdicField,
 {
-    let alpha = challenger.sample(builder);
-    let alpha: Ext<_, _> = builder.eval(SymbolicExt::Base(SymbolicFelt::Val(alpha).into()));
+    // let alpha = challenger.sample(builder);
+    // let alpha: Ext<_, _> = builder.eval(SymbolicExt::Base(SymbolicFelt::Val(alpha).into()));
 
-    let fri_challenges =
-        verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
+    // let fri_challenges =
+    //     verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
-    let commit_phase_commits_len = builder.materialize(proof.fri_proof.commit_phase_commits.len());
-    let log_max_height: Var<_> =
-        builder.eval(commit_phase_commits_len + C::N::from_canonical_usize(config.log_blowup));
+    // let commit_phase_commits_len = builder.materialize(proof.fri_proof.commit_phase_commits.len());
+    // let log_max_height: Var<_> =
+    //     builder.eval(commit_phase_commits_len + C::N::from_canonical_usize(config.log_blowup));
 
-    let start = Usize::Const(0);
-    let end = Usize::Const(1); // TODO: Fix
-    builder.range(start, end).for_each(|i, builder| {
-        let query_opening = builder.get(&proof.query_openings, i);
-        let ro: [Ext<C::F, C::EF>; 32] =
-            [C::EF::zero(); 32].map(|x| builder.eval(SymbolicExt::Const(x)));
-        let alpha_pow: [Ext<C::F, C::EF>; 32] =
-            [C::EF::one(); 32].map(|x| builder.eval(SymbolicExt::Const(x)));
-        let start = Usize::Const(0);
-        let end = Usize::Const(1); // TODO: FIX
-        builder.range(start, end).for_each(|j, builder| {
-            let round = builder.get(&rounds, j);
-            let batch_opening = builder.get(&query_opening, j);
-            let batch_commit = round.batch_commit;
-            let mats = builder.get(&round.mats, j);
-            let dims = Dimensions::<C> {
-                width: 2,
-                height: mats.size,
-            };
-            verify_batch(
-                builder,
-                &batch_commit,
-                &[dims],
-                0,
-                batch_opening.opened_values,
-                &batch_opening.opening_proof,
-            );
-            let start = 0;
-            let end = 1;
-            builder.range(start, end).for_each(|k, builder| {
-                // TODO:
-            });
-        });
-    })
+    // let start = Usize::Const(0);
+    // let end = Usize::Const(1); // TODO: Fix
+    // builder.range(start, end).for_each(|i, builder| {
+    //     let query_opening = builder.get(&proof.query_openings, i);
+    //     let ro: [Ext<C::F, C::EF>; 32] =
+    //         [C::EF::zero(); 32].map(|x| builder.eval(SymbolicExt::Const(x)));
+    //     let alpha_pow: [Ext<C::F, C::EF>; 32] =
+    //         [C::EF::one(); 32].map(|x| builder.eval(SymbolicExt::Const(x)));
+    //     let start = Usize::Const(0);
+    //     let end = Usize::Const(1); // TODO: FIX
+    //     builder.range(start, end).for_each(|j, builder| {
+    //         let round = builder.get(&rounds, j);
+    //         let batch_opening = builder.get(&query_opening, j);
+    //         let batch_commit = round.batch_commit;
+    //         let mats = builder.get(&round.mats, j);
+    //         let dims = Dimensions::<C> {
+    //             width: 2,
+    //             height: mats.size,
+    //         };
+    //         verify_batch(
+    //             builder,
+    //             &batch_commit,
+    //             &[dims],
+    //             0,
+    //             batch_opening.opened_values,
+    //             &batch_opening.opening_proof,
+    //         );
+    //         let start = 0;
+    //         let end = 1;
+    //         builder.range(start, end).for_each(|k, builder| {
+    //             // TODO:
+    //         });
+    //     });
+    // })
 
-    // TODO: verify_challenges
+    // // TODO: verify_challenges
 }
 
 impl<C: Config> Variable<C> for TwoAdicPcsRound<C> {

@@ -32,6 +32,17 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
             }
         }
     }
+
+    pub fn truncate(&self, builder: &mut Builder<C>, len: Usize<C::N>) {
+        match self {
+            Self::Fixed(vec) => {
+                todo!()
+            }
+            Self::Dyn(ptr, old_len) => {
+                builder.assign(*old_len, len);
+            }
+        };
+    }
 }
 
 impl<C: Config> Builder<C> {
