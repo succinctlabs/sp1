@@ -29,8 +29,7 @@ pub const WIDTH: usize = 16;
 #[derive(Debug, Clone)]
 pub struct Poseidon2Event<T> {
     pub state_ptr: T,
-    pub pre_state: [T; WIDTH],
-    pub post_state: [T; WIDTH],
+    pub clk: T,
     pub state_read_records: Vec<MemoryRecord<T>>,
     pub state_write_records: Vec<MemoryRecord<T>>,
 }
@@ -43,6 +42,8 @@ pub struct Poseidon2Chip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
+    pub state_ptr: T,
+    pub clk: T,
     // each memory records value are made up of blocks of 4 Ts.
     pub pre_state: [MemoryReadWriteCols<T>; WIDTH / 4],
     pub rounds: [T; 31],
@@ -87,6 +88,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
             for i in 0..32 {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
+
+                cols.clk = event.clk + F::from_canonical_usize(i);
+
+                cols.state_ptr = event.state_ptr + F::from_canonical_usize(i * 4);
 
                 cols.pre_state
                     .iter_mut()
