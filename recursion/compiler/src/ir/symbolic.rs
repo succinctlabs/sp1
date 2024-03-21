@@ -1024,3 +1024,26 @@ impl<F: Field, EF: ExtensionField<F>> From<Felt<F>> for SymbolicExt<F, EF> {
         SymbolicExt::Base(Rc::new(SymbolicFelt::Val(value)))
     }
 }
+
+impl<F: Field, EF: ExtensionField<F>> Neg for Ext<F, EF> {
+    type Output = SymbolicExt<F, EF>;
+    fn neg(self) -> Self::Output {
+        SymbolicExt::Neg(Rc::new(SymbolicExt::Val(self)))
+    }
+}
+
+impl<F: Field> Neg for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn neg(self) -> Self::Output {
+        SymbolicFelt::Neg(Rc::new(SymbolicFelt::Val(self)))
+    }
+}
+
+impl<N: Field> Neg for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn neg(self) -> Self::Output {
+        SymbolicVar::Neg(Rc::new(SymbolicVar::Val(self)))
+    }
+}
