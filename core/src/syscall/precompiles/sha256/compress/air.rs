@@ -9,7 +9,10 @@ use super::s1::S1Operation;
 use super::ShaCompressChip;
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
-use crate::operations::AddOperation;
+use crate::operations::{
+    AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
+};
+use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -35,6 +38,20 @@ where
         self.constrain_compression_ops(builder, local);
 
         self.constrain_finalize_ops(builder, local);
+
+        // TODO: move to "constraint ecall" or something similar
+        builder.assert_eq(
+            local.start,
+            local.is_real * local.octet[0] * local.octet_num[0],
+        );
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.syscall_id()),
+            local.w_ptr,
+            local.h_ptr,
+            local.start,
+        );
     }
 }
 
@@ -45,8 +62,8 @@ impl ShaCompressChip {
         local: &ShaCompressCols<AB::Var>,
         next: &ShaCompressCols<AB::Var>,
     ) {
-        // Constrain octet columns.
-
+        // TODO: we have to constraint that the clk is incremented by 1 between the compress and finalize phase.
+        //// Constrain octet columns
         // Verify that all of the octet columns are bool.
         for i in 0..8 {
             builder.assert_bool(local.octet[i]);
@@ -132,7 +149,7 @@ impl ShaCompressChip {
         let is_finalize = local.octet_num[9];
         builder.constraint_memory_access(
             local.shard,
-            local.clk,
+            local.clk + is_finalize,
             local.mem_addr,
             &local.mem,
             is_initialize + local.is_compression + is_finalize,
@@ -153,15 +170,13 @@ impl ShaCompressChip {
         // Verify correct mem address for initialize phase
         builder.when(is_initialize).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
-                + (AB::Expr::from_canonical_u32(64 * 4)
-                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
+            local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
 
         // Verify correct mem address for compression phase
         builder.when(local.is_compression).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
+            local.w_ptr
                 + (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8))
                     + cycle_step.clone())
                     * AB::Expr::from_canonical_u32(4),
@@ -170,9 +185,7 @@ impl ShaCompressChip {
         // Verify correct mem address for finalize phase
         builder.when(is_finalize).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
-                + (AB::Expr::from_canonical_u32(64 * 4)
-                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
+            local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
 
         // In the initialize phase, verify that local.a, local.b, ... is correctly set to the
@@ -180,11 +193,11 @@ impl ShaCompressChip {
         let vars = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
         ];
-        for i in 0..8 {
+        for (i, var) in vars.iter().enumerate() {
             builder
                 .when(is_initialize)
                 .when(local.octet[i])
-                .assert_word_eq(vars[i], *local.mem.value());
+                .assert_word_eq(*var, *local.mem.value());
         }
     }
 
@@ -220,18 +233,13 @@ impl ShaCompressChip {
 
         // TODO: We need to constrain temp1.
 
-        // Calculate maj := (a and b) xor (a and c) xor (b and c).
-        let maj = {
-            MajOperation::<AB::F>::eval(
-                builder,
-                local.a,
-                local.b,
-                local.c,
-                local.maj,
-                local.is_compression,
-            );
-            local.maj.maj.value
-        };
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.s0.value,
+            local.maj.value,
+            local.temp2,
+            local.is_compression.into(),
+        );
 
         // Calculate temp2 := S0 + maj.
         let temp2 = {
@@ -245,7 +253,7 @@ impl ShaCompressChip {
             local.d,
             local.temp1.value,
             local.d_add_temp1,
-            local.is_compression,
+            local.is_compression.into(),
         );
 
         // Calculate temp1 + temp2 for the new value of a.
@@ -254,7 +262,7 @@ impl ShaCompressChip {
             local.temp1.value,
             temp2,
             local.temp1_add_temp2,
-            local.is_compression,
+            local.is_compression.into(),
         );
     }
 
@@ -278,6 +286,18 @@ impl ShaCompressChip {
                 filtered_operand.0[j] += *i * operand.0[j];
             }
         }
+
+        builder
+            .when(is_finalize)
+            .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
+
+        AddOperation::<AB::F>::eval(
+            builder,
+            local.mem.prev_value,
+            local.finalized_operand,
+            local.finalize_add,
+            is_finalize.into(),
+        );
 
         builder
             .when(is_finalize)

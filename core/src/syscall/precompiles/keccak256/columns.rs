@@ -16,6 +16,7 @@ pub(crate) struct KeccakMemCols<T> {
     pub state_addr: T,
 
     pub do_memory_check: T,
+    pub ecall_receive: T,
 
     pub is_real: T,
 }

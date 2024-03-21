@@ -10,7 +10,7 @@ use std::iter::{Product, Sum};
 use std::mem;
 use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicVar<N> {
     Const(N),
     Val(Var<N>),
@@ -20,7 +20,7 @@ pub enum SymbolicVar<N> {
     Neg(Rc<SymbolicVar<N>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicFelt<F> {
     Const(F),
     Val(Felt<F>),
@@ -31,7 +31,7 @@ pub enum SymbolicFelt<F> {
     Neg(Rc<SymbolicFelt<F>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicExt<F, EF> {
     Const(EF),
     Base(Rc<SymbolicFelt<F>>),
@@ -1011,12 +1011,16 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
     }
 }
 
-impl<F: Field> Div<F> for Felt<F> {
+impl<F: Field> Add<SymbolicFelt<F>> for Felt<F> {
     type Output = SymbolicFelt<F>;
 
-    fn div(self, rhs: F) -> Self::Output {
-        let lhs = SymbolicFelt::Val(self);
-        let rhs = SymbolicFelt::Const(rhs);
-        SymbolicFelt::Div(lhs.into(), rhs.into())
+    fn add(self, rhs: SymbolicFelt<F>) -> Self::Output {
+        SymbolicFelt::<F>::from(self) + rhs
+    }
+}
+
+impl<F: Field, EF: ExtensionField<F>> From<Felt<F>> for SymbolicExt<F, EF> {
+    fn from(value: Felt<F>) -> Self {
+        SymbolicExt::Base(Rc::new(SymbolicFelt::Val(value)))
     }
 }

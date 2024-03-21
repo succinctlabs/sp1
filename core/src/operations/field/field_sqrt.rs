@@ -82,9 +82,10 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use crate::utils::ec::field::FieldParameters;
-    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
+    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};

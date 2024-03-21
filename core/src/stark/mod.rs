@@ -11,7 +11,6 @@ mod record;
 mod types;
 mod util;
 mod verifier;
-mod zerofier_coset;
 
 pub use air::*;
 pub use chip::*;

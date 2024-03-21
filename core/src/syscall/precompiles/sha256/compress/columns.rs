@@ -20,7 +20,10 @@ pub struct ShaCompressCols<T> {
     /// Inputs.
     pub shard: T,
     pub clk: T,
-    pub w_and_h_ptr: T,
+    pub w_ptr: T,
+    pub h_ptr: T,
+
+    pub start: T,
 
     /// The bits for cycle 8. `octet_num[9]` tells whether it is the finalize phase, and
     /// `octet_num[0]` tells whether it is the initialize phase.

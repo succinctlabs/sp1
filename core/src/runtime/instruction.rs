@@ -51,6 +51,11 @@ impl Instruction {
         )
     }
 
+    /// Returns if the instruction is a ecall instruction.
+    pub fn is_ecall_instruction(&self) -> bool {
+        self.opcode == Opcode::ECALL
+    }
+
     /// Returns if the instruction is a memory instruction.
     pub fn is_memory_instruction(&self) -> bool {
         matches!(

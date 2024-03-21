@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::Syscall,
     syscall::precompiles::{sha256::ShaExtendEvent, SyscallContext},
 };
 
@@ -7,18 +7,16 @@ use super::ShaExtendChip;
 
 impl Syscall for ShaExtendChip {
     fn num_extra_cycles(&self) -> u32 {
-        48 * 4
+        48
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        // Initialize the registers.
-        let a0 = Register::X10;
-
-        // Read `w_ptr` from register a0 or x5.
-        // TODO: this is underconstrained.
-        let w_ptr = rt.register_unsafe(a0);
-
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let clk_init = rt.clk;
+        let w_ptr = arg1;
+        if arg2 != 0 {
+            panic!("arg2 must be 0")
+        }
+
         let w_ptr_init = w_ptr;
         let mut w_i_minus_15_reads = Vec::new();
         let mut w_i_minus_2_reads = Vec::new();
@@ -58,7 +56,7 @@ impl Syscall for ShaExtendChip {
 
             // Write w[i].
             w_i_writes.push(rt.mw(w_ptr + i * 4, w_i));
-            rt.clk += 4;
+            rt.clk += 1;
         }
 
         // Push the SHA extend event.
@@ -74,6 +72,6 @@ impl Syscall for ShaExtendChip {
             w_i_writes,
         });
 
-        w_ptr
+        None
     }
 }

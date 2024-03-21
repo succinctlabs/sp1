@@ -43,8 +43,8 @@ impl<F: Field> ShaExtendCols<F> {
         self.cycle_48[0] = F::from_bool((16..32).contains(&j));
         self.cycle_48[1] = F::from_bool((32..48).contains(&j));
         self.cycle_48[2] = F::from_bool((48..64).contains(&j));
-        self.cycle_48_start = self.cycle_48[0] * self.cycle_16_start;
-        self.cycle_48_end = self.cycle_48[2] * self.cycle_16_end;
+        self.cycle_48_start = self.cycle_48[0] * self.cycle_16_start * self.is_real;
+        self.cycle_48_end = self.cycle_48[2] * self.cycle_16_end * self.is_real;
     }
 }
 
@@ -95,10 +95,13 @@ impl ShaExtendChip {
 
         // Compute whether it's the start/end of the cycle of 48 rows.
         builder.assert_eq(
-            local.cycle_16_start * local.cycle_48[0],
+            local.cycle_16_start * local.cycle_48[0] * local.is_real,
             local.cycle_48_start,
         );
-        builder.assert_eq(local.cycle_16_end * local.cycle_48[2], local.cycle_48_end);
+        builder.assert_eq(
+            local.cycle_16_end * local.cycle_48[2] * local.is_real,
+            local.cycle_48_end,
+        );
 
         // Increment `i` by one. Once it reaches the end of the cycle, reset it to zero.
         builder

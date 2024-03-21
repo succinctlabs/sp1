@@ -7,6 +7,7 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
@@ -68,16 +69,14 @@ pub struct WeierstrassDoubleAssignChip<E> {
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_double_event::<E>(rt);
-        rt.record_mut()
-            .weierstrass_double_events
-            .push(event.clone());
-        event.p_ptr + 1
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let event = create_ec_double_event::<E>(rt, arg1, arg2);
+        rt.record_mut().weierstrass_double_events.push(event);
+        None
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        8
+        0
     }
 }
 
@@ -188,7 +187,7 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
-                let mut new_field_events = Vec::new();
+                let mut new_byte_lookup_events = Vec::new();
 
                 let rows = events
                     .iter()
@@ -213,12 +212,12 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
                         // Populate the memory access columns.
                         for i in 0..NUM_WORDS_EC_POINT {
                             cols.p_access[i]
-                                .populate(event.p_memory_records[i], &mut new_field_events);
+                                .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
                         }
                         row
                     })
                     .collect::<Vec<_>>();
-                record.add_field_events(&new_field_events);
+                record.add_byte_lookup_events(new_byte_lookup_events);
                 (rows, record)
             })
             .collect::<Vec<_>>();
@@ -369,9 +368,18 @@ where
 
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+            row.clk.into(),
             row.p_ptr,
             &row.p_access,
+            row.is_real,
+        );
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id()),
+            row.p_ptr,
+            AB::Expr::zero(),
             row.is_real,
         );
     }

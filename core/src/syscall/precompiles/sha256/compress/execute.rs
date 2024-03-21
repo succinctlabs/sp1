@@ -1,5 +1,5 @@
 use crate::{
-    runtime::{Register, Syscall},
+    runtime::Syscall,
     syscall::precompiles::{
         sha256::{ShaCompressEvent, SHA_COMPRESS_K},
         SyscallContext,
@@ -10,21 +10,25 @@ use super::ShaCompressChip;
 
 impl Syscall for ShaCompressChip {
     fn num_extra_cycles(&self) -> u32 {
-        8
+        1
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        // Read `w_ptr` from register a0.
-        let w_ptr = rt.register_unsafe(Register::X10);
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let w_ptr = arg1;
+        let h_ptr = arg2;
+        assert_ne!(w_ptr, h_ptr);
 
-        let saved_clk = rt.clk;
+        let start_clk = rt.clk;
+        let mut h_read_records = Vec::new();
         let mut w_i_read_records = Vec::new();
 
-        // Execute the "initialize" phase.
-        let h_start_index = 64u32;
-        let h_address = w_ptr.wrapping_add(4 * h_start_index);
-        let (h_read_records, hx) = rt.mr_slice(h_address, 8);
-        rt.clk += 4;
+        // Execute the "initialize" phase where we read in the h values.
+        let mut hx = [0u32; 8];
+        for i in 0..8 {
+            let (record, value) = rt.mr(h_ptr + i as u32 * 4);
+            h_read_records.push(record);
+            hx[i] = value;
+        }
 
         let mut original_w = Vec::new();
         // Execute the "compress" phase.
@@ -60,24 +64,24 @@ impl Syscall for ShaCompressChip {
             b = a;
             a = temp1.wrapping_add(temp2);
         }
+        // Increment the clk by 1 before writing to h, since we've already read h at the start_clk
+        // during the initialization phase.
+        rt.clk += 1;
 
         // Execute the "finalize" phase.
-        let h_write_records = {
-            let values = [a, b, c, d, e, f, g, h]
-                .iter()
-                .zip(hx.iter())
-                .map(|(x, y)| *x + *y)
-                .collect::<Vec<u32>>();
-            rt.mw_slice(h_address, &values)
-        };
-        rt.clk += 4;
+        let v = [a, b, c, d, e, f, g, h];
+        for i in 0..8 {
+            let record = rt.mw(h_ptr + i as u32 * 4, hx[i].wrapping_add(v[i]));
+            h_write_records.push(record);
+        }
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
         rt.record_mut().sha_compress_events.push(ShaCompressEvent {
             shard,
-            clk: saved_clk,
-            w_and_h_ptr: w_ptr,
+            clk: start_clk,
+            w_ptr,
+            h_ptr,
             w: original_w,
             h: hx.try_into().unwrap(),
             h_read_records: h_read_records.try_into().unwrap(),
@@ -85,6 +89,6 @@ impl Syscall for ShaCompressChip {
             h_write_records: h_write_records.try_into().unwrap(),
         });
 
-        w_ptr
+        None
     }
 }

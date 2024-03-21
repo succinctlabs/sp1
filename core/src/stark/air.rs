@@ -10,17 +10,15 @@ use super::MachineStark;
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
-    pub use crate::alu::AddChip;
+    pub use crate::alu::AddSubChip;
     pub use crate::alu::BitwiseChip;
     pub use crate::alu::DivRemChip;
     pub use crate::alu::LtChip;
     pub use crate::alu::MulChip;
     pub use crate::alu::ShiftLeft;
     pub use crate::alu::ShiftRightChip;
-    pub use crate::alu::SubChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::field::FieldLtuChip;
     pub use crate::memory::MemoryGlobalChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
@@ -49,10 +47,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
     Cpu(CpuChip),
-    /// An AIR for the RISC-V Add instruction.
-    Add(AddChip),
-    /// An AIR for the RISC-V Sub instruction.
-    Sub(SubChip),
+    /// An AIR for the RISC-V Add and SUB instruction.
+    Add(AddSubChip),
     /// An AIR for RISC-V Bitwise instructions.
     Bitwise(BitwiseChip),
     /// An AIR for RISC-V Mul instruction.
@@ -67,8 +63,6 @@ pub enum RiscvAir<F: PrimeField32> {
     ShiftRight(ShiftRightChip),
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
-    /// An table for `less than` operation on field elements.
-    FieldLTU(FieldLtuChip),
     /// A table for initializing the memory state.
     MemoryInit(MemoryGlobalChip),
     /// A table for finalizing the memory state.
@@ -133,10 +127,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
         chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
-        let add = AddChip::default();
+        let add = AddSubChip::default();
         chips.push(RiscvAir::Add(add));
-        let sub = SubChip::default();
-        chips.push(RiscvAir::Sub(sub));
         let bitwise = BitwiseChip::default();
         chips.push(RiscvAir::Bitwise(bitwise));
         let div_rem = DivRemChip::default();
@@ -155,8 +147,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
-        let field_ltu = FieldLtuChip::default();
-        chips.push(RiscvAir::FieldLTU(field_ltu));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
 
