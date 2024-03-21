@@ -167,7 +167,7 @@ where
         let mut new_byte_lookup_events = Vec::new();
 
         for i in 0..input.weierstrass_add_events.len() {
-            let event = input.weierstrass_add_events[i];
+            let event = &input.weierstrass_add_events[i];
             let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
             let cols: &mut WeierstrassAddAssignCols<F, E::BaseField> =
                 row.as_mut_slice().borrow_mut();

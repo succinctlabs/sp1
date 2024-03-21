@@ -67,7 +67,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
         .collect::<Vec<_>>();
 
     let methods = quote! {
-        impl #impl_generics Borrow<#name #type_generics> for [#type_generic] #where_clause {
+        impl #impl_generics core::borrow::Borrow<#name #type_generics> for [#type_generic] #where_clause {
             fn borrow(&self) -> &#name #type_generics {
                 debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #non_first_generics)*>>());
                 let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name #type_generics>() };
@@ -77,7 +77,7 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
             }
         }
 
-        impl #impl_generics std::borrow::BorrowMut<#name #type_generics> for [#type_generic] #where_clause {
+        impl #impl_generics core::borrow::BorrowMut<#name #type_generics> for [#type_generic] #where_clause {
             fn borrow_mut(&mut self) -> &mut #name #type_generics {
                 debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #non_first_generics)*>>());
                 let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name #type_generics>() };

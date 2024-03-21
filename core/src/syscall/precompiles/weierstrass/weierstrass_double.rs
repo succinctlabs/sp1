@@ -200,8 +200,8 @@ where
                 let rows = events
                     .iter()
                     .map(|event| {
-                        let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
-                        let cols: &mut WeierstrassDoubleAssignCols<F> =
+                        let mut row = [F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
+                        let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
                             row.as_mut_slice().borrow_mut();
 
                         // Decode affine points.

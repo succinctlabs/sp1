@@ -3,10 +3,8 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
-use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
 use core::borrow::Borrow;
-use generic_array::ArrayLength;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
@@ -188,7 +186,11 @@ mod tests {
     use crate::operations::field::params::NumLimbs32;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
+    use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
+    use crate::utils::{
+        pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify,
+        BabyBearPoseidon2,
+    };
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
     use core::borrow::{Borrow, BorrowMut};
     use num::bigint::RandBigInt;
@@ -198,6 +200,7 @@ mod tests {
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
+    use std::mem::size_of;
 
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T> {

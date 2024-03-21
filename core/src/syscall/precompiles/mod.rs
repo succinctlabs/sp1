@@ -14,7 +14,6 @@ use crate::operations::field::params::Limbs;
 use crate::runtime::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::{AffinePoint, EllipticCurve};
-use crate::{cpu::MemoryReadRecord, cpu::MemoryWriteRecord};
 use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 use p3_field::AbstractField;
 
@@ -56,7 +55,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     let q_affine = AffinePoint::<E>::from_words_le(&q);
     let result_affine = p_affine + q_affine;
-    let result_words = result_affine.to_words_le::<NUM_LIMBS>();
+    let result_words = result_affine.to_words_le::<32>();
     // TODO: FIX
 
     let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
@@ -97,7 +96,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     let result_affine = E::ec_double(&p_affine);
-    let result_words = result_affine.to_words_le::<NUM_LIMBS>();
+    let result_words = result_affine.to_words_le::<32>();
     let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
 
     ECDoubleEvent {
@@ -114,8 +113,8 @@ where
     AB: SP1AirBuilder,
 {
     let a_const = F::to_limbs_field::<AB::F>(value);
-    debug_assert_eq!(a_const.len(), NUM_LIMBS);
-    let mut a = [AB::F::zero(); NUM_LIMBS];
-    a[..NUM_LIMBS].copy_from_slice(&a_const[..NUM_LIMBS]);
+    debug_assert_eq!(a_const.len(), 32);
+    let mut a = [AB::F::zero(); 32];
+    a[..32].copy_from_slice(&a_const[..32]);
     Limbs(a.map(|x| x.into()).into())
 }
