@@ -310,7 +310,7 @@ impl CpuChip {
             .when(next.is_real)
             .assert_eq(local.shard, next.shard);
 
-        // Verify that the shard value is within a 16 bits.  This is needed for the memory access
+        // Verify that the shard value is within 16 bits.  This is needed for the memory access
         // timestamp check [MemoryAirBuilder::verify_mem_access_ts], which assumes that shard values
         // are < 2^24.
         builder.send_byte(
@@ -323,7 +323,7 @@ impl CpuChip {
 
         // Verify that the first row has a clk value of 0.
         builder.when_first_row().assert_zero(local.clk);
-        // Verify that the clk increments are correct.  Most clk increment should be 4.  For some
+        // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
         let clk_increment = AB::Expr::from_canonical_u32(4) + num_cycles;
         builder
