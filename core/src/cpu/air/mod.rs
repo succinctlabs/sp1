@@ -124,7 +124,7 @@ where
         self.auipc_eval(builder, local);
 
         // ECALL instruction.
-        let (_num_cycles, _is_halt) = self.ecall_eval(builder, local, next);
+        let (num_cycles, _is_halt) = self.ecall_eval(builder, local, next);
 
         builder.send_alu(
             local.instruction.opcode,
@@ -143,12 +143,12 @@ where
         //     )
         //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // TODO: update the clk.
         builder.when_first_row().assert_zero(local.clk);
-        // let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
-        // builder
-        //     .when_transition()
-        //     .assert_eq(local.clk + clk_increment, next.clk);
+        let clk_increment = AB::Expr::from_canonical_u32(4) + num_cycles;
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.clk + clk_increment, next.clk);
 
         // Range checks.
         builder.assert_bool(local.is_real);
@@ -252,7 +252,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         _next: &CpuCols<AB::Var>,
-    ) -> (AB::Var, AB::Var) {
+    ) -> (AB::Expr, AB::Var) {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -267,7 +267,7 @@ impl CpuChip {
         // This is a separate column because it is used as a multiplicity in an interaction which
         // requires degree 1 columns.
         builder.assert_eq(
-            send_to_table * is_ecall_instruction,
+            send_to_table * is_ecall_instruction.clone(),
             local.ecall_mul_send_to_table,
         );
         builder.send_syscall(
@@ -297,7 +297,7 @@ impl CpuChip {
         //     .assert_eq(next.is_real, AB::Expr::zero());
         // builder.when_first_row().assert_one(local.is_real);
         // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
-        (num_cycles, is_halt)
+        (num_cycles * is_ecall_instruction, is_halt)
     }
 }
 

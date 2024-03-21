@@ -120,6 +120,10 @@ pub mod tests {
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
 
+        // machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
+
+        let mut challenger = machine.config().challenger();
+
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
             machine.chips(),
             &runtime.record,
