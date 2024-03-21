@@ -1,7 +1,4 @@
-use std::{
-    ops::{Mul, MulAssign},
-    process::Output,
-};
+use std::ops::Mul;
 
 use sp1_core::stark::AirOpenedValues;
 

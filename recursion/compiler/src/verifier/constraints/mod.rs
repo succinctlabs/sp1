@@ -79,18 +79,23 @@ impl<C: Config> Builder<C> {
         chip.eval(&mut folder);
         let folded_constraints = folder.accumulator;
 
-        // let quotient = opening
-        // .quotient
-        // .iter()
-        // .enumerate()
-        // .map(|(ch_i, ch)| {
-        //     assert_eq!(ch.len(), SC::Challenge::D);
-        //     ch.iter()
-        //         .enumerate()
-        //         .map(|(e_i, &c)| zps[ch_i] * SC::Challenge::monomial(e_i) * c)
-        //         .sum::<SC::Challenge>()
-        // })
-        // .sum::<SC::Challenge>();
+        let quotient: Ext<_, _> = self.eval(
+            opening
+                .quotient
+                .iter()
+                .enumerate()
+                .map(|(ch_i, ch)| {
+                    assert_eq!(ch.len(), SC::Challenge::D);
+                    ch.iter()
+                        .enumerate()
+                        .map(|(e_i, &c)| zps[ch_i] * SC::Challenge::monomial(e_i) * c)
+                        .sum::<SymbolicExt<_, _>>()
+                })
+                .sum::<SymbolicExt<_, _>>(),
+        );
+
+        // Assert that the quotient times the zerofier is equal to the folded constraints.
+        self.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
     }
 }
 

@@ -69,6 +69,25 @@ impl<C: Config> Builder<C> {
             self.exp_power_of_2_v::<Ext<_, _>>(point * domain.shift.inverse(), domain.log_n);
         self.eval(unshifted_power - C::EF::one())
     }
+
+    #[allow(unused_variables)]
+    pub fn split_domains(
+        &mut self,
+        domain: &TwoAdicMultiplicativeCoset<C>,
+        num_chunks: usize,
+    ) -> Vec<TwoAdicMultiplicativeCoset<C>> {
+        // let log_chunks = log2_strict_usize(num_chunks);
+        // let log_n = self.eval(domain.log_n - log_chunks);
+
+        // (0..num_chunks)
+        //     .map(|i| TwoAdicMultiplicativeCoset {
+        //         log_n,
+        //         size: self.exp_usize_v(Var::two(), log_n),
+        //         shift: self.shift * self.gen().exp_u64(i as u64),
+        //     })
+        //     .collect()
+        todo!()
+    }
 }
 
 #[cfg(test)]

@@ -11,6 +11,7 @@ use std::hash::Hash;
 
 use super::MemVariable;
 use super::Ptr;
+use super::SymbolicUsize;
 use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Variable};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -102,7 +103,7 @@ impl<F, EF> Ext<F, EF> {
 }
 
 impl<C: Config> Variable<C> for Usize<C::N> {
-    type Expression = Self;
+    type Expression = SymbolicUsize<C::N>;
 
     fn uninit(_: &mut Builder<C>) -> Self {
         Usize::Const(0)
@@ -114,10 +115,10 @@ impl<C: Config> Variable<C> for Usize<C::N> {
                 panic!("cannot assign to a constant usize")
             }
             Usize::Var(v) => match src {
-                Usize::Const(src) => {
+                SymbolicUsize::Const(src) => {
                     builder.assign(*v, C::N::from_canonical_usize(src));
                 }
-                Usize::Var(src) => {
+                SymbolicUsize::Var(src) => {
                     builder.assign(*v, src);
                 }
             },
@@ -133,18 +134,16 @@ impl<C: Config> Variable<C> for Usize<C::N> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (Usize::Const(lhs), Usize::Const(rhs)) => {
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Const(rhs)) => {
                 assert_eq!(lhs, rhs, "constant usizes do not match");
             }
-            (Usize::Const(lhs), Usize::Var(rhs)) => {
-                builder.push(DslIR::AssertEqVI(rhs, C::N::from_canonical_usize(lhs)));
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Var(rhs)) => {
+                builder.assert_var_eq(C::N::from_canonical_usize(lhs), rhs);
             }
-            (Usize::Var(lhs), Usize::Const(rhs)) => {
-                builder.push(DslIR::AssertEqVI(lhs, C::N::from_canonical_usize(rhs)));
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Const(rhs)) => {
+                builder.assert_var_eq(lhs, C::N::from_canonical_usize(rhs));
             }
-            (Usize::Var(lhs), Usize::Var(rhs)) => {
-                builder.push(DslIR::AssertEqV(lhs, rhs));
-            }
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Var(rhs)) => builder.assert_var_eq(lhs, rhs),
         }
     }
 
@@ -157,17 +156,17 @@ impl<C: Config> Variable<C> for Usize<C::N> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (Usize::Const(lhs), Usize::Const(rhs)) => {
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Const(rhs)) => {
                 assert_ne!(lhs, rhs, "constant usizes do not match");
             }
-            (Usize::Const(lhs), Usize::Var(rhs)) => {
-                builder.push(DslIR::AssertNeVI(rhs, C::N::from_canonical_usize(lhs)));
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Var(rhs)) => {
+                builder.assert_var_ne(C::N::from_canonical_usize(lhs), rhs);
             }
-            (Usize::Var(lhs), Usize::Const(rhs)) => {
-                builder.push(DslIR::AssertNeVI(lhs, C::N::from_canonical_usize(rhs)));
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Const(rhs)) => {
+                builder.assert_var_ne(lhs, C::N::from_canonical_usize(rhs));
             }
-            (Usize::Var(lhs), Usize::Var(rhs)) => {
-                builder.push(DslIR::AssertNeV(lhs, rhs));
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Var(rhs)) => {
+                builder.assert_var_ne(lhs, rhs);
             }
         }
     }
