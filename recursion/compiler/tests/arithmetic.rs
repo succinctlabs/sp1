@@ -66,7 +66,7 @@ fn test_compiler_caching_arithmetic() {
     let mut builder = VmBuilder::<F, EF>::default();
 
     let one: Felt<_> = builder.eval(F::one());
-    let random: Felt<_> = builder.eval(F::from_canonical_u32(rng.gen::<u32>()));
+    let random: Felt<_> = builder.eval(rng.gen::<F>());
 
     let num_ops = 10;
     let mut a: SymbolicFelt<_> = one.into();
