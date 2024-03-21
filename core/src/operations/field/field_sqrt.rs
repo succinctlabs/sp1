@@ -1,6 +1,7 @@
 use super::field_op::FieldOpCols;
 use super::params::{Limbs, NumLimbs};
 use crate::air::SP1AirBuilder;
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
 use core::borrow::Borrow;
 use num::BigUint;
@@ -88,8 +89,11 @@ mod tests {
     use crate::air::MachineAir;
 
     use crate::operations::field::params::NumLimbs32;
+    use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
+    use crate::utils::ec::field::FieldParameters;
     use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
+    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
@@ -126,6 +130,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
         }
@@ -170,6 +176,10 @@ mod tests {
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
 
             trace
+        }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
         }
     }
 

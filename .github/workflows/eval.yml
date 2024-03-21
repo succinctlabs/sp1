@@ -7,7 +7,14 @@ on:
 jobs:
   benchmark:
     name: Benchmark
-    runs-on: self-hosted
+    runs-on: ${{ matrix.runner_label }}
+    strategy:
+      matrix:
+        include:
+          - runner_label: self-hosted-x86
+            arch: x86
+          - runner_label: self-hosted-arm64
+            arch: arm64
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -40,5 +47,5 @@ jobs:
       - name: Upload Benchmark as Artifact
         uses: actions/upload-artifact@v2
         with:
-          name: benchmark-results
+          name: benchmark-results-${{ matrix.arch }}
           path: benchmark.csv

@@ -43,11 +43,13 @@ pub struct BitwiseCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for BitwiseChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Bitwise".to_string()
     }
 
-    #[instrument(name = "generate bitwise trace", skip_all)]
+    #[instrument(name = "generate bitwise trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -97,6 +99,10 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.bitwise_events.is_empty()
     }
 }
 
@@ -149,12 +155,13 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::air::MachineAir;
+    use crate::stark::StarkGenericConfig;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
 
     use super::BitwiseChip;
     use crate::alu::AluEvent;
     use crate::runtime::{ExecutionRecord, Opcode};
-    use crate::utils::{BabyBearPoseidon2, StarkUtils};
+    use crate::utils::BabyBearPoseidon2;
 
     #[test]
     fn generate_trace() {

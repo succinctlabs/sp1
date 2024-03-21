@@ -1,4 +1,3 @@
-use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
 use sp1_derive::AlignedBorrow;
@@ -17,6 +16,7 @@ pub(crate) struct KeccakMemCols<T> {
     pub state_addr: T,
 
     pub do_memory_check: T,
+    pub ecall_receive: T,
 
     pub is_real: T,
 }

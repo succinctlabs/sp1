@@ -3,6 +3,7 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
 use core::borrow::Borrow;
 use num::BigUint;
@@ -132,8 +133,11 @@ mod tests {
     use crate::air::MachineAir;
 
     use crate::operations::field::params::{NumLimbs, NumLimbs32};
+    use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
+    use crate::utils::ec::field::FieldParameters;
     use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
+    use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2, StarkUtils};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
@@ -174,6 +178,8 @@ mod tests {
     }
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldIpChip<P> {
+        type Record = ExecutionRecord;
+
         fn name(&self) -> String {
             "FieldInnerProduct".to_string()
         }
@@ -220,6 +226,10 @@ mod tests {
             pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
 
             trace
+        }
+
+        fn included(&self, _: &Self::Record) -> bool {
+            true
         }
     }
 

@@ -1,9 +1,10 @@
+use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 use super::Instruction;
 
 /// A program that can be executed by the VM.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Program {
     /// The instructions of the program.
     pub instructions: Vec<Instruction>,

@@ -2,7 +2,7 @@ mod buffer;
 pub mod ec;
 pub mod env;
 mod logger;
-mod poseidon2_instance;
+pub mod poseidon2_instance;
 mod programs;
 mod prove;
 mod tracer;
@@ -98,8 +98,8 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
         .unwrap()
 }
 
-/// Converts a u32 to a string with commas every 3 digits.
-pub fn u32_to_comma_separated(value: u32) -> String {
+/// Converts a num to a string with commas every 3 digits.
+pub fn num_to_comma_separated<T: ToString>(value: T) -> String {
     value
         .to_string()
         .chars()
@@ -112,4 +112,21 @@ pub fn u32_to_comma_separated(value: u32) -> String {
         .chars()
         .rev()
         .collect()
+}
+
+pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
+    let mut result = Vec::new();
+    while !vec.is_empty() {
+        let current_chunk_size = std::cmp::min(chunk_size, vec.len());
+        let current_chunk = vec.drain(..current_chunk_size).collect::<Vec<T>>();
+        result.push(current_chunk);
+    }
+    result
+}
+
+#[inline]
+pub fn log2_strict_usize(n: usize) -> usize {
+    let res = n.trailing_zeros();
+    assert_eq!(n.wrapping_shr(res), 1, "Not a power of two: {n}");
+    res as usize
 }

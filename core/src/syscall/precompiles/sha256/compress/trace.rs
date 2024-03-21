@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 
-use p3_field::PrimeField;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
@@ -14,7 +14,9 @@ use super::{
     ShaCompressChip, SHA_COMPRESS_K,
 };
 
-impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
+impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "ShaCompress".to_string()
     }
@@ -26,9 +28,9 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
         for i in 0..input.sha_compress_events.len() {
-            let mut event = input.sha_compress_events[i];
+            let mut event = input.sha_compress_events[i].clone();
 
             let og_h = event.h;
             let mut v = [0u32; 8].map(Word::from);
@@ -41,16 +43,16 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.shard = F::from_canonical_u32(event.shard);
-                let clk = event.clk + (j * 4) as u32;
-                cols.clk = F::from_canonical_u32(clk);
-                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.w_ptr = F::from_canonical_u32(event.w_ptr);
+                cols.h_ptr = F::from_canonical_u32(event.h_ptr);
 
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
                 cols.mem
-                    .populate_read(event.h_read_records[j], &mut new_field_events);
-                cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
+                    .populate_read(event.h_read_records[j], &mut new_byte_lookup_events);
+                cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 
                 cols.a = v[0];
                 cols.b = v[1];
@@ -83,6 +85,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 v[7] = cols.h;
 
                 cols.is_real = F::one();
+                cols.start = cols.is_real * cols.octet_num[0] * cols.octet[0];
                 rows.push(row);
             }
 
@@ -99,12 +102,12 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 cols.octet_num[octet_num_idx] = F::one();
 
                 cols.shard = F::from_canonical_u32(event.shard);
-                let clk = event.clk + (8 * 4 + j * 4) as u32;
-                cols.clk = F::from_canonical_u32(clk);
-                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.w_ptr = F::from_canonical_u32(event.w_ptr);
+                cols.h_ptr = F::from_canonical_u32(event.h_ptr);
                 cols.mem
-                    .populate_read(event.w_i_read_records[j], &mut new_field_events);
-                cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (j * 4) as u32);
+                    .populate_read(event.w_i_read_records[j], &mut new_byte_lookup_events);
+                cols.mem_addr = F::from_canonical_u32(event.w_ptr + (j * 4) as u32);
 
                 let a = event.h[0];
                 let b = event.h[1];
@@ -180,6 +183,7 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 event.h[0] = temp1_add_temp2;
 
                 cols.is_real = F::one();
+                cols.start = cols.is_real * cols.octet_num[0] * cols.octet[0];
 
                 rows.push(row);
             }
@@ -197,17 +201,17 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.shard = F::from_canonical_u32(event.shard);
-                let clk = event.clk + (8 * 4 + 64 * 4 + (j * 4)) as u32;
-                cols.clk = F::from_canonical_u32(clk);
-                cols.w_and_h_ptr = F::from_canonical_u32(event.w_and_h_ptr);
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.w_ptr = F::from_canonical_u32(event.w_ptr);
+                cols.h_ptr = F::from_canonical_u32(event.h_ptr);
 
                 cols.octet[j] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
 
                 cols.finalize_add.populate(output, og_h[j], event.h[j]);
                 cols.mem
-                    .populate_write(event.h_write_records[j], &mut new_field_events);
-                cols.mem_addr = F::from_canonical_u32(event.w_and_h_ptr + (64 * 4 + j * 4) as u32);
+                    .populate_write(event.h_write_records[j], &mut new_byte_lookup_events);
+                cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 
                 v[j] = event.h[j];
                 cols.a = Word::from(v[0]);
@@ -232,12 +236,13 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
                 };
 
                 cols.is_real = F::one();
+                cols.start = cols.is_real * cols.octet_num[0] * cols.octet[0];
 
                 rows.push(row);
             }
         }
 
-        output.add_field_events(&new_field_events);
+        output.add_byte_lookup_events(new_byte_lookup_events);
 
         let nb_rows = rows.len();
         let mut padded_nb_rows = nb_rows.next_power_of_two();
@@ -255,5 +260,9 @@ impl<F: PrimeField> MachineAir<F> for ShaCompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_SHA_COMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.sha_compress_events.is_empty()
     }
 }

@@ -1,5 +1,6 @@
+use std::collections::HashMap;
+
 use crate::runtime::{ForkState, Syscall, SyscallContext};
-use hashbrown::HashMap;
 
 pub struct SyscallEnterUnconstrained;
 
@@ -10,7 +11,7 @@ impl SyscallEnterUnconstrained {
 }
 
 impl Syscall for SyscallEnterUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, _: u32, _: u32) -> Option<u32> {
         if ctx.rt.unconstrained {
             panic!("Unconstrained block is already active.");
         }
@@ -21,9 +22,9 @@ impl Syscall for SyscallEnterUnconstrained {
             pc: ctx.rt.state.pc,
             memory_diff: HashMap::default(),
             record: std::mem::take(&mut ctx.rt.record),
-            op_record: std::mem::take(&mut ctx.rt.cpu_record),
+            op_record: std::mem::take(&mut ctx.rt.memory_accesses),
         };
-        1
+        None
     }
 }
 
@@ -36,7 +37,7 @@ impl SyscallExitUnconstrained {
 }
 
 impl Syscall for SyscallExitUnconstrained {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, _: u32, _: u32) -> Option<u32> {
         // Reset the state of the runtime.
         if ctx.rt.unconstrained {
             ctx.rt.state.global_clk = ctx.rt.unconstrained_state.global_clk;
@@ -54,10 +55,22 @@ impl Syscall for SyscallExitUnconstrained {
                 }
             }
             ctx.rt.record = std::mem::take(&mut ctx.rt.unconstrained_state.record);
-            ctx.rt.cpu_record = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);
+            ctx.rt.memory_accesses = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);
             ctx.rt.unconstrained = false;
         }
         ctx.rt.unconstrained_state = ForkState::default();
-        0
+        None
+    }
+}
+
+impl Default for SyscallEnterUnconstrained {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Default for SyscallExitUnconstrained {
+    fn default() -> Self {
+        Self::new()
     }
 }

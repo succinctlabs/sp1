@@ -8,12 +8,12 @@ use p3_util::log2_ceil_usize;
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder},
-    runtime::{ExecutionRecord, Program},
+    runtime::Program,
 };
 
 use super::{
     eval_permutation_constraints, generate_permutation_trace, DebugConstraintBuilder,
-    ProverConstraintFolder, RiscvAir, StarkGenericConfig, VerifierConstraintFolder,
+    ProverConstraintFolder, StarkGenericConfig, Val, VerifierConstraintFolder,
 };
 
 /// An Air that encodes lookups based on interactions.
@@ -45,9 +45,9 @@ impl<F: Field, A> Chip<F, A> {
     }
 }
 
-impl<F: PrimeField32> Chip<F, RiscvAir<F>> {
+impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
     /// Returns whether the given chip is included in the execution record of the shard.
-    pub fn included(&self, shard: &ExecutionRecord) -> bool {
+    pub fn included(&self, shard: &A::Record) -> bool {
         self.air.included(shard)
     }
 }
@@ -58,20 +58,20 @@ impl<F: PrimeField32> Chip<F, RiscvAir<F>> {
 /// proving system. It is automatically implemented on any type that implements `Air<AB>` with
 /// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkGenericConfig>:
-    MachineAir<SC::Val>
-    + Air<InteractionBuilder<SC::Val>>
+    MachineAir<Val<SC>>
+    + Air<InteractionBuilder<Val<SC>>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
     + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+    + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
 {
 }
 
 impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
-    T: MachineAir<SC::Val>
-        + Air<InteractionBuilder<SC::Val>>
+    T: MachineAir<Val<SC>>
+        + Air<InteractionBuilder<Val<SC>>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
 {
 }
 
@@ -142,6 +142,8 @@ where
     F: Field,
     A: MachineAir<F>,
 {
+    type Record = A::Record;
+
     fn name(&self) -> String {
         self.air.name()
     }
@@ -153,16 +155,16 @@ where
         self.air.preprocessed_width()
     }
 
-    fn generate_trace(
-        &self,
-        input: &ExecutionRecord,
-        output: &mut ExecutionRecord,
-    ) -> RowMajorMatrix<F> {
+    fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
         self.air.generate_trace(input, output)
     }
 
-    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+    fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {
         self.air.generate_dependencies(input, output)
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        self.air.included(shard)
     }
 }
 

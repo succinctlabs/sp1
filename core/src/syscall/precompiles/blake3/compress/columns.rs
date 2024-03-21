@@ -1,5 +1,3 @@
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
 use std::mem::size_of;
 
 use sp1_derive::AlignedBorrow;
@@ -20,6 +18,7 @@ pub const NUM_BLAKE3_COMPRESS_INNER_COLS: usize = size_of::<Blake3CompressInnerC
 pub struct Blake3CompressInnerCols<T> {
     pub segment: T,
     pub clk: T,
+    pub ecall_receive: T,
 
     /// The pointer to the state.
     pub state_ptr: T,

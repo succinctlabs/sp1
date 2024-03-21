@@ -1,25 +1,25 @@
-pub mod add;
+pub mod add_sub;
 pub mod bitwise;
 pub mod divrem;
 pub mod lt;
 pub mod mul;
 pub mod sll;
 pub mod sr;
-pub mod sub;
 
-pub use add::*;
+pub use add_sub::*;
 pub use bitwise::*;
 pub use divrem::*;
 pub use lt::*;
 pub use mul::*;
 pub use sll::*;
 pub use sr::*;
-pub use sub::*;
+
+use serde::{Deserialize, Serialize};
 
 use crate::runtime::Opcode;
 
 /// A standard format for describing ALU operations that need to be proven.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AluEvent {
     /// The clock cycle that the operation occurs on.
     pub clk: u32,

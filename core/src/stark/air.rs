@@ -1,23 +1,24 @@
 use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipKind;
-use crate::runtime::ExecutionRecord;
+use crate::stark::Chip;
+use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
 
+use super::MachineStark;
+
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
-    pub use crate::alu::AddChip;
+    pub use crate::alu::AddSubChip;
     pub use crate::alu::BitwiseChip;
     pub use crate::alu::DivRemChip;
     pub use crate::alu::LtChip;
     pub use crate::alu::MulChip;
     pub use crate::alu::ShiftLeft;
     pub use crate::alu::ShiftRightChip;
-    pub use crate::alu::SubChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::field::FieldLtuChip;
     pub use crate::memory::MemoryGlobalChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
@@ -46,10 +47,8 @@ pub enum RiscvAir<F: PrimeField32> {
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
     Cpu(CpuChip),
-    /// An AIR for the RISC-V Add instruction.
-    Add(AddChip),
-    /// An AIR for the RISC-V Sub instruction.
-    Sub(SubChip),
+    /// An AIR for the RISC-V Add and SUB instruction.
+    Add(AddSubChip),
     /// An AIR for RISC-V Bitwise instructions.
     Bitwise(BitwiseChip),
     /// An AIR for RISC-V Mul instruction.
@@ -64,8 +63,6 @@ pub enum RiscvAir<F: PrimeField32> {
     ShiftRight(ShiftRightChip),
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
-    /// An table for `less than` operation on field elements.
-    FieldLTU(FieldLtuChip),
     /// A table for initializing the memory state.
     MemoryInit(MemoryGlobalChip),
     /// A table for finalizing the memory state.
@@ -93,6 +90,14 @@ pub enum RiscvAir<F: PrimeField32> {
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
+    pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> MachineStark<SC, Self> {
+        let chips = Self::get_all()
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        MachineStark::new(config, chips)
+    }
+
     /// Get all the different RISC-V AIRs.
     pub fn get_all() -> Vec<Self> {
         // The order of the chips is important, as it is used to determine the order of trace
@@ -122,10 +127,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
         chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
-        let add = AddChip::default();
+        let add = AddSubChip::default();
         chips.push(RiscvAir::Add(add));
-        let sub = SubChip::default();
-        chips.push(RiscvAir::Sub(sub));
         let bitwise = BitwiseChip::default();
         chips.push(RiscvAir::Bitwise(bitwise));
         let div_rem = DivRemChip::default();
@@ -144,42 +147,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
         let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
-        let field_ltu = FieldLtuChip::default();
-        chips.push(RiscvAir::FieldLTU(field_ltu));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
 
         chips
-    }
-
-    /// Returns `true` if the given `shard` includes events for this AIR.
-    pub fn included(&self, shard: &ExecutionRecord) -> bool {
-        match self {
-            RiscvAir::Program(_) => true,
-            RiscvAir::Cpu(_) => true,
-            RiscvAir::Add(_) => !shard.add_events.is_empty(),
-            RiscvAir::Sub(_) => !shard.sub_events.is_empty(),
-            RiscvAir::Bitwise(_) => !shard.bitwise_events.is_empty(),
-            RiscvAir::Mul(_) => !shard.mul_events.is_empty(),
-            RiscvAir::DivRem(_) => !shard.divrem_events.is_empty(),
-            RiscvAir::Lt(_) => !shard.lt_events.is_empty(),
-            RiscvAir::ShiftLeft(_) => !shard.shift_left_events.is_empty(),
-            RiscvAir::ShiftRight(_) => !shard.shift_right_events.is_empty(),
-            RiscvAir::ByteLookup(_) => !shard.byte_lookups.is_empty(),
-            RiscvAir::FieldLTU(_) => !shard.field_events.is_empty(),
-            RiscvAir::MemoryInit(_) => !shard.first_memory_record.is_empty(),
-            RiscvAir::MemoryFinal(_) => !shard.last_memory_record.is_empty(),
-            RiscvAir::ProgramMemory(_) => !shard.program_memory_record.is_empty(),
-            RiscvAir::Sha256Extend(_) => !shard.sha_extend_events.is_empty(),
-            RiscvAir::Sha256Compress(_) => !shard.sha_compress_events.is_empty(),
-            RiscvAir::Ed25519Add(_) => !shard.ed_add_events.is_empty(),
-            RiscvAir::Ed25519Decompress(_) => !shard.ed_decompress_events.is_empty(),
-            RiscvAir::K256Decompress(_) => !shard.k256_decompress_events.is_empty(),
-            RiscvAir::Secp256k1Add(_) => !shard.weierstrass_add_events.is_empty(),
-            RiscvAir::Secp256k1Double(_) => !shard.weierstrass_double_events.is_empty(),
-            RiscvAir::KeccakP(_) => !shard.keccak_permute_events.is_empty(),
-            RiscvAir::Blake3Compress(_) => !shard.blake3_compress_inner_events.is_empty(),
-        }
     }
 }
 

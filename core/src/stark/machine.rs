@@ -1,30 +1,46 @@
 use std::marker::PhantomData;
 
+use super::debug_constraints;
 use crate::air::MachineAir;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::Program;
-use crate::runtime::ShardingConfig;
+use crate::lookup::debug_interactions_with_all_chips;
+use crate::lookup::InteractionBuilder;
+use crate::lookup::InteractionKind;
+use crate::stark::record::MachineRecord;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::VerifierConstraintFolder;
+use p3_air::Air;
 use p3_challenger::CanObserve;
+use p3_challenger::FieldChallenger;
 use p3_field::AbstractField;
 use p3_field::Field;
+use p3_field::PrimeField32;
+use p3_matrix::Matrix;
+use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::*;
 
 use super::Chip;
 use super::Proof;
 use super::Prover;
-use super::RiscvAir;
 use super::StarkGenericConfig;
+use super::Val;
 use super::VerificationError;
 use super::Verifier;
 
-pub type RiscvChip<SC> =
-    Chip<<SC as StarkGenericConfig>::Val, RiscvAir<<SC as StarkGenericConfig>::Val>>;
+pub type MachineChip<SC, A> = Chip<Val<SC>, A>;
 
 /// A STARK for proving RISC-V execution.
-pub struct RiscvStark<SC: StarkGenericConfig, A = RiscvAir<<SC as StarkGenericConfig>::Val>> {
+pub struct MachineStark<SC: StarkGenericConfig, A> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
-    chips: Vec<Chip<SC::Val, A>>,
+    chips: Vec<Chip<Val<SC>, A>>,
+}
+
+impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
+    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>) -> Self {
+        Self { config, chips }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -39,32 +55,16 @@ pub struct VerifyingKey<SC: StarkGenericConfig> {
     marker: std::marker::PhantomData<SC>,
 }
 
-impl<SC: StarkGenericConfig> RiscvStark<SC> {
-    /// Create a new RISC-V STARK machine.
-    pub fn new(config: SC) -> Self {
-        // The machine consists of a config (input) and a set of chips. The chip vector should
-        // contain the chips in the order they are executed. Each chip's air is able to add events
-        // to another chip's record (depending on interactions), so we order the chips by keeping
-        // track of which chips receive events from which other chips.
-
-        // First, get all the chips associated with this machine.
-        let chips = RiscvAir::get_all()
-            .into_iter()
-            .map(Chip::new)
-            .collect::<Vec<_>>();
-
-        Self { config, chips }
-    }
-
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
-    pub fn chips(&self) -> &[RiscvChip<SC>] {
+    pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
     }
 
     pub fn shard_chips<'a, 'b>(
         &'a self,
-        shard: &'b ExecutionRecord,
-    ) -> impl Iterator<Item = &'b RiscvChip<SC>>
+        shard: &'b A::Record,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
     where
         'a: 'b,
     {
@@ -75,7 +75,7 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    pub fn setup(&self, _program: &Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+    pub fn setup<P>(&self, _program: &P) -> (ProvingKey<SC>, VerifyingKey<SC>) {
         (
             ProvingKey {
                 marker: PhantomData,
@@ -88,51 +88,50 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
 
     pub fn shard(
         &self,
-        mut record: ExecutionRecord,
-        shard_config: &ShardingConfig,
-    ) -> Vec<ExecutionRecord> {
+        mut record: A::Record,
+        config: &<A::Record as MachineRecord>::Config,
+    ) -> Vec<A::Record> {
         // Get the local and global chips.
         let chips = self.chips();
 
-        tracing::info!("Generating trace for each chip.");
-        // Display the statistics about the workload. This is incomplete because it's run before
-        // generate_trace, which can adds events to the record.
-        tracing::info!(
-            "Record stats before generate_trace (incomplete): {:#?}",
-            record.stats()
-        );
-
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
-            let mut output = ExecutionRecord::default();
-            output.index = record.index;
+            let mut output = A::Record::default();
+            output.set_index(record.index());
             chip.generate_dependencies(&record, &mut output);
             record.append(&mut output);
         });
 
-        // Display the statistics about the workload after generate_trace.
-        tracing::info!("Record stats finalized {:#?}", record.stats());
-        tracing::info!("Sharding execution record by chip.");
+        // Display some statistics about the workload.
+        let stats = record.stats();
+        for (k, v) in stats {
+            log::info!("{} = {}", k, v);
+        }
 
         // For each chip, shard the events into segments.
-
-        record.shard(shard_config)
+        record.shard(config)
     }
 
     /// Prove the execution record is valid.
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    pub fn prove<P: Prover<SC>>(
+    pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &ProvingKey<SC>,
-        record: ExecutionRecord,
+        record: A::Record,
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC> {
-        tracing::info!("Sharding the execution record.");
-        let shards = self.shard(record, &ShardingConfig::default());
+    ) -> Proof<SC>
+    where
+        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<Val<SC>>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        tracing::debug!("sharding the execution record");
+        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
-        tracing::info!("Generating the shard proofs.");
+        tracing::debug!("generating the shard proofs");
         P::prove_shards(self, pk, shards, challenger)
     }
 
@@ -148,19 +147,21 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Challenger: Clone,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
-        tracing::info_span!("observe challenges for all segments").in_scope(|| {
+        tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
 
         // Verify the segment proofs.
+        tracing::info!("verifying shard proofs");
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
-            tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+            tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
                     .chips()
                     .iter()
@@ -170,19 +171,116 @@ impl<SC: StarkGenericConfig> RiscvStark<SC> {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
+        tracing::info!("success");
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
-        #[cfg(feature = "perf")]
-        {
-            for proof in proof.shard_proofs.iter() {
-                sum += proof.cumulative_sum();
-            }
+        for proof in proof.shard_proofs.iter() {
+            sum += proof.cumulative_sum();
         }
-
         match sum.is_zero() {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
+        }
+    }
+
+    pub fn debug_constraints(
+        &self,
+        _pk: &ProvingKey<SC>,
+        record: A::Record,
+        challenger: &mut SC::Challenger,
+    ) where
+        SC::Val: PrimeField32,
+        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        tracing::debug!("sharding the execution record");
+        let mut shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
+
+        tracing::debug!("checking constraints for each shard");
+
+        let mut cumulative_sum = SC::Challenge::zero();
+        for shard in shards.iter() {
+            // Filter the chips based on what is used.
+            let chips = self.shard_chips(shard).collect::<Vec<_>>();
+
+            // Generate the main trace for each chip.
+            let traces = chips
+                .par_iter()
+                .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+                .collect::<Vec<_>>();
+
+            // Get a permutation challenge.
+            // Obtain the challenges used for the permutation argument.
+            let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+            for _ in 0..2 {
+                permutation_challenges.push(challenger.sample_ext_element());
+            }
+
+            // Generate the permutation traces.
+            let mut permutation_traces = Vec::with_capacity(chips.len());
+            let mut cumulative_sums = Vec::with_capacity(chips.len());
+            tracing::debug_span!("generate permutation traces").in_scope(|| {
+                chips
+                    .par_iter()
+                    .zip(traces.par_iter())
+                    .map(|(chip, main_trace)| {
+                        let perm_trace = chip.generate_permutation_trace(
+                            &None,
+                            main_trace,
+                            &permutation_challenges,
+                        );
+                        let cumulative_sum = perm_trace
+                            .row_slice(main_trace.height() - 1)
+                            .last()
+                            .copied()
+                            .unwrap();
+                        (perm_trace, cumulative_sum)
+                    })
+                    .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
+            });
+
+            cumulative_sum += cumulative_sums.iter().copied().sum::<SC::Challenge>();
+
+            // Compute some statistics.
+            for i in 0..chips.len() {
+                let trace_width = traces[i].width();
+                let permutation_width = permutation_traces[i].width();
+                let total_width = trace_width + permutation_width;
+                tracing::debug!(
+                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                chips[i].name(),
+                total_width,
+                traces[i].height(),
+                total_width * traces[i].height(),
+                (100f32 * trace_width as f32) / total_width as f32,
+                (100f32 * permutation_width as f32) / total_width as f32);
+            }
+
+            tracing::info_span!("debug constraints").in_scope(|| {
+                for i in 0..chips.len() {
+                    debug_constraints::<SC, A>(
+                        chips[i],
+                        None,
+                        &traces[i],
+                        &permutation_traces[i],
+                        &permutation_challenges,
+                    );
+                }
+            });
+        }
+
+        // If the cumulative sum is not zero, debug the interactions.
+        if !cumulative_sum.is_zero() {
+            // Get the total record
+            let mut record = A::Record::default();
+            for shard in shards.iter_mut() {
+                record.append(shard);
+            }
+            debug_interactions_with_all_chips::<SC, A>(
+                self.chips(),
+                &record,
+                InteractionKind::all_kinds(),
+            );
         }
     }
 }
@@ -192,6 +290,7 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
+    DebugInteractionsFailed,
 }
 
 #[cfg(test)]
@@ -211,18 +310,21 @@ pub mod tests {
 
     #[test]
     fn test_simple_prove() {
+        utils::setup_logger();
         let program = simple_program();
         run_test(program).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
+        utils::setup_logger();
         let program = ecall_lwa_program();
         run_test(program).unwrap();
     }
 
     #[test]
     fn test_shift_prove() {
+        utils::setup_logger();
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
         let operands = [
             (1, 1),
@@ -246,6 +348,7 @@ pub mod tests {
 
     #[test]
     fn test_sub_prove() {
+        utils::setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),

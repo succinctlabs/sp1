@@ -8,13 +8,12 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
-use super::columns::{NUM_AUIPC_COLS, NUM_JUMP_COLS, NUM_MEMORY_COLUMNS};
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::cpu::columns::{AuipcCols, CpuCols, JumpCols, MemoryColumns, NUM_CPU_COLS};
+use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
-use crate::runtime::{AccessPosition, Opcode};
+use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -31,12 +30,6 @@ where
         let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
-        // Clock constraints.
-        // TODO: Handle dynamic clock jumps based on precompiles.
-        // builder
-        //     .when_transition()
-        //     .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
-
         // Program constraints.
         builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
@@ -51,7 +44,7 @@ where
         // If they are not immediates, read `b` and `c` from memory.
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::B as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
@@ -62,7 +55,7 @@ where
 
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::C as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
@@ -75,7 +68,7 @@ where
         // we are performing a branch or a store.
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::A as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
             AB::Expr::one() - local.selectors.is_noop - local.selectors.reg_0_write,
@@ -88,11 +81,10 @@ where
 
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
-        let memory_columns: MemoryColumns<AB::Var> =
-            *local.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow();
+        let memory_columns = local.opcode_specific_columns.memory();
         builder.constraint_memory_access(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(AccessPosition::Memory as u32),
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
             is_memory_instruction.clone(),
@@ -131,7 +123,9 @@ where
         // AUIPC instruction.
         self.auipc_eval(builder, local);
 
-        // ALU instructions.
+        // ECALL instruction.
+        let (_num_cycles, _is_halt) = self.ecall_eval(builder, local, next);
+
         builder.send_alu(
             local.instruction.opcode,
             local.op_a_val(),
@@ -140,12 +134,20 @@ where
             is_alu_instruction,
         );
 
-        // ECALL instructions.
-        // TODO:  Need to handle HALT ecall
-        // For all non branch or jump instructions, verify that next.pc == pc + 4
+        // TODO: update the PC.
+        // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
+        // The other case is handled by eval_jump, eval_branch and eval_ecall.
         // builder
-        //     .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
+        //     .when_not(
+        //         is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
+        //     )
         //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+        // TODO: update the clk.
+        // let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
+        // builder
+        //     .when_transition()
+        //     .assert_eq(local.clk + clk_increment, next.clk);
 
         // Range checks.
         builder.assert_bool(local.is_real);
@@ -159,12 +161,20 @@ where
 }
 
 impl CpuChip {
-    /// Whether the instruction is a memory instruction.
+    /// Whether the instruction is an ALU instruction.
     pub(crate) fn is_alu_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_alu.into()
+    }
+
+    /// Whether the instruction is an ECALL instruction.
+    pub(crate) fn is_ecall_instruction<AB: SP1AirBuilder>(
+        &self,
+        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
+    ) -> AB::Expr {
+        opcode_selectors.is_ecall.into()
     }
 
     /// Constraints related to jump operations.
@@ -175,8 +185,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the jump specific columns
-        let jump_columns: JumpCols<AB::Var> =
-            *local.opcode_specific_columns[..NUM_JUMP_COLS].borrow();
+        let jump_columns = local.opcode_specific_columns.jump();
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         builder
@@ -219,8 +228,7 @@ impl CpuChip {
     /// Constraints related to the AUIPC opcode.
     pub(crate) fn auipc_eval<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
         // Get the auipc specific columns.
-        let auipc_columns: AuipcCols<AB::Var> =
-            *local.opcode_specific_columns[..NUM_AUIPC_COLS].borrow();
+        let auipc_columns = local.opcode_specific_columns.auipc();
 
         // Verify that the word form of local.pc is correct.
         builder
@@ -235,6 +243,60 @@ impl CpuChip {
             local.op_b_val(),
             local.selectors.is_auipc,
         );
+    }
+
+    /// Constraints related to the ECALL opcode.
+    pub(crate) fn ecall_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        _next: &CpuCols<AB::Var>,
+    ) -> (AB::Var, AB::Var) {
+        let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
+        // The syscall code is the read-in value of op_a at the start of the instruction.
+        let syscall_code = local.op_a_access.prev_value();
+        // We interpret the syscall_code as little-endian bytes and interpret each byte as a u8
+        // with different information. Read more about the format in runtime::syscall::SyscallCode.
+        let syscall_id = syscall_code[0];
+        let send_to_table = syscall_code[1]; // Does the syscall have a table that should be sent.
+        let num_cycles = syscall_code[2]; // How many extra cycles to increment the clk for the syscall.
+        let is_halt = syscall_code[3]; // Whether or not the syscall is a halt.
+
+        // Check that the ecall_mul_send_to_table column is equal to send_to_table * is_ecall_instruction.
+        // This is a separate column because it is used as a multiplicity in an interaction which
+        // requires degree 1 columns.
+        builder.assert_eq(
+            send_to_table * is_ecall_instruction,
+            local.ecall_mul_send_to_table,
+        );
+        builder.send_syscall(
+            local.shard,
+            local.clk,
+            syscall_id,
+            local.op_b_val().reduce::<AB>(),
+            local.op_c_val().reduce::<AB>(),
+            local.ecall_mul_send_to_table,
+        );
+
+        // For LWA we assume prover-supplied values. Although to be honest, I'm not 100% sure we need this.
+        // builder
+        //     .when(local.is_ecall)
+        //     .when_not(is_lwa)
+        //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+
+        // TODO: fill in constraints if the syscall is HALT.
+        // For halt instructions, the next pc is 0.
+        // builder
+        //     .when(is_halt)
+        //     .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
+        // // If we're halting and it's a transition, then the next.is_real should be 0.
+        // builder
+        //     .when_transition()
+        //     .when(is_halt)
+        //     .assert_eq(next.is_real, AB::Expr::zero());
+        // builder.when_first_row().assert_one(local.is_real);
+        // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
+        (num_cycles, is_halt)
     }
 }
 

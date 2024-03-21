@@ -1,6 +1,6 @@
-use crate::syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord};
-
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use p3_keccak_air::KeccakAir;
+use serde::{Deserialize, Serialize};
 
 mod air;
 pub mod columns;
@@ -12,14 +12,14 @@ const STATE_SIZE: usize = 25;
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
 const STATE_NUM_WORDS: usize = 25 * 2;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeccakPermuteEvent {
     pub shard: u32,
     pub clk: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],
-    pub state_read_records: [MemoryReadRecord; STATE_NUM_WORDS],
-    pub state_write_records: [MemoryWriteRecord; STATE_NUM_WORDS],
+    pub state_read_records: Vec<MemoryReadRecord>,
+    pub state_write_records: Vec<MemoryWriteRecord>,
     pub state_addr: u32,
 }
 
@@ -37,6 +37,7 @@ impl KeccakPermuteChip {
 
 #[cfg(test)]
 pub mod permute_tests {
+    use crate::runtime::SyscallCode;
     use crate::utils::run_test;
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
@@ -53,9 +54,16 @@ pub mod permute_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 106, false, true),
+            Instruction::new(
+                Opcode::ADD,
+                5,
+                0,
+                SyscallCode::KECCAK_PERMUTE as u32,
+                false,
+                true,
+            ),
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
 
         Program::new(instructions, 0, 0)
@@ -63,6 +71,7 @@ pub mod permute_tests {
 
     #[test]
     pub fn test_keccak_permute_program_execute() {
+        utils::setup_logger();
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
         runtime.run()

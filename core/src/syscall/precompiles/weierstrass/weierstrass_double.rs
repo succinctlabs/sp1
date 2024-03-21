@@ -8,6 +8,8 @@ use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NumLimbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
+use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
 use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
@@ -28,9 +30,12 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use tracing::instrument;
 use typenum::U32;
 
 use super::NUM_LIMBS;
@@ -70,14 +75,14 @@ pub struct WeierstrassDoubleAssignChip<E> {
 }
 
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_double_event::<E>(rt);
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let event = create_ec_double_event::<E>(rt, arg1, arg2);
         rt.record_mut().weierstrass_double_events.push(event);
-        event.p_ptr + 1
+        None
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        8
+        0
     }
 }
 
@@ -166,46 +171,71 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 where
     [(); num_weierstrass_double_cols::<E::BaseField>()]:,
 {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "WeierstrassDoubleAssign".to_string()
     }
 
+    #[instrument(
+        name = "generate weierstrass double assign trace",
+        level = "debug",
+        skip_all
+    )]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        let chunk_size = std::cmp::max(input.weierstrass_double_events.len() / num_cpus::get(), 1);
+
+        // Generate the trace rows & corresponding records for each chunk of events in parallel.
+        let rows_and_records = input
+            .weierstrass_double_events
+            .par_chunks(chunk_size)
+            .map(|events| {
+                let mut record = ExecutionRecord::default();
+                let mut new_byte_lookup_events = Vec::new();
+
+                let rows = events
+                    .iter()
+                    .map(|event| {
+                        let mut row = [F::zero(); NUM_WEIERSTRASS_DOUBLE_COLS];
+                        let cols: &mut WeierstrassDoubleAssignCols<F> =
+                            row.as_mut_slice().borrow_mut();
+
+                        // Decode affine points.
+                        let p = &event.p;
+                        let p = AffinePoint::<E>::from_words_le(p);
+                        let (p_x, p_y) = (p.x, p.y);
+
+                        // Populate basic columns.
+                        cols.is_real = F::one();
+                        cols.shard = F::from_canonical_u32(event.shard);
+                        cols.clk = F::from_canonical_u32(event.clk);
+                        cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+
+                        Self::populate_field_ops(cols, p_x, p_y);
+
+                        // Populate the memory access columns.
+                        for i in 0..NUM_WORDS_EC_POINT {
+                            cols.p_access[i]
+                                .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
+                        }
+                        row
+                    })
+                    .collect::<Vec<_>>();
+                record.add_byte_lookup_events(new_byte_lookup_events);
+                (rows, record)
+            })
+            .collect::<Vec<_>>();
+
+        // Generate the trace rows for each event.
         let mut rows = Vec::new();
-
-        let mut new_field_events = Vec::new();
-
-        for i in 0..input.weierstrass_double_events.len() {
-            let event = input.weierstrass_double_events[i];
-            let mut row = [F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
-            let cols: &mut WeierstrassDoubleAssignCols<F, E::BaseField> =
-                row.as_mut_slice().borrow_mut();
-
-            // Decode affine points.
-            let p = &event.p;
-            let p = AffinePoint::<E>::from_words_le(p);
-            let (p_x, p_y) = (p.x, p.y);
-
-            // Populate basic columns.
-            cols.is_real = F::one();
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-
-            Self::populate_field_ops(cols, p_x, p_y);
-
-            // Populate the memory access columns.
-            for i in 0..NUM_WORDS_EC_POINT {
-                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
-            }
-
-            rows.push(row);
+        for mut row_and_record in rows_and_records {
+            rows.extend(row_and_record.0);
+            output.append(&mut row_and_record.1);
         }
-        output.add_field_events(&new_field_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); num_weierstrass_double_cols::<E::BaseField>()];
@@ -221,6 +251,10 @@ where
             rows.into_iter().flatten().collect::<Vec<_>>(),
             num_weierstrass_double_cols::<E::BaseField>(),
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.weierstrass_double_events.is_empty()
     }
 }
 
@@ -348,9 +382,18 @@ where
 
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+            row.clk.into(),
             row.p_ptr,
             &row.p_access,
+            row.is_real,
+        );
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id()),
+            row.p_ptr,
+            AB::Expr::zero(),
             row.is_real,
         );
     }

@@ -1,4 +1,3 @@
-use core::borrow::{Borrow, BorrowMut};
 use p3_field::PrimeField;
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
@@ -20,6 +19,9 @@ pub struct OpcodeSelectorCols<T> {
 
     /// Table selectors for opcodes.
     pub is_alu: T,
+
+    /// Table selectors for opcodes.
+    pub is_ecall: T,
 
     /// Memory Instructions.
     pub is_lb: T,
@@ -56,6 +58,8 @@ impl<F: PrimeField> OpcodeSelectorCols<F> {
 
         if instruction.is_alu_instruction() {
             self.is_alu = F::one();
+        } else if instruction.is_ecall_instruction() {
+            self.is_ecall = F::one();
         } else if instruction.is_memory_instruction() {
             match instruction.opcode {
                 Opcode::LB => self.is_lb = F::one(),
@@ -109,6 +113,7 @@ impl<T> IntoIterator for OpcodeSelectorCols<T> {
             self.imm_b,
             self.imm_c,
             self.is_alu,
+            self.is_ecall,
             self.is_lb,
             self.is_lbu,
             self.is_lh,

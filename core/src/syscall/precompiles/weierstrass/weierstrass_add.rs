@@ -8,8 +8,8 @@ use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NumLimbs;
 use crate::runtime::ExecutionRecord;
-use crate::runtime::Register;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
@@ -51,7 +51,6 @@ pub struct WeierstrassAddAssignCols<T, N: NumLimbs> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryReadCols<T>,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
     pub q_access: [MemoryReadCols<T>; NUM_WORDS_EC_POINT],
     pub(crate) slope_denominator: FieldOpCols<T, N>,
@@ -71,14 +70,14 @@ pub struct WeierstrassAddAssignChip<E> {
 }
 
 impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let event = create_ec_add_event::<E>(rt, arg1, arg2);
         rt.record_mut().weierstrass_add_events.push(event);
-        event.p_ptr + 1
+        None
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        8
+        1
     }
 }
 
@@ -152,6 +151,8 @@ impl<F: PrimeField32, E: EllipticCurve + WeierstrassParameters> MachineAir<F>
 where
     [(); num_weierstrass_add_cols::<E::BaseField>()]:,
 {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "WeierstrassAddAssign".to_string()
     }
@@ -163,7 +164,7 @@ where
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
 
         for i in 0..input.weierstrass_add_events.len() {
             let event = input.weierstrass_add_events[i];
@@ -190,17 +191,15 @@ where
 
             // Populate the memory access columns.
             for i in 0..NUM_WORDS_EC_POINT {
-                cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
+                cols.q_access[i].populate(event.q_memory_records[i], &mut new_byte_lookup_events);
             }
             for i in 0..NUM_WORDS_EC_POINT {
-                cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
+                cols.p_access[i].populate(event.p_memory_records[i], &mut new_byte_lookup_events);
             }
-            cols.q_ptr_access
-                .populate(event.q_ptr_record, &mut new_field_events);
 
             rows.push(row);
         }
-        output.add_field_events(&new_field_events);
+        output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); num_weierstrass_add_cols::<E::BaseField>()];
@@ -216,6 +215,10 @@ where
             rows.into_iter().flatten().collect::<Vec<_>>(),
             num_weierstrass_add_cols::<E::BaseField>(),
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.weierstrass_add_events.is_empty()
     }
 }
 
@@ -327,25 +330,27 @@ where
                 .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
-        builder.constraint_memory_access(
-            row.shard,
-            row.clk, // clk + 0 -> C
-            AB::F::from_canonical_u32(Register::X11 as u32),
-            &row.q_ptr_access,
-            row.is_real,
-        );
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk.into(), // clk + 0 -> Memory
+            row.clk.into(),
             row.q_ptr,
             &row.q_access,
             row.is_real,
         );
         builder.constraint_memory_access_slice(
             row.shard,
-            row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+            row.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
             row.p_ptr,
             &row.p_access,
+            row.is_real,
+        );
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id()),
+            row.p_ptr,
+            row.q_ptr,
             row.is_real,
         );
     }

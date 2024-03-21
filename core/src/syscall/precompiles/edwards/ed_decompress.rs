@@ -1,9 +1,6 @@
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
-use crate::air::WORD_SIZE;
-use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
@@ -12,7 +9,10 @@ use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NumLimbs32;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryReadRecord;
+use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
@@ -37,6 +37,8 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
+use serde::Deserialize;
+use serde::Serialize;
 use std::marker::PhantomData;
 use typenum::U32;
 
@@ -44,7 +46,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
     pub shard: u32,
     pub clk: u32,
@@ -70,6 +72,7 @@ pub struct EdDecompressCols<T> {
     pub shard: T,
     pub clk: T,
     pub ptr: T,
+    pub sign: T,
     pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub(crate) yy: FieldOpCols<T, NumLimbs32>,
@@ -87,20 +90,21 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         event: EdDecompressEvent,
         record: &mut ExecutionRecord,
     ) {
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
+        self.sign = F::from_bool(event.sign);
         for i in 0..8 {
-            self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
-            self.y_access[i].populate(event.y_memory_records[i], &mut new_field_events);
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+            self.y_access[i].populate(event.y_memory_records[i], &mut new_byte_lookup_events);
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
         self.populate_field_ops::<P, E>(y);
 
-        record.add_field_events(&new_field_events);
+        record.add_byte_lookup_events(new_byte_lookup_events);
     }
 
     fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
@@ -125,10 +129,7 @@ impl<V: Copy> EdDecompressCols<V> {
     ) where
         V: Into<AB::Expr>,
     {
-        // Get the 31st byte of the slice, which should be the sign bit.
-        let sign: AB::Expr =
-            self.x_access[NUM_WORDS_FIELD_ELEMENT - 1].prev_value[WORD_SIZE - 1].into();
-        builder.assert_bool(sign.clone());
+        builder.assert_bool(self.sign);
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
         self.yy
@@ -186,12 +187,21 @@ impl<V: Copy> EdDecompressCols<V> {
         let x_limbs: Limbs<V, U32> = limbs_from_access(&self.x_access);
         builder
             .when(self.is_real)
-            .when(sign.clone())
+            .when(self.sign)
             .assert_all_eq(self.neg_x.result, x_limbs);
         builder
             .when(self.is_real)
-            .when_not(sign.clone())
+            .when_not(self.sign)
             .assert_all_eq(self.x.multiplication.result, x_limbs);
+
+        builder.receive_syscall(
+            self.shard,
+            self.clk,
+            AB::F::from_canonical_u32(SyscallCode::ED_DECOMPRESS.syscall_id()),
+            self.ptr,
+            self.sign,
+            self.is_real,
+        );
     }
 }
 
@@ -201,16 +211,11 @@ pub struct EdDecompressChip<E> {
 }
 
 impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let a0 = crate::runtime::Register::X10;
-
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, sign: u32) -> Option<u32> {
         let start_clk = rt.clk;
-
-        // TODO: this will have to be be constrained, but can do it later.
-        let slice_ptr = rt.register_unsafe(a0);
-        if slice_ptr % 4 != 0 {
-            panic!();
-        }
+        let slice_ptr = arg1;
+        assert!(slice_ptr % 4 == 0, "Pointer must be 4-byte aligned.");
+        assert!(sign <= 1, "Sign bit must be 0 or 1.");
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
@@ -218,8 +223,6 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
         );
         let y_memory_records: [MemoryReadRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
-        // This unsafe read is okay because we do mw_slice into the first 8 words later.
-        let sign = rt.byte_unsafe(slice_ptr + (COMPRESSED_POINT_BYTES as u32) - 1);
         let sign_bool = sign != 0;
 
         let y_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&y_vec);
@@ -257,14 +260,11 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
                 x_memory_records,
                 y_memory_records,
             });
-
-        rt.clk += 4;
-
-        slice_ptr
+        None
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        4
+        0
     }
 }
 
@@ -277,6 +277,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 }
 
 impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }
@@ -289,10 +291,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
         let mut rows = Vec::new();
 
         for i in 0..input.ed_decompress_events.len() {
-            let event = input.ed_decompress_events[i];
+            let event = &input.ed_decompress_events[i];
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate::<E::BaseField, E>(event, output);
+            cols.populate::<E::BaseField, E>(event.clone(), output);
 
             rows.push(row);
         }
@@ -309,6 +311,10 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_DECOMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_decompress_events.is_empty()
     }
 }
 
@@ -332,13 +338,14 @@ where
 #[cfg(test)]
 pub mod tests {
     use crate::{
+        runtime::Program,
         utils::{self, tests::ED_DECOMPRESS_ELF},
-        SP1Prover, SP1Stdin,
     };
 
     #[test]
     fn test_ed_decompress() {
         utils::setup_logger();
-        SP1Prover::prove(ED_DECOMPRESS_ELF, SP1Stdin::new()).unwrap();
+        let program = Program::from(ED_DECOMPRESS_ELF);
+        utils::run_test(program).unwrap();
     }
 }

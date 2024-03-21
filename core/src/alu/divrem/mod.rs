@@ -182,11 +182,13 @@ pub struct DivRemCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for DivRemChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "DivRem".to_string()
     }
 
-    #[instrument(name = "generate divrem trace", skip_all)]
+    #[instrument(name = "generate divrem trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -395,6 +397,10 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
         }
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.divrem_events.is_empty()
     }
 }
 
@@ -748,6 +754,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -756,7 +763,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        utils::BabyBearPoseidon2,
     };
 
     use super::DivRemChip;

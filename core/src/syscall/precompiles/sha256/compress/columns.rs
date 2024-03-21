@@ -1,5 +1,3 @@
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
 use std::mem::size_of;
 
 use sp1_derive::AlignedBorrow;
@@ -21,7 +19,10 @@ pub struct ShaCompressCols<T> {
     /// Inputs.
     pub shard: T,
     pub clk: T,
-    pub w_and_h_ptr: T,
+    pub w_ptr: T,
+    pub h_ptr: T,
+
+    pub start: T,
 
     /// The bits for cycle 8.
     pub octet: [T; 8],

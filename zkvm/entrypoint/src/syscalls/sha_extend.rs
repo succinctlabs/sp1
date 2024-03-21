@@ -9,7 +9,8 @@ pub extern "C" fn syscall_sha256_extend(w: *mut u32) {
         asm!(
             "ecall",
             in("t0") crate::syscalls::SHA_EXTEND,
-            in("a0") w
+            in("a0") w,
+            in("a1") 0
         );
     }
 

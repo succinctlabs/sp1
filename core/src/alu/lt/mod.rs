@@ -74,11 +74,15 @@ impl LtCols<u32> {
 }
 
 impl<F: PrimeField> MachineAir<F> for LtChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Lt".to_string()
     }
 
-    #[instrument(name = "generate lt trace", skip_all)]
+    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {}
+
+    #[instrument(name = "generate lt trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -166,6 +170,10 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
         pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.lt_events.is_empty()
     }
 }
 
@@ -295,6 +303,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -303,7 +312,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        utils::BabyBearPoseidon2,
     };
 
     use super::LtChip;

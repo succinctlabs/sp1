@@ -25,7 +25,9 @@ mod columns;
 mod execute;
 mod g;
 mod trace;
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+
+use serde::{Deserialize, Serialize};
 
 /// The number of `Word`s in the message of the compress inner operation.
 pub(crate) const MSG_SIZE: usize = 16;
@@ -88,7 +90,7 @@ pub(crate) fn g_func(input: [u32; 6]) -> [u32; 4] {
     [a, b, c, d]
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blake3CompressInnerEvent {
     pub clk: u32,
     pub shard: u32,
@@ -157,7 +159,7 @@ pub mod compress_tests {
             ),
             Instruction::new(Opcode::ADD, Register::X10 as u32, 0, state_ptr, false, true),
             Instruction::new(Opcode::ADD, Register::X11 as u32, 0, msg_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
         Program::new(instructions, 0, 0)
     }
