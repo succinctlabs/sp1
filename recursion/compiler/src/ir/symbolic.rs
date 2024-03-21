@@ -1089,6 +1089,23 @@ impl<N: Field> Add for SymbolicUsize<N> {
     }
 }
 
+impl<N: Field> Sub for SymbolicUsize<N> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (SymbolicUsize::Const(a), SymbolicUsize::Const(b)) => SymbolicUsize::Const(a - b),
+            (SymbolicUsize::Var(a), SymbolicUsize::Const(b)) => {
+                SymbolicUsize::Var(a - N::from_canonical_usize(b))
+            }
+            (SymbolicUsize::Const(a), SymbolicUsize::Var(b)) => {
+                SymbolicUsize::Var(b - N::from_canonical_usize(a))
+            }
+            (SymbolicUsize::Var(a), SymbolicUsize::Var(b)) => SymbolicUsize::Var(a - b),
+        }
+    }
+}
+
 impl<N: Field> Add<usize> for SymbolicUsize<N> {
     type Output = Self;
 
@@ -1128,6 +1145,14 @@ impl<N: Field> Add<Usize<N>> for SymbolicUsize<N> {
     }
 }
 
+impl<N: Field> Sub<Usize<N>> for SymbolicUsize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn sub(self, rhs: Usize<N>) -> Self::Output {
+        self - Self::from(rhs)
+    }
+}
+
 impl<N: Field> Add<usize> for Usize<N> {
     type Output = SymbolicUsize<N>;
 
@@ -1140,6 +1165,22 @@ impl<N: Field> Sub<usize> for Usize<N> {
     type Output = SymbolicUsize<N>;
 
     fn sub(self, rhs: usize) -> Self::Output {
+        SymbolicUsize::from(self) - rhs
+    }
+}
+
+impl<N: Field> Add<Usize<N>> for Usize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn add(self, rhs: Usize<N>) -> Self::Output {
+        SymbolicUsize::from(self) + rhs
+    }
+}
+
+impl<N: Field> Sub<Usize<N>> for Usize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn sub(self, rhs: Usize<N>) -> Self::Output {
         SymbolicUsize::from(self) - rhs
     }
 }
