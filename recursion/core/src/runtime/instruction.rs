@@ -57,6 +57,7 @@ impl<F: PrimeField32> Instruction<F> {
                 | Opcode::EFSUB
                 | Opcode::EFMUL
                 | Opcode::EDIV
+                | Opcode::EFDIV
                 | Opcode::EBNE
                 | Opcode::EBEQ
         )
@@ -70,11 +71,9 @@ impl<F: PrimeField32> Instruction<F> {
                 | Opcode::EADD
                 | Opcode::EMUL
                 | Opcode::ESUB
+                | Opcode::FESUB
                 | Opcode::EDIV
-                | Opcode::EFADD
-                | Opcode::EFSUB
-                | Opcode::EFMUL
-                | Opcode::EFDIV
+                | Opcode::FEDIV
                 | Opcode::EBNE
                 | Opcode::EBEQ
         )

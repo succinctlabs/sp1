@@ -4,6 +4,9 @@ pub mod columns;
 use crate::air::Block;
 pub use crate::{memory::MemoryRecord, runtime::Instruction};
 
+pub use air::*;
+pub use columns::*;
+
 #[derive(Debug, Clone)]
 pub struct CpuEvent<F> {
     pub clk: F,

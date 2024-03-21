@@ -121,12 +121,11 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let g = builder.generator();
                         let two_adic_generator = builder.two_adic_generator(Usize::Var(log_height));
                         let g_mul_two_adic_generator = builder.eval(g * two_adic_generator);
-                        let x: SymbolicExt<C::F, C::EF> = builder
-                            .exp_usize_f(g_mul_two_adic_generator, Usize::Var(rev_reduced_index))
-                            .into();
+                        let x: Felt<C::F> = builder
+                            .exp_usize_f(g_mul_two_adic_generator, Usize::Var(rev_reduced_index));
 
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
-                            let z: SymbolicExt<C::F, C::EF> = builder.get(&mat_points, l).into();
+                            let z: Ext<C::F, C::EF> = builder.get(&mat_points, l);
                             let ps_at_z = builder.get(&mat_values, l);
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
                                 let p_at_x: SymbolicExt<C::F, C::EF> =
