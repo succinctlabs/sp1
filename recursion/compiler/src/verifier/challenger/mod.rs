@@ -1,12 +1,14 @@
 pub mod utils;
 
 use p3_field::AbstractField;
+use sp1_recursion_derive::DslVariable;
 
-use crate::prelude::{Array, Builder, Config, Felt, Usize, Var};
+use crate::prelude::{Array, Builder, Config, Felt, MemVariable, Ptr, Usize, Var, Variable};
 use crate::verifier::fri::types::Commitment;
 use crate::verifier::fri::types::PERMUTATION_WIDTH;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
+#[derive(DslVariable, Clone)]
 pub struct DuplexChallenger<C: Config> {
     pub sponge_state: Array<C, Felt<C::F>>,
     pub nb_inputs: Var<C::N>,
@@ -18,22 +20,24 @@ pub struct DuplexChallenger<C: Config> {
 impl<C: Config> DuplexChallenger<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L38
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
-        let start = Usize::Const(0);
-        let end = self.input_buffer.len();
-        builder.range(start, end).for_each(|i, builder| {
-            let element = builder.get(&self.input_buffer, i);
-            builder.set(&mut self.sponge_state, i, element);
-            builder.assign(self.nb_outputs, self.nb_outputs + C::N::one());
-        });
+        builder
+            .range(0, self.input_buffer.len())
+            .for_each(|i, builder| {
+                let element = builder.get(&self.input_buffer, i);
+                builder.set(&mut self.sponge_state, i, element);
+                builder.assign(self.nb_outputs, self.nb_outputs + C::N::one());
+            });
         builder.assign(self.nb_inputs, C::N::zero());
 
         builder.poseidon2_permute(&self.sponge_state);
 
         builder.clear(self.output_buffer.clone());
-        builder.range(start, end).for_each(|i, builder| {
-            let element = builder.get(&self.sponge_state, i);
-            builder.set(&mut self.output_buffer, i, element);
-        });
+        builder
+            .range(0, self.input_buffer.len())
+            .for_each(|i, builder| {
+                let element = builder.get(&self.sponge_state, i);
+                builder.set(&mut self.output_buffer, i, element);
+            });
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
@@ -55,9 +59,7 @@ impl<C: Config> DuplexChallenger<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L78
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
-        let start = Usize::Const(0);
-        let end = commitment.len();
-        builder.range(start, end).for_each(|i, builder| {
+        builder.range(0, commitment.len()).for_each(|i, builder| {
             let element = builder.get(&commitment, i);
             self.observe(builder, element);
         });
@@ -81,11 +83,9 @@ impl<C: Config> DuplexChallenger<C> {
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: Usize<C::N>) -> Var<C::N> {
         let rand_f = self.sample(builder);
         let bits = builder.num2bits_f(rand_f);
-        let start = Usize::Const(0);
-        let end = nb_bits;
         let sum: Var<C::N> = builder.eval(C::N::zero());
         let power: Var<C::N> = builder.eval(C::N::from_canonical_usize(1));
-        builder.range(start, end).for_each(|i, builder| {
+        builder.range(0, nb_bits).for_each(|i, builder| {
             let bit = builder.get(&bits, i);
             builder.assign(self.nb_outputs, bit);
             builder.assign(sum, power * sum);
