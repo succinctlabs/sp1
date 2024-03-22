@@ -1,5 +1,6 @@
 use p3_challenger::CanObserve;
 use p3_challenger::CanSample;
+use p3_challenger::CanSampleBits;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use sp1_core::stark::StarkGenericConfig;
@@ -29,7 +30,7 @@ fn test_compiler_challenger() {
     let result2: F = challenger.sample();
     challenger.observe(F::one());
     challenger.observe(F::two());
-    let result3: F = challenger.sample();
+    let result3: F = F::from_canonical_usize(challenger.sample_bits(18));
 
     let width: Var<_> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
     let mut challenger = DuplexChallenger::<AsmConfig<F, EF>> {
@@ -48,7 +49,7 @@ fn test_compiler_challenger() {
     let element2 = challenger.sample(&mut builder);
     challenger.observe(&mut builder, one);
     challenger.observe(&mut builder, two);
-    let element3 = challenger.sample(&mut builder);
+    let element3 = challenger.sample_bits(&mut builder, Usize::Const(18));
 
     let expected_result_1: Felt<_> = builder.eval(result1);
     builder.assert_felt_eq(expected_result_1, element1);
@@ -56,8 +57,8 @@ fn test_compiler_challenger() {
     let expected_result_2: Felt<_> = builder.eval(result2);
     builder.assert_felt_eq(expected_result_2, element2);
 
-    let expected_result_3: Felt<_> = builder.eval(result3);
-    builder.assert_felt_eq(expected_result_3, element3);
+    let expected_result_3: Var<_> = builder.eval(result3);
+    builder.assert_var_eq(expected_result_3, element3);
 
     let program = builder.compile();
 
