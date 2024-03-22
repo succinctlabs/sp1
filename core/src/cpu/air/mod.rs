@@ -48,31 +48,25 @@ where
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
+            AB::Expr::zero(),
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
         builder
             .when_not(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
-        // If op_b is register 0, then ensure that its value is 0
-        builder
-            .when(local.instruction.op_b_0)
-            .assert_word_zero(local.op_b_val());
 
         builder.constraint_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
+            AB::Expr::zero(),
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
         builder
             .when_not(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
-        // If op_c is register 0, then ensure that its value is 0
-        builder
-            .when(local.instruction.op_c_0)
-            .assert_word_zero(local.op_c_val());
 
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.
@@ -80,6 +74,7 @@ where
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
+            local.instruction.op_a_0,
             &local.op_a_access,
             local.is_real - local.selectors.reg_0_write,
         );
@@ -89,10 +84,6 @@ where
         builder
             .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
-        builder
-            .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
-            .when(local.instruction.op_a_0)
-            .assert_word_zero(local.op_a_access.prev_value);
 
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
@@ -101,6 +92,7 @@ where
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
+            AB::Expr::zero(),
             &memory_columns.memory_access,
             is_memory_instruction.clone(),
         );

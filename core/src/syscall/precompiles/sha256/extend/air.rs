@@ -51,6 +51,7 @@ where
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(15)) * nb_bytes_in_word,
+            AB::Expr::zero(),
             &local.w_i_minus_15,
             local.is_real,
         );
@@ -60,6 +61,7 @@ where
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * nb_bytes_in_word,
+            AB::Expr::zero(),
             &local.w_i_minus_2,
             local.is_real,
         );
@@ -69,6 +71,7 @@ where
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * nb_bytes_in_word,
+            AB::Expr::zero(),
             &local.w_i_minus_16,
             local.is_real,
         );
@@ -78,6 +81,7 @@ where
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * nb_bytes_in_word,
+            AB::Expr::zero(),
             &local.w_i_minus_7,
             local.is_real,
         );
@@ -172,6 +176,7 @@ where
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + local.i * nb_bytes_in_word,
+            AB::Expr::zero(),
             &local.w_i,
             local.is_real,
         );

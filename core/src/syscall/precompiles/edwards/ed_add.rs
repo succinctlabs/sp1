@@ -272,6 +272,7 @@ where
                 row.shard,
                 row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
+                AB::Expr::zero(),
                 &row.q_access[i as usize],
                 row.is_real,
             );
@@ -281,6 +282,7 @@ where
                 row.shard,
                 row.clk + AB::F::from_canonical_u32(1), // The clk for p is moved by 1.
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
+                AB::Expr::zero(),
                 &row.p_access[i as usize],
                 row.is_real,
             );

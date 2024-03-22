@@ -318,14 +318,13 @@ impl Runtime {
 
     /// Write to a register.
     pub fn rw(&mut self, register: Register, value: u32) {
-        // We don't write to %x0. See 2.6 Load and Store Instruction on
-        // P.18 of the RISC-V spec.
+        // Always do a write of value 0 to register 0.
         if register == Register::X0 {
-            return;
+            self.mw_cpu(register as u32, 0, MemoryAccessPosition::A);
+        } else {
+            // The only time we are writing to a register is when it is in operand A.
+            self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
         }
-
-        // The only time we are writing to a register is when it is in operand A.
-        self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
     }
 
     /// Emit a CPU event.

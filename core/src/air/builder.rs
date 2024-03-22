@@ -171,6 +171,27 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
+    /// Will return `a` if `condition` is 1, else `b`.  This assumes that `condition` is already
+    /// checked to be a boolean.
+    fn word_if_else<ECond, EA, EB>(
+        &mut self,
+        condition: ECond,
+        a: Word<EA>,
+        b: Word<EB>,
+    ) -> Word<Self::Expr>
+    where
+        ECond: Into<Self::Expr> + Clone,
+        EA: Into<Self::Expr> + Clone,
+        EB: Into<Self::Expr> + Clone,
+    {
+        Word([
+            self.if_else(condition.clone(), a[0].clone(), b[0].clone()),
+            self.if_else(condition.clone(), a[1].clone(), b[1].clone()),
+            self.if_else(condition.clone(), a[2].clone(), b[2].clone()),
+            self.if_else(condition, a[3].clone(), b[3].clone()),
+        ])
+    }
+
     /// Check that each limb of the given slice is a u8.
     fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,
@@ -342,17 +363,19 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     ///
     /// This method verifies that a memory access timestamp (shard, clk) is greater than the
     /// previous access's timestamp.  It will also add to the memory argument.
-    fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
+    fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, EOpa, M>(
         &mut self,
         shard: EShard,
         clk: EClk,
         addr: Ea,
+        is_op_a_0: EOpa,
         memory_access: &M,
         do_check: EVerify,
     ) where
         EShard: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
+        EOpa: Into<Self::Expr> + Clone,
         Eb: Into<Self::Expr> + Clone,
         EVerify: Into<Self::Expr>,
         M: MemoryCols<Eb>,
@@ -367,6 +390,10 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // Verify that the current memory access time is greater than the previous's.
         self.verify_mem_access_ts(mem_access, do_check.clone(), shard.clone(), clk.clone());
 
+        // If we are writing to register 0, then the new value should be zero.
+        let zero_word = Word::zero::<Self>();
+        let write_value = self.word_if_else(is_op_a_0, zero_word, memory_access.value().clone());
+
         // Add to the memory argument.
         let addr = addr.into();
         let prev_shard = mem_access.prev_shard.clone().into();
@@ -379,7 +406,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let current_values = once(shard)
             .chain(once(clk))
             .chain(once(addr.clone()))
-            .chain(memory_access.value().clone().map(Into::into))
+            .chain(write_value.map(Into::into))
             .collect();
 
         // The previous values get sent with multiplicity * 1, for "read".
@@ -516,6 +543,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
                 shard,
                 clk.clone(),
                 initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
+                Self::Expr::zero(),
                 access_slice,
                 verify_memory_access,
             );

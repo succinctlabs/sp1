@@ -146,6 +146,7 @@ impl Blake3CompressInnerChip {
                 local.segment,
                 local.clk,
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                AB::Expr::zero(),
                 &local.state_reads_writes[i],
                 local.is_real,
             );
@@ -182,6 +183,7 @@ impl Blake3CompressInnerChip {
                 local.segment,
                 local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
+                AB::Expr::zero(),
                 &local.message_reads[i],
                 local.is_real,
             );

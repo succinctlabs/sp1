@@ -24,10 +24,8 @@ pub struct InstructionCols<T> {
     /// The third operand for this instruction.
     pub op_c: Word<T>,
 
-    /// Flags to indicate if the operands are Register 0.
+    /// Flags to indicate if op_a is register 0.
     pub op_a_0: T,
-    pub op_b_0: T,
-    pub op_c_0: T,
 }
 
 impl<F: PrimeField> InstructionCols<F> {
@@ -38,8 +36,6 @@ impl<F: PrimeField> InstructionCols<F> {
         self.op_c = instruction.op_c.into();
 
         self.op_a_0 = F::from_bool(instruction.op_a == Register::X0 as u32);
-        self.op_b_0 = F::from_bool(instruction.op_b == Register::X0 as u32);
-        self.op_c_0 = F::from_bool(instruction.op_c == Register::X0 as u32);
     }
 }
 
@@ -53,8 +49,6 @@ impl<T> IntoIterator for InstructionCols<T> {
             .chain(self.op_b)
             .chain(self.op_c)
             .chain(once(self.op_a_0))
-            .chain(once(self.op_b_0))
-            .chain(once(self.op_c_0))
             .collect::<Vec<_>>()
             .into_iter()
     }
