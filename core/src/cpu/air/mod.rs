@@ -136,15 +136,6 @@ where
             is_alu_instruction,
         );
 
-        // TODO: update the PC.
-        // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
-        // The other case is handled by eval_jump, eval_branch and eval_ecall.
-        // builder
-        //     .when_not(
-        //         is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
-        //     )
-        //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
-
         self.shard_clk_eval(builder, local, next, num_cycles);
 
         self.halt_unimpl_eval(builder, local, next, is_halt);
@@ -337,6 +328,16 @@ impl CpuChip {
         );
     }
 
+    pub fn pc_eval() {
+        // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
+        // The other case is handled by eval_jump, eval_branch and eval_ecall.
+        // builder
+        //     .when_not(
+        //         is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
+        //     )
+        //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+    }
+
     pub(crate) fn halt_unimpl_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -344,10 +345,6 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
         is_halt: AB::Expr,
     ) {
-        // For halt instructions, the next pc is 0.
-        builder
-            .when(is_halt.clone() + local.selectors.is_unimpl)
-            .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
         // If we're halting and it's a transition, then the next.is_real should be 0.
         builder
             .when_transition()
