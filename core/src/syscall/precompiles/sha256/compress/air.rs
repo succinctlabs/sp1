@@ -27,7 +27,7 @@ where
         let local: &ShaCompressCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaCompressCols<AB::Var> = main.row_slice(1).borrow();
 
-        self.contrain_control_flow_flags(builder, local, next);
+        self.constrain_control_flow_flags(builder, local, next);
 
         self.constrain_memory(builder, local);
 
@@ -52,7 +52,7 @@ where
 }
 
 impl ShaCompressChip {
-    fn contrain_control_flow_flags<AB: SP1AirBuilder>(
+    fn constrain_control_flow_flags<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -87,7 +87,7 @@ impl ShaCompressChip {
         }
 
         //// Constrain octet_num columns
-        // Verify taht all of the octet_num columns are bool.
+        // Verify that all of the octet_num columns are bool.
         for i in 0..10 {
             builder.assert_bool(local.octet_num[i]);
         }
@@ -201,6 +201,8 @@ impl ShaCompressChip {
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
+        //// Calculate S1 := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25).
+        // Calculate e rightrotate 6.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -208,6 +210,7 @@ impl ShaCompressChip {
             local.e_rr_6,
             local.is_compression,
         );
+        // Calculate e rightrotate 11.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -215,6 +218,7 @@ impl ShaCompressChip {
             local.e_rr_11,
             local.is_compression,
         );
+        // Calculate e rightrotate 25.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -222,6 +226,7 @@ impl ShaCompressChip {
             local.e_rr_25,
             local.is_compression,
         );
+        // Calculate (e rightrotate 6) xor (e rightrotate 11).
         XorOperation::<AB::F>::eval(
             builder,
             local.e_rr_6.value,
@@ -229,6 +234,7 @@ impl ShaCompressChip {
             local.s1_intermediate,
             local.is_compression,
         );
+        // Calculate S1 := ((e rightrotate 6) xor (e rightrotate 11)) xor (e rightrotate 25).
         XorOperation::<AB::F>::eval(
             builder,
             local.s1_intermediate.value,
@@ -237,6 +243,8 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        //// Calculate ch := (e and f) xor ((not e) and g).
+        // Calculate e and f.
         AndOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -244,7 +252,9 @@ impl ShaCompressChip {
             local.e_and_f,
             local.is_compression,
         );
+        // Calculate not e.
         NotOperation::<AB::F>::eval(builder, local.e, local.e_not, local.is_compression);
+        // Calculate (not e) and g.
         AndOperation::<AB::F>::eval(
             builder,
             local.e_not.value,
@@ -252,6 +262,7 @@ impl ShaCompressChip {
             local.e_not_and_g,
             local.is_compression,
         );
+        // Calculate ch := (e and f) xor ((not e) and g).
         XorOperation::<AB::F>::eval(
             builder,
             local.e_and_f.value,
@@ -260,6 +271,8 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        //// Calculate S0 := (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22).
+        // Calculate a rightrotate 2.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -267,6 +280,7 @@ impl ShaCompressChip {
             local.a_rr_2,
             local.is_compression,
         );
+        // Calculate a rightrotate 13.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -274,6 +288,7 @@ impl ShaCompressChip {
             local.a_rr_13,
             local.is_compression,
         );
+        // Calculate a rightrotate 22.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -281,6 +296,7 @@ impl ShaCompressChip {
             local.a_rr_22,
             local.is_compression,
         );
+        // Calculate (a rightrotate 2) xor (a rightrotate 13).
         XorOperation::<AB::F>::eval(
             builder,
             local.a_rr_2.value,
@@ -288,6 +304,7 @@ impl ShaCompressChip {
             local.s0_intermediate,
             local.is_compression,
         );
+        // Calculate S0 := ((a rightrotate 2) xor (a rightrotate 13)) xor (a rightrotate 22).
         XorOperation::<AB::F>::eval(
             builder,
             local.s0_intermediate.value,
@@ -296,6 +313,8 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        //// Calculate maj := (a and b) xor (a and c) xor (b and c).
+        // Calculate a and b.
         AndOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -303,6 +322,7 @@ impl ShaCompressChip {
             local.a_and_b,
             local.is_compression,
         );
+        // Calculate a and c.
         AndOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -310,6 +330,7 @@ impl ShaCompressChip {
             local.a_and_c,
             local.is_compression,
         );
+        // Calculate b and c.
         AndOperation::<AB::F>::eval(
             builder,
             local.b,
@@ -317,6 +338,7 @@ impl ShaCompressChip {
             local.b_and_c,
             local.is_compression,
         );
+        // Calculate (a and b) xor (a and c).
         XorOperation::<AB::F>::eval(
             builder,
             local.a_and_b.value,
@@ -324,6 +346,7 @@ impl ShaCompressChip {
             local.maj_intermediate,
             local.is_compression,
         );
+        // Calculate maj := ((a and b) xor (a and c)) xor (b and c).
         XorOperation::<AB::F>::eval(
             builder,
             local.maj_intermediate.value,
@@ -332,6 +355,7 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        // Calculate temp2 := h + S1 + ch + k[i] + w[i].
         AddOperation::<AB::F>::eval(
             builder,
             local.s0.value,
@@ -340,6 +364,7 @@ impl ShaCompressChip {
             local.is_compression.into(),
         );
 
+        // Calculate d + temp1 for the new value of e.
         AddOperation::<AB::F>::eval(
             builder,
             local.d,
@@ -365,8 +390,8 @@ impl ShaCompressChip {
         let is_finalize = local.octet_num[9];
         // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h, for each of the
         // phase's 8 rows.
-        // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and [a,b,c,...,h]
-        // which will act as a selector.
+        // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and
+        // [a,b,c,...,h] which will act as a selector.
         let add_operands = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
         ];

@@ -7,6 +7,7 @@ use crate::{
     air::{MachineAir, Word},
     memory::MemoryCols,
     runtime::ExecutionRecord,
+    utils::{pad_rows, pad_to_power_of_two},
 };
 
 use super::{
@@ -89,7 +90,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 rows.push(row);
             }
 
-            // Peforms the compress operation.
+            // Performs the compress operation.
             for j in 0..64 {
                 if j % 8 == 0 {
                     octet_num_idx += 1;
@@ -244,16 +245,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
-
-        for _ in nb_rows..padded_nb_rows {
-            let row = [F::zero(); NUM_SHA_COMPRESS_COLS];
-            rows.push(row);
-        }
+        pad_rows(&mut rows, || [F::zero(); NUM_SHA_COMPRESS_COLS]);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

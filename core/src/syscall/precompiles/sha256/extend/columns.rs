@@ -32,25 +32,28 @@ pub struct ShaExtendCols<T> {
     pub cycle_48_start: T,
     pub cycle_48_end: T,
 
-    /// Computing `s0`.
+    /// Inputs to `s0`.
     pub w_i_minus_15: MemoryReadCols<T>,
     pub w_i_minus_15_rr_7: FixedRotateRightOperation<T>,
     pub w_i_minus_15_rr_18: FixedRotateRightOperation<T>,
     pub w_i_minus_15_rs_3: FixedShiftRightOperation<T>,
     pub s0_intermediate: XorOperation<T>,
+    /// `s0 := (w[i-15] rightrotate  7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift  3)`.
     pub s0: XorOperation<T>,
 
-    /// Computing `s1`.
+    /// Inputs to `s1`.
     pub w_i_minus_2: MemoryReadCols<T>,
     pub w_i_minus_2_rr_17: FixedRotateRightOperation<T>,
     pub w_i_minus_2_rr_19: FixedRotateRightOperation<T>,
     pub w_i_minus_2_rs_10: FixedShiftRightOperation<T>,
     pub s1_intermediate: XorOperation<T>,
+    /// `s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)`.
     pub s1: XorOperation<T>,
 
-    /// Computing `s2`.
+    /// Inputs to `s2`.
     pub w_i_minus_16: MemoryReadCols<T>,
     pub w_i_minus_7: MemoryReadCols<T>,
+    /// `w[i] := w[i-16] + s0 + w[i-7] + s1`.
     pub s2: Add4Operation<T>,
 
     /// Result.
