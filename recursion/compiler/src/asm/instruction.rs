@@ -127,14 +127,10 @@ pub enum AsmInstruction<F, EF> {
     /// Trap
     TRAP,
 
-    // Store the 4 most significant bits of the source into a contiguous chunk of memory at the
-    // address stored in the destination.
-    HintBits(i32, i32, usize),
-    /// Compute srarting at the address stored in the source and store the result at the
-    /// destination.
-    Bits4toNum(i32, i32, usize),
+    // HintBits(dst, src) Decompose the field element `src` into bits and write them to the array
+    // starting at the address stored at `dst`.
+    HintBits(i32, i32),
 
-    // Hashing instructions.
     /// Perform a permutation of the Poseidon2 hash function on the array specified by the ptr.
     Poseidon2Permute(i32, i32),
 }
@@ -595,8 +591,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::TRAP => {
                 Instruction::new(Opcode::TRAP, F::zero(), zero, zero, false, false)
             }
-            AsmInstruction::HintBits(_, _, _) => unimplemented!(),
-            AsmInstruction::Bits4toNum(_, _, _) => unimplemented!(),
+            AsmInstruction::HintBits(dst, src) => Instruction::new(
+                Opcode::HintBits,
+                i32_f(dst),
+                i32_f_arr(src),
+                f_u32(F::zero()),
+                false,
+                true,
+            ),
             AsmInstruction::Poseidon2Permute(dst, src) => Instruction::new(
                 Opcode::Poseidon2Perm,
                 i32_f(dst),
@@ -820,8 +822,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 )
             }
             AsmInstruction::TRAP => write!(f, "trap"),
-            AsmInstruction::HintBits(_, _, _) => unimplemented!(),
-            AsmInstruction::Bits4toNum(_, _, _) => unimplemented!(),
+            AsmInstruction::HintBits(dst, src) => write!(f, "hint_bits ({})fp, ({})fp", dst, src),
             AsmInstruction::Poseidon2Permute(dst, src) => {
                 write!(f, "poseidon2_permute ({})fp, ({})fp", dst, src)
             }

@@ -44,6 +44,9 @@ pub enum Opcode {
 
     // Hash instructions.
     Poseidon2Perm = 31,
+
+    // Bit instructions.
+    HintBits = 32,
 }
 
 impl Opcode {

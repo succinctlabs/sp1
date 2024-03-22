@@ -1198,3 +1198,11 @@ impl<F: Field> Mul<SymbolicFelt<F>> for Felt<F> {
         SymbolicFelt::<F>::from(self) * rhs
     }
 }
+
+impl<N> Mul<SymbolicVar<N>> for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn mul(self, rhs: SymbolicVar<N>) -> Self::Output {
+        SymbolicVar::<N>::from(self) * rhs
+    }
+}

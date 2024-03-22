@@ -1,4 +1,5 @@
 use p3_field::AbstractField;
+use sp1_recursion_core::runtime::NUM_BITS;
 
 use crate::prelude::Array;
 use crate::prelude::Builder;
@@ -21,17 +22,83 @@ impl<C: Config> Builder<C> {
     }
 
     /// Converts a usize to a fixed length of bits.
+    pub fn num2bits_usize(&mut self, num: impl Into<Usize<C::N>>) -> Array<C, Var<C::N>> {
+        // TODO: A separate function for a circuit backend.
+
+        let num = num.into();
+        // Allocate an array for the output.
+        let output = self.dyn_array::<Var<_>>(NUM_BITS);
+        // Hint the bits of the number to the output array.
+        self.operations.push(DslIR::HintBitsU(output.clone(), num));
+
+        // Assert that the entries are bits, compute the sum, and compare it to the original number.
+        // If the number does not fit in `NUM_BITS`, we will get an error.
+        let sum: Var<_> = self.eval(C::N::zero());
+        for i in 0..NUM_BITS {
+            // Get the bit.
+            let bit = self.get(&output, i);
+            // Assert that the bit is either 0 or 1.
+            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
+            // Add `bit * 2^i` to the sum.
+            self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
+        }
+        // Finally, assert that the sum is equal to the original number.
+        self.assert_eq::<Usize<_>, _, _>(sum, num);
+
+        output
+    }
+
+    /// Converts a var to a fixed length of bits.
     pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
-        let output = self.array::<Var<_>, _>(Usize::Const(29));
-        self.operations
-            .push(DslIR::Num2BitsV(output.clone(), Usize::Var(num)));
+        // TODO: A separate function for a circuit backend.
+
+        // Allocate an array for the output.
+        let output = self.dyn_array::<Var<_>>(NUM_BITS);
+        // Hint the bits of the number to the output array.
+        self.operations.push(DslIR::HintBitsV(output.clone(), num));
+
+        // Assert that the entries are bits, compute the sum, and compare it to the original number.
+        // If the number does not fit in `NUM_BITS`, we will get an error.
+        let sum: Var<_> = self.eval(C::N::zero());
+        for i in 0..NUM_BITS {
+            // Get the bit.
+            let bit = self.get(&output, i);
+            // Assert that the bit is either 0 or 1.
+            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
+            // Add `bit * 2^i` to the sum.
+            self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
+        }
+        // Finally, assert that the sum is equal to the original number.
+        self.assert_var_eq(sum, num);
+
         output
     }
 
     /// Converts a felt to a fixed length of bits.
     pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
-        let output = self.array::<Var<_>, _>(Usize::Const(29));
-        self.operations.push(DslIR::Num2BitsF(output.clone(), num));
+        // TODO: A separate function for a circuit backend.
+
+        // Allocate an array for the output.
+        let output = self.dyn_array::<Var<_>>(NUM_BITS);
+        // Hint the bits of the number to the output array.
+        self.operations.push(DslIR::HintBitsF(output.clone(), num));
+
+        // Assert that the entries are bits, compute the sum, and compare it to the original number.
+        // If the number does not fit in `NUM_BITS`, we will get an error.
+        let sum: Felt<_> = self.eval(C::F::zero());
+        for i in 0..NUM_BITS {
+            // Get the bit.
+            let bit = self.get(&output, i);
+            // Assert that the bit is either 0 or 1.
+            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
+            // Add `bit * 2^i` to the sum.
+            self.if_eq(bit, C::N::one()).then(|builder| {
+                builder.assign(sum, sum + C::F::from_canonical_u32(1 << i));
+            });
+        }
+        // Finally, assert that the sum is equal to the original number.
+        self.assert_felt_eq(sum, num);
+
         output
     }
 
@@ -144,5 +211,67 @@ impl<C: Config> Builder<C> {
         let result = self.uninit();
         self.operations.push(DslIR::ExpUsizeV(result, x, power));
         result
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rand::{thread_rng, Rng};
+    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+    use sp1_recursion_core::runtime::{Runtime, NUM_BITS};
+
+    use p3_field::AbstractField;
+
+    use crate::{
+        asm::VmBuilder,
+        prelude::{Felt, Usize, Var},
+    };
+
+    #[test]
+    fn test_num2bits() {
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+
+        let mut rng = thread_rng();
+        let config = SC::default();
+
+        // Initialize a builder.
+        let mut builder = VmBuilder::<F, EF>::default();
+
+        // Get a random var with `NUM_BITS` bits.
+        let num_val: usize = rng.gen_range(0..(1 << NUM_BITS));
+
+        // Materialize the number as a var
+        let num: Var<_> = builder.eval(F::from_canonical_usize(num_val));
+        // Materialize the number as a felt
+        let num_felt: Felt<_> = builder.eval(F::from_canonical_usize(num_val));
+        // Materialize the number as a usize
+        let num_usize: Usize<_> = builder.eval(num_val);
+
+        // Get the bits.
+        let bits = builder.num2bits_v(num);
+        let bits_felt = builder.num2bits_f(num_felt);
+        let bits_usize = builder.num2bits_usize(num_usize);
+
+        // Compare the expected bits with the actual bits.
+        for i in 0..NUM_BITS {
+            // Get the i-th bit of the number.
+            let expected_bit = F::from_canonical_usize((num_val >> i) & 1);
+            // Compare the expected bit of the var with the actual bit.
+            let bit = builder.get(&bits, i);
+            builder.assert_var_eq(bit, expected_bit);
+            // Compare the expected bit of the felt with the actual bit.
+            let bit_felt = builder.get(&bits_felt, i);
+            builder.assert_var_eq(bit_felt, expected_bit);
+            // Compare the expected bit of the usize with the actual bit.
+            let bit_usize = builder.get(&bits_usize, i);
+            builder.assert_var_eq(bit_usize, expected_bit);
+        }
+
+        let program = builder.compile();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+        runtime.run();
     }
 }
