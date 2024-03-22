@@ -260,7 +260,6 @@ impl<V: Copy> K256DecompressCols<V> {
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
-                AB::Expr::zero(),
                 &self.x_access[i],
                 self.is_real,
             );
@@ -270,7 +269,6 @@ impl<V: Copy> K256DecompressCols<V> {
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
-                AB::Expr::zero(),
                 &self.y_access[i],
                 self.is_real,
             );

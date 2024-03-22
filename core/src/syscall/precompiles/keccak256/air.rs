@@ -43,7 +43,6 @@ where
                 local_mem.shard,
                 local_mem.clk + local_keccak.step_flags[23], // The clk increments by 1 when step_flags[23] == 1
                 local_mem.state_addr + AB::Expr::from_canonical_u32(i * 4),
-                AB::Expr::zero(),
                 &local_mem.state_mem[i as usize],
                 local_mem.do_memory_check,
             );

@@ -146,7 +146,6 @@ impl ShaCompressChip {
             local.shard,
             local.clk + is_finalize,
             local.mem_addr,
-            AB::Expr::zero(),
             &local.mem,
             is_initialize + local.is_compression + is_finalize,
         );
