@@ -7,7 +7,7 @@ use crate::{
     air::{MachineAir, Word},
     memory::MemoryCols,
     runtime::ExecutionRecord,
-    utils::{pad_rows, pad_to_power_of_two},
+    utils::pad_rows,
 };
 
 use super::{
