@@ -171,27 +171,6 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
-    /// Will return `a` if `condition` is 1, else `b`.  This assumes that `condition` is already
-    /// checked to be a boolean.
-    fn word_if_else<ECond, EA, EB>(
-        &mut self,
-        condition: ECond,
-        a: Word<EA>,
-        b: Word<EB>,
-    ) -> Word<Self::Expr>
-    where
-        ECond: Into<Self::Expr> + Clone,
-        EA: Into<Self::Expr> + Clone,
-        EB: Into<Self::Expr> + Clone,
-    {
-        Word([
-            self.if_else(condition.clone(), a[0].clone(), b[0].clone()),
-            self.if_else(condition.clone(), a[1].clone(), b[1].clone()),
-            self.if_else(condition.clone(), a[2].clone(), b[2].clone()),
-            self.if_else(condition, a[3].clone(), b[3].clone()),
-        ])
-    }
-
     /// Check that each limb of the given slice is a u8.
     fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,

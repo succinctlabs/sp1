@@ -34,16 +34,6 @@ impl<T> Word<T> {
             AB::Expr::zero(),
         ])
     }
-
-    /// Creates a zero word
-    pub fn zero<AB: SP1AirBuilder<Var = T>>() -> Word<AB::Expr> {
-        Word([
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-        ])
-    }
 }
 
 impl<T: AbstractField> Word<T> {
