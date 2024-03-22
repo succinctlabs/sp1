@@ -1,9 +1,9 @@
-use super::params::{Limbs, NumLimbs};
+use super::params::Limbs;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
-use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
+use crate::utils::ec::field::FieldParameters;
 
 use num::BigUint;
 use num::Zero;
@@ -16,23 +16,23 @@ use std::fmt::Debug;
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldInnerProductCols<T, N: NumLimbs> {
+pub struct FieldInnerProductCols<T, P: FieldParameters> {
     /// The result of `a inner product b`, where a, b are field elements
-    pub result: Limbs<T, N::Limbs>,
-    pub(crate) carry: Limbs<T, N::Limbs>,
-    pub(crate) witness_low: Limbs<T, N::Witness>,
-    pub(crate) witness_high: Limbs<T, N::Witness>,
+    pub result: Limbs<T, P::Limbs>,
+    pub(crate) carry: Limbs<T, P::Limbs>,
+    pub(crate) witness_low: Limbs<T, P::Witness>,
+    pub(crate) witness_high: Limbs<T, P::Witness>,
 }
 
-impl<F: PrimeField32, N: NumLimbs> FieldInnerProductCols<F, N> {
-    pub fn populate<P: FieldParameters>(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
+impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
+    pub fn populate(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
         let p_a_vec: Vec<Polynomial<F>> = a
             .iter()
-            .map(|x| limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(x)).into())
+            .map(|x| P::to_limbs_field::<F, _>(x).into())
             .collect();
         let p_b_vec: Vec<Polynomial<F>> = b
             .iter()
-            .map(|x| limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(x)).into())
+            .map(|x| P::to_limbs_field::<F, _>(x).into())
             .collect();
 
         let modulus = &P::modulus();
@@ -47,12 +47,9 @@ impl<F: PrimeField32, N: NumLimbs> FieldInnerProductCols<F, N> {
         assert!(carry < &(2u32 * modulus));
         assert_eq!(carry * modulus, inner_product - result);
 
-        let p_modulus: Polynomial<F> =
-            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(modulus)).into();
-        let p_result: Polynomial<F> =
-            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(result)).into();
-        let p_carry: Polynomial<F> =
-            limbs_from_vec::<F, N::Limbs>(P::to_limbs_field::<F>(carry)).into();
+        let p_modulus: Polynomial<F> = P::to_limbs_field::<F, _>(modulus).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F, _>(result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F, _>(carry).into();
 
         // Compute the vanishing polynomial.
         let p_inner_product = p_a_vec
@@ -80,16 +77,16 @@ impl<F: PrimeField32, N: NumLimbs> FieldInnerProductCols<F, N> {
     }
 }
 
-impl<V: Copy, N: NumLimbs> FieldInnerProductCols<V, N>
+impl<V: Copy, P: FieldParameters> FieldInnerProductCols<V, P>
 where
-    Limbs<V, N::Limbs>: Copy,
+    Limbs<V, P::Limbs>: Copy,
 {
     #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &[Limbs<AB::Var, N::Limbs>],
-        b: &[Limbs<AB::Var, N::Limbs>],
+        a: &[Limbs<AB::Var, P::Limbs>],
+        b: &[Limbs<AB::Var, P::Limbs>],
     ) where
         V: Into<AB::Expr>,
     {
@@ -125,16 +122,14 @@ mod tests {
     use num::BigUint;
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
-    use typenum::U32;
 
     use super::{FieldInnerProductCols, Limbs};
 
     use crate::air::MachineAir;
 
-    use crate::operations::field::params::NumLimbs32;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::ec::field::{limbs_from_vec, FieldParameters};
+    use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
@@ -149,15 +144,13 @@ mod tests {
     use sp1_derive::AlignedBorrow;
 
     #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T> {
-        pub a: [Limbs<T, Limbs32>; 1],
-        pub b: [Limbs<T, Limbs32>; 1],
-        pub a_ip_b: FieldInnerProductCols<T, NumLimbs32>,
+    pub struct TestCols<T, P: FieldParameters> {
+        pub a: [Limbs<T, P::Limbs>; 1],
+        pub b: [Limbs<T, P::Limbs>; 1],
+        pub a_ip_b: FieldInnerProductCols<T, P>,
     }
 
-    type Limbs32 = U32;
-
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, Ed25519BaseField>>();
 
     struct FieldIpChip<P: FieldParameters> {
         pub _phantom: std::marker::PhantomData<P>,
@@ -203,10 +196,10 @@ mod tests {
                 .iter()
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.a[0] = limbs_from_vec::<F, Limbs32>(P::to_limbs_field::<F>(&a[0]));
-                    cols.b[0] = limbs_from_vec::<F, Limbs32>(P::to_limbs_field::<F>(&b[0]));
-                    cols.a_ip_b.populate::<P>(a, b);
+                    let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
+                    cols.a[0] = P::to_limbs_field::<F, _>(&a[0]);
+                    cols.b[0] = P::to_limbs_field::<F, _>(&b[0]);
+                    cols.a_ip_b.populate(a, b);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -236,11 +229,12 @@ mod tests {
     impl<AB, P: FieldParameters> Air<AB> for FieldIpChip<P>
     where
         AB: SP1AirBuilder,
+        Limbs<AB::Var, P::Limbs>: Copy,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
-            local.a_ip_b.eval::<AB, P>(builder, &local.a, &local.b);
+            let local: &TestCols<AB::Var, P> = main.row_slice(0).borrow();
+            local.a_ip_b.eval::<AB>(builder, &local.a, &local.b);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

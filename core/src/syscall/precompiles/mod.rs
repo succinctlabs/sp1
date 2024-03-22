@@ -106,14 +106,3 @@ pub fn create_ec_double_event<E: EllipticCurve>(
         p_memory_records,
     }
 }
-
-pub fn limbs_from_biguint<AB, F: FieldParameters>(value: &BigUint) -> Limbs<AB::Expr, U32>
-where
-    AB: SP1AirBuilder,
-{
-    let a_const = F::to_limbs_field::<AB::F>(value);
-    debug_assert_eq!(a_const.len(), 32);
-    let mut a = [AB::F::zero(); 32];
-    a[..32].copy_from_slice(&a_const[..32]);
-    Limbs(a.map(|x| x.into()).into())
-}

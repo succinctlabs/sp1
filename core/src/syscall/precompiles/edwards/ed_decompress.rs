@@ -7,7 +7,6 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::Limbs;
-use crate::operations::field::params::NumLimbs32;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
@@ -17,6 +16,7 @@ use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
 use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
+use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::limbs_from_vec;
 use crate::utils::ec::field::FieldParameters;
@@ -75,13 +75,13 @@ pub struct EdDecompressCols<T> {
     pub sign: T,
     pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) yy: FieldOpCols<T, NumLimbs32>,
-    pub(crate) u: FieldOpCols<T, NumLimbs32>,
-    pub(crate) dyy: FieldOpCols<T, NumLimbs32>,
-    pub(crate) v: FieldOpCols<T, NumLimbs32>,
-    pub(crate) u_div_v: FieldOpCols<T, NumLimbs32>,
-    pub(crate) x: FieldSqrtCols<T, NumLimbs32>,
-    pub(crate) neg_x: FieldOpCols<T, NumLimbs32>,
+    pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) dyy: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) v: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) u_div_v: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) x: FieldSqrtCols<T, Ed25519BaseField>,
+    pub(crate) neg_x: FieldOpCols<T, Ed25519BaseField>,
 }
 
 impl<F: PrimeField32> EdDecompressCols<F> {
@@ -109,16 +109,14 @@ impl<F: PrimeField32> EdDecompressCols<F> {
 
     fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
         let one = BigUint::one();
-        let yy = self.yy.populate::<P>(y, y, FieldOperation::Mul);
-        let u = self.u.populate::<P>(&yy, &one, FieldOperation::Sub);
-        let dyy = self
-            .dyy
-            .populate::<P>(&E::d_biguint(), &yy, FieldOperation::Mul);
-        let v = self.v.populate::<P>(&one, &dyy, FieldOperation::Add);
-        let u_div_v = self.u_div_v.populate::<P>(&u, &v, FieldOperation::Div);
-        let x = self.x.populate::<P>(&u_div_v, ed25519_sqrt);
+        let yy = self.yy.populate(y, y, FieldOperation::Mul);
+        let u = self.u.populate(&yy, &one, FieldOperation::Sub);
+        let dyy = self.dyy.populate(&E::d_biguint(), &yy, FieldOperation::Mul);
+        let v = self.v.populate(&one, &dyy, FieldOperation::Add);
+        let u_div_v = self.u_div_v.populate(&u, &v, FieldOperation::Div);
+        let x = self.x.populate(&u_div_v, ed25519_sqrt);
         self.neg_x
-            .populate::<P>(&BigUint::zero(), &x, FieldOperation::Sub);
+            .populate(&BigUint::zero(), &x, FieldOperation::Sub);
     }
 }
 
@@ -133,32 +131,27 @@ impl<V: Copy> EdDecompressCols<V> {
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
         self.yy
-            .eval::<AB, P, _, _>(builder, &y, &y, FieldOperation::Mul);
-        self.u.eval::<AB, P, _, _>(
+            .eval::<AB, _, _>(builder, &y, &y, FieldOperation::Mul);
+        self.u.eval::<AB, _, _>(
             builder,
             &self.yy.result,
             &[AB::Expr::one()].iter(),
             FieldOperation::Sub,
         );
         let d_biguint = E::d_biguint();
-        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
-        let d_const = limbs_from_vec::<AB::F, U32>(d_const);
+        let d_const = E::BaseField::to_limbs_field::<AB::F, _>(&d_biguint);
         self.dyy
-            .eval::<AB, P, _, _>(builder, &d_const, &self.yy.result, FieldOperation::Mul);
-        self.v.eval::<AB, P, _, _>(
+            .eval::<AB, _, _>(builder, &d_const, &self.yy.result, FieldOperation::Mul);
+        self.v.eval::<AB, _, _>(
             builder,
             &[AB::Expr::one()].iter(),
             &self.dyy.result,
             FieldOperation::Add,
         );
-        self.u_div_v.eval::<AB, P, _, _>(
-            builder,
-            &self.u.result,
-            &self.v.result,
-            FieldOperation::Div,
-        );
-        self.x.eval::<AB, P>(builder, &self.u_div_v.result);
-        self.neg_x.eval::<AB, P, _, _>(
+        self.u_div_v
+            .eval::<AB, _, _>(builder, &self.u.result, &self.v.result, FieldOperation::Div);
+        self.x.eval::<AB>(builder, &self.u_div_v.result);
+        self.neg_x.eval::<AB, _, _>(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.x.multiplication.result,

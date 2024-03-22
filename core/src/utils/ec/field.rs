@@ -33,24 +33,31 @@ pub trait FieldParameters:
             .take(Self::NB_LIMBS)
     }
 
+    /// Convert a BigUint to a Vec of u8 limbs (with len NB_LIMBS).
     fn to_limbs(x: &BigUint) -> Vec<u8> {
         let mut bytes = x.to_bytes_le();
         bytes.resize(Self::NB_LIMBS, 0u8);
         bytes
     }
 
-    fn to_limbs_field<F: Field>(x: &BigUint) -> Vec<F> {
+    /// Convert a BigUint to a Vec of F limbs (with len NB_LIMBS).
+    fn to_limbs_field_vec<E: From<F>, F: Field>(x: &BigUint) -> Vec<E> {
         Self::to_limbs(x)
             .into_iter()
-            .map(|x| F::from_canonical_u8(x))
-            .collect()
+            .map(|x| F::from_canonical_u8(x).into())
+            .collect::<Vec<_>>()
+    }
+
+    /// Convert a BigUint to Limbs<F, Self::Limbs>.
+    fn to_limbs_field<E: From<F>, F: Field>(x: &BigUint) -> Limbs<E, Self::Limbs> {
+        limbs_from_vec(Self::to_limbs_field_vec(x))
     }
 }
 
 /// Convert a vec of u8 limbs to a Limbs of NUM_LIMBS.
-pub fn limbs_from_vec<F: Field, N: ArrayLength>(limbs: Vec<F>) -> Limbs<F, N> {
+pub fn limbs_from_vec<E: From<F>, N: ArrayLength, F: Field>(limbs: Vec<E>) -> Limbs<E, N> {
     debug_assert_eq!(limbs.len(), N::USIZE);
-    let mut result = GenericArray::<F, N>::generate(|_i| F::zero());
+    let mut result = GenericArray::<E, N>::generate(|_i| F::zero().into());
     for (i, limb) in limbs.into_iter().enumerate() {
         result[i] = limb;
     }

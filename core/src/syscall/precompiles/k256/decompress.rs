@@ -8,7 +8,6 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::Limbs;
-use crate::operations::field::params::NumLimbs32;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
@@ -140,11 +139,11 @@ pub struct K256DecompressCols<T> {
     pub is_odd: T,
     pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) x_2: FieldOpCols<T, NumLimbs32>,
-    pub(crate) x_3: FieldOpCols<T, NumLimbs32>,
-    pub(crate) x_3_plus_b: FieldOpCols<T, NumLimbs32>,
-    pub(crate) y: FieldSqrtCols<T, NumLimbs32>,
-    pub(crate) neg_y: FieldOpCols<T, NumLimbs32>,
+    pub(crate) x_2: FieldOpCols<T, Secp256k1BaseField>,
+    pub(crate) x_3: FieldOpCols<T, Secp256k1BaseField>,
+    pub(crate) x_3_plus_b: FieldOpCols<T, Secp256k1BaseField>,
+    pub(crate) y: FieldSqrtCols<T, Secp256k1BaseField>,
+    pub(crate) neg_y: FieldOpCols<T, Secp256k1BaseField>,
     pub(crate) y_least_bits: [T; 8],
 }
 
@@ -169,22 +168,15 @@ impl<F: PrimeField32> K256DecompressCols<F> {
 
     fn populate_field_ops(&mut self, x: &BigUint) {
         // Y = sqrt(x^3 + b)
-        let x_2 =
-            self.x_2
-                .populate::<Secp256k1BaseField>(&x.clone(), &x.clone(), FieldOperation::Mul);
-        let x_3 = self
-            .x_3
-            .populate::<Secp256k1BaseField>(&x_2, x, FieldOperation::Mul);
+        let x_2 = self
+            .x_2
+            .populate(&x.clone(), &x.clone(), FieldOperation::Mul);
+        let x_3 = self.x_3.populate(&x_2, x, FieldOperation::Mul);
         let b = Secp256k1Parameters::b_int();
-        let x_3_plus_b =
-            self.x_3_plus_b
-                .populate::<Secp256k1BaseField>(&x_3, &b, FieldOperation::Add);
-        let y = self
-            .y
-            .populate::<Secp256k1BaseField>(&x_3_plus_b, secp256k1_sqrt);
+        let x_3_plus_b = self.x_3_plus_b.populate(&x_3, &b, FieldOperation::Add);
+        let y = self.y.populate(&x_3_plus_b, secp256k1_sqrt);
         let zero = BigUint::zero();
-        self.neg_y
-            .populate::<Secp256k1BaseField>(&zero, &y, FieldOperation::Sub);
+        self.neg_y.populate(&zero, &y, FieldOperation::Sub);
         // Decompose bits of least significant Y byte
         let y_bytes = y.to_bytes_le();
         let y_lsb = if y_bytes.is_empty() { 0 } else { y_bytes[0] };
@@ -203,25 +195,15 @@ impl<V: Copy> K256DecompressCols<V> {
 
         let x: Limbs<V, U32> = limbs_from_prev_access(&self.x_access);
         self.x_2
-            .eval::<AB, Secp256k1BaseField, _, _>(builder, &x, &x, FieldOperation::Mul);
-        self.x_3.eval::<AB, Secp256k1BaseField, _, _>(
-            builder,
-            &self.x_2.result,
-            &x,
-            FieldOperation::Mul,
-        );
+            .eval::<AB, _, _>(builder, &x, &x, FieldOperation::Mul);
+        self.x_3
+            .eval::<AB, _, _>(builder, &self.x_2.result, &x, FieldOperation::Mul);
         let b = Secp256k1Parameters::b_int();
-        let b_const = Secp256k1BaseField::to_limbs_field::<AB::F>(&b);
-        let b_const = limbs_from_vec::<AB::F, U32>(b_const);
-        self.x_3_plus_b.eval::<AB, Secp256k1BaseField, _, _>(
-            builder,
-            &self.x_3.result,
-            &b_const,
-            FieldOperation::Add,
-        );
-        self.y
-            .eval::<AB, Secp256k1BaseField>(builder, &self.x_3_plus_b.result);
-        self.neg_y.eval::<AB, Secp256k1BaseField, _, _>(
+        let b_const = Secp256k1BaseField::to_limbs_field::<AB::F, _>(&b);
+        self.x_3_plus_b
+            .eval::<AB, _, _>(builder, &self.x_3.result, &b_const, FieldOperation::Add);
+        self.y.eval::<AB>(builder, &self.x_3_plus_b.result);
+        self.neg_y.eval::<AB, _, _>(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.y.multiplication.result,

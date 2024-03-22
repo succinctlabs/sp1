@@ -11,7 +11,6 @@ use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::create_ec_double_event;
-use crate::syscall::precompiles::limbs_from_biguint;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
@@ -37,10 +36,9 @@ use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
-use typenum::U32;
 
-pub const fn num_weierstrass_double_cols<N: NumLimbs>() -> usize {
-    size_of::<WeierstrassDoubleAssignCols<u8, N>>()
+pub const fn num_weierstrass_double_cols<P: FieldParameters>() -> usize {
+    size_of::<WeierstrassDoubleAssignCols<u8, P>>()
 }
 
 /// A set of columns to double a point on a Weierstrass curve.
@@ -49,23 +47,23 @@ pub const fn num_weierstrass_double_cols<N: NumLimbs>() -> usize {
 /// made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct WeierstrassDoubleAssignCols<T, N: NumLimbs> {
+pub struct WeierstrassDoubleAssignCols<T, P: FieldParameters> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
     pub p_ptr: T,
     pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
-    pub(crate) slope_denominator: FieldOpCols<T, N>,
-    pub(crate) slope_numerator: FieldOpCols<T, N>,
-    pub(crate) slope: FieldOpCols<T, N>,
-    pub(crate) p_x_squared: FieldOpCols<T, N>,
-    pub(crate) p_x_squared_times_3: FieldOpCols<T, N>,
-    pub(crate) slope_squared: FieldOpCols<T, N>,
-    pub(crate) p_x_plus_p_x: FieldOpCols<T, N>,
-    pub(crate) x3_ins: FieldOpCols<T, N>,
-    pub(crate) p_x_minus_x: FieldOpCols<T, N>,
-    pub(crate) y3_ins: FieldOpCols<T, N>,
-    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, N>,
+    pub(crate) slope_denominator: FieldOpCols<T, P>,
+    pub(crate) slope_numerator: FieldOpCols<T, P>,
+    pub(crate) slope: FieldOpCols<T, P>,
+    pub(crate) p_x_squared: FieldOpCols<T, P>,
+    pub(crate) p_x_squared_times_3: FieldOpCols<T, P>,
+    pub(crate) slope_squared: FieldOpCols<T, P>,
+    pub(crate) p_x_plus_p_x: FieldOpCols<T, P>,
+    pub(crate) x3_ins: FieldOpCols<T, P>,
+    pub(crate) p_x_minus_x: FieldOpCols<T, P>,
+    pub(crate) y3_ins: FieldOpCols<T, P>,
+    pub(crate) slope_times_p_x_minus_x: FieldOpCols<T, P>,
 }
 
 #[derive(Default)]
@@ -105,62 +103,43 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDoubleAssignChip<E> {
         let slope = {
             // slope_numerator = a + (p.x * p.x) * 3.
             let slope_numerator = {
-                let p_x_squared =
-                    cols.p_x_squared
-                        .populate::<E::BaseField>(&p_x, &p_x, FieldOperation::Mul);
-                let p_x_squared_times_3 = cols.p_x_squared_times_3.populate::<E::BaseField>(
+                let p_x_squared = cols.p_x_squared.populate(&p_x, &p_x, FieldOperation::Mul);
+                let p_x_squared_times_3 = cols.p_x_squared_times_3.populate(
                     &p_x_squared,
                     &BigUint::from(3u32),
                     FieldOperation::Mul,
                 );
-                cols.slope_numerator.populate::<E::BaseField>(
-                    &a,
-                    &p_x_squared_times_3,
-                    FieldOperation::Add,
-                )
+                cols.slope_numerator
+                    .populate(&a, &p_x_squared_times_3, FieldOperation::Add)
             };
 
             // slope_denominator = 2 * y.
-            let slope_denominator = cols.slope_denominator.populate::<E::BaseField>(
-                &BigUint::from(2u32),
-                &p_y,
-                FieldOperation::Mul,
-            );
+            let slope_denominator =
+                cols.slope_denominator
+                    .populate(&BigUint::from(2u32), &p_y, FieldOperation::Mul);
 
-            cols.slope.populate::<E::BaseField>(
-                &slope_numerator,
-                &slope_denominator,
-                FieldOperation::Div,
-            )
+            cols.slope
+                .populate(&slope_numerator, &slope_denominator, FieldOperation::Div)
         };
 
         // x = slope * slope - (p.x + p.x).
         let x = {
-            let slope_squared =
-                cols.slope_squared
-                    .populate::<E::BaseField>(&slope, &slope, FieldOperation::Mul);
-            let p_x_plus_p_x =
-                cols.p_x_plus_p_x
-                    .populate::<E::BaseField>(&p_x, &p_x, FieldOperation::Add);
+            let slope_squared = cols
+                .slope_squared
+                .populate(&slope, &slope, FieldOperation::Mul);
+            let p_x_plus_p_x = cols.p_x_plus_p_x.populate(&p_x, &p_x, FieldOperation::Add);
             cols.x3_ins
-                .populate::<E::BaseField>(&slope_squared, &p_x_plus_p_x, FieldOperation::Sub)
+                .populate(&slope_squared, &p_x_plus_p_x, FieldOperation::Sub)
         };
 
         // y = slope * (p.x - x) - p.y.
         {
-            let p_x_minus_x =
-                cols.p_x_minus_x
-                    .populate::<E::BaseField>(&p_x, &x, FieldOperation::Sub);
-            let slope_times_p_x_minus_x = cols.slope_times_p_x_minus_x.populate::<E::BaseField>(
-                &slope,
-                &p_x_minus_x,
-                FieldOperation::Mul,
-            );
-            cols.y3_ins.populate::<E::BaseField>(
-                &slope_times_p_x_minus_x,
-                &p_y,
-                FieldOperation::Sub,
-            );
+            let p_x_minus_x = cols.p_x_minus_x.populate(&p_x, &x, FieldOperation::Sub);
+            let slope_times_p_x_minus_x =
+                cols.slope_times_p_x_minus_x
+                    .populate(&slope, &p_x_minus_x, FieldOperation::Mul);
+            cols.y3_ins
+                .populate(&slope_times_p_x_minus_x, &p_y, FieldOperation::Sub);
         }
     }
 }
@@ -279,28 +258,23 @@ where
 
         // a in the Weierstrass form: y^2 = x^3 + a * x + b.
         // TODO: U32 can't be hardcoded here?
-        let a: Limbs<<AB as AirBuilder>::Expr, U32> =
-            limbs_from_biguint::<AB, E::BaseField>(&E::a_int());
+        let a = E::BaseField::to_limbs_field::<AB::Expr, _>(&E::a_int());
 
         // slope = slope_numerator / slope_denominator.
         let slope = {
             // slope_numerator = a + (p.x * p.x) * 3.
             {
-                row.p_x_squared.eval::<AB, E::BaseField, _, _>(
-                    builder,
-                    &p_x,
-                    &p_x,
-                    FieldOperation::Mul,
-                );
+                row.p_x_squared
+                    .eval::<AB, _, _>(builder, &p_x, &p_x, FieldOperation::Mul);
 
-                row.p_x_squared_times_3.eval::<AB, E::BaseField, _, _>(
+                row.p_x_squared_times_3.eval::<AB, _, _>(
                     builder,
                     &row.p_x_squared.result,
-                    &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(3u32)),
+                    &E::BaseField::to_limbs_field::<AB::Expr, _>(&BigUint::from(3u32)),
                     FieldOperation::Mul,
                 );
 
-                row.slope_numerator.eval::<AB, E::BaseField, _, _>(
+                row.slope_numerator.eval::<AB, _, _>(
                     builder,
                     &a,
                     &row.p_x_squared_times_3.result,
@@ -309,14 +283,14 @@ where
             };
 
             // slope_denominator = 2 * y.
-            row.slope_denominator.eval::<AB, E::BaseField, _, _>(
+            row.slope_denominator.eval::<AB, _, _>(
                 builder,
-                &limbs_from_biguint::<AB, E::BaseField>(&BigUint::from(2u32)),
+                &E::BaseField::to_limbs_field::<AB::Expr, _>(&BigUint::from(2u32)),
                 &p_y,
                 FieldOperation::Mul,
             );
 
-            row.slope.eval::<AB, E::BaseField, _, _>(
+            row.slope.eval::<AB, _, _>(
                 builder,
                 &row.slope_numerator.result,
                 &row.slope_denominator.result,
@@ -328,19 +302,11 @@ where
 
         // x = slope * slope - (p.x + p.x).
         let x = {
-            row.slope_squared.eval::<AB, E::BaseField, _, _>(
-                builder,
-                slope,
-                slope,
-                FieldOperation::Mul,
-            );
-            row.p_x_plus_p_x.eval::<AB, E::BaseField, _, _>(
-                builder,
-                &p_x,
-                &p_x,
-                FieldOperation::Add,
-            );
-            row.x3_ins.eval::<AB, E::BaseField, _, _>(
+            row.slope_squared
+                .eval::<AB, _, _>(builder, slope, slope, FieldOperation::Mul);
+            row.p_x_plus_p_x
+                .eval::<AB, _, _>(builder, &p_x, &p_x, FieldOperation::Add);
+            row.x3_ins.eval::<AB, _, _>(
                 builder,
                 &row.slope_squared.result,
                 &row.p_x_plus_p_x.result,
@@ -352,14 +318,14 @@ where
         // y = slope * (p.x - x) - p.y.
         {
             row.p_x_minus_x
-                .eval::<AB, E::BaseField, _, _>(builder, &p_x, x, FieldOperation::Sub);
-            row.slope_times_p_x_minus_x.eval::<AB, E::BaseField, _, _>(
+                .eval::<AB, _, _>(builder, &p_x, x, FieldOperation::Sub);
+            row.slope_times_p_x_minus_x.eval::<AB, _, _>(
                 builder,
                 slope,
                 &row.p_x_minus_x.result,
                 FieldOperation::Mul,
             );
-            row.y3_ins.eval::<AB, E::BaseField, _, _>(
+            row.y3_ins.eval::<AB, _, _>(
                 builder,
                 &row.slope_times_p_x_minus_x.result,
                 &p_y,
