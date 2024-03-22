@@ -11,7 +11,8 @@ use std::fmt::Debug;
 use std::ops::{Add, Neg};
 
 use crate::air::WORD_SIZE;
-use crate::operations::field::params::NumWords;
+
+use self::field::NumWords;
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
 pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;

@@ -1,11 +1,13 @@
 use super::utils::biguint_from_limbs;
-use crate::operations::field::params::{Limbs, NumLimbs, NB_BITS_PER_LIMB};
+use crate::operations::field::params::{Limbs, NB_BITS_PER_LIMB};
 use generic_array::sequence::GenericSequence;
 use generic_array::{ArrayLength, GenericArray};
 use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
+use std::ops::Div;
+use typenum::{U2, U4};
 
 pub const MAX_NB_LIMBS: usize = 32;
 
@@ -62,4 +64,35 @@ pub fn limbs_from_vec<E: From<F>, N: ArrayLength, F: Field>(limbs: Vec<E>) -> Li
         result[i] = limb;
     }
     Limbs(result)
+}
+
+/// Trait that holds the typenum values for # of limbs and # of witness limbs.
+pub trait NumLimbs: Clone + Debug {
+    type Limbs: ArrayLength + Debug;
+    type Witness: ArrayLength + Debug;
+}
+
+/// Trait that holds number of words needed to represent a field element and a curve point.
+pub trait NumWords: Clone + Debug {
+    /// The number of words needed to represent a field element.
+    type WordsFieldElement: ArrayLength + Debug;
+    /// The number of words needed to represent a curve point (two field elements).
+    type WordsCurvePoint: ArrayLength + Debug;
+}
+
+/// Implement NumWords for NumLimbs where # Limbs is divisible by 4.
+///
+/// Using typenum we can do N/4 and N/2 in type-level arithmetic. Having it as a separate trait
+/// avoids needing the Div where clauses everywhere.
+impl<N: NumLimbs> NumWords for N
+where
+    N::Limbs: Div<U4>,
+    N::Limbs: Div<U2>,
+    <N::Limbs as Div<U4>>::Output: ArrayLength + Debug,
+    <N::Limbs as Div<U2>>::Output: ArrayLength + Debug,
+{
+    /// Each word has 4 limbs so we divide by 4.
+    type WordsFieldElement = <N::Limbs as Div<U4>>::Output;
+    /// Curve point has 2 field elements so we divide by 2.
+    type WordsCurvePoint = <N::Limbs as Div<U2>>::Output;
 }

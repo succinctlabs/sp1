@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use typenum::{U16, U30};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::NumLimbs;
+use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 

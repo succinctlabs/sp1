@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::{NumLimbs, NB_BITS_PER_LIMB};
+use crate::operations::field::params::NB_BITS_PER_LIMB;
+use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 use k256::FieldElement;

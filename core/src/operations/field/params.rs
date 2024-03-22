@@ -1,10 +1,9 @@
 use crate::air::Polynomial;
 use generic_array::{ArrayLength, GenericArray};
 use std::fmt::Debug;
-use std::ops::{Div, Index};
+use std::ops::Index;
 use std::slice::Iter;
 use std::usize;
-use typenum::{U2, U32, U4, U62};
 
 pub const NB_BITS_PER_LIMB: usize = 8;
 
@@ -17,45 +16,6 @@ pub const NB_BITS_PER_LIMB: usize = 8;
 pub struct Limbs<T, N: ArrayLength>(pub GenericArray<T, N>);
 
 impl<T: Copy, N: ArrayLength> Copy for Limbs<T, N> where N::ArrayType<T>: Copy {}
-
-/// Trait that holds the typenum values for # of limbs and # of witness limbs.
-pub trait NumLimbs: Clone + Debug {
-    type Limbs: ArrayLength + Debug;
-    type Witness: ArrayLength + Debug;
-}
-
-/// Trait that holds number of words needed to represent a field element and a curve point.
-pub trait NumWords: Clone + Debug {
-    /// The number of words needed to represent a field element.
-    type WordsFieldElement: ArrayLength + Debug;
-    /// The number of words needed to represent a curve point (two field elements).
-    type WordsCurvePoint: ArrayLength + Debug;
-}
-
-/// Implement NumWords for NumLimbs where # Limbs is divisible by 4.
-///
-/// Using typenum we can do N/4 and N/2 in type-level arithmetic. Having it as a separate trait
-/// avoids needing the Div where clauses everywhere.
-impl<N: NumLimbs> NumWords for N
-where
-    N::Limbs: Div<U4>,
-    N::Limbs: Div<U2>,
-    <N::Limbs as Div<U4>>::Output: ArrayLength + Debug,
-    <N::Limbs as Div<U2>>::Output: ArrayLength + Debug,
-{
-    /// Each word has 4 limbs so we divide by 4.
-    type WordsFieldElement = <N::Limbs as Div<U4>>::Output;
-    /// Curve point has 2 field elements so we divide by 2.
-    type WordsCurvePoint = <N::Limbs as Div<U2>>::Output;
-}
-
-#[derive(Debug, Clone)]
-pub struct NumLimbs32;
-
-impl NumLimbs for NumLimbs32 {
-    type Limbs = U32;
-    type Witness = U62;
-}
 
 impl<T, N: ArrayLength> Default for Limbs<T, N>
 where

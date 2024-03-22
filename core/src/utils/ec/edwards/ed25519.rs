@@ -5,8 +5,9 @@ use std::str::FromStr;
 use typenum::{U32, U62};
 
 use super::NUM_LIMBS;
-use crate::operations::field::params::{NumLimbs, NB_BITS_PER_LIMB};
+use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
+use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
 
