@@ -369,7 +369,7 @@ pub mod baby_bear_poseidon2 {
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
     pub struct BabyBearPoseidon2 {
-        perm: Perm,
+        pub perm: Perm,
         pcs: Pcs,
     }
 

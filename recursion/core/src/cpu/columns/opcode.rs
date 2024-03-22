@@ -86,6 +86,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::JAL => self.is_jal = F::one(),
             Opcode::JALR => self.is_jalr = F::one(),
             Opcode::TRAP => self.is_trap = F::one(),
+            _ => unimplemented!(),
         }
     }
 }
