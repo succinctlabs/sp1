@@ -1,4 +1,4 @@
-use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, Usize};
+use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, SymbolicUsize, Usize};
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
@@ -96,6 +96,21 @@ impl<C: Config> Builder<C> {
         rhs: RhsExpr,
     ) {
         self.assert_ne::<Felt<C::F>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_usize_eq<
+        LhsExpr: Into<SymbolicUsize<C::N>>,
+        RhsExpr: Into<SymbolicUsize<C::N>>,
+    >(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_eq::<Usize<C::N>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_usize_ne(&mut self, lhs: SymbolicUsize<C::N>, rhs: SymbolicUsize<C::N>) {
+        self.assert_ne::<Usize<C::N>, _, _>(lhs, rhs);
     }
 
     pub fn assert_ext_eq<

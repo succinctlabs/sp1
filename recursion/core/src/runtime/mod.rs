@@ -26,6 +26,8 @@ pub const MEMORY_SIZE: usize = 1 << 26;
 pub const POSEIDON2_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
 
+pub const NUM_BITS: usize = 29;
+
 pub const D: usize = 4;
 
 #[derive(Debug, Clone, Default)]
@@ -376,8 +378,22 @@ where
                     for (i, value) in result.iter().enumerate() {
                         self.memory[dst + i].value[0] = *value;
                     }
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::HintBits => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
 
-                    // Get the array at the address.
+                    // Get the dst array ptr.
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    // Get the src value.
+                    let num = b_val[0].as_canonical_u32();
+                    // Decompose the num into bits.
+                    let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
+                    // Write the bits to the array at dst.
+                    for (i, bit) in bits.iter().enumerate() {
+                        self.memory[dst + i].value[0] = F::from_canonical_u32(*bit);
+                    }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
             };

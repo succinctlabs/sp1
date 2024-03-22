@@ -17,7 +17,7 @@ fn test_compiler_array() {
     let len: usize = 1000;
     let mut rng = thread_rng();
 
-    let mut static_array = builder.array::<Var<_>, _>(len);
+    let mut static_array = builder.array::<Var<_>>(len);
 
     // Put values statically
     for i in 0..len {
@@ -30,9 +30,9 @@ fn test_compiler_array() {
     }
 
     let dyn_len: Var<_> = builder.eval(F::from_canonical_usize(len));
-    let mut var_array = builder.array::<Var<_>, _>(dyn_len);
-    let mut felt_array = builder.array::<Felt<_>, _>(dyn_len);
-    let mut ext_array = builder.array::<Ext<_, _>, _>(dyn_len);
+    let mut var_array = builder.array::<Var<_>>(dyn_len);
+    let mut felt_array = builder.array::<Felt<_>>(dyn_len);
+    let mut ext_array = builder.array::<Ext<_, _>>(dyn_len);
     // Put values statically
     let var_vals = (0..len).map(|_| rng.gen::<F>()).collect::<Vec<_>>();
     let felt_vals = (0..len).map(|_| rng.gen::<F>()).collect::<Vec<_>>();
