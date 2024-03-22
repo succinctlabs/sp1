@@ -1,0 +1,14 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "merkle-tree-program"
+edition = "2021"
+
+[dependencies]
+alloy-merkle-tree = { git = "https://github.com/rkdud007/alloy-merkle-tree.git", branch = "sp1-support" }
+alloy-primitives = { git = "https://github.com/succinctlabs/alloy-core-private.git" }
+sp1-zkvm = { git = "https://github.com/succinctlabs/sp1.git" }
+tiny-keccak = { version = "2.0", features = ["keccak"] }
+
+[patch.crates-io]
+tiny-keccak = { git = "https://github.com/succinctlabs/tiny-keccak-private.git", branch = "chris/test" }
