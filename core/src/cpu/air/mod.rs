@@ -73,7 +73,7 @@ where
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
-            AB::Expr::one() - local.selectors.is_unimpl - local.selectors.reg_0_write,
+            AB::Expr::one() - (AB::Expr::one() - local.is_real) - local.selectors.reg_0_write,
         );
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
@@ -249,7 +249,6 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
     ) -> (AB::Expr, AB::Expr) {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
-        builder.assert_bool(is_ecall_instruction.clone());
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
         // We interpret the syscall_code as little-endian bytes and interpret each byte as a u8

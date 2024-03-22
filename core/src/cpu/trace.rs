@@ -503,6 +503,7 @@ impl CpuChip {
         let n_real_rows = values.len() / NUM_CPU_COLS;
         let last_row = &values[len - NUM_CPU_COLS..];
         let pc = last_row[CPU_COL_MAP.pc];
+        let shard = last_row[CPU_COL_MAP.shard];
         let clk = last_row[CPU_COL_MAP.clk];
 
         values.resize(n_real_rows.next_power_of_two() * NUM_CPU_COLS, F::zero());
@@ -515,15 +516,13 @@ impl CpuChip {
             )
         };
 
-        rows[n_real_rows..]
-            .iter_mut()
-            .enumerate()
-            .for_each(|(n, padded_row)| {
-                padded_row[CPU_COL_MAP.pc] = pc;
-                padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32((n as u32 + 1) * 4);
-                padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
-                padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
-            });
+        rows[n_real_rows..].iter_mut().for_each(|padded_row| {
+            padded_row[CPU_COL_MAP.pc] = pc;
+            padded_row[CPU_COL_MAP.shard] = shard;
+            padded_row[CPU_COL_MAP.clk] = clk;
+            padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
+            padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
+        });
     }
 }
 
