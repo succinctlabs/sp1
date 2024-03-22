@@ -73,7 +73,7 @@ where
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
-            AB::Expr::one() - (AB::Expr::one() - local.is_real) - local.selectors.reg_0_write,
+            local.is_real - local.selectors.reg_0_write,
         );
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
@@ -314,6 +314,7 @@ impl CpuChip {
             .when(next.is_real)
             .assert_eq(local.clk + clk_increment, next.clk);
 
+        // The clk value is carried down to the last row for non-real rows.
         builder
             .when_transition()
             .when_not(next.is_real)
@@ -337,7 +338,7 @@ impl CpuChip {
         is_branch_instruction: AB::Expr,
     ) {
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
-        // The other case is handled by eval_jump, eval_branch and eval_ecall.
+        // The other case is handled by eval_jump, eval_branch and eval_ecall (for halt).
         builder
             .when_transition()
             .when(next.is_real)
