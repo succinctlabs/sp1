@@ -396,15 +396,15 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     /// it will ensure that if the current and previous access are in the same shard, then the
     /// current's clk val is greater than the previous's.  If they are not in the same shard, then
     /// it will ensure that the current's shard val is greater than the previous's.
-    fn verify_mem_access_ts<Eb, Everify, EShard, EClk>(
+    fn verify_mem_access_ts<Eb, EVerify, EShard, EClk>(
         &mut self,
         mem_access: &MemoryAccessCols<Eb>,
-        do_check: Everify,
+        do_check: EVerify,
         shard: EShard,
         clk: EClk,
     ) where
         Eb: Into<Self::Expr> + Clone,
-        Everify: Into<Self::Expr>,
+        EVerify: Into<Self::Expr>,
         EShard: Into<Self::Expr>,
         EClk: Into<Self::Expr>,
     {
@@ -439,17 +439,42 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let diff_minus_one = current_comp_val - prev_comp_value - Self::Expr::one();
 
         // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb + mem_access.ts_diff_8bit_limb * 2^16.
-        self.when(do_check.clone()).assert_eq(
+        self.verify_range_24bits(
             diff_minus_one,
-            mem_access.diff_16bit_limb.clone().into()
-                + mem_access.diff_8bit_limb.clone().into()
-                    * Self::Expr::from_canonical_u32(1 << 16),
+            mem_access.diff_16bit_limb.clone(),
+            mem_access.diff_8bit_limb.clone(),
+            do_check,
+        );
+    }
+
+    /// Verifies the inputted value is within 24 bits.
+    ///
+    /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 8 bit range
+    /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
+    /// since the memory access timestamp check (see [Self::verify_mem_access_ts]) needs to assume
+    /// the clk is within 24 bits.
+    fn verify_range_24bits<EValue, ELimb, EVerify>(
+        &mut self,
+        value: EValue,
+        limb_16: ELimb,
+        limb_8: ELimb,
+        do_check: EVerify,
+    ) where
+        EValue: Into<Self::Expr>,
+        ELimb: Into<Self::Expr> + Clone,
+        EVerify: Into<Self::Expr> + Clone,
+    {
+        // Verify that value = limb_16 + limb_8 * 2^16.
+        self.when(do_check.clone()).assert_eq(
+            value,
+            limb_16.clone().into()
+                + limb_8.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
         );
 
         // Send the range checks for the limbs.
         self.send_byte(
             Self::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            mem_access.diff_16bit_limb.clone(),
+            limb_16,
             Self::Expr::zero(),
             Self::Expr::zero(),
             do_check.clone(),
@@ -459,7 +484,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
             Self::Expr::zero(),
             Self::Expr::zero(),
-            mem_access.diff_8bit_limb.clone(),
+            limb_8,
             do_check,
         )
     }

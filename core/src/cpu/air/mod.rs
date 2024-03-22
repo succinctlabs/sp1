@@ -299,7 +299,12 @@ impl CpuChip {
         )
     }
 
-    /// Constraints related to the shard and pc.
+    /// Constraints related to the shard and clk.
+    ///
+    /// This function ensures that all of the shard values are the same and that the clk starts at 0
+    /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
+    /// and clk values are within 24 bits.  Those range checks are needed for the memory access
+    /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
     pub(crate) fn shard_clk_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -313,9 +318,7 @@ impl CpuChip {
             .when(next.is_real)
             .assert_eq(local.shard, next.shard);
 
-        // Verify that the shard value is within 16 bits.  This is needed for the memory access
-        // timestamp check [MemoryAirBuilder::verify_mem_access_ts], which assumes that shard values
-        // are < 2^24.
+        // Verify that the shard value is within 16 bits.
         builder.send_byte(
             AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
             local.shard,
@@ -334,29 +337,11 @@ impl CpuChip {
             .when(next.is_real)
             .assert_eq(local.clk + clk_increment, next.clk);
 
-        // Range check that the clk is within 24 bits using it's limb values.  This is needed for
-        // the memory access timestamp check [MemoryAirBuilder::verify_mem_access_ts], which assumes
-        // that clk values are < 2^24.
+        // Range check that the clk is within 24 bits using it's limb values.
         // First verify that the limb values are correct.
-        builder.when(local.is_real).assert_eq(
+        builder.verify_range_24bits(
             local.clk,
-            local.clk_16bit_limb.into()
-                + local.clk_8bit_limb.into() * AB::Expr::from_canonical_u32(1 << 16),
-        );
-
-        // Range check the two limbs.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
             local.clk_16bit_limb,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            local.is_real,
-        );
-
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
             local.clk_8bit_limb,
             local.is_real,
         );
