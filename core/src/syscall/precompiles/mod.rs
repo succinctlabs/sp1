@@ -5,17 +5,12 @@ pub mod keccak256;
 pub mod sha256;
 pub mod weierstrass;
 
-
 use serde::{Deserialize, Serialize};
-
-
-
 
 use crate::runtime::SyscallContext;
 
 use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
-
 
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]

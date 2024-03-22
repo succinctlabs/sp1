@@ -73,7 +73,6 @@ mod tests {
     use num::{BigUint, One, Zero};
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
-    
 
     use super::{FieldSqrtCols, Limbs};
 
