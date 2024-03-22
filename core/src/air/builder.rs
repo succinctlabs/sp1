@@ -164,6 +164,13 @@ pub trait WordAirBuilder: ByteAirBuilder {
         }
     }
 
+    /// Asserts that the word is zero.
+    fn assert_word_zero<I: Into<Self::Expr>>(&mut self, word: Word<I>) {
+        for limb in word.0 {
+            self.assert_zero(limb);
+        }
+    }
+
     /// Check that each limb of the given slice is a u8.
     fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
         &mut self,

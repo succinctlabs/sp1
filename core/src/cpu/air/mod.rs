@@ -54,6 +54,10 @@ where
         builder
             .when_not(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
+        // If op_b is register 0, then ensure that its value is 0
+        builder
+            .when(local.instruction.op_b_0)
+            .assert_word_zero(local.op_b_val());
 
         builder.constraint_memory_access(
             local.shard,
@@ -65,6 +69,10 @@ where
         builder
             .when_not(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
+        // If op_c is register 0, then ensure that its value is 0
+        builder
+            .when(local.instruction.op_c_0)
+            .assert_word_zero(local.op_c_val());
 
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.
@@ -77,9 +85,14 @@ where
         );
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
+        // Also, if op_a is register 0, then ensure that its value is 0.
         builder
             .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+        builder
+            .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
+            .when(local.instruction.op_a_0)
+            .assert_word_zero(local.op_a_access.prev_value);
 
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
