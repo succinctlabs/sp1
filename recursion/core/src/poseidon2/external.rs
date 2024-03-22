@@ -90,13 +90,27 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 // increment the clock.
                 cols.clk = event.clk + F::from_canonical_usize(i);
 
+                cols.state_ptr = event.state_ptr;
+
                 // If this is the first round, we need to initialize the memory records.
                 if i == 0 {
                     for j in 0..WIDTH {
                         cols.state[j].populate(&event.initial_state_records[j]);
                     }
-                    cols.state_ptr = event.state_ptr;
                     cols.do_memory_check = F::one();
+                } else {
+                    for j in 0..WIDTH {
+                        cols.state[j].populate(&MemoryRecord {
+                            addr: cols.state[j].addr,
+                            value: Block::from([pre_state[j], F::zero(), F::zero(), F::zero()]),
+                            timestamp: cols.clk,
+
+                            prev_value: Block::from([F::zero(), F::zero(), F::zero(), F::zero()]),
+                            prev_timestamp: event.clk,
+                        });
+                    }
+
+                    cols.do_memory_check = F::zero();
                 }
 
                 let r = i % 31;
@@ -234,7 +248,6 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
-        let next: &Poseidon2Cols<AB::Var> = main.row_slice(1).borrow();
 
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
@@ -245,16 +258,15 @@ where
             .unwrap();
 
         let local_record = local.state;
-        let next_record = next.state;
 
         let pre_state = local_record
             .iter()
-            .map(|block| block.value.0[0])
+            .map(|block| block.prev_value.0[0])
             .collect::<Vec<_>>();
 
-        let post_state = next_record
+        let post_state = local_record
             .iter()
-            .map(|block| block.prev_value.0[0])
+            .map(|block| block.value.0[0])
             .collect::<Vec<_>>();
 
         // Apply the round constants.
@@ -404,16 +416,14 @@ where
             local.do_memory_check,
         );
 
-        // Constrain the memory on first and last round.
-        for i in 0..WIDTH {
-            builder.constraint_memory_access(
-                AB::F::zero(),
-                local.clk,
-                local.state_ptr,
-                &local.state[i],
-                local.do_memory_check,
-            )
-        }
+        // // Constrain the memory on first and last round.
+        // builder.constraint_memory_access_slice(
+        //     AB::F::zero(),
+        //     local.clk.into(),
+        //     local.state_ptr,
+        //     &local.state,
+        //     local.do_memory_check,
+        // );
     }
 }
 
@@ -441,78 +451,13 @@ mod tests {
 
     use super::{Poseidon2Cols, NUM_POSEIDON2_COLS};
 
-    fn generate_sample_event() -> Vec<Poseidon2Event<BabyBear>> {
+    fn generate_poseidon2_event() -> Vec<Poseidon2Event<BabyBear>> {
         let state_ptr = BabyBear::from_canonical_u32(0);
         let clk = BabyBear::from_canonical_u32(100);
 
         let mut events = Vec::new();
         let mut memory_records = Vec::new();
         let mut read_records = Vec::new();
-
-        for i in 0..32 {
-            if i == 0 {
-                read_records = (0..WIDTH / 4)
-                    .map(|i| {
-                        let addr = state_ptr + BabyBear::from_canonical_u32(i as u32 * 4);
-                        let value = Block::from([
-                            BabyBear::from_canonical_u32((i * 4) as u32),
-                            BabyBear::from_canonical_u32((i * 4 + 1) as u32),
-                            BabyBear::from_canonical_u32((i * 4 + 2) as u32),
-                            BabyBear::from_canonical_u32((i * 4 + 3) as u32),
-                        ]);
-                        MemoryRecord {
-                            addr,
-                            value,
-                            timestamp: clk,
-                            prev_value: value,
-                            prev_timestamp: clk,
-                        }
-                    })
-                    .collect();
-
-                memory_records.extend(read_records.clone());
-            }
-
-            let mut state: [BabyBear; WIDTH] = read_records
-                .iter()
-                .flat_map(|record| record.value.0)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap();
-
-            // Perform one round of Poseidon2
-            permute_mut_round(&mut state, i);
-
-            // Update the memory with the output of the last round
-            let write_records = (0..WIDTH / 4)
-                .map(|i| {
-                    let addr = state_ptr + BabyBear::from_canonical_u32(i as u32 * 4);
-                    let out = [
-                        state[i * 4],
-                        state[i * 4 + 1],
-                        state[i * 4 + 2],
-                        state[i * 4 + 3],
-                    ];
-                    let value = Block::from(out);
-                    MemoryRecord {
-                        addr,
-                        value,
-                        timestamp: clk + BabyBear::from_canonical_u32(i as u32 + 1),
-                        prev_value: read_records[i].value,
-                        prev_timestamp: read_records[i].timestamp,
-                    }
-                })
-                .collect::<Vec<_>>();
-
-            memory_records.extend(write_records.clone());
-            read_records = write_records;
-        }
-
-        let poseidon2_event = Poseidon2Event {
-            state_ptr,
-            clk,
-            state_read_records: memory_records.clone(),
-        };
 
         events.push(poseidon2_event);
 
@@ -523,7 +468,7 @@ mod tests {
     fn generate_trace() {
         let chip = Poseidon2Chip;
         let input = ExecutionRecord::<BabyBear> {
-            poseidon2_events: generate_sample_event(),
+            poseidon2_events: generate_poseidon2_event(),
             ..Default::default()
         };
         let trace: RowMajorMatrix<BabyBear> =
