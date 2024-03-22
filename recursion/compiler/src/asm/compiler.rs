@@ -403,6 +403,24 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::StoreV(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreF(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
                 DslIR::StoreE(ptr, var) => self.push(AsmInstruction::SE(ptr.fp(), var.fp())),
+                DslIR::HintBitsU(dst, src) => match (dst, src) {
+                    (Array::Dyn(dst, _), Usize::Var(src)) => {
+                        self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
+                    }
+                    _ => unimplemented!(),
+                },
+                DslIR::HintBitsF(dst, src) => match dst {
+                    Array::Dyn(dst, _) => {
+                        self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
+                    }
+                    _ => unimplemented!(),
+                },
+                DslIR::HintBitsV(dst, src) => match dst {
+                    Array::Dyn(dst, _) => {
+                        self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
+                    }
+                    _ => unimplemented!(),
+                },
                 DslIR::Num2BitsF(_, _) => unimplemented!(),
                 DslIR::Num2BitsV(_, _) => unimplemented!(),
                 DslIR::Poseidon2Compress(_, _, _) => unimplemented!(),
@@ -444,13 +462,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
             is_eq,
         };
         if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
-    }
-
-    pub fn num_2_bits(&mut self, array_ptr: Ptr<F>, element: i32) {
-        // Store the bits of `F` in the array, storing `4` bits at a time.
-        for i in 0..4 {
-            self.push(AsmInstruction::HintBits(array_ptr.fp(), element, i));
-        }
     }
 
     pub fn code(self) -> AssemblyCode<F, EF> {
