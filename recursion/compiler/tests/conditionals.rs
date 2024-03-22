@@ -16,12 +16,26 @@ fn test_compiler_conditionals() {
     let a: Var<_> = builder.eval(F::zero());
     let b: Var<_> = builder.eval(F::one());
     let c: Var<_> = builder.eval(F::zero());
+    let d: Var<_> = builder.eval(F::zero());
 
     builder
         .if_ne(a, b)
         .then(|builder| builder.assign(c, F::two()));
+    builder.assert_var_eq(c, F::two());
 
-    builder.assert_var_eq(b, F::one());
+    builder.if_ne(a, d).then_or_else(
+        |builder| builder.assign(c, F::two() + F::two()),
+        |builder| builder.assign(c, F::one()),
+    );
+    builder.assert_var_eq(c, F::one());
+
+    // Test nested if statements.
+    builder.if_ne(a, b).then(|builder| {
+        builder.if_ne(a, b).then(|builder| {
+            builder.assign(c, F::from_canonical_u32(20));
+        });
+    });
+    builder.assert_var_eq(c, F::from_canonical_u32(20));
 
     let code = builder.compile_to_asm();
     println!("{}", code);
