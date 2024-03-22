@@ -276,7 +276,7 @@ where
         // Internal Layers: Only apply the round constants to the first element.
         for i in 0..WIDTH {
             let mut result: AB::Expr = pre_state[i].into();
-            for r in 0..32 {
+            for r in 0..30 {
                 if i == 0 {
                     result += local.rounds[r + 1]
                         * constants[r][i]
@@ -452,16 +452,69 @@ mod tests {
     use super::{Poseidon2Cols, NUM_POSEIDON2_COLS};
 
     fn generate_poseidon2_event() -> Vec<Poseidon2Event<BabyBear>> {
-        let state_ptr = BabyBear::from_canonical_u32(0);
+        let state_ptr = BabyBear::from_canonical_u32(100);
         let clk = BabyBear::from_canonical_u32(100);
+        let mut initial_state_records = Vec::new();
+        let mut initial_state = [BabyBear::one(); WIDTH];
 
-        let mut events = Vec::new();
-        let mut memory_records = Vec::new();
-        let mut read_records = Vec::new();
+        for i in 0..WIDTH {
+            initial_state[i] = BabyBear::from_canonical_u32(i as u32);
+            initial_state_records.push(MemoryRecord {
+                addr: state_ptr + BabyBear::from_canonical_usize(i),
+                value: Block::from([
+                    initial_state[i],
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                ]),
+                timestamp: clk,
+                prev_value: Block::from([
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                ]),
+                prev_timestamp: clk,
+            });
+        }
 
-        events.push(poseidon2_event);
+        let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> =
+            Poseidon2::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
 
-        events
+        let final_state = gt.permute(initial_state);
+
+        let mut final_state_records = Vec::new();
+
+        for i in 0..WIDTH {
+            final_state_records.push(MemoryRecord {
+                addr: state_ptr + BabyBear::from_canonical_usize(i),
+                value: Block::from([
+                    final_state[i],
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                ]),
+                timestamp: clk + BabyBear::from_canonical_usize(31),
+                prev_value: Block::from([
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                    BabyBear::zero(),
+                ]),
+                prev_timestamp: clk - BabyBear::from_canonical_usize(1),
+            });
+        }
+
+        let poseidon2_event = Poseidon2Event {
+            state_ptr,
+            clk,
+            initial_state,
+            initial_state_records,
+            final_state,
+            final_state_records,
+        };
+
+        vec![poseidon2_event]
     }
 
     #[test]
@@ -473,7 +526,7 @@ mod tests {
         };
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input, &mut ExecutionRecord::<BabyBear>::default());
-        println!("{:?}", trace.values)
+        // println!("{:?}", trace.values)
     }
 
     #[test]
@@ -483,7 +536,7 @@ mod tests {
 
         let chip = Poseidon2Chip;
         let input = ExecutionRecord::<BabyBear> {
-            poseidon2_events: generate_sample_event(),
+            poseidon2_events: generate_poseidon2_event(),
             ..Default::default()
         };
         let trace: RowMajorMatrix<BabyBear> =
@@ -491,7 +544,7 @@ mod tests {
 
         let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> =
             Poseidon2::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-        let input = [BabyBear::one(); WIDTH];
+        let input = input.poseidon2_events[0].initial_state;
         let output = gt.permute(input);
 
         let mut row: [BabyBear; NUM_POSEIDON2_COLS] = trace.values
@@ -503,7 +556,7 @@ mod tests {
         let memory_record = cols.state;
         let output_state: [BabyBear; WIDTH] = memory_record
             .iter()
-            .flat_map(|block| block.value.0)
+            .map(|block| block.value.0[0])
             .collect::<Vec<_>>()
             .try_into()
             .unwrap();
