@@ -1,21 +1,47 @@
 use crate::air::Polynomial;
 use generic_array::{ArrayLength, GenericArray};
 use std::fmt::Debug;
-use std::ops::Index;
+use std::ops::{Div, Index};
 use std::slice::Iter;
 use std::usize;
-use typenum::{U32, U62};
+use typenum::{U2, U32, U4, U62};
 
 pub const NB_BITS_PER_LIMB: usize = 8;
 
 #[derive(Debug, Clone)]
+/// An array representing N limbs of T.
+///
+/// GenericArray allows us to constrain the correct array lengths so we can have # of limbs and # of
+/// witness limbs associated in NumLimbs / FieldParameters.
+/// See: https://github.com/RustCrypto/traits/issues/1481
 pub struct Limbs<T, N: ArrayLength>(pub GenericArray<T, N>);
 
 impl<T: Copy, N: ArrayLength> Copy for Limbs<T, N> where N::ArrayType<T>: Copy {}
 
+/// Trait that holds the typenum values for # of limbs and # of witness limbs.
 pub trait NumLimbs: Clone + Debug {
     type Limbs: ArrayLength + Debug;
     type Witness: ArrayLength + Debug;
+}
+
+/// Trait that holds word numbers.
+pub trait NumWords: Clone + Debug {
+    /// The number of words needed to represent a field element.
+    type WordsFieldElement: ArrayLength + Debug;
+    /// The number of words needed to represent a curve point (two field elements).
+    type WordsCurvePoint: ArrayLength + Debug;
+}
+
+/// Implement NumWords for NumLimbs where # Limbs is divisible by 4.
+impl<N: NumLimbs> NumWords for N
+where
+    N::Limbs: Div<U4>,
+    N::Limbs: Div<U2>,
+    <N::Limbs as Div<U4>>::Output: ArrayLength + Debug,
+    <N::Limbs as Div<U2>>::Output: ArrayLength + Debug,
+{
+    type WordsFieldElement = <N::Limbs as Div<U4>>::Output;
+    type WordsCurvePoint = <N::Limbs as Div<U2>>::Output;
 }
 
 #[derive(Debug, Clone)]

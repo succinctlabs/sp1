@@ -7,6 +7,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::operations::field::params::NumLimbs;
+use crate::operations::field::params::NumWords;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
@@ -16,12 +17,11 @@ use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::ec::NUM_WORDS_EC_POINT;
-use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use generic_array::GenericArray;
 use num::BigUint;
 use num::Zero;
 use p3_air::AirBuilder;
@@ -33,8 +33,9 @@ use p3_matrix::MatrixRowSlices;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
+use typenum::Unsigned;
 
-pub const fn num_weierstrass_add_cols<P: FieldParameters>() -> usize {
+pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
 }
 
@@ -44,14 +45,14 @@ pub const fn num_weierstrass_add_cols<P: FieldParameters>() -> usize {
 /// made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct WeierstrassAddAssignCols<T, P: FieldParameters> {
+pub struct WeierstrassAddAssignCols<T, P: FieldParameters + NumWords> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub p_access: [MemoryWriteCols<T>; NUM_WORDS_EC_POINT],
-    pub q_access: [MemoryReadCols<T>; NUM_WORDS_EC_POINT],
+    pub p_access: GenericArray<MemoryWriteCols<T>, P::WordsCurvePoint>,
+    pub q_access: GenericArray<MemoryReadCols<T>, P::WordsCurvePoint>,
     pub(crate) slope_denominator: FieldOpCols<T, P>,
     pub(crate) slope_numerator: FieldOpCols<T, P>,
     pub(crate) slope: FieldOpCols<T, P>,
@@ -177,10 +178,10 @@ where
             Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
 
             // Populate the memory access columns.
-            for i in 0..NUM_WORDS_EC_POINT {
+            for i in 0..cols.q_access.len() {
                 cols.q_access[i].populate(event.q_memory_records[i], &mut new_byte_lookup_events);
             }
-            for i in 0..NUM_WORDS_EC_POINT {
+            for i in 0..cols.p_access.len() {
                 cols.p_access[i].populate(event.p_memory_records[i], &mut new_byte_lookup_events);
             }
 
@@ -224,15 +225,13 @@ where
         let main = builder.main();
         let row: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = main.row_slice(0).borrow();
 
-        let p_x: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
-            limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let p_y: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
-            limbs_from_prev_access(&row.p_access[NUM_WORDS_FIELD_ELEMENT..]);
+        let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 4;
 
-        let q_x: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
-            limbs_from_prev_access(&row.q_access[0..NUM_WORDS_FIELD_ELEMENT]);
-        let q_y: Limbs<<AB as AirBuilder>::Var, <E::BaseField as NumLimbs>::Limbs> =
-            limbs_from_prev_access(&row.q_access[NUM_WORDS_FIELD_ELEMENT..]);
+        let p_x = limbs_from_prev_access(&row.p_access[0..num_words_field_element]);
+        let p_y = limbs_from_prev_access(&row.p_access[num_words_field_element..]);
+
+        let q_x = limbs_from_prev_access(&row.q_access[0..num_words_field_element]);
+        let q_y = limbs_from_prev_access(&row.q_access[num_words_field_element..]);
 
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
