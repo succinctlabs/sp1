@@ -7,6 +7,9 @@ use std::{marker::PhantomData, sync::Arc};
 
 pub use instruction::*;
 pub use opcode::*;
+use p3_poseidon2::Poseidon2;
+use p3_symmetric::CryptographicPermutation;
+use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
 
@@ -19,6 +22,9 @@ use sp1_core::runtime::MemoryAccessPosition;
 
 pub const STACK_SIZE: usize = 1 << 20;
 pub const MEMORY_SIZE: usize = 1 << 26;
+
+pub const POSEIDON2_WIDTH: usize = 16;
+pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
 
 pub const D: usize = 4;
 
@@ -35,7 +41,7 @@ pub struct MemoryEntry<F: PrimeField32> {
     pub timestamp: F,
 }
 
-pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>> {
+pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The current clock.
     pub clk: F,
 
@@ -57,11 +63,20 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
+    perm: Poseidon2<F, Diffusion, POSEIDON2_WIDTH, POSEIDON2_SBOX_DEGREE>,
+
     _marker: PhantomData<EF>,
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
-    pub fn new(program: &Program<F>) -> Self {
+impl<F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<F, EF, Diffusion>
+where
+    Poseidon2<F, Diffusion, POSEIDON2_WIDTH, POSEIDON2_SBOX_DEGREE>:
+        CryptographicPermutation<[F; POSEIDON2_WIDTH]>,
+{
+    pub fn new(
+        program: &Program<F>,
+        perm: Poseidon2<F, Diffusion, POSEIDON2_WIDTH, POSEIDON2_SBOX_DEGREE>,
+    ) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
             ..Default::default()
@@ -73,6 +88,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
             pc: F::zero(),
             memory: vec![MemoryEntry::default(); MEMORY_SIZE],
             record,
+            perm,
             access: CpuRecord::default(),
             _marker: PhantomData,
         }
@@ -173,6 +189,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         let a_ptr = if instruction.imm_b {
+            // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
             self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
@@ -335,6 +352,33 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                 }
                 Opcode::TRAP => {
                     panic!("TRAP instruction encountered")
+                }
+                Opcode::Poseidon2Perm => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+
+                    // Get the dst array ptr.
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    // Get the src array ptr.
+                    let src = b_val[0].as_canonical_u32() as usize;
+
+                    let array: [_; POSEIDON2_WIDTH] = self.memory[src..src + POSEIDON2_WIDTH]
+                        .iter()
+                        .map(|entry| entry.value[0])
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    // Perform the permutation.
+                    let result = self.perm.permute(array);
+
+                    // Write the value back to the array at ptr.
+                    // TODO: fix the timestamp as part of integrating the precompile if needed.
+                    for (i, value) in result.iter().enumerate() {
+                        self.memory[dst + i].value[0] = *value;
+                    }
+
+                    // Get the array at the address.
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
             };
 

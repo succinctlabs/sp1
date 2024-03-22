@@ -1,12 +1,14 @@
 use p3_baby_bear::BabyBear;
 use p3_field::extension::BinomialExtensionField;
 use p3_field::AbstractField;
+use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::Runtime;
 
 #[test]
 fn test_compiler_conditionals() {
+    type SC = BabyBearPoseidon2;
     type F = BabyBear;
     type EF = BinomialExtensionField<BabyBear, 4>;
     let mut builder = VmBuilder::<F, EF>::default();
@@ -26,6 +28,7 @@ fn test_compiler_conditionals() {
     // let program = builder.compile();
     let program = code.machine_code();
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }

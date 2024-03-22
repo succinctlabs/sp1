@@ -41,7 +41,7 @@ pub struct AddSubCols<T> {
     /// It's result will be `a` for the add operation and `b` for the sub operation.
     pub add_operation: AddOperation<T>,
 
-    /// The first input operand.  This will be `b` for add operations and `c` for sub operations
+    /// The first input operand.  This will be `b` for add operations and `c` for sub operations.
     pub operand_1: Word<T>,
 
     /// The second input operand.  This will be `c` for both operations.

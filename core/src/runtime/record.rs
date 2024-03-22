@@ -238,18 +238,33 @@ impl MachineRecord for ExecutionRecord {
 
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
-        let num_shards = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size;
+        let num_cpu_events = self.cpu_events.len();
+        let mut num_shards = 0;
+        if num_cpu_events > 0 {
+            // The first shard is at 1.  See [ExecutionState::new].
+            num_shards = self.cpu_events[num_cpu_events - 1].shard;
+        }
+
         let mut shards = (0..num_shards)
             .map(|_| ExecutionRecord::default())
             .collect::<Vec<_>>();
-        while !self.cpu_events.is_empty() {
-            // Iterate from end so we can truncate cpu_events as we go.
-            let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
-            let start = index * config.shard_size;
-            let shard = &mut shards[index];
-            shard.index = (index + 1) as u32;
-            shard.cpu_events = self.cpu_events.split_off(start);
-            shard.program = self.program.clone();
+        let mut start_idx = 0;
+        let mut current_shard_num = 1;
+        for (i, cpu_event) in self.cpu_events.iter().enumerate() {
+            let at_last_event = i == num_cpu_events - 1;
+            if cpu_event.shard != current_shard_num || at_last_event {
+                let last_idx = if at_last_event { i + 1 } else { i };
+
+                let shard = &mut shards[current_shard_num as usize - 1];
+                shard.index = current_shard_num;
+                shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
+                shard.program = self.program.clone();
+
+                if !(at_last_event) {
+                    start_idx = i;
+                    current_shard_num = cpu_event.shard;
+                }
+            }
         }
 
         // Shard all the other events according to the configuration.
