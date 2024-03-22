@@ -142,6 +142,15 @@ where
 
         self.halt_unimpl_eval(builder, local, next, is_halt);
 
+        // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
+        // change value.
+        builder.assert_bool(local.is_real);
+        builder.when_first_row().assert_one(local.is_real);
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(local.is_real);
+
         // Dummy constraint of degree 3.
         builder.assert_eq(
             local.pc * local.pc * local.pc,
@@ -330,6 +339,10 @@ impl CpuChip {
         );
     }
 
+    /// Constraints related to the pc for non jump, branch, and halt instructions.
+    ///
+    /// The function will verify that the pc increments by 4 for all instructions except branch, jump
+    /// and halt instructions. Also, it ensures that the pc is carried down to the last row for non-real rows.
     pub(crate) fn pc_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -345,12 +358,14 @@ impl CpuChip {
             .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
+        // The pc value is carried down to the last row for non-real rows.
         builder
             .when_transition()
             .when_not(next.is_real)
             .assert_eq(local.pc, next.pc);
     }
 
+    /// Constraint related to the halt and unimpl instruction.
     pub(crate) fn halt_unimpl_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -363,13 +378,6 @@ impl CpuChip {
             .when_transition()
             .when(is_halt + local.selectors.is_unimpl)
             .assert_zero(next.is_real);
-
-        builder.assert_bool(local.is_real);
-        builder.when_first_row().assert_one(local.is_real);
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .assert_zero(local.is_real);
     }
 }
 
