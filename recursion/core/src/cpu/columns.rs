@@ -24,6 +24,8 @@ pub struct CpuCols<T> {
     pub beq: T,
     pub bne: T,
 
+    pub is_poseidon: T,
+
     // c = a + b;
     pub add_scratch: T,
 

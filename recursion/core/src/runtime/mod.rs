@@ -12,7 +12,7 @@ pub use record::*;
 
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
-use crate::poseidon2::Poseidon2Event;
+use crate::poseidon2::{permute_mut_round, Poseidon2Event};
 use crate::{air::Block, poseidon2::WIDTH};
 
 use p3_field::{ExtensionField, PrimeField32};
@@ -364,35 +364,25 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                         }
 
                         // input state
-                        let state: [F; WIDTH] = read_records
+                        let mut state: [F; WIDTH] = read_records
                             .iter()
-                            .take(WIDTH / 4)
                             .flat_map(|block| block.value.0)
                             .collect::<Vec<_>>()
                             .try_into()
                             .unwrap();
 
-                        // let poseidon2 = Poseidon2::new(
-                        //     ROUNDS_F,
-                        //     ROUNDS_P,
-                        //     RC_16_30.to_vec(),
-                        //     DiffusionMatrixBabybear,
-                        // );
-
                         // perform one round of poseidon2
-                        // poseidon2.permute_mut(&mut state);
-
-                        let output = state.clone();
+                        permute_mut_round(&mut state, i);
 
                         // Update the memory with the output of the last round
                         let write_records = (0..WIDTH / 4)
                             .map(|i| {
                                 let addr = state_ptr + F::from_canonical_u32(i as u32 * 4);
                                 let out = [
-                                    output[i * 4],
-                                    output[i * 4 + 1],
-                                    output[i * 4 + 2],
-                                    output[i * 4 + 3],
+                                    state[i * 4],
+                                    state[i * 4 + 1],
+                                    state[i * 4 + 2],
+                                    state[i * 4 + 3],
                                 ];
                                 let value = Block::from(out);
                                 self.mw(addr, value, MemoryAccessPosition::A)
@@ -412,11 +402,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
 
                     self.record.poseidon2_events.push(poseidon2_event);
 
-                    (a, b, c) = (
-                        Block::from([state_ptr, F::zero(), F::zero(), F::zero()]),
-                        Block::default(),
-                        Block::default(),
-                    );
+                    (a, b, c) = (Block::default(), Block::default(), Block::default());
                 }
             }
 

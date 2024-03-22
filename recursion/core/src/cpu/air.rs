@@ -80,6 +80,9 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                     Opcode::BNE => {
                         cols.is_bne = F::one();
                     }
+                    Opcode::POSEIDON2 => {
+                        cols.is_poseidon = F::one();
+                    }
                     _ => {}
                 };
 
