@@ -273,7 +273,6 @@ impl CpuChip {
         //     .when_not(is_lwa)
         //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
-        // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
         (
             num_cycles * is_ecall_instruction.clone(),
             is_halt * is_ecall_instruction,
@@ -344,6 +343,11 @@ impl CpuChip {
             .when(next.is_real)
             .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+        builder
+            .when_transition()
+            .when_not(next.is_real)
+            .assert_eq(local.pc, next.pc);
     }
 
     pub(crate) fn halt_unimpl_eval<AB: SP1AirBuilder>(
