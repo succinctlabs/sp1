@@ -1,6 +1,9 @@
 mod domain;
 mod opening;
-pub mod utils;
+mod utils;
+
+pub use domain::*;
+pub use opening::*;
 
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
@@ -9,14 +12,10 @@ use p3_field::AbstractField;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
 
+use super::folder::RecursiveVerifierConstraintFolder;
 use crate::prelude::Config;
 use crate::prelude::ExtConst;
 use crate::prelude::{Builder, Ext, SymbolicExt};
-
-pub use domain::*;
-pub use opening::*;
-
-use super::folder::RecursiveVerifierConstraintFolder;
 
 // pub struct TwoAdicCose
 
