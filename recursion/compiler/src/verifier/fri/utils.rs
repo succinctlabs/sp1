@@ -346,7 +346,6 @@ mod tests {
         // Materialize the number as a var
         let x: Var<_> = builder.eval(F::from_canonical_usize(x_val));
 
-        // Get the reference value.
         for i in 1..NUM_BITS {
             // Get the reference value.
             let expected_value = reverse_bits_len(x_val, i);
