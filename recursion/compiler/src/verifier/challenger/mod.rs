@@ -108,3 +108,68 @@ impl<C: Config> DuplexChallenger<C> {
             .then(|builder| builder.error());
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::asm::AsmConfig;
+    use crate::asm::VmBuilder;
+    use crate::ir::Felt;
+    use crate::ir::Usize;
+    use crate::ir::Var;
+    use crate::verifier::challenger::DuplexChallenger;
+    use p3_challenger::CanObserve;
+    use p3_challenger::CanSample;
+    use p3_field::AbstractField;
+    use p3_field::PrimeField32;
+    use sp1_core::stark::StarkGenericConfig;
+    use sp1_core::utils::BabyBearPoseidon2;
+    use sp1_recursion_core::runtime::Runtime;
+    use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
+
+    #[test]
+    fn test_compiler_challenger() {
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+
+        let config = SC::default();
+        let mut challenger = config.challenger();
+        challenger.observe(F::one());
+        challenger.observe(F::two());
+        challenger.observe(F::two());
+        challenger.observe(F::two());
+        let result: F = challenger.sample();
+        println!("expected result: {}", result);
+
+        let mut builder = VmBuilder::<F, EF>::default();
+
+        let width: Var<_> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
+        let mut challenger = DuplexChallenger::<AsmConfig<F, EF>> {
+            sponge_state: builder.array(Usize::Var(width)),
+            nb_inputs: builder.eval(F::zero()),
+            input_buffer: builder.array(Usize::Var(width)),
+            nb_outputs: builder.eval(F::zero()),
+            output_buffer: builder.array(Usize::Var(width)),
+        };
+        let one: Felt<_> = builder.eval(F::one());
+        let two: Felt<_> = builder.eval(F::two());
+        challenger.observe(&mut builder, one);
+        challenger.observe(&mut builder, two);
+        challenger.observe(&mut builder, two);
+        challenger.observe(&mut builder, two);
+        let element = challenger.sample(&mut builder);
+
+        let expected_result: Felt<_> = builder.eval(result);
+        builder.assert_felt_eq(expected_result, element);
+
+        let program = builder.compile();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+        runtime.run();
+        println!(
+            "The program executed successfully, number of cycles: {}",
+            runtime.clk.as_canonical_u32() / 4
+        );
+    }
+}
