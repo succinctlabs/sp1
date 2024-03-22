@@ -102,6 +102,32 @@ impl<C: Config> Builder<C> {
         output
     }
 
+    pub fn bits_to_num_felt(&mut self, bits: &Array<C, Var<C::N>>) -> Felt<C::F> {
+        let num: Felt<_> = self.eval(C::F::zero());
+        for i in 0..NUM_BITS {
+            let bit = self.get(bits, i);
+            // Add `bit * 2^i` to the sum.
+            self.if_eq(bit, C::N::one()).then(|builder| {
+                builder.assign(num, num + C::F::from_canonical_u32(1 << i));
+            });
+        }
+        num
+    }
+
+    pub fn bits_to_num_var(&mut self, bits: &Array<C, Var<C::N>>) -> Var<C::N> {
+        let num: Var<_> = self.eval(C::N::zero());
+        for i in 0..NUM_BITS {
+            let bit = self.get(bits, i);
+            // Add `bit * 2^i` to the sum.
+            self.assign(num, num + bit * C::N::from_canonical_u32(1 << i));
+        }
+        num
+    }
+
+    pub fn bits_to_num_usize(&mut self, bits: &Array<C, Var<C::N>>) -> Usize<C::N> {
+        self.bits_to_num_var(bits).into()
+    }
+
     /// Applies the Poseidon2 permutation to the given array.
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
@@ -268,6 +294,14 @@ mod tests {
             let bit_usize = builder.get(&bits_usize, i);
             builder.assert_var_eq(bit_usize, expected_bit);
         }
+
+        // Test the conversion back to a number.
+        let num_back = builder.bits_to_num_var(&bits);
+        builder.assert_var_eq(num_back, num);
+        let num_felt_back = builder.bits_to_num_felt(&bits_felt);
+        builder.assert_felt_eq(num_felt_back, num_felt);
+        let num_usize_back = builder.bits_to_num_usize(&bits_usize);
+        builder.assert_usize_eq(num_usize_back, num_usize);
 
         let program = builder.compile();
 
