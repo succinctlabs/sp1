@@ -48,6 +48,8 @@ pub struct OpcodeSelectorCols<T> {
     /// Miscellaneous.
     pub is_auipc: T,
     pub is_unimpl: T,
+
+    // TODO: Is this needed?
     pub reg_0_write: T,
 }
 

@@ -70,6 +70,7 @@ where
         // we are performing a branch or a store.
         // If we are writing to register 0, then the new value should be zero.
         builder
+            .when_not(local.selectors.is_jal + local.selectors.is_jalr)
             .when(local.instruction.op_a_0)
             .assert_word_zero(*local.op_a_access.value());
         builder.constraint_memory_access(
@@ -194,6 +195,7 @@ impl CpuChip {
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .when_not(local.instruction.op_a_0)
             .assert_eq(
                 local.op_a_val().reduce::<AB>(),
                 local.pc + AB::F::from_canonical_u8(4),

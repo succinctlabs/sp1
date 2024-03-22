@@ -648,14 +648,22 @@ impl Runtime {
                 let (rd, imm) = instruction.j_type();
                 (b, c) = (imm, 0);
                 a = self.state.pc + 4;
-                self.rw(rd, a);
+
+                if rd != Register::X0 {
+                    self.rw(rd, a);
+                }
+
                 next_pc = self.state.pc.wrapping_add(imm);
             }
             Opcode::JALR => {
                 let (rd, rs1, imm) = instruction.i_type();
                 (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
                 a = self.state.pc + 4;
-                self.rw(rd, a);
+
+                if rd != Register::X0 {
+                    self.rw(rd, a);
+                }
+
                 next_pc = b.wrapping_add(c);
             }
 
