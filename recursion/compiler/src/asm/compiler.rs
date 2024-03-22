@@ -406,9 +406,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::Num2BitsF(_, _) => unimplemented!(),
                 DslIR::Num2BitsV(_, _) => unimplemented!(),
                 DslIR::Poseidon2Compress(_, _, _) => unimplemented!(),
-                DslIR::Poseidon2Permute(array) => match array {
-                    Array::Fixed(_) => unimplemented!(),
-                    Array::Dyn(ptr, _) => self.push(AsmInstruction::Poseidon2Permute(ptr.fp())),
+                DslIR::Poseidon2Permute(dst, src) => match (dst, src) {
+                    (Array::Dyn(dst, _), Array::Dyn(src, _)) => {
+                        self.push(AsmInstruction::Poseidon2Permute(dst.fp(), src.fp()))
+                    }
+                    _ => unimplemented!(),
                 },
                 DslIR::ReverseBitsLen(_, _, _) => unimplemented!(),
                 DslIR::TwoAdicGenerator(_, _) => unimplemented!(),

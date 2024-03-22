@@ -136,7 +136,7 @@ pub enum AsmInstruction<F, EF> {
 
     // Hashing instructions.
     /// Perform a permutation of the Poseidon2 hash function on the array specified by the ptr.
-    Poseidon2Permute(i32),
+    Poseidon2Permute(i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -597,12 +597,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             }
             AsmInstruction::HintBits(_, _, _) => unimplemented!(),
             AsmInstruction::Bits4toNum(_, _, _) => unimplemented!(),
-            AsmInstruction::Poseidon2Permute(ptr) => Instruction::new(
+            AsmInstruction::Poseidon2Permute(dst, src) => Instruction::new(
                 Opcode::Poseidon2Perm,
-                i32_f(ptr),
+                i32_f(dst),
+                i32_f_arr(src),
                 f_u32(F::zero()),
-                f_u32(F::zero()),
-                true,
+                false,
                 true,
             ),
         }
@@ -822,7 +822,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::TRAP => write!(f, "trap"),
             AsmInstruction::HintBits(_, _, _) => unimplemented!(),
             AsmInstruction::Bits4toNum(_, _, _) => unimplemented!(),
-            AsmInstruction::Poseidon2Permute(ptr) => write!(f, "poseidon2_permute ({})fp", ptr),
+            AsmInstruction::Poseidon2Permute(dst, src) => {
+                write!(f, "poseidon2_permute ({})fp, ({})fp", dst, src)
+            }
         }
     }
 }

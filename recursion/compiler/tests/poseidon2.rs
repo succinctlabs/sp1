@@ -6,6 +6,7 @@ use rand::Rng;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::VmBuilder;
+use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Runtime;
 use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
@@ -43,10 +44,12 @@ fn test_compiler_poseidon2_permute() {
 
     let result = builder.poseidon2_permute(&random_state);
 
+    assert!(matches!(result, Array::Dyn(_, _)));
+
     // Assert that the result is equal to the expected result.
     for (i, val) in expected_result.iter().enumerate() {
         let res = builder.get(&result, i);
-        // builder.assert_felt_eq(res, *val);
+        builder.assert_felt_eq(res, *val);
     }
 
     let program = builder.compile();

@@ -189,6 +189,7 @@ where
     /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         let a_ptr = if instruction.imm_b {
+            // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
             self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
@@ -356,11 +357,12 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
 
-                    // Get the array at ptr.
-                    let addr = a_val[0].as_canonical_u32() as usize;
+                    // Get the dst array ptr.
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    // Get the src array ptr.
+                    let src = b_val[0].as_canonical_u32() as usize;
 
-                    println!("addr: {}", addr);
-                    let array = self.memory[addr..addr + POSEIDON2_WIDTH]
+                    let array: [_; POSEIDON2_WIDTH] = self.memory[src..src + POSEIDON2_WIDTH]
                         .iter()
                         .map(|entry| entry.value[0])
                         .collect::<Vec<_>>()
@@ -372,7 +374,7 @@ where
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
                     for (i, value) in result.iter().enumerate() {
-                        self.memory[addr + i].value = Block::from(*value);
+                        self.memory[dst + i].value[0] = *value;
                     }
 
                     // Get the array at the address.
