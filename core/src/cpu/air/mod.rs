@@ -8,6 +8,7 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
+use crate::air::BaseAirBuilder;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
@@ -72,7 +73,7 @@ where
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
-            AB::Expr::one() - local.selectors.is_noop - local.selectors.reg_0_write,
+            AB::Expr::one() - local.selectors.is_unimpl - local.selectors.reg_0_write,
         );
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
@@ -125,7 +126,7 @@ where
         self.auipc_eval(builder, local);
 
         // ECALL instruction.
-        let (num_cycles, _is_halt) = self.ecall_eval(builder, local, next);
+        let (num_cycles, is_halt) = self.ecall_eval(builder, local);
 
         builder.send_alu(
             local.instruction.opcode,
@@ -146,8 +147,7 @@ where
 
         self.shard_clk_eval(builder, local, next, num_cycles);
 
-        // Range checks.
-        builder.assert_bool(local.is_real);
+        self.halt_unimpl_eval(builder, local, next, is_halt);
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
@@ -247,9 +247,9 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-        _next: &CpuCols<AB::Var>,
     ) -> (AB::Expr, AB::Expr) {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
+        builder.assert_bool(is_ecall_instruction.clone());
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
         // We interpret the syscall_code as little-endian bytes and interpret each byte as a u8
@@ -281,17 +281,6 @@ impl CpuChip {
         //     .when_not(is_lwa)
         //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
-        // TODO: fill in constraints if the syscall is HALT.
-        // For halt instructions, the next pc is 0.
-        // builder
-        //     .when(is_halt)
-        //     .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
-        // // If we're halting and it's a transition, then the next.is_real should be 0.
-        // builder
-        //     .when_transition()
-        //     .when(is_halt)
-        //     .assert_eq(next.is_real, AB::Expr::zero());
-        // builder.when_first_row().assert_one(local.is_real);
         // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
         (
             num_cycles * is_ecall_instruction.clone(),
@@ -313,10 +302,7 @@ impl CpuChip {
         num_cycles: AB::Expr,
     ) {
         // Verify that all shard values are the same.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.shard, next.shard);
+        builder.when_transition().assert_eq(local.shard, next.shard);
 
         // Verify that the shard value is within 16 bits.
         builder.send_byte(
@@ -337,6 +323,11 @@ impl CpuChip {
             .when(next.is_real)
             .assert_eq(local.clk + clk_increment, next.clk);
 
+        builder
+            .when_transition()
+            .when_not(next.is_real)
+            .assert_eq(local.clk, next.clk);
+
         // Range check that the clk is within 24 bits using it's limb values.
         // First verify that the limb values are correct.
         builder.verify_range_24bits(
@@ -345,6 +336,31 @@ impl CpuChip {
             local.clk_8bit_limb,
             local.is_real,
         );
+    }
+
+    pub(crate) fn halt_unimpl_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+        is_halt: AB::Expr,
+    ) {
+        // For halt instructions, the next pc is 0.
+        builder
+            .when(is_halt.clone() + local.selectors.is_unimpl)
+            .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
+        // If we're halting and it's a transition, then the next.is_real should be 0.
+        builder
+            .when_transition()
+            .when(is_halt + local.selectors.is_unimpl)
+            .assert_zero(next.is_real);
+
+        builder.assert_bool(local.is_real);
+        builder.when_first_row().assert_one(local.is_real);
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(local.is_real);
     }
 }
 

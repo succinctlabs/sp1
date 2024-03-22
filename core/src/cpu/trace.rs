@@ -521,7 +521,6 @@ impl CpuChip {
             .for_each(|(n, padded_row)| {
                 padded_row[CPU_COL_MAP.pc] = pc;
                 padded_row[CPU_COL_MAP.clk] = clk + F::from_canonical_u32((n as u32 + 1) * 4);
-                padded_row[CPU_COL_MAP.selectors.is_noop] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
                 padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
             });
