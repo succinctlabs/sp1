@@ -58,6 +58,7 @@ pub fn permute_mut_round<F>(state: &mut [F; WIDTH], round: usize)
 where
     F: AbstractField,
 {
+    let round = round % 31;
     apply_round_constants(state, round);
     apply_sbox(state);
     apply_linear_layer(state, round);
@@ -67,8 +68,6 @@ fn apply_round_constants<F>(state: &mut [F; WIDTH], round: usize)
 where
     F: AbstractField,
 {
-    let round = round % ROUNDS;
-
     let is_initial_layer = round == 0;
     let is_external_layer = round != 0
         && (((round - 1) < ROUNDS_F_BEGINNING) || (P_END <= (round - 1) && (round - 1) < ROUNDS));
