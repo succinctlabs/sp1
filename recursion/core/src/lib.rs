@@ -94,8 +94,9 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_execute() {
+        let config = BabyBearPoseidon2::new();
         let program = fibonacci_program::<F>();
-        let mut runtime = Runtime::<F, EF>::new(&program);
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();
         assert_eq!(
             runtime.memory[1024 + 1].value,
@@ -112,10 +113,11 @@ pub mod tests {
         type F = <SC as StarkGenericConfig>::Val;
         let program = fibonacci_program::<F>();
 
-        let mut runtime = Runtime::<F, EF>::new(&program);
+        let config = SC::new();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();
 
-        let config = SC::new();
         let machine = RecursionAir::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();

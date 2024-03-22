@@ -20,4 +20,5 @@ serde = { version = "1.0.197", features = ["derive"] }
 [dev-dependencies]
 p3-baby-bear = { workspace = true }
 p3-challenger = { workspace = true }
+p3-symmetric = { workspace = true }
 rand = "0.8.4"

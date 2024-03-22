@@ -41,6 +41,9 @@ pub enum Opcode {
 
     // System instructions.
     TRAP = 30,
+
+    // Hash instructions.
+    Poseidon2Perm = 31,
 }
 
 impl Opcode {

@@ -50,10 +50,10 @@ fn main() {
     let program = code.machine_code();
     println!("Program size = {}", program.instructions.len());
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
+    let config = SC::new();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 
-    // let config = SC::new();
     // let machine = RecursionAir::machine(config);
     // let (pk, vk) = machine.setup(&program);
     // let mut challenger = machine.config().challenger();
