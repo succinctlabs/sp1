@@ -144,6 +144,14 @@ impl<C: Config> Builder<C> {
         output
     }
 
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
+        self.operations
+            .push(DslIR::Poseidon2Permute(array.clone(), array.clone()));
+    }
+
     /// Applies the Poseidon2 compression function to the given array.
     ///
     /// Assumes we are doing a 2-1 compression function with 8 element chunks.
