@@ -13,9 +13,9 @@ use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
@@ -36,7 +36,6 @@ use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
-use typenum::U32;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
@@ -53,14 +52,14 @@ pub struct EdAddAssignCols<T> {
     pub q_ptr: T,
     pub p_access: [MemoryWriteCols<T>; 16],
     pub q_access: [MemoryReadCols<T>; 16],
-    pub(crate) x3_numerator: FieldInnerProductCols<T, Secp256k1BaseField>,
-    pub(crate) y3_numerator: FieldInnerProductCols<T, Secp256k1BaseField>,
-    pub(crate) x1_mul_y1: FieldOpCols<T, Secp256k1BaseField>,
-    pub(crate) x2_mul_y2: FieldOpCols<T, Secp256k1BaseField>,
-    pub(crate) f: FieldOpCols<T, Secp256k1BaseField>,
-    pub(crate) d_mul_f: FieldOpCols<T, Secp256k1BaseField>,
-    pub(crate) x3_ins: FieldDenCols<T, Secp256k1BaseField>,
-    pub(crate) y3_ins: FieldDenCols<T, Secp256k1BaseField>,
+    pub(crate) x3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
+    pub(crate) y3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
+    pub(crate) x1_mul_y1: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) x2_mul_y2: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) f: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) d_mul_f: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) x3_ins: FieldDenCols<T, Ed25519BaseField>,
+    pub(crate) y3_ins: FieldDenCols<T, Ed25519BaseField>,
 }
 
 #[derive(Default)]

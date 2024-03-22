@@ -15,7 +15,7 @@ use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
-use crate::utils::ec::field::limbs_from_vec;
+
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;

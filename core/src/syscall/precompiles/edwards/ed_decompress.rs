@@ -18,7 +18,6 @@ use crate::utils::ec::edwards::ed25519::decompress;
 use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
-use crate::utils::ec::field::limbs_from_vec;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
 use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
@@ -102,12 +101,12 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         }
 
         let y = &BigUint::from_bytes_le(&event.y_bytes);
-        self.populate_field_ops::<P, E>(y);
+        self.populate_field_ops::<E>(y);
 
         record.add_byte_lookup_events(new_byte_lookup_events);
     }
 
-    fn populate_field_ops<P: FieldParameters, E: EdwardsParameters>(&mut self, y: &BigUint) {
+    fn populate_field_ops<E: EdwardsParameters>(&mut self, y: &BigUint) {
         let one = BigUint::one();
         let yy = self.yy.populate(y, y, FieldOperation::Mul);
         let u = self.u.populate(&yy, &one, FieldOperation::Sub);
@@ -296,7 +295,7 @@ impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E
             let mut row = [F::zero(); NUM_ED_DECOMPRESS_COLS];
             let cols: &mut EdDecompressCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            cols.populate_field_ops::<E::BaseField, E>(&zero);
+            cols.populate_field_ops::<E>(&zero);
             row
         });
 

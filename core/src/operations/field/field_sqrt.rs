@@ -73,7 +73,7 @@ mod tests {
     use num::{BigUint, One, Zero};
     use p3_air::BaseAir;
     use p3_field::{Field, PrimeField32};
-    use typenum::U32;
+    
 
     use super::{FieldSqrtCols, Limbs};
 
@@ -94,8 +94,6 @@ mod tests {
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
-
-    type Limbs32 = U32;
 
     #[derive(AlignedBorrow, Debug, Clone)]
     pub struct TestCols<T, P: FieldParameters> {
