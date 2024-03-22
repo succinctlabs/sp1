@@ -26,7 +26,7 @@ pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
 
-#[derive(Debug, Clone)]
+#[derive(Default, Debug, Clone)]
 pub struct Poseidon2Event<T> {
     pub state_ptr: T,
     pub clk: T,
@@ -97,8 +97,8 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
                 cols.state_ptr = event.state_ptr + F::from_canonical_usize(i * 4);
 
-                for j in 0..(WIDTH / 4) {
-                    cols.state[j].populate(&input_memory_record[j]);
+                for (j, record) in input_memory_record.iter().enumerate().take(WIDTH / 4) {
+                    cols.state[j].populate(record);
                 }
 
                 let r = i % 31;
@@ -171,13 +171,16 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 }
 
                 // Copy the state to the output.
-                for j in 0..(WIDTH / 4) {
-                    cols.state[j].populate(&event.state_read_records[j]);
+                for (j, record) in input_memory_record.iter().enumerate().take(WIDTH / 4) {
+                    cols.state[j].populate(record);
                 }
 
                 rows.push(row);
             }
         }
+
+        println!("rows: {}", rows.len());
+        println!("cols: {}", NUM_POSEIDON2_COLS);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -380,19 +383,103 @@ mod tests {
         utils::{poseidon2_instance::RC_16_30, uni_stark_prove, BabyBearPoseidon2},
     };
 
+    use crate::air::Block;
+    use crate::memory::MemoryRecord;
     use crate::poseidon2::external::WIDTH;
+    use crate::poseidon2::permute_mut_round;
+    use crate::poseidon2::Poseidon2Event;
     use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
     use p3_symmetric::Permutation;
 
     use super::{Poseidon2Cols, NUM_POSEIDON2_COLS};
 
+    fn generate_sample_event() -> Vec<Poseidon2Event<BabyBear>> {
+        let state_ptr = BabyBear::from_canonical_u32(0);
+        let clk = BabyBear::from_canonical_u32(100);
+
+        let mut events = Vec::new();
+        let mut memory_records = Vec::new();
+        let mut read_records = Vec::new();
+
+        for i in 0..32 {
+            if i == 0 {
+                read_records = (0..WIDTH / 4)
+                    .map(|i| {
+                        let addr = state_ptr + BabyBear::from_canonical_u32(i as u32 * 4);
+                        let value = Block::from([
+                            BabyBear::from_canonical_u32((i * 4) as u32),
+                            BabyBear::from_canonical_u32((i * 4 + 1) as u32),
+                            BabyBear::from_canonical_u32((i * 4 + 2) as u32),
+                            BabyBear::from_canonical_u32((i * 4 + 3) as u32),
+                        ]);
+                        MemoryRecord {
+                            addr,
+                            value,
+                            timestamp: clk,
+                            prev_value: value,
+                            prev_timestamp: clk,
+                        }
+                    })
+                    .collect();
+
+                memory_records.extend(read_records.clone());
+            }
+
+            let mut state: [BabyBear; WIDTH] = read_records
+                .iter()
+                .flat_map(|record| record.value.0)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap();
+
+            // Perform one round of Poseidon2
+            permute_mut_round(&mut state, i);
+
+            // Update the memory with the output of the last round
+            let write_records = (0..WIDTH / 4)
+                .map(|i| {
+                    let addr = state_ptr + BabyBear::from_canonical_u32(i as u32 * 4);
+                    let out = [
+                        state[i * 4],
+                        state[i * 4 + 1],
+                        state[i * 4 + 2],
+                        state[i * 4 + 3],
+                    ];
+                    let value = Block::from(out);
+                    MemoryRecord {
+                        addr,
+                        value,
+                        timestamp: clk + BabyBear::from_canonical_u32(i as u32 + 1),
+                        prev_value: read_records[i].value,
+                        prev_timestamp: read_records[i].timestamp,
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            memory_records.extend(write_records.clone());
+            read_records = write_records;
+        }
+
+        let poseidon2_event = Poseidon2Event {
+            state_ptr,
+            clk,
+            state_read_records: memory_records.clone(),
+        };
+
+        events.push(poseidon2_event);
+
+        events
+    }
+
     #[test]
     fn generate_trace() {
         let chip = Poseidon2Chip;
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
-            &ExecutionRecord::<BabyBear>::default(),
-            &mut ExecutionRecord::<BabyBear>::default(),
-        );
+        let input = ExecutionRecord::<BabyBear> {
+            poseidon2_events: generate_sample_event(),
+            ..Default::default()
+        };
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input, &mut ExecutionRecord::<BabyBear>::default());
         println!("{:?}", trace.values)
     }
 
@@ -402,10 +489,12 @@ mod tests {
         let mut challenger = config.challenger();
 
         let chip = Poseidon2Chip;
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
-            &ExecutionRecord::<BabyBear>::default(),
-            &mut ExecutionRecord::<BabyBear>::default(),
-        );
+        let input = ExecutionRecord::<BabyBear> {
+            poseidon2_events: generate_sample_event(),
+            ..Default::default()
+        };
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input, &mut ExecutionRecord::<BabyBear>::default());
 
         let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> =
             Poseidon2::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
