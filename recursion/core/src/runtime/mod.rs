@@ -13,10 +13,9 @@ use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
 
+use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
-use crate::poseidon2::{permute_mut_round, Poseidon2Event};
-use crate::{air::Block, poseidon2::WIDTH};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
@@ -95,7 +94,7 @@ where
         }
     }
 
-    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> (MemoryRecord<F>, Block<F>) {
+    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
         let entry = self.memory[addr.as_canonical_u32() as usize].clone();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
@@ -111,15 +110,15 @@ where
             timestamp: self.timestamp(&position),
         };
         match position {
-            MemoryAccessPosition::A => self.access.a = Some(record.clone()),
-            MemoryAccessPosition::B => self.access.b = Some(record.clone()),
-            MemoryAccessPosition::C => self.access.c = Some(record.clone()),
+            MemoryAccessPosition::A => self.access.a = Some(record),
+            MemoryAccessPosition::B => self.access.b = Some(record),
+            MemoryAccessPosition::C => self.access.c = Some(record),
             _ => unreachable!(),
         };
-        (record, prev_value)
+        prev_value
     }
 
-    fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) -> MemoryRecord<F> {
+    fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
         let addr_usize = addr.as_canonical_u32() as usize;
         let timestamp = self.timestamp(&position);
         let entry = &self.memory[addr_usize];
@@ -133,13 +132,11 @@ where
         };
         self.memory[addr_usize] = MemoryEntry { value, timestamp };
         match position {
-            MemoryAccessPosition::A => self.access.a = Some(record.clone()),
-            MemoryAccessPosition::B => self.access.b = Some(record.clone()),
-            MemoryAccessPosition::C => self.access.c = Some(record.clone()),
+            MemoryAccessPosition::A => self.access.a = Some(record),
+            MemoryAccessPosition::B => self.access.b = Some(record),
+            MemoryAccessPosition::C => self.access.c = Some(record),
             _ => unreachable!(),
         };
-
-        record
     }
 
     fn timestamp(&self, position: &MemoryAccessPosition) -> F {
@@ -152,8 +149,7 @@ where
         } else if instruction.imm_b {
             instruction.op_b
         } else {
-            let (_, value) = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            value
+            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         }
     }
 
@@ -163,8 +159,7 @@ where
         } else if instruction.imm_c {
             instruction.op_c
         } else {
-            let (_, value) = self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C);
-            value
+            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
         }
     }
 
@@ -186,8 +181,7 @@ where
             instruction.op_b
         } else {
             let address = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            let (_, value) = self.mr(address.1[0], MemoryAccessPosition::A);
-            value
+            self.mr(address[0], MemoryAccessPosition::A)
         };
         (a_ptr, b)
     }
@@ -198,23 +192,21 @@ where
             // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
-            let (_, value) = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
-            value[0]
+            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
         };
         let b = if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
         } else if instruction.imm_b {
             instruction.op_b
         } else {
-            let (_, value) = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            value
+            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         };
         (a_ptr, b)
     }
 
     /// Fetch the input operand values for a branch instruction.
     fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
-        let (_, a) = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+        let a = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
         let b = self.get_b(instruction);
 
         let c = instruction.op_c[0];
@@ -286,7 +278,7 @@ where
                 }
                 Opcode::LW => {
                     let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let (_, prev_a) = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
@@ -299,7 +291,7 @@ where
                 }
                 Opcode::SW => {
                     let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let (_, prev_a) = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
@@ -350,7 +342,7 @@ where
                     let imm = instruction.op_c;
                     let b_ptr = instruction.op_b[0] + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
-                    let (_, b_val) = self.mr(b_ptr, MemoryAccessPosition::B);
+                    let b_val = self.mr(b_ptr, MemoryAccessPosition::B);
                     let c_val = imm;
                     let a_val = Block::from(self.pc + F::one());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);

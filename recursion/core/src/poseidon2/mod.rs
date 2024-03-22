@@ -1,9 +1,8 @@
-use p3_field::{AbstractField, Field, PrimeField32};
+use p3_field::{AbstractField, Field};
 
 mod external;
 
 pub use external::*;
-use sp1_core::utils::poseidon2_instance::RC_16_30_U32;
 
 /// The number of external rounds in the Poseidon permutation.
 pub(crate) const ROUNDS_F: usize = 8;
@@ -53,78 +52,3 @@ pub const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
     0x0a632d94, 0x6db657b7, 0x56fbdc9e, 0x052b3d8a, 0x33745201, 0x5c03108c, 0x0beba37b, 0x258c2e8b,
     0x12029f39, 0x694909ce, 0x6d231724, 0x21c3b222, 0x3c0904a5, 0x01d6acda, 0x27705c83, 0x5231c802,
 ];
-
-pub fn permute_mut_round<F>(state: &mut [F; WIDTH], round: usize)
-where
-    F: AbstractField,
-{
-    let round = round % 31;
-    apply_round_constants(state, round);
-    apply_sbox(state);
-    apply_linear_layer(state, round);
-}
-
-fn apply_round_constants<F>(state: &mut [F; WIDTH], round: usize)
-where
-    F: AbstractField,
-{
-    let is_initial_layer = round == 0;
-    let is_external_layer = round != 0
-        && (((round - 1) < ROUNDS_F_BEGINNING) || (P_END <= (round - 1) && (round - 1) < ROUNDS));
-
-    if is_initial_layer {
-        // Don't apply the round constants in the initial layer.
-    } else if is_external_layer {
-        // Apply the round constants in the external layers.
-        for j in 0..WIDTH {
-            state[j] += F::from_wrapped_u32(RC_16_30_U32[round - 1][j]);
-        }
-    } else {
-        // Apply the round constants only on the first element in the internal layers.
-        state[0] += F::from_wrapped_u32(RC_16_30_U32[round - 1][0]);
-    }
-}
-
-fn apply_sbox<F>(state: &mut [F; WIDTH])
-where
-    F: AbstractField,
-{
-    for i in 0..WIDTH {
-        let x = state[i].clone();
-        let x2 = x.clone() * x.clone();
-        let x4 = x2.clone() * x2.clone();
-        state[i] = x4 * x2 * x;
-    }
-}
-
-fn apply_linear_layer<AF, F>(state: &mut [AF; WIDTH], round: usize)
-where
-    AF: AbstractField<F = F>,
-    F: Field,
-{
-    let matmul_constants: [F; WIDTH] = MATRIX_DIAG_16_BABYBEAR_U32
-        .iter()
-        .map(|x| F::from_wrapped_u32(*x))
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
-
-    let is_initial_layer = round == 0;
-    let is_external_layer = round != 0
-        && (((round - 1) < ROUNDS_F_BEGINNING) || (P_END <= (round - 1) && (round - 1) < ROUNDS));
-
-    if is_initial_layer || is_external_layer {
-        apply_m_4(state);
-        let sums: [AF; 4] = core::array::from_fn(|k| {
-            (0..WIDTH)
-                .step_by(4)
-                .map(|j| state[j + k].clone())
-                .sum::<AF>()
-        });
-        for j in 0..WIDTH {
-            state[j] += sums[j % 4].clone();
-        }
-    } else {
-        matmul_internal(state, matmul_constants);
-    }
-}

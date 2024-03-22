@@ -1,3 +1,4 @@
+use crate::air::Block;
 use crate::memory::{MemoryReadWriteCols, MemoryRecord};
 use core::borrow::Borrow;
 use core::mem::size_of;
@@ -30,7 +31,10 @@ pub const WIDTH: usize = 16;
 pub struct Poseidon2Event<T> {
     pub state_ptr: T,
     pub clk: T,
-    pub state_read_records: Vec<MemoryRecord<T>>,
+    pub initial_state: [T; WIDTH],
+    pub initial_state_records: Vec<MemoryRecord<T>>,
+    pub final_state: [T; WIDTH],
+    pub final_state_records: Vec<MemoryRecord<T>>,
 }
 
 /// A chip that implements addition for the opcode ADD.
@@ -43,8 +47,7 @@ pub struct Poseidon2Chip;
 pub struct Poseidon2Cols<T> {
     pub state_ptr: T,
     pub clk: T,
-    // each memory records value are made up of blocks of 4 Ts.
-    pub state: [MemoryReadWriteCols<T>; WIDTH / 4],
+    pub state: [MemoryReadWriteCols<T>; WIDTH],
     pub rounds: [T; 31],
     pub add_rc: [T; WIDTH],
     pub sbox_deg_3: [T; WIDTH],
@@ -52,6 +55,9 @@ pub struct Poseidon2Cols<T> {
     pub is_initial: T,
     pub is_internal: T,
     pub is_external: T,
+    // only the first and the last round of the poseidon2 permutation needs memory check.
+    pub do_memory_check: T,
+    pub is_real: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
@@ -68,37 +74,29 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
+        // let mut record = ExecutionRecord::default();
 
         for i in 0..input.poseidon2_events.len() {
             let event = input.poseidon2_events[i].clone();
 
-            // read the memory records.
-            let input_memory_record = event.state_read_records.clone();
-
-            let all_states = input_memory_record
-                .iter()
-                .flat_map(|block| block.value.0)
-                .collect::<Vec<_>>();
+            // init state for the first round.
+            // this will also be used to store the pre-state for the next round.
+            let mut pre_state = event.initial_state;
 
             for i in 0..32 {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
 
-                let input: [F; WIDTH] = all_states
-                    .iter()
-                    .skip(i * WIDTH)
-                    .take(WIDTH)
-                    .copied()
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
-
+                // increment the clock.
                 cols.clk = event.clk + F::from_canonical_usize(i);
 
-                cols.state_ptr = event.state_ptr + F::from_canonical_usize(i * 4);
-
-                for (j, record) in input_memory_record.iter().enumerate().take(WIDTH / 4) {
-                    cols.state[j].populate(record);
+                // If this is the first round, we need to initialize the memory records.
+                if i == 0 {
+                    for j in 0..WIDTH {
+                        cols.state[j].populate(&event.initial_state_records[j]);
+                    }
+                    cols.state_ptr = event.state_ptr;
+                    cols.do_memory_check = F::one();
                 }
 
                 let r = i % 31;
@@ -113,23 +111,23 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     cols.is_initial = F::one();
 
                     // initialize the pre_state from the memory records.
-                    // Don't apply the round constants and copy the `input_pre_state` as it is.
-                    cols.add_rc.copy_from_slice(&input);
+                    // Don't apply the round constants and copy the `pre_state` as it is.
+                    cols.add_rc.copy_from_slice(&pre_state);
                 } else if is_external_layer {
                     // Mark the selector as external.
                     cols.is_external = F::one();
 
                     // Apply the round constants.
                     for j in 0..WIDTH {
-                        cols.add_rc[j] = input[j] + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
+                        cols.add_rc[j] = pre_state[j] + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
                     }
                 } else {
                     // Mark the selector as internal.
                     cols.is_internal = F::one();
 
                     // Apply the round constants only on the first element.
-                    cols.add_rc.copy_from_slice(&input);
-                    cols.add_rc[0] = input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
+                    cols.add_rc.copy_from_slice(&pre_state);
+                    cols.add_rc[0] = pre_state[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
                 };
 
                 // Apply the sbox.
@@ -170,17 +168,40 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     matmul_internal(&mut state, matmul_constants);
                 }
 
-                // Copy the state to the output.
-                for (j, record) in input_memory_record.iter().enumerate().take(WIDTH / 4) {
-                    cols.state[j].populate(record);
+                // update the pre_state for the next round.
+                pre_state = state;
+
+                // If this is the last round, we need to populate the memory records.
+                if i == 31 {
+                    for j in 0..WIDTH {
+                        cols.state[j].populate(&event.final_state_records[j]);
+
+                        cols.do_memory_check = F::one();
+                        cols.state_ptr = event.state_ptr;
+                    }
+                } else {
+                    // Copy the state to the memory records.
+                    for j in 0..WIDTH {
+                        cols.state[j].populate(&MemoryRecord {
+                            addr: cols.state[j].addr,
+                            value: Block::from([state[j], F::zero(), F::zero(), F::zero()]),
+                            timestamp: cols.clk,
+                            prev_value: Block::from([
+                                pre_state[j],
+                                F::zero(),
+                                F::zero(),
+                                F::zero(),
+                            ]),
+                            prev_timestamp: cols.clk,
+                        });
+                    }
                 }
+
+                cols.is_real = F::one();
 
                 rows.push(row);
             }
         }
-
-        println!("rows: {}", rows.len());
-        println!("cols: {}", NUM_POSEIDON2_COLS);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -213,6 +234,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
+        let next: &Poseidon2Cols<AB::Var> = main.row_slice(1).borrow();
 
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
@@ -222,16 +244,17 @@ where
             .try_into()
             .unwrap();
 
-        let memory_record = local.state;
+        let local_record = local.state;
+        let next_record = next.state;
 
-        let pre_state = memory_record
+        let pre_state = local_record
             .iter()
-            .flat_map(|block| block.prev_value.0)
+            .map(|block| block.value.0[0])
             .collect::<Vec<_>>();
 
-        let post_state = memory_record
+        let post_state = next_record
             .iter()
-            .flat_map(|block| block.value.0)
+            .map(|block| block.prev_value.0[0])
             .collect::<Vec<_>>();
 
         // Apply the round constants.
@@ -241,7 +264,7 @@ where
         // Internal Layers: Only apply the round constants to the first element.
         for i in 0..WIDTH {
             let mut result: AB::Expr = pre_state[i].into();
-            for r in 0..ROUNDS {
+            for r in 0..32 {
                 if i == 0 {
                     result += local.rounds[r + 1]
                         * constants[r][i]
@@ -311,10 +334,11 @@ where
 
             // The formula for each y_i involves 2x_i' term and x_j' terms for each j that equals i mod 4.
             // In other words, we can add a single copy of x_i' to the appropriate one of our precomputed sums.
+            // Expect for the final round, for which we
             for i in 0..WIDTH {
                 state[i] += sums[i % 4].clone();
                 builder
-                    .when(local.is_external + local.is_initial)
+                    .when(local.is_external + local.is_initial - local.rounds[31])
                     .assert_eq(state[i].clone(), post_state[i]);
             }
         }
@@ -345,7 +369,14 @@ where
         builder.assert_bool(local.is_initial);
         builder.assert_bool(local.is_external);
         builder.assert_bool(local.is_internal);
-        builder.assert_bool(local.is_initial + local.is_external + local.is_internal);
+        builder.assert_bool(local.do_memory_check);
+        builder.assert_bool(local.is_real);
+
+        // only one of them can be true. thus the sum of them should be equal to 1.
+        builder.assert_eq(
+            local.is_initial + local.is_external + local.is_internal,
+            AB::Expr::one(),
+        );
 
         // Constrain the initial flag.
         builder.assert_eq(local.is_initial, local.rounds[0]);
@@ -365,6 +396,24 @@ where
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
+
+        // If the memory check flag is set, we need to check if the respective round flag
+        // either the first or the last round is set.
+        builder.assert_eq(
+            (local.rounds[0] + local.rounds[31]) * local.is_real,
+            local.do_memory_check,
+        );
+
+        // Constrain the memory on first and last round.
+        for i in 0..WIDTH {
+            builder.constraint_memory_access(
+                AB::F::zero(),
+                local.clk,
+                local.state_ptr,
+                &local.state[i],
+                local.do_memory_check,
+            )
+        }
     }
 }
 
@@ -386,7 +435,6 @@ mod tests {
     use crate::air::Block;
     use crate::memory::MemoryRecord;
     use crate::poseidon2::external::WIDTH;
-    use crate::poseidon2::permute_mut_round;
     use crate::poseidon2::Poseidon2Event;
     use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
     use p3_symmetric::Permutation;
