@@ -13,7 +13,10 @@ pub(crate) const ROUNDS_P: usize = 22;
 // The total number of rounds in the Poseidon permutation.
 pub(crate) const ROUNDS: usize = ROUNDS_F + ROUNDS_P;
 
+// The number of initial number of external rounds in the Poseidon permutation.
 pub(crate) const ROUNDS_F_BEGINNING: usize = ROUNDS_F / 2;
+
+// The round till the internal rounds ends.
 pub(crate) const P_END: usize = ROUNDS_F_BEGINNING + ROUNDS_P;
 
 // TODO: Make this public inside Plonky3 and import directly.
