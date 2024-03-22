@@ -83,7 +83,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
             // this will also be used to store the pre-state for the next round.
             let mut pre_state = event.initial_state;
 
-            for i in 0..32 {
+            for i in 0..31 {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
 
@@ -97,6 +97,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     for j in 0..WIDTH {
                         cols.state[j].populate(&event.initial_state_records[j]);
                     }
+
                     cols.do_memory_check = F::one();
                 } else {
                     for j in 0..WIDTH {
@@ -182,13 +183,12 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     matmul_internal(&mut state, matmul_constants);
                 }
 
-                // update the pre_state for the next round.
-                pre_state = state;
-
                 // If this is the last round, we need to populate the memory records.
-                if i == 31 {
+                if i == 30 {
                     for j in 0..WIDTH {
                         cols.state[j].populate(&event.final_state_records[j]);
+
+                        println!("{}: {}", state[j], event.final_state[j]);
 
                         cols.do_memory_check = F::one();
                         cols.state_ptr = event.state_ptr;
@@ -210,6 +210,9 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                         });
                     }
                 }
+
+                // update the pre_state for the next round.
+                pre_state = state;
 
                 cols.is_real = F::one();
 
@@ -248,6 +251,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
+        let next: &Poseidon2Cols<AB::Var> = main.row_slice(1).borrow();
 
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
@@ -270,13 +274,13 @@ where
             .collect::<Vec<_>>();
 
         // Apply the round constants.
-        //
+
         // Initial Layer: Don't apply the round constants.
         // External Layers: Apply the round constants.
         // Internal Layers: Only apply the round constants to the first element.
         for i in 0..WIDTH {
             let mut result: AB::Expr = pre_state[i].into();
-            for r in 0..30 {
+            for r in 0..ROUNDS {
                 if i == 0 {
                     result += local.rounds[r + 1]
                         * constants[r][i]
@@ -285,7 +289,9 @@ where
                     result += local.rounds[r + 1] * constants[r][i] * local.is_external;
                 }
             }
-            builder.assert_eq(result, local.add_rc[i]);
+            builder
+                .when(AB::Expr::one() - local.is_initial)
+                .assert_eq(result, local.add_rc[i]);
         }
 
         // Apply the sbox.
@@ -350,7 +356,7 @@ where
             for i in 0..WIDTH {
                 state[i] += sums[i % 4].clone();
                 builder
-                    .when(local.is_external + local.is_initial - local.rounds[31])
+                    .when(local.is_external + local.is_initial)
                     .assert_eq(state[i].clone(), post_state[i]);
             }
         }
@@ -385,7 +391,7 @@ where
         builder.assert_bool(local.is_real);
 
         // only one of them can be true. thus the sum of them should be equal to 1.
-        builder.assert_eq(
+        builder.when(local.is_real).assert_eq(
             local.is_initial + local.is_external + local.is_internal,
             AB::Expr::one(),
         );
@@ -409,12 +415,9 @@ where
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
 
-        // If the memory check flag is set, we need to check if the respective round flag
-        // either the first or the last round is set.
-        builder.assert_eq(
-            (local.rounds[0] + local.rounds[31]) * local.is_real,
-            local.do_memory_check,
-        );
+        // // If the memory check flag is set, we need to check if the respective round flag
+        // // either the first or the last round is set.
+        // builder.assert_eq((local.rounds[0] + local.rounds[31]), local.do_memory_check);
 
         // // Constrain the memory on first and last round.
         // builder.constraint_memory_access_slice(
@@ -526,7 +529,6 @@ mod tests {
         };
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input, &mut ExecutionRecord::<BabyBear>::default());
-        // println!("{:?}", trace.values)
     }
 
     #[test]
