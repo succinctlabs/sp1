@@ -5,6 +5,7 @@ use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
+use p3_commit::LagrangeSelectors;
 use p3_commit::Pcs;
 use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
@@ -197,38 +198,31 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
-        use p3_field::Field;
         let sels = trace_domain.selectors_at_point(zeta);
 
-        let zps = qc_domains
-            .iter()
-            .enumerate()
-            .map(|(i, domain)| {
-                qc_domains
-                    .iter()
-                    .enumerate()
-                    .filter(|(j, _)| *j != i)
-                    .map(|(_, other_domain)| {
-                        other_domain.zp_at_point(zeta)
-                            * other_domain.zp_at_point(domain.first_point()).inverse()
-                    })
-                    .product::<SC::Challenge>()
-            })
-            .collect_vec();
+        let quotient = Self::recompute_quotient(&opening, &qc_domains, zeta);
+        let folded_constraints =
+            Self::eval_constraints(chip, &opening, &sels, alpha, permutation_challenges);
 
-        let quotient = opening
-            .quotient
-            .iter()
-            .enumerate()
-            .map(|(ch_i, ch)| {
-                assert_eq!(ch.len(), SC::Challenge::D);
-                ch.iter()
-                    .enumerate()
-                    .map(|(e_i, &c)| zps[ch_i] * SC::Challenge::monomial(e_i) * c)
-                    .sum::<SC::Challenge>()
-            })
-            .sum::<SC::Challenge>();
+        // Check that the constraints match the quotient, i.e.
+        //     folded_constraints(zeta) / Z_H(zeta) = quotient(zeta)
+        match folded_constraints * sels.inv_zeroifier == quotient {
+            true => Ok(()),
+            false => Err(OodEvaluationMismatch),
+        }
+    }
 
+    #[cfg(feature = "perf")]
+    pub fn eval_constraints(
+        chip: &MachineChip<SC, A>,
+        opening: &ChipOpenedValues<SC::Challenge>,
+        selectors: &LagrangeSelectors<SC::Challenge>,
+        alpha: SC::Challenge,
+        permutation_challenges: &[SC::Challenge],
+    ) -> SC::Challenge
+    where
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
+    {
         // Reconstruct the prmutation opening values as extention elements.
         let unflatten = |v: &[SC::Challenge]| {
             v.chunks_exact(SC::Challenge::D)
@@ -253,23 +247,54 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
             cumulative_sum: opening.cumulative_sum,
-            is_first_row: sels.is_first_row,
-            is_last_row: sels.is_last_row,
-            is_transition: sels.is_transition,
+            is_first_row: selectors.is_first_row,
+            is_last_row: selectors.is_last_row,
+            is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
             _marker: PhantomData,
         };
         chip.eval(&mut folder);
 
-        let folded_constraints = folder.accumulator;
+        folder.accumulator
+    }
 
-        // Check that the constraints match the quotient, i.e.
-        //     folded_constraints(zeta) / Z_H(zeta) = quotient(zeta)
-        match folded_constraints * sels.inv_zeroifier == quotient {
-            true => Ok(()),
-            false => Err(OodEvaluationMismatch),
-        }
+    #[cfg(feature = "perf")]
+    pub fn recompute_quotient(
+        opening: &ChipOpenedValues<SC::Challenge>,
+        qc_domains: &[Domain<SC>],
+        zeta: SC::Challenge,
+    ) -> SC::Challenge {
+        use p3_field::Field;
+
+        let zps = qc_domains
+            .iter()
+            .enumerate()
+            .map(|(i, domain)| {
+                qc_domains
+                    .iter()
+                    .enumerate()
+                    .filter(|(j, _)| *j != i)
+                    .map(|(_, other_domain)| {
+                        other_domain.zp_at_point(zeta)
+                            * other_domain.zp_at_point(domain.first_point()).inverse()
+                    })
+                    .product::<SC::Challenge>()
+            })
+            .collect_vec();
+
+        opening
+            .quotient
+            .iter()
+            .enumerate()
+            .map(|(ch_i, ch)| {
+                assert_eq!(ch.len(), SC::Challenge::D);
+                ch.iter()
+                    .enumerate()
+                    .map(|(e_i, &c)| zps[ch_i] * SC::Challenge::monomial(e_i) * c)
+                    .sum::<SC::Challenge>()
+            })
+            .sum::<SC::Challenge>()
     }
 }
 

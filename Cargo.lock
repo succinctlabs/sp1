@@ -2606,15 +2606,18 @@ dependencies = [
  "itertools 0.12.1",
  "p3-air",
  "p3-baby-bear",
+ "p3-challenger",
  "p3-commit",
  "p3-field",
  "p3-fri",
  "p3-matrix",
+ "p3-symmetric",
  "p3-util",
  "rand",
  "serde",
  "sp1-core",
  "sp1-recursion-core",
+ "sp1-recursion-derive",
 ]
 
 [[package]]
@@ -2633,6 +2636,15 @@ dependencies = [
  "sp1-core",
  "sp1-derive",
  "tracing",
+]
+
+[[package]]
+name = "sp1-recursion-derive"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
 ]
 
 [[package]]

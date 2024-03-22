@@ -9,6 +9,7 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
 use crate::air::{SP1AirBuilder, WordAirBuilder};
+use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
@@ -124,7 +125,7 @@ where
         self.auipc_eval(builder, local);
 
         // ECALL instruction.
-        let (_num_cycles, _is_halt) = self.ecall_eval(builder, local, next);
+        let (num_cycles, _is_halt) = self.ecall_eval(builder, local, next);
 
         builder.send_alu(
             local.instruction.opcode,
@@ -143,11 +144,7 @@ where
         //     )
         //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // TODO: update the clk.
-        // let clk_increment = AB::Expr::from_canonical_u32(4) + syscall_cycles;
-        // builder
-        //     .when_transition()
-        //     .assert_eq(local.clk + clk_increment, next.clk);
+        self.shard_clk_eval(builder, local, next, num_cycles);
 
         // Range checks.
         builder.assert_bool(local.is_real);
@@ -251,7 +248,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         _next: &CpuCols<AB::Var>,
-    ) -> (AB::Var, AB::Var) {
+    ) -> (AB::Expr, AB::Expr) {
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -266,7 +263,7 @@ impl CpuChip {
         // This is a separate column because it is used as a multiplicity in an interaction which
         // requires degree 1 columns.
         builder.assert_eq(
-            send_to_table * is_ecall_instruction,
+            send_to_table * is_ecall_instruction.clone(),
             local.ecall_mul_send_to_table,
         );
         builder.send_syscall(
@@ -296,7 +293,58 @@ impl CpuChip {
         //     .assert_eq(next.is_real, AB::Expr::zero());
         // builder.when_first_row().assert_one(local.is_real);
         // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
-        (num_cycles, is_halt)
+        (
+            num_cycles * is_ecall_instruction.clone(),
+            is_halt * is_ecall_instruction,
+        )
+    }
+
+    /// Constraints related to the shard and clk.
+    ///
+    /// This function ensures that all of the shard values are the same and that the clk starts at 0
+    /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
+    /// and clk values are within 24 bits.  Those range checks are needed for the memory access
+    /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
+    pub(crate) fn shard_clk_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+        num_cycles: AB::Expr,
+    ) {
+        // Verify that all shard values are the same.
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.shard, next.shard);
+
+        // Verify that the shard value is within 16 bits.
+        builder.send_byte(
+            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
+            local.shard,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            local.is_real,
+        );
+
+        // Verify that the first row has a clk value of 0.
+        builder.when_first_row().assert_zero(local.clk);
+        // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
+        // precompiles, there are additional cycles.
+        let clk_increment = AB::Expr::from_canonical_u32(4) + num_cycles;
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.clk + clk_increment, next.clk);
+
+        // Range check that the clk is within 24 bits using it's limb values.
+        // First verify that the limb values are correct.
+        builder.verify_range_24bits(
+            local.clk,
+            local.clk_16bit_limb,
+            local.clk_8bit_limb,
+            local.is_real,
+        );
     }
 }
 
