@@ -48,9 +48,6 @@ pub struct OpcodeSelectorCols<T> {
     /// Miscellaneous.
     pub is_auipc: T,
     pub is_unimpl: T,
-
-    // TODO: Is this needed?
-    pub reg_0_write: T,
 }
 
 impl<F: PrimeField> OpcodeSelectorCols<F> {
@@ -93,16 +90,6 @@ impl<F: PrimeField> OpcodeSelectorCols<F> {
         } else if instruction.opcode == Opcode::UNIMP {
             self.is_unimpl = F::one();
         }
-
-        // If op_a is 0 and we're writing to the register, then we don't do a write. We are always
-        // writing to the first register UNLESS it is a branch, is_store.
-        if instruction.op_a == 0
-            && !(instruction.is_branch_instruction()
-                || (self.is_sb + self.is_sh + self.is_sw) == F::one()
-                || self.is_unimpl == F::one())
-        {
-            self.reg_0_write = F::one();
-        }
     }
 }
 
@@ -134,7 +121,6 @@ impl<T> IntoIterator for OpcodeSelectorCols<T> {
             self.is_jal,
             self.is_auipc,
             self.is_unimpl,
-            self.reg_0_write,
         ]
         .into_iter()
     }

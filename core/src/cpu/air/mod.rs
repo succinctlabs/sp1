@@ -70,7 +70,6 @@ where
         // we are performing a branch or a store.
         // If we are writing to register 0, then the new value should be zero.
         builder
-            .when_not(local.selectors.is_jal + local.selectors.is_jalr)
             .when(local.instruction.op_a_0)
             .assert_word_zero(*local.op_a_access.value());
         builder.constraint_memory_access(
@@ -78,7 +77,7 @@ where
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
-            local.is_real - local.selectors.reg_0_write,
+            local.is_real,
         );
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
