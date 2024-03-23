@@ -19,6 +19,7 @@ use crate::utils::ec::edwards::ed25519::ed25519_sqrt;
 use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::NumWords;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
 use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
@@ -29,6 +30,7 @@ use crate::utils::words_to_bytes_le;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use curve25519_dalek::edwards::CompressedEdwardsY;
+use generic_array::GenericArray;
 use num::BigUint;
 use num::One;
 use num::Zero;
@@ -39,6 +41,7 @@ use p3_matrix::MatrixRowSlices;
 use serde::Deserialize;
 use serde::Serialize;
 use std::marker::PhantomData;
+use typenum::Unsigned;
 use typenum::U32;
 
 use p3_matrix::dense::RowMajorMatrix;
@@ -53,8 +56,10 @@ pub struct EdDecompressEvent {
     pub sign: bool,
     pub y_bytes: [u8; COMPRESSED_POINT_BYTES],
     pub decompressed_x_bytes: [u8; NUM_BYTES_FIELD_ELEMENT],
-    pub x_memory_records: [MemoryWriteRecord; NUM_WORDS_FIELD_ELEMENT],
-    pub y_memory_records: [MemoryReadRecord; NUM_WORDS_FIELD_ELEMENT],
+    pub x_memory_records:
+        [MemoryWriteRecord; <<Ed25519BaseField as NumWords>::WordsFieldElement as Unsigned>::USIZE],
+    pub y_memory_records:
+        [MemoryReadRecord; <<Ed25519BaseField as NumWords>::WordsFieldElement as Unsigned>::USIZE],
 }
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
@@ -72,8 +77,10 @@ pub struct EdDecompressCols<T> {
     pub clk: T,
     pub ptr: T,
     pub sign: T,
-    pub x_access: [MemoryWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub y_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
+    pub x_access:
+        GenericArray<MemoryWriteCols<T>, <Ed25519BaseField as NumWords>::WordsFieldElement>,
+    pub y_access:
+        GenericArray<MemoryReadCols<T>, <Ed25519BaseField as NumWords>::WordsFieldElement>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) dyy: FieldOpCols<T, Ed25519BaseField>,
