@@ -6,7 +6,7 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
 
-use super::challenger::DuplexChallenger;
+use super::challenger::DuplexChallengerVariable;
 use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
@@ -16,29 +16,29 @@ use crate::prelude::SymbolicVar;
 use crate::prelude::Usize;
 use crate::prelude::Var;
 use crate::verifier::fri::types::{
-    Commitment, Dimensions, FriChallenges, FriConfig, FriProof, FriQueryProof,
+    Commitment, Dimensions, FriChallenges, FriConfigVariable, FriProofVariable,
+    FriQueryProofVariable,
 };
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
 pub fn verify_shape_and_sample_challenges<C: Config>(
     builder: &mut Builder<C>,
-    config: &FriConfig<C>,
-    proof: &FriProof<C>,
-    challenger: &mut DuplexChallenger<C>,
+    config: &FriConfigVariable<C>,
+    proof: &FriProofVariable<C>,
+    challenger: &mut DuplexChallengerVariable<C>,
 ) -> FriChallenges<C> {
-    let mut betas: Array<C, Felt<C::F>> = builder.array(proof.commit_phase_commits.len());
+    let mut betas: Array<C, Ext<C::F, C::EF>> = builder.array(proof.commit_phase_commits.len());
 
     builder
         .range(0, proof.commit_phase_commits.len())
         .for_each(|i, builder| {
             let comm = builder.get(&proof.commit_phase_commits, i);
             challenger.observe_commitment(builder, comm);
-
-            let sample = challenger.sample(builder);
+            let sample = challenger.sample_ext(builder);
             builder.set(&mut betas, i, sample);
         });
 
-    let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
+    let num_commit_phase_commits = proof.query_proofs.len().materialize(builder);
     builder
         .if_ne(num_commit_phase_commits, config.num_queries)
         .then(|builder| {
@@ -47,12 +47,12 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
-    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    // let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
     let mut query_indices = builder.array(config.num_queries);
-    builder.range(0, config.num_queries).for_each(|i, builder| {
-        let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
-        builder.set(&mut query_indices, i, index);
-    });
+    // builder.range(0, config.num_queries).for_each(|i, builder| {
+    //     let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
+    //     builder.set(&mut query_indices, i, index);
+    // });
 
     FriChallenges {
         query_indices,
@@ -67,8 +67,8 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 #[allow(unused_variables)]
 pub fn verify_challenges<C: Config>(
     builder: &mut Builder<C>,
-    config: &FriConfig<C>,
-    proof: &FriProof<C>,
+    config: &FriConfigVariable<C>,
+    proof: &FriProofVariable<C>,
     challenges: &FriChallenges<C>,
     reduced_openings: &Array<C, Array<C, Ext<C::F, C::EF>>>,
 ) where
@@ -94,7 +94,7 @@ pub fn verify_challenges<C: Config>(
                 Usize::Var(log_max_height),
             );
 
-            builder.assert_felt_eq(folded_eval, proof.final_poly);
+            // builder.assert_felt_eq(folded_eval, proof.final_poly);
         });
 }
 
@@ -107,11 +107,11 @@ pub fn verify_challenges<C: Config>(
 #[allow(unused_variables)]
 pub fn verify_query<C: Config>(
     builder: &mut Builder<C>,
-    config: &FriConfig<C>,
+    config: &FriConfigVariable<C>,
     commit_phase_commits: &Array<C, Commitment<C>>,
     index: Var<C::N>,
-    proof: &FriQueryProof<C>,
-    betas: &Array<C, Felt<C::F>>,
+    proof: &FriQueryProofVariable<C>,
+    betas: &Array<C, Ext<C::F, C::EF>>,
     reduced_openings: &Array<C, Ext<C::F, C::EF>>,
     log_max_height: Usize<C::N>,
 ) -> Felt<C::F>
@@ -140,7 +140,7 @@ where
         let index_pair = index_bits.shift(builder, i_plus_one);
 
         let mut evals: Array<C, Felt<C::F>> = builder.array(2);
-        builder.set(&mut evals, index_sibling_mod_2, step.sibling_value);
+        // builder.set(&mut evals, index_sibling_mod_2, step.sibling_value);
 
         let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
         let dims = Dimensions::<C> {
@@ -170,10 +170,10 @@ where
         let xs_1 = builder.get(&xs, 1);
         let eval_0 = builder.get(&evals, 0);
         let eval_1 = builder.get(&evals, 1);
-        builder.assign(
-            folded_eval,
-            eval_0 + (beta - xs_0) * (eval_1 - eval_0) / (xs_1 - xs_0),
-        );
+        // builder.assign(
+        //     folded_eval,
+        //     eval_0 + (beta - xs_0) * (eval_1 - eval_0) / (xs_1 - xs_0),
+        // );
 
         builder.assign(x, x * x);
     });

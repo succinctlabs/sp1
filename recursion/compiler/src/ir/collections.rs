@@ -60,10 +60,10 @@ impl<C: Config> Builder<C> {
             Usize::Const(len) => self.eval(C::N::from_canonical_usize(len)),
             Usize::Var(len) => len,
         };
-        let len: Var<C::N> = self.eval(len * C::N::from_canonical_usize(V::size_of()));
-        let len = Usize::Var(len);
-        let ptr = self.alloc(len);
-        Array::Dyn(ptr, len)
+        let size: Var<C::N> = self.eval(len * C::N::from_canonical_usize(V::size_of()));
+        let size = Usize::Var(size);
+        let ptr = self.alloc(size);
+        Array::Dyn(ptr, Usize::Var(len))
     }
 
     pub fn array_to_dyn<V: MemVariable<C>>(&mut self, array: Array<C, V>) -> Array<C, V> {
@@ -113,11 +113,12 @@ impl<C: Config> Builder<C> {
 
         match slice {
             Array::Fixed(slice) => {
-                if let Usize::Const(idx) = index {
-                    self.assign(slice[idx].clone(), value);
-                } else {
-                    panic!("Cannot index into a fixed slice with a variable size")
-                }
+                // if let Usize::Const(idx) = index {
+                //     self.assign(slice[idx].clone(), value);
+                // } else {
+                //     panic!("Cannot index into a fixed slice with a variable size")
+                // }
+                todo!()
             }
             Array::Dyn(ptr, _) => {
                 let value: V = self.eval(value);
@@ -130,31 +131,17 @@ impl<C: Config> Builder<C> {
 impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
     type Expression = Self;
 
-    fn uninit(_: &mut Builder<C>) -> Self {
-        panic!("cannot allocate arrays on stack")
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        Array::Dyn(builder.uninit(), builder.uninit())
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
         match (self, src.clone()) {
-            (Array::Fixed(lhs), Array::Fixed(rhs)) => {
-                for (l, r) in lhs.iter().zip_eq(rhs.iter()) {
-                    builder.assign(l.clone(), r.clone());
-                }
+            (Array::Dyn(lhs_ptr, lhs_len), Array::Dyn(rhs_ptr, rhs_len)) => {
+                builder.assign(*lhs_ptr, rhs_ptr);
+                builder.assign(*lhs_len, rhs_len);
             }
-            (Array::Dyn(_, lhs_len), Array::Dyn(_, rhs_len)) => {
-                let lhs_len_var = builder.materialize(*lhs_len);
-                let rhs_len_var = builder.materialize(rhs_len);
-                builder.assert_eq::<Var<_>, _, _>(lhs_len_var, rhs_len_var);
-
-                let start = Usize::Const(0);
-                let end = *lhs_len;
-                builder.range(start, end).for_each(|i, builder| {
-                    let a = builder.get(self, i);
-                    let b = builder.get(&src, i);
-                    builder.assign(a, b);
-                });
-            }
-            _ => panic!("cannot compare arrays of different types"),
+            _ => unreachable!(),
         }
     }
 
@@ -231,36 +218,36 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
 
 impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
     fn size_of() -> usize {
-        1
+        2
     }
 
     #[allow(clippy::needless_range_loop)]
     fn load(&self, src: Ptr<C::N>, builder: &mut Builder<C>) {
         match self {
-            Array::Fixed(vec) => {
-                for i in 0..vec.len() {
-                    let addr = builder.eval(src + Usize::Const(i));
-                    vec[i].clone().load(addr, builder);
-                }
+            Array::Dyn(dst, Usize::Var(len)) => {
+                let mut offset = 0;
+                let address = builder.eval(src + Usize::Const(offset));
+                dst.load(address, builder);
+                offset += <Ptr<C::N> as MemVariable<C>>::size_of();
+                let address = builder.eval(src + Usize::Const(offset));
+                len.load(address, builder);
             }
-            Array::Dyn(dst, _) => {
-                builder.assign(*dst, src);
-            }
+            _ => unreachable!(),
         }
     }
 
     #[allow(clippy::needless_range_loop)]
     fn store(&self, dst: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
         match self {
-            Array::Fixed(vec) => {
-                for i in 0..vec.len() {
-                    let addr = builder.eval(dst + Usize::Const(i));
-                    vec[i].clone().store(addr, builder);
-                }
+            Array::Dyn(src, Usize::Var(len)) => {
+                let mut offset = 0;
+                let address = builder.eval(dst + Usize::Const(offset));
+                src.store(address, builder);
+                offset += <Ptr<C::N> as MemVariable<C>>::size_of();
+                let address = builder.eval(dst + Usize::Const(offset));
+                len.store(address, builder);
             }
-            Array::Dyn(src, _) => {
-                builder.assign(dst, *src);
-            }
+            _ => unreachable!(),
         }
     }
 }

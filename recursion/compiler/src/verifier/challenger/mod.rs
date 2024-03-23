@@ -2,13 +2,13 @@ pub mod utils;
 
 use p3_field::AbstractField;
 
-use crate::prelude::{Array, Builder, Config, Felt, Usize, Var};
+use crate::prelude::{Array, Builder, Config, Ext, Felt, SymbolicExt, SymbolicFelt, Usize, Var};
 use crate::verifier::fri::types::Commitment;
 use crate::verifier::fri::types::PERMUTATION_WIDTH;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
 #[derive(Clone)]
-pub struct DuplexChallenger<C: Config> {
+pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: Array<C, Felt<C::F>>,
     pub nb_inputs: Var<C::N>,
     pub input_buffer: Array<C, Felt<C::F>>,
@@ -16,7 +16,7 @@ pub struct DuplexChallenger<C: Config> {
     pub output_buffer: Array<C, Felt<C::F>>,
 }
 
-impl<C: Config> DuplexChallenger<C> {
+impl<C: Config> DuplexChallengerVariable<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L38
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
         builder.range(0, self.nb_inputs).for_each(|i, builder| {
@@ -41,6 +41,7 @@ impl<C: Config> DuplexChallenger<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
     pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         builder.clear(&mut self.output_buffer);
+        builder.assign(self.nb_outputs, C::N::zero());
 
         builder.set(&mut self.input_buffer, self.nb_inputs, value);
         builder.assign(self.nb_inputs, self.nb_inputs + C::N::one());
@@ -57,10 +58,9 @@ impl<C: Config> DuplexChallenger<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L78
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
-        let start = Usize::Const(0);
-        let end = commitment.len();
-        builder.range(start, end).for_each(|i, builder| {
+        builder.range(0, commitment.len()).for_each(|i, builder| {
             let element = builder.get(&commitment, i);
+            builder.print_f(element);
             self.observe(builder, element);
         });
     }
@@ -84,18 +84,27 @@ impl<C: Config> DuplexChallenger<C> {
         output
     }
 
+    pub fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
+        let a = self.sample(builder);
+        builder.print_f(a);
+        let b = self.sample(builder);
+        builder.print_f(b);
+        let c = self.sample(builder);
+        builder.print_f(c);
+        let d = self.sample(builder);
+        builder.print_f(d);
+        builder.ext_from_base_slice(&[a, b, c, d])
+    }
+
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L144
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: Usize<C::N>) -> Var<C::N> {
         let rand_f = self.sample(builder);
         let bits = builder.num2bits_f(rand_f);
-        let start = Usize::Const(0);
-        let end = nb_bits;
         let sum: Var<C::N> = builder.eval(C::N::zero());
         let power: Var<C::N> = builder.eval(C::N::from_canonical_usize(1));
-        builder.range(start, end).for_each(|i, builder| {
+        builder.range(0, nb_bits).for_each(|i, builder| {
             let bit = builder.get(&bits, i);
-            builder.assign(self.nb_outputs, bit);
-            builder.assign(sum, power * sum);
+            builder.assign(sum, sum + bit * power);
             builder.assign(power, power * C::N::from_canonical_usize(2));
         });
         sum
@@ -110,9 +119,7 @@ impl<C: Config> DuplexChallenger<C> {
     ) {
         self.observe(builder, witness);
         let element = self.sample_bits(builder, Usize::Var(nb_bits));
-        builder
-            .if_eq(element, C::N::one())
-            .then(|builder| builder.error());
+        builder.assert_var_eq(element, C::N::zero());
     }
 }
 
@@ -124,7 +131,7 @@ mod tests {
     use crate::ir::Felt;
     use crate::ir::Usize;
     use crate::ir::Var;
-    use crate::verifier::challenger::DuplexChallenger;
+    use crate::verifier::challenger::DuplexChallengerVariable;
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_field::AbstractField;
@@ -152,7 +159,7 @@ mod tests {
         let mut builder = VmBuilder::<F, EF>::default();
 
         let width: Var<_> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
-        let mut challenger = DuplexChallenger::<AsmConfig<F, EF>> {
+        let mut challenger = DuplexChallengerVariable::<AsmConfig<F, EF>> {
             sponge_state: builder.array(Usize::Var(width)),
             nb_inputs: builder.eval(F::zero()),
             input_buffer: builder.array(Usize::Var(width)),

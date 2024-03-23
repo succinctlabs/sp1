@@ -269,7 +269,7 @@ where
         + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>
         + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
 {
-    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
+    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace)
 }
 
 #[cfg(not(debug_assertions))]
@@ -300,7 +300,7 @@ where
         + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>
         + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
 {
-    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
+    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof)
 }
 
 #[cfg(not(debug_assertions))]

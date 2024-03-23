@@ -60,6 +60,20 @@ impl<C: Config> Variable<C> for Ptr<C::N> {
     }
 }
 
+impl<C: Config> MemVariable<C> for Ptr<C::N> {
+    fn size_of() -> usize {
+        1
+    }
+
+    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
+        self.address.load(ptr, builder);
+    }
+
+    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+        self.address.store(ptr, builder);
+    }
+}
+
 impl<N> From<Ptr<N>> for SymbolicPtr<N> {
     fn from(ptr: Ptr<N>) -> Self {
         SymbolicPtr {

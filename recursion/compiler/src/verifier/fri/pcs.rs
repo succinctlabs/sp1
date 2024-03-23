@@ -1,7 +1,7 @@
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 
-use super::types::{Commitment, FriConfig, FriProof};
+use super::types::{Commitment, FriConfigVariable, FriProofVariable};
 use crate::prelude::MemVariable;
 use crate::prelude::Ptr;
 use crate::prelude::Var;
@@ -11,7 +11,7 @@ use crate::prelude::{SymbolicExt, SymbolicFelt};
 use crate::verifier::fri;
 use crate::verifier::fri::verify_shape_and_sample_challenges;
 use crate::verifier::fri::Dimensions;
-use crate::verifier::fri::DuplexChallenger;
+use crate::verifier::fri::DuplexChallengerVariable;
 
 #[derive(Clone)]
 pub struct BatchOpening<C: Config> {
@@ -20,7 +20,7 @@ pub struct BatchOpening<C: Config> {
 }
 
 pub struct TwoAdicPcsProof<C: Config> {
-    pub fri_proof: FriProof<C>,
+    pub fri_proof: FriProofVariable<C>,
     pub query_openings: Array<C, Array<C, BatchOpening<C>>>,
 }
 
@@ -42,10 +42,10 @@ pub struct TwoAdicPcsMats<C: Config> {
 #[allow(unused_variables)]
 pub fn verify_two_adic_pcs<C: Config>(
     builder: &mut Builder<C>,
-    config: &FriConfig<C>,
+    config: &FriConfigVariable<C>,
     rounds: Array<C, TwoAdicPcsRound<C>>,
     proof: TwoAdicPcsProof<C>,
-    challenger: &mut DuplexChallenger<C>,
+    challenger: &mut DuplexChallengerVariable<C>,
 ) where
     C::EF: TwoAdicField,
 {

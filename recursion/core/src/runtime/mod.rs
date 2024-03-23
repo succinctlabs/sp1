@@ -26,7 +26,7 @@ pub const MEMORY_SIZE: usize = 1 << 26;
 pub const POSEIDON2_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
 
-pub const NUM_BITS: usize = 29;
+pub const NUM_BITS: usize = 31;
 
 pub const D: usize = 4;
 
@@ -222,6 +222,12 @@ where
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
+                Opcode::PrintF => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    println!("PRINTF={}", a_val[0]);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::ADD => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
@@ -388,8 +394,11 @@ where
                     let dst = a_val[0].as_canonical_u32() as usize;
                     // Get the src value.
                     let num = b_val[0].as_canonical_u32();
+
+                    println!("NUM2BITS: {:?}", num);
                     // Decompose the num into bits.
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
+                    println!("BITS: {:?}", bits);
                     // Write the bits to the array at dst.
                     for (i, bit) in bits.iter().enumerate() {
                         self.memory[dst + i].value[0] = F::from_canonical_u32(*bit);

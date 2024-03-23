@@ -435,6 +435,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::ExpUsizeV(_, _, _) => unimplemented!(),
                 DslIR::ExpUsizeF(_, _, _) => unimplemented!(),
                 DslIR::Error() => self.push(AsmInstruction::TRAP),
+                DslIR::PrintF(dst) => self.push(AsmInstruction::PrintF(dst.fp())),
+                DslIR::PrintV(dst) => self.push(AsmInstruction::PrintV(dst.fp())),
             }
         }
     }

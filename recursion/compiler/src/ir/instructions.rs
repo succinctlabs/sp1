@@ -88,6 +88,8 @@ pub enum DslIR<C: Config> {
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
 
     // Miscellaneous instructions.
+    PrintV(Var<C::N>),
+    PrintF(Felt<C::F>),
     Error(),
     Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),
     Num2BitsF(Array<C, Var<C::N>>, Felt<C::F>),
