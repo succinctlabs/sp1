@@ -5,13 +5,10 @@ pub mod keccak256;
 pub mod sha256;
 pub mod weierstrass;
 
-use num::BigUint;
 use serde::{Deserialize, Serialize};
 
-use crate::air::SP1AirBuilder;
-use crate::operations::field::params::Limbs;
 use crate::runtime::SyscallContext;
-use crate::utils::ec::field::FieldParameters;
+
 use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
@@ -54,6 +51,7 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let q_affine = AffinePoint::<E>::from_words_le(&q);
     let result_affine = p_affine + q_affine;
     let result_words = result_affine.to_words_le();
+
     let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
 
     ECAddEvent {
@@ -102,12 +100,4 @@ pub fn create_ec_double_event<E: EllipticCurve>(
         p,
         p_memory_records,
     }
-}
-
-pub fn limbs_from_biguint<AB, F: FieldParameters>(value: &BigUint) -> Limbs<AB::Expr>
-where
-    AB: SP1AirBuilder,
-{
-    let a_const = F::to_limbs_field::<AB::F>(value);
-    Limbs::<AB::Expr>(a_const.0.map(|x| x.into()))
 }

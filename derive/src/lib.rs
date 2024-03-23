@@ -38,41 +38,53 @@ pub fn aligned_borrow_derive(input: TokenStream) -> TokenStream {
     let ast = parse_macro_input!(input as DeriveInput);
     let name = &ast.ident;
 
-    // Ensure the first generic parameter is the type generic, and rest all are const generics.
-    let mut generics_iter = ast.generics.params.iter();
+    // Get first generic which must be type (ex. `T`) for input <T, N: NumLimbs, const M: usize>
+    let type_generic = ast
+        .generics
+        .params
+        .iter()
+        .map(|param| match param {
+            GenericParam::Type(type_param) => &type_param.ident,
+            _ => panic!("Expected first generic to be a type"),
+        })
+        .next()
+        .expect("Expected at least one generic");
 
-    // Extract the first generic parameter and ensure it's a type.
-    let type_generic = match generics_iter.next().expect("No generic parameters found") {
-        GenericParam::Type(type_param) => &type_param.ident,
-        _ => panic!("The first generic parameter must be a type."),
-    };
+    // Get generics after the first (ex. `N: NumLimbs, const M: usize`)
+    // We need this because when we assert the size, we want to substitute u8 for T.
+    let non_first_generics = ast
+        .generics
+        .params
+        .iter()
+        .skip(1)
+        .filter_map(|param| match param {
+            GenericParam::Type(type_param) => Some(&type_param.ident),
+            GenericParam::Const(const_param) => Some(&const_param.ident),
+            _ => None,
+        })
+        .collect::<Vec<_>>();
 
-    // Collect the remaining generic parameters, ensuring they are all const generics.
-    let const_generics: Vec<_> = generics_iter.map(|param| match param {
-    GenericParam::Const(const_param) => &const_param.ident,
-        _ => panic!("`AlignedBorrow` supports only a type as the first generic parameter and const generics after that"),
-    }).collect();
+    // Get impl generics (`<T, N: NumLimbs, const M: usize>`), type generics (`<T, N>`), where clause (`where T: Clone`)
+    let (impl_generics, type_generics, where_clause) = ast.generics.split_for_impl();
 
-    let methods = {
-        quote! {
-            impl<#type_generic: Copy #(, const #const_generics: usize)*> core::borrow::Borrow<#name<#type_generic #(, #const_generics)*>> for [#type_generic] {
-                fn borrow(&self) -> &#name<#type_generic #(, #const_generics)*> {
-                    debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #const_generics)*>>());
-                    let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name<#type_generic #(, #const_generics)*>>() };
-                    debug_assert!(prefix.is_empty(), "Alignment should match");
-                    debug_assert_eq!(shorts.len(), 1);
-                    &shorts[0]
-                }
+    let methods = quote! {
+        impl #impl_generics core::borrow::Borrow<#name #type_generics> for [#type_generic] #where_clause {
+            fn borrow(&self) -> &#name #type_generics {
+                debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #non_first_generics)*>>());
+                let (prefix, shorts, _suffix) = unsafe { self.align_to::<#name #type_generics>() };
+                debug_assert!(prefix.is_empty(), "Alignment should match");
+                debug_assert_eq!(shorts.len(), 1);
+                &shorts[0]
             }
+        }
 
-            impl<#type_generic: Copy #(, const #const_generics: usize)*> core::borrow::BorrowMut<#name<#type_generic #(, #const_generics)*>> for [#type_generic] {
-                fn borrow_mut(&mut self) -> &mut #name<#type_generic #(, #const_generics)*> {
-                    debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #const_generics)*>>());
-                    let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name<#type_generic #(, #const_generics)*>>() };
-                    debug_assert!(prefix.is_empty(), "Alignment should match");
-                    debug_assert_eq!(shorts.len(), 1);
-                    &mut shorts[0]
-                }
+        impl #impl_generics core::borrow::BorrowMut<#name #type_generics> for [#type_generic] #where_clause {
+            fn borrow_mut(&mut self) -> &mut #name #type_generics {
+                debug_assert_eq!(self.len(), std::mem::size_of::<#name<u8 #(, #non_first_generics)*>>());
+                let (prefix, shorts, _suffix) = unsafe { self.align_to_mut::<#name #type_generics>() };
+                debug_assert!(prefix.is_empty(), "Alignment should match");
+                debug_assert_eq!(shorts.len(), 1);
+                &mut shorts[0]
             }
         }
     };
