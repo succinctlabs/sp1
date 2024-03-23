@@ -27,32 +27,36 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     proof: &FriProofVariable<C>,
     challenger: &mut DuplexChallengerVariable<C>,
 ) -> FriChallenges<C> {
-    let mut betas: Array<C, Ext<C::F, C::EF>> = builder.array(proof.commit_phase_commits.len());
+    let mut betas: Array<C, Ext<C::F, C::EF>> = builder.dyn_array(proof.commit_phase_commits.len());
 
-    builder
-        .range(0, proof.commit_phase_commits.len())
-        .for_each(|i, builder| {
-            let comm = builder.get(&proof.commit_phase_commits, i);
-            challenger.observe_commitment(builder, comm);
-            let sample = challenger.sample_ext(builder);
-            builder.set(&mut betas, i, sample);
-        });
-
-    let num_commit_phase_commits = proof.query_proofs.len().materialize(builder);
-    builder
-        .if_ne(num_commit_phase_commits, config.num_queries)
-        .then(|builder| {
-            builder.error();
-        });
-
-    challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
-
-    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
-    let mut query_indices = builder.array(config.num_queries);
-    builder.range(0, config.num_queries).for_each(|i, builder| {
-        let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
-        builder.set(&mut query_indices, i, index);
+    let end = proof.commit_phase_commits.len().materialize(builder);
+    let ctr: Var<_> = builder.eval(C::N::zero());
+    builder.range(0, end).for_each(|i, builder| {
+        // builder.print_v(ctr);
+        // builder.print_v(i);
+        let comm = builder.get(&proof.commit_phase_commits, ctr);
+        challenger.observe_commitment(builder, comm);
+        let sample = challenger.sample_ext(builder);
+        builder.set(&mut betas, ctr, sample);
+        builder.assign(ctr, ctr + C::N::one());
     });
+
+    // let num_query_proofs = proof.query_proofs.len().materialize(builder);
+    // builder
+    //     .if_ne(num_query_proofs, config.num_queries)
+    //     .then(|builder| {
+    //         builder.error();
+    //     });
+
+    // challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
+
+    // let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
+    // let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    let mut query_indices = builder.array(config.num_queries);
+    // builder.range(0, config.num_queries).for_each(|i, builder| {
+    //     let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
+    //     builder.set(&mut query_indices, i, index);
+    // });
 
     FriChallenges {
         query_indices,

@@ -1,10 +1,13 @@
 pub mod utils;
 
 use p3_field::AbstractField;
+use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
 use crate::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
 use crate::verifier::fri::types::Commitment;
 use crate::verifier::fri::types::PERMUTATION_WIDTH;
+
+use super::fri::types::DIGEST_SIZE;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
 #[derive(Clone)]
@@ -19,26 +22,35 @@ pub struct DuplexChallengerVariable<C: Config> {
 impl<C: Config> DuplexChallengerVariable<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L38
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
+        let ctr: Var<_> = builder.eval(C::N::zero());
         builder.range(0, self.nb_inputs).for_each(|i, builder| {
-            let element = builder.get(&self.input_buffer, i);
-            builder.set(&mut self.sponge_state, i, element);
+            let element = builder.get(&self.input_buffer, ctr);
+            builder.set(&mut self.sponge_state, ctr, element);
+            builder.assign(ctr, ctr + C::N::one());
         });
         builder.assign(self.nb_inputs, C::N::zero());
 
+        let code: Var<_> = builder.eval(C::N::from_canonical_usize(1982));
+        builder.print_v(code);
+        for i in 0..POSEIDON2_WIDTH {
+            let el = builder.get(&self.sponge_state, i);
+            builder.print_f(el);
+        }
         builder.poseidon2_permute_mut(&self.sponge_state);
 
         builder.clear(&mut self.output_buffer);
         builder.assign(self.nb_outputs, C::N::zero());
-        // TODO: why do we need to use PERMUTATION_WIDTH here instead of len?
-        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+
+        for i in 0..PERMUTATION_WIDTH {
             let element = builder.get(&self.sponge_state, i);
             builder.set(&mut self.output_buffer, i, element);
             builder.assign(self.nb_outputs, self.nb_outputs + C::N::one());
-        });
+        }
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
     pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+        builder.print_f(value);
         builder.clear(&mut self.output_buffer);
         builder.assign(self.nb_outputs, C::N::zero());
 
@@ -57,10 +69,10 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L78
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
-        builder.range(0, commitment.len()).for_each(|i, builder| {
+        for i in 0..DIGEST_SIZE {
             let element = builder.get(&commitment, i);
             self.observe(builder, element);
-        });
+        }
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L124
@@ -79,6 +91,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         let idx: Var<_> = builder.eval(self.nb_outputs - C::N::one());
         let output = builder.get(&self.output_buffer, idx);
         builder.assign(self.nb_outputs, self.nb_outputs - C::N::one());
+        builder.print_f(output);
         output
     }
 

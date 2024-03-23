@@ -395,8 +395,8 @@ where
                     // Get the src value.
                     let num = b_val[0].as_canonical_u32();
 
-                    println!("NUM2BITS: {:?}", num);
                     // Decompose the num into bits.
+                    println!("NUM2BITS: {:?}", num);
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
                     println!("BITS: {:?}", bits);
                     // Write the bits to the array at dst.

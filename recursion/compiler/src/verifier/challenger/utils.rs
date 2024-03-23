@@ -7,8 +7,8 @@ impl<C: Config> Builder<C> {
     where
         V::Expression: AbstractField,
     {
-        self.range(0, array.len()).for_each(|i, builder| {
-            builder.set(array, i, V::Expression::zero());
-        });
+        // self.range(0, array.len()).for_each(|i, builder| {
+        //     builder.set(array, i, V::Expression::zero());
+        // });
     }
 }
