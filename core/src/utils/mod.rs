@@ -16,6 +16,7 @@ pub use tracer::*;
 pub use programs::*;
 
 use crate::{memory::MemoryCols, operations::field::params::Limbs};
+use generic_array::ArrayLength;
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];
@@ -36,7 +37,9 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
-pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
+pub fn limbs_from_prev_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(
+    cols: &[M],
+) -> Limbs<T, N> {
     let vec = cols
         .iter()
         .flat_map(|access| access.prev_value().0)
@@ -48,7 +51,7 @@ pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T>
     Limbs(sized)
 }
 
-pub fn limbs_from_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
+pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T, N> {
     let vec = cols
         .iter()
         .flat_map(|access| access.value().0)
