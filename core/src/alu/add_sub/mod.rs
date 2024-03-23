@@ -21,7 +21,7 @@ pub const NUM_ADD_SUB_COLS: usize = size_of::<AddSubCols<u8>>();
 
 /// A chip that implements addition for the opcode ADD and SUB.
 ///
-/// SUB is basically an ADD with a re-arrangment of the operands and result.
+/// SUB is basically an ADD with a re-arrangement of the operands and result.
 /// E.g. given the standard ALU op variable name and positioning of `a` = `b` OP `c`,
 /// `a` = `b` + `c` should be verified for ADD, and `b` = `a` + `c` (e.g. `a` = `b` - `c`)
 /// should be verified for SUB.
@@ -150,7 +150,7 @@ where
             is_real,
         );
 
-        // Receive the arguments.  There are seperate receives for ADD and SUB.
+        // Receive the arguments.  There are separate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
         builder.receive_alu(
             Opcode::ADD.as_field::<AB::F>(),

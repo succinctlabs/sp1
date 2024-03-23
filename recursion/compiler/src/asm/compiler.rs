@@ -549,7 +549,7 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> IfCompiler<'a, F, EF> {
             is_eq,
         } = self;
         // Get the label for the current block, so we can generate the jump instruction into it.
-        // conditional branc instruction to it, if the condition is not met.
+        // conditional branch instruction to it, if the condition is not met.
         let if_branching_block = compiler.block_label();
         // Generate the block for the then branch.
         compiler.basic_block();

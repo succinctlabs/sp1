@@ -44,7 +44,7 @@ pub struct MemoryAccessCols<T> {
     /// This column is the least significant 16 bit limb of current access timestamp - prev access timestamp.
     pub diff_16bit_limb: T,
 
-    /// This column is the most signficant 8 bit limb of current access timestamp - prev access timestamp.
+    /// This column is the most significant 8 bit limb of current access timestamp - prev access timestamp.
     pub diff_8bit_limb: T,
 }
 

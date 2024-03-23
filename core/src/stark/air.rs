@@ -43,7 +43,7 @@ pub(crate) mod riscv_chips {
 /// different AIR variants have a joint lookup argument.
 #[derive(MachineAir)]
 pub enum RiscvAir<F: PrimeField32> {
-    /// An AIR that containts a preprocessed program table and a lookup for the instructions.
+    /// An AIR that contains a preprocessed program table and a lookup for the instructions.
     Program(ProgramChip),
     /// An AIR for the RISC-V CPU. Each row represents a cpu cycle.
     Cpu(CpuChip),

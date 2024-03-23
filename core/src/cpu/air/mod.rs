@@ -302,7 +302,7 @@ impl CpuChip {
     /// Constraints related to the shard and clk.
     ///
     /// This function ensures that all of the shard values are the same and that the clk starts at 0
-    /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
+    /// and is transitioned appropriately.  It will also check that shard values are within 16 bits
     /// and clk values are within 24 bits.  Those range checks are needed for the memory access
     /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
     pub(crate) fn shard_clk_eval<AB: SP1AirBuilder>(

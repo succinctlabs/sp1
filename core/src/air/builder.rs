@@ -15,7 +15,7 @@ use p3_field::{AbstractField, Field};
 use p3_uni_stark::StarkGenericConfig;
 use std::iter::once;
 
-/// A Builder with the ability to encode the existance of interactions with other AIRs by sending
+/// A Builder with the ability to encode the existence of interactions with other AIRs by sending
 /// and receiving messages.
 pub trait MessageBuilder<M> {
     fn send(&mut self, message: M);

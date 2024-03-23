@@ -10,7 +10,7 @@ use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
 #[serde_as]
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExecutionState {
-    /// The global clock keeps track of how many instrutions have been executed through all shards.
+    /// The global clock keeps track of how many instructions have been executed through all shards.
     pub global_clk: u64,
 
     /// The shard clock keeps track of how many shards have been executed.

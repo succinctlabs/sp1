@@ -118,7 +118,7 @@ where
             local.pc * local.pc * local.pc,
         );
 
-        // Contrain the interaction with CPU table
+        // Constrain the interaction with CPU table
         builder.receive_program(
             local.pc,
             local.instruction,

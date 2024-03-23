@@ -87,7 +87,7 @@ impl ShaCompressChip {
         }
 
         //// Constrain octet_num columns
-        // Verify taht all of the octet_num columns are bool.
+        // Verify that all of the octet_num columns are bool.
         for i in 0..10 {
             builder.assert_bool(local.octet_num[i]);
         }

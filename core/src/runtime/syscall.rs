@@ -18,7 +18,7 @@ use std::rc::Rc;
 use strum_macros::EnumIter;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
-/// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
+/// The syscall number is a 32-bit integer, with the following layout (in little-endian format)
 /// - The first byte is the syscall id.
 /// - The second byte is 0/1 depending on whether the syscall has a separate table. This is used
 /// in the CPU table to determine whether to lookup the syscall using the syscall interaction.
