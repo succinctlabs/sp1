@@ -47,16 +47,36 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
 
 impl<C: Config> Builder<C> {
     /// Initialize an array of fixed length `len`. The entries will be uninitialized.
-    pub fn array<V: MemVariable<C>, I: Into<Usize<C::N>>>(&mut self, len: I) -> Array<C, V> {
+    pub fn array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
         let len = len.into();
         match len {
             Usize::Const(len) => Array::Fixed(vec![self.uninit::<V>(); len]),
-            Usize::Var(len) => {
-                let len: Var<C::N> = self.eval(len * C::N::from_canonical_usize(V::size_of()));
-                let len = Usize::Var(len);
-                let ptr = self.alloc(len);
-                Array::Dyn(ptr, len)
+            Usize::Var(_) => self.dyn_array(len),
+        }
+    }
+
+    pub fn dyn_array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
+        let len = match len.into() {
+            Usize::Const(len) => self.eval(C::N::from_canonical_usize(len)),
+            Usize::Var(len) => len,
+        };
+        let len: Var<C::N> = self.eval(len * C::N::from_canonical_usize(V::size_of()));
+        let len = Usize::Var(len);
+        let ptr = self.alloc(len);
+        Array::Dyn(ptr, len)
+    }
+
+    pub fn array_to_dyn<V: MemVariable<C>>(&mut self, array: Array<C, V>) -> Array<C, V> {
+        match array {
+            Array::Fixed(v) => {
+                let mut dyn_array = self.dyn_array(v.len());
+
+                for (i, value) in v.into_iter().enumerate() {
+                    self.set(&mut dyn_array, i, value);
+                }
+                dyn_array
             }
+            Array::Dyn(ptr, len) => Array::Dyn(ptr, len),
         }
     }
 

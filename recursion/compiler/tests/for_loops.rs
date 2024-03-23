@@ -43,6 +43,7 @@ fn test_compiler_for_loops() {
 
     let program = builder.compile();
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }

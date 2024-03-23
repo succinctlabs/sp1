@@ -56,8 +56,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
     let commit_phase_commits_len = builder.materialize(proof.fri_proof.commit_phase_commits.len());
-    let log_blowup = config.log_blowup.materialize(builder);
-    let log_max_height: Var<_> = builder.eval(commit_phase_commits_len + log_blowup);
+    let log_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
 
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
@@ -110,8 +109,8 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let mat_values = mat.values;
 
                         let log2_domain_size = builder.log2(mat_domain);
-                        let log_height = log2_domain_size + config.log_blowup.materialize(builder);
-                        let log_height: Var<C::N> = builder.eval(log_height);
+                        let log_height: Var<C::N> =
+                            builder.eval(log2_domain_size + config.log_blowup);
 
                         let bits_reduced: Var<C::N> = builder.eval(log_max_height - log_height);
                         let rev_reduced_index =

@@ -7,6 +7,7 @@ use sp1_core::air::{BinomialExtension, SP1AirBuilder};
 use sp1_derive::AlignedBorrow;
 
 use std::ops::Index;
+use std::ops::IndexMut;
 
 use crate::runtime::D;
 
@@ -91,6 +92,16 @@ where
     #[inline]
     fn index(&self, index: I) -> &Self::Output {
         Index::index(&self.0, index)
+    }
+}
+
+impl<T, I> IndexMut<I> for Block<T>
+where
+    [T]: IndexMut<I>,
+{
+    #[inline]
+    fn index_mut(&mut self, index: I) -> &mut Self::Output {
+        IndexMut::index_mut(&mut self.0, index)
     }
 }
 
