@@ -140,14 +140,8 @@ fn test_fri_verify_shape_and_sample_challenges() {
     let fri_challenges =
         verifier::verify_shape_and_sample_challenges(&fc, &proof, &mut v_challenger)
             .expect("failed verify shape and sample");
-    // verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings)
-    //     .expect("failed verify challenges");
-
-    // assert_eq!(
-    //     p_sample,
-    //     v_challenger.sample_bits(8),
-    //     "prover and verifier transcript have same state after FRI"
-    // );
+    verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings)
+        .expect("failed verify challenges");
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -195,7 +189,7 @@ fn test_fri_verify_shape_and_sample_challenges() {
         builder.set(&mut proofvar.commit_phase_commits, i, commitment);
     }
 
-    // // set query proofs
+    // set query proofs
     // for i in 0..proof.query_proofs.len() {
     //     // create commit phase openings
     //     let mut commit_phase_openings: Array<
@@ -244,7 +238,22 @@ fn test_fri_verify_shape_and_sample_challenges() {
         nb_outputs: builder.eval(F::zero()),
         output_buffer: builder.array(Usize::Var(width)),
     };
-    fri::verify_shape_and_sample_challenges(&mut builder, &configvar, &proofvar, &mut challenger);
+    let challenges = fri::verify_shape_and_sample_challenges(
+        &mut builder,
+        &configvar,
+        &proofvar,
+        &mut challenger,
+    );
+
+    let a: Var<_> = builder.eval(F::from_canonical_usize(1462788387));
+    let b: Var<_> = builder.eval(F::from_canonical_usize(1462788385));
+    builder.assert_var_eq(a, b);
+
+    for i in 0..fri_challenges.query_indices.len() {
+        let gt: Var<_> = builder.eval(F::from_canonical_usize(fri_challenges.query_indices[i]));
+        let index = builder.get(&challenges.query_indices, i);
+        builder.assert_var_eq(index, gt);
+    }
 
     let program = builder.compile();
 

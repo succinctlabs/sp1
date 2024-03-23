@@ -2,7 +2,7 @@ pub mod utils;
 
 use p3_field::AbstractField;
 
-use crate::prelude::{Array, Builder, Config, Ext, Felt, SymbolicExt, SymbolicFelt, Usize, Var};
+use crate::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
 use crate::verifier::fri::types::Commitment;
 use crate::verifier::fri::types::PERMUTATION_WIDTH;
 
@@ -29,13 +29,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
         builder.clear(&mut self.output_buffer);
         builder.assign(self.nb_outputs, C::N::zero());
-        builder
-            .range(0, self.sponge_state.len())
-            .for_each(|i, builder| {
-                let element = builder.get(&self.sponge_state, i);
-                builder.set(&mut self.output_buffer, i, element);
-                builder.assign(self.nb_outputs, self.nb_outputs + C::N::one());
-            });
+        // TODO: why do we need to use PERMUTATION_WIDTH here instead of len?
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.sponge_state, i);
+            builder.set(&mut self.output_buffer, i, element);
+            builder.assign(self.nb_outputs, self.nb_outputs + C::N::one());
+        });
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
@@ -60,7 +59,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
     pub fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
         builder.range(0, commitment.len()).for_each(|i, builder| {
             let element = builder.get(&commitment, i);
-            builder.print_f(element);
             self.observe(builder, element);
         });
     }
@@ -86,13 +84,9 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     pub fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
         let a = self.sample(builder);
-        builder.print_f(a);
         let b = self.sample(builder);
-        builder.print_f(b);
         let c = self.sample(builder);
-        builder.print_f(c);
         let d = self.sample(builder);
-        builder.print_f(d);
         builder.ext_from_base_slice(&[a, b, c, d])
     }
 
@@ -102,6 +96,8 @@ impl<C: Config> DuplexChallengerVariable<C> {
         let bits = builder.num2bits_f(rand_f);
         let sum: Var<C::N> = builder.eval(C::N::zero());
         let power: Var<C::N> = builder.eval(C::N::from_canonical_usize(1));
+        // TODO: why do we need to materialize the nb_bits for this for loop to work?
+        let nb_bits = builder.materialize(nb_bits);
         builder.range(0, nb_bits).for_each(|i, builder| {
             let bit = builder.get(&bits, i);
             builder.assign(sum, sum + bit * power);

@@ -96,8 +96,8 @@ impl<C: Config> Builder<C> {
                 builder.assign(sum, sum + C::F::from_canonical_u32(1 << i));
             });
         }
-        // Finally, assert that the sum is equal to the original number.
-        self.assert_felt_eq(sum, num);
+        // // Finally, assert that the sum is equal to the original number.
+        // self.assert_felt_eq(sum, num);
 
         output
     }

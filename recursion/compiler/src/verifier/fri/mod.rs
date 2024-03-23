@@ -47,12 +47,12 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
-    // let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
     let mut query_indices = builder.array(config.num_queries);
-    // builder.range(0, config.num_queries).for_each(|i, builder| {
-    //     let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
-    //     builder.set(&mut query_indices, i, index);
-    // });
+    builder.range(0, config.num_queries).for_each(|i, builder| {
+        let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
+        builder.set(&mut query_indices, i, index);
+    });
 
     FriChallenges {
         query_indices,
