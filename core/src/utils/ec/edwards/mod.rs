@@ -9,9 +9,6 @@ use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 use super::field::NumLimbs;
 
-// The number of `u8` limbs in the base field of Ed25519.
-const NUM_LIMBS: usize = 32;
-
 pub trait EdwardsParameters: EllipticCurveParameters {
     const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;
 

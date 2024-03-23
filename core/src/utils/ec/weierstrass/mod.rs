@@ -23,7 +23,7 @@ pub trait WeierstrassParameters: EllipticCurveParameters {
     fn a_int() -> BigUint {
         let mut modulus = BigUint::zero();
         for (i, limb) in Self::A.iter().enumerate() {
-            modulus += BigUint::from(*limb) << (16 * i);
+            modulus += BigUint::from(*limb) << (8 * i);
         }
         modulus
     }
@@ -31,7 +31,7 @@ pub trait WeierstrassParameters: EllipticCurveParameters {
     fn b_int() -> BigUint {
         let mut modulus = BigUint::zero();
         for (i, limb) in Self::B.iter().enumerate() {
-            modulus += BigUint::from(*limb) << (16 * i);
+            modulus += BigUint::from(*limb) << (8 * i);
         }
         modulus
     }

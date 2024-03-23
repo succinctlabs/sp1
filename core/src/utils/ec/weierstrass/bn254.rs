@@ -19,12 +19,6 @@ pub type Bn254 = SwCurve<Bn254Parameters>;
 pub struct Bn254BaseField;
 
 impl FieldParameters for Bn254BaseField {
-    const NB_BITS_PER_LIMB: usize = 16;
-
-    const NB_LIMBS: usize = 16;
-
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-
     const MODULUS: &'static [u8] = &[
         71, 253, 124, 216, 22, 140, 32, 60, 141, 202, 113, 104, 145, 106, 129, 151, 93, 88, 129,
         129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,

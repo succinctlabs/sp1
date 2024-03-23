@@ -7,13 +7,14 @@ use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
 use std::ops::Div;
+use typenum::Unsigned;
 use typenum::{U2, U4};
 
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned + NumLimbs
 {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-    const NB_LIMBS: usize;
+    const NB_LIMBS: usize = Self::Limbs::USIZE;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
     const WITNESS_OFFSET: usize = 1usize << 13;
     const MODULUS: &'static [u8];
@@ -54,7 +55,7 @@ pub trait FieldParameters:
     }
 }
 
-/// Convert a vec of u8 limbs to a Limbs of NUM_LIMBS.
+/// Convert a vec of u8 limbs to a Limbs of N length.
 pub fn limbs_from_vec<E: From<F>, N: ArrayLength, F: Field>(limbs: Vec<E>) -> Limbs<E, N> {
     debug_assert_eq!(limbs.len(), N::USIZE);
     let mut result = GenericArray::<E, N>::generate(|_i| F::zero().into());

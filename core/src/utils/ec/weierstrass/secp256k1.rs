@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::EllipticCurveParameters;
@@ -28,12 +27,6 @@ pub type Secp256k1 = SwCurve<Secp256k1Parameters>;
 pub struct Secp256k1BaseField;
 
 impl FieldParameters for Secp256k1BaseField {
-    const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-
-    const NB_LIMBS: usize = 32;
-
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-
     const MODULUS: &'static [u8] = &[
         0x2f, 0xfc, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
