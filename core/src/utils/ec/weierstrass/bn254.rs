@@ -1,10 +1,11 @@
+use generic_array::GenericArray;
 use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
-use typenum::{U16, U30};
+use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -41,8 +42,8 @@ impl FieldParameters for Bn254BaseField {
 }
 
 impl NumLimbs for Bn254BaseField {
-    type Limbs = U16;
-    type Witness = U30;
+    type Limbs = U32;
+    type Witness = U62;
 }
 
 impl EllipticCurveParameters for Bn254Parameters {
@@ -50,15 +51,15 @@ impl EllipticCurveParameters for Bn254Parameters {
 }
 
 impl WeierstrassParameters for Bn254Parameters {
-    const A: [u16; MAX_NB_LIMBS] = [
+    const A: GenericArray<u8, U32> = GenericArray::from_array([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
 
-    const B: [u16; MAX_NB_LIMBS] = [
+    const B: GenericArray<u8, U32> = GenericArray::from_array([
         3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from(1u32);
         let y = BigUint::from(2u32);

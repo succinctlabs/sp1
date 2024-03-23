@@ -1,16 +1,19 @@
 pub mod ed25519;
 
+use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
+
+use super::field::NumLimbs;
 
 // The number of `u8` limbs in the base field of Ed25519.
 const NUM_LIMBS: usize = 32;
 
 pub trait EdwardsParameters: EllipticCurveParameters {
-    const D: [u16; MAX_NB_LIMBS];
+    const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;
 
     fn generator() -> (BigUint, BigUint);
 
@@ -19,7 +22,7 @@ pub trait EdwardsParameters: EllipticCurveParameters {
     fn d_biguint() -> BigUint {
         let mut modulus = BigUint::zero();
         for (i, limb) in Self::D.iter().enumerate() {
-            modulus += BigUint::from(*limb) << (16 * i);
+            modulus += BigUint::from(*limb) << (8 * i);
         }
         modulus
     }
@@ -34,7 +37,7 @@ pub trait EdwardsParameters: EllipticCurveParameters {
 pub struct EdwardsCurve<E: EdwardsParameters>(pub E);
 
 impl<E: EdwardsParameters> EdwardsParameters for EdwardsCurve<E> {
-    const D: [u16; MAX_NB_LIMBS] = E::D;
+    const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs> = E::D;
 
     fn generator() -> (BigUint, BigUint) {
         E::generator()

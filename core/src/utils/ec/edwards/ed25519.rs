@@ -1,4 +1,5 @@
 use curve25519_dalek::edwards::CompressedEdwardsY;
+use generic_array::GenericArray;
 use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -7,8 +8,8 @@ use typenum::{U32, U62};
 use super::NUM_LIMBS;
 use crate::operations::field::params::NB_BITS_PER_LIMB;
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;
@@ -45,10 +46,10 @@ impl EllipticCurveParameters for Ed25519Parameters {
 }
 
 impl EdwardsParameters for Ed25519Parameters {
-    const D: [u16; MAX_NB_LIMBS] = [
-        30883, 4953, 19914, 30187, 55467, 16705, 2637, 112, 59544, 30585, 16505, 36039, 65139,
-        11119, 27886, 20995, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
+    const D: GenericArray<u8, U32> = GenericArray::from_array([
+        163, 120, 89, 19, 202, 77, 235, 117, 171, 216, 65, 65, 77, 10, 112, 0, 152, 232, 121, 119,
+        121, 64, 199, 140, 115, 254, 111, 43, 238, 108, 3, 82,
+    ]);
 
     fn prime_group_order() -> BigUint {
         BigUint::from(2u32).pow(252) + BigUint::from(27742317777372353535851937790883648493u128)

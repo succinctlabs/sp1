@@ -3,14 +3,15 @@
 
 use std::str::FromStr;
 
+use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::operations::field::params::NB_BITS_PER_LIMB;
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
 use crate::utils::ec::EllipticCurveParameters;
 use k256::FieldElement;
 use num::traits::FromBytes;
@@ -57,15 +58,15 @@ impl EllipticCurveParameters for Secp256k1Parameters {
 }
 
 impl WeierstrassParameters for Secp256k1Parameters {
-    const A: [u16; MAX_NB_LIMBS] = [
+    const A: GenericArray<u8, U32> = GenericArray::from_array([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
 
-    const B: [u16; MAX_NB_LIMBS] = [
+    const B: GenericArray<u8, U32> = GenericArray::from_array([
         7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from_str(
             "55066263022277343669578718895168534326250603453777594175500187360389116729240",

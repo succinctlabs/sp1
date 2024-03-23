@@ -9,8 +9,6 @@ use std::fmt::Debug;
 use std::ops::Div;
 use typenum::{U2, U4};
 
-pub const MAX_NB_LIMBS: usize = 32;
-
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned + NumLimbs
 {
