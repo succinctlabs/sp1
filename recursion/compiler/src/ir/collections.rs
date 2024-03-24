@@ -113,12 +113,7 @@ impl<C: Config> Builder<C> {
         let index = index.into();
 
         match slice {
-            Array::Fixed(slice) => {
-                // if let Usize::Const(idx) = index {
-                //     self.assign(slice[idx].clone(), value);
-                // } else {
-                //     panic!("Cannot index into a fixed slice with a variable size")
-                // }
+            Array::Fixed(_) => {
                 todo!()
             }
             Array::Dyn(ptr, _) => {

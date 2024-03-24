@@ -1,4 +1,4 @@
-use p3_field::{ExtensionField, Field, TwoAdicField};
+use p3_field::{ExtensionField, Field};
 
 mod builder;
 mod collections;

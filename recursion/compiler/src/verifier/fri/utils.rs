@@ -16,8 +16,7 @@ use crate::verifier::fri::types::PERMUTATION_WIDTH;
 impl<C: Config> Builder<C> {
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);
-        self.operations
-            .push(DslIR::Ext2Felt(result.clone(), value.clone()));
+        self.operations.push(DslIR::Ext2Felt(result.clone(), value));
         result
     }
 

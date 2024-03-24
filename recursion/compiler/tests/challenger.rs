@@ -163,7 +163,7 @@ fn test_compiler_challenger_() {
     let mut challenger = config.challenger();
     let mut builder = VmBuilder::<F, EF>::default();
 
-    for i in 0..73 {
+    for _ in 0..73 {
         challenger.observe(F::one());
         let _: EF = challenger.sample();
     }
@@ -179,7 +179,6 @@ fn test_compiler_challenger_() {
     };
 
     let mut betas: Array<_, Ext<F, EF>> = builder.dyn_array(100);
-    let zero: Var<_> = builder.eval(F::zero());
     let end: Var<_> = builder.eval(F::from_canonical_usize(73));
     builder.range(0, end).for_each(|i, builder| {
         let element = builder.eval(F::one());
@@ -187,10 +186,6 @@ fn test_compiler_challenger_() {
         let z = challenger.sample_ext(builder);
         builder.set(&mut betas, i, z);
     });
-
-    // let a: Var<_> = builder.eval(F::from_canonical_usize(1462788387));
-    // let b: Var<_> = builder.eval(F::from_canonical_usize(1462788385));
-    // builder.assert_var_eq(a, b);
 
     let element = challenger.sample_bits(&mut builder, Usize::Const(14));
 

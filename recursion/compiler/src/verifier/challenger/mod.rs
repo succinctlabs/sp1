@@ -1,5 +1,3 @@
-pub mod utils;
-
 use p3_field::AbstractField;
 
 use crate::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
@@ -29,7 +27,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
         builder.poseidon2_permute_mut(&self.sponge_state);
 
-        builder.clear(&mut self.output_buffer);
         builder.assign(self.nb_outputs, C::N::zero());
 
         for i in 0..PERMUTATION_WIDTH {
@@ -41,7 +38,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
     pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
-        builder.clear(&mut self.output_buffer);
         builder.assign(self.nb_outputs, C::N::zero());
 
         builder.set(&mut self.input_buffer, self.nb_inputs, value);

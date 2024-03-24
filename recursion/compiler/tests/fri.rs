@@ -39,7 +39,6 @@ use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use p3_util::log2_strict_usize;
-use rand::Rng;
 use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
 pub type Val = BabyBear;
@@ -84,7 +83,7 @@ fn test_fri_verify_shape_and_sample_challenges() {
         })
         .collect();
 
-    let (proof, reduced_openings, p_sample) = {
+    let (proof, reduced_openings, _) = {
         // Prover world
         let mut chal = Challenger::new(perm.clone());
         let alpha: Challenge = chal.sample_ext_element();
@@ -147,7 +146,7 @@ fn test_fri_verify_shape_and_sample_challenges() {
         "proof.commit_phase_commits.len()={:?}",
         proof.commit_phase_commits.len()
     );
-    verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings);
+    verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings).unwrap();
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -243,6 +242,7 @@ fn test_fri_verify_shape_and_sample_challenges() {
 
     // set reduced openings
     let mut reduced_openings_var = builder.dyn_array(reduced_openings.len());
+    #[allow(clippy::needless_range_loop)]
     for i in 0..reduced_openings.len() {
         let mut reduced_opening = builder.dyn_array(32);
         for j in 0..32 {
