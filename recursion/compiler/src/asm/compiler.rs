@@ -439,6 +439,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::Error() => self.push(AsmInstruction::TRAP),
                 DslIR::PrintF(dst) => self.push(AsmInstruction::PrintF(dst.fp())),
                 DslIR::PrintV(dst) => self.push(AsmInstruction::PrintV(dst.fp())),
+                DslIR::PrintE(dst) => self.push(AsmInstruction::PrintE(dst.fp())),
+                DslIR::Ext2Felt(dst, src) => match (dst, src) {
+                    (Array::Dyn(dst, _), src) => {
+                        self.push(AsmInstruction::Ext2Felt(dst.fp(), src.fp()))
+                    }
+                    _ => unimplemented!(),
+                },
             }
         }
     }

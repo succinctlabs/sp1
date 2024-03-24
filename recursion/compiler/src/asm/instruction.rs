@@ -136,6 +136,8 @@ pub enum AsmInstruction<F, EF> {
 
     PrintV(i32),
     PrintF(i32),
+    PrintE(i32),
+    Ext2Felt(i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -626,6 +628,22 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 true,
             ),
+            AsmInstruction::PrintE(dst) => Instruction::new(
+                Opcode::PrintE,
+                i32_f(dst),
+                f_u32(F::zero()),
+                f_u32(F::zero()),
+                false,
+                true,
+            ),
+            AsmInstruction::Ext2Felt(dst, src) => Instruction::new(
+                Opcode::Ext2Felt,
+                i32_f(dst),
+                i32_f_arr(src),
+                f_u32(F::zero()),
+                false,
+                true,
+            ),
         }
     }
 
@@ -851,6 +869,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::PrintV(dst) => {
                 write!(f, "print_v ({})fp", dst)
             }
+            AsmInstruction::PrintE(dst) => {
+                write!(f, "print_e ({})fp", dst)
+            }
+            AsmInstruction::Ext2Felt(dst, src) => write!(f, "ext2felt ({})fp, {})fp", dst, src),
         }
     }
 }

@@ -228,6 +228,12 @@ where
                     println!("PRINTF={}", a_val[0]);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::PrintE => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    println!("PRINTEF={:?}", a_val);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::ADD => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
@@ -361,6 +367,16 @@ where
                 Opcode::TRAP => {
                     panic!("TRAP instruction encountered")
                 }
+                Opcode::Ext2Felt => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    self.memory[dst].value[0] = b_val[0];
+                    self.memory[dst + 1].value[0] = b_val[1];
+                    self.memory[dst + 2].value[0] = b_val[2];
+                    self.memory[dst + 3].value[0] = b_val[3];
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::Poseidon2Perm => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
@@ -376,10 +392,9 @@ where
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
-                    println!("array={:?}", array);
+
                     // Perform the permutation.
                     let result = self.perm.permute(array);
-                    println!("array={:?}", array);
 
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
@@ -398,9 +413,7 @@ where
                     let num = b_val[0].as_canonical_u32();
 
                     // Decompose the num into bits.
-                    println!("NUM2BITS: {:?}", num);
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
-                    println!("BITS: {:?}", bits);
                     // Write the bits to the array at dst.
                     for (i, bit) in bits.iter().enumerate() {
                         self.memory[dst + i].value[0] = F::from_canonical_u32(*bit);

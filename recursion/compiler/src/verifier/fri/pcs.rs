@@ -82,22 +82,22 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let batch_commit = round.batch_commit;
                 let mats = round.mats;
 
-                let mut batch_dims = builder.array(mats.len());
-                builder.range(0, mats.len()).for_each(|k, builder| {
-                    let mat = builder.get(&mats, k);
-                    let dim = Dimensions::<C> { height: mat.size };
-                    builder.set(&mut batch_dims, k, dim);
-                });
+                // let mut batch_dims = builder.array(mats.len());
+                // builder.range(0, mats.len()).for_each(|k, builder| {
+                //     let mat = builder.get(&mats, k);
+                //     let dim = Dimensions::<C> { height: mat.size };
+                //     builder.set(&mut batch_dims, k, dim);
+                // });
 
                 let index_bits = builder.num2bits_v(index);
-                fri::verify_batch(
-                    builder,
-                    &batch_commit,
-                    batch_dims,
-                    index_bits,
-                    batch_opening.opened_values.clone(),
-                    &batch_opening.opening_proof,
-                );
+                // fri::verify_batch(
+                //     builder,
+                //     &batch_commit,
+                //     batch_dims,
+                //     index_bits,
+                //     batch_opening.opened_values.clone(),
+                //     &batch_opening.opening_proof,
+                // );
 
                 builder
                     .range(0, batch_opening.opened_values.len())

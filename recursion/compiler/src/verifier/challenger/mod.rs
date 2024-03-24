@@ -28,19 +28,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         });
         builder.assign(self.nb_inputs, C::N::zero());
 
-        let code: Var<_> = builder.eval(C::N::from_canonical_usize(1982));
-        builder.print_v(code);
-        for i in 0..POSEIDON2_WIDTH {
-            let el = builder.get(&self.sponge_state, i);
-            builder.print_f(el);
-        }
         builder.poseidon2_permute_mut(&self.sponge_state);
-        let code: Var<_> = builder.eval(C::N::from_canonical_usize(1983));
-        builder.print_v(code);
-        for i in 0..POSEIDON2_WIDTH {
-            let el = builder.get(&self.sponge_state, i);
-            builder.print_f(el);
-        }
 
         builder.clear(&mut self.output_buffer);
         builder.assign(self.nb_outputs, C::N::zero());
@@ -54,7 +42,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
     pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
-        builder.print_f(value);
         builder.clear(&mut self.output_buffer);
         builder.assign(self.nb_outputs, C::N::zero());
 
@@ -95,7 +82,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         let idx: Var<_> = builder.eval(self.nb_outputs - C::N::one());
         let output = builder.get(&self.output_buffer, idx);
         builder.assign(self.nb_outputs, self.nb_outputs - C::N::one());
-        builder.print_f(output);
         output
     }
 

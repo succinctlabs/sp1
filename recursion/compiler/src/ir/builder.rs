@@ -183,6 +183,10 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIR::PrintF(dst));
     }
 
+    pub fn print_e(&mut self, dst: Ext<C::F, C::EF>) {
+        self.operations.push(DslIR::PrintE(dst));
+    }
+
     pub fn ext_from_base_slice(&mut self, arr: &[Felt<C::F>]) -> Ext<C::F, C::EF> {
         assert_eq!(arr.len(), <C::EF as AbstractExtensionField::<C::F>>::D);
         let mut res = SymbolicExt::Const(C::EF::zero());

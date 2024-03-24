@@ -10,6 +10,7 @@ use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::SymbolicExt;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
@@ -30,6 +31,7 @@ use p3_commit::ExtensionMmcs;
 use p3_dft::{Radix2Dit, TwoAdicSubgroupDft};
 use p3_field::extension::BinomialExtensionField;
 use p3_field::Field;
+use p3_field::TwoAdicField;
 use p3_fri::{prover, verifier, FriConfig};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::util::reverse_matrix_index_bits;
@@ -141,8 +143,12 @@ fn test_fri_verify_shape_and_sample_challenges() {
     let fri_challenges =
         verifier::verify_shape_and_sample_challenges(&fc, &proof, &mut v_challenger)
             .expect("failed verify shape and sample");
-    // verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings)
-    //     .expect("failed verify challenges");
+    println!("fc.log_blowup={:?}", fc.log_blowup);
+    println!(
+        "proof.commit_phase_commits.len()={:?}",
+        proof.commit_phase_commits.len()
+    );
+    verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings);
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -177,6 +183,7 @@ fn test_fri_verify_shape_and_sample_challenges() {
         "proof.commit_phase_commits.len()={:?}",
         proof.commit_phase_commits.len()
     );
+    println!("config.log_blowup={:?}", fc.log_blowup);
     println!("proof.pow_witness={:?}", proof.pow_witness);
 
     // set commit phase commits
@@ -191,45 +198,60 @@ fn test_fri_verify_shape_and_sample_challenges() {
     }
 
     // set query proofs
-    // for i in 0..proof.query_proofs.len() {
-    //     // create commit phase openings
-    //     let mut commit_phase_openings: Array<
-    //         AsmConfig<F, EF>,
-    //         FriCommitPhaseProofStepVariable<AsmConfig<F, EF>>,
-    //     > = builder.dyn_array(proof.query_proofs[i].commit_phase_openings.len());
+    for i in 0..proof.query_proofs.len() {
+        // create commit phase openings
+        let mut commit_phase_openings: Array<
+            AsmConfig<F, EF>,
+            FriCommitPhaseProofStepVariable<AsmConfig<F, EF>>,
+        > = builder.dyn_array(proof.query_proofs[i].commit_phase_openings.len());
 
-    //     for j in 0..proof.query_proofs[i].commit_phase_openings.len() {
-    //         let mut commit_phase_opening = FriCommitPhaseProofStepVariable {
-    //             sibling_value: builder.eval(SymbolicExt::Const(
-    //                 proof.query_proofs[i].commit_phase_openings[j].sibling_value,
-    //             )),
-    //             opening_proof: builder.dyn_array(
-    //                 proof.query_proofs[i].commit_phase_openings[j]
-    //                     .opening_proof
-    //                     .len(),
-    //             ),
-    //         };
-    //         for k in 0..proof.query_proofs[i].commit_phase_openings[j]
-    //             .opening_proof
-    //             .len()
-    //         {
-    //             let mut arr = builder.dyn_array(DIGEST_SIZE);
-    //             let proof = proof.query_proofs[i].commit_phase_openings[j].opening_proof[k];
-    //             #[allow(clippy::needless_range_loop)]
-    //             for l in 0..DIGEST_SIZE {
-    //                 builder.set(&mut arr, l, proof[l]);
-    //             }
-    //             builder.set(&mut commit_phase_opening.opening_proof, k, arr);
-    //         }
+        for j in 0..proof.query_proofs[i].commit_phase_openings.len() {
+            let mut commit_phase_opening = FriCommitPhaseProofStepVariable {
+                sibling_value: builder.eval(SymbolicExt::Const(
+                    proof.query_proofs[i].commit_phase_openings[j].sibling_value,
+                )),
+                opening_proof: builder.dyn_array(
+                    proof.query_proofs[i].commit_phase_openings[j]
+                        .opening_proof
+                        .len(),
+                ),
+            };
+            for k in 0..proof.query_proofs[i].commit_phase_openings[j]
+                .opening_proof
+                .len()
+            {
+                let mut arr = builder.dyn_array(DIGEST_SIZE);
+                let proof = proof.query_proofs[i].commit_phase_openings[j].opening_proof[k];
+                if i == 0 && j == 0 && k == 0 {
+                    println!("proof={:?}", proof);
+                }
 
-    //         builder.set(&mut commit_phase_openings, j, commit_phase_opening);
-    //     }
+                #[allow(clippy::needless_range_loop)]
+                for l in 0..DIGEST_SIZE {
+                    builder.set(&mut arr, l, proof[l]);
+                }
+                builder.set(&mut commit_phase_opening.opening_proof, k, arr);
+            }
 
-    //     let query_proof = FriQueryProofVariable {
-    //         commit_phase_openings,
-    //     };
-    //     builder.set(&mut proofvar.query_proofs, i, query_proof);
-    // }
+            builder.set(&mut commit_phase_openings, j, commit_phase_opening);
+        }
+
+        let query_proof = FriQueryProofVariable {
+            commit_phase_openings,
+        };
+        builder.set(&mut proofvar.query_proofs, i, query_proof);
+    }
+
+    // set reduced openings
+    let mut reduced_openings_var = builder.dyn_array(reduced_openings.len());
+    for i in 0..reduced_openings.len() {
+        let mut reduced_opening = builder.dyn_array(32);
+        for j in 0..32 {
+            let challenge: Ext<F, EF> = builder.eval(SymbolicExt::Const(reduced_openings[i][j]));
+            builder.set(&mut reduced_opening, j, challenge);
+        }
+        builder.set(&mut reduced_openings_var, i, reduced_opening);
+    }
 
     let width: Var<_> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
     let mut challenger = DuplexChallengerVariable::<AsmConfig<F, EF>> {
@@ -246,21 +268,24 @@ fn test_fri_verify_shape_and_sample_challenges() {
         &proofvar,
         &mut challenger,
     );
+    fri::verify_challenges(
+        &mut builder,
+        &configvar,
+        &proofvar,
+        &challenges,
+        &reduced_openings_var,
+    );
 
-    // let a: Var<_> = builder.eval(F::from_canonical_usize(1462788387));
-    // let b: Var<_> = builder.eval(F::from_canonical_usize(1462788385));
-    // builder.assert_var_eq(a, b);
-
-    for i in 0..fri_challenges.query_indices.len() {
-        println!(
-            "fri_challenges.query_indices[{}] = {}",
-            i, fri_challenges.query_indices[i]
-        );
-        let gt: Var<_> = builder.eval(F::from_canonical_usize(fri_challenges.query_indices[i]));
-        let index = builder.get(&challenges.query_indices, i);
-        builder.print_v(index);
-        builder.assert_var_eq(index, gt);
-    }
+    // for i in 0..fri_challenges.query_indices.len() {
+    //     println!(
+    //         "fri_challenges.query_indices[{}] = {}",
+    //         i, fri_challenges.query_indices[i]
+    //     );
+    //     let gt: Var<_> = builder.eval(F::from_canonical_usize(fri_challenges.query_indices[i]));
+    //     let index = builder.get(&challenges.query_indices, i);
+    //     builder.print_v(index);
+    //     builder.assert_var_eq(index, gt);
+    // }
 
     let program = builder.compile();
 

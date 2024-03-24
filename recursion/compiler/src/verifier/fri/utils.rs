@@ -5,13 +5,22 @@ use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
 use crate::prelude::DslIR;
+use crate::prelude::Ext;
 use crate::prelude::Felt;
+use crate::prelude::SymbolicExt;
 use crate::prelude::Usize;
 use crate::prelude::Var;
 use crate::verifier::fri::types::DIGEST_SIZE;
 use crate::verifier::fri::types::PERMUTATION_WIDTH;
 
 impl<C: Config> Builder<C> {
+    pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
+        let result = self.dyn_array(4);
+        self.operations
+            .push(DslIR::Ext2Felt(result.clone(), value.clone()));
+        result
+    }
+
     /// Throws an error.
     pub fn error(&mut self) {
         self.operations.push(DslIR::Error());
@@ -162,22 +171,15 @@ impl<C: Config> Builder<C> {
         left: &Array<C, Felt<C::F>>,
         right: &Array<C, Felt<C::F>>,
     ) -> Array<C, Felt<C::F>> {
-        let output = match left {
-            Array::Fixed(values) => {
-                assert_eq!(values.len(), DIGEST_SIZE);
-                self.array::<Felt<C::F>>(Usize::Const(DIGEST_SIZE))
-            }
-            Array::Dyn(_, _) => {
-                let len: Var<C::N> = self.eval(C::N::from_canonical_usize(DIGEST_SIZE));
-                self.array::<Felt<C::F>>(Usize::Var(len))
-            }
-        };
-        self.operations.push(DslIR::Poseidon2Compress(
-            output.clone(),
-            left.clone(),
-            right.clone(),
-        ));
-        output
+        let mut input = self.dyn_array(PERMUTATION_WIDTH);
+        for i in 0..DIGEST_SIZE {
+            let a = self.get(left, i);
+            let b = self.get(right, i);
+            self.set(&mut input, i, a);
+            self.set(&mut input, i + DIGEST_SIZE, b);
+        }
+        self.poseidon2_permute_mut(&input);
+        input
     }
 
     /// Applies the Poseidon2 hash function to the given array using a padding-free sponge.
@@ -217,9 +219,14 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L302
     #[allow(unused_variables)]
     pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
-        let result = self.uninit();
-        self.operations.push(DslIR::TwoAdicGenerator(result, bits));
-        result
+        let generator: Felt<C::F> = self.eval(C::F::from_canonical_usize(440564289));
+        let two_adicity: Var<C::N> = self.eval(C::N::from_canonical_usize(27));
+        let bits_var = bits.materialize(self);
+        let nb_squares: Var<C::N> = self.eval(two_adicity - bits_var);
+        self.range(0, nb_squares).for_each(|_, builder| {
+            builder.assign(generator, generator * generator);
+        });
+        generator
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
@@ -249,6 +256,15 @@ impl<C: Config> Builder<C> {
         self.bits_to_num_usize(&result_bits)
     }
 
+    #[allow(unused_variables)]
+    pub fn exp_usize_ef(&mut self, x: Ext<C::F, C::EF>, power: Usize<C::N>) -> Ext<C::F, C::EF> {
+        let base: Ext<C::F, C::EF> = self.eval(SymbolicExt::Const(C::EF::one()));
+        self.range(0, power).for_each(|_, builder| {
+            builder.assign(base, base * x);
+        });
+        base
+    }
+
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
     pub fn exp_usize_f(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
@@ -260,8 +276,10 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
     pub fn exp_usize_v(&mut self, x: Var<C::N>, power: Usize<C::N>) -> Var<C::N> {
-        let result = self.uninit();
-        self.operations.push(DslIR::ExpUsizeV(result, x, power));
+        let result = self.eval(C::N::one());
+        self.range(0, power).for_each(|_, builder| {
+            builder.assign(result, result * x);
+        });
         result
     }
 }
