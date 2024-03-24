@@ -276,16 +276,16 @@ fn test_fri_verify_shape_and_sample_challenges() {
         &reduced_openings_var,
     );
 
-    // for i in 0..fri_challenges.query_indices.len() {
-    //     println!(
-    //         "fri_challenges.query_indices[{}] = {}",
-    //         i, fri_challenges.query_indices[i]
-    //     );
-    //     let gt: Var<_> = builder.eval(F::from_canonical_usize(fri_challenges.query_indices[i]));
-    //     let index = builder.get(&challenges.query_indices, i);
-    //     builder.print_v(index);
-    //     builder.assert_var_eq(index, gt);
-    // }
+    for i in 0..fri_challenges.query_indices.len() {
+        println!(
+            "fri_challenges.query_indices[{}] = {}",
+            i, fri_challenges.query_indices[i]
+        );
+        let gt: Var<_> = builder.eval(F::from_canonical_usize(fri_challenges.query_indices[i]));
+        let index = builder.get(&challenges.query_indices, i);
+        builder.print_v(index);
+        builder.assert_var_eq(index, gt);
+    }
 
     let program = builder.compile();
 
