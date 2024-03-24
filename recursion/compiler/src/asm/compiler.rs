@@ -94,9 +94,11 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
     }
 
     pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
-        // Set the heap pointer value according to stack size
-        let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
-        self.push(AsmInstruction::IMM(HEAP_PTR, stack_size));
+        if self.block_label().is_zero() {
+            // Set the heap pointer value according to stack size
+            let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
+            self.push(AsmInstruction::IMM(HEAP_PTR, stack_size));
+        }
         for op in operations.clone() {
             match op {
                 DslIR::Imm(dst, src) => {
