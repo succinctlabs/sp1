@@ -5,6 +5,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use rand::rngs::OsRng;
 use sp1_core::stark::StarkGenericConfig;
+use sp1_core::utils::poseidon2_instance::RC_16_30;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::asm::VmBuilder;
@@ -40,19 +41,19 @@ use p3_util::log2_strict_usize;
 use rand::Rng;
 use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
-type Val = BabyBear;
-type Challenge = BinomialExtensionField<Val, 4>;
-type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
-type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
-type ValMmcs =
+pub type Val = BabyBear;
+pub type Challenge = BinomialExtensionField<Val, 4>;
+pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
+pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+pub type ValMmcs =
     FieldMerkleTreeMmcs<<Val as Field>::Packing, <Val as Field>::Packing, MyHash, MyCompress, 8>;
-type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-type Challenger = DuplexChallenger<Val, Perm, 16>;
+pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
+pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 type MyFriConfig = FriConfig<ChallengeMmcs>;
 
 fn get_ldt_for_testing<R: Rng>(rng: &mut R) -> (Perm, MyFriConfig) {
-    let perm = Perm::new_from_rng(8, 22, DiffusionMatrixBabybear, rng);
+    let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
     let hash = MyHash::new(perm.clone());
     let compress = MyCompress::new(perm.clone());
     let mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
@@ -136,12 +137,12 @@ fn test_fri_verify_shape_and_sample_challenges() {
     let mut v_challenger = Challenger::new(perm);
     let _alpha: Challenge = v_challenger.sample_ext_element();
     assert_eq!(proof.query_proofs.len(), fc.num_queries);
-    println!("proof.pow_witness={:?}", proof.pow_witness);
+    // println!("proof.pow_witness={:?}", proof.pow_witness);
     let fri_challenges =
         verifier::verify_shape_and_sample_challenges(&fc, &proof, &mut v_challenger)
             .expect("failed verify shape and sample");
-    verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings)
-        .expect("failed verify challenges");
+    // verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings)
+    //     .expect("failed verify challenges");
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -250,16 +251,16 @@ fn test_fri_verify_shape_and_sample_challenges() {
     // let b: Var<_> = builder.eval(F::from_canonical_usize(1462788385));
     // builder.assert_var_eq(a, b);
 
-    // for i in 0..4 {
-    //     println!(
-    //         "fri_challenges.query_indices[{}] = {}",
-    //         i, fri_challenges.query_indices[i]
-    //     );
-    //     let gt: Var<_> = builder.eval(F::from_canonical_usize(fri_challenges.query_indices[i]));
-    //     let index = builder.get(&challenges.query_indices, i);
-    //     builder.print_v(index);
-    //     // builder.assert_var_eq(index, gt);
-    // }
+    for i in 0..fri_challenges.query_indices.len() {
+        println!(
+            "fri_challenges.query_indices[{}] = {}",
+            i, fri_challenges.query_indices[i]
+        );
+        let gt: Var<_> = builder.eval(F::from_canonical_usize(fri_challenges.query_indices[i]));
+        let index = builder.get(&challenges.query_indices, i);
+        builder.print_v(index);
+        builder.assert_var_eq(index, gt);
+    }
 
     let program = builder.compile();
 

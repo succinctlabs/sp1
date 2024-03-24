@@ -376,8 +376,10 @@ where
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
+                    println!("array={:?}", array);
                     // Perform the permutation.
                     let result = self.perm.permute(array);
+                    println!("array={:?}", array);
 
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
