@@ -193,9 +193,6 @@ where
             builder.assign(x, x * x);
         });
 
-    // // debug_assert!(index < config.blowup(), "index was {}", index);
-    // // debug_assert_eq!(x.exp_power_of_2(config.log_blowup), F::one());
-
     folded_eval
 }
 
@@ -204,6 +201,7 @@ where
 /// Assumes the dimensions have already been sorted by tallest first.
 ///
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L92
+#[allow(clippy::type_complexity)]
 #[allow(unused_variables)]
 pub fn verify_batch<C: Config>(
     builder: &mut Builder<C>,
@@ -264,8 +262,6 @@ pub fn verify_batch<C: Config>(
     builder.range(0, commit.len()).for_each(|i, builder| {
         let e1 = builder.get(commit, i);
         let e2 = builder.get(&root, i);
-        builder.print_f(e1);
-        builder.print_f(e2);
         builder.assert_felt_eq(e1, e2);
     });
 }
@@ -273,6 +269,7 @@ pub fn verify_batch<C: Config>(
 /// Reduces all the tables that have the same height to a single root.
 ///
 /// Assumes the dimensions have already been sorted by tallest first.
+#[allow(clippy::type_complexity)]
 pub fn reduce<C: Config>(
     builder: &mut Builder<C>,
     dim_idx: Var<C::N>,
@@ -293,7 +290,6 @@ pub fn reduce<C: Config>(
                     let opened_value_flat = builder.ext2felt(opened_value);
                     for k in 0..4 {
                         let base = builder.get(&opened_value_flat, k);
-                        // builder.print_f(base);
                         builder.set(&mut flattened_opened_values, nb_opened_values, base);
                         builder.assign(nb_opened_values, nb_opened_values + C::N::one());
                     }

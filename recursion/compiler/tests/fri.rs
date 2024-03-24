@@ -31,7 +31,6 @@ use p3_commit::ExtensionMmcs;
 use p3_dft::{Radix2Dit, TwoAdicSubgroupDft};
 use p3_field::extension::BinomialExtensionField;
 use p3_field::Field;
-use p3_field::TwoAdicField;
 use p3_fri::{prover, verifier, FriConfig};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::util::reverse_matrix_index_bits;
@@ -54,7 +53,7 @@ pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 type MyFriConfig = FriConfig<ChallengeMmcs>;
 
-fn get_ldt_for_testing<R: Rng>(rng: &mut R) -> (Perm, MyFriConfig) {
+fn get_ldt_for_testing() -> (Perm, MyFriConfig) {
     let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
     let hash = MyHash::new(perm.clone());
     let compress = MyCompress::new(perm.clone());
@@ -71,7 +70,7 @@ fn get_ldt_for_testing<R: Rng>(rng: &mut R) -> (Perm, MyFriConfig) {
 #[test]
 fn test_fri_verify_shape_and_sample_challenges() {
     let rng = &mut OsRng;
-    let (perm, fc) = get_ldt_for_testing(rng);
+    let (perm, fc) = get_ldt_for_testing();
     let dft = Radix2Dit::default();
 
     let shift = Val::generator();

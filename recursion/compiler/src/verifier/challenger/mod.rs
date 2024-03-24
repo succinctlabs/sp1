@@ -1,7 +1,6 @@
 pub mod utils;
 
 use p3_field::AbstractField;
-use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
 use crate::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
 use crate::verifier::fri::types::Commitment;
