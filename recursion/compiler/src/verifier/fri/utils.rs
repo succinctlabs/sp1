@@ -160,6 +160,48 @@ impl<C: Config> Builder<C> {
             .push(DslIR::Poseidon2Permute(array.clone(), array.clone()));
     }
 
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
+        let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
+        let eight_ctr: Var<_> = self.eval(C::N::from_canonical_usize(0));
+        let target = array.len().materialize(self);
+
+        self.range(0, target).for_each(|i, builder| {
+            let element = builder.get(&array, i);
+            builder.set(&mut state, eight_ctr, element);
+
+            builder
+                .if_eq(eight_ctr, C::N::from_canonical_usize(7))
+                .then_or_else(
+                    |builder| {
+                        builder.poseidon2_permute_mut(&state);
+                    },
+                    |builder| {
+                        builder.if_eq(i, target - C::N::one()).then(|builder| {
+                            builder.poseidon2_permute_mut(&state);
+                        });
+                    },
+                );
+
+            builder.assign(eight_ctr, eight_ctr + C::N::from_canonical_usize(1));
+            builder
+                .if_eq(eight_ctr, C::N::from_canonical_usize(8))
+                .then(|builder| {
+                    builder.assign(eight_ctr, C::N::from_canonical_usize(0));
+                });
+        });
+
+        let mut result = self.dyn_array(DIGEST_SIZE);
+        for i in 0..DIGEST_SIZE {
+            let el = self.get(&state, i);
+            self.set(&mut result, i, el);
+        }
+
+        result
+    }
+
     /// Applies the Poseidon2 compression function to the given array.
     ///
     /// Assumes we are doing a 2-1 compression function with 8 element chunks.
@@ -181,27 +223,6 @@ impl<C: Config> Builder<C> {
         input
     }
 
-    /// Applies the Poseidon2 hash function to the given array using a padding-free sponge.
-    ///
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/symmetric/src/sponge.rs#L32
-    pub fn poseidon2_hash(&mut self, input: Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
-        let len = match input {
-            Array::Fixed(_) => Usize::Const(PERMUTATION_WIDTH),
-            Array::Dyn(_, _) => {
-                let len: Var<_> = self.eval(C::N::from_canonical_usize(PERMUTATION_WIDTH));
-                Usize::Var(len)
-            }
-        };
-        let state = self.array::<Felt<C::F>>(len);
-        let start: Usize<C::N> = Usize::Const(0);
-        let end = len;
-        self.range(start, end).for_each(|_, builder| {
-            let new_state = builder.poseidon2_permute(&state);
-            builder.assign(state.clone(), new_state);
-        });
-        state
-    }
-
     /// Materializes a usize into a variable.
     pub fn materialize(&mut self, num: Usize<C::N>) -> Var<C::N> {
         match num {
@@ -212,7 +233,7 @@ impl<C: Config> Builder<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L306
     pub fn generator(&mut self) -> Felt<C::F> {
-        self.eval(C::F::from_canonical_u32(0x78000000))
+        self.eval(C::F::from_canonical_u32(31))
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L302
@@ -267,8 +288,10 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
     pub fn exp_usize_f(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
-        let result = self.uninit();
-        self.operations.push(DslIR::ExpUsizeF(result, x, power));
+        let result = self.eval(C::F::one());
+        self.range(0, power).for_each(|_, builder| {
+            builder.assign(result, result * x);
+        });
         result
     }
 

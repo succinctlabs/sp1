@@ -18,6 +18,7 @@ use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::SymbolicExt;
+use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::verifier::challenger::DuplexChallengerVariable;
@@ -30,6 +31,7 @@ use sp1_recursion_compiler::verifier::fri::types::FriConfigVariable;
 use sp1_recursion_compiler::verifier::fri::types::FriProofVariable;
 use sp1_recursion_compiler::verifier::fri::types::FriQueryProofVariable;
 use sp1_recursion_compiler::verifier::fri::types::DIGEST_SIZE;
+use sp1_recursion_compiler::verifier::fri::BatchOpening;
 use sp1_recursion_compiler::verifier::fri::TwoAdicPcsProof;
 use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCoset;
 use sp1_recursion_core::runtime::Runtime;
@@ -120,9 +122,10 @@ fn test_pcs_verify() {
     let (opening, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
     // verify the proof.
+    println!("RRRRRRR");
     let mut challenger = Challenger::new(perm);
     challenger.observe(commit);
-    let _ = challenger.sample_ext_element::<Challenge>();
+    challenger.sample_ext_element::<Challenge>();
 
     let os = domains_and_polys
         .iter()
@@ -179,7 +182,7 @@ fn test_pcs_verify() {
 
     let mut rounds: Array<C, TwoAdicPcsRound<C>> = builder.dyn_array(1);
     let round = TwoAdicPcsRound::<C> {
-        batch_commit: commitvar,
+        batch_commit: commitvar.clone(),
         mats,
     };
     builder.set(&mut rounds, 0, round);
@@ -195,10 +198,101 @@ fn test_pcs_verify() {
         final_poly: builder.eval(SymbolicExt::Const(proof.fri_proof.final_poly)),
         pow_witness: builder.eval(proof.fri_proof.pow_witness),
     };
+    for i in 0..proof.fri_proof.commit_phase_commits.len() {
+        let mut commitment: Commitment<C> = builder.dyn_array(DIGEST_SIZE);
+        let h: [F; DIGEST_SIZE] = proof.fri_proof.commit_phase_commits[i].into();
+        #[allow(clippy::needless_range_loop)]
+        for j in 0..DIGEST_SIZE {
+            builder.set(&mut commitment, j, h[j]);
+        }
+        builder.set(&mut fri_proofvar.commit_phase_commits, i, commitment);
+    }
+
+    // set query proofs
+    for i in 0..proof.fri_proof.query_proofs.len() {
+        // create commit phase openings
+        let mut commit_phase_openings: Array<
+            AsmConfig<F, EF>,
+            FriCommitPhaseProofStepVariable<AsmConfig<F, EF>>,
+        > = builder.dyn_array(proof.fri_proof.query_proofs[i].commit_phase_openings.len());
+
+        for j in 0..proof.fri_proof.query_proofs[i].commit_phase_openings.len() {
+            let mut commit_phase_opening = FriCommitPhaseProofStepVariable {
+                sibling_value: builder.eval(SymbolicExt::Const(
+                    proof.fri_proof.query_proofs[i].commit_phase_openings[j].sibling_value,
+                )),
+                opening_proof: builder.dyn_array(
+                    proof.fri_proof.query_proofs[i].commit_phase_openings[j]
+                        .opening_proof
+                        .len(),
+                ),
+            };
+            for k in 0..proof.fri_proof.query_proofs[i].commit_phase_openings[j]
+                .opening_proof
+                .len()
+            {
+                let mut arr = builder.dyn_array(DIGEST_SIZE);
+                let proof =
+                    proof.fri_proof.query_proofs[i].commit_phase_openings[j].opening_proof[k];
+
+                #[allow(clippy::needless_range_loop)]
+                for l in 0..DIGEST_SIZE {
+                    builder.set(&mut arr, l, proof[l]);
+                }
+                builder.set(&mut commit_phase_opening.opening_proof, k, arr);
+            }
+
+            builder.set(&mut commit_phase_openings, j, commit_phase_opening);
+        }
+
+        let query_proof = FriQueryProofVariable {
+            commit_phase_openings,
+        };
+        builder.set(&mut fri_proofvar.query_proofs, i, query_proof);
+    }
+
     let mut proofvar = TwoAdicPcsProof::<C> {
         fri_proof: fri_proofvar,
         query_openings: builder.dyn_array(proof.query_openings.len()), // TODO: fix this
     };
+    for i in 0..proof.query_openings.len() {
+        let openings = &proof.query_openings[i];
+        let mut openingsvar: Array<C, BatchOpening<C>> = builder.dyn_array(openings.len());
+        for j in 0..openings.len() {
+            let opening = &openings[j];
+            let mut opened_valuesvar = builder.dyn_array(opening.opened_values.len());
+            for k in 0..opening.opened_values.len() {
+                let opened_value = &opening.opened_values[k];
+                let mut opened_valuevar: Array<C, Ext<F, EF>> =
+                    builder.dyn_array(opened_value.len());
+                for l in 0..opened_value.len() {
+                    let opened_value = &opened_value[l];
+                    let el: Ext<F, EF> = builder.eval(SymbolicExt::Base(
+                        SymbolicFelt::Const(opened_value.clone()).into(),
+                    ));
+                    builder.set(&mut opened_valuevar, l, el);
+                }
+                builder.set(&mut opened_valuesvar, k, opened_valuevar);
+            }
+            let mut opening_proofvar = builder.dyn_array(opening.opening_proof.len());
+            for k in 0..opening.opening_proof.len() {
+                let sibling = &opening.opening_proof[k];
+                let mut sibling_var = builder.dyn_array(DIGEST_SIZE);
+                for l in 0..DIGEST_SIZE {
+                    let el: Felt<_> = builder.eval(sibling[l].clone());
+                    builder.set(&mut sibling_var, l, el);
+                }
+                builder.set(&mut opening_proofvar, k, sibling_var);
+            }
+            let batch_opening_var = BatchOpening::<C> {
+                opened_values: opened_valuesvar,
+                opening_proof: opening_proofvar,
+            };
+            builder.set(&mut openingsvar, j, batch_opening_var);
+        }
+        builder.set(&mut proofvar.query_openings, i, openingsvar);
+    }
+
     let width: Var<_> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
     let mut challengervar = DuplexChallengerVariable::<AsmConfig<F, EF>> {
         sponge_state: builder.array(Usize::Var(width)),
@@ -207,11 +301,23 @@ fn test_pcs_verify() {
         nb_outputs: builder.eval(F::zero()),
         output_buffer: builder.array(Usize::Var(width)),
     };
+    challengervar.observe_commitment(&mut builder, commitvar);
+    challengervar.sample_ext(&mut builder);
     fri::verify_two_adic_pcs(
         &mut builder,
         &configvar,
         rounds,
         proofvar,
         &mut challengervar,
+    );
+
+    let program = builder.compile();
+
+    let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+    let mut runtime = Runtime::<F, EF, _>::new(&program, perm.clone());
+    runtime.run();
+    println!(
+        "The program executed successfully, number of cycles: {}",
+        runtime.clk.as_canonical_u32() / 4
     );
 }

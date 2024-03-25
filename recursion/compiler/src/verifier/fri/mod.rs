@@ -175,6 +175,7 @@ where
                 index_pair,
                 opened_values,
                 &step.opening_proof,
+                4,
             );
 
             let mut xs: Array<C, Ext<C::F, C::EF>> = builder.array(2);
@@ -212,20 +213,23 @@ pub fn verify_batch<C: Config>(
     index_bits: Array<C, Var<C::N>>,
     opened_values: Array<C, Array<C, Ext<C::F, C::EF>>>,
     proof: &Array<C, Commitment<C>>,
+    size: usize,
 ) {
     // The index of which table to process next.
     let index: Var<C::N> = builder.eval(C::N::zero());
 
     // The height of the current layer (padded).
     let current_height = builder.get(&dimensions, index).height;
-    builder.print_v(current_height);
 
     // Reduce all the tables that have the same height to a single root.
-    let root = reduce(builder, index, &dimensions, current_height, &opened_values);
-    for i in 0..8 {
-        let el = builder.get(&root, i);
-        builder.print_f(el);
-    }
+    let root = reduce(
+        builder,
+        index,
+        &dimensions,
+        current_height,
+        &opened_values,
+        size,
+    );
 
     // For each sibling in the proof, reconstruct the root.
     let one: Var<_> = builder.eval(C::N::one());
@@ -253,8 +257,14 @@ pub fn verify_batch<C: Config>(
 
         let next_height = builder.get(&dimensions, index).height;
         builder.if_eq(next_height, current_height).then(|builder| {
-            let next_height_openings_digest =
-                reduce(builder, index, &dimensions, current_height, &opened_values);
+            let next_height_openings_digest = reduce(
+                builder,
+                index,
+                &dimensions,
+                current_height,
+                &opened_values,
+                size,
+            );
             let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
             builder.assign(root.clone(), new_root);
         })
@@ -278,6 +288,7 @@ pub fn reduce<C: Config>(
     dims: &Array<C, Dimensions<C>>,
     curr_height_padded: Var<C::N>,
     opened_values: &Array<C, Array<C, Ext<C::F, C::EF>>>,
+    size: usize,
 ) -> Array<C, Felt<C::F>> {
     let nb_opened_values = builder.eval(C::N::zero());
     let mut flattened_opened_values = builder.dyn_array(8192);
@@ -290,7 +301,8 @@ pub fn reduce<C: Config>(
                 .for_each(|j, builder| {
                     let opened_value = builder.get(&opened_values, j);
                     let opened_value_flat = builder.ext2felt(opened_value);
-                    for k in 0..4 {
+                    // sometimes this is 4, sometimes this is 1???
+                    for k in 0..size {
                         let base = builder.get(&opened_value_flat, k);
                         builder.set(&mut flattened_opened_values, nb_opened_values, base);
                         builder.assign(nb_opened_values, nb_opened_values + C::N::one());
@@ -299,15 +311,5 @@ pub fn reduce<C: Config>(
         });
     });
     flattened_opened_values.truncate(builder, Usize::Var(nb_opened_values));
-    builder.range(0, nb_opened_values).for_each(|i, builder| {
-        let base = builder.get(&flattened_opened_values, i);
-        builder.print_f(base);
-    });
-    let state = builder.poseidon2_permute(&flattened_opened_values);
-    let mut hash = builder.dyn_array(DIGEST_SIZE);
-    for i in 0..DIGEST_SIZE {
-        let base = builder.get(&state, i);
-        builder.set(&mut hash, i, base);
-    }
-    hash
+    builder.poseidon2_hash(&flattened_opened_values)
 }
