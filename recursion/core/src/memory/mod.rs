@@ -13,7 +13,7 @@ pub struct MemoryRecord<F> {
     pub prev_timestamp: F,
 }
 
-#[derive(AlignedBorrow, Default, Debug, Clone)]
+#[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryReadWriteCols<T> {
     pub addr: T,
