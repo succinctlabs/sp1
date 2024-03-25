@@ -9,7 +9,7 @@ impl SyscallHalt {
 }
 
 impl Syscall for SyscallHalt {
-    fn execute(&self, ctx: &mut SyscallContext) -> u32 {
+    fn execute(&self, ctx: &mut SyscallContext, _: u32, _: u32) -> Option<u32> {
         let exit_code = ctx.register_unsafe(Register::X10);
         if ctx.rt.fail_on_panic && exit_code != 0 {
             panic!(
@@ -18,6 +18,6 @@ impl Syscall for SyscallHalt {
             );
         }
         ctx.set_next_pc(0);
-        ctx.register_unsafe(Register::X10)
+        None
     }
 }

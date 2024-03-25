@@ -8,8 +8,8 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
     unsafe {
         asm!(
             "ecall",
-            in("a0") exit_code,
-            in("t0") crate::syscalls::HALT
+            in("t0") crate::syscalls::HALT,
+            in("a0") exit_code
         );
         unreachable!()
     }

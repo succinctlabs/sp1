@@ -1,4 +1,4 @@
-use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, Usize};
+use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, SymbolicUsize, Usize};
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
@@ -8,7 +8,7 @@ pub struct Builder<C: Config> {
     pub(crate) felt_count: u32,
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
-    pub(crate) operations: Vec<DslIR<C>>,
+    pub operations: Vec<DslIR<C>>,
 }
 
 impl<C: Config> Default for Builder<C> {
@@ -98,6 +98,21 @@ impl<C: Config> Builder<C> {
         self.assert_ne::<Felt<C::F>, _, _>(lhs, rhs);
     }
 
+    pub fn assert_usize_eq<
+        LhsExpr: Into<SymbolicUsize<C::N>>,
+        RhsExpr: Into<SymbolicUsize<C::N>>,
+    >(
+        &mut self,
+        lhs: LhsExpr,
+        rhs: RhsExpr,
+    ) {
+        self.assert_eq::<Usize<C::N>, _, _>(lhs, rhs);
+    }
+
+    pub fn assert_usize_ne(&mut self, lhs: SymbolicUsize<C::N>, rhs: SymbolicUsize<C::N>) {
+        self.assert_ne::<Usize<C::N>, _, _>(lhs, rhs);
+    }
+
     pub fn assert_ext_eq<
         LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
         RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
@@ -176,7 +191,7 @@ enum Condition<N> {
 }
 
 impl<'a, C: Config> IfBuilder<'a, C> {
-    pub fn then(mut self, f: impl FnOnce(&mut Builder<C>)) {
+    pub fn then(mut self, mut f: impl FnMut(&mut Builder<C>)) {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
 
@@ -222,8 +237,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
     pub fn then_or_else(
         mut self,
-        then_f: impl FnOnce(&mut Builder<C>),
-        else_f: impl FnOnce(&mut Builder<C>),
+        mut then_f: impl FnMut(&mut Builder<C>),
+        mut else_f: impl FnMut(&mut Builder<C>),
     ) {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
@@ -353,7 +368,7 @@ pub struct RangeBuilder<'a, C: Config> {
 }
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
-    pub fn for_each(self, f: impl FnOnce(Var<C::N>, &mut Builder<C>)) {
+    pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,

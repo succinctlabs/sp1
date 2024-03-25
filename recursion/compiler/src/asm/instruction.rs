@@ -12,9 +12,10 @@ use super::ZERO;
 
 #[derive(Debug, Clone)]
 pub enum AsmInstruction<F, EF> {
-    /// Load work (src, dst) : load a value from the address stored at dest(fp) into src(fp).
+    // Field operations
+    /// Load work (dst, src) : load a value from the address stored at src(fp) into dstfp).
     LW(i32, i32),
-    /// Store word (src, dst) : store a value from src(fp) into the address stored at dest(fp).
+    /// Store word (dst, src) : store a value from src(fp) into the address stored at dest(fp).
     SW(i32, i32),
     // Get immediate (dst, value) : load a value into the dest(fp).
     IMM(i32, F),
@@ -67,6 +68,42 @@ pub enum AsmInstruction<F, EF> {
     /// Divide value from immediate extension, dst = lhs / rhs.
     EDIVIN(i32, EF, i32),
 
+    // Mixed base-extension operations
+    /// Add base to extension, dst = lhs + rhs.
+    EADDF(i32, i32, i32),
+    /// Add immediate base to extension, dst = lhs + rhs.
+    EADDFI(i32, i32, F),
+    /// Add immediate extension element to base, dst = lhs + rhs.
+    FADDEI(i32, i32, EF),
+    // Subtract base from extension, dst = lhs - rhs.
+    ESUBF(i32, i32, i32),
+    /// Subtract immediate base from extension, dst = lhs - rhs.
+    ESUBFI(i32, i32, F),
+    /// Subtract value from immediate base to extension, dst = lhs - rhs.
+    ESUBFIN(i32, F, i32),
+    /// Subtract extension from base, dst = lhs - rhs.
+    FSUBE(i32, i32, i32),
+    /// Subtract immediate extension from base, dst = lhs - rhs.
+    FSUBEI(i32, i32, EF),
+    /// Subtract value from immediate extension to base, dst = lhs - rhs.
+    FSUBEIN(i32, EF, i32),
+    /// Multiply base and extension, dst = lhs * rhs.
+    EMULF(i32, i32, i32),
+    /// Multiply immediate base and extension.
+    EMULFI(i32, i32, F),
+    /// Multiply base by immediate extension, dst = lhs * rhs.
+    FMULEI(i32, i32, EF),
+    /// Divide base and extension, dst = lhs / rhs.
+    EDIVF(i32, i32, i32),
+    /// Divide immediate base and extension, dst = lhs / rhs.
+    EDIVFI(i32, i32, F),
+    /// Divide value from immediate base to extension, dst = lhs / rhs.
+    EDIVFIN(i32, F, i32),
+    /// Divide extension from immediate base, dst = lhs / rhs.
+    FDIVI(i32, i32, EF),
+    /// Divide value from immediate extension to base, dst = lhs / rhs.
+    FDIVIN(i32, EF, i32),
+
     /// Jump and link
     JAL(i32, F, F),
     /// Jump and link value
@@ -89,6 +126,13 @@ pub enum AsmInstruction<F, EF> {
     EBEQI(F, i32, EF),
     /// Trap
     TRAP,
+
+    // HintBits(dst, src) Decompose the field element `src` into bits and write them to the array
+    // starting at the address stored at `dst`.
+    HintBits(i32, i32),
+
+    /// Perform a permutation of the Poseidon2 hash function on the array specified by the ptr.
+    Poseidon2Permute(i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -109,43 +153,20 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
         let f_u32 = |x: F| [x, F::zero(), F::zero(), F::zero()];
         let zero = [F::zero(), F::zero(), F::zero(), F::zero()];
         match self {
-            AsmInstruction::LW(dst, src) => Instruction::new(
-                Opcode::LW,
-                i32_f(dst),
-                i32_f_arr(src),
-                zero,
-                false,
-                false,
-                false,
-                false,
-            ),
-            AsmInstruction::SW(dst, src) => Instruction::new(
-                Opcode::SW,
-                i32_f(dst),
-                i32_f_arr(src),
-                zero,
-                false,
-                false,
-                false,
-                false,
-            ),
-            AsmInstruction::IMM(dst, value) => Instruction::new(
-                Opcode::LW,
-                i32_f(dst),
-                f_u32(value),
-                zero,
-                true,
-                false,
-                false,
-                false,
-            ),
+            AsmInstruction::LW(dst, src) => {
+                Instruction::new(Opcode::LW, i32_f(dst), i32_f_arr(src), zero, false, false)
+            }
+            AsmInstruction::SW(dst, src) => {
+                Instruction::new(Opcode::SW, i32_f(dst), i32_f_arr(src), zero, false, false)
+            }
+            AsmInstruction::IMM(dst, value) => {
+                Instruction::new(Opcode::LW, i32_f(dst), f_u32(value), zero, true, false)
+            }
             AsmInstruction::ADD(dst, lhs, rhs) => Instruction::new(
                 Opcode::ADD,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 i32_f_arr(rhs),
-                false,
-                false,
                 false,
                 false,
             ),
@@ -155,17 +176,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(lhs),
                 f_u32(rhs),
                 false,
-                false,
                 true,
-                false,
             ),
             AsmInstruction::SUB(dst, lhs, rhs) => Instruction::new(
                 Opcode::SUB,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 i32_f_arr(rhs),
-                false,
-                false,
                 false,
                 false,
             ),
@@ -175,9 +192,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(lhs),
                 f_u32(rhs),
                 false,
-                false,
                 true,
-                false,
             ),
             AsmInstruction::SUBIN(dst, lhs, rhs) => Instruction::new(
                 Opcode::SUB,
@@ -185,8 +200,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 f_u32(lhs),
                 i32_f_arr(rhs),
                 true,
-                false,
-                false,
                 false,
             ),
             AsmInstruction::MUL(dst, lhs, rhs) => Instruction::new(
@@ -196,8 +209,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(rhs),
                 false,
                 false,
-                false,
-                false,
             ),
             AsmInstruction::MULI(dst, lhs, rhs) => Instruction::new(
                 Opcode::MUL,
@@ -205,17 +216,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(lhs),
                 f_u32(rhs),
                 false,
-                false,
                 true,
-                false,
             ),
             AsmInstruction::DIV(dst, lhs, rhs) => Instruction::new(
                 Opcode::DIV,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 i32_f_arr(rhs),
-                false,
-                false,
                 false,
                 false,
             ),
@@ -225,9 +232,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(lhs),
                 f_u32(rhs),
                 false,
-                false,
                 true,
-                false,
             ),
             AsmInstruction::DIVIN(dst, lhs, rhs) => Instruction::new(
                 Opcode::DIV,
@@ -236,37 +241,19 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(rhs),
                 true,
                 false,
-                false,
-                false,
             ),
-            AsmInstruction::LE(dst, src) => Instruction::new(
-                Opcode::LW,
-                i32_f(dst),
-                i32_f_arr(src),
-                zero,
-                false,
-                false,
-                false,
-                false,
-            ),
-            AsmInstruction::SE(dst, src) => Instruction::new(
-                Opcode::SW,
-                i32_f(dst),
-                i32_f_arr(src),
-                zero,
-                false,
-                false,
-                false,
-                false,
-            ),
+            AsmInstruction::LE(dst, src) => {
+                Instruction::new(Opcode::LE, i32_f(dst), i32_f_arr(src), zero, false, false)
+            }
+            AsmInstruction::SE(dst, src) => {
+                Instruction::new(Opcode::SE, i32_f(dst), i32_f_arr(src), zero, false, false)
+            }
             AsmInstruction::EIMM(dst, value) => Instruction::new(
-                Opcode::LW,
+                Opcode::LE,
                 i32_f(dst),
                 value.as_base_slice().try_into().unwrap(),
                 zero,
-                false,
                 true,
-                false,
                 false,
             ),
             AsmInstruction::EADD(dst, lhs, rhs) => Instruction::new(
@@ -276,16 +263,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(rhs),
                 false,
                 false,
-                false,
-                false,
             ),
             AsmInstruction::EADDI(dst, lhs, rhs) => Instruction::new(
                 Opcode::EADD,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
-                false,
-                false,
                 false,
                 true,
             ),
@@ -296,16 +279,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(rhs),
                 false,
                 false,
-                false,
-                false,
             ),
             AsmInstruction::ESUBI(dst, lhs, rhs) => Instruction::new(
                 Opcode::ESUB,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
-                false,
-                false,
                 false,
                 true,
             ),
@@ -314,9 +293,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f(dst),
                 lhs.as_base_slice().try_into().unwrap(),
                 i32_f_arr(rhs),
-                false,
                 true,
-                false,
                 false,
             ),
             AsmInstruction::EMUL(dst, lhs, rhs) => Instruction::new(
@@ -326,16 +303,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(rhs),
                 false,
                 false,
-                false,
-                false,
             ),
             AsmInstruction::EMULI(dst, lhs, rhs) => Instruction::new(
                 Opcode::EMUL,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
-                false,
-                false,
                 false,
                 true,
             ),
@@ -346,16 +319,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(rhs),
                 false,
                 false,
-                false,
-                false,
             ),
             AsmInstruction::EDIVI(dst, lhs, rhs) => Instruction::new(
                 Opcode::EDIV,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 rhs.as_base_slice().try_into().unwrap(),
-                false,
-                false,
                 false,
                 true,
             ),
@@ -364,9 +333,143 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f(dst),
                 lhs.as_base_slice().try_into().unwrap(),
                 i32_f_arr(rhs),
-                false,
                 true,
                 false,
+            ),
+            AsmInstruction::EADDF(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFADD,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::EADDFI(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFADD,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
+            AsmInstruction::FADDEI(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFADD,
+                i32_f(dst),
+                rhs.as_base_slice().try_into().unwrap(),
+                i32_f_arr(lhs),
+                true,
+                false,
+            ),
+            AsmInstruction::ESUBF(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFSUB,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::ESUBFI(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFSUB,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
+            AsmInstruction::ESUBFIN(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFSUB,
+                i32_f(dst),
+                f_u32(lhs),
+                i32_f_arr(rhs),
+                true,
+                false,
+            ),
+            AsmInstruction::FSUBE(dst, lhs, rhs) => Instruction::new(
+                Opcode::FESUB,
+                i32_f(dst),
+                i32_f_arr(rhs),
+                i32_f_arr(lhs),
+                false,
+                false,
+            ),
+            AsmInstruction::FSUBEI(dst, lhs, rhs) => Instruction::new(
+                Opcode::FESUB,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                rhs.as_base_slice().try_into().unwrap(),
+                false,
+                true,
+            ),
+            AsmInstruction::FSUBEIN(dst, lhs, rhs) => Instruction::new(
+                Opcode::FESUB,
+                i32_f(dst),
+                lhs.as_base_slice().try_into().unwrap(),
+                i32_f_arr(rhs),
+                true,
+                false,
+            ),
+            AsmInstruction::EMULF(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFMUL,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::EMULFI(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFMUL,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
+            AsmInstruction::FMULEI(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFMUL,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                rhs.as_base_slice().try_into().unwrap(),
+                false,
+                true,
+            ),
+            AsmInstruction::EDIVF(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFDIV,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
+                false,
+                false,
+            ),
+            AsmInstruction::EDIVFI(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFDIV,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                f_u32(rhs),
+                false,
+                true,
+            ),
+            AsmInstruction::EDIVFIN(dst, lhs, rhs) => Instruction::new(
+                Opcode::FEDIV,
+                i32_f(dst),
+                f_u32(lhs),
+                i32_f_arr(rhs),
+                true,
+                false,
+            ),
+            AsmInstruction::FDIVI(dst, lhs, rhs) => Instruction::new(
+                Opcode::FEDIV,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                rhs.as_base_slice().try_into().unwrap(),
+                false,
+                true,
+            ),
+            AsmInstruction::FDIVIN(dst, lhs, rhs) => Instruction::new(
+                Opcode::EFDIV,
+                i32_f(dst),
+                lhs.as_base_slice().try_into().unwrap(),
+                i32_f_arr(rhs),
+                true,
                 false,
             ),
             AsmInstruction::BEQ(label, lhs, rhs) => {
@@ -377,8 +480,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     i32_f(lhs),
                     i32_f_arr(rhs),
                     f_u32(offset),
-                    false,
-                    false,
                     false,
                     true,
                 )
@@ -392,9 +493,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     f_u32(rhs),
                     f_u32(offset),
                     true,
-                    false,
                     true,
-                    false,
                 )
             }
             AsmInstruction::BNE(label, lhs, rhs) => {
@@ -406,9 +505,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     i32_f_arr(rhs),
                     f_u32(offset),
                     false,
-                    false,
                     true,
-                    false,
                 )
             }
             AsmInstruction::BNEI(label, lhs, rhs) => {
@@ -420,9 +517,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     f_u32(rhs),
                     f_u32(offset),
                     true,
-                    false,
                     true,
-                    false,
                 )
             }
             AsmInstruction::EBNE(label, lhs, rhs) => {
@@ -434,9 +529,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     i32_f_arr(rhs),
                     f_u32(offset),
                     false,
-                    false,
                     true,
-                    false,
                 )
             }
             AsmInstruction::EBNEI(label, lhs, rhs) => {
@@ -447,10 +540,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     i32_f(lhs),
                     rhs.as_base_slice().try_into().unwrap(),
                     f_u32(offset),
-                    false,
                     true,
                     true,
-                    false,
                 )
             }
             AsmInstruction::EBEQ(label, lhs, rhs) => {
@@ -462,9 +553,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     i32_f_arr(rhs),
                     f_u32(offset),
                     false,
-                    false,
                     true,
-                    false,
                 )
             }
             AsmInstruction::EBEQI(label, lhs, rhs) => {
@@ -475,10 +564,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     i32_f(lhs),
                     rhs.as_base_slice().try_into().unwrap(),
                     f_u32(offset),
-                    false,
                     true,
                     true,
-                    false,
                 )
             }
             AsmInstruction::JAL(dst, label, offset) => {
@@ -490,9 +577,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     f_u32(pc_offset),
                     f_u32(offset),
                     false,
-                    false,
                     true,
-                    false,
                 )
             }
             AsmInstruction::JALR(dst, label, offset) => Instruction::new(
@@ -502,18 +587,25 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f_arr(offset),
                 false,
                 false,
-                false,
-                false,
             ),
-            AsmInstruction::TRAP => Instruction::new(
-                Opcode::TRAP,
-                F::zero(),
-                zero,
-                zero,
+            AsmInstruction::TRAP => {
+                Instruction::new(Opcode::TRAP, F::zero(), zero, zero, false, false)
+            }
+            AsmInstruction::HintBits(dst, src) => Instruction::new(
+                Opcode::HintBits,
+                i32_f(dst),
+                i32_f_arr(src),
+                f_u32(F::zero()),
                 false,
+                true,
+            ),
+            AsmInstruction::Poseidon2Permute(dst, src) => Instruction::new(
+                Opcode::Poseidon2Perm,
+                i32_f(dst),
+                i32_f_arr(src),
+                f_u32(F::zero()),
                 false,
-                false,
-                false,
+                true,
             ),
         }
     }
@@ -603,6 +695,57 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     offset
                 )
             }
+            AsmInstruction::EADDF(dst, lhs, rhs) => {
+                write!(f, "eaddf ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::EADDFI(dst, lhs, rhs) => {
+                write!(f, "eaddfi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::FADDEI(dst, lhs, rhs) => {
+                write!(f, "faddei ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::ESUBF(dst, lhs, rhs) => {
+                write!(f, "esubf ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::ESUBFI(dst, lhs, rhs) => {
+                write!(f, "esubfi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::ESUBFIN(dst, lhs, rhs) => {
+                write!(f, "esubfin ({})fp, {}, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::FSUBE(dst, lhs, rhs) => {
+                write!(f, "fsube ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::FSUBEI(dst, lhs, rhs) => {
+                write!(f, "fsubei ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::FSUBEIN(dst, lhs, rhs) => {
+                write!(f, "fsubein ({})fp, {}, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::EMULF(dst, lhs, rhs) => {
+                write!(f, "emulf ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::EMULFI(dst, lhs, rhs) => {
+                write!(f, "emulfi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::FMULEI(dst, lhs, rhs) => {
+                write!(f, "fmulei ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::EDIVF(dst, lhs, rhs) => {
+                write!(f, "edivf ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::EDIVFI(dst, lhs, rhs) => {
+                write!(f, "edivfi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::EDIVFIN(dst, lhs, rhs) => {
+                write!(f, "edivfin ({})fp, {}, ({})fp", dst, lhs, rhs)
+            }
+            AsmInstruction::FDIVI(dst, lhs, rhs) => {
+                write!(f, "fdivi ({})fp, ({})fp, {}", dst, lhs, rhs)
+            }
+            AsmInstruction::FDIVIN(dst, lhs, rhs) => {
+                write!(f, "fdivin ({})fp, {}, ({})fp", dst, lhs, rhs)
+            }
             AsmInstruction::JALR(dst, label, offset) => {
                 write!(f, "jalr  ({})fp, ({})fp, ({})fp", dst, label, offset)
             }
@@ -679,6 +822,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 )
             }
             AsmInstruction::TRAP => write!(f, "trap"),
+            AsmInstruction::HintBits(dst, src) => write!(f, "hint_bits ({})fp, ({})fp", dst, src),
+            AsmInstruction::Poseidon2Permute(dst, src) => {
+                write!(f, "poseidon2_permute ({})fp, ({})fp", dst, src)
+            }
         }
     }
 }

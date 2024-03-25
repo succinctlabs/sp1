@@ -113,9 +113,9 @@ impl<F: Field> GOperation<F> {
         // First 4 steps.
         {
             // a = a + b + x.
-            AddOperation::<AB::F>::eval(builder, a, b, cols.a_plus_b, is_real);
+            AddOperation::<AB::F>::eval(builder, a, b, cols.a_plus_b, is_real.into());
             a = cols.a_plus_b.value;
-            AddOperation::<AB::F>::eval(builder, a, x, cols.a_plus_b_plus_x, is_real);
+            AddOperation::<AB::F>::eval(builder, a, x, cols.a_plus_b_plus_x, is_real.into());
             a = cols.a_plus_b_plus_x.value;
 
             // d = (d ^ a).rotate_right(16).
@@ -125,7 +125,7 @@ impl<F: Field> GOperation<F> {
             d = Word([d[2], d[3], d[0], d[1]]);
 
             // c = c + d.
-            AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d, is_real);
+            AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d, is_real.into());
             c = cols.c_plus_d.value;
 
             // b = (b ^ c).rotate_right(12).
@@ -144,9 +144,9 @@ impl<F: Field> GOperation<F> {
         // Second 4 steps.
         {
             // a = a + b + y.
-            AddOperation::<AB::F>::eval(builder, a, b, cols.a_plus_b_2, is_real);
+            AddOperation::<AB::F>::eval(builder, a, b, cols.a_plus_b_2, is_real.into());
             a = cols.a_plus_b_2.value;
-            AddOperation::<AB::F>::eval(builder, a, y, cols.a_plus_b_2_add_y, is_real);
+            AddOperation::<AB::F>::eval(builder, a, y, cols.a_plus_b_2_add_y, is_real.into());
             a = cols.a_plus_b_2_add_y.value;
 
             // d = (d ^ a).rotate_right(8).
@@ -156,7 +156,7 @@ impl<F: Field> GOperation<F> {
             d = Word([d[1], d[2], d[3], d[0]]);
 
             // c = c + d.
-            AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d_2, is_real);
+            AddOperation::<AB::F>::eval(builder, c, d, cols.c_plus_d_2, is_real.into());
             c = cols.c_plus_d_2.value;
 
             // b = (b ^ c).rotate_right(7).

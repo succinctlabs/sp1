@@ -18,7 +18,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
                 in("t0") crate::syscalls::LWA,
                 in("a0") fd,
                 in("a1") 4, // The number of bytes we're requesting
-                lateout("a0") word,
+                lateout("t0") word,
             );
 
             // Copy the word into the read buffer
@@ -40,7 +40,7 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
                 in("t0") crate::syscalls::LWA,
                 in("a0") fd,
                 in("a1") remaining_bytes, // Request the remaining bytes
-                lateout("a0") word,
+                lateout("t0") word,
             );
 
             // Copy the necessary bytes of the word into the read buffer

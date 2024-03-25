@@ -1,6 +1,7 @@
 pub mod air;
 pub mod cpu;
 pub mod memory;
+pub mod poseidon2;
 pub mod program;
 pub mod runtime;
 pub mod stark;
@@ -17,7 +18,6 @@ pub mod tests {
     use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use sp1_core::stark::{LocalProver, StarkGenericConfig};
     use sp1_core::utils::BabyBearPoseidon2;
-    use sp1_core::utils::StarkUtils;
     use std::time::Instant;
 
     type F = BabyBear;
@@ -39,26 +39,15 @@ pub mod tests {
         Program::<F> {
             instructions: vec![
                 // .main
-                Instruction::new(Opcode::SW, F::zero(), one, zero, true, false, true, false),
-                Instruction::new(
-                    Opcode::SW,
-                    F::from_canonical_u32(1),
-                    one,
-                    zero,
-                    true,
-                    false,
-                    true,
-                    false,
-                ),
+                Instruction::new(Opcode::SW, F::zero(), one, zero, true, true),
+                Instruction::new(Opcode::SW, F::from_canonical_u32(1), one, zero, true, true),
                 Instruction::new(
                     Opcode::SW,
                     F::from_canonical_u32(2),
                     [F::from_canonical_u32(10), F::zero(), F::zero(), F::zero()],
                     zero,
                     true,
-                    false,
                     true,
-                    false,
                 ),
                 // .body:
                 Instruction::new(
@@ -67,29 +56,16 @@ pub mod tests {
                     zero,
                     one,
                     false,
-                    false,
                     true,
-                    false,
                 ),
-                Instruction::new(
-                    Opcode::SW,
-                    F::from_canonical_u32(0),
-                    one,
-                    zero,
-                    false,
-                    false,
-                    true,
-                    false,
-                ),
+                Instruction::new(Opcode::SW, F::from_canonical_u32(0), one, zero, false, true),
                 Instruction::new(
                     Opcode::SW,
                     F::from_canonical_u32(1),
                     [F::two() + F::one(), F::zero(), F::zero(), F::zero()],
                     zero,
                     false,
-                    false,
                     true,
-                    false,
                 ),
                 Instruction::new(
                     Opcode::SUB,
@@ -97,9 +73,7 @@ pub mod tests {
                     [F::two(), F::zero(), F::zero(), F::zero()],
                     one,
                     false,
-                    false,
                     true,
-                    false,
                 ),
                 Instruction::new(
                     Opcode::BNE,
@@ -112,9 +86,7 @@ pub mod tests {
                         F::zero(),
                     ],
                     true,
-                    false,
                     true,
-                    false,
                 ),
             ],
         }
@@ -122,8 +94,9 @@ pub mod tests {
 
     #[test]
     fn test_fibonacci_execute() {
+        let config = BabyBearPoseidon2::new();
         let program = fibonacci_program::<F>();
-        let mut runtime = Runtime::<F, EF>::new(&program);
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();
         assert_eq!(
             runtime.memory[1024 + 1].value,
@@ -140,10 +113,11 @@ pub mod tests {
         type F = <SC as StarkGenericConfig>::Val;
         let program = fibonacci_program::<F>();
 
-        let mut runtime = Runtime::<F, EF>::new(&program);
+        let config = SC::new();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();
 
-        let config = SC::new();
         let machine = RecursionAir::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();

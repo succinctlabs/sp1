@@ -96,6 +96,12 @@ func (c *Chip) AssertNe(a, b *Variable) {
 	c.api.AssertIsEqual(isZero, frontend.Variable(0))
 }
 
+func (c *Chip) Select(cond frontend.Variable, a, b *Variable) *Variable {
+	return &Variable{
+		value: c.field.Select(cond, a.value, b.value),
+	}
+}
+
 func (c *Chip) AddExtension(a, b *ExtensionVariable) *ExtensionVariable {
 	v1 := c.Add(a.value[0], b.value[0])
 	v2 := c.Add(a.value[1], b.value[1])
@@ -172,4 +178,12 @@ func (c *Chip) AssertNeExtension(a, b *ExtensionVariable) {
 	isZero3AndZero4 := c.api.And(isZero3, isZero4)
 	isZeroAll := c.api.And(isZero1AndZero2, isZero3AndZero4)
 	c.api.AssertIsEqual(isZeroAll, frontend.Variable(0))
+}
+
+func (c *Chip) SelectExtension(cond frontend.Variable, a, b *ExtensionVariable) *ExtensionVariable {
+	v1 := c.Select(cond, a.value[0], b.value[0])
+	v2 := c.Select(cond, a.value[1], b.value[1])
+	v3 := c.Select(cond, a.value[2], b.value[2])
+	v4 := c.Select(cond, a.value[3], b.value[3])
+	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
