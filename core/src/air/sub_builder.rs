@@ -3,6 +3,8 @@ use std::ops::Range;
 use p3_air::{AirBuilder, BaseAir};
 use p3_matrix::{Matrix, MatrixRowSlices, MatrixRows};
 
+use super::MessageBuilder;
+
 /// A submatrix of a matrix.  The matrix will contain a subset of the columns of `self.inner`.
 pub struct SubMatrixRowSlices<M: MatrixRowSlices<T>, T> {
     inner: M,
@@ -114,5 +116,17 @@ impl<'a, AB: AirBuilder, SubAir: BaseAir<F>, F> AirBuilder for SubAirBuilder<'a,
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
         self.inner.assert_zero(x.into());
+    }
+}
+
+impl<'a, AB: AirBuilder + MessageBuilder<M>, M, SubAir: BaseAir<F>, F> MessageBuilder<M>
+    for SubAirBuilder<'a, AB, SubAir, F>
+{
+    fn send(&mut self, message: M) {
+        self.inner.send(message);
+    }
+
+    fn receive(&mut self, message: M) {
+        self.inner.receive(message);
     }
 }

@@ -1,6 +1,6 @@
 use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
-use crate::memory::MemoryChipKind;
+use crate::memory::{MemoryChipKind, MemoryGlobalInitChip};
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
@@ -64,7 +64,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// A table for initializing the memory state.
-    MemoryInit(MemoryGlobalChip),
+    MemoryInit(MemoryGlobalInitChip),
     /// A table for finalizing the memory state.
     MemoryFinal(MemoryGlobalChip),
     /// A table for initializing the program memory.
@@ -141,7 +141,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ShiftLeft(shift_left));
         let lt = LtChip::default();
         chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_init = MemoryGlobalInitChip::new();
         chips.push(RiscvAir::MemoryInit(memory_init));
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
