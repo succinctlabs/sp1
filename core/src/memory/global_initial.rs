@@ -115,18 +115,16 @@ pub(crate) const NUM_MEMORY_INIT_EXTENDED_COLS: usize = size_of::<MemoryInitExte
 #[cfg(test)]
 mod tests {
 
-    use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use crate::memory::MemoryGlobalChip;
     use crate::runtime::Runtime;
-    use crate::stark::{RiscvAir, StarkGenericConfig};
-    use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
+    use crate::stark::StarkGenericConfig;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
 
     use super::*;
     use crate::runtime::tests::simple_program;
-    use crate::utils::{setup_logger, BabyBearPoseidon2};
+    use crate::utils::BabyBearPoseidon2;
 
     #[test]
     fn test_memory_generate_trace() {
