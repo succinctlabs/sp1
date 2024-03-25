@@ -15,11 +15,15 @@ use sp1_derive::AlignedBorrow;
 
 #[derive(PartialEq)]
 pub enum MemoryChipKind {
-    Init,
+    Initial,
     Finalize,
     Program,
 }
 
+/// Chip for the Program and Finalize global memory.
+///
+/// This chip is for the Program and Finalize global memory.  It also is a subchip for the
+/// Initial global memory chip.
 pub struct MemoryGlobalChip {
     pub kind: MemoryChipKind,
 }
@@ -35,7 +39,6 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
         NUM_MEMORY_INIT_COLS
     }
 }
-
 impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
     type Record = ExecutionRecord;
 
