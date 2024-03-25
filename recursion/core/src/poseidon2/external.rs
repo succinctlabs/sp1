@@ -24,8 +24,7 @@ use super::{
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 
 /// The mumber of rounds in the trace generation for the Poseidon2 permutation. The first round is
-/// kept for memory reading and the last round is kept for memory writing. The permutation starts
-/// from the second round.
+/// the initial round, followed by 4 external rounds, 22 internal rounds and 4 external rounds.
 const NUM_TOTAL_ROUNDS: usize = 31;
 
 #[derive(Default, Debug, Clone)]
@@ -38,7 +37,7 @@ pub struct Poseidon2Event<T> {
     pub post_state_records: Vec<MemoryRecord<T>>,
 }
 
-/// A chip that implements addition for the opcode ADD.
+/// A chip for the Poseidon2 permutation.
 #[derive(Default)]
 pub struct Poseidon2Chip;
 
@@ -74,7 +73,6 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
-        // let mut record = ExecutionRecord::default();
 
         for i in 0..input.poseidon2_events.len() {
             let event = input.poseidon2_events[i].clone();
@@ -85,7 +83,6 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
             for i in 0..NUM_TOTAL_ROUNDS {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
-                // println!("trace generation state {} {:?}", i, pre_state);
 
                 // Increment the clock.
                 cols.clk = event.clk + F::from_canonical_usize(i);
@@ -94,7 +91,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
                 cols.is_real = F::one();
 
-                // Read from the memory.
+                // Read from the memory and populate the state.
                 for j in 0..POSEIDON2_WIDTH {
                     cols.state[j].populate(&event.pre_state_records[i * POSEIDON2_WIDTH + j]);
                 }
@@ -250,9 +247,7 @@ where
                     result += local.rounds[r + 1] * constants[r][i] * local.is_external;
                 }
             }
-            builder
-                .when_not(local.rounds[0])
-                .assert_eq(result, local.add_rc[i]);
+            builder.assert_eq(result, local.add_rc[i]);
         }
 
         // Apply the sbox.
@@ -442,7 +437,6 @@ mod tests {
 
         // Perform the permutation in-place over 31 rounds.
         for r in 0..NUM_TOTAL_ROUNDS {
-            // println!("generation_state {} {:?}", r, state);
             // Apply the round function to the current state.
             permute_mut_round(&mut state, r);
 
