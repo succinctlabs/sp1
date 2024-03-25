@@ -6,6 +6,7 @@ use typenum::{U32, U62};
 use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -44,6 +45,8 @@ impl NumLimbs for Bn254BaseField {
 
 impl EllipticCurveParameters for Bn254Parameters {
     type BaseField = Bn254BaseField;
+
+    const CURVE_TYPE: CurveType = CurveType::Bn254;
 }
 
 impl WeierstrassParameters for Bn254Parameters {
@@ -88,7 +91,7 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(Bn254BaseField::MODULUS),
+            biguint_from_limbs(&Bn254BaseField::MODULUS),
             Bn254BaseField::modulus()
         );
     }

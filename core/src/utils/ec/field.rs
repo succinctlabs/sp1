@@ -13,7 +13,6 @@ use typenum::{U2, U4};
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned + NumLimbs
 {
-    const FIELD_TYPE: FieldEnum;
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize = Self::Limbs::USIZE;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;

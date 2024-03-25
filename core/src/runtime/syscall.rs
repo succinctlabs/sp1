@@ -68,6 +68,12 @@ pub enum SyscallCode {
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 0x00_38_01_0D,
+
+    /// Executes the `BN254_ADD` precompile.
+    BN254_ADD = 0x00_01_01_0E,
+
+    /// Executes the `BN254_DOUBLE` precompile.
+    BN254_DOUBLE = 0x00_00_01_0F,
 }
 
 impl SyscallCode {
@@ -88,6 +94,8 @@ impl SyscallCode {
             0x00_00_01_0B => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_0C => SyscallCode::SECP256K1_DECOMPRESS,
             0x00_38_01_0D => SyscallCode::BLAKE3_COMPRESS_INNER,
+            0x00_01_01_0E => SyscallCode::BN254_ADD,
+            0x00_00_01_0F => SyscallCode::BN254_DOUBLE,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -329,6 +337,10 @@ mod tests {
                 }
                 SyscallCode::SECP256K1_DECOMPRESS => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
+                }
+                SyscallCode::BN254_ADD => assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_ADD),
+                SyscallCode::BN254_DOUBLE => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_DOUBLE)
                 }
             }
         }

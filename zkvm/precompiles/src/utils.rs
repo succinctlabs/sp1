@@ -27,7 +27,8 @@ impl<C: CurveOperations + Copy> AffinePoint<C> {
         }
     }
 
-    // expects the bytes to be in little-endian order.
+    /// Construct an AffinePoint from the x and y coordinates. The coordinates are expected to be
+    /// in little-endian byte order.
     pub fn from(x_bytes: [u8; 32], y_bytes: [u8; 32]) -> Self {
         let mut limbs = [0; 16];
         for i in 0..8 {

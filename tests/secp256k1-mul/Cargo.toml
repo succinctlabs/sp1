@@ -1,6 +1,6 @@
 [workspace]
 [package]
-name = "biguint-mul-test"
+name = "secp256k1-mul-test"
 version = "0.1.0"
 edition = "2021"
 

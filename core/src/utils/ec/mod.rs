@@ -7,7 +7,7 @@ pub mod weierstrass;
 use field::FieldParameters;
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
 
 use crate::air::WORD_SIZE;
@@ -21,6 +21,23 @@ pub const COMPRESSED_POINT_BYTES: usize = 32;
 /// Number of words needed to represent a point on an elliptic curve. This is twice the number of
 /// words needed to represent a field element as a point consists of the x and y coordinates.
 pub const NUM_WORDS_EC_POINT: usize = 2 * NUM_WORDS_FIELD_ELEMENT;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CurveType {
+    Secp256k1,
+    Bn254,
+    Ed25519,
+}
+
+impl Display for CurveType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            CurveType::Secp256k1 => write!(f, "Secp256k1"),
+            CurveType::Bn254 => write!(f, "Bn254"),
+            CurveType::Ed25519 => write!(f, "Ed25519"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffinePoint<E> {
@@ -86,6 +103,8 @@ pub trait EllipticCurveParameters:
     Debug + Send + Sync + Copy + Serialize + DeserializeOwned + 'static
 {
     type BaseField: FieldParameters + NumWords;
+
+    const CURVE_TYPE: CurveType;
 }
 
 /// An interface for elliptic curve groups.

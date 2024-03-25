@@ -1,6 +1,6 @@
 [workspace]
 [package]
-name = "biguint-mul-test"
+name = "bn254-mul-test"
 version = "0.1.0"
 edition = "2021"
 

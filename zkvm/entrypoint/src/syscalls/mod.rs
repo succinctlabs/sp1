@@ -32,12 +32,6 @@ pub const HALT: u32 = 0x01_00_00_00;
 /// Loads a word supplied from the prover.
 pub const LWA: u32 = 0x00_00_00_01;
 
-/// Executes `BN254_ADD`.
-pub const BN254_ADD: u32 = 117;
-
-/// Executes `BN254_DOUBLE`.
-pub const BN254_DOUBLE: u32 = 118;
-
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 0x00_00_00_02;
 
@@ -73,3 +67,9 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
+
+/// Executes `BN254_ADD`.
+pub const BN254_ADD: u32 = 0x00_01_01_0E;
+
+/// Executes `BN254_DOUBLE`.
+pub const BN254_DOUBLE: u32 = 0x00_00_01_0F;
