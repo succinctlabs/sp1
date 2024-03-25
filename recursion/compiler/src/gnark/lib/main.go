@@ -33,10 +33,10 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	}
 	fieldChip.AssertEq(felt0, babybear.NewVariable(144))
 	backend0 = api.IsZero(api.Sub(var0, var0))
-	felt0 = fieldChip.Select(backend0, fieldChip.Add(felt1, babybear.NewVariable(0)), felt0)
-	felt0 = fieldChip.Select(backend0, fieldChip.Add(felt0, felt1), felt0)
+	felt0 = fieldChip.Select(backend0,  fieldChip.Add(felt1, babybear.NewVariable(0)), felt0)
+	felt0 = fieldChip.Select(backend0,  fieldChip.Add(felt0, felt1), felt0)
 	backend1 = api.Sub(frontend.Variable(1), api.IsZero(api.Sub(var0, var0)))
-	felt0 = fieldChip.Select(backend1, fieldChip.Add(felt1, babybear.NewVariable(0)), felt0)
-	felt0 = fieldChip.Select(backend1, fieldChip.Add(felt0, felt1), felt0)
+	felt0 = fieldChip.Select(backend1,  fieldChip.Add(felt1, babybear.NewVariable(0)), felt0)
+	felt0 = fieldChip.Select(backend1,  fieldChip.Add(felt0, felt1), felt0)
 	return nil
 }
