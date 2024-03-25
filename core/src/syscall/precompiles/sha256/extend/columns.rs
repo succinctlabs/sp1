@@ -7,6 +7,7 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::Add4Operation;
 use crate::operations::FixedRotateRightOperation;
 use crate::operations::FixedShiftRightOperation;
+use crate::operations::IsZeroOperation;
 use crate::operations::XorOperation;
 
 pub const NUM_SHA_EXTEND_COLS: usize = size_of::<ShaExtendCols<u8>>();
@@ -21,13 +22,12 @@ pub struct ShaExtendCols<T> {
 
     /// Control flags.
     pub i: T,
+    /// g^n where g is generator with order 16 and n is the row number.
     pub cycle_16: T,
-    pub cycle_16_minus_g: T,
-    pub cycle_16_minus_g_inv: T,
-    pub cycle_16_start: T,
-    pub cycle_16_minus_one: T,
-    pub cycle_16_minus_one_inv: T,
-    pub cycle_16_end: T,
+    /// Checks whether current row is start of a 16-row cycle. Bool result is stored in `result`.
+    pub cycle_16_start: IsZeroOperation<T>,
+    /// Checks whether current row is end of a 16-row cycle. Bool result is stored in `result`.
+    pub cycle_16_end: IsZeroOperation<T>,
     pub cycle_48: [T; 3],
     pub cycle_48_start: T,
     pub cycle_48_end: T,

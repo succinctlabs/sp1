@@ -49,7 +49,7 @@ pub mod extend_tests {
         air::MachineAir,
         alu::AluEvent,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
-        utils::{self, run_test},
+        utils::{self, run_test, tests::SHA2_ELF},
     };
 
     use super::ShaExtendChip;
@@ -93,6 +93,13 @@ pub mod extend_tests {
     fn test_sha_prove() {
         utils::setup_logger();
         let program = sha_extend_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_sha256_program() {
+        utils::setup_logger();
+        let program = Program::from(SHA2_ELF);
         run_test(program).unwrap();
     }
 }

@@ -9,6 +9,7 @@ use p3_field::TwoAdicField;
 use p3_matrix::MatrixRowSlices;
 
 use crate::air::SP1AirBuilder;
+use crate::operations::IsZeroOperation;
 
 use super::ShaExtendChip;
 use super::ShaExtendCols;
@@ -22,20 +23,12 @@ impl<F: Field> ShaExtendCols<F> {
         self.cycle_16 = g.exp_u64((i + 1) as u64);
 
         // Populate the columns needed to track the start of a cycle of 16 rows.
-        self.cycle_16_minus_g = self.cycle_16 - g;
-        self.cycle_16_minus_g_inv = self
-            .cycle_16_minus_g
-            .try_inverse()
-            .unwrap_or_else(|| F::zero());
-        self.cycle_16_start = F::from_bool(self.cycle_16_minus_g == F::zero());
+        self.cycle_16_start
+            .populate_from_field_element(self.cycle_16 - g);
 
         // Populate the columns needed to track the end of a cycle of 16 rows.
-        self.cycle_16_minus_one = self.cycle_16 - F::one();
-        self.cycle_16_minus_one_inv = self
-            .cycle_16_minus_one
-            .try_inverse()
-            .unwrap_or_else(|| F::zero());
-        self.cycle_16_end = F::from_bool(self.cycle_16_minus_one == F::zero());
+        self.cycle_16_end
+            .populate_from_field_element(self.cycle_16 - F::one());
 
         // Populate the columns needed to keep track of cycles of 48 rows.
         let j = 16 + (i % 48);
@@ -43,8 +36,8 @@ impl<F: Field> ShaExtendCols<F> {
         self.cycle_48[0] = F::from_bool((16..32).contains(&j));
         self.cycle_48[1] = F::from_bool((32..48).contains(&j));
         self.cycle_48[2] = F::from_bool((48..64).contains(&j));
-        self.cycle_48_start = self.cycle_48[0] * self.cycle_16_start * self.is_real;
-        self.cycle_48_end = self.cycle_48[2] * self.cycle_16_end * self.is_real;
+        self.cycle_48_start = self.cycle_48[0] * self.cycle_16_start.result * self.is_real;
+        self.cycle_48_end = self.cycle_48[2] * self.cycle_16_end.result * self.is_real;
     }
 }
 
@@ -66,64 +59,55 @@ impl ShaExtendChip {
             .when_transition()
             .assert_eq(local.cycle_16 * g, next.cycle_16);
 
-        // If cycle_16 is g, then
-        builder
-            .when(local.cycle_16_start)
-            .assert_eq(local.cycle_16, g);
-        builder
-            .when(AB::Expr::from(g) - local.cycle_16)
-            .assert_zero(local.cycle_16_start);
-        // builder.assert_eq(local.cycle_16 - g, local.cycle_16_minus_g);
-        // builder.assert_eq(
-        //     one.clone() - local.cycle_16_minus_g * local.cycle_16_minus_g_inv,
-        //     local.cycle_16_start,
-        // );
-        // builder.assert_zero(local.cycle_16_minus_g * local.cycle_16_start);
-
-        // Calculate whether it's the end of the cycle of 16 rows.
-        builder.assert_eq(local.cycle_16 - one.clone(), local.cycle_16_minus_one);
-        builder.assert_eq(
-            one.clone() - local.cycle_16_minus_one * local.cycle_16_minus_one_inv,
-            local.cycle_16_end,
+        // Constrain `cycle_16_start.result` to be `cycle_16 - g == 0`.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            local.cycle_16 - AB::Expr::from(g),
+            local.cycle_16_start,
+            local.is_real.into(),
         );
-        builder.assert_zero(local.cycle_16_minus_one * local.cycle_16_end);
+
+        // Constrain `cycle_16_end.result` to be `cycle_16 - 1 == 0`. g^(16) is 1.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            local.cycle_16 - AB::Expr::one(),
+            local.cycle_16_end,
+            local.is_real.into(),
+        );
 
         // Increment the indices of `cycles_48` when 16 rows have passed. Otherwise, keep them the same.
         for i in 0..3 {
             builder
                 .when_transition()
-                .when(local.cycle_16_end)
+                .when(local.cycle_16_end.result)
                 .assert_eq(local.cycle_48[i], next.cycle_48[(i + 1) % 3]);
             builder
                 .when_transition()
-                .when(one.clone() - local.cycle_16_end)
+                .when(one.clone() - local.cycle_16_end.result)
                 .assert_eq(local.cycle_48[i], next.cycle_48[i]);
+            builder.assert_bool(local.cycle_48[i]);
         }
 
-        // Compute whether it's the start/end of the cycle of 48 rows.
+        // cycle_48_start = start of 16-cycle AND first 16-cycle within 48-cycle.
         builder.assert_eq(
-            local.cycle_16_start * local.cycle_48[0] * local.is_real,
+            local.cycle_16_start.result * local.cycle_48[0] * local.is_real,
             local.cycle_48_start,
         );
+        // cycle_48_end = end of 16-cycle ANF last 16-cycle within 48-cycle.
         builder.assert_eq(
-            local.cycle_16_end * local.cycle_48[2] * local.is_real,
+            local.cycle_16_end.result * local.cycle_48[2] * local.is_real,
             local.cycle_48_end,
         );
 
         // When it's the end of a 48-cycle, the next `i` must be 16.
         builder
             .when_transition()
-            .when(local.cycle_16_end * local.cycle_48[2])
+            .when(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(next.i, AB::F::from_canonical_u32(16));
         // When it's not the end of a 16-cycle, the next `i` must be the current plus one.
         builder
             .when_transition()
-            .when(one.clone() - local.cycle_16_end)
+            .when(one.clone() - local.cycle_16_end.result)
             .assert_eq(local.i + one.clone(), next.i);
-
-        builder.assert_eq(
-            local.cycle_16 * local.cycle_16_minus_one * local.cycle_16_minus_one_inv,
-            local.cycle_16 * local.cycle_16_minus_one * local.cycle_16_minus_one_inv,
-        );
     }
 }
