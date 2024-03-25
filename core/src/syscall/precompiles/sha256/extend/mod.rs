@@ -21,6 +21,11 @@ pub struct ShaExtendEvent {
     pub w_i_writes: Vec<MemoryWriteRecord>,
 }
 
+/// Implements the sha extension syscall which loops over i = [16, 64] and modifies w[i]. In each
+/// iteration. The only input to the syscall is the 4byte-aligned pointer to the w array.
+///
+/// In the AIR, each sha extend syscall takes up 48 rows, where each row corresponds to a single
+/// iteration of the loop.
 #[derive(Default)]
 pub struct ShaExtendChip;
 

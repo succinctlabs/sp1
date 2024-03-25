@@ -37,7 +37,6 @@ impl<F: Field> ShaExtendCols<F> {
         self.cycle_48[1] = F::from_bool((32..48).contains(&j));
         self.cycle_48[2] = F::from_bool((48..64).contains(&j));
         self.cycle_48_start = self.cycle_48[0] * self.cycle_16_start.result * self.is_real;
-        self.cycle_48_end = self.cycle_48[2] * self.cycle_16_end.result * self.is_real;
     }
 }
 
@@ -67,7 +66,7 @@ impl ShaExtendChip {
             local.is_real.into(),
         );
 
-        // Constrain `cycle_16_end.result` to be `cycle_16 - 1 == 0`. g^(16) is 1.
+        // Constrain `cycle_16_end.result` to be `cycle_16 - 1 == 0`. Intuitively g^16 is 1.
         IsZeroOperation::<AB::F>::eval(
             builder,
             local.cycle_16 - AB::Expr::one(),
@@ -75,7 +74,18 @@ impl ShaExtendChip {
             local.is_real.into(),
         );
 
-        // Increment the indices of `cycles_48` when 16 rows have passed. Otherwise, keep them the same.
+        // Constrain `cycle_48` to be [1, 0, 0] in the first row.
+        builder
+            .when_first_row()
+            .assert_eq(local.cycle_48[0], AB::F::one());
+        builder
+            .when_first_row()
+            .assert_eq(local.cycle_48[1], AB::F::zero());
+        builder
+            .when_first_row()
+            .assert_eq(local.cycle_48[2], AB::F::zero());
+
+        // Shift the indices of `cycles_48` at the end of each 16 rows. Otherwise, keep them the same.
         for i in 0..3 {
             builder
                 .when_transition()
@@ -88,15 +98,10 @@ impl ShaExtendChip {
             builder.assert_bool(local.cycle_48[i]);
         }
 
-        // cycle_48_start = start of 16-cycle AND first 16-cycle within 48-cycle.
+        // cycle_48_start == start of 16-cycle AND first 16-cycle within 48-cycle AND is_real.
         builder.assert_eq(
             local.cycle_16_start.result * local.cycle_48[0] * local.is_real,
             local.cycle_48_start,
-        );
-        // cycle_48_end = end of 16-cycle ANF last 16-cycle within 48-cycle.
-        builder.assert_eq(
-            local.cycle_16_end.result * local.cycle_48[2] * local.is_real,
-            local.cycle_48_end,
         );
 
         // When it's the end of a 48-cycle, the next `i` must be 16.

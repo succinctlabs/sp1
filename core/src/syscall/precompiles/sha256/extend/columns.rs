@@ -28,9 +28,10 @@ pub struct ShaExtendCols<T> {
     pub cycle_16_start: IsZeroOperation<T>,
     /// Checks whether current row is end of a 16-row cycle. Bool result is stored in `result`.
     pub cycle_16_end: IsZeroOperation<T>,
+    /// Flags for when in the first, second, or third 16-row cycle.
     pub cycle_48: [T; 3],
+    /// Whether the current row is the first of a 48-row cycle.
     pub cycle_48_start: T,
-    pub cycle_48_end: T,
 
     /// Inputs to `s0`.
     pub w_i_minus_15: MemoryReadCols<T>,
@@ -38,7 +39,7 @@ pub struct ShaExtendCols<T> {
     pub w_i_minus_15_rr_18: FixedRotateRightOperation<T>,
     pub w_i_minus_15_rs_3: FixedShiftRightOperation<T>,
     pub s0_intermediate: XorOperation<T>,
-    /// `s0 := (w[i-15] rightrotate  7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift  3)`.
+    /// `s0 := (w[i-15] rightrotate  7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)`.
     pub s0: XorOperation<T>,
 
     /// Inputs to `s1`.
