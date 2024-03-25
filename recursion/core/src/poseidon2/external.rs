@@ -1,4 +1,3 @@
-use crate::air::Block;
 use crate::memory::{MemoryReadWriteCols, MemoryRecord};
 use core::borrow::Borrow;
 use core::mem::size_of;
@@ -24,19 +23,19 @@ use super::{
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 
-/// The numebr of rounds in the trace generation for the Poseidon2 permutation. The first round is
+/// The mumber of rounds in the trace generation for the Poseidon2 permutation. The first round is
 /// kept for memory reading and the last round is kept for memory writing. The permutation starts
 /// from the second round.
-const NUM_TOTAL_ROUNDS: usize = 32;
+const NUM_TOTAL_ROUNDS: usize = 31;
 
 #[derive(Default, Debug, Clone)]
 pub struct Poseidon2Event<T> {
     pub state_ptr: T,
     pub clk: T,
-    pub initial_state: [T; POSEIDON2_WIDTH],
-    pub initial_state_records: Vec<MemoryRecord<T>>,
-    pub final_state: [T; POSEIDON2_WIDTH],
-    pub final_state_records: Vec<MemoryRecord<T>>,
+    pub pre_state: [T; POSEIDON2_WIDTH],
+    pub pre_state_records: Vec<MemoryRecord<T>>,
+    pub post_state: [T; POSEIDON2_WIDTH],
+    pub post_state_records: Vec<MemoryRecord<T>>,
 }
 
 /// A chip that implements addition for the opcode ADD.
@@ -49,17 +48,14 @@ pub struct Poseidon2Chip;
 pub struct Poseidon2Cols<T> {
     pub state_ptr: T,
     pub clk: T,
-    pub first_round: T,
     pub state: [MemoryReadWriteCols<T>; POSEIDON2_WIDTH],
-    pub rounds: [T; NUM_TOTAL_ROUNDS - 1],
+    pub rounds: [T; NUM_TOTAL_ROUNDS],
     pub add_rc: [T; POSEIDON2_WIDTH],
     pub sbox_deg_3: [T; POSEIDON2_WIDTH],
     pub sbox_deg_7: [T; POSEIDON2_WIDTH],
     pub is_initial: T,
     pub is_internal: T,
     pub is_external: T,
-    // only the first and the last round of the poseidon2 permutation needs memory check.
-    pub do_memory_check: T,
     pub is_real: T,
 }
 
@@ -83,46 +79,27 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         for i in 0..input.poseidon2_events.len() {
             let event = input.poseidon2_events[i].clone();
 
-            // init state for the first round.
-            // this will also be used to store the pre-state for the next round.
-            let mut pre_state = event.initial_state;
-
-            let memory = event.initial_state_records.clone();
+            // Initialize the state. This will be used to store the pre-state for the subsequent rounds.
+            let mut pre_state = event.pre_state;
 
             for i in 0..NUM_TOTAL_ROUNDS {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
+                // println!("trace generation state {} {:?}", i, pre_state);
 
-                // increment the clock.
+                // Increment the clock.
                 cols.clk = event.clk + F::from_canonical_usize(i);
 
                 cols.state_ptr = event.state_ptr;
 
-                // If this is the first round, we need to initialize the memory records.
-                if i == 0 {
-                    for j in 0..POSEIDON2_WIDTH {
-                        cols.state[j].populate(&event.initial_state_records[j]);
-                    }
+                cols.is_real = F::one();
 
-                    cols.do_memory_check = F::one();
-                    cols.first_round = F::one();
-
-                    // this row is only for memory readfing.
-                    continue;
-                } else {
-                    for j in 0..POSEIDON2_WIDTH {
-                        cols.state[j].populate(&MemoryRecord {
-                            addr: cols.state[j].addr,
-                            value: memory[j].value,
-                            timestamp: cols.clk,
-
-                            prev_value: Block::from([F::zero(), F::zero(), F::zero(), F::zero()]),
-                            prev_timestamp: F::zero(),
-                        });
-                    }
+                // Read from the memory.
+                for j in 0..POSEIDON2_WIDTH {
+                    cols.state[j].populate(&event.pre_state_records[i * POSEIDON2_WIDTH + j]);
                 }
 
-                let r = i - 1;
+                let r = i;
 
                 cols.rounds[r] = F::one();
                 let is_initial_layer = r == 0;
@@ -133,8 +110,8 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     // Mark the selector as initial.
                     cols.is_initial = F::one();
 
-                    // initialize the pre_state from the memory records.
-                    // Don't apply the round constants and copy the `pre_state` as it is.
+                    // Initialize the pre state. Don't apply the round constants and copy the
+                    // `pre_state` as it is.
                     cols.add_rc.copy_from_slice(&pre_state);
                 } else if is_external_layer {
                     // Mark the selector as external.
@@ -194,35 +171,12 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     matmul_internal(&mut state, matmul_constants);
                 }
 
-                // If this is the last round, we need to populate the memory records.
-                if i == NUM_TOTAL_ROUNDS - 1 {
-                    for j in 0..POSEIDON2_WIDTH {
-                        cols.state[j].populate(&event.final_state_records[j]);
-                    }
-
-                    cols.do_memory_check = F::one();
-                } else {
-                    // Copy the state to the memory records.
-                    for j in 0..POSEIDON2_WIDTH {
-                        cols.state[j].populate(&MemoryRecord {
-                            addr: cols.state[j].addr,
-                            value: Block::from([state[j], F::zero(), F::zero(), F::zero()]),
-                            timestamp: cols.clk,
-                            prev_value: Block::from([
-                                pre_state[j],
-                                F::zero(),
-                                F::zero(),
-                                F::zero(),
-                            ]),
-                            prev_timestamp: cols.clk,
-                        });
-                    }
+                // Write to the state.
+                for j in 0..POSEIDON2_WIDTH {
+                    cols.state[j].populate(&event.post_state_records[i * POSEIDON2_WIDTH + j]);
                 }
 
-                // update the pre_state for the next round.
                 pre_state = state;
-
-                cols.is_real = F::one();
 
                 rows.push(row);
             }
@@ -259,7 +213,6 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
-        let next: &Poseidon2Cols<AB::Var> = main.row_slice(1).borrow();
 
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; POSEIDON2_WIDTH]; 30] = RC_16_30_U32
@@ -270,14 +223,6 @@ where
             .unwrap();
 
         let local_record = local.state;
-        let next_record = next.state;
-
-        // Memory read for the first round.
-        for i in 0..POSEIDON2_WIDTH {
-            builder
-                .when_first_row()
-                .assert_eq(local_record[i].value.0[0], next_record[i].prev_value.0[0]);
-        }
 
         let pre_state = local_record
             .iter()
@@ -306,20 +251,8 @@ where
                 }
             }
             builder
-                .when_not(local.rounds[30])
+                .when_not(local.rounds[0])
                 .assert_eq(result, local.add_rc[i]);
-        }
-
-        // For the last round, apply the round constants. The prev state for the next round will not be
-        // the same as the post state of the current round.
-        for i in 0..POSEIDON2_WIDTH {
-            let mut result: AB::Expr = post_state[i].into();
-            for r in 0..ROUNDS {
-                result += next.rounds[r + 1] * constants[29][i];
-            }
-            builder
-                .when(local.rounds[29])
-                .assert_eq(result, next.add_rc[i]);
         }
 
         // Apply the sbox.
@@ -414,7 +347,6 @@ where
         builder.assert_bool(local.is_initial);
         builder.assert_bool(local.is_external);
         builder.assert_bool(local.is_internal);
-        builder.assert_bool(local.do_memory_check);
         builder.assert_bool(local.is_real);
 
         // only one of them can be true. thus the sum of them should be equal to 1.
@@ -441,19 +373,6 @@ where
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
-
-        // If the memory check flag is set, we need to check if the respective round flag
-        // either the first or the last round is set.
-        builder.assert_eq(local.first_round + local.rounds[30], local.do_memory_check);
-
-        // // Constrain the memory on first and last round.
-        // builder.constraint_memory_access_slice(
-        //     AB::F::zero(),
-        //     local.clk.into(),
-        //     local.state_ptr,
-        //     &local.state,
-        //     local.do_memory_check,
-        // );
     }
 }
 
@@ -474,6 +393,8 @@ mod tests {
 
     use crate::air::Block;
     use crate::memory::MemoryRecord;
+    use crate::poseidon2::external::NUM_TOTAL_ROUNDS;
+    use crate::poseidon2::permute_mut_round;
     use crate::poseidon2::Poseidon2Event;
     use crate::runtime::POSEIDON2_WIDTH;
     use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
@@ -485,12 +406,19 @@ mod tests {
     fn generate_poseidon2_event() -> Vec<Poseidon2Event<BabyBear>> {
         let state_ptr = BabyBear::from_canonical_u32(100);
         let clk = BabyBear::from_canonical_u32(100);
-        let mut initial_state_records = Vec::new();
+        let mut pre_state_vector = Vec::new();
+        let mut post_state_vector = Vec::new();
         let mut initial_state = [BabyBear::one(); POSEIDON2_WIDTH];
 
         for i in 0..POSEIDON2_WIDTH {
             initial_state[i] = BabyBear::from_canonical_u32(i as u32);
-            initial_state_records.push(MemoryRecord {
+        }
+
+        let mut state = initial_state;
+
+        // Create MemoryRecord for the initial state.
+        let initial_memory_record: Vec<MemoryRecord<BabyBear>> = (0..POSEIDON2_WIDTH)
+            .map(|i| MemoryRecord {
                 addr: state_ptr + BabyBear::from_canonical_usize(i),
                 value: Block::from([
                     initial_state[i],
@@ -506,43 +434,52 @@ mod tests {
                     BabyBear::zero(),
                 ]),
                 prev_timestamp: clk,
-            });
+            })
+            .collect();
+
+        // Add the initial state to the pre_state_vector.
+        pre_state_vector.extend(initial_memory_record);
+
+        // Perform the permutation in-place over 31 rounds.
+        for r in 0..NUM_TOTAL_ROUNDS {
+            // println!("generation_state {} {:?}", r, state);
+            // Apply the round function to the current state.
+            permute_mut_round(&mut state, r);
+
+            // Create MemoryRecord for the updated state.
+            let memory_record: Vec<MemoryRecord<BabyBear>> = (0..POSEIDON2_WIDTH)
+                .map(|i| MemoryRecord {
+                    addr: state_ptr + BabyBear::from_canonical_usize(i),
+                    value: Block::from([
+                        state[i],
+                        BabyBear::zero(),
+                        BabyBear::zero(),
+                        BabyBear::zero(),
+                    ]),
+                    timestamp: clk + BabyBear::from_canonical_usize(r),
+                    prev_value: pre_state_vector[pre_state_vector.len() - POSEIDON2_WIDTH + i]
+                        .value,
+                    prev_timestamp: pre_state_vector[pre_state_vector.len() - POSEIDON2_WIDTH + i]
+                        .timestamp,
+                })
+                .collect();
+
+            // Add the updated state to the post_state_vector.
+            post_state_vector.extend(memory_record.clone());
+
+            // Update the pre_state_vector for the next round.
+            pre_state_vector.extend(memory_record);
         }
 
-        let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> =
-            Poseidon2::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-
-        let final_state = gt.permute(initial_state);
-
-        let mut final_state_records = Vec::new();
-
-        for i in 0..POSEIDON2_WIDTH {
-            final_state_records.push(MemoryRecord {
-                addr: state_ptr + BabyBear::from_canonical_usize(i),
-                value: Block::from([
-                    final_state[i],
-                    BabyBear::zero(),
-                    BabyBear::zero(),
-                    BabyBear::zero(),
-                ]),
-                timestamp: clk + BabyBear::from_canonical_usize(31),
-                prev_value: Block::from([
-                    BabyBear::zero(),
-                    BabyBear::zero(),
-                    BabyBear::zero(),
-                    BabyBear::zero(),
-                ]),
-                prev_timestamp: clk - BabyBear::from_canonical_usize(1),
-            });
-        }
+        let final_state: [BabyBear; POSEIDON2_WIDTH] = state;
 
         let poseidon2_event = Poseidon2Event {
             state_ptr,
             clk,
-            initial_state,
-            initial_state_records,
-            final_state,
-            final_state_records,
+            pre_state: initial_state,
+            pre_state_records: pre_state_vector,
+            post_state: final_state,
+            post_state_records: post_state_vector,
         };
 
         vec![poseidon2_event]
@@ -574,7 +511,7 @@ mod tests {
 
         let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> =
             Poseidon2::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-        let input = input.poseidon2_events[0].initial_state;
+        let input = input.poseidon2_events[0].pre_state;
         let output = gt.permute(input);
 
         let mut row: [BabyBear; NUM_POSEIDON2_COLS] = trace.values
