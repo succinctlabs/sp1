@@ -81,6 +81,7 @@ where
         );
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
+        // Also, if op_a is register 0, then ensure that its value is 0.
         builder
             .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);

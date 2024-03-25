@@ -4,26 +4,23 @@ use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::{ExecutionRecord, MemoryRecord};
+use crate::runtime::ExecutionRecord;
 use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
+use core::mem::{size_of, transmute};
 use p3_air::Air;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
+use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
 
 #[derive(PartialEq)]
 pub enum MemoryChipKind {
-    Initial,
+    Init,
     Finalize,
     Program,
 }
 
-/// Chip for the Program and Finalize global memory.
-///
-/// This chip is for the Program and Finalize global memory.  It also is a subchip for the
-/// Initial global memory chip.
 pub struct MemoryGlobalChip {
     pub kind: MemoryChipKind,
 }
@@ -39,14 +36,15 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
         NUM_MEMORY_INIT_COLS
     }
 }
+
 impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
     type Record = ExecutionRecord;
 
     fn name(&self) -> String {
         match self.kind {
+            MemoryChipKind::Init => "MemoryInit".to_string(),
             MemoryChipKind::Finalize => "MemoryFinalize".to_string(),
             MemoryChipKind::Program => "MemoryProgram".to_string(),
-            _ => panic!("should not be called with kind == MemoryChipKind::Init"),
         }
     }
 
@@ -56,18 +54,21 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let memory_record = match self.kind {
+            MemoryChipKind::Init => &input.first_memory_record,
             MemoryChipKind::Finalize => &input.last_memory_record,
             MemoryChipKind::Program => &input.program_memory_record,
-            _ => panic!("should not be called with kind == MemoryChipKind::Init"),
         };
-
-        let rows = (0..memory_record.len()) // TODO: change this back to par_iter
+        let rows: Vec<[F; 8]> = (0..memory_record.len()) // TODO: change this back to par_iter
             .map(|i| {
-                MemoryInitCols::generate_trace_row(
-                    memory_record[i].0,
-                    &memory_record[i].1,
-                    memory_record[i].2,
-                )
+                let (addr, record, multiplicity) = memory_record[i];
+                let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
+                let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
+                cols.addr = F::from_canonical_u32(addr);
+                cols.shard = F::from_canonical_u32(record.shard);
+                cols.timestamp = F::from_canonical_u32(record.timestamp);
+                cols.value = record.value.into();
+                cols.is_real = F::from_canonical_u32(multiplicity);
+                row
             })
             .collect::<Vec<_>>();
 
@@ -83,9 +84,9 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         match self.kind {
+            MemoryChipKind::Init => !shard.first_memory_record.is_empty(),
             MemoryChipKind::Finalize => !shard.last_memory_record.is_empty(),
             MemoryChipKind::Program => !shard.program_memory_record.is_empty(),
-            _ => panic!("should not be called with kind == MemoryChipKind::Init"),
         }
     }
 }
@@ -101,24 +102,12 @@ pub struct MemoryInitCols<T> {
 }
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
+#[allow(dead_code)]
+pub(crate) const MEMORY_INIT_COL_MAP: MemoryInitCols<usize> = make_col_map();
 
-impl<F: PrimeField> MemoryInitCols<F> {
-    pub fn generate_trace_row(
-        addr: u32,
-        record: &MemoryRecord,
-        multiplicity: u32,
-    ) -> [F; NUM_MEMORY_INIT_COLS] {
-        let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
-        let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
-
-        cols.addr = F::from_canonical_u32(addr);
-        cols.shard = F::from_canonical_u32(record.shard);
-        cols.timestamp = F::from_canonical_u32(record.timestamp);
-        cols.value = record.value.into();
-        cols.is_real = F::from_canonical_u32(multiplicity);
-
-        row
-    }
+const fn make_col_map() -> MemoryInitCols<usize> {
+    let indices_arr = indices_arr::<NUM_MEMORY_INIT_COLS>();
+    unsafe { transmute::<[usize; NUM_MEMORY_INIT_COLS], MemoryInitCols<usize>>(indices_arr) }
 }
 
 impl<AB> Air<AB> for MemoryGlobalChip
@@ -135,7 +124,15 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        if self.kind == MemoryChipKind::Finalize {
+        if self.kind == MemoryChipKind::Init || self.kind == MemoryChipKind::Program {
+            let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
+            values.extend(local.value.map(Into::into));
+            builder.receive(AirInteraction::new(
+                values,
+                local.is_real.into(),
+                crate::lookup::InteractionKind::Memory,
+            ));
+        } else {
             let mut values = vec![
                 local.shard.into(),
                 local.timestamp.into(),
@@ -143,14 +140,6 @@ where
             ];
             values.extend(local.value.map(Into::into));
             builder.send(AirInteraction::new(
-                values,
-                local.is_real.into(),
-                crate::lookup::InteractionKind::Memory,
-            ));
-        } else {
-            let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
-            values.extend(local.value.map(Into::into));
-            builder.receive(AirInteraction::new(
                 values,
                 local.is_real.into(),
                 crate::lookup::InteractionKind::Memory,
@@ -182,7 +171,7 @@ mod tests {
         runtime.run();
         let shard = runtime.record.clone();
 
-        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Program);
+        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -207,7 +196,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let chip = MemoryGlobalChip::new(MemoryChipKind::Program);
+        let chip = MemoryGlobalChip::new(MemoryChipKind::Init);
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
