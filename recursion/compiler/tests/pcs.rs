@@ -68,14 +68,14 @@ type MyPcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
 #[test]
 fn test_pcs_verify() {
-    let log_degrees = &[3];
+    let log_degrees = &[16];
     let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
     let hash = MyHash::new(perm.clone());
     let compress = MyCompress::new(perm.clone());
     let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
     let fri_config = FriConfig {
         log_blowup: 1,
-        num_queries: 10,
+        num_queries: 100,
         proof_of_work_bits: 8,
         mmcs: challenge_mmcs,
     };
@@ -91,7 +91,7 @@ fn test_pcs_verify() {
     let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
     let fri_config = FriConfig {
         log_blowup: 1,
-        num_queries: 10,
+        num_queries: 100,
         proof_of_work_bits: 8,
         mmcs: challenge_mmcs,
     };
