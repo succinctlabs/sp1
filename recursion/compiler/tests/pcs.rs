@@ -295,7 +295,6 @@ fn test_pcs_verify() {
     let mut challenger = DuplexChallengerVariable::new(&mut builder);
     challenger.observe_commitment(&mut builder, commit);
     challenger.sample_ext(&mut builder);
-
     fri::verify_two_adic_pcs(&mut builder, &config, rounds, proof, &mut challenger);
 
     let program = builder.compile();
