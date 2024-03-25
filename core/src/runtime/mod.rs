@@ -920,8 +920,8 @@ impl Runtime {
 
         let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
 
-        // Add a memory record for slot w/ address == 0 with value == 0 for the first and last memory
-        // record.  The program memory should never initialize that slot.  The memory argument will
+        // Add a memory record for slot for register %x0 with value == 0 for the first memory
+        // record.  The program memory should never initialize that register.  The memory argument will
         // fail in that case.
         let zero_addr_memory_record = MemoryRecord {
             value: 0,
@@ -944,8 +944,8 @@ impl Runtime {
             zero_addr_accessed = true;
             // If the memory addr was accessed, we only add it to "first_memory_record" if it was
             // not in the program_memory_image, otherwise we'll add to the memory argument from
-            // the program_memory_image table.  We also already added the zero addr memory record
-            // into first_memory_record.
+            // the program_memory_image table.  The registor %x0 entry was already added
+            // to first_memory_record.
             if !self.program.memory_image.contains_key(&addr) && addr != 0 {
                 first_memory_record.push((
                     addr,
@@ -958,7 +958,7 @@ impl Runtime {
                 ));
             }
 
-            // If we are inserting a record for addr 0, then it needs to be placed at the beginning
+            // If we are inserting a record for register %x0, then it needs to be placed at the beginning
             // of last_memory_record.  The Finalize global memory air will expect the zero addr record
             // to be the first row.
             if addr == 0 {
@@ -988,7 +988,7 @@ impl Runtime {
         }
 
         if !zero_addr_accessed {
-            // If the zero addr was never accessed, we need to insert that record in the beginning of last_memory_record.
+            // If register %x0 was never accessed, we need to insert that record in the beginning of last_memory_record.
             last_memory_record.insert(0, (0, zero_addr_memory_record, 1));
         }
 

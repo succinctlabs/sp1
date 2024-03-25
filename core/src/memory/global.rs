@@ -147,9 +147,10 @@ where
         }
 
         // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
-        // P.18 of the RISC-V spec.  To ensure that, we expect the addr 0 entry (with value == 0)
-        // in the first row of the Initialize and Finalize global memory chips.  Additionally, in the
-        // CPU air, we ensure that whenever op_a is set to X0, then it's value is 0.
+        // P.18 of the RISC-V spec.  To ensure that, we expect that the first row of the Initialize
+        // and Finalize global memory chip is for register %x0 (i.e. addr = 0x0), and that those rows
+        // have a value of 0.  Additionally, in the CPU air, we ensure that whenever op_a is set to
+        // %x0, its value is 0.
         if self.kind == MemoryChipKind::Initialize || self.kind == MemoryChipKind::Finalize {
             builder.when_first_row().assert_zero(local.addr);
             builder.when_first_row().assert_word_zero(local.value);
