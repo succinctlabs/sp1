@@ -55,23 +55,30 @@ impl ShaExtendChip {
         let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();
 
         let one = AB::Expr::from(AB::F::one());
+        // Generator with order 16 within BabyBear.
         let g = AB::F::from_canonical_u32(BabyBear::two_adic_generator(4).as_canonical_u32());
 
-        // Initialize counter variables on the first row.
+        // First row of the table must have g^1.
         builder.when_first_row().assert_eq(local.cycle_16, g);
 
-        // Multiply the current cycle by the generator of group with order 16.
+        // Every row's `cycle_16` must be previous multiplied by `g`.
         builder
             .when_transition()
             .assert_eq(local.cycle_16 * g, next.cycle_16);
 
-        // Calculate whether it's the beginning of the cycle of 16 rows.
-        builder.assert_eq(local.cycle_16 - g, local.cycle_16_minus_g);
-        builder.assert_eq(
-            one.clone() - local.cycle_16_minus_g * local.cycle_16_minus_g_inv,
-            local.cycle_16_start,
-        );
-        builder.assert_zero(local.cycle_16_minus_g * local.cycle_16_start);
+        // If cycle_16 is g, then
+        builder
+            .when(local.cycle_16_start)
+            .assert_eq(local.cycle_16, g);
+        builder
+            .when(AB::Expr::from(g) - local.cycle_16)
+            .assert_zero(local.cycle_16_start);
+        // builder.assert_eq(local.cycle_16 - g, local.cycle_16_minus_g);
+        // builder.assert_eq(
+        //     one.clone() - local.cycle_16_minus_g * local.cycle_16_minus_g_inv,
+        //     local.cycle_16_start,
+        // );
+        // builder.assert_zero(local.cycle_16_minus_g * local.cycle_16_start);
 
         // Calculate whether it's the end of the cycle of 16 rows.
         builder.assert_eq(local.cycle_16 - one.clone(), local.cycle_16_minus_one);
@@ -103,11 +110,12 @@ impl ShaExtendChip {
             local.cycle_48_end,
         );
 
-        // Increment `i` by one. Once it reaches the end of the cycle, reset it to zero.
+        // When it's the end of a 48-cycle, the next `i` must be 16.
         builder
             .when_transition()
             .when(local.cycle_16_end * local.cycle_48[2])
             .assert_eq(next.i, AB::F::from_canonical_u32(16));
+        // When it's not the end of a 16-cycle, the next `i` must be the current plus one.
         builder
             .when_transition()
             .when(one.clone() - local.cycle_16_end)
