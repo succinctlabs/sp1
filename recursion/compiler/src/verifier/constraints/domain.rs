@@ -10,14 +10,14 @@ use p3_field::{AbstractField, TwoAdicField};
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
 #[derive(DslVariable, Clone)]
-pub struct TwoAdicMultiplicativeCoset<C: Config> {
+pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
     pub log_n: Var<C::N>,
     pub size: Var<C::N>,
     pub shift: Felt<C::F>,
     pub g: Felt<C::F>,
 }
 
-impl<C: Config> TwoAdicMultiplicativeCoset<C> {
+impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L74
     pub fn first_point(&self) -> Felt<C::F> {
         self.shift
@@ -36,14 +36,14 @@ impl<C: Config> Builder<C> {
     pub fn const_domain(
         &mut self,
         domain: &p3_commit::TwoAdicMultiplicativeCoset<C::F>,
-    ) -> TwoAdicMultiplicativeCoset<C>
+    ) -> TwoAdicMultiplicativeCosetVariable<C>
     where
         C::F: TwoAdicField,
     {
         let log_d_val = domain.log_n as u32;
         let g_val = C::F::two_adic_generator(domain.log_n);
         // Initialize a domain.
-        TwoAdicMultiplicativeCoset::<C> {
+        TwoAdicMultiplicativeCosetVariable::<C> {
             log_n: self.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
             size: self.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
             shift: self.eval(domain.shift),
@@ -53,7 +53,7 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L77
     pub fn next_point(
         &mut self,
-        domain: &TwoAdicMultiplicativeCoset<C>,
+        domain: &TwoAdicMultiplicativeCosetVariable<C>,
         point: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         self.eval(point * domain.gen())
@@ -62,7 +62,7 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L112
     pub fn selectors_at_point(
         &mut self,
-        domain: &TwoAdicMultiplicativeCoset<C>,
+        domain: &TwoAdicMultiplicativeCosetVariable<C>,
         point: Ext<C::F, C::EF>,
     ) -> LagrangeSelectors<Ext<C::F, C::EF>> {
         let unshifted_point: Ext<_, _> = self.eval(point * domain.shift.inverse());
@@ -82,7 +82,7 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L87
     pub fn zp_at_point(
         &mut self,
-        domain: &TwoAdicMultiplicativeCoset<C>,
+        domain: &TwoAdicMultiplicativeCosetVariable<C>,
         point: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         // Compute (point * domain.shift.inverse()).exp_power_of_2(domain.log_n) - Ext::one()
@@ -95,9 +95,9 @@ impl<C: Config> Builder<C> {
 
     pub fn split_domains(
         &mut self,
-        domain: &TwoAdicMultiplicativeCoset<C>,
+        domain: &TwoAdicMultiplicativeCosetVariable<C>,
         log_num_chunks: usize,
-    ) -> Vec<TwoAdicMultiplicativeCoset<C>> {
+    ) -> Vec<TwoAdicMultiplicativeCosetVariable<C>> {
         let num_chunks = 1 << log_num_chunks;
         let log_n: Var<_> = self.eval(domain.log_n - C::N::from_canonical_usize(log_num_chunks));
         let size = self.power_of_two_usize(Usize::Var(log_n));
@@ -116,7 +116,7 @@ impl<C: Config> Builder<C> {
         // We can compute a generator for the domain by computing g_dom^{log_num_chunks}
         let g = self.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks.into());
         (0..num_chunks)
-            .map(|i| TwoAdicMultiplicativeCoset {
+            .map(|i| TwoAdicMultiplicativeCosetVariable {
                 log_n,
                 size,
                 shift: self.eval(domain.shift * domain_power(i)),
@@ -141,7 +141,7 @@ mod tests {
 
     fn domain_assertions<F: TwoAdicField, C: Config<N = F, F = F>>(
         builder: &mut Builder<C>,
-        domain: &TwoAdicMultiplicativeCoset<C>,
+        domain: &TwoAdicMultiplicativeCosetVariable<C>,
         domain_val: &p3_commit::TwoAdicMultiplicativeCoset<F>,
         zeta_val: C::EF,
     ) {

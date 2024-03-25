@@ -73,7 +73,7 @@ impl<C: Config> Builder<C> {
     pub fn recompute_quotient(
         &mut self,
         opening: &ChipOpening<C>,
-        qc_domains: Vec<TwoAdicMultiplicativeCoset<C>>,
+        qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         let zps = qc_domains
@@ -120,8 +120,8 @@ impl<C: Config> Builder<C> {
         &mut self,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        trace_domain: TwoAdicMultiplicativeCoset<C>,
-        qc_domains: Vec<TwoAdicMultiplicativeCoset<C>>,
+        trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
+        qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[C::EF],
