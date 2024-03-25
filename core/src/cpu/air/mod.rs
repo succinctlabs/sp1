@@ -192,6 +192,9 @@ impl CpuChip {
         let jump_columns = local.opcode_specific_columns.jump();
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
+        // When op_a is set to register X0, the RISC-V spec states that the jump instruction will
+        // not have a return destination address (it is effectively a GOTO command).  In this case,
+        // we shouldn't verify the return address.
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .when_not(local.instruction.op_a_0)

@@ -141,7 +141,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ShiftLeft(shift_left));
         let lt = LtChip::default();
         chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Initialize);
         chips.push(RiscvAir::MemoryInit(memory_init));
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         chips.push(RiscvAir::MemoryFinal(memory_finalize));

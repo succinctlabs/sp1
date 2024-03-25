@@ -318,11 +318,12 @@ impl Runtime {
 
     /// Write to a register.
     pub fn rw(&mut self, register: Register, value: u32) {
-        // Always do a write of value 0 to register 0.
+        // The only time we are writing to a register is when it is in operand A.
+        // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
+        // P.18 of the RISC-V spec. We always write 0 to %x0.
         if register == Register::X0 {
             self.mw_cpu(register as u32, 0, MemoryAccessPosition::A);
         } else {
-            // The only time we are writing to a register is when it is in operand A.
             self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
         }
     }
@@ -649,7 +650,6 @@ impl Runtime {
                 (b, c) = (imm, 0);
                 a = self.state.pc + 4;
                 self.rw(rd, a);
-
                 next_pc = self.state.pc.wrapping_add(imm);
             }
             Opcode::JALR => {
@@ -657,7 +657,6 @@ impl Runtime {
                 (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
                 a = self.state.pc + 4;
                 self.rw(rd, a);
-
                 next_pc = b.wrapping_add(c);
             }
 
@@ -920,6 +919,18 @@ impl Runtime {
         let mut last_memory_record = Vec::new();
 
         let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
+
+        // Add a memory record for slot w/ address == 0 with value == 0 for the first and last memory
+        // record.  The program memory should never initialize that slot.  The memory argument will
+        // fail in that case.
+        let zero_addr_memory_record = MemoryRecord {
+            value: 0,
+            shard: 0,
+            timestamp: 0,
+        };
+        first_memory_record.push((0, zero_addr_memory_record, 1));
+
+        let mut zero_addr_accessed = false;
         for addr in memory_keys {
             let record = *self.state.memory.get(&addr).unwrap();
             if record.shard == 0 && record.timestamp == 0 {
@@ -929,10 +940,13 @@ impl Runtime {
                 program_memory_used.insert(addr, (record.value, 0));
                 continue;
             }
+
+            zero_addr_accessed = true;
             // If the memory addr was accessed, we only add it to "first_memory_record" if it was
             // not in the program_memory_image, otherwise we'll add to the memory argument from
-            // the program_memory_image table.
-            if !self.program.memory_image.contains_key(&addr) {
+            // the program_memory_image table.  We also already added the zero addr memory record
+            // into first_memory_record.
+            if !self.program.memory_image.contains_key(&addr) && addr != 0 {
                 first_memory_record.push((
                     addr,
                     MemoryRecord {
@@ -944,15 +958,38 @@ impl Runtime {
                 ));
             }
 
-            last_memory_record.push((
-                addr,
-                MemoryRecord {
-                    value: record.value,
-                    shard: record.shard,
-                    timestamp: record.timestamp,
-                },
-                1,
-            ));
+            // If we are inserting a record for addr 0, then it needs to be placed at the beginning
+            // of last_memory_record.  The Finalize global memory air will expect the zero addr record
+            // to be the first row.
+            if addr == 0 {
+                last_memory_record.insert(
+                    0,
+                    (
+                        addr,
+                        MemoryRecord {
+                            value: record.value,
+                            shard: record.shard,
+                            timestamp: record.timestamp,
+                        },
+                        1,
+                    ),
+                )
+            } else {
+                last_memory_record.push((
+                    addr,
+                    MemoryRecord {
+                        value: record.value,
+                        shard: record.shard,
+                        timestamp: record.timestamp,
+                    },
+                    1,
+                ));
+            }
+        }
+
+        if !zero_addr_accessed {
+            // If the zero addr was never accessed, we need to insert that record in the beginning of last_memory_record.
+            last_memory_record.insert(0, (0, zero_addr_memory_record, 1));
         }
 
         let mut program_memory_record = program_memory_used
