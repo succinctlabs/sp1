@@ -8,8 +8,6 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
 
-use self::types::DIGEST_SIZE;
-
 use super::challenger::DuplexChallengerVariable;
 use crate::prelude::Array;
 use crate::prelude::Builder;
@@ -135,7 +133,6 @@ where
 
     let index_bits = builder.num2bits_v(index);
     let log_max_height = log_max_height.materialize(builder);
-    let one: Var<_> = builder.eval(C::N::one());
     builder
         .range(0, commit_phase_commits.len())
         .for_each(|i, builder| {
@@ -168,14 +165,13 @@ where
 
             let mut opened_values = builder.array(1);
             builder.set(&mut opened_values, 0, evals.clone());
-            verify_batch(
+            verify_batch::<C, 4>(
                 builder,
                 &commit,
                 dims_slice,
                 index_pair,
                 opened_values,
                 &step.opening_proof,
-                4,
             );
 
             let mut xs: Array<C, Ext<C::F, C::EF>> = builder.array(2);
@@ -206,14 +202,13 @@ where
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L92
 #[allow(clippy::type_complexity)]
 #[allow(unused_variables)]
-pub fn verify_batch<C: Config>(
+pub fn verify_batch<C: Config, const D: usize>(
     builder: &mut Builder<C>,
     commit: &Commitment<C>,
     dimensions: Array<C, Dimensions<C>>,
     index_bits: Array<C, Var<C::N>>,
     opened_values: Array<C, Array<C, Ext<C::F, C::EF>>>,
     proof: &Array<C, Commitment<C>>,
-    size: usize,
 ) {
     // The index of which table to process next.
     let index: Var<C::N> = builder.eval(C::N::zero());
@@ -222,14 +217,7 @@ pub fn verify_batch<C: Config>(
     let current_height = builder.get(&dimensions, index).height;
 
     // Reduce all the tables that have the same height to a single root.
-    let root = reduce(
-        builder,
-        index,
-        &dimensions,
-        current_height,
-        &opened_values,
-        size,
-    );
+    let root = reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
 
     // For each sibling in the proof, reconstruct the root.
     let one: Var<_> = builder.eval(C::N::one());
@@ -257,14 +245,8 @@ pub fn verify_batch<C: Config>(
 
         let next_height = builder.get(&dimensions, index).height;
         builder.if_eq(next_height, current_height).then(|builder| {
-            let next_height_openings_digest = reduce(
-                builder,
-                index,
-                &dimensions,
-                current_height,
-                &opened_values,
-                size,
-            );
+            let next_height_openings_digest =
+                reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
             let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
             builder.assign(root.clone(), new_root);
         })
@@ -282,13 +264,12 @@ pub fn verify_batch<C: Config>(
 ///
 /// Assumes the dimensions have already been sorted by tallest first.
 #[allow(clippy::type_complexity)]
-pub fn reduce<C: Config>(
+pub fn reduce<C: Config, const D: usize>(
     builder: &mut Builder<C>,
     dim_idx: Var<C::N>,
     dims: &Array<C, Dimensions<C>>,
     curr_height_padded: Var<C::N>,
     opened_values: &Array<C, Array<C, Ext<C::F, C::EF>>>,
-    size: usize,
 ) -> Array<C, Felt<C::F>> {
     let nb_opened_values = builder.eval(C::N::zero());
     let mut flattened_opened_values = builder.dyn_array(8192);
@@ -301,8 +282,7 @@ pub fn reduce<C: Config>(
                 .for_each(|j, builder| {
                     let opened_value = builder.get(&opened_values, j);
                     let opened_value_flat = builder.ext2felt(opened_value);
-                    // sometimes this is 4, sometimes this is 1???
-                    for k in 0..size {
+                    for k in 0..D {
                         let base = builder.get(&opened_value_flat, k);
                         builder.set(&mut flattened_opened_values, nb_opened_values, base);
                         builder.assign(nb_opened_values, nb_opened_values + C::N::one());

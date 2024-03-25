@@ -172,7 +172,6 @@ impl<AB> Air<AB> for Poseidon2Chip
 where
     AB: SP1AirBuilder,
 {
-    #[allow(clippy::needless_range_loop)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();

@@ -1,3 +1,5 @@
+#![allow(clippy::type_complexity)]
+#![allow(clippy::needless_range_loop)]
 extern crate alloc;
 
 pub mod asm;

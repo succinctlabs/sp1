@@ -217,7 +217,6 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
         2
     }
 
-    #[allow(clippy::needless_range_loop)]
     fn load(&self, src: Ptr<C::N>, builder: &mut Builder<C>) {
         match self {
             Array::Dyn(dst, Usize::Var(len)) => {
@@ -232,7 +231,6 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
         }
     }
 
-    #[allow(clippy::needless_range_loop)]
     fn store(&self, dst: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
         match self {
             Array::Dyn(src, Usize::Var(len)) => {

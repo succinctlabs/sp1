@@ -1,13 +1,22 @@
+#![allow(clippy::needless_range_loop)]
+
+use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
 use p3_challenger::CanObserve;
-use p3_challenger::CanSampleBits;
 use p3_challenger::DuplexChallenger;
+use p3_challenger::FieldChallenger;
+use p3_commit::ExtensionMmcs;
 use p3_commit::Pcs;
-use p3_commit::PolynomialSpace;
 use p3_dft::Radix2DitParallel;
-use p3_field::AbstractExtensionField;
+use p3_field::extension::BinomialExtensionField;
 use p3_field::AbstractField;
+use p3_field::Field;
 use p3_field::PrimeField32;
+use p3_fri::FriConfig;
 use p3_fri::TwoAdicFriPcs;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_merkle_tree::FieldMerkleTreeMmcs;
+use p3_poseidon2::Poseidon2;
+use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use rand::rngs::OsRng;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::poseidon2_instance::RC_16_30;
@@ -19,8 +28,6 @@ use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::SymbolicExt;
 use sp1_recursion_compiler::ir::SymbolicFelt;
-use sp1_recursion_compiler::ir::Usize;
-use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::verifier::challenger::DuplexChallengerVariable;
 use sp1_recursion_compiler::verifier::fri;
 use sp1_recursion_compiler::verifier::fri::pcs::TwoAdicPcsMats;
@@ -33,25 +40,7 @@ use sp1_recursion_compiler::verifier::fri::types::FriQueryProofVariable;
 use sp1_recursion_compiler::verifier::fri::types::DIGEST_SIZE;
 use sp1_recursion_compiler::verifier::fri::BatchOpening;
 use sp1_recursion_compiler::verifier::fri::TwoAdicPcsProof;
-use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCoset;
 use sp1_recursion_core::runtime::Runtime;
-
-use itertools::Itertools;
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
-use p3_challenger::FieldChallenger;
-use p3_commit::ExtensionMmcs;
-use p3_dft::{Radix2Dit, TwoAdicSubgroupDft};
-use p3_field::extension::BinomialExtensionField;
-use p3_field::Field;
-use p3_fri::{prover, verifier, FriConfig};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::util::reverse_matrix_index_bits;
-use p3_matrix::{Matrix, MatrixRows};
-use p3_merkle_tree::FieldMerkleTreeMmcs;
-use p3_poseidon2::Poseidon2;
-use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use p3_util::log2_strict_usize;
-use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
 pub type Val = BabyBear;
 pub type Challenge = BinomialExtensionField<Val, 4>;
@@ -62,7 +51,6 @@ pub type ValMmcs =
     FieldMerkleTreeMmcs<<Val as Field>::Packing, <Val as Field>::Packing, MyHash, MyCompress, 8>;
 pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 pub type Challenger = DuplexChallenger<Val, Perm, 16>;
-type MyFriConfig = FriConfig<ChallengeMmcs>;
 pub type Dft = Radix2DitParallel;
 type MyPcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
@@ -201,16 +189,13 @@ fn test_pcs_verify() {
     for i in 0..proof.fri_proof.commit_phase_commits.len() {
         let mut commitment: Commitment<C> = builder.dyn_array(DIGEST_SIZE);
         let h: [F; DIGEST_SIZE] = proof.fri_proof.commit_phase_commits[i].into();
-        #[allow(clippy::needless_range_loop)]
         for j in 0..DIGEST_SIZE {
             builder.set(&mut commitment, j, h[j]);
         }
         builder.set(&mut fri_proofvar.commit_phase_commits, i, commitment);
     }
 
-    // set query proofs
     for i in 0..proof.fri_proof.query_proofs.len() {
-        // create commit phase openings
         let mut commit_phase_openings: Array<
             AsmConfig<F, EF>,
             FriCommitPhaseProofStepVariable<AsmConfig<F, EF>>,
@@ -235,7 +220,6 @@ fn test_pcs_verify() {
                 let proof =
                     proof.fri_proof.query_proofs[i].commit_phase_openings[j].opening_proof[k];
 
-                #[allow(clippy::needless_range_loop)]
                 for l in 0..DIGEST_SIZE {
                     builder.set(&mut arr, l, proof[l]);
                 }
@@ -253,7 +237,7 @@ fn test_pcs_verify() {
 
     let mut proofvar = TwoAdicPcsProof::<C> {
         fri_proof: fri_proofvar,
-        query_openings: builder.dyn_array(proof.query_openings.len()), // TODO: fix this
+        query_openings: builder.dyn_array(proof.query_openings.len()),
     };
     for i in 0..proof.query_openings.len() {
         let openings = &proof.query_openings[i];
@@ -267,9 +251,8 @@ fn test_pcs_verify() {
                     builder.dyn_array(opened_value.len());
                 for l in 0..opened_value.len() {
                     let opened_value = &opened_value[l];
-                    let el: Ext<F, EF> = builder.eval(SymbolicExt::Base(
-                        SymbolicFelt::Const(opened_value.clone()).into(),
-                    ));
+                    let el: Ext<F, EF> =
+                        builder.eval(SymbolicExt::Base(SymbolicFelt::Const(*opened_value).into()));
                     builder.set(&mut opened_valuevar, l, el);
                 }
                 builder.set(&mut opened_valuesvar, k, opened_valuevar);
@@ -279,7 +262,7 @@ fn test_pcs_verify() {
                 let sibling = &opening.opening_proof[k];
                 let mut sibling_var = builder.dyn_array(DIGEST_SIZE);
                 for l in 0..DIGEST_SIZE {
-                    let el: Felt<_> = builder.eval(sibling[l].clone());
+                    let el: Felt<_> = builder.eval(sibling[l]);
                     builder.set(&mut sibling_var, l, el);
                 }
                 builder.set(&mut opening_proofvar, k, sibling_var);
@@ -293,16 +276,10 @@ fn test_pcs_verify() {
         builder.set(&mut proofvar.query_openings, i, openingsvar);
     }
 
-    let width: Var<_> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
-    let mut challengervar = DuplexChallengerVariable::<AsmConfig<F, EF>> {
-        sponge_state: builder.array(Usize::Var(width)),
-        nb_inputs: builder.eval(F::zero()),
-        input_buffer: builder.array(Usize::Var(width)),
-        nb_outputs: builder.eval(F::zero()),
-        output_buffer: builder.array(Usize::Var(width)),
-    };
+    let mut challengervar = DuplexChallengerVariable::<AsmConfig<F, EF>>::new(&mut builder);
     challengervar.observe_commitment(&mut builder, commitvar);
     challengervar.sample_ext(&mut builder);
+
     fri::verify_two_adic_pcs(
         &mut builder,
         &configvar,

@@ -1,4 +1,5 @@
 use p3_field::AbstractField;
+use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
 use crate::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
 use crate::verifier::fri::types::Commitment;
@@ -17,6 +18,16 @@ pub struct DuplexChallengerVariable<C: Config> {
 }
 
 impl<C: Config> DuplexChallengerVariable<C> {
+    pub fn new(builder: &mut Builder<C>) -> Self {
+        DuplexChallengerVariable::<C> {
+            sponge_state: builder.dyn_array(POSEIDON2_WIDTH),
+            nb_inputs: builder.eval(C::N::zero()),
+            input_buffer: builder.dyn_array(POSEIDON2_WIDTH),
+            nb_outputs: builder.eval(C::N::zero()),
+            output_buffer: builder.dyn_array(POSEIDON2_WIDTH),
+        }
+    }
+
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L38
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
         builder.range(0, self.nb_inputs).for_each(|i, builder| {

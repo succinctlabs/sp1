@@ -169,7 +169,7 @@ impl<C: Config> Builder<C> {
         let target = array.len().materialize(self);
 
         self.range(0, target).for_each(|i, builder| {
-            let element = builder.get(&array, i);
+            let element = builder.get(array, i);
             builder.set(&mut state, eight_ctr, element);
 
             builder
@@ -260,6 +260,7 @@ impl<C: Config> Builder<C> {
         bit_len: impl Into<Usize<C::N>>,
     ) -> Usize<C::N> {
         let bits = self.num2bits_usize(index);
+
         // Compute the reverse bits.
         let bit_len = bit_len.into();
         let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
@@ -278,19 +279,31 @@ impl<C: Config> Builder<C> {
 
     #[allow(unused_variables)]
     pub fn exp_usize_ef(&mut self, x: Ext<C::F, C::EF>, power: Usize<C::N>) -> Ext<C::F, C::EF> {
-        let base: Ext<C::F, C::EF> = self.eval(SymbolicExt::Const(C::EF::one()));
-        self.range(0, power).for_each(|_, builder| {
-            builder.assign(base, base * x);
+        let result = self.eval(C::F::one());
+        let power_f: Ext<_, _> = self.eval(x);
+        let bits = self.num2bits_usize(power);
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(&bits, i);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
         });
-        base
+        result
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
     pub fn exp_usize_f(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
         let result = self.eval(C::F::one());
-        self.range(0, power).for_each(|_, builder| {
-            builder.assign(result, result * x);
+        let power_f: Felt<_> = self.eval(x);
+        let bits = self.num2bits_usize(power);
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(&bits, i);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
         });
         result
     }

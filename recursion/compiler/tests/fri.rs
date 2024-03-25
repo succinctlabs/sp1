@@ -1,6 +1,5 @@
 use p3_challenger::CanSampleBits;
 use p3_challenger::DuplexChallenger;
-use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use rand::rngs::OsRng;
@@ -137,15 +136,9 @@ fn test_fri_verify_shape_and_sample_challenges() {
     let mut v_challenger = Challenger::new(perm);
     let _alpha: Challenge = v_challenger.sample_ext_element();
     assert_eq!(proof.query_proofs.len(), fc.num_queries);
-    // println!("proof.pow_witness={:?}", proof.pow_witness);
     let fri_challenges =
         verifier::verify_shape_and_sample_challenges(&fc, &proof, &mut v_challenger)
             .expect("failed verify shape and sample");
-    println!("fc.log_blowup={:?}", fc.log_blowup);
-    println!(
-        "proof.commit_phase_commits.len()={:?}",
-        proof.commit_phase_commits.len()
-    );
     verifier::verify_challenges(&fc, &proof, &fri_challenges, &reduced_openings).unwrap();
 
     type SC = BabyBearPoseidon2;
@@ -153,16 +146,7 @@ fn test_fri_verify_shape_and_sample_challenges() {
     type EF = <SC as StarkGenericConfig>::Challenge;
     type C = AsmConfig<F, EF>;
 
-    let res = EF::from_base_slice(&[
-        F::from_canonical_usize(546708009),
-        F::from_canonical_usize(793439168),
-        F::from_canonical_usize(1413048150),
-        F::from_canonical_usize(1429346850),
-    ]);
-    println!("res={}", res);
-
     let config = SC::default();
-    // let mut challenger = config.challenger();
     let mut builder = VmBuilder::<F, EF>::default();
 
     let configvar = FriConfigVariable::<AsmConfig<F, EF>> {
@@ -188,7 +172,6 @@ fn test_fri_verify_shape_and_sample_challenges() {
     for i in 0..proof.commit_phase_commits.len() {
         let mut commitment: Commitment<C> = builder.dyn_array(DIGEST_SIZE);
         let h: [F; DIGEST_SIZE] = proof.commit_phase_commits[i].into();
-        #[allow(clippy::needless_range_loop)]
         for j in 0..DIGEST_SIZE {
             builder.set(&mut commitment, j, h[j]);
         }
@@ -224,7 +207,6 @@ fn test_fri_verify_shape_and_sample_challenges() {
                     println!("proof={:?}", proof);
                 }
 
-                #[allow(clippy::needless_range_loop)]
                 for l in 0..DIGEST_SIZE {
                     builder.set(&mut arr, l, proof[l]);
                 }
@@ -242,7 +224,6 @@ fn test_fri_verify_shape_and_sample_challenges() {
 
     // set reduced openings
     let mut reduced_openings_var = builder.dyn_array(reduced_openings.len());
-    #[allow(clippy::needless_range_loop)]
     for i in 0..reduced_openings.len() {
         let mut reduced_opening = builder.dyn_array(32);
         for j in 0..32 {

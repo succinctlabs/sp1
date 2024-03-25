@@ -44,6 +44,8 @@ pub struct MemoryEntry<F: PrimeField32> {
 }
 
 pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
+    pub timestamp: u64,
+
     /// The current clock.
     pub clk: F,
 
@@ -84,6 +86,7 @@ where
             ..Default::default()
         };
         Self {
+            timestamp: 0,
             clk: F::zero(),
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
@@ -225,7 +228,7 @@ where
                 Opcode::PrintF => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
-                    println!("PRINTF={}", a_val[0]);
+                    println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::PrintE => {
@@ -437,6 +440,7 @@ where
             self.pc = next_pc;
             self.record.cpu_events.push(event);
             self.clk += F::from_canonical_u32(4);
+            self.timestamp += 1;
             self.access = CpuRecord::default();
         }
 
