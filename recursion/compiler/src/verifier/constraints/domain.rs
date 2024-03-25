@@ -1,4 +1,6 @@
+use crate::prelude::*;
 use p3_commit::LagrangeSelectors;
+use sp1_recursion_derive::DslVariable;
 
 use crate::{
     ir::{Config, Felt, Usize},
@@ -7,9 +9,10 @@ use crate::{
 use p3_field::{AbstractField, TwoAdicField};
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
+#[derive(DslVariable, Clone)]
 pub struct TwoAdicMultiplicativeCoset<C: Config> {
-    pub log_n: Usize<C::N>,
-    pub size: Usize<C::N>,
+    pub log_n: Var<C::N>,
+    pub size: Var<C::N>,
     pub shift: Felt<C::F>,
     pub g: Felt<C::F>,
 }
@@ -20,7 +23,7 @@ impl<C: Config> TwoAdicMultiplicativeCoset<C> {
         self.shift
     }
 
-    pub fn size(&self) -> Usize<C::N> {
+    pub fn size(&self) -> Var<C::N> {
         self.size
     }
 
@@ -41,12 +44,8 @@ impl<C: Config> Builder<C> {
         let g_val = C::F::two_adic_generator(domain.log_n);
         // Initialize a domain.
         TwoAdicMultiplicativeCoset::<C> {
-            log_n: self
-                .eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val))
-                .into(),
-            size: self
-                .eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val)))
-                .into(),
+            log_n: self.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
+            size: self.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
             shift: self.eval(domain.shift),
             g: self.eval(g_val),
         }
@@ -67,8 +66,9 @@ impl<C: Config> Builder<C> {
         point: Ext<C::F, C::EF>,
     ) -> LagrangeSelectors<Ext<C::F, C::EF>> {
         let unshifted_point: Ext<_, _> = self.eval(point * domain.shift.inverse());
-        let z_h_expr =
-            self.exp_power_of_2_v::<Ext<_, _>>(unshifted_point, domain.log_n) - C::EF::one();
+        let z_h_expr = self
+            .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Var(domain.log_n))
+            - C::EF::one();
         let z_h: Ext<_, _> = self.eval(z_h_expr);
 
         LagrangeSelectors {
@@ -86,8 +86,10 @@ impl<C: Config> Builder<C> {
         point: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         // Compute (point * domain.shift.inverse()).exp_power_of_2(domain.log_n) - Ext::one()
-        let unshifted_power =
-            self.exp_power_of_2_v::<Ext<_, _>>(point * domain.shift.inverse(), domain.log_n);
+        let unshifted_power = self.exp_power_of_2_v::<Ext<_, _>>(
+            point * domain.shift.inverse(),
+            Usize::Var(domain.log_n),
+        );
         self.eval(unshifted_power - C::EF::one())
     }
 
@@ -97,8 +99,9 @@ impl<C: Config> Builder<C> {
         log_num_chunks: usize,
     ) -> Vec<TwoAdicMultiplicativeCoset<C>> {
         let num_chunks = 1 << log_num_chunks;
-        let log_n = self.eval(domain.log_n - log_num_chunks);
-        let size = self.power_of_two_usize(log_n);
+        let log_n: Var<_> = self.eval(domain.log_n - C::N::from_canonical_usize(log_num_chunks));
+        let size = self.power_of_two_usize(Usize::Var(log_n));
+        let size = size.materialize(self);
 
         let g_dom = domain.gen();
 

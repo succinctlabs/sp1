@@ -2,6 +2,8 @@ pub mod pcs;
 pub mod types;
 pub mod utils;
 
+pub use pcs::*;
+
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;

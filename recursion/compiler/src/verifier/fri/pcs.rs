@@ -12,6 +12,7 @@ use crate::prelude::{SymbolicExt, SymbolicFelt};
 use crate::verifier::fri;
 use crate::verifier::fri::verify_shape_and_sample_challenges;
 use crate::verifier::fri::DuplexChallengerVariable;
+use crate::verifier::TwoAdicMultiplicativeCoset;
 
 #[derive(DslVariable, Clone)]
 pub struct BatchOpening<C: Config> {
@@ -33,7 +34,7 @@ pub struct TwoAdicPcsRound<C: Config> {
 #[allow(clippy::type_complexity)]
 #[derive(DslVariable, Clone)]
 pub struct TwoAdicPcsMats<C: Config> {
-    pub size: Var<C::N>,
+    pub domain: TwoAdicMultiplicativeCoset<C>,
     pub points: Array<C, Ext<C::F, C::EF>>,
     pub values: Array<C, Array<C, Ext<C::F, C::EF>>>,
 }
@@ -104,7 +105,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     .for_each(|k, builder| {
                         let mat_opening = builder.get(&batch_opening.opened_values, k);
                         let mat = builder.get(&mats, k);
-                        let mat_domain = mat.size;
+                        let mat_domain = mat.domain.size();
                         let mat_points = mat.points;
                         let mat_values = mat.values;
 
