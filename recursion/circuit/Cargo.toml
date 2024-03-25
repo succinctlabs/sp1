@@ -1,0 +1,29 @@
+[package]
+name = "sp1-recursion-circuit"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+p3-air = { workspace = true }
+p3-field = { workspace = true }
+p3-commit = { workspace = true }
+p3-fri = { workspace = true }
+p3-matrix = { workspace = true }
+p3-util = { workspace = true }
+sp1-recursion-core = { path = "../core" }
+sp1-core = { path = "../../core" }
+itertools = "0.12.1"
+serde = { version = "1.0.197", features = ["derive"] }
+sp1-recursion-derive = { path = "../derive" }
+sp1-recursion-compiler = { path = "../compiler" }
+
+[dev-dependencies]
+p3-baby-bear = { workspace = true }
+p3-challenger = { workspace = true }
+p3-symmetric = { workspace = true }
+p3-dft = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-poseidon2 = { workspace = true }
+rand = "0.8.4"

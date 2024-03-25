@@ -46,6 +46,8 @@ pub struct MemoryEntry<F: PrimeField32> {
 pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub timestamp: u64,
 
+    pub nb_poseidons: u64,
+
     /// The current clock.
     pub clk: F,
 
@@ -87,6 +89,7 @@ where
         };
         Self {
             timestamp: 0,
+            nb_poseidons: 0,
             clk: F::zero(),
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
@@ -381,6 +384,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Poseidon2Perm => {
+                    self.nb_poseidons += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
 

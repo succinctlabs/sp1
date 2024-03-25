@@ -12,7 +12,6 @@ use p3_dft::Radix2DitParallel;
 use p3_field::extension::BinomialExtensionField;
 use p3_field::AbstractField;
 use p3_field::Field;
-use p3_field::PrimeField32;
 use p3_fri::FriConfig;
 use p3_fri::FriProof;
 use p3_fri::TwoAdicFriPcs;
@@ -258,7 +257,7 @@ fn test_pcs_verify() {
         .map(|&d| {
             (
                 <CustomPcs as Pcs<Challenge, Challenger>>::natural_domain_for_degree(&pcs, 1 << d),
-                RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 10),
+                RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 100),
             )
         })
         .collect::<Vec<_>>();
@@ -301,7 +300,7 @@ fn test_pcs_verify() {
     let mut runtime = Runtime::<Val, Challenge, _>::new(&program, perm.clone());
     runtime.run();
     println!(
-        "The program executed successfully, number of cycles: {}",
-        runtime.clk.as_canonical_u32() / 4
+        "The program executed successfully, number of cycles: {}, number of poseidons: {}",
+        runtime.timestamp, runtime.nb_poseidons,
     );
 }

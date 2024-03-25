@@ -13,9 +13,8 @@ use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use crate::runtime::ExecutionRecord;
-
 use super::{apply_m_4, matmul_internal, MATRIX_DIAG_16_BABYBEAR_U32};
+use crate::runtime::ExecutionRecord;
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
@@ -56,7 +55,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
         let mut input = [F::one(); WIDTH];
-        let rows = (0..128)
+        let rows = (0..1048576)
             .map(|i| {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
@@ -325,6 +324,7 @@ where
 #[cfg(test)]
 mod tests {
     use std::borrow::BorrowMut;
+    use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabybear;
@@ -376,6 +376,9 @@ mod tests {
         let cols: &mut Poseidon2Cols<BabyBear> = row.as_mut_slice().borrow_mut();
         assert_eq!(cols.output, output);
 
+        let start = Instant::now();
         uni_stark_prove(&config, &chip, &mut challenger, trace);
+        let duration = start.elapsed().as_secs_f64();
+        println!("duration = {:?}", duration);
     }
 }

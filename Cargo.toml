@@ -8,6 +8,7 @@ members = [
     "eval",
     "recursion/core",
     "recursion/compiler",
+    "recursion/circuit",
 ]
 exclude = ["examples/target"]
 resolver = "2"

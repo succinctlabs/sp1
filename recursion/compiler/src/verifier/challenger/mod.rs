@@ -1,11 +1,10 @@
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
+use super::fri::types::DIGEST_SIZE;
 use crate::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
 use crate::verifier::fri::types::Commitment;
 use crate::verifier::fri::types::PERMUTATION_WIDTH;
-
-use super::fri::types::DIGEST_SIZE;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
 #[derive(Clone)]
@@ -130,7 +129,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
 #[cfg(test)]
 mod tests {
-
     use crate::asm::AsmConfig;
     use crate::asm::VmBuilder;
     use crate::ir::Felt;
