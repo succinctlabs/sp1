@@ -21,7 +21,7 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Instant;
+use web_time::Instant;
 
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
