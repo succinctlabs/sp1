@@ -7,7 +7,6 @@ use crate::prelude::Config;
 use crate::prelude::DslIR;
 use crate::prelude::Ext;
 use crate::prelude::Felt;
-use crate::prelude::SymbolicExt;
 use crate::prelude::Usize;
 use crate::prelude::Var;
 use crate::verifier::fri::types::DIGEST_SIZE;
