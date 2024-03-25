@@ -355,7 +355,7 @@ where
                     panic!("TRAP instruction encountered")
                 }
                 Opcode::Poseidon2Perm => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let (a_ptr, _, _) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
 
                     // Get the src/dest array ptr.
@@ -364,24 +364,12 @@ where
                     let mut pre_state_vector = Vec::new();
                     let mut post_state_vector = Vec::new();
 
-                    let pre_state: [F; POSEIDON2_WIDTH] = self.memory[ptr..ptr + POSEIDON2_WIDTH]
-                        .iter()
-                        .map(|entry| entry.value[0])
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
+                    let pre_state: [F; POSEIDON2_WIDTH] = read_state_from_memory(ptr, &self.memory);
+
+                    let mut post_state = pre_state;
 
                     // Perform the permutation in-place over 31 rounds.
                     for r in 0..31 {
-                        // Read the pre state from memory.
-                        let mut state: [_; POSEIDON2_WIDTH] = self.memory
-                            [ptr..ptr + POSEIDON2_WIDTH]
-                            .iter()
-                            .map(|entry| entry.value[0])
-                            .collect::<Vec<_>>()
-                            .try_into()
-                            .unwrap();
-
                         // Create a MemoryRecord for the initial state.
                         let memory_record = self.memory[ptr..ptr + POSEIDON2_WIDTH]
                             .iter()
@@ -395,18 +383,14 @@ where
                             })
                             .collect::<Vec<_>>();
 
-                        // Add the initial state to the pre_state_vector.
+                        // Add the pre state to the pre_state_vector.
                         pre_state_vector.extend(memory_record);
 
                         // Apply the round function to the current state.
-                        permute_mut_round(&mut state, r);
+                        permute_mut_round(&mut post_state, r);
 
                         // Write the updated state back to memory.
-                        for (i, &value) in state.iter().enumerate() {
-                            self.memory[ptr + i].value[0] = value;
-                            self.memory[ptr + i].timestamp =
-                                self.clk + F::from_canonical_u32(r as u32);
-                        }
+                        write_state_to_memory(ptr, self.clk, &post_state, &mut self.memory);
 
                         // Create a MemoryRecord for the updated state.
                         let memory_record = self.memory[ptr..ptr + POSEIDON2_WIDTH]
@@ -414,7 +398,12 @@ where
                             .enumerate()
                             .map(|(i, entry)| MemoryRecord {
                                 addr: a_val[0] + F::from_canonical_u32(i as u32),
-                                value: Block::from([state[0], F::zero(), F::zero(), F::zero()]),
+                                value: Block::from([
+                                    post_state[0],
+                                    F::zero(),
+                                    F::zero(),
+                                    F::zero(),
+                                ]),
                                 timestamp: entry.timestamp,
                                 prev_value: entry.value,
                                 prev_timestamp: entry.timestamp,
@@ -425,27 +414,18 @@ where
                         post_state_vector.extend(memory_record);
                     }
 
-                    let result: [F; POSEIDON2_WIDTH] = self.memory[ptr..ptr + POSEIDON2_WIDTH]
-                        .iter()
-                        .map(|entry| entry.value[0])
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-
-                    // Create a Poseidon2Event for the current round.
                     let event = Poseidon2Event {
                         state_ptr: a_val[0],
                         clk: self.clk,
                         pre_state,
                         pre_state_records: pre_state_vector,
-                        post_state: result,
+                        post_state,
                         post_state_records: post_state_vector,
                     };
 
                     self.record.poseidon2_events.push(event);
 
-                    // Get the array at the address.
-                    (a, b, c) = (a_val, b_val, c_val);
+                    (a, b, c) = (a_val, Block::default(), Block::default());
                 }
             };
 
@@ -481,5 +461,29 @@ where
                 ))
             }
         }
+    }
+}
+
+fn read_state_from_memory<F: PrimeField32>(
+    ptr: usize,
+    memory: &[MemoryEntry<F>],
+) -> [F; POSEIDON2_WIDTH] {
+    memory[ptr..ptr + POSEIDON2_WIDTH]
+        .iter()
+        .map(|entry| entry.value[0])
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
+}
+
+fn write_state_to_memory<F: PrimeField32>(
+    ptr: usize,
+    timestamp: F,
+    state: &[F],
+    memory: &mut [MemoryEntry<F>],
+) {
+    for (i, &value) in state.iter().enumerate() {
+        memory[ptr + i].value[0] = value;
+        memory[ptr + i].timestamp = timestamp;
     }
 }
