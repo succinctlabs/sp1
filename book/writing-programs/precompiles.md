@@ -99,7 +99,7 @@ pub extern "C" fn syscall_bn254_add(p: *mut u32, q: *mut u32)
 
 #### Bn254 Double
 
-Doubles a Bn256 point in place.
+Doubles a Bn256 point inplace.
 
 ```rust,noplayground
 pub extern "C" fn syscall_bn254_double(p: *mut u32)
