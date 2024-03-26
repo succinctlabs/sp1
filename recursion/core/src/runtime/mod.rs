@@ -20,8 +20,8 @@ use crate::memory::MemoryRecord;
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
 
-pub const STACK_SIZE: usize = 1 << 20;
-pub const MEMORY_SIZE: usize = 1 << 26;
+pub const STACK_SIZE: usize = 1 << 24;
+pub const MEMORY_SIZE: usize = 1 << 28;
 
 pub const POSEIDON2_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
