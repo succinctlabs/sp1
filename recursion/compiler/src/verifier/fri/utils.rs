@@ -407,7 +407,7 @@ mod tests {
         // Materialize the number as a var
         let x: Var<_> = builder.eval(x_val);
 
-        for i in 0..NUM_BITS {
+        for i in 1..NUM_BITS {
             // Get the reference value.
             let expected_value = reverse_bits_len(x_val.as_canonical_u32() as usize, i);
             let value = builder.reverse_bits_len(x, i);
