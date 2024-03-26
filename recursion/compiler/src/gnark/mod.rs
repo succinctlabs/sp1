@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use crate::ir::{Config, DslIR};
 
-const GNARK_TEMPLATE: &str = include_str!("lib/template.txt");
+const GNARK_TEMPLATE: &str = include_str!("template.txt");
 
 /// Indents a block of lines by one tab.
 pub fn indent(lines: Vec<String>) -> Vec<String> {
@@ -669,8 +669,6 @@ impl<C: Config> GnarkBackend<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use std::io::Write;
 
     use p3_baby_bear::BabyBear;
     use p3_field::{extension::BinomialExtensionField, AbstractField};
@@ -756,11 +754,6 @@ mod tests {
             phantom: PhantomData,
         };
         let result = backend.compile(builder.operations);
-
-        // Write to file.
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let path = format!("{}/src/gnark/lib/verifier.go", manifest_dir);
-        let mut file = File::create(path).unwrap();
-        file.write_all(result.as_bytes()).unwrap();
+        println!("{}", result);
     }
 }

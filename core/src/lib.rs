@@ -38,7 +38,7 @@ use serde::{Deserialize, Serialize};
 use stark::{Com, OpeningProof, PcsProverData, ProgramVerificationError, Proof, ShardMainData};
 use stark::{StarkGenericConfig, Val};
 use std::fs;
-use utils::{prove_core, run_and_prove, BabyBearBlake3, BabyBearPoseidon2};
+use utils::{prove_core, run_and_prove, BabyBearPoseidon2};
 
 /// A prover that can prove RISCV ELFs.
 pub struct SP1Prover;

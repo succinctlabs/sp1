@@ -126,7 +126,7 @@ pub mod proof_serde {
     #[cfg(test)]
     mod tests {
         use crate::{
-            utils::{tests::FIBONACCI_IO_ELF, BabyBearBlake3, BabyBearPoseidon2},
+            utils::{tests::FIBONACCI_IO_ELF, BabyBearPoseidon2},
             SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier,
         };
 
