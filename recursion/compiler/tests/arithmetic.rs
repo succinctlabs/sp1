@@ -53,7 +53,8 @@ fn test_compiler_arithmetic() {
 
     let program = builder.compile();
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }
 
@@ -87,6 +88,7 @@ fn test_compiler_caching_arithmetic() {
 
     println!("Program length: {:?}", program.instructions.len());
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }

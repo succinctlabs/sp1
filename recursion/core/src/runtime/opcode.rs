@@ -41,6 +41,16 @@ pub enum Opcode {
 
     // System instructions.
     TRAP = 30,
+
+    // Hash instructions.
+    Poseidon2Perm = 31,
+
+    // Bit instructions.
+    HintBits = 32,
+
+    PrintF = 33,
+    PrintE = 34,
+    Ext2Felt = 35,
 }
 
 impl Opcode {
