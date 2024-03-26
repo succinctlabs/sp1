@@ -1,5 +1,5 @@
 use reqwest::Client;
-use sp1_sdk::utils::{setup_logger, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils::setup_logger, SP1Prover, SP1Stdin, SP1Verifier};
 
 use crate::util::fetch_latest_commit;
 use crate::util::fetch_light_block;
@@ -43,7 +43,7 @@ async fn main() {
     // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
-    let mut proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
+    let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
 
     // Verify proof.
     SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
