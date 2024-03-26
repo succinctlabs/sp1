@@ -1,3 +1,5 @@
+pub mod bn254;
+
 use crate::{
     cpu::CpuChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
