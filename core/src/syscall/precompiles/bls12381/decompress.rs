@@ -115,7 +115,8 @@ impl Syscall for Bls12381DecompressChip {
         let infinity_flag: u8 = sign & 0b_0100_0000 >> 6;
         let y_flag: u8 = sign & 0b_0010_0000 >> 5;
 
-        let sign_bool = compresion_flag + infinity_flag + y_flag <= 3;
+        // assert compresion_flag is turned off meaning the input data is compressed
+        let sign_bool = infinity_flag + y_flag <= 2 && compresion_flag == 0;
         assert!(sign_bool, "Wrong sign flags.");
 
         let (x_memory_records_vec, x_vec) = rt.mr_slice(
