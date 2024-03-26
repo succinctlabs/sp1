@@ -42,31 +42,23 @@ where
         } = proof;
 
         let num_shard_chips = opened_values.chips.len();
-        let trace_domains = builder.dyn_array(num_shard_chips);
-        let quotient_domains = builder.dyn_array(num_shard_chips);
+        let mut trace_domains = builder.dyn_array(num_shard_chips);
+        let mut quotient_domains = builder.dyn_array(num_shard_chips);
 
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
+            // TODO: note hardcoding of log_quotient_degree. The value comes from:
+            //         let max_constraint_degree = 3;
+            //         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
+            let log_quotient_degree = C::N::one();
+            let log_quotient_size: Usize<_> =
+                builder.eval(opening.log_degree + log_quotient_degree);
+            let quotient_domain = domain.create_disjoint_domain(builder, log_quotient_size);
+
+            builder.set(&mut trace_domains, i, domain);
+            builder.set(&mut quotient_domains, i, quotient_domain);
         });
-
-        // let quotient_chunk_domains = builder.dyn_array(opened_values.chips.len());
-
-        // let log_degrees = opened_values
-        //     .chips
-        //     .iter()
-        //     .map(|val| val.log_degree)
-        //     .collect::<Vec<_>>();
-
-        // let log_quotient_degrees = all_chips
-        //     .iter()
-        //     .map(|chip| chip.log_quotient_degree())
-        //     .collect::<Vec<_>>();
-
-        // let trace_domains = log_degrees
-        //     .iter()
-        //     .map(|log_degree| pcs.natural_domain_for_log_degree(builder, *log_degree))
-        //     .collect::<Vec<_>>();
 
         let ShardCommitment {
             main_commit: _,
@@ -93,20 +85,9 @@ where
 
         let zeta = challenger.sample_ext(builder);
 
-        // let quotient_chunk_domains = trace_domains
-        //     .iter()
-        //     .zip_eq(log_degrees)
-        //     .zip_eq(log_quotient_degrees)
-        //     .map(|((domain, log_degree), log_quotient_degree)| {
-        //         let log_quotient_size: Usize<_> = builder.eval(log_degree + log_quotient_degree);
-        //         let quotient_domain = domain.create_disjoint_domain(builder, log_quotient_size);
-        //         quotient_domain.split_domains(builder, log_quotient_degree)
-        //     })
-        //     .collect::<Vec<_>>();
-
         for (i, chip) in all_chips.iter().enumerate() {
             let index = proof.sorted_indices[i];
-            builder.if_eq(index, C::N::neg_one()).then(|builder| {
+            builder.if_ne(index, C::N::neg_one()).then(|builder| {
                 let values = builder.get(&opened_values.chips, index);
                 let trace_domain = builder.get(&trace_domains, index);
                 let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
