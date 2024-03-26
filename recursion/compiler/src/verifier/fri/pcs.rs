@@ -55,7 +55,11 @@ pub fn verify_two_adic_pcs<C: Config>(
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
-    let commit_phase_commits_len = builder.materialize(proof.fri_proof.commit_phase_commits.len());
+    let commit_phase_commits_len = proof
+        .fri_proof
+        .commit_phase_commits
+        .len()
+        .materialize(builder);
     let log_global_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
 
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
@@ -92,7 +96,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
                     let dim = Dimensions::<C> {
-                        height: mat.domain.size(),
+                        height: builder.eval(mat.domain.size() * C::N::two()), // TODO: fix this to use blowup
                     };
                     builder.set(&mut batch_dims, k, dim);
                 });
