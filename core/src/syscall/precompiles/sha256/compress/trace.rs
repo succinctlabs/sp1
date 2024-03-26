@@ -5,7 +5,6 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     air::{MachineAir, Word},
-    memory::MemoryCols,
     runtime::ExecutionRecord,
     utils::pad_rows,
 };
@@ -34,7 +33,6 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             let mut event = input.sha_compress_events[i].clone();
 
             let og_h = event.h;
-            let mut v = [0u32; 8].map(Word::<F>::from);
 
             let mut octet_num_idx = 0;
 
@@ -110,8 +108,8 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 let e_rr_6 = cols.e_rr_6.populate(output, e, 6);
                 let e_rr_11 = cols.e_rr_11.populate(output, e, 11);
                 let e_rr_25 = cols.e_rr_25.populate(output, e, 25);
-                let s1_intermeddiate = cols.s1_intermediate.populate(output, e_rr_6, e_rr_11);
-                let s1 = cols.s1.populate(output, s1_intermeddiate, e_rr_25);
+                let s1_intermediate = cols.s1_intermediate.populate(output, e_rr_6, e_rr_11);
+                let s1 = cols.s1.populate(output, s1_intermediate, e_rr_25);
 
                 let e_and_f = cols.e_and_f.populate(output, e, f);
                 let e_not = cols.e_not.populate(output, e);
