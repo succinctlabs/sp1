@@ -237,7 +237,7 @@ fn default_fri_config() -> FriConfig<ChallengeMmcs> {
 #[test]
 fn test_pcs_verify() {
     let mut rng = &mut OsRng;
-    let log_degrees = &[16];
+    let log_degrees = &[16, 9, 7, 4, 2];
     let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
     let fri_config = default_fri_config();
     let hash = Hash::new(perm.clone());
@@ -257,7 +257,7 @@ fn test_pcs_verify() {
         .map(|&d| {
             (
                 <CustomPcs as Pcs<Challenge, Challenger>>::natural_domain_for_degree(&pcs, 1 << d),
-                RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 100),
+                RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 10),
             )
         })
         .collect::<Vec<_>>();
