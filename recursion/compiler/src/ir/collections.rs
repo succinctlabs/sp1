@@ -49,11 +49,6 @@ impl<C: Config> Builder<C> {
     /// Initialize an array of fixed length `len`. The entries will be uninitialized.
     pub fn array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
         self.dyn_array(len)
-        // let len = len.into();
-        // match len {
-        //     Usize::Const(len) => Array::Fixed(vec![self.uninit::<V>(); len]),
-        //     Usize::Var(_) => self.dyn_array(len),
-        // }
     }
 
     pub fn dyn_array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
