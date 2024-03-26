@@ -6,6 +6,7 @@ use typenum::{U32, U62};
 use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -24,8 +25,10 @@ impl FieldParameters for Bn254BaseField {
         129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,
     ];
 
-    const WITNESS_OFFSET: usize = 1usize << 20;
+    const WITNESS_OFFSET: usize = 1usize << 13;
 
+    // The modulus have been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py#L10-L11
     fn modulus() -> BigUint {
         BigUint::from_str_radix(
             "21888242871839275222246405745257275088696311157297823662689037894645226208583",
@@ -42,6 +45,8 @@ impl NumLimbs for Bn254BaseField {
 
 impl EllipticCurveParameters for Bn254Parameters {
     type BaseField = Bn254BaseField;
+
+    const CURVE_TYPE: CurveType = CurveType::Bn254;
 }
 
 impl WeierstrassParameters for Bn254Parameters {
@@ -86,7 +91,7 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(Bn254BaseField::MODULUS),
+            biguint_from_limbs(&Bn254BaseField::MODULUS),
             Bn254BaseField::modulus()
         );
     }
