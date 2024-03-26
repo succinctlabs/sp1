@@ -9,6 +9,7 @@ members = [
     "recursion/core",
     "recursion/compiler",
     "recursion/circuit",
+    "recursion/program",
 ]
 exclude = ["examples/target"]
 resolver = "2"
