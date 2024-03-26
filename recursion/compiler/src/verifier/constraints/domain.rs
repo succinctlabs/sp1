@@ -8,7 +8,7 @@ use crate::{
 };
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
-#[derive(DslVariable, Clone)]
+#[derive(DslVariable, Clone, Copy)]
 pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
     pub log_n: Var<C::N>,
     pub size: Var<C::N>,

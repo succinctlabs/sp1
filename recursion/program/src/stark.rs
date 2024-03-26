@@ -5,7 +5,10 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::{MachineChip, ShardCommitment, StarkGenericConfig};
+use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::ExtConst;
+use sp1_recursion_compiler::verifier::fri::TwoAdicPcsMatsVariable;
+use sp1_recursion_compiler::verifier::fri::TwoAdicPcsRoundVariable;
 use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCosetVariable;
 use sp1_recursion_compiler::{
     ir::{Builder, Config, Usize},
@@ -41,25 +44,6 @@ where
             ..
         } = proof;
 
-        let num_shard_chips = opened_values.chips.len();
-        let mut trace_domains = builder.dyn_array(num_shard_chips);
-        let mut quotient_domains = builder.dyn_array(num_shard_chips);
-
-        builder.range(0, num_shard_chips).for_each(|i, builder| {
-            let opening = builder.get(&opened_values.chips, i);
-            let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
-            // TODO: note hardcoding of log_quotient_degree. The value comes from:
-            //         let max_constraint_degree = 3;
-            //         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-            let log_quotient_degree = C::N::one();
-            let log_quotient_size: Usize<_> =
-                builder.eval(opening.log_degree + log_quotient_degree);
-            let quotient_domain = domain.create_disjoint_domain(builder, log_quotient_size);
-
-            builder.set(&mut trace_domains, i, domain);
-            builder.set(&mut quotient_domains, i, quotient_domain);
-        });
-
         let ShardCommitment {
             main_commit: _,
             permutation_commit,
@@ -84,6 +68,34 @@ where
         challenger.observe_commitment(builder, quotient_commit.clone());
 
         let zeta = challenger.sample_ext(builder);
+
+        let num_shard_chips = opened_values.chips.len();
+        let mut trace_domains = builder.dyn_array(num_shard_chips);
+        let mut quotient_domains = builder.dyn_array(num_shard_chips);
+
+        let mut main_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
+        let mut perm_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
+        let mut quotient_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
+            builder.dyn_array(num_shard_chips);
+
+        builder.range(0, num_shard_chips).for_each(|i, builder| {
+            let opening = builder.get(&opened_values.chips, i);
+            let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
+            builder.set(&mut trace_domains, i, domain.clone());
+
+            // TODO: note hardcoding of log_quotient_degree. The value comes from:
+            //         let max_constraint_degree = 3;
+            //         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
+            let log_quotient_degree_val = 1;
+            let log_quotient_degree = C::N::from_canonical_usize(log_quotient_degree_val);
+            let log_quotient_size: Usize<_> =
+                builder.eval(opening.log_degree + log_quotient_degree);
+            let quotient_domain = domain.create_disjoint_domain(builder, log_quotient_size);
+            builder.set(&mut quotient_domains, i, quotient_domain.clone());
+
+            let num_quotient_chunks = 1 << log_quotient_degree_val;
+            for i in 0..num_quotient_chunks {}
+        });
 
         for (i, chip) in all_chips.iter().enumerate() {
             let index = proof.sorted_indices[i];
