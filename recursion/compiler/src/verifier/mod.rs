@@ -1,6 +1,5 @@
 pub mod challenger;
 pub mod constraints;
-pub mod folder;
 pub mod fri;
 
 pub use constraints::*;

@@ -320,6 +320,7 @@ impl<C: Config> Builder<C> {
 
 #[cfg(test)]
 mod tests {
+    use p3_field::PrimeField32;
     use p3_util::reverse_bits_len;
     use rand::{thread_rng, Rng};
     use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
@@ -345,14 +346,14 @@ mod tests {
         let mut builder = VmBuilder::<F, EF>::default();
 
         // Get a random var with `NUM_BITS` bits.
-        let num_val: usize = rng.gen_range(0..(1 << NUM_BITS));
+        let num_val: F = rng.gen();
 
         // Materialize the number as a var
-        let num: Var<_> = builder.eval(F::from_canonical_usize(num_val));
+        let num: Var<_> = builder.eval(num_val);
         // Materialize the number as a felt
-        let num_felt: Felt<_> = builder.eval(F::from_canonical_usize(num_val));
+        let num_felt: Felt<_> = builder.eval(num_val);
         // Materialize the number as a usize
-        let num_usize: Usize<_> = builder.eval(num_val);
+        let num_usize: Usize<_> = builder.eval(num_val.as_canonical_u32() as usize);
 
         // Get the bits.
         let bits = builder.num2bits_v(num);
@@ -362,7 +363,7 @@ mod tests {
         // Compare the expected bits with the actual bits.
         for i in 0..NUM_BITS {
             // Get the i-th bit of the number.
-            let expected_bit = F::from_canonical_usize((num_val >> i) & 1);
+            let expected_bit = F::from_canonical_u32((num_val.as_canonical_u32() >> i) & 1);
             // Compare the expected bit of the var with the actual bit.
             let bit = builder.get(&bits, i);
             builder.assert_var_eq(bit, expected_bit);
@@ -401,14 +402,14 @@ mod tests {
         let mut builder = VmBuilder::<F, EF>::default();
 
         // Get a random var with `NUM_BITS` bits.
-        let x_val: usize = rng.gen_range(0..(1 << NUM_BITS));
+        let x_val: F = rng.gen();
 
         // Materialize the number as a var
-        let x: Var<_> = builder.eval(F::from_canonical_usize(x_val));
+        let x: Var<_> = builder.eval(x_val);
 
         for i in 1..NUM_BITS {
             // Get the reference value.
-            let expected_value = reverse_bits_len(x_val, i);
+            let expected_value = reverse_bits_len(x_val.as_canonical_u32() as usize, i);
             let value = builder.reverse_bits_len(x, i);
             builder.assert_usize_eq(value, expected_value);
             let var_i: Var<_> = builder.eval(F::from_canonical_usize(i));
