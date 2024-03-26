@@ -1,9 +1,11 @@
+use crate::{commit::PolynomialSpaceVariable, folder::RecursiveVerifierConstraintFolder};
 use itertools::{izip, Itertools};
 use p3_air::Air;
 use p3_field::TwoAdicField;
-use sp1_core::stark::{MachineChip, ShardCommitment, StarkGenericConfig, VerifierConstraintFolder};
+use sp1_core::stark::{MachineChip, ShardCommitment, StarkGenericConfig};
+use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::{
-    ir::{Builder, Config},
+    ir::{Builder, Config, Usize},
     verifier::challenger::DuplexChallengerVariable,
 };
 
@@ -24,8 +26,9 @@ where
         chips: &[&MachineChip<SC, A>],
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
+        permutation_challenges: &[C::EF],
     ) where
-        A: for<'b> Air<VerifierConstraintFolder<'b, SC>>,
+        A: for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
         C::F: TwoAdicField,
         C::EF: TwoAdicField,
     {
@@ -53,14 +56,21 @@ where
             .collect::<Vec<_>>();
 
         let ShardCommitment {
-            main_commit,
+            main_commit: _,
             permutation_commit,
             quotient_commit,
         } = commitment;
 
-        let permutation_challenges = (0..2)
+        let permutation_challenges_var = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
+
+        for i in 0..2 {
+            builder.assert_ext_eq(
+                permutation_challenges_var[i],
+                permutation_challenges[i].cons(),
+            );
+        }
 
         challenger.observe_commitment(builder, permutation_commit.clone());
 
@@ -70,35 +80,34 @@ where
 
         let zeta = challenger.sample_ext(builder);
 
-        // let quotient_chunk_domains = trace_domains
-        //     .iter()
-        //     .zip_eq(log_degrees)
-        //     .zip_eq(log_quotient_degrees)
-        //     .map(|((domain, log_degree), log_quotient_degree)| {
-        //         let quotient_degree = 1 << log_quotient_degree;
-        //         let quotient_domain =
-        //             domain.create_disjoint_domain(log_degree + log_quotient_degree);
-        //         quotient_domain.split_domains(quotient_degree)
-        //     })
-        //     .collect::<Vec<_>>();
+        let quotient_chunk_domains = trace_domains
+            .iter()
+            .zip_eq(log_degrees)
+            .zip_eq(log_quotient_degrees)
+            .map(|((domain, log_degree), log_quotient_degree)| {
+                let log_quotient_size: Usize<_> = builder.eval(log_degree + log_quotient_degree);
+                let quotient_domain = domain.create_disjoint_domain(builder, log_quotient_size);
+                quotient_domain.split_domains(builder, log_quotient_degree)
+            })
+            .collect::<Vec<_>>();
 
-        // for (chip, trace_domain, qc_domains, values) in izip!(
-        //     chips.iter(),
-        //     trace_domains,
-        //     quotient_chunk_domains,
-        //     opened_values.chips.iter(),
-        // ) {
-        //     Self::verify_constraints(
-        //         chip,
-        //         values.clone(),
-        //         trace_domain,
-        //         qc_domains,
-        //         zeta,
-        //         alpha,
-        //         &permutation_challenges,
-        //     )
-        //     .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
-        // }
+        for (chip, trace_domain, qc_domains, values) in izip!(
+            chips.iter(),
+            trace_domains,
+            quotient_chunk_domains,
+            opened_values.chips.iter(),
+        ) {
+            Self::verify_constraints(
+                builder,
+                chip,
+                values,
+                trace_domain,
+                qc_domains,
+                zeta,
+                alpha,
+                permutation_challenges,
+            );
+        }
     }
 }
 
@@ -123,7 +132,7 @@ pub(crate) mod tests {
     type EF = <SC as StarkGenericConfig>::Challenge;
     type A = RiscvAir<F>;
 
-    pub(crate) fn const_proof<C, A>(
+    pub(crate) fn const_proof<C>(
         builder: &mut Builder<C>,
         proof: ShardProof<SC>,
     ) -> ShardProofVariable<C>

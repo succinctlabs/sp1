@@ -1,7 +1,6 @@
-use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use sp1_recursion_compiler::{
-    ir::{Array, Builder, Config, Usize, Var},
+    ir::{Array, Builder, Config, Usize},
     verifier::{
         challenger::DuplexChallengerVariable,
         fri::{
@@ -12,9 +11,7 @@ use sp1_recursion_compiler::{
     },
 };
 
-use p3_field::AbstractField;
-
-use crate::commit::{PcsVariable, PolynomialSpaceVariable};
+use crate::commit::PcsVariable;
 
 use super::new_coset;
 
