@@ -146,7 +146,7 @@ where
         // Increment clk by 4 every cycle..
         builder
             .when_transition()
-            .when(local.is_real)
+            .when(next.is_real)
             .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         // // Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
