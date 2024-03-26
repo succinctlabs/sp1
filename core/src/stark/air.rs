@@ -140,10 +140,10 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bn254Add(bn254_add_assign));
         let bn254_double_assign = WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new();
         chips.push(RiscvAir::Bn254Double(bn254_double_assign));
-        let bls12_381_add = WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new();
-        chips.push(RiscvAir::Bls12381Add(bls12_381_add));
-        let bls12_381_double = WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new();
-        chips.push(RiscvAir::Bls12381Double(bls12_381_double));
+        let bls12381_add = WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381Add(bls12381_add));
+        let bls12381_double = WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381Double(bls12381_double));
         let add = AddSubChip::default();
         chips.push(RiscvAir::Add(add));
         let bitwise = BitwiseChip::default();

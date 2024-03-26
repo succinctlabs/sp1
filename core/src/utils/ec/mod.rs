@@ -27,6 +27,7 @@ pub enum CurveType {
     Secp256k1,
     Bn254,
     Ed25519,
+    Bls12381,
 }
 
 impl Display for CurveType {
@@ -35,6 +36,7 @@ impl Display for CurveType {
             CurveType::Secp256k1 => write!(f, "Secp256k1"),
             CurveType::Bn254 => write!(f, "Bn254"),
             CurveType::Ed25519 => write!(f, "Ed25519"),
+            CurveType::Bls12381 => write!(f, "Bls12381"),
         }
     }
 }
@@ -74,21 +76,21 @@ impl<E> AffinePoint<E> {
         }
     }
 
-    pub fn to_words_le(&self) -> [u32; 16] {
+    pub fn to_words_le(&self) -> [u32; 24] {
         let mut x_bytes = self.x.to_bytes_le();
-        x_bytes.resize(32, 0u8);
+        x_bytes.resize(48, 0u8);
         let mut y_bytes = self.y.to_bytes_le();
-        y_bytes.resize(32, 0u8);
+        y_bytes.resize(48, 0u8);
 
-        let mut words = [0u32; 16];
-        for i in 0..8 {
+        let mut words = [0u32; 24];
+        for i in 0..12 {
             words[i] = u32::from_le_bytes([
                 x_bytes[i * 4],
                 x_bytes[i * 4 + 1],
                 x_bytes[i * 4 + 2],
                 x_bytes[i * 4 + 3],
             ]);
-            words[i + 8] = u32::from_le_bytes([
+            words[i + 12] = u32::from_le_bytes([
                 y_bytes[i * 4],
                 y_bytes[i * 4 + 1],
                 y_bytes[i * 4 + 2],

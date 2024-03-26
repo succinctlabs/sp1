@@ -18,7 +18,6 @@ use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
-use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use core::borrow::{Borrow, BorrowMut};
@@ -79,6 +78,7 @@ impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssi
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event),
             CurveType::Bn254 => rt.record_mut().bn254_double_events.push(event),
+            CurveType::Bls12381 => rt.record_mut().bls12381_double_events.push(event),
             _ => panic!("Unsupported curve"),
         }
         None
@@ -161,6 +161,7 @@ where
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1DoubleAssign".to_string(),
             CurveType::Bn254 => "Bn254DoubleAssign".to_string(),
+            CurveType::Bls12381 => "Bls12381DoubleAssign".to_string(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -179,6 +180,7 @@ where
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => &input.secp256k1_double_events,
             CurveType::Bn254 => &input.bn254_double_events,
+            CurveType::Bls12381 => &input.bls12381_double_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -251,6 +253,7 @@ where
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => !shard.secp256k1_double_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_double_events.is_empty(),
+            CurveType::Bls12381 => !shard.bls12381_double_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -360,7 +363,7 @@ where
                 .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
             builder.when(row.is_real).assert_eq(
                 row.y3_ins.result[i],
-                row.p_access[NUM_WORDS_FIELD_ELEMENT + i / 4].value()[i % 4],
+                row.p_access[num_words_field_element + i / 4].value()[i % 4],
             );
         }
 
@@ -393,6 +396,16 @@ where
                     row.is_real,
                 );
             }
+            CurveType::Bls12381 => {
+                builder.receive_syscall(
+                    row.shard,
+                    row.clk,
+                    AB::F::from_canonical_u32(SyscallCode::BLS12381_DOUBLE.syscall_id()),
+                    row.p_ptr,
+                    AB::Expr::zero(),
+                    row.is_real,
+                );
+            }
             _ => panic!("Unsupported curve"),
         }
     }
@@ -403,7 +416,10 @@ pub mod tests {
 
     use crate::{
         runtime::Program,
-        utils::{run_test, setup_logger, tests::BN254_DOUBLE_ELF, tests::SECP256K1_DOUBLE_ELF},
+        utils::{
+            run_test, setup_logger,
+            tests::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF},
+        },
     };
 
     #[test]
@@ -417,6 +433,13 @@ pub mod tests {
     fn test_bn254_double_simple() {
         setup_logger();
         let program = Program::from(BN254_DOUBLE_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_bls12381_double_simple() {
+        setup_logger();
+        let program = Program::from(BLS12381_DOUBLE_ELF);
         run_test(program).unwrap();
     }
 }

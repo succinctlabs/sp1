@@ -83,9 +83,9 @@ pub struct ExecutionRecord {
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
-    pub bls12_381_add_events: Vec<ECAddEvent>,
+    pub bls12381_add_events: Vec<ECAddEvent>,
 
-    pub bls12_381_double_events: Vec<ECDoubleEvent>,
+    pub bls12381_double_events: Vec<ECDoubleEvent>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
@@ -110,8 +110,8 @@ pub struct ShardingConfig {
     pub secp256k1_double_len: usize,
     pub bn254_add_len: usize,
     pub bn254_double_len: usize,
-    pub bls12_381_add_len: usize,
-    pub bls12_381_double_len: usize,
+    pub bls12381_add_len: usize,
+    pub bls12381_double_len: usize,
 }
 
 impl ShardingConfig {
@@ -139,8 +139,8 @@ impl Default for ShardingConfig {
             secp256k1_double_len: shard_size,
             bn254_add_len: shard_size,
             bn254_double_len: shard_size,
-            bls12_381_add_len: shard_size,
-            bls12_381_double_len: shard_size,
+            bls12381_add_len: shard_size,
+            bls12381_double_len: shard_size,
         }
     }
 }
@@ -213,11 +213,11 @@ impl MachineRecord for ExecutionRecord {
         );
         stats.insert(
             "bls12381_add_events".to_string(),
-            self.bls12_381_add_events.len(),
+            self.bls12381_add_events.len(),
         );
         stats.insert(
             "bls12381_double_events".to_string(),
-            self.bls12_381_double_events.len(),
+            self.bls12381_double_events.len(),
         );
 
         stats
@@ -253,10 +253,10 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
-        self.bls12_381_add_events
-            .append(&mut other.bls12_381_add_events);
-        self.bls12_381_double_events
-            .append(&mut other.bls12_381_double_events);
+        self.bls12381_add_events
+            .append(&mut other.bls12381_add_events);
+        self.bls12381_double_events
+            .append(&mut other.bls12381_double_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
@@ -419,23 +419,23 @@ impl MachineRecord for ExecutionRecord {
         }
 
         // BLS12-381 curve add events.
-        for (bls12_381_add_chunk, shard) in take(&mut self.bls12_381_add_events)
-            .chunks_mut(config.bls12_381_add_len)
+        for (bls12381_add_chunk, shard) in take(&mut self.bls12381_add_events)
+            .chunks_mut(config.bls12381_add_len)
             .zip(shards.iter_mut())
         {
             shard
-                .bls12_381_add_events
-                .extend_from_slice(bls12_381_add_chunk);
+                .bls12381_add_events
+                .extend_from_slice(bls12381_add_chunk);
         }
 
         // BLS12-381 curve double events.
-        for (bls12_381_double_chunk, shard) in take(&mut self.bls12_381_double_events)
-            .chunks_mut(config.bls12_381_double_len)
+        for (bls12381_double_chunk, shard) in take(&mut self.bls12381_double_events)
+            .chunks_mut(config.bls12381_double_len)
             .zip(shards.iter_mut())
         {
             shard
-                .bls12_381_double_events
-                .extend_from_slice(bls12_381_double_chunk);
+                .bls12381_double_events
+                .extend_from_slice(bls12381_double_chunk);
         }
 
         // Put the precompile events in the first shard.

@@ -1,13 +1,13 @@
 use generic_array::GenericArray;
-use num::{BigUint, Num, One};
+use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
 use typenum::{U48, U94};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
-use std::str::FromStr;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bls12-381 curve parameter
@@ -21,10 +21,9 @@ pub struct Bls12381BaseField;
 
 impl FieldParameters for Bls12381BaseField {
     const MODULUS: &'static [u8] = &[
-        0xab, 0xaa, 0xff, 0xff, 0xff, 0xff, 0xfe, 0xb9, 0xff, 0xff, 0x53, 0xb1, 0xfe, 0xff, 0xab,
-        0x1e, 0x24, 0xf6, 0xb0, 0xf6, 0xa0, 0xd2, 0x30, 0x67, 0xbf, 0x12, 0x85, 0xf3, 0x84, 0x4b,
-        0x77, 0x64, 0xd7, 0xac, 0x4b, 0x43, 0xb6, 0xa7, 0x1b, 0x4b, 0x9a, 0xe6, 0x7f, 0x39, 0xea,
-        0x11, 0x01, 0x1a,
+        171, 170, 255, 255, 255, 255, 254, 185, 255, 255, 83, 177, 254, 255, 171, 30, 36, 246, 176,
+        246, 160, 210, 48, 103, 191, 18, 133, 243, 132, 75, 119, 100, 215, 172, 75, 67, 182, 167,
+        27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
     ];
 
     const WITNESS_OFFSET: usize = 1usize << 20;
@@ -45,11 +44,13 @@ impl NumLimbs for Bls12381BaseField {
 
 impl EllipticCurveParameters for Bls12381Parameters {
     type BaseField = Bls12381BaseField;
+
+    const CURVE_TYPE: CurveType = CurveType::Bls12381;
 }
 
 impl WeierstrassParameters for Bls12381Parameters {
     const A: GenericArray<u8, U48> = GenericArray::from_array([
-        1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]);
 
@@ -58,12 +59,12 @@ impl WeierstrassParameters for Bls12381Parameters {
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]);
     fn generator() -> (BigUint, BigUint) {
-        let x = BigUint::from_str(
-            "3685416753713387016781088315183077757961620795782546409894578378688607592378376318836054947676345821548104185464507",
+        let x = BigUint::from_str_radix(
+            "3685416753713387016781088315183077757961620795782546409894578378688607592378376318836054947676345821548104185464507", 10
         )
         .unwrap();
-        let y = BigUint::from_str(
-            "1339506544944476473020471379941921221584933875938349620426543736416511423956333506472724655353366534992391756441569",
+        let y = BigUint::from_str_radix(
+            "1339506544944476473020471379941921221584933875938349620426543736416511423956333506472724655353366534992391756441569", 10
         )
         .unwrap();
         (x, y)
@@ -78,7 +79,7 @@ impl WeierstrassParameters for Bls12381Parameters {
     }
 
     fn a_int() -> BigUint {
-        BigUint::one()
+        BigUint::zero()
     }
 
     fn b_int() -> BigUint {
