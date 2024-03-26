@@ -1175,23 +1175,23 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
 impl<C: Config> FromConstant<C> for Var<C::N> {
     type Constant = C::N;
 
-    fn assign_const(&mut self, value: Self::Constant, builder: &mut Builder<C>) {
-        builder.assign(*self, value)
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value)
     }
 }
 
 impl<C: Config> FromConstant<C> for Felt<C::F> {
     type Constant = C::F;
 
-    fn assign_const(&mut self, value: Self::Constant, builder: &mut Builder<C>) {
-        builder.assign(*self, value)
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value)
     }
 }
 
 impl<C: Config> FromConstant<C> for Ext<C::F, C::EF> {
     type Constant = C::EF;
 
-    fn assign_const(&mut self, value: Self::Constant, builder: &mut Builder<C>) {
-        builder.assign(*self, value.cons())
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value.cons())
     }
 }

@@ -1,4 +1,4 @@
-use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, SymbolicUsize, Usize};
+use super::{Config, DslIR, Ext, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize, Usize};
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
@@ -40,6 +40,10 @@ impl<C: Config> Builder<C> {
 
     pub fn uninit<V: Variable<C>>(&mut self) -> V {
         V::uninit(self)
+    }
+
+    pub fn eval_const<V: FromConstant<C>>(&mut self, value: V::Constant) -> V {
+        V::eval_const(value, self)
     }
 
     pub fn assign<V: Variable<C>, E: Into<V::Expression>>(&mut self, dst: V, expr: E) {
