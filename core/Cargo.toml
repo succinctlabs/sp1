@@ -39,6 +39,8 @@ anyhow = "1.0.79"
 blake3 = "1.5"
 blake3-zkvm = { git = "https://github.com/sp1-patches/BLAKE3.git", branch = "patch-blake3_zkvm/v.1.0.0" }
 cfg-if = "1.0.0"
+generic-array = { version = "1.0.0", features = ["alloc"] }
+typenum = "1.17.0"
 clap = { version = "4.4.0", features = ["derive"] }
 curve25519-dalek = { version = "=4.0.0" }
 elliptic-curve = "0.13.8"

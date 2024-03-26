@@ -11,7 +11,8 @@ use std::fmt::Debug;
 use std::ops::{Add, Neg};
 
 use crate::air::WORD_SIZE;
-use crate::operations::field::params::NUM_LIMBS;
+
+use self::field::NumWords;
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
 pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;
@@ -58,9 +59,9 @@ impl<E> AffinePoint<E> {
 
     pub fn to_words_le(&self) -> [u32; 16] {
         let mut x_bytes = self.x.to_bytes_le();
-        x_bytes.resize(NUM_LIMBS, 0u8);
+        x_bytes.resize(32, 0u8);
         let mut y_bytes = self.y.to_bytes_le();
-        y_bytes.resize(NUM_LIMBS, 0u8);
+        y_bytes.resize(32, 0u8);
 
         let mut words = [0u32; 16];
         for i in 0..8 {
@@ -84,11 +85,14 @@ impl<E> AffinePoint<E> {
 pub trait EllipticCurveParameters:
     Debug + Send + Sync + Copy + Serialize + DeserializeOwned + 'static
 {
-    type BaseField: FieldParameters;
+    type BaseField: FieldParameters + NumWords;
 }
 
 /// An interface for elliptic curve groups.
 pub trait EllipticCurve: EllipticCurveParameters {
+    const NB_LIMBS: usize = Self::BaseField::NB_LIMBS;
+
+    const NB_WITNESS_LIMBS: usize = Self::BaseField::NB_WITNESS_LIMBS;
     /// Adds two different points on the curve.
     ///
     /// Warning: This method assumes that the two points are different.

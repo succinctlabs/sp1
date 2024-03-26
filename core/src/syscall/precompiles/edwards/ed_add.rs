@@ -8,13 +8,12 @@ use crate::operations::field::field_den::FieldDenCols;
 use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::Limbs;
-use crate::operations::field::params::NUM_LIMBS;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::AffinePoint;
@@ -51,16 +50,16 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub p_access: [MemoryWriteCols<T>; 16],
-    pub q_access: [MemoryReadCols<T>; 16],
-    pub(crate) x3_numerator: FieldInnerProductCols<T>,
-    pub(crate) y3_numerator: FieldInnerProductCols<T>,
-    pub(crate) x1_mul_y1: FieldOpCols<T>,
-    pub(crate) x2_mul_y2: FieldOpCols<T>,
-    pub(crate) f: FieldOpCols<T>,
-    pub(crate) d_mul_f: FieldOpCols<T>,
-    pub(crate) x3_ins: FieldDenCols<T>,
-    pub(crate) y3_ins: FieldDenCols<T>,
+    pub p_access: [MemoryWriteCols<T>; Ed25519BaseField::NB_LIMBS],
+    pub q_access: [MemoryReadCols<T>; Ed25519BaseField::NB_LIMBS],
+    pub(crate) x3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
+    pub(crate) y3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
+    pub(crate) x1_mul_y1: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) x2_mul_y2: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) f: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) d_mul_f: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) x3_ins: FieldDenCols<T, Ed25519BaseField>,
+    pub(crate) y3_ins: FieldDenCols<T, Ed25519BaseField>,
 }
 
 #[derive(Default)]
@@ -83,29 +82,19 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     ) {
         let x3_numerator = cols
             .x3_numerator
-            .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
+            .populate(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
         let y3_numerator = cols
             .y3_numerator
-            .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
-        let x1_mul_y1 = cols
-            .x1_mul_y1
-            .populate::<E::BaseField>(&p_x, &p_y, FieldOperation::Mul);
-        let x2_mul_y2 = cols
-            .x2_mul_y2
-            .populate::<E::BaseField>(&q_x, &q_y, FieldOperation::Mul);
-        let f = cols
-            .f
-            .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+            .populate(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
+        let x1_mul_y1 = cols.x1_mul_y1.populate(&p_x, &p_y, FieldOperation::Mul);
+        let x2_mul_y2 = cols.x2_mul_y2.populate(&q_x, &q_y, FieldOperation::Mul);
+        let f = cols.f.populate(&x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
-        let d_mul_f = cols
-            .d_mul_f
-            .populate::<E::BaseField>(&f, &d, FieldOperation::Mul);
+        let d_mul_f = cols.d_mul_f.populate(&f, &d, FieldOperation::Mul);
 
-        cols.x3_ins
-            .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
-        cols.y3_ins
-            .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
+        cols.x3_ins.populate(&x3_numerator, &d_mul_f, true);
+        cols.y3_ins.populate(&y3_numerator, &d_mul_f, false);
     }
 }
 
@@ -220,45 +209,42 @@ where
         let y2 = limbs_from_prev_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        row.x3_numerator
-            .eval::<AB, E::BaseField>(builder, &[x1, x2], &[y2, y1]);
+        row.x3_numerator.eval::<AB>(builder, &[x1, x2], &[y2, y1]);
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        row.y3_numerator
-            .eval::<AB, E::BaseField>(builder, &[y1, x1], &[y2, x2]);
+        row.y3_numerator.eval::<AB>(builder, &[y1, x1], &[y2, x2]);
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
-            .eval::<AB, E::BaseField, _, _>(builder, &x1, &y1, FieldOperation::Mul);
+            .eval::<AB, _, _>(builder, &x1, &y1, FieldOperation::Mul);
         row.x2_mul_y2
-            .eval::<AB, E::BaseField, _, _>(builder, &x2, &y2, FieldOperation::Mul);
+            .eval::<AB, _, _>(builder, &x2, &y2, FieldOperation::Mul);
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
         row.f
-            .eval::<AB, E::BaseField, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+            .eval::<AB, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         // d * f.
         let f = row.f.result;
         let d_biguint = E::d_biguint();
-        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
-        let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
+        let d_const = E::BaseField::to_limbs_field::<AB::Expr, _>(&d_biguint);
         row.d_mul_f
-            .eval::<AB, E::BaseField, _, _>(builder, &f, &d_const_expr, FieldOperation::Mul);
+            .eval::<AB, _, _>(builder, &f, &d_const, FieldOperation::Mul);
 
         let d_mul_f = row.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
         row.x3_ins
-            .eval::<AB, E::BaseField>(builder, &row.x3_numerator.result, &d_mul_f, true);
+            .eval::<AB>(builder, &row.x3_numerator.result, &d_mul_f, true);
 
         // y3 = y3_numerator / (1 - d * f).
         row.y3_ins
-            .eval::<AB, E::BaseField>(builder, &row.y3_numerator.result, &d_mul_f, false);
+            .eval::<AB>(builder, &row.y3_numerator.result, &d_mul_f, false);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
-        for i in 0..NUM_LIMBS {
+        for i in 0..E::BaseField::NB_LIMBS {
             builder
                 .when(row.is_real)
                 .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
