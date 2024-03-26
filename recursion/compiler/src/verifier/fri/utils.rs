@@ -277,32 +277,6 @@ impl<C: Config> Builder<C> {
         self.bits_to_num_usize(&result_bits)
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
-    #[allow(unused_variables)]
-    ///
-    /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
-    /// behavior.
-    pub fn reverse_bits_len_raw(
-        &mut self,
-        bits: Array<C, Var<C::N>>,
-        bit_len: impl Into<Usize<C::N>>,
-    ) -> Array<C, Var<C::N>> {
-        // Compute the reverse bits.
-        let bit_len = bit_len.into();
-        let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
-        self.range(0, bit_len).for_each(|i, builder| {
-            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
-            let entry = builder.get(&bits, index);
-            builder.set(&mut result_bits, i, entry);
-        });
-
-        self.range(bit_len, NUM_BITS).for_each(|i, builder| {
-            builder.set(&mut result_bits, i, C::N::zero());
-        });
-
-        bits
-    }
-
     #[allow(unused_variables)]
     pub fn exp_usize_ef(&mut self, x: Ext<C::F, C::EF>, power: Usize<C::N>) -> Ext<C::F, C::EF> {
         let result = self.eval(C::F::one());
