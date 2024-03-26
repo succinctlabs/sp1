@@ -88,6 +88,9 @@ pub enum DslIR<C: Config> {
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
 
     // Miscellaneous instructions.
+    PrintV(Var<C::N>),
+    PrintF(Felt<C::F>),
+    PrintE(Ext<C::F, C::EF>),
     Error(),
     Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),
     Num2BitsF(Array<C, Var<C::N>>, Felt<C::F>),
@@ -95,14 +98,13 @@ pub enum DslIR<C: Config> {
     HintBitsU(Array<C, Var<C::N>>, Usize<C::N>),
     HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
-    Poseidon2Permute(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
-    Poseidon2Compress(
-        Array<C, Felt<C::F>>,
-        Array<C, Felt<C::F>>,
-        Array<C, Felt<C::F>>,
-    ),
+    Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
     TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
     ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
     ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
     ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
+    Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
+
+    // Circuit-specific instructions.
+    Poseidon2PermuteBn254([Var<C::N>; 3]),
 }

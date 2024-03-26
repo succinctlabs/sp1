@@ -8,6 +8,7 @@ members = [
     "eval",
     "recursion/core",
     "recursion/compiler",
+    "recursion/circuit",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -43,3 +44,4 @@ p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" 
 p3-symmetric = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }

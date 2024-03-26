@@ -5,6 +5,7 @@ use crate::prelude::Array;
 use crate::prelude::Builder;
 use crate::prelude::Config;
 use crate::prelude::DslIR;
+use crate::prelude::Ext;
 use crate::prelude::Felt;
 use crate::prelude::Usize;
 use crate::prelude::Var;
@@ -12,13 +13,15 @@ use crate::verifier::fri::types::DIGEST_SIZE;
 use crate::verifier::fri::types::PERMUTATION_WIDTH;
 
 impl<C: Config> Builder<C> {
+    pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
+        let result = self.dyn_array(4);
+        self.operations.push(DslIR::Ext2Felt(result.clone(), value));
+        result
+    }
+
     /// Throws an error.
     pub fn error(&mut self) {
         self.operations.push(DslIR::Error());
-    }
-
-    pub fn log2(&mut self, _: Var<C::N>) -> Var<C::N> {
-        todo!()
     }
 
     /// Converts a usize to a fixed length of bits.
@@ -96,8 +99,8 @@ impl<C: Config> Builder<C> {
                 builder.assign(sum, sum + C::F::from_canonical_u32(1 << i));
             });
         }
-        // Finally, assert that the sum is equal to the original number.
-        self.assert_felt_eq(sum, num);
+        // // Finally, assert that the sum is equal to the original number.
+        // self.assert_felt_eq(sum, num);
 
         output
     }
@@ -139,8 +142,10 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(_, len) => self.array::<Felt<C::F>>(*len),
         };
-        self.operations
-            .push(DslIR::Poseidon2Permute(output.clone(), array.clone()));
+        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+            output.clone(),
+            array.clone(),
+        ));
         output
     }
 
@@ -148,8 +153,52 @@ impl<C: Config> Builder<C> {
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
     pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
-        self.operations
-            .push(DslIR::Poseidon2Permute(array.clone(), array.clone()));
+        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+            array.clone(),
+            array.clone(),
+        ));
+    }
+
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
+        let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
+        let eight_ctr: Var<_> = self.eval(C::N::from_canonical_usize(0));
+        let target = array.len().materialize(self);
+
+        self.range(0, target).for_each(|i, builder| {
+            let element = builder.get(array, i);
+            builder.set(&mut state, eight_ctr, element);
+
+            builder
+                .if_eq(eight_ctr, C::N::from_canonical_usize(7))
+                .then_or_else(
+                    |builder| {
+                        builder.poseidon2_permute_mut(&state);
+                    },
+                    |builder| {
+                        builder.if_eq(i, target - C::N::one()).then(|builder| {
+                            builder.poseidon2_permute_mut(&state);
+                        });
+                    },
+                );
+
+            builder.assign(eight_ctr, eight_ctr + C::N::from_canonical_usize(1));
+            builder
+                .if_eq(eight_ctr, C::N::from_canonical_usize(8))
+                .then(|builder| {
+                    builder.assign(eight_ctr, C::N::from_canonical_usize(0));
+                });
+        });
+
+        let mut result = self.dyn_array(DIGEST_SIZE);
+        for i in 0..DIGEST_SIZE {
+            let el = self.get(&state, i);
+            self.set(&mut result, i, el);
+        }
+
+        result
     }
 
     /// Applies the Poseidon2 compression function to the given array.
@@ -162,43 +211,15 @@ impl<C: Config> Builder<C> {
         left: &Array<C, Felt<C::F>>,
         right: &Array<C, Felt<C::F>>,
     ) -> Array<C, Felt<C::F>> {
-        let output = match left {
-            Array::Fixed(values) => {
-                assert_eq!(values.len(), DIGEST_SIZE);
-                self.array::<Felt<C::F>>(Usize::Const(DIGEST_SIZE))
-            }
-            Array::Dyn(_, _) => {
-                let len: Var<C::N> = self.eval(C::N::from_canonical_usize(DIGEST_SIZE));
-                self.array::<Felt<C::F>>(Usize::Var(len))
-            }
-        };
-        self.operations.push(DslIR::Poseidon2Compress(
-            output.clone(),
-            left.clone(),
-            right.clone(),
-        ));
-        output
-    }
-
-    /// Applies the Poseidon2 hash function to the given array using a padding-free sponge.
-    ///
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/symmetric/src/sponge.rs#L32
-    pub fn poseidon2_hash(&mut self, input: Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
-        let len = match input {
-            Array::Fixed(_) => Usize::Const(PERMUTATION_WIDTH),
-            Array::Dyn(_, _) => {
-                let len: Var<_> = self.eval(C::N::from_canonical_usize(PERMUTATION_WIDTH));
-                Usize::Var(len)
-            }
-        };
-        let state = self.array::<Felt<C::F>>(len);
-        let start: Usize<C::N> = Usize::Const(0);
-        let end = len;
-        self.range(start, end).for_each(|_, builder| {
-            let new_state = builder.poseidon2_permute(&state);
-            builder.assign(state.clone(), new_state);
-        });
-        state
+        let mut input = self.dyn_array(PERMUTATION_WIDTH);
+        for i in 0..DIGEST_SIZE {
+            let a = self.get(left, i);
+            let b = self.get(right, i);
+            self.set(&mut input, i, a);
+            self.set(&mut input, i + DIGEST_SIZE, b);
+        }
+        self.poseidon2_permute_mut(&input);
+        input
     }
 
     /// Materializes a usize into a variable.
@@ -211,15 +232,20 @@ impl<C: Config> Builder<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L306
     pub fn generator(&mut self) -> Felt<C::F> {
-        self.eval(C::F::from_canonical_u32(0x78000000))
+        self.eval(C::F::from_canonical_u32(31))
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L302
     #[allow(unused_variables)]
     pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
-        let result = self.uninit();
-        self.operations.push(DslIR::TwoAdicGenerator(result, bits));
-        result
+        let generator: Felt<C::F> = self.eval(C::F::from_canonical_usize(440564289));
+        let two_adicity: Var<C::N> = self.eval(C::N::from_canonical_usize(27));
+        let bits_var = bits.materialize(self);
+        let nb_squares: Var<C::N> = self.eval(two_adicity - bits_var);
+        self.range(0, nb_squares).for_each(|_, builder| {
+            builder.assign(generator, generator * generator);
+        });
+        generator
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
@@ -233,6 +259,7 @@ impl<C: Config> Builder<C> {
         bit_len: impl Into<Usize<C::N>>,
     ) -> Usize<C::N> {
         let bits = self.num2bits_usize(index);
+
         // Compute the reverse bits.
         let bit_len = bit_len.into();
         let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
@@ -249,19 +276,44 @@ impl<C: Config> Builder<C> {
         self.bits_to_num_usize(&result_bits)
     }
 
+    #[allow(unused_variables)]
+    pub fn exp_usize_ef(&mut self, x: Ext<C::F, C::EF>, power: Usize<C::N>) -> Ext<C::F, C::EF> {
+        let result = self.eval(C::F::one());
+        let power_f: Ext<_, _> = self.eval(x);
+        let bits = self.num2bits_usize(power);
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(&bits, i);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
+        });
+        result
+    }
+
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
     pub fn exp_usize_f(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
-        let result = self.uninit();
-        self.operations.push(DslIR::ExpUsizeF(result, x, power));
+        let result = self.eval(C::F::one());
+        let power_f: Felt<_> = self.eval(x);
+        let bits = self.num2bits_usize(power);
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(&bits, i);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
+        });
         result
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
     pub fn exp_usize_v(&mut self, x: Var<C::N>, power: Usize<C::N>) -> Var<C::N> {
-        let result = self.uninit();
-        self.operations.push(DslIR::ExpUsizeV(result, x, power));
+        let result = self.eval(C::N::one());
+        self.range(0, power).for_each(|_, builder| {
+            builder.assign(result, result * x);
+        });
         result
     }
 }

@@ -1,3 +1,5 @@
+#![allow(clippy::needless_range_loop)]
+
 use p3_field::{AbstractField, Field};
 
 mod external;

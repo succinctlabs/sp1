@@ -26,7 +26,7 @@ pub const MEMORY_SIZE: usize = 1 << 26;
 pub const POSEIDON2_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
 
-pub const NUM_BITS: usize = 29;
+pub const NUM_BITS: usize = 31;
 
 pub const D: usize = 4;
 
@@ -44,6 +44,10 @@ pub struct MemoryEntry<F: PrimeField32> {
 }
 
 pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
+    pub timestamp: u64,
+
+    pub nb_poseidons: u64,
+
     /// The current clock.
     pub clk: F,
 
@@ -84,6 +88,8 @@ where
             ..Default::default()
         };
         Self {
+            timestamp: 0,
+            nb_poseidons: 0,
             clk: F::zero(),
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
@@ -222,6 +228,18 @@ where
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
+                Opcode::PrintF => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::PrintE => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    println!("PRINTEF={:?}", a_val);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::ADD => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
@@ -355,7 +373,18 @@ where
                 Opcode::TRAP => {
                     panic!("TRAP instruction encountered")
                 }
+                Opcode::Ext2Felt => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    self.memory[dst].value[0] = b_val[0];
+                    self.memory[dst + 1].value[0] = b_val[1];
+                    self.memory[dst + 2].value[0] = b_val[2];
+                    self.memory[dst + 3].value[0] = b_val[3];
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::Poseidon2Perm => {
+                    self.nb_poseidons += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
 
@@ -370,6 +399,7 @@ where
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
+
                     // Perform the permutation.
                     let result = self.perm.permute(array);
 
@@ -388,6 +418,7 @@ where
                     let dst = a_val[0].as_canonical_u32() as usize;
                     // Get the src value.
                     let num = b_val[0].as_canonical_u32();
+
                     // Decompose the num into bits.
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
                     // Write the bits to the array at dst.
@@ -413,6 +444,7 @@ where
             self.pc = next_pc;
             self.record.cpu_events.push(event);
             self.clk += F::from_canonical_u32(4);
+            self.timestamp += 1;
             self.access = CpuRecord::default();
         }
 
