@@ -10,10 +10,14 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
+use crate::syscall::precompiles::ECAddEvent;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::field::NumWords;
+use crate::utils::ec::weierstrass::bls12_381::Bls12381;
+use crate::utils::ec::weierstrass::bn254::Bn254;
+use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
@@ -32,12 +36,19 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_derive::AlignedBorrow;
+use sp1_zkvm::precompiles::secp256k1;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
+}
+
+enum ECAddEventEnum {
+    Secp256k1(Vec<ECAddEvent<Secp256k1>>),
+    Bn254(Vec<ECAddEvent<Bn254>>),
+    Bls12381(Vec<ECAddEvent<Bls12381>>),
 }
 
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
@@ -72,11 +83,19 @@ pub struct WeierstrassAddAssignChip<E> {
 
 impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_add_event::<E>(rt, arg1, arg2);
         match E::CURVE_TYPE {
-            CurveType::Secp256k1 => rt.record_mut().secp256k1_add_events.push(event),
-            CurveType::Bn254 => rt.record_mut().bn254_add_events.push(event),
-            CurveType::Bls12381 => rt.record_mut().bls12381_add_events.push(event),
+            CurveType::Secp256k1 => {
+                let event = create_ec_add_event::<Secp256k1>(rt, arg1, arg2);
+                rt.record_mut().secp256k1_add_events.push(event);
+            }
+            CurveType::Bn254 => {
+                let event = create_ec_add_event::<Bn254>(rt, arg1, arg2);
+                rt.record_mut().bn254_add_events.push(event);
+            }
+            CurveType::Bls12381 => {
+                let event = create_ec_add_event::<Bls12381>(rt, arg1, arg2);
+                rt.record_mut().bls12381_add_events.push(event);
+            }
             _ => panic!("Unsupported curve"),
         }
         None
@@ -146,7 +165,7 @@ where
     [(); num_weierstrass_add_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
-
+    
     fn name(&self) -> String {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
@@ -161,11 +180,24 @@ where
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // collects the events based on the curve type.
+        // // collects the events based on the curve type.
+        // let events: &[ECAddEvent<E>] = match E::CURVE_TYPE {
+        //     CurveType::Secp256k1 => input.secp256k1_add_events.as_slice(),
+        //     CurveType::Bn254 => input.bn254_add_events.as_slice(),
+        //     CurveType::Bls12381 => input.bls12381_add_events.as_slice(),
+        //     _ => panic!("Unsupported curve"),
+        // };
+
+        let events_ptr = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input.secp256k1_add_events.as_ptr() as *const ECAddEvent<E>,
+            CurveType::Bn254 => input.bn254_add_events.as_ptr() as *const ECAddEvent<E>,
+            CurveType::Bls12381 => input.bls12381_add_events.as_ptr() as *const ECAddEvent<E>,
+            _ => panic!("Unsupported curve"),
+        };
         let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => &input.secp256k1_add_events,
-            CurveType::Bn254 => &input.bn254_add_events,
-            CurveType::Bls12381 => &input.bls12381_add_events,
+            CurveType::Secp256k1 => unsafe { std::slice::from_raw_parts(events_ptr, input.secp256k1_add_events.len()) },
+            CurveType::Bn254 => unsafe { std::slice::from_raw_parts(events_ptr, input.bn254_add_events.len()) },
+            CurveType::Bls12381 => unsafe { std::slice::from_raw_parts(events_ptr, input.bls12381_add_events.len()) },
             _ => panic!("Unsupported curve"),
         };
 
@@ -239,6 +271,7 @@ impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
         num_weierstrass_add_cols::<E::BaseField>()
     }
 }
+
 
 impl<AB, E: EllipticCurve> Air<AB> for WeierstrassAddAssignChip<E>
 where

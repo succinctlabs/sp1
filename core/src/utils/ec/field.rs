@@ -6,7 +6,7 @@ use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::Debug;
-use std::ops::Div;
+use std::ops::{Div, Mul};
 use typenum::Unsigned;
 use typenum::{U2, U4};
 
@@ -94,4 +94,20 @@ where
     type WordsFieldElement = <N::Limbs as Div<U4>>::Output;
     /// Curve point has 2 field elements so we divide by 2.
     type WordsCurvePoint = <N::Limbs as Div<U2>>::Output;
+}
+
+pub trait NumBytes: Clone + Debug {
+    type BytesFieldElement: ArrayLength + Debug;
+    type BytesCurvePoint: ArrayLength + Debug;
+}
+
+impl<N: NumWords> NumBytes for N
+where
+    N::WordsFieldElement: Mul<U4>,
+    N::WordsCurvePoint: Mul<U4>,
+    <N::WordsFieldElement as Mul<U4>>::Output: ArrayLength + Debug,
+    <N::WordsCurvePoint as Mul<U4>>::Output: ArrayLength + Debug,
+{
+    type BytesFieldElement = <N::WordsFieldElement as Mul<U4>>::Output;
+    type BytesCurvePoint = <N::WordsCurvePoint as Mul<U4>>::Output;
 }

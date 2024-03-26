@@ -13,6 +13,7 @@ use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::edwards::ed25519::Ed25519;
 use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
@@ -104,7 +105,7 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let event = create_ec_add_event::<E>(rt, arg1, arg2);
+        let event = create_ec_add_event::<Ed25519>(rt, arg1, arg2);
         rt.record_mut().ed_add_events.push(event);
         None
     }
