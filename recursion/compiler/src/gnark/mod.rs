@@ -1,9 +1,10 @@
 use core::marker::PhantomData;
+use p3_field::PrimeField;
 use std::collections::HashMap;
 
 use crate::ir::{Config, DslIR};
 
-const GNARK_TEMPLATE: &str = include_str!("lib/template.txt");
+const GNARK_TEMPLATE: &str = include_str!("template.txt");
 
 /// Indents a block of lines by one tab.
 pub fn indent(lines: Vec<String>) -> Vec<String> {
@@ -56,7 +57,12 @@ impl<C: Config> GnarkBackend<C> {
             match instruction {
                 DslIR::Imm(a, b) => {
                     let operator = self.assign(a.id());
-                    lines.push(format!("{} {} frontend.Variable({})", a.id(), operator, b));
+                    lines.push(format!(
+                        "{} {} frontend.Variable(\"{}\")",
+                        a.id(),
+                        operator,
+                        b.as_canonical_biguint()
+                    ));
                 }
                 DslIR::ImmFelt(a, b) => {
                     let operator = self.assign(a.id());
@@ -548,7 +554,7 @@ impl<C: Config> GnarkBackend<C> {
                     lines.extend(mask(cond.clone(), self.emit(d)));
                 }
                 DslIR::AssertEqV(a, b) => {
-                    lines.push(format!("api.AssertEq({}, {})", a.id(), b.id()));
+                    lines.push(format!("api.AssertIsEqual({}, {})", a.id(), b.id()));
                 }
                 DslIR::AssertNeV(a, b) => {
                     lines.push(format!("api.AssertNe({}, {})", a.id(), b.id()));
@@ -575,9 +581,9 @@ impl<C: Config> GnarkBackend<C> {
                 }
                 DslIR::AssertEqVI(a, b) => {
                     lines.push(format!(
-                        "api.AssertEq({}, frontend.Variable({}))",
+                        "api.AssertIsEqual({}, frontend.Variable(\"{}\"))",
                         a.id(),
-                        b
+                        b.as_canonical_biguint(),
                     ));
                 }
                 DslIR::AssertNeVI(a, b) => {
@@ -614,6 +620,17 @@ impl<C: Config> GnarkBackend<C> {
                         a.id(),
                         b
                     ));
+                }
+                DslIR::Poseidon2PermuteBn254(state) => {
+                    let state_def = "state = [3]frontend.Variable{";
+                    let state_args = state.iter().map(|x| x.id()).collect::<Vec<_>>().join(",");
+                    let state_closure = "}";
+                    lines.push(format!("{}{}{}", state_def, state_args, state_closure));
+                    lines.push("p2.PermuteMut(&state)".to_string());
+                    state
+                        .iter()
+                        .enumerate()
+                        .for_each(|(i, s)| lines.push(format!("{} = state[{}]", s.id(), i)))
                 }
                 _ => todo!(),
             };
@@ -652,16 +669,13 @@ impl<C: Config> GnarkBackend<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::fs::File;
-    use std::io::Write;
 
     use p3_baby_bear::BabyBear;
     use p3_field::{extension::BinomialExtensionField, AbstractField};
 
+    use super::*;
     use crate::ir::{Felt, Usize, Var};
     use crate::prelude::Builder;
-
-    use super::*;
 
     #[derive(Clone)]
     struct BabyBearConfig;
@@ -740,11 +754,6 @@ mod tests {
             phantom: PhantomData,
         };
         let result = backend.compile(builder.operations);
-
-        // Write to file.
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let path = format!("{}/src/gnark/lib/main.go", manifest_dir);
-        let mut file = File::create(path).unwrap();
-        file.write_all(result.as_bytes()).unwrap();
+        println!("{}", result);
     }
 }

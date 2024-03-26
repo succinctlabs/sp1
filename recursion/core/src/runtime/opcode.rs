@@ -47,6 +47,10 @@ pub enum Opcode {
 
     // Bit instructions.
     HintBits = 32,
+
+    PrintF = 33,
+    PrintE = 34,
+    Ext2Felt = 35,
 }
 
 impl Opcode {
