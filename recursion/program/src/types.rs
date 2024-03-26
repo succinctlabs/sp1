@@ -1,6 +1,6 @@
 use sp1_core::stark::ShardCommitment;
 use sp1_recursion_compiler::{
-    ir::Config,
+    ir::{Config, Usize, Var},
     verifier::{
         fri::{types::Commitment, TwoAdicPcsProofVariable},
         ChipOpening,
@@ -8,11 +8,10 @@ use sp1_recursion_compiler::{
 };
 
 pub struct ShardProofVariable<C: Config> {
-    pub index: usize,
+    pub index: Usize<C::N>,
     pub commitment: ShardCommitment<Commitment<C>>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub chip_ids: Vec<String>,
 }
 
 #[derive(Debug, Clone)]

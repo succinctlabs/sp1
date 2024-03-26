@@ -119,7 +119,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
     use sp1_recursion_compiler::prelude::ExtConst;

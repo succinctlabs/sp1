@@ -72,7 +72,7 @@ where
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_challenger::CanObserve;
@@ -99,6 +99,7 @@ mod tests {
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;
+    use sp1_recursion_compiler::ir::Config;
     use sp1_recursion_compiler::ir::Ext;
     use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::ir::SymbolicExt;
@@ -149,10 +150,13 @@ mod tests {
     }
 
     #[allow(clippy::needless_range_loop)]
-    pub fn const_fri_proof(
-        builder: &mut RecursionBuilder,
+    pub fn const_fri_proof<C>(
+        builder: &mut Builder<C>,
         fri_proof: CustomFriProof,
-    ) -> FriProofVariable<RecursionConfig> {
+    ) -> FriProofVariable<C>
+    where
+        C: Config<F = Val, EF = Challenge>,
+    {
         // Initialize the FRI proof variable.
         let mut fri_proof_var = FriProofVariable {
             commit_phase_commits: builder.dyn_array(fri_proof.commit_phase_commits.len()),
@@ -201,10 +205,13 @@ mod tests {
     }
 
     #[allow(clippy::needless_range_loop)]
-    pub fn const_two_adic_pcs_proof(
-        builder: &mut RecursionBuilder,
+    pub fn const_two_adic_pcs_proof<C>(
+        builder: &mut Builder<C>,
         proof: TwoAdicFriPcsProof<Val, Challenge, ValMmcs, ChallengeMmcs>,
-    ) -> TwoAdicPcsProofVariable<RecursionConfig> {
+    ) -> TwoAdicPcsProofVariable<C>
+    where
+        C: Config<F = Val, EF = Challenge>,
+    {
         let fri_proof_var = const_fri_proof(builder, proof.fri_proof);
         let mut proof_var = TwoAdicPcsProofVariable {
             fri_proof: fri_proof_var,
