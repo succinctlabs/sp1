@@ -195,5 +195,9 @@ where
             AB::Expr::zero(),
             local.cycle_48_start,
         );
+
+        // Assert that the table ends in nonreal columns. Since each extend job is 48 cycles and
+        // the table is padded to a power of 2, the last row of the table should always be padding.
+        builder.when_last_row().assert_zero(local.is_real);
     }
 }

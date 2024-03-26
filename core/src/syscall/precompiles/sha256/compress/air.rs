@@ -161,9 +161,7 @@ impl ShaCompressChip {
 
         // Assert that the table ends in nonreal columns. Since each compress job is 80 cycles and
         // the table is padded to a power of 2, the last row of the table should always be padding.
-        builder
-            .when_last_row()
-            .assert_one(AB::Expr::one() - local.is_real + (local.octet[7] * local.octet_num[9]))
+        builder.when_last_row().assert_zero(local.is_real);
     }
 
     /// Constrains that memory address is correct and that memory is correctly written/read.
