@@ -113,23 +113,35 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use p3_challenger::{CanObserve, FieldChallenger};
     use sp1_core::{
+        air::MachineAir,
         stark::{RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
+        SP1Prover, SP1Stdin,
     };
     use sp1_recursion_compiler::{
-        ir::{Builder, Config, Usize},
-        verifier::fri::types::{Commitment, DIGEST_SIZE},
+        asm::{AsmConfig, VmBuilder},
+        ir::{Builder, Config, ExtConst, Usize},
+        verifier::{
+            challenger::DuplexChallengerVariable,
+            fri::types::{Commitment, DIGEST_SIZE},
+        },
     };
+    use sp1_recursion_core::runtime::Runtime;
 
     use crate::{
-        fri::{const_fri_proof, const_two_adic_pcs_proof},
+        fri::{
+            const_fri_config, const_two_adic_pcs_proof, default_fri_config, TwoAdicFriPcsVariable,
+        },
+        stark::StarkVerifier,
         types::{ChipOpening, ShardOpenedValuesVariable, ShardProofVariable},
     };
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
+    type C = AsmConfig<F, EF>;
     type A = RiscvAir<F>;
 
     pub(crate) fn const_proof<C>(
@@ -187,8 +199,124 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_proof_challenges() {}
+    fn test_permutation_challenges() {
+        // Generate a dummy proof.
+        sp1_core::utils::setup_logger();
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+
+        let machine = A::machine(SC::default());
+        let mut challenger_val = machine.config().challenger();
+        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+            .unwrap()
+            .proof
+            .shard_proofs;
+        println!("Proof generated successfully");
+
+        proofs.iter().for_each(|proof| {
+            challenger_val.observe(proof.commitment.main_commit);
+        });
+
+        let permutation_challenges = (0..2)
+            .map(|_| challenger_val.sample_ext_element::<EF>())
+            .collect::<Vec<_>>();
+
+        // Observe all the commitments.
+        let mut builder = VmBuilder::<F, EF>::default();
+
+        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+
+        for proof in proofs {
+            let proof = const_proof(&mut builder, proof);
+            let ShardCommitment { main_commit, .. } = proof.commitment;
+            challenger.observe_commitment(&mut builder, main_commit);
+        }
+
+        // Sample the permutation challenges.
+        let permutation_challenges_var = (0..2)
+            .map(|_| challenger.sample_ext(&mut builder))
+            .collect::<Vec<_>>();
+
+        for i in 0..2 {
+            builder.assert_ext_eq(
+                permutation_challenges_var[i],
+                permutation_challenges[i].cons(),
+            );
+        }
+
+        let program = builder.compile();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.run();
+        println!(
+            "The program executed successfully, number of cycles: {}",
+            runtime.timestamp
+        );
+    }
 
     #[test]
-    fn test_verify_shard() {}
+    fn test_verify_shard() {
+        // Generate a dummy proof.
+        sp1_core::utils::setup_logger();
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+
+        let machine = A::machine(SC::default());
+        let mut challenger_val = machine.config().challenger();
+        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+            .unwrap()
+            .proof
+            .shard_proofs;
+        println!("Proof generated successfully");
+
+        proofs.iter().for_each(|proof| {
+            challenger_val.observe(proof.commitment.main_commit);
+        });
+
+        let permutation_challenges = (0..2)
+            .map(|_| challenger_val.sample_ext_element::<EF>())
+            .collect::<Vec<_>>();
+
+        // Observe all the commitments.
+        let mut builder = VmBuilder::<F, EF>::default();
+        let config = const_fri_config(&mut builder, default_fri_config());
+        let pcs = TwoAdicFriPcsVariable { config };
+
+        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+
+        let mut shard_proofs = vec![];
+        let mut shard_chips = vec![];
+        for proof_val in proofs {
+            let chips = machine
+                .chips()
+                .iter()
+                .filter(|chip| proof_val.chip_ids.contains(&chip.name()))
+                .collect::<Vec<_>>();
+            let proof = const_proof(&mut builder, proof_val);
+            let ShardCommitment { main_commit, .. } = &proof.commitment;
+            challenger.observe_commitment(&mut builder, main_commit.clone());
+            shard_proofs.push(proof);
+            shard_chips.push(chips);
+        }
+
+        for (proof, chip) in shard_proofs.into_iter().zip(shard_chips) {
+            StarkVerifier::<C, SC>::verify_shard(
+                &mut builder,
+                &pcs,
+                &chip,
+                &mut challenger.clone(),
+                &proof,
+                &permutation_challenges,
+            );
+        }
+
+        let program = builder.compile();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.run();
+        println!(
+            "The program executed successfully, number of cycles: {}",
+            runtime.timestamp
+        );
+    }
 }

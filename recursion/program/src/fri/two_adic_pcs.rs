@@ -16,7 +16,7 @@ use crate::commit::PcsVariable;
 use super::new_coset;
 
 pub struct TwoAdicFriPcsVariable<C: Config> {
-    config: FriConfigVariable<C>,
+    pub config: FriConfigVariable<C>,
 }
 
 impl<C: Config> PcsVariable<C, DuplexChallengerVariable<C>> for TwoAdicFriPcsVariable<C>
@@ -292,7 +292,7 @@ pub(crate) mod tests {
         (commit_var, rounds_var)
     }
 
-    fn default_fri_config() -> FriConfig<ChallengeMmcs> {
+    pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
         let hash = Hash::new(perm.clone());
         let compress = Compress::new(perm.clone());
