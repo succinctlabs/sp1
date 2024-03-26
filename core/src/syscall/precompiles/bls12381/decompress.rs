@@ -133,7 +133,10 @@ impl Syscall for Bls12381DecompressChip {
 
         let decompressed_point = bls12_381::decompress(&g1_bytes_be);
 
-        let decompressed_point_bytes = decompressed_point.y.to_bytes_be();
+        let mut decompressed_point_bytes = decompressed_point.y.to_bytes_be();
+         // if last byte is 0, it's truncated so we need to add it back
+        decompressed_point_bytes.resize(48, 0u8);
+
         let mut decompressed_y_bytes = [0_u8; NUM_BYTES_FIELD_ELEMENT];
         decompressed_y_bytes.copy_from_slice(&decompressed_point_bytes);
         decompressed_y_bytes.reverse();
