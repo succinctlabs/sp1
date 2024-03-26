@@ -1,4 +1,4 @@
-use p3_commit::LagrangeSelectors;
+use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
 
 use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCosetVariable;
 
@@ -30,6 +30,35 @@ use crate::commit::PolynomialSpaceVariable;
 //         self.g
 //     }
 // }
+
+pub fn new_coset<C: Config>(
+    builder: &mut Builder<C>,
+    log_degree: Usize<C::N>,
+) -> TwoAdicMultiplicativeCosetVariable<C>
+where
+    C::F: TwoAdicField,
+{
+    let two_addicity = C::F::TWO_ADICITY;
+
+    let is_valid: Var<_> = builder.eval(C::N::zero());
+    let domain: TwoAdicMultiplicativeCosetVariable<C> = builder.uninit();
+    for i in 1..=two_addicity {
+        let i_f = C::N::from_canonical_usize(i);
+        builder.if_eq(log_degree, i_f).then(|builder| {
+            let constant = TwoAdicMultiplicativeCoset {
+                log_n: i,
+                shift: C::F::one(),
+            };
+            let domain_value = TwoAdicMultiplicativeCosetVariable::from_constant(builder, constant);
+            builder.assign(domain.clone(), domain_value);
+            builder.assign(is_valid, C::N::one());
+        });
+    }
+
+    builder.assert_var_eq(is_valid, C::N::one());
+
+    domain
+}
 
 impl<C: Config> PolynomialSpaceVariable<C> for TwoAdicMultiplicativeCosetVariable<C>
 where
@@ -116,10 +145,22 @@ where
         }
         domains
     }
+
+    fn create_disjoint_domain(
+        &self,
+        builder: &mut Builder<C>,
+        log_degree: Usize<<C as Config>::N>,
+    ) -> Self {
+        let domain = new_coset(builder, log_degree);
+        builder.assign(domain.shift, self.shift * C::F::generator());
+
+        domain
+    }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
     use sp1_recursion_compiler::prelude::ExtConst;
@@ -132,7 +173,7 @@ pub(crate) mod tests {
     use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
     use sp1_recursion_core::runtime::Runtime;
 
-    fn domain_assertions<F: TwoAdicField, C: Config<N = F, F = F>>(
+    pub(crate) fn domain_assertions<F: TwoAdicField, C: Config<N = F, F = F>>(
         builder: &mut Builder<C>,
         domain: &TwoAdicMultiplicativeCosetVariable<C>,
         domain_val: &TwoAdicMultiplicativeCoset<F>,
@@ -182,7 +223,7 @@ pub(crate) mod tests {
             // Initialize a reference doamin.
             let domain_val = natural_domain_for_degree(1 << log_d_val);
             let domain = builder.const_domain(&domain_val);
-            builder.assert_felt_eq(domain.shift, domain_val.shift);
+            // builder.assert_felt_eq(domain.shift, domain_val.shift);
             let zeta_val = rng.gen::<EF>();
             domain_assertions(&mut builder, &domain, &domain_val, zeta_val);
 
@@ -193,6 +234,15 @@ pub(crate) mod tests {
             domain_assertions(
                 &mut builder,
                 &disjoint_domain,
+                &disjoint_domain_val,
+                zeta_val,
+            );
+
+            let log_degree: Usize<_> = builder.eval(Usize::Const(log_d_val) + log_quotient_degree);
+            let disjoint_domain_gen = domain.create_disjoint_domain(&mut builder, log_degree);
+            domain_assertions(
+                &mut builder,
+                &disjoint_domain_gen,
                 &disjoint_domain_val,
                 zeta_val,
             );

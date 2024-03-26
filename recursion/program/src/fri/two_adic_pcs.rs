@@ -16,6 +16,8 @@ use p3_field::AbstractField;
 
 use crate::commit::{PcsVariable, PolynomialSpaceVariable};
 
+use super::new_coset;
+
 pub struct TwoAdicFriPcsVariable<C: Config> {
     config: FriConfigVariable<C>,
 }
@@ -36,27 +38,7 @@ where
         builder: &mut Builder<C>,
         log_degree: Usize<C::N>,
     ) -> Self::Domain {
-        let two_addicity = C::F::TWO_ADICITY;
-
-        let is_valid: Var<_> = builder.eval(C::N::zero());
-        let domain: TwoAdicMultiplicativeCosetVariable<C> = builder.uninit();
-        for i in 1..=two_addicity {
-            let i_f = C::N::from_canonical_usize(i);
-            builder.if_eq(log_degree, i_f).then(|builder| {
-                let constant = TwoAdicMultiplicativeCoset {
-                    log_n: i,
-                    shift: C::F::one(),
-                };
-                let domain_value =
-                    TwoAdicMultiplicativeCosetVariable::from_constant(builder, constant);
-                builder.assign(domain.clone(), domain_value);
-                builder.assign(is_valid, C::N::one());
-            });
-        }
-
-        builder.assert_var_eq(is_valid, C::N::one());
-
-        domain
+        new_coset(builder, log_degree)
     }
 
     // Todo: change TwoAdicPcsRoundVariable to RoundVariable

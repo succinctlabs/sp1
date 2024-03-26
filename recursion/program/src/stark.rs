@@ -1,3 +1,4 @@
+use itertools::{izip, Itertools};
 use p3_air::Air;
 use p3_field::TwoAdicField;
 use sp1_core::stark::{MachineChip, ShardCommitment, StarkGenericConfig, VerifierConstraintFolder};
@@ -68,6 +69,36 @@ where
         challenger.observe_commitment(builder, quotient_commit.clone());
 
         let zeta = challenger.sample_ext(builder);
+
+        // let quotient_chunk_domains = trace_domains
+        //     .iter()
+        //     .zip_eq(log_degrees)
+        //     .zip_eq(log_quotient_degrees)
+        //     .map(|((domain, log_degree), log_quotient_degree)| {
+        //         let quotient_degree = 1 << log_quotient_degree;
+        //         let quotient_domain =
+        //             domain.create_disjoint_domain(log_degree + log_quotient_degree);
+        //         quotient_domain.split_domains(quotient_degree)
+        //     })
+        //     .collect::<Vec<_>>();
+
+        // for (chip, trace_domain, qc_domains, values) in izip!(
+        //     chips.iter(),
+        //     trace_domains,
+        //     quotient_chunk_domains,
+        //     opened_values.chips.iter(),
+        // ) {
+        //     Self::verify_constraints(
+        //         chip,
+        //         values.clone(),
+        //         trace_domain,
+        //         qc_domains,
+        //         zeta,
+        //         alpha,
+        //         &permutation_challenges,
+        //     )
+        //     .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
+        // }
     }
 }
 

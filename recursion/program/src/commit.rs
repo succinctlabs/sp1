@@ -20,6 +20,8 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized {
     fn zp_at_point(&self, builder: &mut Builder<C>, point: Ext<C::F, C::EF>) -> Ext<C::F, C::EF>;
 
     fn split_domains(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self>;
+
+    fn create_disjoint_domain(&self, builder: &mut Builder<C>, log_degree: Usize<C::N>) -> Self;
 }
 
 pub trait PcsVariable<C: Config, Challenger> {
