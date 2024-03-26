@@ -237,7 +237,7 @@ fn default_fri_config() -> FriConfig<ChallengeMmcs> {
 #[test]
 fn test_pcs_verify() {
     let mut rng = &mut OsRng;
-    let log_degrees = &[16];
+    let log_degrees = &[16, 16, 15];
     let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
     let fri_config = default_fri_config();
     let hash = Hash::new(perm.clone());
