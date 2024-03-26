@@ -1,6 +1,6 @@
 use p3_air::Air;
 use p3_field::TwoAdicField;
-use sp1_core::stark::{MachineChip, StarkGenericConfig, VerifierConstraintFolder};
+use sp1_core::stark::{MachineChip, ShardCommitment, StarkGenericConfig, VerifierConstraintFolder};
 use sp1_recursion_compiler::{
     ir::{Builder, Config},
     verifier::challenger::DuplexChallengerVariable,
@@ -58,8 +58,16 @@ where
         } = commitment;
 
         let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext_element::<SC::Challenge>())
+            .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
+
+        challenger.observe_commitment(builder, permutation_commit.clone());
+
+        let alpha = challenger.sample_ext(builder);
+
+        challenger.observe_commitment(builder, quotient_commit.clone());
+
+        let zeta = challenger.sample_ext(builder);
     }
 }
 
@@ -76,7 +84,7 @@ pub(crate) mod tests {
 
     use crate::{
         fri::{const_fri_proof, const_two_adic_pcs_proof},
-        types::{ShardOpenedValuesVariable, ShardProofVariable},
+        types::{ChipOpening, ShardOpenedValuesVariable, ShardProofVariable},
     };
 
     type SC = BabyBearPoseidon2;
@@ -124,7 +132,7 @@ pub(crate) mod tests {
                 .opened_values
                 .chips
                 .iter()
-                .map(|values| builder.const_chip_opening(values))
+                .map(|values| ChipOpening::from_constant(builder, values))
                 .collect(),
         };
 
@@ -137,6 +145,9 @@ pub(crate) mod tests {
             opening_proof,
         }
     }
+
+    #[test]
+    fn test_proof_challenges() {}
 
     #[test]
     fn test_verify_shard() {}

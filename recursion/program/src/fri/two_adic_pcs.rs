@@ -104,6 +104,7 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::ir::SymbolicExt;
     use sp1_recursion_compiler::ir::SymbolicFelt;
+    use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
     use sp1_recursion_compiler::verifier::challenger::DuplexChallengerVariable;
     use sp1_recursion_compiler::verifier::fri::pcs::TwoAdicPcsMatsVariable;
@@ -392,7 +393,7 @@ pub(crate) mod tests {
         // Test natural domain for degree.
         for log_d_val in log_degrees.iter() {
             let log_d: Var<_> = builder.eval(Val::from_canonical_usize(*log_d_val));
-            let domain = pcs.natural_domain_for_log_degree(&mut builder, log_d);
+            let domain = pcs.natural_domain_for_log_degree(&mut builder, Usize::Var(log_d));
 
             let domain_val = <CustomPcs as Pcs<Challenge, Challenger>>::natural_domain_for_degree(
                 &pcs_val,

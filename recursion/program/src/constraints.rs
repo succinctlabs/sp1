@@ -1,4 +1,5 @@
 use crate::folder::RecursiveVerifierConstraintFolder;
+use crate::types::ChipOpening;
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
 use p3_field::AbstractExtensionField;
@@ -6,7 +7,6 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
-use sp1_recursion_compiler::verifier::ChipOpening;
 
 use crate::commit::PolynomialSpaceVariable;
 
@@ -164,7 +164,7 @@ mod tests {
 
     use p3_commit::{Pcs, PolynomialSpace};
 
-    use crate::{commit::PolynomialSpaceVariable, stark::StarkVerifier};
+    use crate::{commit::PolynomialSpaceVariable, stark::StarkVerifier, types::ChipOpening};
 
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
@@ -314,7 +314,7 @@ mod tests {
                 );
 
                 // Compute the folded constraints value in the DSL.
-                let values = builder.const_chip_opening(values_vals);
+                let values = ChipOpening::from_constant(&mut builder, values_vals);
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.const_domain(&trace_domain_val);
