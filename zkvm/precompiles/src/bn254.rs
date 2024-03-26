@@ -5,7 +5,7 @@ use crate::{syscall_bn254_add, syscall_bn254_double};
 pub struct Bn254;
 
 impl CurveOperations for Bn254 {
-    // The modulus has been taken from py_ecc python library by Ethereum Foundation.
+    // The values has been taken from py_ecc python library by Ethereum Foundation.
     // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
     const GENERATOR: [u32; 16] = [1, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0];
 
