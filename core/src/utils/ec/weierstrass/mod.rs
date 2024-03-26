@@ -8,6 +8,7 @@ use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 use super::field::NumLimbs;
 
+pub mod bls12_381;
 pub mod bn254;
 pub mod secp256k1;
 

@@ -65,3 +65,9 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
+
+/// Executes the `BLS12_381_ADD` precompile.
+pub const BLS12_381_ADD: u32 = 0x00_01_01_11;
+
+/// Executes the `BLS12_381_DOUBLE` precompile.
+pub const BLS12_381_DOUBLE: u32 = 0x00_00_01_12;

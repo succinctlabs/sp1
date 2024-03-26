@@ -79,6 +79,10 @@ pub struct ExecutionRecord {
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
+    pub bls12_381_add_events: Vec<ECAddEvent>,
+
+    pub bls12_381_double_events: Vec<ECDoubleEvent>,
+
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.
     pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
@@ -100,6 +104,8 @@ pub struct ShardingConfig {
     pub keccak_len: usize,
     pub weierstrass_add_len: usize,
     pub weierstrass_double_len: usize,
+    pub bls12_381_add_len: usize,
+    pub bls12_381_double_len: usize,
 }
 
 impl ShardingConfig {
@@ -125,6 +131,8 @@ impl Default for ShardingConfig {
             keccak_len: shard_size,
             weierstrass_add_len: shard_size,
             weierstrass_double_len: shard_size,
+            bls12_381_add_len: shard_size,
+            bls12_381_double_len: shard_size,
         }
     }
 }
@@ -190,6 +198,15 @@ impl MachineRecord for ExecutionRecord {
             "blake3_compress_inner_events".to_string(),
             self.blake3_compress_inner_events.len(),
         );
+        stats.insert(
+            "bls12381_add_events".to_string(),
+            self.bls12_381_add_events.len(),
+        );
+        stats.insert(
+            "bls12381_double_events".to_string(),
+            self.bls12_381_double_events.len(),
+        );
+
         stats
     }
 
@@ -220,6 +237,10 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.bls12_381_add_events
+            .append(&mut other.bls12_381_add_events);
+        self.bls12_381_double_events
+            .append(&mut other.bls12_381_double_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
@@ -361,6 +382,26 @@ impl MachineRecord for ExecutionRecord {
             shard
                 .weierstrass_double_events
                 .extend_from_slice(weierstrass_double_chunk);
+        }
+
+        // BLS12-381 curve add events.
+        for (bls12_381_add_chunk, shard) in take(&mut self.bls12_381_add_events)
+            .chunks_mut(config.bls12_381_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bls12_381_add_events
+                .extend_from_slice(bls12_381_add_chunk);
+        }
+
+        // BLS12-381 curve double events.
+        for (bls12_381_double_chunk, shard) in take(&mut self.bls12_381_double_events)
+            .chunks_mut(config.bls12_381_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bls12_381_double_events
+                .extend_from_slice(bls12_381_double_chunk);
         }
 
         // Put the precompile events in the first shard.
