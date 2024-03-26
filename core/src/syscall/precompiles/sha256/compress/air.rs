@@ -162,19 +162,19 @@ impl ShaCompressChip {
         // If this row is real and not the last cycle, then next row should have same inputs
         builder
             .when_transition()
-            .when(is_last_row)
+            .when(is_last_row.clone())
             .assert_eq(local.shard, next.shard);
         builder
             .when_transition()
-            .when(is_last_row)
+            .when(is_last_row.clone())
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when(is_last_row)
+            .when(is_last_row.clone())
             .assert_eq(local.w_ptr, next.w_ptr);
         builder
             .when_transition()
-            .when(is_last_row)
+            .when(is_last_row.clone())
             .assert_eq(local.h_ptr, next.h_ptr);
 
         // If this row is real and not the last cycle, then next row should also be real.
