@@ -53,7 +53,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             .par_chunks(chunk_size)
             .map(|chunk| {
                 let mut record = ExecutionRecord::default();
-                let mut new_field_events = Vec::new();
+                let mut new_byte_lookup_events = Vec::new();
 
                 let rows = chunk
                     .iter()
@@ -102,7 +102,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                             let col: &mut KeccakMemCols<F> = mem_row.borrow_mut();
                             col.shard = F::from_canonical_u32(shard);
-                            col.clk = F::from_canonical_u32(start_clk + i as u32 * 4);
+                            col.clk = F::from_canonical_u32(start_clk);
 
                             // if this is the first row, then populate read memory accesses
                             if i == 0 && is_real_permutation {
@@ -110,11 +110,12 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                     event.unwrap().state_read_records.iter().enumerate()
                                 {
                                     col.state_mem[j]
-                                        .populate_read(*read_record, &mut new_field_events);
+                                        .populate_read(*read_record, &mut new_byte_lookup_events);
                                 }
 
                                 col.state_addr = F::from_canonical_u32(event.unwrap().state_addr);
                                 col.do_memory_check = F::one();
+                                col.ecall_receive = F::one();
                             }
 
                             // if this is the last row, then populate write memory accesses
@@ -124,7 +125,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                     event.unwrap().state_write_records.iter().enumerate()
                                 {
                                     col.state_mem[j]
-                                        .populate_write(*write_record, &mut new_field_events);
+                                        .populate_write(*write_record, &mut new_byte_lookup_events);
                                 }
 
                                 col.state_addr = F::from_canonical_u32(event.unwrap().state_addr);
@@ -142,7 +143,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         rows
                     })
                     .collect::<Vec<_>>();
-                record.add_field_events(&new_field_events);
+                record.add_byte_lookup_events(new_byte_lookup_events);
                 (rows, record)
             })
             .collect::<Vec<_>>();
@@ -151,6 +152,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
         let mut rows: Vec<[F; NUM_KECCAK_COLS + NUM_KECCAK_MEM_COLS]> = vec![];
         for mut row_and_record in rows_and_records {
             rows.extend(row_and_record.0);
+            row_and_record.1.index = output.index;
             output.append(&mut row_and_record.1);
         }
 

@@ -13,7 +13,7 @@ use crate::{
 
 use super::{
     eval_permutation_constraints, generate_permutation_trace, DebugConstraintBuilder,
-    ProverConstraintFolder, StarkGenericConfig, VerifierConstraintFolder,
+    ProverConstraintFolder, StarkGenericConfig, Val, VerifierConstraintFolder,
 };
 
 /// An Air that encodes lookups based on interactions.
@@ -58,20 +58,20 @@ impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
 /// proving system. It is automatically implemented on any type that implements `Air<AB>` with
 /// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkGenericConfig>:
-    MachineAir<SC::Val>
-    + Air<InteractionBuilder<SC::Val>>
+    MachineAir<Val<SC>>
+    + Air<InteractionBuilder<Val<SC>>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
     + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+    + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
 {
 }
 
 impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
-    T: MachineAir<SC::Val>
-        + Air<InteractionBuilder<SC::Val>>
+    T: MachineAir<Val<SC>>
+        + Air<InteractionBuilder<Val<SC>>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
 {
 }
 

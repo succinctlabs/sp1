@@ -48,8 +48,8 @@ pub mod extend_tests {
     use crate::{
         air::MachineAir,
         alu::AluEvent,
-        runtime::{ExecutionRecord, Instruction, Opcode, Program},
-        utils::run_test,
+        runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
+        utils::{self, run_test},
     };
 
     use super::ShaExtendChip;
@@ -64,9 +64,17 @@ pub mod extend_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 102, false, true),
+            Instruction::new(
+                Opcode::ADD,
+                5,
+                0,
+                SyscallCode::SHA_EXTEND as u32,
+                false,
+                true,
+            ),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ADD, 11, 0, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
         Program::new(instructions, 0, 0)
     }
@@ -83,6 +91,7 @@ pub mod extend_tests {
 
     #[test]
     fn test_sha_prove() {
+        utils::setup_logger();
         let program = sha_extend_program();
         run_test(program).unwrap();
     }

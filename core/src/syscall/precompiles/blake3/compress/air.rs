@@ -8,6 +8,7 @@ use super::{
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
 };
 use crate::air::{BaseAirBuilder, SP1AirBuilder, WORD_SIZE};
+use crate::runtime::SyscallCode;
 
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
@@ -32,6 +33,17 @@ where
         self.constrain_memory(builder, local);
 
         self.constrain_g_operation(builder, local);
+
+        // TODO: constraint ecall_receive column.
+        // TODO: constraint clk column to increment by 1 within same invocation of syscall.
+        builder.receive_syscall(
+            local.segment, // TODO: rename this to "shard"
+            local.clk,
+            AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.syscall_id()),
+            local.state_ptr,
+            local.message_ptr,
+            local.ecall_receive,
+        );
     }
 }
 
