@@ -119,11 +119,12 @@ impl<C: Config> Builder<C> {
 
     pub fn bits_to_num_var(&mut self, bits: &Array<C, Var<C::N>>) -> Var<C::N> {
         let num: Var<_> = self.eval(C::N::zero());
-        for i in 0..NUM_BITS {
-            let bit = self.get(bits, i);
-            // Add `bit * 2^i` to the sum.
-            self.assign(num, num + bit * C::N::from_canonical_u32(1 << i));
-        }
+        let power: Var<_> = self.eval(C::N::one());
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(bits, i);
+            builder.assign(num, num + bit * power);
+            builder.assign(power, power * C::N::from_canonical_u32(2));
+        });
         num
     }
 
@@ -274,6 +275,32 @@ impl<C: Config> Builder<C> {
         });
 
         self.bits_to_num_usize(&result_bits)
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
+    #[allow(unused_variables)]
+    ///
+    /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
+    /// behavior.
+    pub fn reverse_bits_len_raw(
+        &mut self,
+        bits: Array<C, Var<C::N>>,
+        bit_len: impl Into<Usize<C::N>>,
+    ) -> Array<C, Var<C::N>> {
+        // Compute the reverse bits.
+        let bit_len = bit_len.into();
+        let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
+        self.range(0, bit_len).for_each(|i, builder| {
+            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
+            let entry = builder.get(&bits, index);
+            builder.set(&mut result_bits, i, entry);
+        });
+
+        self.range(bit_len, NUM_BITS).for_each(|i, builder| {
+            builder.set(&mut result_bits, i, C::N::zero());
+        });
+
+        bits
     }
 
     #[allow(unused_variables)]
