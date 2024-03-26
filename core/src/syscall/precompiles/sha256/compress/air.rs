@@ -120,6 +120,7 @@ impl ShaCompressChip {
                 .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 10]);
         }
 
+        // Constrain A-H columns
         let vars = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
         ];
@@ -152,6 +153,24 @@ impl ShaCompressChip {
                 + local.octet_num[7]
                 + local.octet_num[8],
         );
+
+        // If this row is real and not the last of a compress job, then next row should have same inputs
+        builder
+            .when_transition()
+            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .assert_eq(local.shard, next.shard);
+        builder
+            .when_transition()
+            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .assert_eq(local.clk, next.clk);
+        builder
+            .when_transition()
+            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .assert_eq(local.w_ptr, next.w_ptr);
+        builder
+            .when_transition()
+            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .assert_eq(local.h_ptr, next.h_ptr);
 
         // If this row is real and not the last of a compress job, then next row should also be real.
         builder
