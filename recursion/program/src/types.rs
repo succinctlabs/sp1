@@ -17,9 +17,10 @@ pub struct ShardProofVariable<C: Config> {
     pub commitment: ShardCommitment<Commitment<C>>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
+    pub sorted_indices: Vec<Var<C::N>>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(DslVariable, Debug, Clone)]
 pub struct ShardOpenedValuesVariable<C: Config> {
     pub chips: Array<C, ChipOpenedValuesVariable<C>>,
 }
