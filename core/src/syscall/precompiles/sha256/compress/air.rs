@@ -153,13 +153,14 @@ impl ShaCompressChip {
                 + local.octet_num[8],
         );
 
-        // If this row is real and not last row of a compress job, then the next row should be real.
+        // If this row is real and not the last of a compress job, then next row should also be real.
         builder
             .when_transition()
             .when(local.is_real - (local.octet[7] * local.octet_num[9]))
             .assert_one(next.is_real);
 
-        // Assert that the table ends in nonreal columns or at the end of a finalize octet.
+        // Assert that the table ends in nonreal columns. Since each compress job is 80 cycles and
+        // the table is padded to a power of 2, the last row of the table should always be padding.
         builder
             .when_last_row()
             .assert_one(AB::Expr::one() - local.is_real + (local.octet[7] * local.octet_num[9]))
