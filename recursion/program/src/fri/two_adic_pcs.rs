@@ -336,7 +336,7 @@ pub(crate) mod tests {
                         &pcs_val,
                         1 << d,
                     ),
-                    RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 10),
+                    RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 10 + d),
                 )
             })
             .sorted_by_key(|(dom, _)| Reverse(dom.log_n))
