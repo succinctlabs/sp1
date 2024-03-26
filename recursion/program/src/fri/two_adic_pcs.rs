@@ -53,6 +53,9 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
 
+    use std::cmp::Reverse;
+
+    use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_challenger::CanObserve;
     use p3_challenger::DuplexChallenger;
@@ -256,6 +259,7 @@ pub(crate) mod tests {
         }
 
         let mut mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(os.len());
+        // os.sort_by_key(|(coset, _)| Reverse(coset.log_n));
         for (m, (domain, poly)) in os.into_iter().enumerate() {
             let domain = builder.const_domain(&domain);
             let points = poly.iter().map(|(p, _)| *p).collect::<Vec<_>>();
@@ -309,7 +313,7 @@ pub(crate) mod tests {
     #[test]
     fn test_two_adic_fri_pcs() {
         let mut rng = &mut OsRng;
-        let log_degrees = &[16];
+        let log_degrees = &[10, 16];
         let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
         let fri_config = default_fri_config();
         let hash = Hash::new(perm.clone());
@@ -335,6 +339,7 @@ pub(crate) mod tests {
                     RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 10),
                 )
             })
+            .sorted_by_key(|(dom, _)| Reverse(dom.log_n))
             .collect::<Vec<_>>();
         let (commit, data) =
             <CustomPcs as Pcs<Challenge, Challenger>>::commit(&pcs_val, domains_and_polys.clone());
