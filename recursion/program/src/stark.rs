@@ -35,7 +35,6 @@ where
         let ShardProofVariable {
             commitment,
             opened_values,
-            opening_proof,
             ..
         } = proof;
 
