@@ -1,14 +1,13 @@
 //! A duplex challenger for Poseidon2 over BN254.
 
-use sp1_recursion_compiler::ir::{Builder, Config, Felt};
-use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
+use sp1_recursion_compiler::ir::{Builder, Config, Var};
 
 use crate::poseidon2::P2CircuitBuilder;
 
 pub struct DuplexChallengerVariable<C: Config> {
-    sponge_state: [Felt<C::F>; POSEIDON2_WIDTH],
-    input_buffer: Vec<Felt<C::F>>,
-    output_buffer: Vec<Felt<C::F>>,
+    sponge_state: [Var<C::N>; 3],
+    input_buffer: Vec<Var<C::N>>,
+    output_buffer: Vec<Var<C::N>>,
 }
 
 impl<C: Config> DuplexChallengerVariable<C> {
@@ -17,22 +16,22 @@ impl<C: Config> DuplexChallengerVariable<C> {
             self.sponge_state[i] = val;
         }
 
-        // builder.p2_permute_mut(self.sponge_state);
+        builder.p2_permute_mut(self.sponge_state);
 
         self.output_buffer.clear();
         self.output_buffer.extend(self.sponge_state);
     }
 
-    pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+    pub fn observe(&mut self, builder: &mut Builder<C>, value: Var<C::N>) {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
-        if self.input_buffer.len() == POSEIDON2_WIDTH {
+        if self.input_buffer.len() == 3 {
             self.duplexing(builder);
         }
     }
 
-    pub fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
+    pub fn sample(&mut self, builder: &mut Builder<C>) -> Var<C::N> {
         if !self.input_buffer.is_empty() || self.output_buffer.is_empty() {
             self.duplexing(builder);
         }
