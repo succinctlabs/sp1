@@ -335,29 +335,23 @@ where
             row.is_real,
         );
 
-        match E::CURVE_TYPE {
+        // Fetch the syscall id for the curve type.
+        let syscall_id_fe = match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
-                builder.receive_syscall(
-                    row.shard,
-                    row.clk,
-                    AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id()),
-                    row.p_ptr,
-                    row.q_ptr,
-                    row.is_real,
-                );
+                AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id())
             }
-            CurveType::Bn254 => {
-                builder.receive_syscall(
-                    row.shard,
-                    row.clk,
-                    AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
-                    row.p_ptr,
-                    row.q_ptr,
-                    row.is_real,
-                );
-            }
+            CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
             _ => panic!("Unsupported curve"),
-        }
+        };
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            syscall_id_fe,
+            row.p_ptr,
+            row.q_ptr,
+            row.is_real,
+        );
     }
 }
 

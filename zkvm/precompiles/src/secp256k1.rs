@@ -21,6 +21,7 @@ use crate::unconstrained;
 pub struct Secp256k1Operations;
 
 impl CurveOperations for Secp256k1Operations {
+    // The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
     const GENERATOR: [u32; 16] = [
         385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
         4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853,
