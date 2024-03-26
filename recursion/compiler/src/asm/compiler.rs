@@ -7,6 +7,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use p3_field::ExtensionField;
+use p3_field::PrimeField;
 use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
 use sp1_recursion_core::runtime::STACK_SIZE;
@@ -16,7 +17,6 @@ use crate::ir::Builder;
 use crate::ir::Usize;
 use crate::ir::{Config, DslIR, Ext, Felt, Ptr, Var};
 use crate::prelude::Array;
-use p3_field::Field;
 
 pub(crate) const STACK_START_OFFSET: i32 = 16;
 
@@ -40,7 +40,7 @@ pub struct AsmCompiler<F, EF> {
 #[derive(Debug, Clone)]
 pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
 
-impl<F: Field, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
+impl<F: PrimeField, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
     type N = F;
     type F = F;
     type EF = EF;
@@ -94,10 +94,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
     }
 
     pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
-        // Set the heap pointer value according to stack size
-        let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
-        self.push(AsmInstruction::IMM(HEAP_PTR, stack_size));
-        for op in operations {
+        if self.block_label().is_zero() {
+            // Set the heap pointer value according to stack size
+            let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
+            self.push(AsmInstruction::IMM(HEAP_PTR, stack_size));
+        }
+        for op in operations.clone() {
             match op {
                 DslIR::Imm(dst, src) => {
                     self.push(AsmInstruction::IMM(dst.fp(), src));
@@ -329,15 +331,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     }
                 }
                 DslIR::For(start, end, loop_var, block) => {
-                    if let (Usize::Const(start), Usize::Const(end)) = (start, end) {
-                        if start > end {
-                            panic!("Start of the loop is greater than the end of the loop");
-                        }
-                        for _ in start..end {
-                            self.build(block.clone());
-                        }
-                        return;
-                    }
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,
@@ -423,8 +416,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 },
                 DslIR::Num2BitsF(_, _) => unimplemented!(),
                 DslIR::Num2BitsV(_, _) => unimplemented!(),
-                DslIR::Poseidon2Compress(_, _, _) => unimplemented!(),
-                DslIR::Poseidon2Permute(dst, src) => match (dst, src) {
+                DslIR::Poseidon2PermuteBabyBear(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), Array::Dyn(src, _)) => {
                         self.push(AsmInstruction::Poseidon2Permute(dst.fp(), src.fp()))
                     }
@@ -435,6 +427,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::ExpUsizeV(_, _, _) => unimplemented!(),
                 DslIR::ExpUsizeF(_, _, _) => unimplemented!(),
                 DslIR::Error() => self.push(AsmInstruction::TRAP),
+                DslIR::PrintF(dst) => self.push(AsmInstruction::PrintF(dst.fp())),
+                DslIR::PrintV(dst) => self.push(AsmInstruction::PrintV(dst.fp())),
+                DslIR::PrintE(dst) => self.push(AsmInstruction::PrintE(dst.fp())),
+                DslIR::Ext2Felt(dst, src) => match (dst, src) {
+                    (Array::Dyn(dst, _), src) => {
+                        self.push(AsmInstruction::Ext2Felt(dst.fp(), src.fp()))
+                    }
+                    _ => unimplemented!(),
+                },
+                DslIR::Poseidon2PermuteBn254(_) => unimplemented!(),
             }
         }
     }

@@ -22,4 +22,7 @@ sp1-recursion-derive = { path = "../derive" }
 p3-baby-bear = { workspace = true }
 p3-challenger = { workspace = true }
 p3-symmetric = { workspace = true }
+p3-dft = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-poseidon2 = { workspace = true }
 rand = "0.8.4"

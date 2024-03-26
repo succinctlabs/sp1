@@ -1,4 +1,4 @@
-use p3_field::{ExtensionField, Field};
+use p3_field::{ExtensionField, PrimeField};
 
 mod builder;
 mod collections;
@@ -18,7 +18,7 @@ pub use types::*;
 pub use var::*;
 
 pub trait Config: Clone {
-    type N: Field;
-    type F: Field;
+    type N: PrimeField;
+    type F: PrimeField;
     type EF: ExtensionField<Self::F>;
 }
