@@ -99,11 +99,13 @@ impl ShaCompressChip {
         builder.when(local.is_real).assert_one(octet_num_sum);
 
         // Verify that the first row's octet_num value is correct.
+        // The first row should have octet_num[0] = 1 if it's real.
         builder
             .when_first_row()
             .when(local.is_real)
             .assert_one(local.octet_num[0]);
 
+        // If current row is not last of an octet and next row is real, octet_num should be the same.
         for i in 0..10 {
             builder
                 .when_transition()
@@ -112,6 +114,7 @@ impl ShaCompressChip {
                 .assert_eq(local.octet_num[i], next.octet_num[i]);
         }
 
+        // If current row is last of an octet and next row is real, octet_num should rotate by 1.
         for i in 0..10 {
             builder
                 .when_transition()
@@ -129,12 +132,12 @@ impl ShaCompressChip {
         ];
         for (i, var) in vars.iter().enumerate() {
             // For all initialize and finalize cycles, A-H should be the same in the next row. The
-            // last finalize cycle is an exception since the next row would be a new job or nonreal.
+            // last cycle is an exception since the next row must be a new 80-cycle loop or nonreal.
             builder
                 .when_transition()
                 .when(local.octet_num[0] + local.octet_num[9] * (AB::Expr::one() - local.octet[7]))
                 .assert_word_eq(*var, next_vars[i]);
-            // When read from memory during initialize, column should be equal to the memory value.
+            // When column is read from memory during init, is should be equal to the memory value.
             builder
                 .when_transition()
                 .when(local.octet_num[0] * local.octet[i])
@@ -154,31 +157,33 @@ impl ShaCompressChip {
                 + local.octet_num[8],
         );
 
-        // If this row is real and not the last of a compress job, then next row should have same inputs
+        let is_last_row = local.is_real - (local.octet[7] * local.octet_num[9]);
+
+        // If this row is real and not the last cycle, then next row should have same inputs
         builder
             .when_transition()
-            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .when(is_last_row)
             .assert_eq(local.shard, next.shard);
         builder
             .when_transition()
-            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .when(is_last_row)
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .when(is_last_row)
             .assert_eq(local.w_ptr, next.w_ptr);
         builder
             .when_transition()
-            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .when(is_last_row)
             .assert_eq(local.h_ptr, next.h_ptr);
 
-        // If this row is real and not the last of a compress job, then next row should also be real.
+        // If this row is real and not the last cycle, then next row should also be real.
         builder
             .when_transition()
-            .when(local.is_real - (local.octet[7] * local.octet_num[9]))
+            .when(is_last_row)
             .assert_one(next.is_real);
 
-        // Assert that the table ends in nonreal columns. Since each compress job is 80 cycles and
+        // Assert that the table ends in nonreal columns. Since each compress ecall is 80 cycles and
         // the table is padded to a power of 2, the last row of the table should always be padding.
         builder.when_last_row().assert_zero(local.is_real);
     }

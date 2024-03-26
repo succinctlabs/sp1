@@ -67,6 +67,7 @@ pub fn run_test_core(
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
+    #[cfg(feature = "debug")]
     let record_clone = runtime.record.clone();
 
     let start = Instant::now();
@@ -77,6 +78,7 @@ pub fn run_test_core(
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
+    #[cfg(feature = "debug")]
     machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
