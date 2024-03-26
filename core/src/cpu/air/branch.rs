@@ -47,6 +47,7 @@ impl CpuChip {
             // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
             builder
                 .when_transition()
+                .when(next.is_real)
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
@@ -61,9 +62,9 @@ impl CpuChip {
 
             // When we are not branching, assert that local.pc + 4 <==> next.pc.
             builder
-                .when(local.not_branching)
                 .when_transition()
                 .when(next.is_real)
+                .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
         }
 
