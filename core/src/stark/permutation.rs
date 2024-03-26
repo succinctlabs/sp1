@@ -53,7 +53,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // fingerprint for the interaction.
     let chunk_rate = 1 << 8;
     let permutation_trace_width = sends.len() + receives.len() + 1;
-    let mut permutation_trace_values = {
+    let mut permutation_trace_values:Vec<EF> = {
         // Compute the permutation trace values in parallel.
 
         let mut parallel = match preprocessed {
@@ -99,9 +99,42 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         .chunks_mut(chunk_rate)
         .par_bridge()
         .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
+
+    //chunk each row of permutation_trace_values into two, and do a weighted sum with their multiplicities
+//    assert_eq!(sends.len(), receives.len());
+    assert_eq!(permutation_trace_values.len() % permutation_trace_width , 0);
+    let permutation_trace_height = permutation_trace_values.len() / permutation_trace_width;
+
+
+    for row_ind in 0..permutation_trace_height{
+	let row = &permutation_trace_values[row_ind * permutation_trace_width .. (row_ind + 1) * permutation_trace_width];
+	let main_row = main.rows().collect::<Vec<_>>()[row_ind];
+	let batched_perm_values = row.par_chunks_exact(2).enumerate().map(|(i,chunk)| {
+	    let mult0 = match sends.get(2*i){
+		Some(x) => x.multiplicity.apply::<F, F>(&[], main_row),
+		None => match receives.get(2*i){
+		    Some(y) => -y.multiplicity.apply::<F, F>(&[], main_row),
+		    None => F::zero()
+		}
+	    };
+	    let mult1 = match sends.get(2*i + 1){
+		Some(x) => x.multiplicity.apply::<F, F>(&[], main_row),
+		None => match receives.get(2*i + 1){
+		    Some(y) => -y.multiplicity.apply::<F, F>(&[], main_row),
+		    None => F::zero()
+		}
+	    };	    
+	    chunk[0]*EF::from_base(mult0) + chunk[1]*EF::from_base(mult1)
+	}).collect::<Vec<_>>();
+	    
+    }
+    
     let mut permutation_trace =
         RowMajorMatrix::new(permutation_trace_values, permutation_trace_width);
 
+
+
+    //phi[i] are the cumulative sums
     // Weight each row of the permutation trace by the respective multiplicities.
     let mut phi = vec![EF::zero(); permutation_trace.height()];
     let nb_sends = sends.len();
@@ -113,7 +146,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         if i > 0 {
             phi[i] = phi[i - 1];
         }
-        // All all sends
+        // Add all sends
         for (j, send) in sends.iter().enumerate() {
             let mult = send.multiplicity.apply::<F, F>(&[], main_row);
             phi[i] += EF::from_base(mult) * permutation_row[j];
