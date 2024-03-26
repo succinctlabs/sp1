@@ -6,7 +6,9 @@ use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::{MachineChip, ShardCommitment, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
+use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::verifier::fri::TwoAdicPcsMatsVariable;
 use sp1_recursion_compiler::verifier::fri::TwoAdicPcsRoundVariable;
 use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCosetVariable;
@@ -41,11 +43,12 @@ where
         let ShardProofVariable {
             commitment,
             opened_values,
+            opening_proof,
             ..
         } = proof;
 
         let ShardCommitment {
-            main_commit: _,
+            main_commit,
             permutation_commit,
             quotient_commit,
         } = commitment;
@@ -78,6 +81,8 @@ where
         let mut quotient_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
             builder.dyn_array(num_shard_chips);
 
+        let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
+        builder.set(&mut qc_points, 0, zeta);
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
@@ -93,9 +98,74 @@ where
             let quotient_domain = domain.create_disjoint_domain(builder, log_quotient_size);
             builder.set(&mut quotient_domains, i, quotient_domain.clone());
 
-            let num_quotient_chunks = 1 << log_quotient_degree_val;
-            for i in 0..num_quotient_chunks {}
+            // let trace_opening_points
+
+            let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
+            let zeta_next = domain.next_point(builder, zeta);
+            builder.set(&mut trace_points, 0, zeta);
+            builder.set(&mut trace_points, 1, zeta_next);
+
+            // Get the main matrix.
+            let mut main_values = builder.dyn_array::<Array<C, _>>(2);
+            builder.set(&mut main_values, 0, opening.main.local);
+            builder.set(&mut main_values, 1, opening.main.next);
+            let main_mat = TwoAdicPcsMatsVariable::<C> {
+                domain: domain.clone(),
+                values: main_values,
+                points: trace_points.clone(),
+            };
+            builder.set(&mut main_mats, i, main_mat);
+
+            // Get the permutation matrix.
+            let mut perm_values = builder.dyn_array::<Array<C, _>>(2);
+            builder.set(&mut perm_values, 0, opening.permutation.local);
+            builder.set(&mut perm_values, 1, opening.permutation.next);
+            let perm_mat = TwoAdicPcsMatsVariable::<C> {
+                domain: domain.clone(),
+                values: perm_values,
+                points: trace_points,
+            };
+            builder.set(&mut perm_mats, i, perm_mat);
+
+            // Get the quotient matrices and values.
+
+            let qc_domains = quotient_domain.split_domains(builder, log_quotient_degree_val);
+            let num_quotient_chunks = C::N::from_canonical_usize(1 << log_quotient_degree_val);
+            for (j, qc_dom) in qc_domains.into_iter().enumerate() {
+                let qc_vals_array = builder.get(&opening.quotient, j);
+                let mut qc_values = builder.dyn_array::<Array<C, _>>(1);
+                builder.set(&mut qc_values, 0, qc_vals_array);
+                let qc_mat = TwoAdicPcsMatsVariable::<C> {
+                    domain: qc_dom,
+                    values: qc_values,
+                    points: qc_points.clone(),
+                };
+                let j_n = C::N::from_canonical_usize(j);
+                let index: Var<_> = builder.eval(i * num_quotient_chunks + j_n);
+                builder.set(&mut quotient_mats, index, qc_mat);
+            }
         });
+
+        // Create the pcs rounds.
+        let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(num_shard_chips);
+        let main_round = TwoAdicPcsRoundVariable {
+            batch_commit: main_commit.clone(),
+            mats: main_mats,
+        };
+        let perm_round = TwoAdicPcsRoundVariable {
+            batch_commit: permutation_commit.clone(),
+            mats: perm_mats,
+        };
+        let quotient_round = TwoAdicPcsRoundVariable {
+            batch_commit: quotient_commit.clone(),
+            mats: quotient_mats,
+        };
+        builder.set(&mut rounds, 0, main_round);
+        builder.set(&mut rounds, 1, perm_round);
+        builder.set(&mut rounds, 2, quotient_round);
+
+        // Verify the pcs proof
+        pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
         for (i, chip) in all_chips.iter().enumerate() {
             let index = proof.sorted_indices[i];
