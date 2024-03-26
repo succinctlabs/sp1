@@ -82,7 +82,7 @@ where
             local.is_real,
         );
 
-        //// Compute `s0`.
+        // Compute `s0`.
         // w[i-15] rightrotate 7.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
@@ -124,7 +124,7 @@ where
             local.is_real,
         );
 
-        //// Compute `s1`.
+        // Compute `s1`.
         // w[i-2] rightrotate 17.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,

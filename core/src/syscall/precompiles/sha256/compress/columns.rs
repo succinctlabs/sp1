@@ -13,6 +13,13 @@ use crate::operations::XorOperation;
 
 pub const NUM_SHA_COMPRESS_COLS: usize = size_of::<ShaCompressCols<u8>>();
 
+/// A set of columns needed to compute the SHA-256 compression function.
+///
+/// Each sha compress syscall is processed over 80 columns, split into 10 octets. The first octet is
+/// for initialization, the next 8 octets are for compression, and the last octet is for finalize.
+/// During init, the columns are initialized with the input values, one word at a time. During each
+/// compression cycle, one iteration of sha compress is computed. During finalize, the columns are
+/// combined and written back to memory.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShaCompressCols<T> {
@@ -24,8 +31,7 @@ pub struct ShaCompressCols<T> {
 
     pub start: T,
 
-    /// The bits for cycle 8. `octet_num[9]` tells whether it is the finalize phase, and
-    /// `octet_num[0]` tells whether it is the initialize phase.
+    /// Which cycle within the octet we are currently processing.
     pub octet: [T; 8],
 
     /// This will specify which octet we are currently processing.
@@ -34,7 +40,11 @@ pub struct ShaCompressCols<T> {
     ///  - The last octet is for finalize.
     pub octet_num: [T; 10],
 
+    /// Memory access. During init and compression, this is read only. During finalize, this is
+    /// used to write the result into memory.
     pub mem: MemoryReadWriteCols<T>,
+    /// Current memory address being written/read. During init and finalize, this is A-H. During
+    /// compression, this is w[i] being read only.
     pub mem_addr: T,
 
     pub a: Word<T>,
@@ -45,6 +55,9 @@ pub struct ShaCompressCols<T> {
     pub f: Word<T>,
     pub g: Word<T>,
     pub h: Word<T>,
+
+    /// Current value of K[i]. This is a constant array that loops around every 64 iterations.
+    pub k: Word<T>,
 
     pub e_rr_6: FixedRotateRightOperation<T>,
     pub e_rr_11: FixedRotateRightOperation<T>,
@@ -84,20 +97,17 @@ pub struct ShaCompressCols<T> {
     /// The next value of `a` is `temp1 + temp2`.
     pub temp1_add_temp2: AddOperation<T>,
 
-    // This is a materialized column that will have value of a || b || c ... || h depending on
-    // the row of the finalized phase.  This column will need to be verified.
-    // Note this is needed since the AddOperation gadget can only accept AB::Var types as inputs.
-    // TODO: Modify AddOperation to accept AB::Expr types as inputs.
+    /// During finalize, this is one of a-h and is being written into `mem`.
     pub finalized_operand: Word<T>,
     pub finalize_add: AddOperation<T>,
 
-    // We don't have an explicity column for initialize phase.
+    // We don't have an explicit column for initialize phase.
     // Instead, we can use octet_num[0] for that.
     // pub is_initialize: T,
-    pub is_compression: T,
-
-    // We don't have an explicity column for finalize phase.
+    // We don't have an explicit column for finalize phase.
     // Instead, we can use octet_num[9] for that.
     // pub is_finalize: T,
+    pub is_compression: T,
+
     pub is_real: T,
 }
