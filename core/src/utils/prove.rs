@@ -410,8 +410,8 @@ pub mod baby_bear_poseidon2 {
             let dft = Dft {};
 
             let fri_config = FriConfig {
-                log_blowup: 2,
-                num_queries: 50,
+                log_blowup: 1,
+                num_queries: 100,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
