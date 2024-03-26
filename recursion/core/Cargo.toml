@@ -16,3 +16,8 @@ tracing = "0.1.40"
 sp1-core = { path = "../../core" }
 hashbrown = "0.14.3"
 itertools = "0.12.1"
+p3-bn254-fr = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-commit = { workspace = true }
+p3-dft = { workspace = true }
+p3-challenger = { workspace = true }

@@ -13,36 +13,27 @@ impl<C: Config> P2CircuitBuilder<C> for Builder<C> {
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
     use std::collections::HashMap;
     use std::fs::File;
     use std::io::Write;
     use std::marker::PhantomData;
 
     use ff::PrimeField as FFPrimeField;
-    use p3_baby_bear::BabyBear;
     use p3_bn254_fr::FFBn254Fr;
     use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
-    use p3_field::{extension::BinomialExtensionField, AbstractField};
+    use p3_field::AbstractField;
     use p3_poseidon2::Poseidon2;
     use p3_symmetric::Permutation;
     use sp1_recursion_compiler::gnark::GnarkBackend;
-    use sp1_recursion_compiler::ir::{Builder, Config, Var};
+    use sp1_recursion_compiler::ir::{Builder, Var};
     use zkhash::ark_ff::BigInteger;
     use zkhash::ark_ff::PrimeField;
     use zkhash::fields::bn256::FpBN256 as ark_FpBN256;
     use zkhash::poseidon2::poseidon2_instance_bn256::RC3;
 
     use crate::poseidon2::P2CircuitBuilder;
-
-    #[derive(Clone)]
-    struct GnarkConfig;
-
-    impl Config for GnarkConfig {
-        type N = Bn254Fr;
-        type F = BabyBear;
-        type EF = BinomialExtensionField<BabyBear, 4>;
-    }
+    use crate::GnarkConfig;
 
     fn bn254_from_ark_ff(input: ark_FpBN256) -> Bn254Fr {
         let bytes = input.into_bigint().to_bytes_le();
@@ -64,16 +55,8 @@ mod tests {
         }
     }
 
-    #[test]
-    fn test_p2_permute_mut() {
-        type F = Bn254Fr;
-        const WIDTH: usize = 3;
-        const D: u64 = 5;
-        const ROUNDS_F: usize = 8;
-        const ROUNDS_P: usize = 56;
-
-        let round_constants: Vec<[F; WIDTH]> = RC3
-            .iter()
+    pub fn bn254_poseidon2_rc3() -> Vec<[Bn254Fr; 3]> {
+        RC3.iter()
             .map(|vec| {
                 vec.iter()
                     .cloned()
@@ -82,10 +65,22 @@ mod tests {
                     .try_into()
                     .unwrap()
             })
-            .collect();
+            .collect()
+    }
 
-        let poseidon2: Poseidon2<Bn254Fr, DiffusionMatrixBN254, WIDTH, D> =
-            Poseidon2::new(ROUNDS_F, ROUNDS_P, round_constants, DiffusionMatrixBN254);
+    #[test]
+    fn test_p2_permute_mut() {
+        const WIDTH: usize = 3;
+        const D: u64 = 5;
+        const ROUNDS_F: usize = 8;
+        const ROUNDS_P: usize = 56;
+
+        let poseidon2: Poseidon2<Bn254Fr, DiffusionMatrixBN254, WIDTH, D> = Poseidon2::new(
+            ROUNDS_F,
+            ROUNDS_P,
+            bn254_poseidon2_rc3(),
+            DiffusionMatrixBN254,
+        );
 
         let input: [Bn254Fr; 3] = [
             Bn254Fr::from_canonical_u32(0),
