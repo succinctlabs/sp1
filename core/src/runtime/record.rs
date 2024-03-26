@@ -9,7 +9,7 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
 use crate::field::event::FieldEvent;
-use crate::runtime::MemoryRecord;
+use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
@@ -83,11 +83,11 @@ pub struct ExecutionRecord {
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
-    /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
-    /// we keep this information in this struct for now.
-    pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 }
 
 pub struct ShardingConfig {
