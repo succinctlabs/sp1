@@ -44,6 +44,7 @@ where
             commitment,
             opened_values,
             opening_proof,
+            sorted_indices,
             ..
         } = proof;
 
@@ -168,7 +169,7 @@ where
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
         for (i, chip) in all_chips.iter().enumerate() {
-            let index = proof.sorted_indices[i];
+            let index = sorted_indices[i];
             builder.if_ne(index, C::N::neg_one()).then(|builder| {
                 let values = builder.get(&opened_values.chips, index);
                 let trace_domain = builder.get(&trace_domains, index);
