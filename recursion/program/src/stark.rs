@@ -178,6 +178,8 @@ pub(crate) mod tests {
         };
 
         // Set up the opened values.
+        let opened_values = builder.dyn_array(proof.opened_values.chips.len());
+        for (i, values) in proof.opened_values.chips.iter().enumerate() {}
         let opened_values = ShardOpenedValuesVariable {
             chips: proof
                 .opened_values
