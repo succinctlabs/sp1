@@ -301,6 +301,7 @@ pub mod tests {
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
@@ -456,6 +457,12 @@ pub mod tests {
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_ssz_withdrawal() {
+        let program = ssz_withdrawals_program();
         run_test(program).unwrap();
     }
 }
