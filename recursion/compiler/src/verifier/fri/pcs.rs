@@ -41,8 +41,6 @@ pub struct TwoAdicPcsMatsVariable<C: Config> {
     pub values: Array<C, Array<C, Ext<C::F, C::EF>>>,
 }
 
-#[allow(clippy::type_complexity)]
-#[allow(unused_variables)]
 pub fn verify_two_adic_pcs<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfigVariable<C>,
@@ -54,18 +52,12 @@ pub fn verify_two_adic_pcs<C: Config>(
 {
     let alpha = challenger.sample_ext(builder);
 
-    let code = builder.eval(C::N::from_canonical_usize(1));
-    builder.print_v(code);
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
-    let code = builder.eval(C::N::from_canonical_usize(1));
-    builder.print_v(code);
 
-    let commit_phase_commits_len = builder.materialize(proof.fri_proof.commit_phase_commits.len());
-    let log_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
+    // let commit_phase_commits_len = builder.materialize(proof.fri_proof.commit_phase_commits.len());
+    // let log_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
 
-    let code = builder.eval(C::N::from_canonical_usize(2));
-    builder.print_v(code);
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
     builder
@@ -115,7 +107,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                     .for_each(|k, builder| {
                         let mat_opening = builder.get(&batch_opening.opened_values, k);
                         let mat = builder.get(&mats, k);
-                        let mat_domain = mat.domain.size();
                         let mat_points = mat.points;
                         let mat_values = mat.values;
 
@@ -123,7 +114,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let log_height: Var<C::N> =
                             builder.eval(log2_domain_size + config.log_blowup);
 
-                        let bits_reduced: Var<C::N> = builder.eval(log_max_height - log_height);
+                        // let bits_reduced: Var<C::N> = builder.eval(log_max_height - log_height);
                         // TODO: divide by bits_reduced
                         let rev_reduced_index =
                             builder.reverse_bits_len(index, Usize::Var(log_height));
@@ -163,11 +154,7 @@ pub fn verify_two_adic_pcs<C: Config>(
             });
             builder.set(&mut reduced_openings, i, ro);
         });
-    let code = builder.eval(C::N::from_canonical_usize(2));
-    builder.print_v(code);
 
-    let code = builder.eval(C::N::from_canonical_usize(3));
-    builder.print_v(code);
     fri::verify_challenges(
         builder,
         config,
@@ -175,6 +162,4 @@ pub fn verify_two_adic_pcs<C: Config>(
         &fri_challenges,
         &reduced_openings,
     );
-    let code = builder.eval(C::N::from_canonical_usize(3));
-    builder.print_v(code);
 }

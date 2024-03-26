@@ -24,10 +24,6 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIR::Error());
     }
 
-    pub fn log2(&mut self, _: Var<C::N>) -> Var<C::N> {
-        todo!()
-    }
-
     /// Converts a usize to a fixed length of bits.
     pub fn num2bits_usize(&mut self, num: impl Into<Usize<C::N>>) -> Array<C, Var<C::N>> {
         // TODO: A separate function for a circuit backend.

@@ -14,7 +14,6 @@ impl<C: Config> P2CircuitBuilder<C> for Builder<C> {
 
 #[cfg(test)]
 mod tests {
-
     use std::collections::HashMap;
     use std::fs::File;
     use std::io::Write;

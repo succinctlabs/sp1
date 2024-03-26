@@ -1,12 +1,12 @@
-use crate::prelude::*;
 use p3_commit::LagrangeSelectors;
+use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_derive::DslVariable;
 
+use crate::prelude::*;
 use crate::{
     ir::{Config, Felt, Usize},
     prelude::{Builder, Ext, SymbolicFelt, Var},
 };
-use p3_field::{AbstractField, TwoAdicField};
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
 #[derive(DslVariable, Clone)]
