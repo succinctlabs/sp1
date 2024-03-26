@@ -356,8 +356,10 @@ pub mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
+    use crate::utils::run_test;
     use crate::utils::run_test_io;
     use crate::utils::setup_logger;
+    use crate::utils::tests::ECRECOVER_ELF;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
     use crate::Program;
     use crate::SP1Stdin;
@@ -381,5 +383,12 @@ pub mod tests {
             proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
         }
+    }
+
+    #[test]
+    fn test_ecrecover_program() {
+        setup_logger();
+        let program = Program::from(ECRECOVER_ELF);
+        run_test(program).unwrap();
     }
 }

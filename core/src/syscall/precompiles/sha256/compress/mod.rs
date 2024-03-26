@@ -44,7 +44,7 @@ pub mod compress_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, SyscallCode},
-        utils::{run_test, setup_logger},
+        utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF},
     };
 
     pub fn sha_compress_program() -> Program {
@@ -83,6 +83,13 @@ pub mod compress_tests {
     fn prove_babybear() {
         setup_logger();
         let program = sha_compress_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_sha_compress_program() {
+        setup_logger();
+        let program = Program::from(SHA_COMPRESS_ELF);
         run_test(program).unwrap();
     }
 }
