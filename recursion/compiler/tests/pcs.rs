@@ -229,7 +229,7 @@ fn default_fri_config() -> FriConfig<ChallengeMmcs> {
     FriConfig {
         log_blowup: 1,
         num_queries: 100,
-        proof_of_work_bits: 8,
+        proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }
 }

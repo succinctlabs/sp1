@@ -7,6 +7,7 @@ use alloc::vec;
 use alloc::vec::Vec;
 
 use p3_field::ExtensionField;
+use p3_field::PrimeField;
 use p3_field::PrimeField32;
 use sp1_recursion_core::runtime::Program;
 use sp1_recursion_core::runtime::STACK_SIZE;
@@ -16,7 +17,6 @@ use crate::ir::Builder;
 use crate::ir::Usize;
 use crate::ir::{Config, DslIR, Ext, Felt, Ptr, Var};
 use crate::prelude::Array;
-use p3_field::Field;
 
 pub(crate) const STACK_START_OFFSET: i32 = 16;
 
@@ -40,7 +40,7 @@ pub struct AsmCompiler<F, EF> {
 #[derive(Debug, Clone)]
 pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
 
-impl<F: Field, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
+impl<F: PrimeField, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
     type N = F;
     type F = F;
     type EF = EF;
@@ -425,8 +425,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 },
                 DslIR::Num2BitsF(_, _) => unimplemented!(),
                 DslIR::Num2BitsV(_, _) => unimplemented!(),
-                DslIR::Poseidon2Compress(_, _, _) => unimplemented!(),
-                DslIR::Poseidon2Permute(dst, src) => match (dst, src) {
+                DslIR::Poseidon2PermuteBabyBear(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), Array::Dyn(src, _)) => {
                         self.push(AsmInstruction::Poseidon2Permute(dst.fp(), src.fp()))
                     }
@@ -446,6 +445,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     }
                     _ => unimplemented!(),
                 },
+                DslIR::Poseidon2PermuteBn254(_) => unimplemented!(),
             }
         }
     }

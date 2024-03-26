@@ -146,8 +146,10 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(_, len) => self.array::<Felt<C::F>>(*len),
         };
-        self.operations
-            .push(DslIR::Poseidon2Permute(output.clone(), array.clone()));
+        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+            output.clone(),
+            array.clone(),
+        ));
         output
     }
 
@@ -155,8 +157,10 @@ impl<C: Config> Builder<C> {
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
     pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
-        self.operations
-            .push(DslIR::Poseidon2Permute(array.clone(), array.clone()));
+        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+            array.clone(),
+            array.clone(),
+        ));
     }
 
     /// Applies the Poseidon2 permutation to the given array.

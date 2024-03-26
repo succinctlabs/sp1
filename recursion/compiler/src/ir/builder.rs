@@ -34,7 +34,7 @@ impl<C: Config> Builder<C> {
         }
     }
 
-    pub(crate) fn push(&mut self, op: DslIR<C>) {
+    pub fn push(&mut self, op: DslIR<C>) {
         self.operations.push(op);
     }
 

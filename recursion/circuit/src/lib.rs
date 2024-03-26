@@ -1,2 +1,2 @@
-mod challenger;
-mod poseidon2;
+pub mod challenger;
+pub mod poseidon2;

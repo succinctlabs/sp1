@@ -1,7 +1,9 @@
+//! A duplex challenger for Poseidon2 over BN254.
+
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
-use crate::poseidon2::Poseidon2CircuitBuilder;
+use crate::poseidon2::P2CircuitBuilder;
 
 pub struct DuplexChallengerVariable<C: Config> {
     sponge_state: [Felt<C::F>; POSEIDON2_WIDTH],
@@ -15,7 +17,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
             self.sponge_state[i] = val;
         }
 
-        builder.p2_permute_mut(&mut self.sponge_state);
+        // builder.p2_permute_mut(self.sponge_state);
 
         self.output_buffer.clear();
         self.output_buffer.extend(self.sponge_state);

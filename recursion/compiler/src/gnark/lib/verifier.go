@@ -3,7 +3,6 @@ package verifier
 
 import (
 	"github.com/consensys/gnark/frontend"
-	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
 )
 
 type Circuit struct {
@@ -12,8 +11,14 @@ type Circuit struct {
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
-	var state [3]frontend.Variable
-	p2 := poseidon2.NewPoseidon2Chip(api)
-{{LINES}}
+
+	// Variables.
+	var var0 frontend.Variable
+	var var1 frontend.Variable
+
+	// Operations.
+	var0 = frontend.Variable(0)
+	var1 = frontend.Variable(0)
+	api.AssertIsEqual(var0, var1)
 	return nil
 }
