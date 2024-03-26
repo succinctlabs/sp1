@@ -65,10 +65,10 @@ impl<C: Config> Builder<C> {
     pub fn array_to_dyn<V: MemVariable<C>>(&mut self, array: Array<C, V>) -> Array<C, V> {
         match array {
             Array::Fixed(v) => {
-                let dyn_array = self.dyn_array(v.len());
+                let mut dyn_array = self.dyn_array(v.len());
 
                 for (i, value) in v.into_iter().enumerate() {
-                    self.set(&dyn_array, i, value);
+                    self.set(&mut dyn_array, i, value);
                 }
                 dyn_array
             }
@@ -101,7 +101,7 @@ impl<C: Config> Builder<C> {
 
     pub fn set<V: MemVariable<C>, I: Into<Usize<C::N>>, Expr: Into<V::Expression>>(
         &mut self,
-        slice: &Array<C, V>,
+        slice: &mut Array<C, V>,
         index: I,
         value: Expr,
     ) {
@@ -244,14 +244,14 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
 impl<C: Config, V: FromConstant<C> + MemVariable<C>> FromConstant<C> for Array<C, V> {
     type Constant = Vec<V::Constant>;
 
-    fn assign_const(&self, builder: &mut Builder<C>, constant: Self::Constant) {
+    fn assign_const(&mut self, value: Self::Constant, builder: &mut Builder<C>) {
         // Assert that the length matches (memory safety).
-        builder.assert_usize_eq(self.len(), constant.len());
+        builder.assert_usize_eq(self.len(), value.len());
 
         // Assign each element.
-        for (i, value) in constant.into_iter().enumerate() {
-            let value = V::eval_const(builder, value);
-            builder.set(self, i, value);
+        for (i, val) in value.into_iter().enumerate() {
+            let val = V::eval_const(val, builder);
+            builder.set(self, i, val);
         }
     }
 }

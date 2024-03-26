@@ -12,4 +12,5 @@ pub mod verifier;
 pub mod prelude {
     pub use crate::asm::AsmCompiler;
     pub use crate::ir::*;
+    pub use sp1_recursion_derive::DslVariable;
 }
