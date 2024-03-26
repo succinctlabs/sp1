@@ -32,6 +32,7 @@ pub struct ShaExtendCols<T> {
     pub cycle_48: [T; 3],
     /// Whether the current row is the first of a 48-row cycle.
     pub cycle_48_start: T,
+    pub cycle_48_end: T,
 
     /// Inputs to `s0`.
     pub w_i_minus_15: MemoryReadCols<T>,

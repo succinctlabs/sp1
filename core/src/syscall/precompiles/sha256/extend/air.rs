@@ -199,7 +199,7 @@ where
         // If this row is real and not the last of a extend job, then next row should also be real.
         builder
             .when_transition()
-            .when(local.is_real - (local.cycle_48[2] * local.cycle_16_end.result))
+            .when(local.is_real - local.cycle_48_end)
             .assert_one(next.is_real);
 
         // Assert that the table ends in nonreal columns. Since each extend job is 48 cycles and

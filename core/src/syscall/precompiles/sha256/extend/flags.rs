@@ -37,6 +37,7 @@ impl<F: Field> ShaExtendCols<F> {
         self.cycle_48[1] = F::from_bool((32..48).contains(&j));
         self.cycle_48[2] = F::from_bool((48..64).contains(&j));
         self.cycle_48_start = self.cycle_48[0] * self.cycle_16_start.result * self.is_real;
+        self.cycle_48_end = self.cycle_48[2] * self.cycle_16_end.result * self.is_real;
     }
 }
 
@@ -102,6 +103,12 @@ impl ShaExtendChip {
         builder.assert_eq(
             local.cycle_16_start.result * local.cycle_48[0] * local.is_real,
             local.cycle_48_start,
+        );
+
+        // cycle_48_end == end of 16-cycle AND last 16-cycle within 48-cycle AND is_real.
+        builder.assert_eq(
+            local.cycle_16_end.result * local.cycle_48[2] * local.is_real,
+            local.cycle_48_end,
         );
 
         // When it's the end of a 48-cycle, the next `i` must be 16.
