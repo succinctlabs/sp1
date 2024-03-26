@@ -1,11 +1,12 @@
 use p3_air::Air;
+use p3_field::TwoAdicField;
 use sp1_core::stark::{MachineChip, StarkGenericConfig, VerifierConstraintFolder};
 use sp1_recursion_compiler::{
     ir::{Builder, Config},
     verifier::challenger::DuplexChallengerVariable,
 };
 
-use crate::types::ShardProofVariable;
+use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
 
 #[derive(Debug, Clone, Copy)]
 pub struct StarkVerifier<C: Config, SC: StarkGenericConfig> {
@@ -17,12 +18,15 @@ where
     SC: StarkGenericConfig<Val = C::F, Challenge = C::EF>,
 {
     pub fn verify_shard<A>(
-        &mut self,
+        builder: &mut Builder<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
         chips: &[&MachineChip<SC, A>],
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
     ) where
         A: for<'b> Air<VerifierConstraintFolder<'b, SC>>,
+        C::F: TwoAdicField,
+        C::EF: TwoAdicField,
     {
         let ShardProofVariable {
             commitment,
@@ -30,6 +34,32 @@ where
             opening_proof,
             ..
         } = proof;
+
+        let log_degrees = opened_values
+            .chips
+            .iter()
+            .map(|val| val.log_degree)
+            .collect::<Vec<_>>();
+
+        let log_quotient_degrees = chips
+            .iter()
+            .map(|chip| chip.log_quotient_degree())
+            .collect::<Vec<_>>();
+
+        let trace_domains = log_degrees
+            .iter()
+            .map(|log_degree| pcs.natural_domain_for_log_degree(builder, *log_degree))
+            .collect::<Vec<_>>();
+
+        let ShardCommitment {
+            main_commit,
+            permutation_commit,
+            quotient_commit,
+        } = commitment;
+
+        let permutation_challenges = (0..2)
+            .map(|_| challenger.sample_ext_element::<SC::Challenge>())
+            .collect::<Vec<_>>();
     }
 }
 

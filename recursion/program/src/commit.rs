@@ -1,6 +1,6 @@
 use p3_commit::{LagrangeSelectors, PolynomialSpace};
 use sp1_recursion_compiler::{
-    ir::{Array, Builder, Config, Ext, Var},
+    ir::{Array, Builder, Config, Ext, Usize},
     verifier::fri::TwoAdicPcsRoundVariable,
 };
 
@@ -32,7 +32,7 @@ pub trait PcsVariable<C: Config, Challenger> {
     fn natural_domain_for_log_degree(
         &self,
         builder: &mut Builder<C>,
-        log_degree: Var<C::N>,
+        log_degree: Usize<C::N>,
     ) -> Self::Domain;
 
     // Todo: change TwoAdicPcsRoundVariable to RoundVariable

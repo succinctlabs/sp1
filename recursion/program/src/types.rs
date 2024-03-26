@@ -1,6 +1,6 @@
 use sp1_core::stark::ShardCommitment;
 use sp1_recursion_compiler::{
-    ir::{Config, Usize, Var},
+    ir::{Config, Usize},
     verifier::{
         fri::{types::Commitment, TwoAdicPcsProofVariable},
         ChipOpening,

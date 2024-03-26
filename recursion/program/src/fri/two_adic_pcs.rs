@@ -1,7 +1,7 @@
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use sp1_recursion_compiler::{
-    ir::{Array, Builder, Config, Var},
+    ir::{Array, Builder, Config, Usize, Var},
     verifier::{
         challenger::DuplexChallengerVariable,
         fri::{
@@ -34,7 +34,7 @@ where
     fn natural_domain_for_log_degree(
         &self,
         builder: &mut Builder<C>,
-        log_degree: Var<C::N>,
+        log_degree: Usize<C::N>,
     ) -> Self::Domain {
         let two_addicity = C::F::TWO_ADICITY;
 
