@@ -1,11 +1,14 @@
-use super::{U256Field, NUM_WORDS_IN_UINT256};
+use super::U256Field;
 use crate::air::{MachineAir, SP1AirBuilder};
 use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::runtime::{ExecutionRecord, Register, Syscall};
+use crate::operations::field::params::Limbs;
+use crate::runtime::{ExecutionRecord, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::{limbs_from_access, pad_rows};
+use crate::utils::ec::field::{FieldParameters, NumLimbs};
+use crate::utils::{limbs_from_prev_access, pad_rows};
 use num::{BigUint, One};
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -20,6 +23,9 @@ use std::mem::size_of;
 
 pub const NUM_UINT256_MUL_COLS: usize = size_of::<Uint256MulColumn<u8>>();
 
+/// Number of `u32` words in a `BigUint` representing a 256 bit number.
+pub const NUM_WORDS_IN_UINT256: usize = U256Field::NB_LIMBS / 4;
+
 //***************************** Event ****************************/
 //------------------------------------------------------------------------
 
@@ -31,7 +37,6 @@ pub struct Uint256MulEvent {
     pub x: [u32; NUM_WORDS_IN_UINT256],
     pub y_ptr: u32,
     pub y: [u32; NUM_WORDS_IN_UINT256],
-    pub y_pointer_record: MemoryReadRecord,
     pub x_memory_records: [MemoryWriteRecord; NUM_WORDS_IN_UINT256],
     pub y_memory_records: [MemoryReadRecord; NUM_WORDS_IN_UINT256],
 }
@@ -51,6 +56,7 @@ impl Uint256MulChip {
 //*****************************  Column ****************************/
 //-----------------------------------------------------------------------
 
+/// A set of columns for the Uint256Mul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct Uint256MulColumn<T> {
@@ -60,17 +66,17 @@ pub struct Uint256MulColumn<T> {
     pub x_ptr: T,
     pub y_ptr: T,
 
-    // memory reads
+    // Memory columns.
     pub x_memory: [MemoryWriteCols<T>; NUM_WORDS_IN_UINT256],
     pub y_memory: [MemoryReadCols<T>; NUM_WORDS_IN_UINT256],
     pub y_ptr_access: MemoryReadCols<T>,
 
-    // input values for uint256 operations
+    // Input values for the multiplication.
     pub x_input: [T; NUM_WORDS_IN_UINT256],
     pub y_input: [T; NUM_WORDS_IN_UINT256],
 
-    // output values
-    pub output: FieldOpCols<T>,
+    // Output values.
+    pub output: FieldOpCols<T, U256Field>,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
@@ -94,7 +100,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut records = ExecutionRecord::default();
-                let mut new_field_events = Vec::new();
+                let mut new_byte_lookup_events = Vec::new();
 
                 let rows = events
                     .iter()
@@ -116,36 +122,37 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         }
                         // Memory columns.
                         {
-                            // Populate the columns with the input values
+                            // Populate the columns with the input values.
                             for i in 0..NUM_WORDS_IN_UINT256 {
-                                // populate the input_x columns
-                                cols.x_memory[i]
-                                    .populate(event.x_memory_records[i], &mut new_field_events);
-                                // populate the input_y columns
-                                cols.y_memory[i]
-                                    .populate(event.y_memory_records[i], &mut new_field_events);
+                                // Populate the input_x columns.
+                                cols.x_memory[i].populate(
+                                    event.x_memory_records[i],
+                                    &mut new_byte_lookup_events,
+                                );
+                                // Populate the input_y columns.
+                                cols.y_memory[i].populate(
+                                    event.y_memory_records[i],
+                                    &mut new_byte_lookup_events,
+                                );
                             }
-                            cols.y_ptr_access
-                                .populate(event.y_pointer_record, &mut new_field_events);
                         }
 
-                        // populate the output columns for Uint256 multiplication.
-                        cols.output
-                            .populate::<U256Field>(&x, &y, FieldOperation::Mul);
+                        // Populate the output columns for Uint256 multiplication.
+                        cols.output.populate(&x, &y, FieldOperation::Mul);
 
                         row
                     })
                     .collect::<Vec<_>>();
-                records.add_field_events(&new_field_events);
+                records.add_byte_lookup_events(new_byte_lookup_events);
                 (rows, records)
             })
             .collect::<Vec<_>>();
 
-        // Add the new field events to the output.
+        //  Generate the trace rows for each event.
         let mut rows = Vec::new();
-        for (row, record) in rows_and_records {
+        for (row, mut record) in rows_and_records {
             rows.extend(row);
-            output.add_field_events(&record.field_events);
+            output.append(&mut record);
         }
 
         pad_rows(&mut rows, || [F::zero(); NUM_UINT256_MUL_COLS]);
@@ -167,25 +174,16 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
 impl Syscall for Uint256MulChip {
     fn num_extra_cycles(&self) -> u32 {
-        8
+        1
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        // input x
-        let a0 = crate::runtime::Register::X10;
-
-        // input y
-        let a1 = crate::runtime::Register::X11;
-
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let start_clk = rt.clk;
-
-        // TODO: this will have to be be constrained, but can do it later.
-        let x_ptr = rt.register_unsafe(a0);
+        let x_ptr = arg1;
         if x_ptr % 4 != 0 {
             panic!();
         }
-
-        let (y_ptr_record, y_ptr) = rt.mr(a1 as u32);
+        let y_ptr = arg2;
         if y_ptr % 4 != 0 {
             panic!();
         }
@@ -197,28 +195,25 @@ impl Syscall for Uint256MulChip {
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, NUM_WORDS_IN_UINT256);
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
-        let y: [u32; NUM_WORDS_IN_UINT256] = y_vec.try_into().unwrap();
+        let y: [u32; 8] = y_vec.try_into().unwrap();
 
         let uint256_x = biguint_from_words(&x);
         let uint256_y = biguint_from_words(&y);
 
-        // mask for 256 bits
+        // Create a mask for the 256 bit number.
         let mask = BigUint::one() << 256;
 
-        // call the bigint mul function on the inputs
+        // Perform the multiplication and take the result modulo the mask.
         let result = (uint256_x * uint256_y) % mask;
 
-        // increment the clock as we are writing to the state.
-        rt.clk += 4;
+        // Increment the clock as we are writing to the state.
+        rt.clk += 1;
 
-        // convert the result to low endian u32 words
+        // Convert the result to low endian u32 words.
         let result = biguint_to_words(&result);
 
         // write the state
         let state_memory_records = rt.mw_slice(x_ptr, &result).try_into().unwrap();
-
-        // increment the clock.
-        rt.clk += 4;
 
         let shard = rt.current_shard();
 
@@ -229,12 +224,11 @@ impl Syscall for Uint256MulChip {
             x,
             y_ptr,
             y,
-            y_pointer_record: y_ptr_record,
             x_memory_records: state_memory_records,
             y_memory_records,
         });
 
-        x_ptr + 1
+        None
     }
 }
 
@@ -250,32 +244,26 @@ impl<F> BaseAir<F> for Uint256MulChip {
 impl<AB> Air<AB> for Uint256MulChip
 where
     AB: SP1AirBuilder,
+    Limbs<AB::Var, <U256Field as NumLimbs>::Limbs>: Copy,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &Uint256MulColumn<AB::Var> = main.row_slice(0).borrow();
 
-        let x = limbs_from_access(&local.x_memory);
-        let y = limbs_from_access(&local.y_memory);
+        let x = limbs_from_prev_access(&local.x_memory);
+        let y = limbs_from_prev_access(&local.y_memory);
 
         let is_real = local.is_real;
 
-        // assert that is_real is a boolean.
+        // Assert that is_real is a boolean.
         builder.assert_bool(is_real);
 
-        // evaluate the uint256 multiplication
+        // Evaluate the uint256 multiplication
         local
             .output
-            .eval::<AB, U256Field, _, _>(builder, &x, &y, FieldOperation::Mul);
+            .eval::<AB, _, _>(builder, &x, &y, FieldOperation::Mul);
 
-        // constrain the memory reads
-        builder.constraint_memory_access(
-            local.shard,
-            local.clk,
-            AB::F::from_canonical_u32(Register::X11 as u32),
-            &local.y_ptr_access,
-            local.is_real,
-        );
+        // Constraint the memory reads for the x and y values.
         builder.constraint_memory_access_slice(
             local.shard,
             local.clk.into(),
@@ -286,10 +274,19 @@ where
 
         builder.constraint_memory_access_slice(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(4),
+            local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
             local.x_ptr,
             &local.x_memory,
-            is_real,
+            local.is_real,
+        );
+
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            AB::F::from_canonical_u32(SyscallCode::UINT256_MUL.syscall_id()),
+            local.x_ptr,
+            local.y_ptr,
+            local.is_real,
         );
     }
 }

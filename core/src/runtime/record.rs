@@ -101,9 +101,9 @@ pub struct ShardingConfig {
     pub lt_len: usize,
     pub field_len: usize,
     pub keccak_len: usize,
-    pub biguint_arith_len: usize,
     pub weierstrass_add_len: usize,
     pub weierstrass_double_len: usize,
+    pub uint256_mul_len: usize,
 }
 
 impl ShardingConfig {
@@ -127,9 +127,9 @@ impl Default for ShardingConfig {
             shift_right_len: shard_size,
             field_len: shard_size * 4,
             keccak_len: shard_size,
-            biguint_arith_len: shard_size,
             weierstrass_add_len: shard_size,
             weierstrass_double_len: shard_size,
+            uint256_mul_len: shard_size,
         }
     }
 }
@@ -174,10 +174,6 @@ impl MachineRecord for ExecutionRecord {
             "keccak_permute_events".to_string(),
             self.keccak_permute_events.len(),
         );
-        stats.insert(
-            "biguint_arith_events".to_string(),
-            self.uint256_mul_events.len(),
-        );
         stats.insert("ed_add_events".to_string(), self.ed_add_events.len());
         stats.insert(
             "ed_decompress_events".to_string(),
@@ -198,6 +194,10 @@ impl MachineRecord for ExecutionRecord {
         stats.insert(
             "blake3_compress_inner_events".to_string(),
             self.blake3_compress_inner_events.len(),
+        );
+        stats.insert(
+            "uint256_mul_events".to_string(),
+            self.uint256_mul_events.len(),
         );
         stats
     }
@@ -355,11 +355,13 @@ impl MachineRecord for ExecutionRecord {
         }
 
         // Uint256 mul arithmetic events.
-        for (bigint_chunk, shard) in take(&mut self.uint256_mul_events)
-            .chunks_mut(config.biguint_arith_len)
+        for (uint256_mul_chunk, shard) in take(&mut self.uint256_mul_events)
+            .chunks_mut(config.uint256_mul_len)
             .zip(shards.iter_mut())
         {
-            shard.uint256_mul_events.extend_from_slice(bigint_chunk);
+            shard
+                .uint256_mul_events
+                .extend_from_slice(&uint256_mul_chunk);
         }
 
         // Weierstrass curve add events.
