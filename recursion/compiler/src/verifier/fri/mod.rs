@@ -239,16 +239,17 @@ pub fn verify_batch<C: Config, const D: usize>(
         );
 
         let new_root = builder.poseidon2_compress(&left, &right);
-
         builder.assign(root.clone(), new_root);
         builder.assign(current_height, current_height * (C::N::two().inverse()));
 
         let next_height = builder.get(&dimensions, index).height;
-        builder.if_eq(next_height, current_height).then(|builder| {
-            let next_height_openings_digest =
-                reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
-            let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
-            builder.assign(root.clone(), new_root);
+        builder.if_ne(index, dimensions.len()).then(|builder| {
+            builder.if_eq(next_height, current_height).then(|builder| {
+                let next_height_openings_digest =
+                    reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+                let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
+                builder.assign(root.clone(), new_root);
+            });
         })
     });
 
@@ -273,23 +274,27 @@ pub fn reduce<C: Config, const D: usize>(
 ) -> Array<C, Felt<C::F>> {
     let nb_opened_values = builder.eval(C::N::zero());
     let mut flattened_opened_values = builder.dyn_array(8192);
-    builder.range(dim_idx, dims.len()).for_each(|i, builder| {
-        let height = builder.get(dims, i).height;
-        builder.if_eq(height, curr_height_padded).then(|builder| {
-            let opened_values = builder.get(opened_values, i);
-            builder
-                .range(0, opened_values.len())
-                .for_each(|j, builder| {
-                    let opened_value = builder.get(&opened_values, j);
-                    let opened_value_flat = builder.ext2felt(opened_value);
-                    for k in 0..D {
-                        let base = builder.get(&opened_value_flat, k);
-                        builder.set(&mut flattened_opened_values, nb_opened_values, base);
-                        builder.assign(nb_opened_values, nb_opened_values + C::N::one());
-                    }
-                });
+    let start_dim_idx: Var<_> = builder.eval(dim_idx);
+    builder
+        .range(start_dim_idx, dims.len())
+        .for_each(|i, builder| {
+            let height = builder.get(dims, i).height;
+            builder.if_eq(height, curr_height_padded).then(|builder| {
+                let opened_values = builder.get(opened_values, i);
+                builder
+                    .range(0, opened_values.len())
+                    .for_each(|j, builder| {
+                        let opened_value = builder.get(&opened_values, j);
+                        let opened_value_flat = builder.ext2felt(opened_value);
+                        for k in 0..D {
+                            let base = builder.get(&opened_value_flat, k);
+                            builder.set(&mut flattened_opened_values, nb_opened_values, base);
+                            builder.assign(nb_opened_values, nb_opened_values + C::N::one());
+                        }
+                    });
+                builder.assign(dim_idx, dim_idx + C::N::one());
+            });
         });
-    });
     flattened_opened_values.truncate(builder, Usize::Var(nb_opened_values));
     builder.poseidon2_hash(&flattened_opened_values)
 }

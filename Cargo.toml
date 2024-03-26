@@ -46,3 +46,26 @@ p3-symmetric = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" 
 p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+
+# For local development.
+#
+# p3-air = { path = "../Plonky3/air" }
+# p3-field = { path = "../Plonky3/field" }
+# p3-commit = { path = "../Plonky3/commit" }
+# p3-matrix = { path = "../Plonky3/matrix" }
+# p3-baby-bear = { path = "../Plonky3/baby-bear" }
+# p3-util = { path = "../Plonky3/util" }
+# p3-challenger = { path = "../Plonky3/challenger" }
+# p3-dft = { path = "../Plonky3/dft" }
+# p3-fri = { path = "../Plonky3/fri" }
+# p3-goldilocks = { path = "../Plonky3/goldilocks" }
+# p3-keccak = { path = "../Plonky3/keccak" }
+# p3-keccak-air = { path = "../Plonky3/keccak-air" }
+# p3-blake3 = { path = "../Plonky3/blake3" }
+# p3-mds = { path = "../Plonky3/mds" }
+# p3-merkle-tree = { path = "../Plonky3/merkle-tree" }
+# p3-poseidon2 = { path = "../Plonky3/poseidon2" }
+# p3-symmetric = { path = "../Plonky3/symmetric" }
+# p3-uni-stark = { path = "../Plonky3/uni-stark" }
+# p3-maybe-rayon = { path = "../Plonky3/maybe-rayon" }
+# p3-bn254-fr = { path = "../Plonky3/bn254-fr" }

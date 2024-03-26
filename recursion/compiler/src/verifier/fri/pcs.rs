@@ -55,8 +55,12 @@ pub fn verify_two_adic_pcs<C: Config>(
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
-    // let commit_phase_commits_len = builder.materialize(proof.fri_proof.commit_phase_commits.len());
-    // let log_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
+    let commit_phase_commits_len = proof
+        .fri_proof
+        .commit_phase_commits
+        .len()
+        .materialize(builder);
+    let log_global_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
 
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
@@ -82,22 +86,31 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let batch_commit = round.batch_commit;
                 let mats = round.mats;
 
+                let mut batch_heights_log2: Array<C, Var<C::N>> = builder.array(mats.len());
+                builder.range(0, mats.len()).for_each(|k, builder| {
+                    let mat = builder.get(&mats, k);
+                    let height_log2: Var<_> = builder.eval(mat.domain.log_n + config.log_blowup);
+                    builder.set(&mut batch_heights_log2, k, height_log2);
+                });
                 let mut batch_dims: Array<C, Dimensions<C>> = builder.array(mats.len());
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
                     let dim = Dimensions::<C> {
-                        height: mat.domain.size(),
+                        height: builder.eval(mat.domain.size() * C::N::two()), // TODO: fix this to use blowup
                     };
                     builder.set(&mut batch_dims, k, dim);
                 });
 
+                let log_batch_max_height = builder.get(&batch_heights_log2, 0);
+                let bits_reduced: Var<_> =
+                    builder.eval(log_global_max_height - log_batch_max_height);
                 let index_bits = builder.num2bits_v(index);
-
+                let index_bits_shifted_v1 = index_bits.shift(builder, bits_reduced);
                 fri::verify_batch::<C, 1>(
                     builder,
                     &batch_commit,
                     batch_dims,
-                    index_bits,
+                    index_bits_shifted_v1,
                     batch_opening.opened_values.clone(),
                     &batch_opening.opening_proof,
                 );
@@ -114,10 +127,12 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let log_height: Var<C::N> =
                             builder.eval(log2_domain_size + config.log_blowup);
 
-                        // let bits_reduced: Var<C::N> = builder.eval(log_max_height - log_height);
-                        // TODO: divide by bits_reduced
+                        let bits_reduced: Var<C::N> =
+                            builder.eval(log_global_max_height - log_height);
+                        let index_bits_shifted_v2 = index_bits.shift(builder, bits_reduced);
+                        let index_shifted_v2 = builder.bits_to_num_var(&index_bits_shifted_v2);
                         let rev_reduced_index =
-                            builder.reverse_bits_len(index, Usize::Var(log_height));
+                            builder.reverse_bits_len(index_shifted_v2, Usize::Var(log_height));
                         let rev_reduced_index = rev_reduced_index.materialize(builder);
 
                         let g = builder.generator();

@@ -119,11 +119,12 @@ impl<C: Config> Builder<C> {
 
     pub fn bits_to_num_var(&mut self, bits: &Array<C, Var<C::N>>) -> Var<C::N> {
         let num: Var<_> = self.eval(C::N::zero());
-        for i in 0..NUM_BITS {
-            let bit = self.get(bits, i);
-            // Add `bit * 2^i` to the sum.
-            self.assign(num, num + bit * C::N::from_canonical_u32(1 << i));
-        }
+        let power: Var<_> = self.eval(C::N::one());
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(bits, i);
+            builder.assign(num, num + bit * power);
+            builder.assign(power, power * C::N::from_canonical_u32(2));
+        });
         num
     }
 
