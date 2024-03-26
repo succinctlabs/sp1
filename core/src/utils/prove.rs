@@ -284,7 +284,7 @@ where
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
         + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>,
 {
-    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace)
+    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
 }
 
 #[cfg(debug_assertions)]
@@ -315,7 +315,7 @@ where
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
         + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>,
 {
-    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof)
+    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
 }
 
 pub use baby_bear_keccak::BabyBearKeccak;
