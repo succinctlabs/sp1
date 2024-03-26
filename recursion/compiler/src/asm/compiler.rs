@@ -331,15 +331,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     }
                 }
                 DslIR::For(start, end, loop_var, block) => {
-                    if let (Usize::Const(start), Usize::Const(end)) = (start, end) {
-                        if start > end {
-                            panic!("Start of the loop is greater than the end of the loop");
-                        }
-                        for _ in start..end {
-                            self.build(block.clone());
-                        }
-                        continue;
-                    }
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,
