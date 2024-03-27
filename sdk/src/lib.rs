@@ -17,16 +17,14 @@ use utils::*;
 
 use crate::client::SP1ProverServiceClient;
 use anyhow::{Ok, Result};
-use p3_commit::Pcs;
-use p3_matrix::dense::RowMajorMatrix;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::stark::RiscvAir;
+use sp1_core::stark::{Com, PcsProverData, RiscvAir};
 use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
-use sp1_core::utils::{prove_core, StarkUtils};
+use sp1_core::utils::prove_core;
 use std::fs;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -67,13 +65,13 @@ impl SP1Prover {
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithIO<SC>>
     where
-        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone,
+        SC: StarkGenericConfig,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
-        <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
+        SC::Val: p3_field::PrimeField32,
     {
         let access_token = std::env::var("PROVER_NETWORK_ACCESS_TOKEN").unwrap();
         let client = SP1ProverServiceClient::with_token(access_token);
@@ -109,13 +107,13 @@ impl SP1Prover {
         config: SC,
     ) -> Result<SP1ProofWithIO<SC>>
     where
-        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned + Clone + 'static,
+        SC: StarkGenericConfig,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
-        <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
+        SC::Val: p3_field::PrimeField32,
     {
         if std::env::var("PROVER_NETWORK_ACCESS_TOKEN").is_ok() {
             log::info!("PROVER_NETWORK_ACCESS_TOKEN is set, proving remotely");
@@ -164,13 +162,13 @@ impl SP1Verifier {
         config: SC,
     ) -> Result<(), ProgramVerificationError>
     where
-        SC: StarkUtils + Send + Sync + Serialize + DeserializeOwned,
+        SC: StarkGenericConfig,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
-        <SC as StarkGenericConfig>::Val: p3_field::PrimeField32,
+        SC::Val: p3_field::PrimeField32,
     {
         let mut challenger = config.challenger();
         let machine = RiscvAir::machine(config);

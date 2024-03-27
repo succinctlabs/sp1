@@ -26,6 +26,7 @@ indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.21"
+axum = "=0.7.4"
 
 [build-dependencies]
 prost-build = "0.12"

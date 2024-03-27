@@ -117,7 +117,6 @@ pub(crate) mod tests {
         air::MachineAir,
         stark::{RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
-        SP1Prover, SP1Stdin,
     };
     use sp1_recursion_compiler::{
         asm::{AsmConfig, VmBuilder},
@@ -128,6 +127,7 @@ pub(crate) mod tests {
         },
     };
     use sp1_recursion_core::runtime::Runtime;
+    use sp1_sdk::{SP1Prover, SP1Stdin};
 
     use crate::{
         fri::{
