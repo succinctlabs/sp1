@@ -5,7 +5,10 @@ use p3_field::extension::BinomialExtensionField;
 use sp1_recursion_compiler::ir::Config;
 
 pub mod challenger;
+pub mod fri;
 pub mod poseidon2;
+
+pub const DIGEST_SIZE: usize = 3;
 
 #[derive(Clone, Default)]
 pub struct GnarkConfig;

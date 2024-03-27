@@ -5,6 +5,7 @@ use p3_field::Field;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 
 use crate::poseidon2::P2CircuitBuilder;
+use crate::DIGEST_SIZE;
 
 const WIDTH: usize = 3;
 
@@ -78,6 +79,16 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
         self.input_buffer.push(value);
         if self.input_buffer.len() == self.num_f_elms * WIDTH {
             self.duplexing(builder);
+        }
+    }
+
+    pub fn observe_commitment(
+        &mut self,
+        builder: &mut Builder<C>,
+        value: [Felt<C::F>; DIGEST_SIZE],
+    ) {
+        for i in 0..DIGEST_SIZE {
+            self.observe(builder, value[i]);
         }
     }
 

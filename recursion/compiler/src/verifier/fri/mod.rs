@@ -43,11 +43,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         });
 
     let num_query_proofs = proof.query_proofs.len().materialize(builder);
-    builder
-        .if_ne(num_query_proofs, config.num_queries)
-        .then(|builder| {
-            builder.error();
-        });
+    builder.assert_var_eq(num_query_proofs, config.num_queries);
 
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
