@@ -114,7 +114,8 @@ where
                                 data.materialize()
                                     .expect("failed to materialize shard main data")
                             };
-                            let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                            let ordering = data.chip_ordering.clone();
+                            let chips = machine.shard_chips_ordered(&ordering).collect::<Vec<_>>();
                             let proof = Self::prove_shard(
                                 config,
                                 pk,
@@ -170,7 +171,7 @@ where
 
         let pcs = config.pcs();
 
-        let domains_and_traces = traces
+        let mut domains_and_traces = traces
             .iter()
             .map(|trace| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
@@ -180,12 +181,6 @@ where
 
         // Commit to the batch of traces.
         let (main_commit, main_data) = pcs.commit(domains_and_traces);
-
-        // Get the filtered chip ids.
-        // let chip_ids = filtered_chips
-        //     .iter()
-        //     .map(|chip| chip.name())
-        //     .collect::<Vec<_>>();
 
         // Get the chip ordering.
         let chip_ordering = filtered_chips

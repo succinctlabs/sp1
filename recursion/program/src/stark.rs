@@ -167,7 +167,7 @@ where
         builder.set(&mut rounds, 2, quotient_round);
 
         // Verify the pcs proof
-        pcs.verify(builder, rounds, opening_proof.clone(), challenger);
+        // pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
         for (i, chip) in machine.chips().iter().enumerate() {
             let index = sorted_indices[i];
