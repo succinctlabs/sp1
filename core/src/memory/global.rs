@@ -55,12 +55,12 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let memory_record = match self.kind {
+        let memory_events = match self.kind {
             MemoryChipKind::Initialize => &input.memory_initialize_events,
             MemoryChipKind::Finalize => &input.memory_finalize_events,
             MemoryChipKind::Program => &input.program_memory_events,
         };
-        let rows: Vec<[F; 8]> = (0..memory_record.len()) // TODO: change this back to par_iter
+        let rows: Vec<[F; 8]> = (0..memory_events.len()) // TODO: change this back to par_iter
             .map(|i| {
                 let MemoryInitializeFinalizeEvent {
                     addr,
@@ -68,7 +68,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
                     shard,
                     timestamp,
                     used,
-                } = memory_record[i];
+                } = memory_events[i];
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
