@@ -28,7 +28,7 @@ pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Va
 }
 
 pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -> Vec<Felt<C::F>> {
-    let bits = builder.num2bits_v_circuit(val, 254);
+    let bits = builder.num2bits_v_circuit(val, 256);
     let mut results = Vec::new();
     for i in 0..n {
         let result: Felt<C::F> = builder.eval(C::F::zero());
@@ -94,7 +94,7 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::{collections::HashMap, fs::File, io::Write, marker::PhantomData};
+    use std::{fs::File, io::Write};
 
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
@@ -176,26 +176,35 @@ mod tests {
     fn test_challenger() {
         let perm = Perm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
         let mut challenger = Challenger::new(perm).unwrap();
-        let value = BabyBear::from_canonical_usize(1);
-        challenger.observe(value);
-        challenger.observe(value);
-        challenger.observe(value);
-        let gt: BabyBear = challenger.sample();
-        println!("gt: {}", gt);
+        let a = BabyBear::from_canonical_usize(1);
+        let b = BabyBear::from_canonical_usize(2);
+        let c = BabyBear::from_canonical_usize(3);
+        challenger.observe(a);
+        challenger.observe(b);
+        challenger.observe(c);
+        let gt1: BabyBear = challenger.sample();
+        challenger.observe(a);
+        challenger.observe(b);
+        challenger.observe(c);
+        let gt2: BabyBear = challenger.sample();
 
         let mut builder = Builder::<GnarkConfig>::default();
         let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
-        let value = builder.eval(BabyBear::from_canonical_usize(1));
-        challenger.observe(&mut builder, value);
-        challenger.observe(&mut builder, value);
-        challenger.observe(&mut builder, value);
-        let _ = challenger.sample(&mut builder);
+        let a = builder.eval(a);
+        let b = builder.eval(b);
+        let c = builder.eval(c);
+        challenger.observe(&mut builder, a);
+        challenger.observe(&mut builder, b);
+        challenger.observe(&mut builder, c);
+        let result1 = challenger.sample(&mut builder);
+        builder.assert_felt_eq(gt1, result1);
+        challenger.observe(&mut builder, a);
+        challenger.observe(&mut builder, b);
+        challenger.observe(&mut builder, c);
+        let result2 = challenger.sample(&mut builder);
+        builder.assert_felt_eq(gt2, result2);
 
-        let mut backend = GnarkBackend::<GnarkConfig> {
-            nb_backend_vars: 0,
-            used: HashMap::new(),
-            phantom: PhantomData,
-        };
+        let mut backend = GnarkBackend::<GnarkConfig>::default();
         let result = backend.compile(builder.operations);
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let path = format!("{}/build/verifier.go", manifest_dir);

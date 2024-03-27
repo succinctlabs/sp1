@@ -635,6 +635,9 @@ impl<C: Config> GnarkBackend<C> {
                 DslIR::CircuitPoseidon2Permute(state) => {
                     let state_def = "state = [3]frontend.Variable{";
                     let state_args = state.iter().map(|x| x.id()).collect::<Vec<_>>().join(",");
+                    state.iter().for_each(|x| {
+                        self.assign(x.id());
+                    });
                     let state_closure = "}";
                     lines.push(format!("{}{}{}", state_def, state_args, state_closure));
                     lines.push("p2.PermuteMut(&state)".to_string());
@@ -644,17 +647,17 @@ impl<C: Config> GnarkBackend<C> {
                         .for_each(|(i, s)| lines.push(format!("{} = state[{}]", s.id(), i)))
                 }
                 DslIR::CircuitNum2BitsV(var, num_bits, output) => {
-                    lines.push(format!("state = api.ToBinary({}, {})", var.id(), num_bits));
+                    lines.push(format!("state2 = api.ToBinary({}, {})", var.id(), num_bits));
                     for i in 0..num_bits {
                         let operator = self.assign(output[i].id());
-                        lines.push(format!("{} {} state[{}]", output[i].id(), operator, i));
+                        lines.push(format!("{} {} state2[{}]", output[i].id(), operator, i));
                     }
                 }
                 DslIR::CircuitNum2BitsF(var, output) => {
-                    lines.push(format!("state = babybearChip.ToBinary({})", var.id(),));
+                    lines.push(format!("state2 = babybearChip.ToBinary({})", var.id(),));
                     for i in 0..32 {
                         let operator = self.assign(output[i].id());
-                        lines.push(format!("{} {} state[{}]", output[i].id(), operator, i));
+                        lines.push(format!("{} {} state2[{}]", output[i].id(), operator, i));
                     }
                 }
                 _ => todo!(),
@@ -671,7 +674,7 @@ impl<C: Config> GnarkBackend<C> {
             .sorted()
             .map(|id| {
                 if id.contains("var") {
-                    format!("var {} frontend.Variable", id)
+                    format!("{} := frontend.Variable(0)", id)
                 } else if id.contains("felt") {
                     format!("var {} *babybear.Variable", id)
                 } else if id.contains("ext") {

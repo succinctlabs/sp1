@@ -13,7 +13,8 @@ type Circuit struct {
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
-	var state []frontend.Variable
+	var state [3]frontend.Variable
+	state2 := make([]frontend.Variable, 256)
 	babybearChip := babybear.NewChip(api)
 	p2 := poseidon2.NewPoseidon2Chip(api)
 {{LINES}}
