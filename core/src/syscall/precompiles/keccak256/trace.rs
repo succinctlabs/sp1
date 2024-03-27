@@ -79,7 +79,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                                 cols.state_addr = F::from_canonical_u32(event.state_addr);
                                 cols.do_memory_check = F::one();
-                                cols.ecall_receive = F::one();
+                                cols.receive_ecall = F::one();
                             }
 
                             // If this is the last row, then populate write memory accesses

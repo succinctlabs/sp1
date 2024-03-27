@@ -2,7 +2,7 @@ use core::borrow::Borrow;
 
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
-use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, U64_LIMBS};
+use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, NUM_ROUNDS, U64_LIMBS};
 use p3_matrix::MatrixRowSlices;
 
 use crate::{
@@ -30,7 +30,9 @@ where
         let main = builder.main();
 
         let local: &KeccakMemCols<AB::Var> = main.row_slice(0).borrow();
+        let next: &KeccakMemCols<AB::Var> = main.row_slice(1).borrow();
 
+        // Constrain memory in the first and last cycles
         builder.assert_eq(
             (local.keccak.step_flags[0] + local.keccak.step_flags[23]) * local.is_real,
             local.do_memory_check,
@@ -47,23 +49,48 @@ where
             );
         }
 
-        // TODO: constraint "ecall_receive"
+        // Receive the syscall in the first row of each 24-cycle
+        builder.assert_eq(
+            local.receive_ecall,
+            local.keccak.step_flags[0] * local.is_real,
+        );
         builder.receive_syscall(
             local.shard,
             local.clk,
             AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
             local.state_addr,
             AB::Expr::zero(),
-            local.ecall_receive,
+            local.receive_ecall,
         );
 
-        // Verify that local.a values are equal to the memory values when local.step_flags[0] == 1
-        // (for the permutation input) and when local.step_flags[23] == 1 (for the permutation output).
+        // Constrain that the inputs stay the same throughout the 24 rows of each cycle
+        let mut not_last_in_cycle = local.keccak.step_flags[0].into();
+        for i in 1..NUM_ROUNDS {
+            not_last_in_cycle = not_last_in_cycle + local.keccak.step_flags[i];
+        }
+        builder
+            .when(not_last_in_cycle.clone() * local.is_real)
+            .assert_eq(local.shard, next.shard);
+        builder
+            .when(not_last_in_cycle.clone() * local.is_real)
+            .assert_eq(local.clk, next.clk);
+        builder
+            .when(not_last_in_cycle.clone() * local.is_real)
+            .assert_eq(local.state_addr, next.state_addr);
+        builder
+            .when(not_last_in_cycle)
+            .assert_eq(local.is_real, next.is_real);
+
+        // The last row must be nonreal because NUM_ROUNDS is not a power of 2. This constrain
+        // ensures that the table does not end abruptly.
+        builder.when_last_row().assert_zero(local.is_real);
+
+        // Verify that local.a values are equal to the memory values in the 0 and 23rd rows of each cycle
         // Memory values are 32 bit values (encoded as 4 8-bit columns).
         // local.a values are 64 bit values (encoded as 4 16 bit columns).
         let expr_2_pow_8 = AB::Expr::from_canonical_u32(2u32.pow(8));
-
         for i in 0..STATE_SIZE as u32 {
+            // Interpret u32 memory words as u16 limbs
             let least_sig_word = local.state_mem[(i * 2) as usize].value();
             let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value();
             let memory_limbs = [
