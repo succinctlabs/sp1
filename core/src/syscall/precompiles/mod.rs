@@ -4,11 +4,13 @@ pub mod k256;
 pub mod keccak256;
 pub mod sha256;
 pub mod weierstrass;
-
 use crate::runtime::SyscallContext;
 use core::fmt::Debug;
 use generic_array::{ArrayLength, GenericArray};
+use serde::de::{SeqAccess, Visitor};
+use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::fmt::Formatter;
 use typenum::Unsigned;
 
 use crate::utils::ec::field::NumWords;
@@ -64,9 +66,10 @@ pub fn create_ec_add_event<E: EllipticCurve>(
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     let q_affine = AffinePoint::<E>::from_words_le(&q);
     let result_affine = p_affine + q_affine;
+
     let result_words = result_affine.to_words_le();
 
-    let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
+    let p_memory_records = rt.mw_slice(p_ptr, &result_words.0).try_into().unwrap();
 
     ECAddEvent {
         shard: rt.current_shard(),
@@ -158,7 +161,7 @@ pub fn create_ec_double_event<E: EllipticCurve>(
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     let result_affine = E::ec_double(&p_affine);
     let result_words = result_affine.to_words_le();
-    let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
+    let p_memory_records = rt.mw_slice(p_ptr, &result_words.0).try_into().unwrap();
 
     ECDoubleEvent {
         shard: rt.current_shard(),
@@ -177,8 +180,6 @@ where
     where
         S: Serializer,
     {
-        use serde::ser::SerializeStruct;
-
         let mut state = serializer.serialize_struct("ECAddEvent", 8)?;
         state.serialize_field("shard", &self.shard)?;
         state.serialize_field("clk", &self.clk)?;
@@ -200,8 +201,7 @@ where
     where
         D: Deserializer<'de>,
     {
-        use serde::de::{SeqAccess, Visitor};
-
+        // Define a custom visitor struct for deserializing ECAddEvent.
         struct ECAddEventVisitor<E: EllipticCurve>(std::marker::PhantomData<E>);
 
         impl<'de, E: EllipticCurve> Visitor<'de> for ECAddEventVisitor<E>
@@ -210,47 +210,65 @@ where
         {
             type Value = ECAddEvent<E>;
 
-            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+            // Provide an error message if the data format is not met.
+            fn expecting(&self, formatter: &mut Formatter) -> std::fmt::Result {
                 formatter.write_str("struct ECAddEvent")
             }
 
+            // // Visit the sequence of fields and deserialize them.
             fn visit_seq<A>(self, mut seq: A) -> Result<Self::Value, A::Error>
             where
                 A: SeqAccess<'de>,
             {
+                // Deserialize the `shard` field.
                 let shard = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+
+                // Deserialize the `clk` field.
                 let clk = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+
+                // Deserialize the `p_ptr` field.
                 let p_ptr = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+
+                // Deserialize the `p` field as Vec<u32> and convert it to GenericArray.
                 let p_slice: Vec<u32> = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
                 let p = GenericArray::try_from(p_slice)
                     .map_err(|_| serde::de::Error::invalid_length(3, &self))?;
+
+                // Deserialize the `q_ptr` field.
                 let q_ptr = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
+
+                // Deserialize the `q` field as Vec<u32> and convert it to GenericArray
                 let q_slice: Vec<u32> = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(5, &self))?;
                 let q = GenericArray::try_from(q_slice)
                     .map_err(|_| serde::de::Error::invalid_length(5, &self))?;
+
+                // Deserialize the `p_memory_records` field as Vec<MemoryWriteRecord> and convert it to GenericArray.
                 let p_memory_records_slice: Vec<MemoryWriteRecord> = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(6, &self))?;
                 let p_memory_records = GenericArray::try_from(p_memory_records_slice)
                     .map_err(|_| serde::de::Error::invalid_length(6, &self))?;
+
+                // Deserialize the `q_memory_records` field as Vec<MemoryReadRecord> and convert it to GenericArray.
                 let q_memory_records_slice: Vec<MemoryReadRecord> = seq
                     .next_element()?
                     .ok_or_else(|| serde::de::Error::invalid_length(7, &self))?;
                 let q_memory_records = GenericArray::try_from(q_memory_records_slice)
                     .map_err(|_| serde::de::Error::invalid_length(7, &self))?;
 
+                // Construct and return the ECAddEvent struct with the deserialized fields.
                 Ok(ECAddEvent {
                     shard,
                     clk,
@@ -264,6 +282,7 @@ where
             }
         }
 
+        // Call the deserializer's `deserialize_struct` method with the struct name, field names, and the custom visitor.
         deserializer.deserialize_struct(
             "ECAddEvent",
             &[

@@ -1,7 +1,7 @@
 use crate::air::Polynomial;
 use generic_array::{ArrayLength, GenericArray};
 use std::fmt::Debug;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 use std::slice::Iter;
 use std::usize;
 
@@ -31,6 +31,12 @@ impl<T, N: ArrayLength> Index<usize> for Limbs<T, N> {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
+    }
+}
+
+impl<T, N: ArrayLength> IndexMut<usize> for Limbs<T, N> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
 

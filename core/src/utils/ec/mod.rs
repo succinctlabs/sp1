@@ -5,7 +5,6 @@ pub mod utils;
 pub mod weierstrass;
 
 use field::FieldParameters;
-use generic_array::GenericArray;
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::{Debug, Display, Formatter, Result};
@@ -13,8 +12,9 @@ use std::ops::{Add, Neg};
 use typenum::Unsigned;
 
 use crate::air::WORD_SIZE;
+use crate::operations::field::params::Limbs;
 
-use self::field::{NumBytes, NumWords};
+use self::field::NumWords;
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
 pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;
@@ -78,21 +78,25 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
         }
     }
 
-    pub fn to_words_le(&self) -> [u32; 24] {
-        let mut x_bytes = self.x.to_bytes_le();
-        x_bytes.resize(48, 0u8);
-        let mut y_bytes = self.y.to_bytes_le();
-        y_bytes.resize(48, 0u8);
+    pub fn to_words_le(&self) -> Limbs<u32, <E::BaseField as NumWords>::WordsCurvePoint> {
+        let n = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+        let num_bytes = n * 4;
+        let half_words = n / 2;
 
-        let mut words = [0u32; 24];
-        for i in 0..12 {
+        let mut x_bytes = self.x.to_bytes_le();
+        x_bytes.resize(num_bytes / 2, 0u8);
+        let mut y_bytes = self.y.to_bytes_le();
+        y_bytes.resize(num_bytes / 2, 0u8);
+
+        let mut words = Limbs::<u32, <E::BaseField as NumWords>::WordsCurvePoint>::default();
+        for i in 0..half_words {
             words[i] = u32::from_le_bytes([
                 x_bytes[i * 4],
                 x_bytes[i * 4 + 1],
                 x_bytes[i * 4 + 2],
                 x_bytes[i * 4 + 3],
             ]);
-            words[i + 12] = u32::from_le_bytes([
+            words[i + half_words] = u32::from_le_bytes([
                 y_bytes[i * 4],
                 y_bytes[i * 4 + 1],
                 y_bytes[i * 4 + 2],
