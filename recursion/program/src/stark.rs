@@ -383,7 +383,7 @@ pub(crate) mod tests {
             .map(|_| challenger_val.sample_ext_element::<EF>())
             .collect::<Vec<_>>();
 
-        // Observe all the commitments.
+        let time = Instant::now();
         let mut builder = VmBuilder::<F, EF>::default();
         let config = const_fri_config(&mut builder, default_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
@@ -409,10 +409,9 @@ pub(crate) mod tests {
             );
         }
 
-        let time = Instant::now();
         let program = builder.compile();
         let elapsed = time.elapsed();
-        println!("Compilation took: {:?}", elapsed);
+        println!("Building took: {:?}", elapsed);
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
 
@@ -423,6 +422,78 @@ pub(crate) mod tests {
             "The program executed successfully, number of cycles: {}",
             runtime.timestamp
         );
+        println!("Number of Poseidon permutes: {}", runtime.nb_poseidons);
+        println!("Execution took: {:?}", elapsed);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_recursive_verify_bad_proof() {
+        // Generate a dummy proof.
+        sp1_core::utils::setup_logger();
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+
+        let machine = A::machine(SC::default());
+        let mut challenger_val = machine.config().challenger();
+        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+            .unwrap()
+            .proof
+            .shard_proofs;
+        println!("Proof generated successfully");
+
+        proofs.iter().for_each(|proof| {
+            challenger_val.observe(proof.commitment.main_commit);
+        });
+
+        let permutation_challenges = (0..2)
+            .map(|_| challenger_val.sample_ext_element::<EF>())
+            .collect::<Vec<_>>();
+
+        // Observe all the commitments.
+        let time = Instant::now();
+        let mut builder = VmBuilder::<F, EF>::default();
+        let config = const_fri_config(&mut builder, default_fri_config());
+        let pcs = TwoAdicFriPcsVariable { config };
+
+        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+
+        let mut shard_proofs = vec![];
+        for proof_val in proofs {
+            // Change a commitment to be incorrect.
+            let mut proof_val = proof_val;
+            proof_val.commitment.main_commit = [F::zero(); DIGEST_SIZE].into();
+            let proof = const_proof(&mut builder, &machine, proof_val);
+            let ShardCommitment { main_commit, .. } = &proof.commitment;
+            challenger.observe_commitment(&mut builder, main_commit.clone());
+            shard_proofs.push(proof);
+        }
+
+        for proof in shard_proofs {
+            StarkVerifier::<C, SC>::verify_shard(
+                &mut builder,
+                &pcs,
+                &machine,
+                &mut challenger.clone(),
+                &proof,
+                &permutation_challenges,
+            );
+        }
+
+        let program = builder.compile();
+        let elapsed = time.elapsed();
+        println!("Building took: {:?}", elapsed);
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+
+        let time = Instant::now();
+        runtime.run();
+        let elapsed = time.elapsed();
+        println!(
+            "The program executed successfully, number of cycles: {}",
+            runtime.timestamp
+        );
+        println!("Number of Poseidon permutes: {}", runtime.nb_poseidons);
         println!("Execution took: {:?}", elapsed);
     }
 }

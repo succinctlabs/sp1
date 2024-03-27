@@ -168,6 +168,7 @@ impl<C: Config> Builder<C> {
         let eight_ctr: Var<_> = self.eval(C::N::from_canonical_usize(0));
         let target = array.len().materialize(self);
 
+        // TODO: use break, should be target / 8
         self.range(0, target).for_each(|i, builder| {
             let element = builder.get(array, i);
             builder.set(&mut state, eight_ctr, element);

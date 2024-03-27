@@ -138,6 +138,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.eval(log_global_max_height - log_height);
                         let index_bits_shifted_v2 = index_bits.shift(builder, bits_reduced);
                         let index_shifted_v2 = builder.bits_to_num_var(&index_bits_shifted_v2);
+                        // TODO: perf
                         let rev_reduced_index =
                             builder.reverse_bits_len(index_shifted_v2, Usize::Var(log_height));
                         let rev_reduced_index = rev_reduced_index.materialize(builder);
@@ -145,6 +146,8 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let g = builder.generator();
                         let two_adic_generator = builder.two_adic_generator(Usize::Var(log_height));
                         let two_adic_generator_exp =
+                        // TODO: don't duplicate this bit decomposition
+                        // TODO: add break to early terminate
                             builder.exp_usize_f(two_adic_generator, Usize::Var(rev_reduced_index));
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
