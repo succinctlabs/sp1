@@ -1,10 +1,12 @@
 use crate::syscalls::{syscall_halt, syscall_write};
+use crate::PI_DIGEST_SIZE;
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(msg_ptr: *const u8, len: usize) -> ! {
     sys_write(2, msg_ptr, len);
-    syscall_halt(1);
+    let dummy_pi_digest = [0u8; PI_DIGEST_SIZE];
+    syscall_halt(1, &dummy_pi_digest);
 }
 
 #[allow(unused_variables)]

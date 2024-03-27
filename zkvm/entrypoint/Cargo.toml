@@ -12,6 +12,7 @@ k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
 rand = "0.8.5"
 serde = { version = "1.0.196", features = ["derive"] }
 libm = { version = "0.2.8", optional = true }
+sha2 = "0.10.8"
 
 [features]
 default = ["libm"]

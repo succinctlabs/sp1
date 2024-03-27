@@ -3020,6 +3020,7 @@ dependencies = [
  "libm",
  "rand",
  "serde",
+ "sha2",
  "sp1-precompiles",
 ]
 

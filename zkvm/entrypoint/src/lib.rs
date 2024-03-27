@@ -32,14 +32,22 @@ macro_rules! entrypoint {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
+pub const PI_DIGEST_SIZE: usize = 8 * 4;
+
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
     use getrandom::{register_custom_getrandom, Error};
+    use sha2::{Digest, Sha256};
+
+    pub static mut PI_HASHER: Option<Sha256> = None;
+    use crate::PI_DIGEST_SIZE;
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
+        PI_HASHER = Some(Sha256::new());
+
         {
             extern "C" {
                 fn main();
@@ -47,7 +55,10 @@ mod zkvm {
             main()
         }
 
-        syscall_halt(0);
+        let pi_hasher = core::mem::take(&mut PI_HASHER);
+        let pi_digest = pi_hasher.unwrap().finalize();
+        let pi_digest: [u8; PI_DIGEST_SIZE] = pi_digest.as_slice().try_into().unwrap();
+        syscall_halt(0, &pi_digest);
     }
 
     static STACK_TOP: u32 = 0x0020_0400;

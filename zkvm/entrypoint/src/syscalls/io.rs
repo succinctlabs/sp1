@@ -1,5 +1,10 @@
-#[cfg(target_os = "zkvm")]
-use core::arch::asm;
+cfg_if::cfg_if! {
+    if #[cfg(target_os = "zkvm")] {
+        use core::arch::asm;
+        use crate::zkvm;
+        use sha2::digest::Update;
+    }
+}
 
 /// Reads data from the prover.
 #[allow(unused_variables)]
@@ -59,17 +64,25 @@ pub extern "C" fn syscall_read(fd: u32, read_buf: *mut u8, nbytes: usize) {
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
-    #[cfg(target_os = "zkvm")]
-    unsafe {
-        asm!(
-            "ecall",
-            in("t0") crate::syscalls::WRITE,
-            in("a0") fd,
-            in("a1") write_buf,
-            in("a2") nbytes,
-        );
-    }
+    cfg_if::cfg_if! {
+        if #[cfg(target_os = "zkvm")] {
+            unsafe {
+                asm!(
+                    "ecall",
+                    in("t0") crate::syscalls::WRITE,
+                    in("a0") fd,
+                    in("a1") write_buf,
+                    in("a2") nbytes,
+                );
+            }
 
-    #[cfg(not(target_os = "zkvm"))]
-    unreachable!()
+            // Public Inputs writes
+            if fd == 5 {
+                let pi_slice: &[u8] = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
+                unsafe { zkvm::PI_HASHER.as_mut().unwrap_unchecked().update(pi_slice) };
+            }
+        } else {
+            unreachable!()
+        }
+    }
 }
