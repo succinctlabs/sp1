@@ -173,8 +173,10 @@ mod tests {
     use p3_commit::{Pcs, PolynomialSpace};
 
     use crate::{
-        commit::PolynomialSpaceVariable, fri::TwoAdicMultiplicativeCosetVariable,
-        stark::StarkVerifier, types::ChipOpening,
+        commit::PolynomialSpaceVariable,
+        fri::TwoAdicMultiplicativeCosetVariable,
+        stark::StarkVerifier,
+        types::{ChipOpenedValuesVariable, ChipOpening},
     };
 
     #[allow(clippy::type_complexity)]
@@ -325,7 +327,9 @@ mod tests {
                 );
 
                 // Compute the folded constraints value in the DSL.
-                let values = ChipOpening::from_constant(&mut builder, values_vals);
+                let values_var: ChipOpenedValuesVariable<_> =
+                    builder.eval_const(values_vals.clone());
+                let values = ChipOpening::from_variable(&mut builder, chip, &values_var);
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain: TwoAdicMultiplicativeCosetVariable<_> =

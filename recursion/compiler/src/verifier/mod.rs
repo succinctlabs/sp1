@@ -1,4 +1,3 @@
-pub mod challenger;
 pub mod constraints;
 pub mod fri;
 
@@ -10,7 +9,7 @@ use std::marker::PhantomData;
 
 use crate::prelude::Config;
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 pub struct StarkGenericBuilderConfig<N, SC> {
     marker: PhantomData<(N, SC)>,
 }

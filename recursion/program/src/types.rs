@@ -98,20 +98,20 @@ pub struct AirOpenedValuesVariable<C: Config> {
 }
 
 impl<C: Config> ChipOpening<C> {
-    pub fn from_constant(builder: &mut Builder<C>, opening: &ChipOpenedValues<C::EF>) -> Self {
-        ChipOpening {
-            preprocessed: builder.const_opened_values(&opening.preprocessed),
-            main: builder.const_opened_values(&opening.main),
-            permutation: builder.const_opened_values(&opening.permutation),
-            quotient: opening
-                .quotient
-                .iter()
-                .map(|q| q.iter().map(|s| builder.eval(s.cons())).collect())
-                .collect(),
-            cumulative_sum: builder.eval(opening.cumulative_sum.cons()),
-            log_degree: builder.eval(opening.log_degree),
-        }
-    }
+    // pub fn from_constant(builder: &mut Builder<C>, opening: &ChipOpenedValues<C::EF>) -> Self {
+    //     ChipOpening {
+    //         preprocessed: builder.const_opened_values(&opening.preprocessed),
+    //         main: builder.const_opened_values(&opening.main),
+    //         permutation: builder.const_opened_values(&opening.permutation),
+    //         quotient: opening
+    //             .quotient
+    //             .iter()
+    //             .map(|q| q.iter().map(|s| builder.eval(s.cons())).collect())
+    //             .collect(),
+    //         cumulative_sum: builder.eval(opening.cumulative_sum.cons()),
+    //         log_degree: builder.eval(opening.log_degree),
+    //     }
+    // }
 
     pub fn from_variable<A>(
         builder: &mut Builder<C>,
