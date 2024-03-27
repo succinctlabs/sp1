@@ -133,13 +133,13 @@ where
 {
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = builder.two_adic_generator(log_max_height);
-    let two_adic_generator_ef = builder.eval(SymbolicExt::Base(
+    let two_adic_generator_ef: Ext<_, _> = builder.eval(SymbolicExt::Base(
         SymbolicFelt::Val(two_adic_generator_f).into(),
     ));
-    let power = builder.reverse_bits_len(index, log_max_height);
-    let x = builder.exp_usize_ef(two_adic_generator_ef, power);
-
     let index_bits = builder.num2bits_v(index);
+    let power_bits = builder.reverse_bits_len(&index_bits, log_max_height);
+    let x = builder.exp_bits(two_adic_generator_ef, &power_bits);
+
     let log_max_height = log_max_height.materialize(builder);
     builder
         .range(0, commit_phase_commits.len())
@@ -166,7 +166,7 @@ where
 
             let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
             let dims = Dimensions::<C> {
-                height: builder.exp_usize_v(two, Usize::Var(log_folded_height)),
+                height: builder.exp(two, log_folded_height),
             };
             let mut dims_slice: Array<C, Dimensions<C>> = builder.array(1);
             builder.set(&mut dims_slice, 0, dims);

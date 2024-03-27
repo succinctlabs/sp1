@@ -165,7 +165,7 @@ where
         let g_dom = self.gen();
 
         // We can compute a generator for the domain by computing g_dom^{log_num_chunks}
-        let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks.into());
+        let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks);
 
         let domain_power: Felt<_> = builder.eval(C::F::one());
         let mut domains = vec![];

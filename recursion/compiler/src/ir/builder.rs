@@ -444,23 +444,20 @@ impl<C: Config> Builder<C> {
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
-    #[allow(unused_variables)]
     ///
     /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
     /// behavior.
     pub fn reverse_bits_len(
         &mut self,
-        index: Var<C::N>,
+        index_bits: &Array<C, Var<C::N>>,
         bit_len: impl Into<Usize<C::N>>,
-    ) -> Usize<C::N> {
-        let bits = self.num2bits_usize(index);
-
+    ) -> Array<C, Var<C::N>> {
         // Compute the reverse bits.
         let bit_len = bit_len.into();
         let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
         self.range(0, bit_len).for_each(|i, builder| {
             let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
-            let entry = builder.get(&bits, index);
+            let entry = builder.get(index_bits, index);
             builder.set(&mut result_bits, i, entry);
         });
 
@@ -468,7 +465,7 @@ impl<C: Config> Builder<C> {
             builder.set(&mut result_bits, i, C::N::zero());
         });
 
-        self.bits_to_num_usize(&result_bits)
+        result_bits
     }
 
     #[allow(unused_variables)]
@@ -486,14 +483,15 @@ impl<C: Config> Builder<C> {
         result
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
-    #[allow(unused_variables)]
-    pub fn exp_usize_f(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
-        let result = self.eval(C::F::one());
-        let power_f: Felt<_> = self.eval(x);
-        let bits = self.num2bits_usize(power);
-        self.range(0, bits.len()).for_each(|i, builder| {
-            let bit = builder.get(&bits, i);
+    pub fn exp_bits<V: Variable<C>>(&mut self, x: V, power_bits: &Array<C, Var<C::N>>) -> V
+    where
+        V::Expression: AbstractField,
+        V: Copy + Mul<Output = V::Expression>,
+    {
+        let result = self.eval(V::Expression::one());
+        let power_f: V = self.eval(x);
+        self.range(0, power_bits.len()).for_each(|i, builder| {
+            let bit = builder.get(power_bits, i);
             builder
                 .if_eq(bit, C::N::one())
                 .then(|builder| builder.assign(result, result * power_f));
@@ -504,8 +502,13 @@ impl<C: Config> Builder<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
-    pub fn exp_usize_v(&mut self, x: Var<C::N>, power: Usize<C::N>) -> Var<C::N> {
-        let result = self.eval(C::N::one());
+    pub fn exp<V>(&mut self, x: V, power: impl Into<Usize<C::N>>) -> V
+    where
+        V::Expression: AbstractField,
+        V: Variable<C> + Copy + Mul<Output = V::Expression>,
+    {
+        let power = power.into();
+        let result = self.eval(V::Expression::one());
         self.range(0, power).for_each(|_, builder| {
             builder.assign(result, result * x);
         });
@@ -515,11 +518,12 @@ impl<C: Config> Builder<C> {
     pub fn exp_power_of_2_v<V: Variable<C>>(
         &mut self,
         base: impl Into<V::Expression>,
-        power_log: Usize<C::N>,
+        power_log: impl Into<Usize<C::N>>,
     ) -> V
     where
         V: Copy + Mul<Output = V::Expression>,
     {
+        let power_log = power_log.into();
         let result: V = self.eval(base);
         self.range(0, power_log)
             .for_each(|_, builder| builder.assign(result, result * result));
@@ -853,14 +857,17 @@ mod tests {
 
         // Materialize the number as a var
         let x: Var<_> = builder.eval(x_val);
+        let x_bits = builder.num2bits_v(x);
 
         for i in 1..NUM_BITS {
             // Get the reference value.
             let expected_value = reverse_bits_len(x_val.as_canonical_u32() as usize, i);
-            let value = builder.reverse_bits_len(x, i);
+            let value_bits = builder.reverse_bits_len(&x_bits, i);
+            let value = builder.bits_to_num_var(&value_bits);
             builder.assert_usize_eq(value, expected_value);
             let var_i: Var<_> = builder.eval(F::from_canonical_usize(i));
-            let value_var = builder.reverse_bits_len(x, var_i);
+            let value_var_bits = builder.reverse_bits_len(&x_bits, var_i);
+            let value_var = builder.bits_to_num_var(&value_var_bits);
             builder.assert_usize_eq(value_var, expected_value);
         }
 

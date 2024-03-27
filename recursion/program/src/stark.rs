@@ -420,6 +420,10 @@ pub(crate) mod tests {
             runtime.timestamp
         );
         println!("Number of Poseidon permutes: {}", runtime.nb_poseidons);
+        println!(
+            "Number of bit decompositions: {}",
+            runtime.nb_bit_decompositions
+        );
         println!("Execution took: {:?}", elapsed);
     }
 
@@ -448,7 +452,6 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
 
         // Observe all the commitments.
-        let time = Instant::now();
         let mut builder = VmBuilder::<F, EF>::default();
         let config = const_fri_config(&mut builder, default_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
@@ -478,19 +481,9 @@ pub(crate) mod tests {
         }
 
         let program = builder.compile();
-        let elapsed = time.elapsed();
-        println!("Building took: {:?}", elapsed);
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
 
-        let time = Instant::now();
         runtime.run();
-        let elapsed = time.elapsed();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.timestamp
-        );
-        println!("Number of Poseidon permutes: {}", runtime.nb_poseidons);
-        println!("Execution took: {:?}", elapsed);
     }
 }
