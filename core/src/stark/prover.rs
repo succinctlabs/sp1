@@ -19,6 +19,7 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::cmp::Reverse;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
@@ -161,19 +162,27 @@ where
         index: usize,
     ) -> ShardMainData<SC> {
         // Filter the chips based on what is used.
-        let filtered_chips = machine.shard_chips(shard).collect::<Vec<_>>();
+        let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
-        let traces = filtered_chips
+        let mut named_traces = shard_chips
             .par_iter()
-            .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+            .map(|chip| {
+                (
+                    chip.name(),
+                    chip.generate_trace(shard, &mut A::Record::default()),
+                )
+            })
             .collect::<Vec<_>>();
+
+        // Order the chips and traces by trace size (biggest first), and get the ordering map.
+        named_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
 
         let pcs = config.pcs();
 
-        let mut domains_and_traces = traces
+        let domains_and_traces = named_traces
             .iter()
-            .map(|trace| {
+            .map(|(_, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 (domain, trace.to_owned())
             })
@@ -183,11 +192,16 @@ where
         let (main_commit, main_data) = pcs.commit(domains_and_traces);
 
         // Get the chip ordering.
-        let chip_ordering = filtered_chips
+        let chip_ordering = named_traces
             .iter()
             .enumerate()
-            .map(|(i, chip)| (chip.name(), i))
+            .map(|(i, (name, _))| (name.to_owned(), i))
             .collect();
+
+        let traces = named_traces
+            .into_iter()
+            .map(|(_, trace)| trace)
+            .collect::<Vec<_>>();
 
         ShardMainData {
             traces,

@@ -134,7 +134,6 @@ where
         let mut domains = vec![];
 
         for _ in 0..num_chunks {
-            builder.print_f(domain_power);
             domains.push(TwoAdicMultiplicativeCosetVariable {
                 log_n,
                 size,

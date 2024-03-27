@@ -179,9 +179,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
-                    .chips()
-                    .iter()
-                    .filter(|chip| proof.chip_ordering.contains_key(&chip.name()))
+                    .shard_chips_ordered(&proof.chip_ordering)
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
