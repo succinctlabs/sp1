@@ -1,5 +1,5 @@
 [package]
-name = "sp1-recursion-compiler"
+name = "sp1-recursion-program"
 version = "0.1.0"
 edition = "2021"
 
@@ -11,13 +11,13 @@ p3-field = { workspace = true }
 p3-commit = { workspace = true }
 p3-fri = { workspace = true }
 p3-matrix = { workspace = true }
-p3-symmetric = { workspace = true }
 p3-util = { workspace = true }
 sp1-recursion-core = { path = "../core" }
+sp1-recursion-compiler = { path = "../compiler" }
 sp1-core = { path = "../../core" }
 itertools = "0.12.1"
 serde = { version = "1.0.197", features = ["derive"] }
-sp1-recursion-derive = { path = "../derive" }
+p3-symmetric = { workspace = true }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }

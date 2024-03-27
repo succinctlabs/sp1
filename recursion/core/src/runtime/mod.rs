@@ -20,11 +20,15 @@ use crate::memory::MemoryRecord;
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
 
-pub const STACK_SIZE: usize = 1 << 20;
-pub const MEMORY_SIZE: usize = 1 << 26;
+pub const STACK_SIZE: usize = 1 << 24;
+pub const MEMORY_SIZE: usize = 1 << 28;
 
-pub const POSEIDON2_WIDTH: usize = 16;
+/// The width of the Poseidon2 permutation.
+pub const PERMUTATION_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
+
+/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
+pub const DIGEST_SIZE: usize = 8;
 
 pub const NUM_BITS: usize = 31;
 
@@ -69,19 +73,19 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
-    perm: Poseidon2<F, Diffusion, POSEIDON2_WIDTH, POSEIDON2_SBOX_DEGREE>,
+    perm: Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>,
 
     _marker: PhantomData<EF>,
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<F, EF, Diffusion>
 where
-    Poseidon2<F, Diffusion, POSEIDON2_WIDTH, POSEIDON2_SBOX_DEGREE>:
-        CryptographicPermutation<[F; POSEIDON2_WIDTH]>,
+    Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>:
+        CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
     pub fn new(
         program: &Program<F>,
-        perm: Poseidon2<F, Diffusion, POSEIDON2_WIDTH, POSEIDON2_SBOX_DEGREE>,
+        perm: Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>,
     ) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
@@ -393,7 +397,7 @@ where
                     // Get the src array ptr.
                     let src = b_val[0].as_canonical_u32() as usize;
 
-                    let array: [_; POSEIDON2_WIDTH] = self.memory[src..src + POSEIDON2_WIDTH]
+                    let array: [_; PERMUTATION_WIDTH] = self.memory[src..src + PERMUTATION_WIDTH]
                         .iter()
                         .map(|entry| entry.value[0])
                         .collect::<Vec<_>>()

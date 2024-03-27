@@ -1,10 +1,9 @@
 use p3_field::AbstractField;
-use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
 
-use super::fri::types::DIGEST_SIZE;
-use crate::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
-use crate::verifier::fri::types::Commitment;
-use crate::verifier::fri::types::PERMUTATION_WIDTH;
+use sp1_recursion_compiler::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
+use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
+
+use crate::types::Commitment;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
 #[derive(Clone)]
@@ -19,11 +18,11 @@ pub struct DuplexChallengerVariable<C: Config> {
 impl<C: Config> DuplexChallengerVariable<C> {
     pub fn new(builder: &mut Builder<C>) -> Self {
         DuplexChallengerVariable::<C> {
-            sponge_state: builder.dyn_array(POSEIDON2_WIDTH),
+            sponge_state: builder.dyn_array(PERMUTATION_WIDTH),
             nb_inputs: builder.eval(C::N::zero()),
-            input_buffer: builder.dyn_array(POSEIDON2_WIDTH),
+            input_buffer: builder.dyn_array(PERMUTATION_WIDTH),
             nb_outputs: builder.eval(C::N::zero()),
-            output_buffer: builder.dyn_array(POSEIDON2_WIDTH),
+            output_buffer: builder.dyn_array(PERMUTATION_WIDTH),
         }
     }
 
@@ -129,20 +128,21 @@ impl<C: Config> DuplexChallengerVariable<C> {
 
 #[cfg(test)]
 mod tests {
-    use crate::asm::AsmConfig;
-    use crate::asm::VmBuilder;
-    use crate::ir::Felt;
-    use crate::ir::Usize;
-    use crate::ir::Var;
-    use crate::verifier::challenger::DuplexChallengerVariable;
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_field::AbstractField;
     use p3_field::PrimeField32;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::BabyBearPoseidon2;
+    use sp1_recursion_compiler::asm::AsmConfig;
+    use sp1_recursion_compiler::asm::VmBuilder;
+    use sp1_recursion_compiler::ir::Felt;
+    use sp1_recursion_compiler::ir::Usize;
+    use sp1_recursion_compiler::ir::Var;
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
+    use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+
+    use crate::challenger::DuplexChallengerVariable;
 
     #[test]
     fn test_compiler_challenger() {
@@ -161,7 +161,7 @@ mod tests {
 
         let mut builder = VmBuilder::<F, EF>::default();
 
-        let width: Var<_> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
+        let width: Var<_> = builder.eval(F::from_canonical_usize(PERMUTATION_WIDTH));
         let mut challenger = DuplexChallengerVariable::<AsmConfig<F, EF>> {
             sponge_state: builder.array(Usize::Var(width)),
             nb_inputs: builder.eval(F::zero()),
