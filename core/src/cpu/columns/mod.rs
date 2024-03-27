@@ -9,6 +9,7 @@ mod opcode_specific;
 
 pub use auipc::*;
 pub use branch::*;
+pub use ecall::*;
 pub use instruction::*;
 pub use jump::*;
 pub use memory::*;

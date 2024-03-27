@@ -8,6 +8,7 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
+use crate::air::BaseAirBuilder;
 use crate::air::Word;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
@@ -251,8 +252,9 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-        _next: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
     ) -> (AB::Expr, AB::Expr) {
+        let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -279,38 +281,57 @@ impl CpuChip {
         );
 
         // Constrain EcallCols.is_enter_unconstrained.result == syscall_id is ENTER_UNCONSTRAINED.
-        IsZeroOperation::<AB::F>::eval(
-            builder,
-            syscall_id
-                - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
-            local.opcode_specific_columns.ecall().is_enter_unconstrained,
-            is_ecall_instruction.clone(),
-        );
+        let is_enter_unconstrained = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id
+                    - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+                ecall_cols.is_enter_unconstrained,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_enter_unconstrained.result
+        };
+
+        // Constrain EcallCols.is_halt.result == syscall_id is HALT.
+        let is_halt = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
+                ecall_cols.is_halt,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_halt.result
+        };
+
+        // Constrain EcallCols.is_lwa.result == syscall_id is LWA.
+        let is_lwa = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::LWA.syscall_id()),
+                ecall_cols.is_lwa,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_lwa.result
+        };
 
         // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
         let zero_word = Word::<AB::F>::from(0);
         builder
-            .when(
-                is_ecall_instruction.clone()
-                    * local
-                        .opcode_specific_columns
-                        .ecall()
-                        .is_enter_unconstrained
-                        .result,
-            )
+            .when(is_ecall_instruction.clone() * is_enter_unconstrained)
             .assert_word_eq(local.op_a_val(), zero_word);
 
-        // For LWA we assume prover-supplied values. Although to be honest, I'm not 100% sure we need this.
-        // builder
-        //     .when(local.is_ecall)
-        //     .when_not(is_lwa)
-        //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+        // When the syscall is not one of ENTER_UNCONSTRAINED, LWA, or HALT, op_a shouldn't change.
+        builder
+            .when(is_ecall_instruction.clone())
+            .when_not(is_enter_unconstrained + is_lwa + is_halt)
+            .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
-        // TODO: fill in constraints if the syscall is HALT.
-        // For halt instructions, the next pc is 0.
+        // // For halt instructions, the next pc is 0.
         // builder
-        //     .when(is_halt)
+        //     .when_transition()
+        //     .when(is_lwa)
         //     .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
+
         // // If we're halting and it's a transition, then the next.is_real should be 0.
         // builder
         //     .when_transition()

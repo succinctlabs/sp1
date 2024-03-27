@@ -502,12 +502,24 @@ impl CpuChip {
             // let send_to_table = cols.op_a_access.prev_value[1];
             // let num_cycles = cols.op_a_access.prev_value[2];
             // let is_halt = cols.op_a_access.prev_value[3];
+
+            // Populate `is_enter_unconstrained`.
             ecall_cols
                 .is_enter_unconstrained
                 .populate_from_field_element(
                     syscall_id
                         - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
                 );
+
+            // Populate `is_lwa`.
+            ecall_cols.is_lwa.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::LWA.syscall_id()),
+            );
+
+            // Populate `is_halt`.
+            ecall_cols.is_halt.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
+            );
         }
     }
 
