@@ -8,12 +8,15 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
+use crate::air::Word;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
+use crate::operations::IsZeroOperation;
+use crate::runtime::SyscallCode;
 use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
@@ -263,10 +266,9 @@ impl CpuChip {
         // Check that the ecall_mul_send_to_table column is equal to send_to_table * is_ecall_instruction.
         // This is a separate column because it is used as a multiplicity in an interaction which
         // requires degree 1 columns.
-        builder.assert_eq(
-            send_to_table * is_ecall_instruction.clone(),
-            local.ecall_mul_send_to_table,
-        );
+        builder
+            .when(is_ecall_instruction.clone())
+            .assert_eq(send_to_table, local.ecall_mul_send_to_table);
         builder.send_syscall(
             local.shard,
             local.clk,
@@ -275,6 +277,28 @@ impl CpuChip {
             local.op_c_val().reduce::<AB>(),
             local.ecall_mul_send_to_table,
         );
+
+        // Constrain EcallCols.is_enter_unconstrained.result == syscall_id is ENTER_UNCONSTRAINED.
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            syscall_id
+                - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+            local.opcode_specific_columns.ecall().is_enter_unconstrained,
+            is_ecall_instruction.clone(),
+        );
+
+        // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
+        let zero_word = Word::<AB::F>::from(0);
+        builder
+            .when(
+                is_ecall_instruction.clone()
+                    * local
+                        .opcode_specific_columns
+                        .ecall()
+                        .is_enter_unconstrained
+                        .result,
+            )
+            .assert_word_eq(local.op_a_val(), zero_word);
 
         // For LWA we assume prover-supplied values. Although to be honest, I'm not 100% sure we need this.
         // builder
