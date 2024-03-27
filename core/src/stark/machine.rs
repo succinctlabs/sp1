@@ -1,5 +1,8 @@
 use std::marker::PhantomData;
 
+use itertools::Itertools;
+use std::collections::HashMap;
+
 use super::debug_constraints;
 use crate::air::MachineAir;
 use crate::lookup::debug_interactions_with_all_chips;
@@ -69,6 +72,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         'a: 'b,
     {
         self.chips.iter().filter(|chip| chip.included(shard))
+    }
+
+    pub fn shard_chips_ordered<'a, 'b>(
+        &'a self,
+        chip_ordering: &'b HashMap<String, usize>,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+    where
+        'a: 'b,
+    {
+        self.chips
+            .iter()
+            .filter(|chip| chip_ordering.contains_key(&chip.name()))
+            .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
     }
 
     /// The setup preprocessing phase.
@@ -163,9 +179,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
-                    .chips()
-                    .iter()
-                    .filter(|chip| proof.chip_ids.contains(&chip.name()))
+                    .shard_chips_ordered(&proof.chip_ordering)
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)

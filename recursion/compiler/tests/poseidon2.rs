@@ -9,7 +9,7 @@ use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Runtime;
-use sp1_recursion_core::runtime::POSEIDON2_WIDTH;
+use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
 
 #[test]
 fn test_compiler_poseidon2_permute() {
@@ -24,13 +24,13 @@ fn test_compiler_poseidon2_permute() {
 
     let mut builder = VmBuilder::<F, EF>::default();
 
-    let random_state_vals: [F; POSEIDON2_WIDTH] = rng.gen();
+    let random_state_vals: [F; PERMUTATION_WIDTH] = rng.gen();
     // Execute the reference permutation
     let expected_result = perm.permute(random_state_vals);
 
     // Execture the permutation in the VM
     // Initialize an array and populate it with the entries.
-    let var_width: Var<F> = builder.eval(F::from_canonical_usize(POSEIDON2_WIDTH));
+    let var_width: Var<F> = builder.eval(F::from_canonical_usize(PERMUTATION_WIDTH));
     let mut random_state = builder.array(var_width);
     for (i, val) in random_state_vals.iter().enumerate() {
         builder.set(&mut random_state, i, *val);
