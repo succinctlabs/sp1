@@ -23,7 +23,7 @@ impl Buffer {
         }
     }
 
-    /// Set the position ptr to the beggining of the buffer.
+    /// Set the position ptr to the beginning of the buffer.
     pub fn head(&mut self) {
         self.ptr = 0;
     }

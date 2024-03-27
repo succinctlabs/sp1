@@ -5,8 +5,8 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     air::{MachineAir, Word},
-    memory::MemoryCols,
     runtime::ExecutionRecord,
+    utils::pad_rows,
 };
 
 use super::{
@@ -33,7 +33,6 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
             let mut event = input.sha_compress_events[i].clone();
 
             let og_h = event.h;
-            let mut v = [0u32; 8].map(Word::from);
 
             let mut octet_num_idx = 0;
 
@@ -54,42 +53,21 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                     .populate_read(event.h_read_records[j], &mut new_byte_lookup_events);
                 cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 
-                cols.a = v[0];
-                cols.b = v[1];
-                cols.c = v[2];
-                cols.d = v[3];
-                cols.e = v[4];
-                cols.f = v[5];
-                cols.g = v[6];
-                cols.h = v[7];
-
-                match j {
-                    0 => cols.a = *cols.mem.value(),
-                    1 => cols.b = *cols.mem.value(),
-                    2 => cols.c = *cols.mem.value(),
-                    3 => cols.d = *cols.mem.value(),
-                    4 => cols.e = *cols.mem.value(),
-                    5 => cols.f = *cols.mem.value(),
-                    6 => cols.g = *cols.mem.value(),
-                    7 => cols.h = *cols.mem.value(),
-                    _ => panic!("unsupported j"),
-                };
-
-                v[0] = cols.a;
-                v[1] = cols.b;
-                v[2] = cols.c;
-                v[3] = cols.d;
-                v[4] = cols.e;
-                v[5] = cols.f;
-                v[6] = cols.g;
-                v[7] = cols.h;
+                cols.a = Word::from(event.h_read_records[0].value);
+                cols.b = Word::from(event.h_read_records[1].value);
+                cols.c = Word::from(event.h_read_records[2].value);
+                cols.d = Word::from(event.h_read_records[3].value);
+                cols.e = Word::from(event.h_read_records[4].value);
+                cols.f = Word::from(event.h_read_records[5].value);
+                cols.g = Word::from(event.h_read_records[6].value);
+                cols.h = Word::from(event.h_read_records[7].value);
 
                 cols.is_real = F::one();
                 cols.start = cols.is_real * cols.octet_num[0] * cols.octet[0];
                 rows.push(row);
             }
 
-            // Peforms the compress operation.
+            // Performs the compress operation.
             for j in 0..64 {
                 if j % 8 == 0 {
                     octet_num_idx += 1;
@@ -97,6 +75,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 let mut row = [F::zero(); NUM_SHA_COMPRESS_COLS];
                 let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
 
+                cols.k = Word::from(SHA_COMPRESS_K[j]);
                 cols.is_compression = F::one();
                 cols.octet[j % 8] = F::one();
                 cols.octet_num[octet_num_idx] = F::one();
@@ -129,32 +108,17 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 let e_rr_6 = cols.e_rr_6.populate(output, e, 6);
                 let e_rr_11 = cols.e_rr_11.populate(output, e, 11);
                 let e_rr_25 = cols.e_rr_25.populate(output, e, 25);
-                let s1_intermeddiate = cols.s1_intermediate.populate(output, e_rr_6, e_rr_11);
-                let s1 = cols.s1.populate(output, s1_intermeddiate, e_rr_25);
+                let s1_intermediate = cols.s1_intermediate.populate(output, e_rr_6, e_rr_11);
+                let s1 = cols.s1.populate(output, s1_intermediate, e_rr_25);
 
                 let e_and_f = cols.e_and_f.populate(output, e, f);
                 let e_not = cols.e_not.populate(output, e);
                 let e_not_and_g = cols.e_not_and_g.populate(output, e_not, g);
                 let ch = cols.ch.populate(output, e_and_f, e_not_and_g);
 
-                // TODO: This is a hack to avoid calling Add5Operation::populate. We currently don't
-                // call Add5Operation::eval due to the complexity of getting the inputs at the right
-                // index, which is definitely feasible but we haven't gotten to yet. If we call
-                // Add5Operation::populate, it creates interactions, and without the matching eval
-                // call, it will cause a panic. We plan to fix this really soon.
-                //
-                // This is how we should call populate here.
-                //
-                // let temp1 = cols
-                // .temp1
-                // .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
-                //
-                let temp1 = h
-                    .wrapping_add(s1)
-                    .wrapping_add(ch)
-                    .wrapping_add(event.w[j])
-                    .wrapping_add(SHA_COMPRESS_K[j]);
-                cols.temp1.value = Word::from(temp1);
+                let temp1 = cols
+                    .temp1
+                    .populate(output, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
 
                 let a_rr_2 = cols.a_rr_2.populate(output, a, 2);
                 let a_rr_13 = cols.a_rr_13.populate(output, a, 13);
@@ -244,16 +208,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        let nb_rows = rows.len();
-        let mut padded_nb_rows = nb_rows.next_power_of_two();
-        if padded_nb_rows == 2 || padded_nb_rows == 1 {
-            padded_nb_rows = 4;
-        }
-
-        for _ in nb_rows..padded_nb_rows {
-            let row = [F::zero(); NUM_SHA_COMPRESS_COLS];
-            rows.push(row);
-        }
+        pad_rows(&mut rows, || [F::zero(); NUM_SHA_COMPRESS_COLS]);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
