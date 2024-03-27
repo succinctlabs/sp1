@@ -10,7 +10,7 @@
     clippy::default_constructed_unit_structs,
     clippy::box_default,
     deprecated,
-    incomplete_features,
+    incomplete_features
 )]
 #![feature(generic_const_exprs)]
 
