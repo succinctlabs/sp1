@@ -1,5 +1,6 @@
 use core::mem::size_of;
 
+use p3_keccak_air::KeccakCols;
 use sp1_derive::AlignedBorrow;
 
 use crate::memory::MemoryReadWriteCols;
@@ -9,6 +10,8 @@ use super::STATE_NUM_WORDS;
 #[derive(AlignedBorrow)]
 #[repr(C)]
 pub(crate) struct KeccakMemCols<T> {
+    pub keccak: KeccakCols<T>,
+
     pub shard: T,
     pub clk: T,
 
