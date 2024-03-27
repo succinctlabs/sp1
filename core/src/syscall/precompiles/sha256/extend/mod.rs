@@ -21,6 +21,11 @@ pub struct ShaExtendEvent {
     pub w_i_writes: Vec<MemoryWriteRecord>,
 }
 
+/// Implements the SHA extension operation which loops over i = [16, 63] and modifies w[i] in each
+/// iteration. The only input to the syscall is the 4byte-aligned pointer to the w array.
+///
+/// In the AIR, each SHA extend syscall takes up 48 rows, where each row corresponds to a single
+/// iteration of the loop.
 #[derive(Default)]
 pub struct ShaExtendChip;
 
@@ -49,7 +54,10 @@ pub mod extend_tests {
         air::MachineAir,
         alu::AluEvent,
         runtime::{ExecutionRecord, Instruction, Opcode, Program, SyscallCode},
-        utils::{self, run_test},
+        utils::{
+            self, run_test,
+            tests::{SHA2_ELF, SHA_EXTEND_ELF},
+        },
     };
 
     use super::ShaExtendChip;
@@ -93,6 +101,20 @@ pub mod extend_tests {
     fn test_sha_prove() {
         utils::setup_logger();
         let program = sha_extend_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_sha256_program() {
+        utils::setup_logger();
+        let program = Program::from(SHA2_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_sha_extend_program() {
+        utils::setup_logger();
+        let program = Program::from(SHA_EXTEND_ELF);
         run_test(program).unwrap();
     }
 }

@@ -156,7 +156,6 @@ impl<F: Field> Add5Operation<F> {
                 }
                 overflow -= cols.value[i].into();
 
-                overflow -= cols.carry[i] * base;
                 if i > 0 {
                     overflow += cols.carry[i - 1].into();
                 }

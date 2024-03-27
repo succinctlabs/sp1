@@ -165,7 +165,7 @@ where
     [(); num_weierstrass_add_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
-    
+
     fn name(&self) -> String {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
@@ -195,9 +195,15 @@ where
             _ => panic!("Unsupported curve"),
         };
         let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => unsafe { std::slice::from_raw_parts(events_ptr, input.secp256k1_add_events.len()) },
-            CurveType::Bn254 => unsafe { std::slice::from_raw_parts(events_ptr, input.bn254_add_events.len()) },
-            CurveType::Bls12381 => unsafe { std::slice::from_raw_parts(events_ptr, input.bls12381_add_events.len()) },
+            CurveType::Secp256k1 => unsafe {
+                std::slice::from_raw_parts(events_ptr, input.secp256k1_add_events.len())
+            },
+            CurveType::Bn254 => unsafe {
+                std::slice::from_raw_parts(events_ptr, input.bn254_add_events.len())
+            },
+            CurveType::Bls12381 => unsafe {
+                std::slice::from_raw_parts(events_ptr, input.bls12381_add_events.len())
+            },
             _ => panic!("Unsupported curve"),
         };
 
@@ -271,7 +277,6 @@ impl<F, E: EllipticCurve> BaseAir<F> for WeierstrassAddAssignChip<E> {
         num_weierstrass_add_cols::<E::BaseField>()
     }
 }
-
 
 impl<AB, E: EllipticCurve> Air<AB> for WeierstrassAddAssignChip<E>
 where
@@ -372,39 +377,26 @@ where
             row.is_real,
         );
 
-        match E::CURVE_TYPE {
+        // Fetch the syscall id for the curve type.
+        let syscall_id_fe = match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
-                builder.receive_syscall(
-                    row.shard,
-                    row.clk,
-                    AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id()),
-                    row.p_ptr,
-                    row.q_ptr,
-                    row.is_real,
-                );
+                AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id())
             }
-            CurveType::Bn254 => {
-                builder.receive_syscall(
-                    row.shard,
-                    row.clk,
-                    AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
-                    row.p_ptr,
-                    row.q_ptr,
-                    row.is_real,
-                );
-            }
+            CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
             CurveType::Bls12381 => {
-                builder.receive_syscall(
-                    row.shard,
-                    row.clk,
-                    AB::F::from_canonical_u32(SyscallCode::BLS12381_ADD.syscall_id()),
-                    row.p_ptr,
-                    row.q_ptr,
-                    row.is_real,
-                );
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_ADD.syscall_id())
             }
             _ => panic!("Unsupported curve"),
-        }
+        };
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            syscall_id_fe,
+            row.p_ptr,
+            row.q_ptr,
+            row.is_real,
+        );
     }
 }
 

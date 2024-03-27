@@ -25,9 +25,10 @@ impl FieldParameters for Bn254BaseField {
         129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,
     ];
 
+    // A rough witness-offset estimate given the size of the limbs and the size of the field.
     const WITNESS_OFFSET: usize = 1usize << 13;
 
-    // The modulus have been taken from py_ecc python library by Ethereum Foundation.
+    // The modulus has been taken from py_ecc python library by Ethereum Foundation.
     // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py#L10-L11
     fn modulus() -> BigUint {
         BigUint::from_str_radix(
@@ -50,6 +51,8 @@ impl EllipticCurveParameters for Bn254Parameters {
 }
 
 impl WeierstrassParameters for Bn254Parameters {
+    // The values have been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
     const A: GenericArray<u8, U32> = GenericArray::from_array([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
