@@ -15,22 +15,32 @@ pub struct MultiFieldChallengerVariable<C: Config> {
     num_f_elms: usize,
 }
 
-pub fn reduce_64<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Var<C::N> {
-    let alpha: Var<C::N> = builder.eval(C::N::from_canonical_u64(C::F::order().to_u64_digits()[0]));
-
-    let res: Var<C::N> = builder.eval(C::N::zero());
+pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Var<C::N> {
+    let po2: Var<C::N> = builder.eval(C::N::from_canonical_usize((1usize << 32) - 1));
+    let power: Var<C::N> = builder.eval(C::N::one());
+    let result: Var<C::N> = builder.eval(C::N::zero());
     for val in vals.iter().rev() {
         let bits = builder.num2bits_f(*val);
-        let val_v = builder.bits_to_num_var(&bits);
-        builder.assign(res, res * alpha + val_v);
+        let val = builder.bits_to_num_var(&bits);
+        builder.assign(result, result + val * power);
+        builder.assign(power, power * po2);
     }
-
-    res
+    result
 }
 
-pub fn split_64<C: Config>(builder: &mut Builder<C>, val: Var<C::N>) -> [Felt<C::F>; WIDTH] {
-    let alpha: Var<C::N> = builder.eval(C::N::from_canonical_u64(C::F::order().to_u64_digits()[0]));
-    todo!()
+pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -> Vec<Felt<C::F>> {
+    let po2: Var<C::N> = builder.eval(C::N::from_canonical_usize((1usize << 32) - 1));
+    let bits = builder.num2bits_v(val);
+    let mut results = Vec::new();
+    for i in 0..n {
+        let result: Felt<C::F> = builder.eval(C::F::zero());
+        for j in 0..32 {
+            let bit = builder.get(&bits, j);
+            // builder.assign(result, result + bit * C::F::from_canonical_usize(1 << j));
+        }
+        results.push(result);
+    }
+    results
 }
 
 impl<C: Config> MultiFieldChallengerVariable<C> {
@@ -47,7 +57,7 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
         assert!(self.input_buffer.len() <= self.num_f_elms * WIDTH);
 
         for (i, f_chunk) in self.input_buffer.chunks(self.num_f_elms).enumerate() {
-            self.sponge_state[i] = reduce_64(builder, f_chunk);
+            self.sponge_state[i] = reduce_32(builder, f_chunk);
         }
         self.input_buffer.clear();
 
