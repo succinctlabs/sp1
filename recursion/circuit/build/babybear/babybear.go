@@ -208,3 +208,7 @@ func (c *Chip) SplitIntoBabyBear(in frontend.Variable) [3]Variable {
 
 	return [3]Variable{{Value: x1}, {Value: y1}, {Value: z1}}
 }
+
+func (c *Chip) ToBinary(in *Variable) []frontend.Variable {
+	return c.field.ToBits(in.Value)
+}

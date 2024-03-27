@@ -436,7 +436,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     }
                     _ => unimplemented!(),
                 },
-                DslIR::Poseidon2PermuteBn254(_) => unimplemented!(),
+                _ => unimplemented!(),
             }
         }
     }

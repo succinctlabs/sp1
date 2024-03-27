@@ -16,27 +16,27 @@ pub struct MultiFieldChallengerVariable<C: Config> {
 }
 
 pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Var<C::N> {
-    let po2: Var<C::N> = builder.eval(C::N::from_canonical_usize((1usize << 32) - 1));
-    let power: Var<C::N> = builder.eval(C::N::one());
+    let mut power = C::N::one();
     let result: Var<C::N> = builder.eval(C::N::zero());
-    for val in vals.iter().rev() {
-        let bits = builder.num2bits_f(*val);
-        let val = builder.bits_to_num_var(&bits);
+    for val in vals.iter() {
+        let bits = builder.num2bits_f_circuit(*val);
+        let val = builder.bits_to_num_var_circuit(&bits);
         builder.assign(result, result + val * power);
-        builder.assign(power, power * po2);
+        power *= C::N::from_canonical_usize(1usize << 32);
     }
     result
 }
 
 pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -> Vec<Felt<C::F>> {
-    let po2: Var<C::N> = builder.eval(C::N::from_canonical_usize((1usize << 32) - 1));
-    let bits = builder.num2bits_v(val);
+    let bits = builder.num2bits_v_circuit(val, 254);
     let mut results = Vec::new();
     for i in 0..n {
         let result: Felt<C::F> = builder.eval(C::F::zero());
         for j in 0..32 {
-            let bit = builder.get(&bits, j);
-            // builder.assign(result, result + bit * C::F::from_canonical_usize(1 << j));
+            let bit = bits[i * 32 + j];
+            builder.if_eq(bit, C::N::one()).then(|builder| {
+                builder.assign(result, result + C::F::from_wrapped_u32(1 << j));
+            })
         }
         results.push(result);
     }
@@ -65,7 +65,7 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
 
         self.output_buffer.clear();
         for &pf_val in self.sponge_state.iter() {
-            let f_vals = split_64(builder, pf_val);
+            let f_vals = split_32(builder, pf_val, self.num_f_elms);
             for f_val in f_vals {
                 self.output_buffer.push(f_val);
             }
@@ -94,23 +94,83 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-    use std::fs::File;
-    use std::io::Write;
-    use std::marker::PhantomData;
+    use std::{collections::HashMap, fs::File, io::Write, marker::PhantomData};
 
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
     use p3_challenger::{CanObserve, CanSample};
+    use p3_field::reduce_32 as reduce_32_gt;
+    use p3_field::split_32 as split_32_gt;
     use p3_field::AbstractField;
-    use rand::thread_rng;
-    use sp1_recursion_compiler::gnark::GnarkBackend;
-    use sp1_recursion_compiler::ir::Builder;
+    use sp1_recursion_compiler::{gnark::GnarkBackend, ir::Builder};
     use sp1_recursion_core::stark::bn254::{Challenger, Perm};
 
-    use crate::{poseidon2::tests::bn254_poseidon2_rc3, GnarkConfig};
+    use super::reduce_32;
+    use super::split_32;
+    use crate::{
+        challenger::MultiFieldChallengerVariable, poseidon2::tests::bn254_poseidon2_rc3,
+        GnarkConfig,
+    };
 
-    use super::MultiFieldChallengerVariable;
+    #[test]
+    fn test_num2bits_v() {
+        let mut builder = Builder::<GnarkConfig>::default();
+        let mut value_u32 = 1345237507;
+        let value = builder.eval(Bn254Fr::from_canonical_u32(value_u32));
+        let result = builder.num2bits_v_circuit(value, 32);
+        for i in 0..result.len() {
+            builder.assert_var_eq(result[i], Bn254Fr::from_canonical_u32(value_u32 & 1));
+            value_u32 >>= 1;
+        }
+
+        let mut backend = GnarkBackend::<GnarkConfig>::default();
+        let result = backend.compile(builder.operations);
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = format!("{}/build/verifier.go", manifest_dir);
+        let mut file = File::create(path).unwrap();
+        file.write_all(result.as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn test_reduce_32() {
+        let value_1 = BabyBear::from_canonical_u32(1345237507);
+        let value_2 = BabyBear::from_canonical_u32(1000001);
+        let gt: Bn254Fr = reduce_32_gt(&[value_1, value_2]);
+
+        let mut builder = Builder::<GnarkConfig>::default();
+        let value_1 = builder.eval(value_1);
+        let value_2 = builder.eval(value_2);
+        let result = reduce_32(&mut builder, &[value_1, value_2]);
+        builder.assert_var_eq(result, gt);
+
+        let mut backend = GnarkBackend::<GnarkConfig>::default();
+        let result = backend.compile(builder.operations);
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = format!("{}/build/verifier.go", manifest_dir);
+        let mut file = File::create(path).unwrap();
+        file.write_all(result.as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn test_split_32() {
+        let value = Bn254Fr::from_canonical_u32(1345237507);
+        let gt: Vec<BabyBear> = split_32_gt(value, 3);
+
+        let mut builder = Builder::<GnarkConfig>::default();
+        let value = builder.eval(value);
+        let result = split_32(&mut builder, value, 3);
+
+        builder.assert_felt_eq(result[0], gt[0]);
+        builder.assert_felt_eq(result[1], gt[1]);
+        builder.assert_felt_eq(result[2], gt[2]);
+
+        let mut backend = GnarkBackend::<GnarkConfig>::default();
+        let result = backend.compile(builder.operations);
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = format!("{}/build/verifier.go", manifest_dir);
+        let mut file = File::create(path).unwrap();
+        file.write_all(result.as_bytes()).unwrap();
+    }
 
     #[test]
     fn test_challenger() {
@@ -123,23 +183,23 @@ mod tests {
         let gt: BabyBear = challenger.sample();
         println!("gt: {}", gt);
 
-        // let mut builder = Builder::<GnarkConfig>::default();
-        // let mut challenger = DuplexChallengerVariable::new(&mut builder);
-        // let value = builder.eval(Bn254Fr::from_canonical_usize(1));
-        // challenger.observe(&mut builder, value);
-        // challenger.observe(&mut builder, value);
-        // challenger.observe(&mut builder, value);
-        // let _ = challenger.sample(&mut builder);
+        let mut builder = Builder::<GnarkConfig>::default();
+        let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
+        let value = builder.eval(BabyBear::from_canonical_usize(1));
+        challenger.observe(&mut builder, value);
+        challenger.observe(&mut builder, value);
+        challenger.observe(&mut builder, value);
+        let _ = challenger.sample(&mut builder);
 
-        // let mut backend = GnarkBackend::<GnarkConfig> {
-        //     nb_backend_vars: 0,
-        //     used: HashMap::new(),
-        //     phantom: PhantomData,
-        // };
-        // let result = backend.compile(builder.operations);
-        // let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        // let path = format!("{}/build/verifier.go", manifest_dir);
-        // let mut file = File::create(path).unwrap();
-        // file.write_all(result.as_bytes()).unwrap();
+        let mut backend = GnarkBackend::<GnarkConfig> {
+            nb_backend_vars: 0,
+            used: HashMap::new(),
+            phantom: PhantomData,
+        };
+        let result = backend.compile(builder.operations);
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = format!("{}/build/verifier.go", manifest_dir);
+        let mut file = File::create(path).unwrap();
+        file.write_all(result.as_bytes()).unwrap();
     }
 }
