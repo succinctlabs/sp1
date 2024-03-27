@@ -24,7 +24,7 @@ use sp1_core::stark::{Com, PcsProverData, RiscvAir};
 use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
-use sp1_core::utils::prove_core;
+use sp1_core::utils::run_and_prove;
 use std::fs;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -130,11 +130,8 @@ impl SP1Prover {
             }
         } else {
             let program = Program::from(elf);
-            let mut runtime = Runtime::new(program);
-            runtime.write_stdin_slice(&stdin.buffer.data);
-            runtime.run();
-            let stdout = SP1Stdout::from(&runtime.state.output_stream);
-            let proof = prove_core(config, runtime);
+            let (proof, stdout_vec) = run_and_prove(program, &stdin.buffer.data, config);
+            let stdout = SP1Stdout::from(&stdout_vec);
             Ok(SP1ProofWithIO {
                 proof,
                 stdin,
