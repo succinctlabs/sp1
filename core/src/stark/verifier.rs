@@ -11,6 +11,8 @@ use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
@@ -31,6 +33,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> Result<(), VerificationError>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -168,6 +171,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
+                pi_digest,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -194,6 +198,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -201,8 +206,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         let sels = trace_domain.selectors_at_point(zeta);
 
         let quotient = Self::recompute_quotient(&opening, &qc_domains, zeta);
-        let folded_constraints =
-            Self::eval_constraints(chip, &opening, &sels, alpha, permutation_challenges);
+        let folded_constraints = Self::eval_constraints(
+            chip,
+            &opening,
+            &sels,
+            alpha,
+            permutation_challenges,
+            pi_digest,
+        );
 
         // Check that the constraints match the quotient, i.e.
         //     folded_constraints(zeta) / Z_H(zeta) = quotient(zeta)
@@ -219,6 +230,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -252,6 +264,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
+            pi_digest,
             _marker: PhantomData,
         };
         chip.eval(&mut folder);

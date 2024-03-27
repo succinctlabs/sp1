@@ -19,6 +19,7 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
@@ -44,6 +45,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -68,6 +70,7 @@ where
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -84,6 +87,9 @@ where
                 challenger.observe(commitment);
             });
         });
+
+        // Observe the public input digest.
+        challenger.observe(pi_digest);
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -121,6 +127,7 @@ where
                                 &chips,
                                 data,
                                 &mut challenger.clone(),
+                                pi_digest,
                             );
                             finished.fetch_add(1, Ordering::Relaxed);
                             log::info!(
@@ -203,6 +210,7 @@ where
         chips: &[&MachineChip<SC, A>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> ShardProof<SC>
     where
         Val<SC>: PrimeField32,
@@ -328,6 +336,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &permutation_challenges,
                         alpha,
+                        pi_digest,
                     )
                 })
                 .collect::<Vec<_>>()

@@ -7,6 +7,7 @@ use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use p3_field::{AbstractField, ExtensionField, Field};
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 
 /// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
@@ -20,6 +21,7 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub is_transition: PackedVal<SC>,
     pub alpha: SC::Challenge,
     pub accumulator: PackedChallenge<SC>,
+    pub pi_digest: [u32; PI_DIGEST_WORD_SIZE],
 }
 
 impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
@@ -115,6 +117,7 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, Var, Expr> {
     pub is_transition: Var,
     pub alpha: Var,
     pub accumulator: Expr,
+    pub pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     pub _marker: PhantomData<F>,
 }
 

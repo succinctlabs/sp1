@@ -19,6 +19,8 @@ use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+
 use super::Chip;
 use super::Proof;
 use super::Prover;
@@ -121,6 +123,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -132,7 +135,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
         tracing::debug!("generating the shard proofs");
-        P::prove_shards(self, pk, shards, challenger)
+        P::prove_shards(self, pk, shards, challenger, pi_digest)
     }
 
     pub const fn config(&self) -> &SC {
@@ -144,6 +147,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         _vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
+        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Challenger: Clone,
@@ -158,6 +162,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             });
         });
 
+        // Observe the public input digest
+        challenger.observe(pi_digest);
+
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
@@ -167,8 +174,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     .iter()
                     .filter(|chip| proof.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
-                Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
-                    .map_err(ProgramVerificationError::InvalidSegmentProof)
+                Verifier::verify_shard(
+                    &self.config,
+                    &chips,
+                    &mut challenger.clone(),
+                    proof,
+                    pi_digest,
+                )
+                .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
         tracing::info!("success");
@@ -309,18 +322,22 @@ pub mod tests {
     use crate::utils::run_test;
     use crate::utils::setup_logger;
 
+    use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+
+    const EMPTY_PI_DIGEST: [u32; PI_DIGEST_WORD_SIZE] = [0; PI_DIGEST_WORD_SIZE];
+
     #[test]
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
+        run_test(program, EMPTY_PI_DIGEST).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
         utils::setup_logger();
         let program = ecall_lwa_program();
-        run_test(program).unwrap();
+        run_test(program, EMPTY_PI_DIGEST).unwrap();
     }
 
     #[test]
@@ -342,7 +359,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test(program, EMPTY_PI_DIGEST).unwrap();
             }
         }
     }
@@ -356,7 +373,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test(program, EMPTY_PI_DIGEST).unwrap();
     }
 
     #[test]
@@ -368,7 +385,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program).unwrap();
+        run_test(program, EMPTY_PI_DIGEST).unwrap();
     }
 
     #[test]
@@ -390,7 +407,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test(program, EMPTY_PI_DIGEST).unwrap();
             }
         }
     }
@@ -405,7 +422,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test(program, EMPTY_PI_DIGEST).unwrap();
         }
     }
 
@@ -420,7 +437,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program).unwrap();
+            run_test(program, EMPTY_PI_DIGEST).unwrap();
         }
     }
 
@@ -442,7 +459,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program).unwrap();
+                run_test(program, EMPTY_PI_DIGEST).unwrap();
             }
         }
     }
@@ -451,18 +468,18 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-        run_test(program).unwrap();
+        run_test(program, EMPTY_PI_DIGEST).unwrap();
     }
 
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
-        run_test(program).unwrap();
+        run_test(program, EMPTY_PI_DIGEST).unwrap();
     }
 
     #[test]
     fn test_ssz_withdrawal() {
         let program = ssz_withdrawals_program();
-        run_test(program).unwrap();
+        run_test(program, EMPTY_PI_DIGEST).unwrap();
     }
 }

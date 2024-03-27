@@ -1,5 +1,5 @@
-use p3_air::PermutationAirBuilder;
 use p3_air::{AirBuilder, FilteredAirBuilder};
+use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
 use super::interaction::AirInteraction;
@@ -30,10 +30,12 @@ impl<AB: EmptyMessageBuilder, M> MessageBuilder<M> for AB {
 }
 
 /// A message builder for which sending and receiving messages is a no-op.
-pub trait EmptyMessageBuilder: AirBuilder {}
+pub trait EmptyMessageBuilder: AirBuilderWithPublicValues {}
 
 /// A trait which contains basic methods for building an AIR.
-pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>> {
+pub trait BaseAirBuilder:
+    AirBuilderWithPublicValues + MessageBuilder<AirInteraction<Self::Expr>>
+{
     /// Returns a sub-builder whose constraints are enforced only when `condition` is not one.
     fn when_not<I: Into<Self::Expr>>(&mut self, condition: I) -> FilteredAirBuilder<Self> {
         self.when_ne(condition, Self::F::one())
@@ -612,14 +614,38 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
     }
 }
 
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ExtensionAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder
+    for AB
+{
+}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder
+    for AB
+{
+}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder
+    for AB
+{
+}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder
+    for AB
+{
+}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder
+    for AB
+{
+}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder
+    for AB
+{
+}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> ExtensionAirBuilder
+    for AB
+{
+}
+impl<AB: AirBuilderWithPublicValues + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder
+    for AB
+{
+}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}

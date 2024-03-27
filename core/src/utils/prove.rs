@@ -32,6 +32,7 @@ pub fn get_cycles(program: Program) -> u64 {
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
+    pi_digest: [u32; PI_DIGEST_WORD_SIZE],
 ) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
@@ -40,7 +41,7 @@ pub fn run_test_io(
         runtime
     });
     let stdout = SP1Stdout::from(&runtime.state.output_stream);
-    let proof = run_test_core(runtime)?;
+    let proof = run_test_core(runtime, pi_digest)?;
     Ok(SP1ProofWithIO {
         proof,
         stdin: inputs,
@@ -50,17 +51,19 @@ pub fn run_test_io(
 
 pub fn run_test(
     program: Program,
+    pi_digest: [u32; PI_DIGEST_WORD_SIZE],
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
     });
-    run_test_core(runtime)
+    run_test_core(runtime, pi_digest)
 }
 
 pub fn run_test_core(
     runtime: Runtime,
+    pi_digest: [u32; PI_DIGEST_WORD_SIZE],
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
@@ -71,8 +74,9 @@ pub fn run_test_core(
     let record_clone = runtime.record.clone();
 
     let start = Instant::now();
-    let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+    let proof = tracing::info_span!("prove").in_scope(|| {
+        machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger, pi_digest)
+    });
 
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
@@ -82,7 +86,7 @@ pub fn run_test_core(
     machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger)?;
+    machine.verify(&vk, &proof, &mut challenger, pi_digest)?;
 
     tracing::info!(
         "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
@@ -112,6 +116,7 @@ pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
     stdin: &[u8],
     config: SC,
+    pi_digest: [u32; PI_DIGEST_WORD_SIZE],
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
     SC::Challenger: Clone,
@@ -134,7 +139,7 @@ where
     if !should_batch {
         runtime.run();
         let stdout = std::mem::take(&mut runtime.state.output_stream);
-        let proof = prove_core(machine.config().clone(), runtime);
+        let proof = prove_core(machine.config().clone(), runtime, pi_digest);
         return (proof, stdout);
     }
 
@@ -187,6 +192,8 @@ where
         }
     }
 
+    challenger.observe(pi_digest);
+
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     for mut file in checkpoints.into_iter() {
@@ -205,7 +212,14 @@ where
                 let config = machine.config();
                 let shard_data =
                     LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
-                LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger.clone())
+                LocalProver::prove_shard(
+                    config,
+                    &pk,
+                    &chips,
+                    shard_data,
+                    &mut challenger.clone(),
+                    pi_digest,
+                );
             })
             .collect::<Vec<_>>();
         prove_time += start.elapsed().as_millis();
@@ -228,7 +242,11 @@ where
     (proof, stdout)
 }
 
-pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
+pub fn prove_core<SC: StarkGenericConfig>(
+    config: SC,
+    runtime: Runtime,
+    pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -246,8 +264,9 @@ where
 
     // Prove the program.
     let cycles = runtime.state.global_clk;
-    let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+    let proof = tracing::info_span!("prove").in_scope(|| {
+        machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger, pi_digest)
+    });
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
@@ -329,6 +348,7 @@ pub use baby_bear_poseidon2::BabyBearPoseidon2;
 use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 
 pub mod baby_bear_poseidon2 {
 
