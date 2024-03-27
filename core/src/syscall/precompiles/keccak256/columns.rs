@@ -27,6 +27,7 @@ pub(crate) struct KeccakMemCols<T> {
     // If row is real and first or last cycle of 24-cycle
     pub do_memory_check: T,
 
+    // If row is real and first cycle of 24-cycle
     pub receive_ecall: T,
 
     pub is_real: T,
