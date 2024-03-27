@@ -228,7 +228,7 @@ mod tests {
         let chips = machine
             .chips()
             .iter()
-            .filter(|chip| proof.chip_ids.contains(&chip.name()))
+            .filter(|chip| proof.chip_ordering.contains_key(&chip.name()))
             .collect::<Vec<_>>();
 
         let log_degrees = opened_values

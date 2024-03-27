@@ -124,7 +124,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub commitment: ShardCommitment<Com<SC>>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
-    pub chip_ids: Vec<String>,
+    pub chip_ordering: HashMap<String, usize>,
 }
 
 impl<T> AirOpenedValues<T> {

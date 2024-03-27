@@ -165,7 +165,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 let chips = self
                     .chips()
                     .iter()
-                    .filter(|chip| proof.chip_ids.contains(&chip.name()))
+                    .filter(|chip| proof.chip_ordering.contains_key(&chip.name()))
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)

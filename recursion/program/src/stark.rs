@@ -4,7 +4,8 @@ use p3_air::Air;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
-use sp1_core::stark::{MachineChip, ShardCommitment, StarkGenericConfig};
+use sp1_core::stark::MachineStark;
+use sp1_core::stark::{ShardCommitment, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
@@ -31,7 +32,7 @@ where
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
-        all_chips: &[&MachineChip<SC, A>],
+        machine: &MachineStark<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
         permutation_challenges: &[C::EF],
@@ -168,7 +169,7 @@ where
         // Verify the pcs proof
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
-        for (i, chip) in all_chips.iter().enumerate() {
+        for (i, chip) in machine.chips().iter().enumerate() {
             let index = sorted_indices[i];
             builder.if_ne(index, C::N::neg_one()).then(|builder| {
                 let values = builder.get(&opened_values.chips, index);
@@ -197,7 +198,7 @@ pub(crate) mod tests {
     use p3_field::AbstractField;
     use sp1_core::{
         air::MachineAir,
-        stark::{RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
+        stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
         SP1Prover, SP1Stdin,
     };
@@ -227,6 +228,7 @@ pub(crate) mod tests {
 
     pub(crate) fn const_proof<C>(
         builder: &mut Builder<C>,
+        machine: &MachineStark<SC, A>,
         proof: ShardProof<SC>,
     ) -> ShardProofVariable<C>
     where
@@ -272,14 +274,25 @@ pub(crate) mod tests {
 
         let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
 
+        let sorted_indices = machine
+            .chips()
+            .iter()
+            .map(|chip| {
+                let index = proof
+                    .chip_ordering
+                    .get(&chip.name())
+                    .map(|i| C::N::from_canonical_usize(*i))
+                    .unwrap_or(C::N::neg_one());
+                builder.eval(index)
+            })
+            .collect();
+
         ShardProofVariable {
             index: Usize::Var(index),
             commitment,
             opened_values,
             opening_proof,
-            sorted_indices: (0..num_shard_chips)
-                .map(|i| builder.eval(C::N::from_canonical_usize(i)))
-                .collect(),
+            sorted_indices,
         }
     }
 
@@ -312,7 +325,7 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         for proof in proofs {
-            let proof = const_proof(&mut builder, proof);
+            let proof = const_proof(&mut builder, &machine, proof);
             let ShardCommitment { main_commit, .. } = proof.commitment;
             challenger.observe_commitment(&mut builder, main_commit);
         }
@@ -340,7 +353,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn test_verify_shard() {
+    fn test_recursive_verify_shard() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
         let elf =
@@ -370,25 +383,18 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         let mut shard_proofs = vec![];
-        let mut shard_chips = vec![];
         for proof_val in proofs {
-            let chips = machine
-                .chips()
-                .iter()
-                .filter(|chip| proof_val.chip_ids.contains(&chip.name()))
-                .collect::<Vec<_>>();
-            let proof = const_proof(&mut builder, proof_val);
+            let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe_commitment(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
-            shard_chips.push(chips);
         }
 
-        for (proof, chip) in shard_proofs.into_iter().zip(shard_chips) {
+        for proof in shard_proofs {
             StarkVerifier::<C, SC>::verify_shard(
                 &mut builder,
                 &pcs,
-                &chip,
+                &machine,
                 &mut challenger.clone(),
                 &proof,
                 &permutation_challenges,

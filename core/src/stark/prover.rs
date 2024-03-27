@@ -447,7 +447,7 @@ where
                 chips: opened_values,
             },
             opening_proof,
-            chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
+            chip_ordering: shard_data.chip_ordering,
         }
     }
 
