@@ -156,7 +156,6 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::MachineAir,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
             ShardMainData, ShardProof, StarkGenericConfig, Verifier,
@@ -182,7 +181,7 @@ mod tests {
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
         machine: &'a MachineStark<SC, RiscvAir<SC::Val>>,
-        proof: &ShardProof<SC>,
+        proof: &'a ShardProof<SC>,
         challenger: &mut SC::Challenger,
     ) -> (
         Vec<&'a Chip<SC::Val, RiscvAir<SC::Val>>>,
@@ -230,9 +229,7 @@ mod tests {
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
 
         let chips = machine
-            .chips()
-            .iter()
-            .filter(|chip| proof.chip_ordering.contains_key(&chip.name()))
+            .shard_chips_ordered(&proof.chip_ordering)
             .collect::<Vec<_>>();
 
         let log_degrees = opened_values
@@ -423,9 +420,9 @@ mod tests {
                 chips.iter(),
                 trace_domains_vals,
                 quotient_chunk_domains_vals,
-                proof.opened_values.chips,
+                proof.opened_values.chips.iter(),
             ) {
-                let opening = builder.eval_const(values_vals);
+                let opening = builder.eval_const(values_vals.clone());
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
