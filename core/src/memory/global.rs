@@ -14,6 +14,8 @@ use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
 
+use super::MemoryInitializeFinalizeEvent;
+
 #[derive(PartialEq)]
 pub enum MemoryChipKind {
     Initialize,
@@ -54,20 +56,27 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         let memory_record = match self.kind {
-            MemoryChipKind::Initialize => &input.first_memory_record,
-            MemoryChipKind::Finalize => &input.last_memory_record,
-            MemoryChipKind::Program => &input.program_memory_record,
+            MemoryChipKind::Initialize => &input.memory_initialize_events,
+            MemoryChipKind::Finalize => &input.memory_finalize_events,
+            MemoryChipKind::Program => &input.program_memory_events,
         };
         let rows: Vec<[F; 8]> = (0..memory_record.len()) // TODO: change this back to par_iter
             .map(|i| {
-                let (addr, record, multiplicity) = memory_record[i];
+                let MemoryInitializeFinalizeEvent {
+                    addr,
+                    value,
+                    shard,
+                    timestamp,
+                    used,
+                } = memory_record[i];
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
-                cols.shard = F::from_canonical_u32(record.shard);
-                cols.timestamp = F::from_canonical_u32(record.timestamp);
-                cols.value = record.value.into();
-                cols.is_real = F::from_canonical_u32(multiplicity);
+                cols.shard = F::from_canonical_u32(shard);
+                cols.timestamp = F::from_canonical_u32(timestamp);
+                cols.value = value.into();
+                cols.is_real = F::from_canonical_u32(used);
+
                 row
             })
             .collect::<Vec<_>>();
@@ -84,9 +93,9 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         match self.kind {
-            MemoryChipKind::Initialize => !shard.first_memory_record.is_empty(),
-            MemoryChipKind::Finalize => !shard.last_memory_record.is_empty(),
-            MemoryChipKind::Program => !shard.program_memory_record.is_empty(),
+            MemoryChipKind::Initialize => !shard.memory_initialize_events.is_empty(),
+            MemoryChipKind::Finalize => !shard.memory_finalize_events.is_empty(),
+            MemoryChipKind::Program => !shard.program_memory_events.is_empty(),
         }
     }
 }
@@ -192,8 +201,8 @@ mod tests {
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
 
-        for (addr, record, _) in shard.last_memory_record {
-            println!("{:?} {:?}", addr, record);
+        for mem_event in shard.memory_finalize_events {
+            println!("{:?}", mem_event);
         }
     }
 
@@ -223,7 +232,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+        let machine: crate::stark::MachineStark<BabyBearPoseidon2, RiscvAir<BabyBear>> =
+            RiscvAir::machine(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
             &runtime.record,

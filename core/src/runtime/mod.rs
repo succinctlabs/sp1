@@ -21,6 +21,7 @@ pub use syscall::*;
 pub use utils::*;
 
 use self::state::ExecutionState;
+use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -908,109 +909,79 @@ impl Runtime {
             buf.flush().unwrap();
         }
 
-        // Set up all variables needed for memory argument.
-        let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
+        // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
+
+        // Program Memory is the global constants of the program. We need to mark which of these
+        // addresses are used by the program, as some invocations might not touch all addresses.
+        // program_memory_map maps an addr to its value and whether it was touched during the program.
+        let mut program_memory_map = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
+
         for (key, value) in &self.program.memory_image {
-            // By default we assume that the program_memory is used.
-            program_memory_used.insert(*key, (*value, 1));
+            program_memory_map.insert(key, (*value, true));
         }
 
-        let mut first_memory_record = Vec::new();
-        let mut last_memory_record = Vec::new();
+        let mut memory_initialize_events = Vec::new();
+        let mut memory_finalize_events = Vec::new();
 
-        let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
+        // We handle the addr = 0 case separately, as we constraint it to be 0 in the first row
+        // of the memory initialize/finalize table so it must be first in the array of events.
+        let addr_0_record = self.state.memory.get(&0u32);
 
-        // Add a memory record for slot for register %x0 with value == 0 for the first memory
-        // record.  The program memory should never initialize that register.  The memory argument will
-        // fail in that case.
-        let zero_addr_memory_record = MemoryRecord {
-            value: 0,
-            shard: 0,
-            timestamp: 0,
+        let addr_0_final_record = match addr_0_record {
+            Some(record) => record,
+            None => &MemoryRecord {
+                value: 0,
+                shard: 0,
+                timestamp: 0,
+            },
         };
-        first_memory_record.push((0, zero_addr_memory_record, 1));
 
-        let mut zero_addr_accessed = false;
-        for addr in memory_keys {
-            let record = *self.state.memory.get(&addr).unwrap();
+        memory_initialize_events.push(MemoryInitializeFinalizeEvent::intialize(0, 0, true));
+        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+            0,
+            addr_0_final_record,
+        ));
+
+        for addr in self.state.memory.keys() {
+            if addr == &0 {
+                continue; // We handle addr = 0 separately above.
+            }
+
+            let record = *self.state.memory.get(addr).unwrap();
             if record.shard == 0 && record.timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
-                // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert(addr, (record.value, 0));
+                // We mark this (addr, value) as not touched in the `program_memory_map` map.
+                program_memory_map.insert(addr, (record.value, false));
                 continue;
             }
 
-            zero_addr_accessed = true;
-            // If the memory addr was accessed, we only add it to "first_memory_record" if it was
-            // not in the program_memory_image, otherwise we'll add to the memory argument from
-            // the program_memory_image table.  The registor %x0 entry was already added
-            // to first_memory_record.
-            if !self.program.memory_image.contains_key(&addr) && addr != 0 {
-                first_memory_record.push((
-                    addr,
-                    MemoryRecord {
-                        value: 0,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    1,
-                ));
+            // If the memory addr was accessed, we only add it to "memory_initialize_events" if it was
+            // not in the program_memory_image, otherwise it'll be accounted from the
+            // program_memory_image table.
+            if !self.program.memory_image.contains_key(addr) {
+                memory_initialize_events
+                    .push(MemoryInitializeFinalizeEvent::intialize(*addr, 0, true));
             }
 
-            // If we are inserting a record for register %x0, then it needs to be placed at the beginning
-            // of last_memory_record.  The Finalize global memory air will expect the zero addr record
-            // to be the first row.
-            if addr == 0 {
-                last_memory_record.insert(
-                    0,
-                    (
-                        addr,
-                        MemoryRecord {
-                            value: record.value,
-                            shard: record.shard,
-                            timestamp: record.timestamp,
-                        },
-                        1,
-                    ),
-                )
-            } else {
-                last_memory_record.push((
-                    addr,
-                    MemoryRecord {
-                        value: record.value,
-                        shard: record.shard,
-                        timestamp: record.timestamp,
-                    },
-                    1,
-                ));
-            }
+            memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+                *addr, &record,
+            ));
         }
 
-        if !zero_addr_accessed {
-            // If register %x0 was never accessed, we need to insert that record in the beginning of last_memory_record.
-            last_memory_record.insert(0, (0, zero_addr_memory_record, 1));
-        }
-
-        let mut program_memory_record = program_memory_used
-            .iter()
-            .map(|(&addr, &(value, used))| {
-                (
-                    addr,
-                    MemoryRecord {
-                        value,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    used,
-                )
+        let mut program_memory_events = program_memory_map
+            .into_iter()
+            .map(|(addr, (value, used))| {
+                MemoryInitializeFinalizeEvent::intialize(*addr, value, used)
             })
-            .collect::<Vec<(u32, MemoryRecord, u32)>>();
-        program_memory_record.sort_by_key(|&(addr, _, _)| addr);
+            .collect::<Vec<MemoryInitializeFinalizeEvent>>();
+        // Sort the program_memory_events by addr to create a canonical ordering for the
+        // preprocessed table, as this is part of the vkey.
+        program_memory_events.sort_by_key(|event| event.addr);
 
-        self.record.first_memory_record = first_memory_record;
-        self.record.last_memory_record = last_memory_record;
-        self.record.program_memory_record = program_memory_record;
+        self.record.memory_initialize_events = memory_initialize_events;
+        self.record.memory_finalize_events = memory_finalize_events;
+        self.record.program_memory_events = program_memory_events;
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
