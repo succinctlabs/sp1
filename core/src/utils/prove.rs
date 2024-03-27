@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{Seek, Write};
-use std::time::Instant;
+use web_time::Instant;
 
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
