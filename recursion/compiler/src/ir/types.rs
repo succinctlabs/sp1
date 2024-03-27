@@ -9,6 +9,8 @@ use core::marker::PhantomData;
 use std::collections::HashMap;
 use std::hash::Hash;
 
+use super::ExtConst;
+use super::FromConstant;
 use super::MemVariable;
 use super::Ptr;
 use super::SymbolicUsize;
@@ -1167,5 +1169,29 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
         builder.push(DslIR::StoreE(ptr, *self));
+    }
+}
+
+impl<C: Config> FromConstant<C> for Var<C::N> {
+    type Constant = C::N;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value)
+    }
+}
+
+impl<C: Config> FromConstant<C> for Felt<C::F> {
+    type Constant = C::F;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value)
+    }
+}
+
+impl<C: Config> FromConstant<C> for Ext<C::F, C::EF> {
+    type Constant = C::EF;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value.cons())
     }
 }
