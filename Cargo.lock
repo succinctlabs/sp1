@@ -2940,6 +2940,7 @@ dependencies = [
 name = "sp1-recursion-core"
 version = "0.1.0"
 dependencies = [
+ "ff 0.13.0",
  "hashbrown 0.14.3",
  "itertools 0.12.1",
  "p3-air",
@@ -2949,6 +2950,7 @@ dependencies = [
  "p3-commit",
  "p3-dft",
  "p3-field",
+ "p3-fri",
  "p3-matrix",
  "p3-maybe-rayon",
  "p3-merkle-tree",
@@ -2957,6 +2959,7 @@ dependencies = [
  "sp1-core",
  "sp1-derive",
  "tracing",
+ "zkhash",
 ]
 
 [[package]]

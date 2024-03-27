@@ -1,4 +1,6 @@
+#![allow(clippy::type_complexity)]
 #![allow(clippy::needless_range_loop)]
+
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::extension::BinomialExtensionField;

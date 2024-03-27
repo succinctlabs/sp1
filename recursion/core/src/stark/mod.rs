@@ -1,4 +1,5 @@
-pub mod bn254;
+pub mod config;
+pub mod poseidon2;
 
 use crate::{
     cpu::CpuChip,
