@@ -2,12 +2,14 @@
 
 use sp1_recursion_compiler::ir::{Builder, Config, DslIR, Var};
 
+use crate::DIGEST_SIZE;
+
 pub trait P2CircuitBuilder<C: Config> {
-    fn p2_permute_mut(&mut self, state: [Var<C::N>; 3]);
+    fn p2_permute_mut(&mut self, state: [Var<C::N>; DIGEST_SIZE]);
 }
 
 impl<C: Config> P2CircuitBuilder<C> for Builder<C> {
-    fn p2_permute_mut(&mut self, state: [Var<C::N>; 3]) {
+    fn p2_permute_mut(&mut self, state: [Var<C::N>; DIGEST_SIZE]) {
         self.push(DslIR::CircuitPoseidon2Permute(state))
     }
 }
