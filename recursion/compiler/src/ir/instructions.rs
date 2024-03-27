@@ -106,5 +106,7 @@ pub enum DslIR<C: Config> {
     Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
 
     // Circuit-specific instructions.
-    Poseidon2PermuteBn254([Var<C::N>; 3]),
+    CircuitPoseidon2Permute([Var<C::N>; 3]),
+    CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
+    CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
 }

@@ -13,23 +13,1467 @@ type Circuit struct {
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
-	var state [3]frontend.Variable
+	var state []frontend.Variable
+	babybearChip := babybear.NewChip(api)
 	p2 := poseidon2.NewPoseidon2Chip(api)
-	babybear := babybear.NewChip(api)
-
-	// Variables.
+	
+	// Initializations.
+	var backend0 frontend.Variable
+	var backend1 frontend.Variable
+	var backend10 frontend.Variable
+	var backend11 frontend.Variable
+	var backend12 frontend.Variable
+	var backend13 frontend.Variable
+	var backend14 frontend.Variable
+	var backend15 frontend.Variable
+	var backend16 frontend.Variable
+	var backend17 frontend.Variable
+	var backend18 frontend.Variable
+	var backend19 frontend.Variable
+	var backend2 frontend.Variable
+	var backend20 frontend.Variable
+	var backend21 frontend.Variable
+	var backend22 frontend.Variable
+	var backend23 frontend.Variable
+	var backend24 frontend.Variable
+	var backend25 frontend.Variable
+	var backend26 frontend.Variable
+	var backend27 frontend.Variable
+	var backend28 frontend.Variable
+	var backend29 frontend.Variable
+	var backend3 frontend.Variable
+	var backend30 frontend.Variable
+	var backend31 frontend.Variable
+	var backend32 frontend.Variable
+	var backend33 frontend.Variable
+	var backend34 frontend.Variable
+	var backend35 frontend.Variable
+	var backend36 frontend.Variable
+	var backend37 frontend.Variable
+	var backend38 frontend.Variable
+	var backend39 frontend.Variable
+	var backend4 frontend.Variable
+	var backend40 frontend.Variable
+	var backend41 frontend.Variable
+	var backend42 frontend.Variable
+	var backend43 frontend.Variable
+	var backend44 frontend.Variable
+	var backend45 frontend.Variable
+	var backend46 frontend.Variable
+	var backend47 frontend.Variable
+	var backend48 frontend.Variable
+	var backend49 frontend.Variable
+	var backend5 frontend.Variable
+	var backend50 frontend.Variable
+	var backend51 frontend.Variable
+	var backend52 frontend.Variable
+	var backend53 frontend.Variable
+	var backend54 frontend.Variable
+	var backend55 frontend.Variable
+	var backend56 frontend.Variable
+	var backend57 frontend.Variable
+	var backend58 frontend.Variable
+	var backend59 frontend.Variable
+	var backend6 frontend.Variable
+	var backend60 frontend.Variable
+	var backend61 frontend.Variable
+	var backend62 frontend.Variable
+	var backend63 frontend.Variable
+	var backend64 frontend.Variable
+	var backend65 frontend.Variable
+	var backend66 frontend.Variable
+	var backend67 frontend.Variable
+	var backend68 frontend.Variable
+	var backend69 frontend.Variable
+	var backend7 frontend.Variable
+	var backend70 frontend.Variable
+	var backend71 frontend.Variable
+	var backend72 frontend.Variable
+	var backend73 frontend.Variable
+	var backend74 frontend.Variable
+	var backend75 frontend.Variable
+	var backend76 frontend.Variable
+	var backend77 frontend.Variable
+	var backend78 frontend.Variable
+	var backend79 frontend.Variable
+	var backend8 frontend.Variable
+	var backend80 frontend.Variable
+	var backend81 frontend.Variable
+	var backend82 frontend.Variable
+	var backend83 frontend.Variable
+	var backend84 frontend.Variable
+	var backend85 frontend.Variable
+	var backend86 frontend.Variable
+	var backend87 frontend.Variable
+	var backend88 frontend.Variable
+	var backend89 frontend.Variable
+	var backend9 frontend.Variable
+	var backend90 frontend.Variable
+	var backend91 frontend.Variable
+	var backend92 frontend.Variable
+	var backend93 frontend.Variable
+	var backend94 frontend.Variable
+	var backend95 frontend.Variable
+	var felt0 *babybear.Variable
+	var felt1 *babybear.Variable
+	var felt2 *babybear.Variable
+	var var0 frontend.Variable
+	var var1 frontend.Variable
+	var var10 frontend.Variable
+	var var100 frontend.Variable
+	var var101 frontend.Variable
+	var var102 frontend.Variable
+	var var103 frontend.Variable
+	var var104 frontend.Variable
+	var var105 frontend.Variable
+	var var106 frontend.Variable
+	var var107 frontend.Variable
+	var var108 frontend.Variable
+	var var109 frontend.Variable
+	var var11 frontend.Variable
+	var var110 frontend.Variable
+	var var111 frontend.Variable
+	var var112 frontend.Variable
+	var var113 frontend.Variable
+	var var114 frontend.Variable
+	var var115 frontend.Variable
+	var var116 frontend.Variable
+	var var117 frontend.Variable
+	var var118 frontend.Variable
+	var var119 frontend.Variable
+	var var12 frontend.Variable
+	var var120 frontend.Variable
+	var var121 frontend.Variable
+	var var122 frontend.Variable
+	var var123 frontend.Variable
+	var var124 frontend.Variable
+	var var125 frontend.Variable
+	var var126 frontend.Variable
+	var var127 frontend.Variable
+	var var128 frontend.Variable
+	var var129 frontend.Variable
+	var var13 frontend.Variable
+	var var130 frontend.Variable
+	var var131 frontend.Variable
+	var var132 frontend.Variable
+	var var133 frontend.Variable
+	var var134 frontend.Variable
+	var var135 frontend.Variable
+	var var136 frontend.Variable
+	var var137 frontend.Variable
+	var var138 frontend.Variable
+	var var139 frontend.Variable
+	var var14 frontend.Variable
+	var var140 frontend.Variable
+	var var141 frontend.Variable
+	var var142 frontend.Variable
+	var var143 frontend.Variable
+	var var144 frontend.Variable
+	var var145 frontend.Variable
+	var var146 frontend.Variable
+	var var147 frontend.Variable
+	var var148 frontend.Variable
+	var var149 frontend.Variable
+	var var15 frontend.Variable
+	var var150 frontend.Variable
+	var var151 frontend.Variable
+	var var152 frontend.Variable
+	var var153 frontend.Variable
+	var var154 frontend.Variable
+	var var155 frontend.Variable
+	var var156 frontend.Variable
+	var var157 frontend.Variable
+	var var158 frontend.Variable
+	var var159 frontend.Variable
+	var var16 frontend.Variable
+	var var160 frontend.Variable
+	var var161 frontend.Variable
+	var var162 frontend.Variable
+	var var163 frontend.Variable
+	var var164 frontend.Variable
+	var var165 frontend.Variable
+	var var166 frontend.Variable
+	var var167 frontend.Variable
+	var var168 frontend.Variable
+	var var169 frontend.Variable
+	var var17 frontend.Variable
+	var var170 frontend.Variable
+	var var171 frontend.Variable
+	var var172 frontend.Variable
+	var var173 frontend.Variable
+	var var174 frontend.Variable
+	var var175 frontend.Variable
+	var var176 frontend.Variable
+	var var177 frontend.Variable
+	var var178 frontend.Variable
+	var var179 frontend.Variable
+	var var18 frontend.Variable
+	var var180 frontend.Variable
+	var var181 frontend.Variable
+	var var182 frontend.Variable
+	var var183 frontend.Variable
+	var var184 frontend.Variable
+	var var185 frontend.Variable
+	var var186 frontend.Variable
+	var var187 frontend.Variable
+	var var188 frontend.Variable
+	var var189 frontend.Variable
+	var var19 frontend.Variable
+	var var190 frontend.Variable
+	var var191 frontend.Variable
+	var var192 frontend.Variable
+	var var193 frontend.Variable
+	var var194 frontend.Variable
+	var var195 frontend.Variable
+	var var196 frontend.Variable
+	var var197 frontend.Variable
+	var var198 frontend.Variable
+	var var199 frontend.Variable
+	var var2 frontend.Variable
+	var var20 frontend.Variable
+	var var200 frontend.Variable
+	var var201 frontend.Variable
+	var var202 frontend.Variable
+	var var203 frontend.Variable
+	var var204 frontend.Variable
+	var var205 frontend.Variable
+	var var206 frontend.Variable
+	var var207 frontend.Variable
+	var var208 frontend.Variable
+	var var209 frontend.Variable
+	var var21 frontend.Variable
+	var var210 frontend.Variable
+	var var211 frontend.Variable
+	var var212 frontend.Variable
+	var var213 frontend.Variable
+	var var214 frontend.Variable
+	var var215 frontend.Variable
+	var var216 frontend.Variable
+	var var217 frontend.Variable
+	var var218 frontend.Variable
+	var var219 frontend.Variable
+	var var22 frontend.Variable
+	var var220 frontend.Variable
+	var var221 frontend.Variable
+	var var222 frontend.Variable
+	var var223 frontend.Variable
+	var var224 frontend.Variable
+	var var225 frontend.Variable
+	var var226 frontend.Variable
+	var var227 frontend.Variable
+	var var228 frontend.Variable
+	var var229 frontend.Variable
+	var var23 frontend.Variable
+	var var230 frontend.Variable
+	var var231 frontend.Variable
+	var var232 frontend.Variable
+	var var233 frontend.Variable
+	var var234 frontend.Variable
+	var var235 frontend.Variable
+	var var236 frontend.Variable
+	var var237 frontend.Variable
+	var var238 frontend.Variable
+	var var239 frontend.Variable
+	var var24 frontend.Variable
+	var var240 frontend.Variable
+	var var241 frontend.Variable
+	var var242 frontend.Variable
+	var var243 frontend.Variable
+	var var244 frontend.Variable
+	var var245 frontend.Variable
+	var var246 frontend.Variable
+	var var247 frontend.Variable
+	var var248 frontend.Variable
+	var var249 frontend.Variable
+	var var25 frontend.Variable
+	var var250 frontend.Variable
+	var var251 frontend.Variable
+	var var252 frontend.Variable
+	var var253 frontend.Variable
+	var var254 frontend.Variable
+	var var255 frontend.Variable
+	var var256 frontend.Variable
+	var var257 frontend.Variable
+	var var258 frontend.Variable
+	var var259 frontend.Variable
+	var var26 frontend.Variable
+	var var260 frontend.Variable
+	var var261 frontend.Variable
+	var var262 frontend.Variable
+	var var263 frontend.Variable
+	var var264 frontend.Variable
+	var var265 frontend.Variable
+	var var266 frontend.Variable
+	var var267 frontend.Variable
+	var var268 frontend.Variable
+	var var269 frontend.Variable
+	var var27 frontend.Variable
+	var var270 frontend.Variable
+	var var271 frontend.Variable
+	var var272 frontend.Variable
+	var var273 frontend.Variable
+	var var274 frontend.Variable
+	var var275 frontend.Variable
+	var var276 frontend.Variable
+	var var277 frontend.Variable
+	var var278 frontend.Variable
+	var var279 frontend.Variable
+	var var28 frontend.Variable
+	var var280 frontend.Variable
+	var var281 frontend.Variable
+	var var282 frontend.Variable
+	var var283 frontend.Variable
+	var var284 frontend.Variable
+	var var285 frontend.Variable
+	var var286 frontend.Variable
+	var var287 frontend.Variable
+	var var288 frontend.Variable
+	var var289 frontend.Variable
+	var var29 frontend.Variable
+	var var290 frontend.Variable
+	var var291 frontend.Variable
+	var var292 frontend.Variable
+	var var293 frontend.Variable
+	var var294 frontend.Variable
+	var var295 frontend.Variable
+	var var296 frontend.Variable
+	var var297 frontend.Variable
+	var var298 frontend.Variable
+	var var299 frontend.Variable
 	var var3 frontend.Variable
-
+	var var30 frontend.Variable
+	var var300 frontend.Variable
+	var var301 frontend.Variable
+	var var302 frontend.Variable
+	var var303 frontend.Variable
+	var var304 frontend.Variable
+	var var305 frontend.Variable
+	var var306 frontend.Variable
+	var var307 frontend.Variable
+	var var308 frontend.Variable
+	var var309 frontend.Variable
+	var var31 frontend.Variable
+	var var310 frontend.Variable
+	var var311 frontend.Variable
+	var var312 frontend.Variable
+	var var313 frontend.Variable
+	var var314 frontend.Variable
+	var var315 frontend.Variable
+	var var316 frontend.Variable
+	var var317 frontend.Variable
+	var var318 frontend.Variable
+	var var319 frontend.Variable
+	var var32 frontend.Variable
+	var var320 frontend.Variable
+	var var321 frontend.Variable
+	var var322 frontend.Variable
+	var var323 frontend.Variable
+	var var324 frontend.Variable
+	var var325 frontend.Variable
+	var var326 frontend.Variable
+	var var327 frontend.Variable
+	var var328 frontend.Variable
+	var var329 frontend.Variable
+	var var33 frontend.Variable
+	var var330 frontend.Variable
+	var var331 frontend.Variable
+	var var332 frontend.Variable
+	var var333 frontend.Variable
+	var var334 frontend.Variable
+	var var335 frontend.Variable
+	var var336 frontend.Variable
+	var var337 frontend.Variable
+	var var338 frontend.Variable
+	var var339 frontend.Variable
+	var var34 frontend.Variable
+	var var340 frontend.Variable
+	var var341 frontend.Variable
+	var var342 frontend.Variable
+	var var343 frontend.Variable
+	var var344 frontend.Variable
+	var var345 frontend.Variable
+	var var346 frontend.Variable
+	var var347 frontend.Variable
+	var var348 frontend.Variable
+	var var349 frontend.Variable
+	var var35 frontend.Variable
+	var var350 frontend.Variable
+	var var36 frontend.Variable
+	var var37 frontend.Variable
+	var var38 frontend.Variable
+	var var39 frontend.Variable
+	var var4 frontend.Variable
+	var var40 frontend.Variable
+	var var41 frontend.Variable
+	var var42 frontend.Variable
+	var var43 frontend.Variable
+	var var44 frontend.Variable
+	var var45 frontend.Variable
+	var var46 frontend.Variable
+	var var47 frontend.Variable
+	var var48 frontend.Variable
+	var var49 frontend.Variable
+	var var5 frontend.Variable
+	var var50 frontend.Variable
+	var var51 frontend.Variable
+	var var52 frontend.Variable
+	var var53 frontend.Variable
+	var var54 frontend.Variable
+	var var55 frontend.Variable
+	var var56 frontend.Variable
+	var var57 frontend.Variable
+	var var58 frontend.Variable
+	var var59 frontend.Variable
+	var var6 frontend.Variable
+	var var60 frontend.Variable
+	var var61 frontend.Variable
+	var var62 frontend.Variable
+	var var63 frontend.Variable
+	var var64 frontend.Variable
+	var var65 frontend.Variable
+	var var66 frontend.Variable
+	var var67 frontend.Variable
+	var var68 frontend.Variable
+	var var69 frontend.Variable
+	var var7 frontend.Variable
+	var var70 frontend.Variable
+	var var71 frontend.Variable
+	var var72 frontend.Variable
+	var var73 frontend.Variable
+	var var74 frontend.Variable
+	var var75 frontend.Variable
+	var var76 frontend.Variable
+	var var77 frontend.Variable
+	var var78 frontend.Variable
+	var var79 frontend.Variable
+	var var8 frontend.Variable
+	var var80 frontend.Variable
+	var var81 frontend.Variable
+	var var82 frontend.Variable
+	var var83 frontend.Variable
+	var var84 frontend.Variable
+	var var85 frontend.Variable
+	var var86 frontend.Variable
+	var var87 frontend.Variable
+	var var88 frontend.Variable
+	var var89 frontend.Variable
+	var var9 frontend.Variable
+	var var90 frontend.Variable
+	var var91 frontend.Variable
+	var var92 frontend.Variable
+	var var93 frontend.Variable
+	var var94 frontend.Variable
+	var var95 frontend.Variable
+	var var96 frontend.Variable
+	var var97 frontend.Variable
+	var var98 frontend.Variable
+	var var99 frontend.Variable
+	
 	// Operations.
-	var3 = frontend.Variable("1")
-	state = [3]frontend.Variable{var3, var3, var3}
-	p2.PermuteMut(&state)
-	var3 = state[0]
-	var3 = state[1]
+	var0 = frontend.Variable("1345237507")
+	state = api.ToBinary(var0, 254)
+	var1 = state[0]
+	var2 = state[1]
 	var3 = state[2]
-	z := babybear.SplitIntoBabyBear(var3)
-	api.Println(z[0].Value.Limbs[0])
-	api.Println(z[1].Value.Limbs[0])
-	api.Println(z[2].Value.Limbs[0])
+	var4 = state[3]
+	var5 = state[4]
+	var6 = state[5]
+	var7 = state[6]
+	var8 = state[7]
+	var9 = state[8]
+	var10 = state[9]
+	var11 = state[10]
+	var12 = state[11]
+	var13 = state[12]
+	var14 = state[13]
+	var15 = state[14]
+	var16 = state[15]
+	var17 = state[16]
+	var18 = state[17]
+	var19 = state[18]
+	var20 = state[19]
+	var21 = state[20]
+	var22 = state[21]
+	var23 = state[22]
+	var24 = state[23]
+	var25 = state[24]
+	var26 = state[25]
+	var27 = state[26]
+	var28 = state[27]
+	var29 = state[28]
+	var30 = state[29]
+	var31 = state[30]
+	var32 = state[31]
+	var33 = state[32]
+	var34 = state[33]
+	var35 = state[34]
+	var36 = state[35]
+	var37 = state[36]
+	var38 = state[37]
+	var39 = state[38]
+	var40 = state[39]
+	var41 = state[40]
+	var42 = state[41]
+	var43 = state[42]
+	var44 = state[43]
+	var45 = state[44]
+	var46 = state[45]
+	var47 = state[46]
+	var48 = state[47]
+	var49 = state[48]
+	var50 = state[49]
+	var51 = state[50]
+	var52 = state[51]
+	var53 = state[52]
+	var54 = state[53]
+	var55 = state[54]
+	var56 = state[55]
+	var57 = state[56]
+	var58 = state[57]
+	var59 = state[58]
+	var60 = state[59]
+	var61 = state[60]
+	var62 = state[61]
+	var63 = state[62]
+	var64 = state[63]
+	var65 = state[64]
+	var66 = state[65]
+	var67 = state[66]
+	var68 = state[67]
+	var69 = state[68]
+	var70 = state[69]
+	var71 = state[70]
+	var72 = state[71]
+	var73 = state[72]
+	var74 = state[73]
+	var75 = state[74]
+	var76 = state[75]
+	var77 = state[76]
+	var78 = state[77]
+	var79 = state[78]
+	var80 = state[79]
+	var81 = state[80]
+	var82 = state[81]
+	var83 = state[82]
+	var84 = state[83]
+	var85 = state[84]
+	var86 = state[85]
+	var87 = state[86]
+	var88 = state[87]
+	var89 = state[88]
+	var90 = state[89]
+	var91 = state[90]
+	var92 = state[91]
+	var93 = state[92]
+	var94 = state[93]
+	var95 = state[94]
+	var96 = state[95]
+	var97 = state[96]
+	var98 = state[97]
+	var99 = state[98]
+	var100 = state[99]
+	var101 = state[100]
+	var102 = state[101]
+	var103 = state[102]
+	var104 = state[103]
+	var105 = state[104]
+	var106 = state[105]
+	var107 = state[106]
+	var108 = state[107]
+	var109 = state[108]
+	var110 = state[109]
+	var111 = state[110]
+	var112 = state[111]
+	var113 = state[112]
+	var114 = state[113]
+	var115 = state[114]
+	var116 = state[115]
+	var117 = state[116]
+	var118 = state[117]
+	var119 = state[118]
+	var120 = state[119]
+	var121 = state[120]
+	var122 = state[121]
+	var123 = state[122]
+	var124 = state[123]
+	var125 = state[124]
+	var126 = state[125]
+	var127 = state[126]
+	var128 = state[127]
+	var129 = state[128]
+	var130 = state[129]
+	var131 = state[130]
+	var132 = state[131]
+	var133 = state[132]
+	var134 = state[133]
+	var135 = state[134]
+	var136 = state[135]
+	var137 = state[136]
+	var138 = state[137]
+	var139 = state[138]
+	var140 = state[139]
+	var141 = state[140]
+	var142 = state[141]
+	var143 = state[142]
+	var144 = state[143]
+	var145 = state[144]
+	var146 = state[145]
+	var147 = state[146]
+	var148 = state[147]
+	var149 = state[148]
+	var150 = state[149]
+	var151 = state[150]
+	var152 = state[151]
+	var153 = state[152]
+	var154 = state[153]
+	var155 = state[154]
+	var156 = state[155]
+	var157 = state[156]
+	var158 = state[157]
+	var159 = state[158]
+	var160 = state[159]
+	var161 = state[160]
+	var162 = state[161]
+	var163 = state[162]
+	var164 = state[163]
+	var165 = state[164]
+	var166 = state[165]
+	var167 = state[166]
+	var168 = state[167]
+	var169 = state[168]
+	var170 = state[169]
+	var171 = state[170]
+	var172 = state[171]
+	var173 = state[172]
+	var174 = state[173]
+	var175 = state[174]
+	var176 = state[175]
+	var177 = state[176]
+	var178 = state[177]
+	var179 = state[178]
+	var180 = state[179]
+	var181 = state[180]
+	var182 = state[181]
+	var183 = state[182]
+	var184 = state[183]
+	var185 = state[184]
+	var186 = state[185]
+	var187 = state[186]
+	var188 = state[187]
+	var189 = state[188]
+	var190 = state[189]
+	var191 = state[190]
+	var192 = state[191]
+	var193 = state[192]
+	var194 = state[193]
+	var195 = state[194]
+	var196 = state[195]
+	var197 = state[196]
+	var198 = state[197]
+	var199 = state[198]
+	var200 = state[199]
+	var201 = state[200]
+	var202 = state[201]
+	var203 = state[202]
+	var204 = state[203]
+	var205 = state[204]
+	var206 = state[205]
+	var207 = state[206]
+	var208 = state[207]
+	var209 = state[208]
+	var210 = state[209]
+	var211 = state[210]
+	var212 = state[211]
+	var213 = state[212]
+	var214 = state[213]
+	var215 = state[214]
+	var216 = state[215]
+	var217 = state[216]
+	var218 = state[217]
+	var219 = state[218]
+	var220 = state[219]
+	var221 = state[220]
+	var222 = state[221]
+	var223 = state[222]
+	var224 = state[223]
+	var225 = state[224]
+	var226 = state[225]
+	var227 = state[226]
+	var228 = state[227]
+	var229 = state[228]
+	var230 = state[229]
+	var231 = state[230]
+	var232 = state[231]
+	var233 = state[232]
+	var234 = state[233]
+	var235 = state[234]
+	var236 = state[235]
+	var237 = state[236]
+	var238 = state[237]
+	var239 = state[238]
+	var240 = state[239]
+	var241 = state[240]
+	var242 = state[241]
+	var243 = state[242]
+	var244 = state[243]
+	var245 = state[244]
+	var246 = state[245]
+	var247 = state[246]
+	var248 = state[247]
+	var249 = state[248]
+	var250 = state[249]
+	var251 = state[250]
+	var252 = state[251]
+	var253 = state[252]
+	var254 = state[253]
+	felt0 = babybear.NewVariable(0)
+	var255 = api.Add(var1, frontend.Variable("0"))
+	backend0 = api.IsZero(api.Sub(var255, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend0,  babybearChip.Add(felt0, babybear.NewVariable(1)), felt0)
+	var256 = api.Add(var2, frontend.Variable("0"))
+	backend1 = api.IsZero(api.Sub(var256, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend1,  babybearChip.Add(felt0, babybear.NewVariable(2)), felt0)
+	var257 = api.Add(var3, frontend.Variable("0"))
+	backend2 = api.IsZero(api.Sub(var257, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend2,  babybearChip.Add(felt0, babybear.NewVariable(4)), felt0)
+	var258 = api.Add(var4, frontend.Variable("0"))
+	backend3 = api.IsZero(api.Sub(var258, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend3,  babybearChip.Add(felt0, babybear.NewVariable(8)), felt0)
+	var259 = api.Add(var5, frontend.Variable("0"))
+	backend4 = api.IsZero(api.Sub(var259, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend4,  babybearChip.Add(felt0, babybear.NewVariable(16)), felt0)
+	var260 = api.Add(var6, frontend.Variable("0"))
+	backend5 = api.IsZero(api.Sub(var260, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend5,  babybearChip.Add(felt0, babybear.NewVariable(32)), felt0)
+	var261 = api.Add(var7, frontend.Variable("0"))
+	backend6 = api.IsZero(api.Sub(var261, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend6,  babybearChip.Add(felt0, babybear.NewVariable(64)), felt0)
+	var262 = api.Add(var8, frontend.Variable("0"))
+	backend7 = api.IsZero(api.Sub(var262, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend7,  babybearChip.Add(felt0, babybear.NewVariable(128)), felt0)
+	var263 = api.Add(var9, frontend.Variable("0"))
+	backend8 = api.IsZero(api.Sub(var263, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend8,  babybearChip.Add(felt0, babybear.NewVariable(256)), felt0)
+	var264 = api.Add(var10, frontend.Variable("0"))
+	backend9 = api.IsZero(api.Sub(var264, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend9,  babybearChip.Add(felt0, babybear.NewVariable(512)), felt0)
+	var265 = api.Add(var11, frontend.Variable("0"))
+	backend10 = api.IsZero(api.Sub(var265, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend10,  babybearChip.Add(felt0, babybear.NewVariable(1024)), felt0)
+	var266 = api.Add(var12, frontend.Variable("0"))
+	backend11 = api.IsZero(api.Sub(var266, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend11,  babybearChip.Add(felt0, babybear.NewVariable(2048)), felt0)
+	var267 = api.Add(var13, frontend.Variable("0"))
+	backend12 = api.IsZero(api.Sub(var267, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend12,  babybearChip.Add(felt0, babybear.NewVariable(4096)), felt0)
+	var268 = api.Add(var14, frontend.Variable("0"))
+	backend13 = api.IsZero(api.Sub(var268, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend13,  babybearChip.Add(felt0, babybear.NewVariable(8192)), felt0)
+	var269 = api.Add(var15, frontend.Variable("0"))
+	backend14 = api.IsZero(api.Sub(var269, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend14,  babybearChip.Add(felt0, babybear.NewVariable(16384)), felt0)
+	var270 = api.Add(var16, frontend.Variable("0"))
+	backend15 = api.IsZero(api.Sub(var270, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend15,  babybearChip.Add(felt0, babybear.NewVariable(32768)), felt0)
+	var271 = api.Add(var17, frontend.Variable("0"))
+	backend16 = api.IsZero(api.Sub(var271, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend16,  babybearChip.Add(felt0, babybear.NewVariable(65536)), felt0)
+	var272 = api.Add(var18, frontend.Variable("0"))
+	backend17 = api.IsZero(api.Sub(var272, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend17,  babybearChip.Add(felt0, babybear.NewVariable(131072)), felt0)
+	var273 = api.Add(var19, frontend.Variable("0"))
+	backend18 = api.IsZero(api.Sub(var273, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend18,  babybearChip.Add(felt0, babybear.NewVariable(262144)), felt0)
+	var274 = api.Add(var20, frontend.Variable("0"))
+	backend19 = api.IsZero(api.Sub(var274, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend19,  babybearChip.Add(felt0, babybear.NewVariable(524288)), felt0)
+	var275 = api.Add(var21, frontend.Variable("0"))
+	backend20 = api.IsZero(api.Sub(var275, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend20,  babybearChip.Add(felt0, babybear.NewVariable(1048576)), felt0)
+	var276 = api.Add(var22, frontend.Variable("0"))
+	backend21 = api.IsZero(api.Sub(var276, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend21,  babybearChip.Add(felt0, babybear.NewVariable(2097152)), felt0)
+	var277 = api.Add(var23, frontend.Variable("0"))
+	backend22 = api.IsZero(api.Sub(var277, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend22,  babybearChip.Add(felt0, babybear.NewVariable(4194304)), felt0)
+	var278 = api.Add(var24, frontend.Variable("0"))
+	backend23 = api.IsZero(api.Sub(var278, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend23,  babybearChip.Add(felt0, babybear.NewVariable(8388608)), felt0)
+	var279 = api.Add(var25, frontend.Variable("0"))
+	backend24 = api.IsZero(api.Sub(var279, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend24,  babybearChip.Add(felt0, babybear.NewVariable(16777216)), felt0)
+	var280 = api.Add(var26, frontend.Variable("0"))
+	backend25 = api.IsZero(api.Sub(var280, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend25,  babybearChip.Add(felt0, babybear.NewVariable(33554432)), felt0)
+	var281 = api.Add(var27, frontend.Variable("0"))
+	backend26 = api.IsZero(api.Sub(var281, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend26,  babybearChip.Add(felt0, babybear.NewVariable(67108864)), felt0)
+	var282 = api.Add(var28, frontend.Variable("0"))
+	backend27 = api.IsZero(api.Sub(var282, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend27,  babybearChip.Add(felt0, babybear.NewVariable(134217728)), felt0)
+	var283 = api.Add(var29, frontend.Variable("0"))
+	backend28 = api.IsZero(api.Sub(var283, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend28,  babybearChip.Add(felt0, babybear.NewVariable(268435456)), felt0)
+	var284 = api.Add(var30, frontend.Variable("0"))
+	backend29 = api.IsZero(api.Sub(var284, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend29,  babybearChip.Add(felt0, babybear.NewVariable(536870912)), felt0)
+	var285 = api.Add(var31, frontend.Variable("0"))
+	backend30 = api.IsZero(api.Sub(var285, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend30,  babybearChip.Add(felt0, babybear.NewVariable(1073741824)), felt0)
+	var286 = api.Add(var32, frontend.Variable("0"))
+	backend31 = api.IsZero(api.Sub(var286, frontend.Variable("1")))
+	felt0 = babybearChip.Select(backend31,  babybearChip.Add(felt0, babybear.NewVariable(134217727)), felt0)
+	felt1 = babybear.NewVariable(0)
+	var287 = api.Add(var33, frontend.Variable("0"))
+	backend32 = api.IsZero(api.Sub(var287, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend32,  babybearChip.Add(felt1, babybear.NewVariable(1)), felt1)
+	var288 = api.Add(var34, frontend.Variable("0"))
+	backend33 = api.IsZero(api.Sub(var288, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend33,  babybearChip.Add(felt1, babybear.NewVariable(2)), felt1)
+	var289 = api.Add(var35, frontend.Variable("0"))
+	backend34 = api.IsZero(api.Sub(var289, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend34,  babybearChip.Add(felt1, babybear.NewVariable(4)), felt1)
+	var290 = api.Add(var36, frontend.Variable("0"))
+	backend35 = api.IsZero(api.Sub(var290, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend35,  babybearChip.Add(felt1, babybear.NewVariable(8)), felt1)
+	var291 = api.Add(var37, frontend.Variable("0"))
+	backend36 = api.IsZero(api.Sub(var291, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend36,  babybearChip.Add(felt1, babybear.NewVariable(16)), felt1)
+	var292 = api.Add(var38, frontend.Variable("0"))
+	backend37 = api.IsZero(api.Sub(var292, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend37,  babybearChip.Add(felt1, babybear.NewVariable(32)), felt1)
+	var293 = api.Add(var39, frontend.Variable("0"))
+	backend38 = api.IsZero(api.Sub(var293, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend38,  babybearChip.Add(felt1, babybear.NewVariable(64)), felt1)
+	var294 = api.Add(var40, frontend.Variable("0"))
+	backend39 = api.IsZero(api.Sub(var294, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend39,  babybearChip.Add(felt1, babybear.NewVariable(128)), felt1)
+	var295 = api.Add(var41, frontend.Variable("0"))
+	backend40 = api.IsZero(api.Sub(var295, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend40,  babybearChip.Add(felt1, babybear.NewVariable(256)), felt1)
+	var296 = api.Add(var42, frontend.Variable("0"))
+	backend41 = api.IsZero(api.Sub(var296, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend41,  babybearChip.Add(felt1, babybear.NewVariable(512)), felt1)
+	var297 = api.Add(var43, frontend.Variable("0"))
+	backend42 = api.IsZero(api.Sub(var297, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend42,  babybearChip.Add(felt1, babybear.NewVariable(1024)), felt1)
+	var298 = api.Add(var44, frontend.Variable("0"))
+	backend43 = api.IsZero(api.Sub(var298, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend43,  babybearChip.Add(felt1, babybear.NewVariable(2048)), felt1)
+	var299 = api.Add(var45, frontend.Variable("0"))
+	backend44 = api.IsZero(api.Sub(var299, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend44,  babybearChip.Add(felt1, babybear.NewVariable(4096)), felt1)
+	var300 = api.Add(var46, frontend.Variable("0"))
+	backend45 = api.IsZero(api.Sub(var300, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend45,  babybearChip.Add(felt1, babybear.NewVariable(8192)), felt1)
+	var301 = api.Add(var47, frontend.Variable("0"))
+	backend46 = api.IsZero(api.Sub(var301, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend46,  babybearChip.Add(felt1, babybear.NewVariable(16384)), felt1)
+	var302 = api.Add(var48, frontend.Variable("0"))
+	backend47 = api.IsZero(api.Sub(var302, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend47,  babybearChip.Add(felt1, babybear.NewVariable(32768)), felt1)
+	var303 = api.Add(var49, frontend.Variable("0"))
+	backend48 = api.IsZero(api.Sub(var303, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend48,  babybearChip.Add(felt1, babybear.NewVariable(65536)), felt1)
+	var304 = api.Add(var50, frontend.Variable("0"))
+	backend49 = api.IsZero(api.Sub(var304, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend49,  babybearChip.Add(felt1, babybear.NewVariable(131072)), felt1)
+	var305 = api.Add(var51, frontend.Variable("0"))
+	backend50 = api.IsZero(api.Sub(var305, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend50,  babybearChip.Add(felt1, babybear.NewVariable(262144)), felt1)
+	var306 = api.Add(var52, frontend.Variable("0"))
+	backend51 = api.IsZero(api.Sub(var306, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend51,  babybearChip.Add(felt1, babybear.NewVariable(524288)), felt1)
+	var307 = api.Add(var53, frontend.Variable("0"))
+	backend52 = api.IsZero(api.Sub(var307, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend52,  babybearChip.Add(felt1, babybear.NewVariable(1048576)), felt1)
+	var308 = api.Add(var54, frontend.Variable("0"))
+	backend53 = api.IsZero(api.Sub(var308, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend53,  babybearChip.Add(felt1, babybear.NewVariable(2097152)), felt1)
+	var309 = api.Add(var55, frontend.Variable("0"))
+	backend54 = api.IsZero(api.Sub(var309, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend54,  babybearChip.Add(felt1, babybear.NewVariable(4194304)), felt1)
+	var310 = api.Add(var56, frontend.Variable("0"))
+	backend55 = api.IsZero(api.Sub(var310, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend55,  babybearChip.Add(felt1, babybear.NewVariable(8388608)), felt1)
+	var311 = api.Add(var57, frontend.Variable("0"))
+	backend56 = api.IsZero(api.Sub(var311, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend56,  babybearChip.Add(felt1, babybear.NewVariable(16777216)), felt1)
+	var312 = api.Add(var58, frontend.Variable("0"))
+	backend57 = api.IsZero(api.Sub(var312, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend57,  babybearChip.Add(felt1, babybear.NewVariable(33554432)), felt1)
+	var313 = api.Add(var59, frontend.Variable("0"))
+	backend58 = api.IsZero(api.Sub(var313, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend58,  babybearChip.Add(felt1, babybear.NewVariable(67108864)), felt1)
+	var314 = api.Add(var60, frontend.Variable("0"))
+	backend59 = api.IsZero(api.Sub(var314, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend59,  babybearChip.Add(felt1, babybear.NewVariable(134217728)), felt1)
+	var315 = api.Add(var61, frontend.Variable("0"))
+	backend60 = api.IsZero(api.Sub(var315, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend60,  babybearChip.Add(felt1, babybear.NewVariable(268435456)), felt1)
+	var316 = api.Add(var62, frontend.Variable("0"))
+	backend61 = api.IsZero(api.Sub(var316, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend61,  babybearChip.Add(felt1, babybear.NewVariable(536870912)), felt1)
+	var317 = api.Add(var63, frontend.Variable("0"))
+	backend62 = api.IsZero(api.Sub(var317, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend62,  babybearChip.Add(felt1, babybear.NewVariable(1073741824)), felt1)
+	var318 = api.Add(var64, frontend.Variable("0"))
+	backend63 = api.IsZero(api.Sub(var318, frontend.Variable("1")))
+	felt1 = babybearChip.Select(backend63,  babybearChip.Add(felt1, babybear.NewVariable(134217727)), felt1)
+	felt2 = babybear.NewVariable(0)
+	var319 = api.Add(var65, frontend.Variable("0"))
+	backend64 = api.IsZero(api.Sub(var319, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend64,  babybearChip.Add(felt2, babybear.NewVariable(1)), felt2)
+	var320 = api.Add(var66, frontend.Variable("0"))
+	backend65 = api.IsZero(api.Sub(var320, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend65,  babybearChip.Add(felt2, babybear.NewVariable(2)), felt2)
+	var321 = api.Add(var67, frontend.Variable("0"))
+	backend66 = api.IsZero(api.Sub(var321, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend66,  babybearChip.Add(felt2, babybear.NewVariable(4)), felt2)
+	var322 = api.Add(var68, frontend.Variable("0"))
+	backend67 = api.IsZero(api.Sub(var322, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend67,  babybearChip.Add(felt2, babybear.NewVariable(8)), felt2)
+	var323 = api.Add(var69, frontend.Variable("0"))
+	backend68 = api.IsZero(api.Sub(var323, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend68,  babybearChip.Add(felt2, babybear.NewVariable(16)), felt2)
+	var324 = api.Add(var70, frontend.Variable("0"))
+	backend69 = api.IsZero(api.Sub(var324, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend69,  babybearChip.Add(felt2, babybear.NewVariable(32)), felt2)
+	var325 = api.Add(var71, frontend.Variable("0"))
+	backend70 = api.IsZero(api.Sub(var325, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend70,  babybearChip.Add(felt2, babybear.NewVariable(64)), felt2)
+	var326 = api.Add(var72, frontend.Variable("0"))
+	backend71 = api.IsZero(api.Sub(var326, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend71,  babybearChip.Add(felt2, babybear.NewVariable(128)), felt2)
+	var327 = api.Add(var73, frontend.Variable("0"))
+	backend72 = api.IsZero(api.Sub(var327, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend72,  babybearChip.Add(felt2, babybear.NewVariable(256)), felt2)
+	var328 = api.Add(var74, frontend.Variable("0"))
+	backend73 = api.IsZero(api.Sub(var328, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend73,  babybearChip.Add(felt2, babybear.NewVariable(512)), felt2)
+	var329 = api.Add(var75, frontend.Variable("0"))
+	backend74 = api.IsZero(api.Sub(var329, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend74,  babybearChip.Add(felt2, babybear.NewVariable(1024)), felt2)
+	var330 = api.Add(var76, frontend.Variable("0"))
+	backend75 = api.IsZero(api.Sub(var330, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend75,  babybearChip.Add(felt2, babybear.NewVariable(2048)), felt2)
+	var331 = api.Add(var77, frontend.Variable("0"))
+	backend76 = api.IsZero(api.Sub(var331, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend76,  babybearChip.Add(felt2, babybear.NewVariable(4096)), felt2)
+	var332 = api.Add(var78, frontend.Variable("0"))
+	backend77 = api.IsZero(api.Sub(var332, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend77,  babybearChip.Add(felt2, babybear.NewVariable(8192)), felt2)
+	var333 = api.Add(var79, frontend.Variable("0"))
+	backend78 = api.IsZero(api.Sub(var333, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend78,  babybearChip.Add(felt2, babybear.NewVariable(16384)), felt2)
+	var334 = api.Add(var80, frontend.Variable("0"))
+	backend79 = api.IsZero(api.Sub(var334, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend79,  babybearChip.Add(felt2, babybear.NewVariable(32768)), felt2)
+	var335 = api.Add(var81, frontend.Variable("0"))
+	backend80 = api.IsZero(api.Sub(var335, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend80,  babybearChip.Add(felt2, babybear.NewVariable(65536)), felt2)
+	var336 = api.Add(var82, frontend.Variable("0"))
+	backend81 = api.IsZero(api.Sub(var336, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend81,  babybearChip.Add(felt2, babybear.NewVariable(131072)), felt2)
+	var337 = api.Add(var83, frontend.Variable("0"))
+	backend82 = api.IsZero(api.Sub(var337, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend82,  babybearChip.Add(felt2, babybear.NewVariable(262144)), felt2)
+	var338 = api.Add(var84, frontend.Variable("0"))
+	backend83 = api.IsZero(api.Sub(var338, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend83,  babybearChip.Add(felt2, babybear.NewVariable(524288)), felt2)
+	var339 = api.Add(var85, frontend.Variable("0"))
+	backend84 = api.IsZero(api.Sub(var339, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend84,  babybearChip.Add(felt2, babybear.NewVariable(1048576)), felt2)
+	var340 = api.Add(var86, frontend.Variable("0"))
+	backend85 = api.IsZero(api.Sub(var340, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend85,  babybearChip.Add(felt2, babybear.NewVariable(2097152)), felt2)
+	var341 = api.Add(var87, frontend.Variable("0"))
+	backend86 = api.IsZero(api.Sub(var341, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend86,  babybearChip.Add(felt2, babybear.NewVariable(4194304)), felt2)
+	var342 = api.Add(var88, frontend.Variable("0"))
+	backend87 = api.IsZero(api.Sub(var342, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend87,  babybearChip.Add(felt2, babybear.NewVariable(8388608)), felt2)
+	var343 = api.Add(var89, frontend.Variable("0"))
+	backend88 = api.IsZero(api.Sub(var343, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend88,  babybearChip.Add(felt2, babybear.NewVariable(16777216)), felt2)
+	var344 = api.Add(var90, frontend.Variable("0"))
+	backend89 = api.IsZero(api.Sub(var344, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend89,  babybearChip.Add(felt2, babybear.NewVariable(33554432)), felt2)
+	var345 = api.Add(var91, frontend.Variable("0"))
+	backend90 = api.IsZero(api.Sub(var345, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend90,  babybearChip.Add(felt2, babybear.NewVariable(67108864)), felt2)
+	var346 = api.Add(var92, frontend.Variable("0"))
+	backend91 = api.IsZero(api.Sub(var346, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend91,  babybearChip.Add(felt2, babybear.NewVariable(134217728)), felt2)
+	var347 = api.Add(var93, frontend.Variable("0"))
+	backend92 = api.IsZero(api.Sub(var347, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend92,  babybearChip.Add(felt2, babybear.NewVariable(268435456)), felt2)
+	var348 = api.Add(var94, frontend.Variable("0"))
+	backend93 = api.IsZero(api.Sub(var348, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend93,  babybearChip.Add(felt2, babybear.NewVariable(536870912)), felt2)
+	var349 = api.Add(var95, frontend.Variable("0"))
+	backend94 = api.IsZero(api.Sub(var349, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend94,  babybearChip.Add(felt2, babybear.NewVariable(1073741824)), felt2)
+	var350 = api.Add(var96, frontend.Variable("0"))
+	backend95 = api.IsZero(api.Sub(var350, frontend.Variable("1")))
+	felt2 = babybearChip.Select(backend95,  babybearChip.Add(felt2, babybear.NewVariable(134217727)), felt2)
+	babybearChip.AssertEq(felt0, babybear.NewVariable(1345237507))
+	babybearChip.AssertEq(felt1, babybear.NewVariable(0))
+	babybearChip.AssertEq(felt2, babybear.NewVariable(0))
+	
+	// Finalizes.
+	_ = backend0
+	_ = backend1
+	_ = backend10
+	_ = backend11
+	_ = backend12
+	_ = backend13
+	_ = backend14
+	_ = backend15
+	_ = backend16
+	_ = backend17
+	_ = backend18
+	_ = backend19
+	_ = backend2
+	_ = backend20
+	_ = backend21
+	_ = backend22
+	_ = backend23
+	_ = backend24
+	_ = backend25
+	_ = backend26
+	_ = backend27
+	_ = backend28
+	_ = backend29
+	_ = backend3
+	_ = backend30
+	_ = backend31
+	_ = backend32
+	_ = backend33
+	_ = backend34
+	_ = backend35
+	_ = backend36
+	_ = backend37
+	_ = backend38
+	_ = backend39
+	_ = backend4
+	_ = backend40
+	_ = backend41
+	_ = backend42
+	_ = backend43
+	_ = backend44
+	_ = backend45
+	_ = backend46
+	_ = backend47
+	_ = backend48
+	_ = backend49
+	_ = backend5
+	_ = backend50
+	_ = backend51
+	_ = backend52
+	_ = backend53
+	_ = backend54
+	_ = backend55
+	_ = backend56
+	_ = backend57
+	_ = backend58
+	_ = backend59
+	_ = backend6
+	_ = backend60
+	_ = backend61
+	_ = backend62
+	_ = backend63
+	_ = backend64
+	_ = backend65
+	_ = backend66
+	_ = backend67
+	_ = backend68
+	_ = backend69
+	_ = backend7
+	_ = backend70
+	_ = backend71
+	_ = backend72
+	_ = backend73
+	_ = backend74
+	_ = backend75
+	_ = backend76
+	_ = backend77
+	_ = backend78
+	_ = backend79
+	_ = backend8
+	_ = backend80
+	_ = backend81
+	_ = backend82
+	_ = backend83
+	_ = backend84
+	_ = backend85
+	_ = backend86
+	_ = backend87
+	_ = backend88
+	_ = backend89
+	_ = backend9
+	_ = backend90
+	_ = backend91
+	_ = backend92
+	_ = backend93
+	_ = backend94
+	_ = backend95
+	_ = felt0
+	_ = felt1
+	_ = felt2
+	_ = var0
+	_ = var1
+	_ = var10
+	_ = var100
+	_ = var101
+	_ = var102
+	_ = var103
+	_ = var104
+	_ = var105
+	_ = var106
+	_ = var107
+	_ = var108
+	_ = var109
+	_ = var11
+	_ = var110
+	_ = var111
+	_ = var112
+	_ = var113
+	_ = var114
+	_ = var115
+	_ = var116
+	_ = var117
+	_ = var118
+	_ = var119
+	_ = var12
+	_ = var120
+	_ = var121
+	_ = var122
+	_ = var123
+	_ = var124
+	_ = var125
+	_ = var126
+	_ = var127
+	_ = var128
+	_ = var129
+	_ = var13
+	_ = var130
+	_ = var131
+	_ = var132
+	_ = var133
+	_ = var134
+	_ = var135
+	_ = var136
+	_ = var137
+	_ = var138
+	_ = var139
+	_ = var14
+	_ = var140
+	_ = var141
+	_ = var142
+	_ = var143
+	_ = var144
+	_ = var145
+	_ = var146
+	_ = var147
+	_ = var148
+	_ = var149
+	_ = var15
+	_ = var150
+	_ = var151
+	_ = var152
+	_ = var153
+	_ = var154
+	_ = var155
+	_ = var156
+	_ = var157
+	_ = var158
+	_ = var159
+	_ = var16
+	_ = var160
+	_ = var161
+	_ = var162
+	_ = var163
+	_ = var164
+	_ = var165
+	_ = var166
+	_ = var167
+	_ = var168
+	_ = var169
+	_ = var17
+	_ = var170
+	_ = var171
+	_ = var172
+	_ = var173
+	_ = var174
+	_ = var175
+	_ = var176
+	_ = var177
+	_ = var178
+	_ = var179
+	_ = var18
+	_ = var180
+	_ = var181
+	_ = var182
+	_ = var183
+	_ = var184
+	_ = var185
+	_ = var186
+	_ = var187
+	_ = var188
+	_ = var189
+	_ = var19
+	_ = var190
+	_ = var191
+	_ = var192
+	_ = var193
+	_ = var194
+	_ = var195
+	_ = var196
+	_ = var197
+	_ = var198
+	_ = var199
+	_ = var2
+	_ = var20
+	_ = var200
+	_ = var201
+	_ = var202
+	_ = var203
+	_ = var204
+	_ = var205
+	_ = var206
+	_ = var207
+	_ = var208
+	_ = var209
+	_ = var21
+	_ = var210
+	_ = var211
+	_ = var212
+	_ = var213
+	_ = var214
+	_ = var215
+	_ = var216
+	_ = var217
+	_ = var218
+	_ = var219
+	_ = var22
+	_ = var220
+	_ = var221
+	_ = var222
+	_ = var223
+	_ = var224
+	_ = var225
+	_ = var226
+	_ = var227
+	_ = var228
+	_ = var229
+	_ = var23
+	_ = var230
+	_ = var231
+	_ = var232
+	_ = var233
+	_ = var234
+	_ = var235
+	_ = var236
+	_ = var237
+	_ = var238
+	_ = var239
+	_ = var24
+	_ = var240
+	_ = var241
+	_ = var242
+	_ = var243
+	_ = var244
+	_ = var245
+	_ = var246
+	_ = var247
+	_ = var248
+	_ = var249
+	_ = var25
+	_ = var250
+	_ = var251
+	_ = var252
+	_ = var253
+	_ = var254
+	_ = var255
+	_ = var256
+	_ = var257
+	_ = var258
+	_ = var259
+	_ = var26
+	_ = var260
+	_ = var261
+	_ = var262
+	_ = var263
+	_ = var264
+	_ = var265
+	_ = var266
+	_ = var267
+	_ = var268
+	_ = var269
+	_ = var27
+	_ = var270
+	_ = var271
+	_ = var272
+	_ = var273
+	_ = var274
+	_ = var275
+	_ = var276
+	_ = var277
+	_ = var278
+	_ = var279
+	_ = var28
+	_ = var280
+	_ = var281
+	_ = var282
+	_ = var283
+	_ = var284
+	_ = var285
+	_ = var286
+	_ = var287
+	_ = var288
+	_ = var289
+	_ = var29
+	_ = var290
+	_ = var291
+	_ = var292
+	_ = var293
+	_ = var294
+	_ = var295
+	_ = var296
+	_ = var297
+	_ = var298
+	_ = var299
+	_ = var3
+	_ = var30
+	_ = var300
+	_ = var301
+	_ = var302
+	_ = var303
+	_ = var304
+	_ = var305
+	_ = var306
+	_ = var307
+	_ = var308
+	_ = var309
+	_ = var31
+	_ = var310
+	_ = var311
+	_ = var312
+	_ = var313
+	_ = var314
+	_ = var315
+	_ = var316
+	_ = var317
+	_ = var318
+	_ = var319
+	_ = var32
+	_ = var320
+	_ = var321
+	_ = var322
+	_ = var323
+	_ = var324
+	_ = var325
+	_ = var326
+	_ = var327
+	_ = var328
+	_ = var329
+	_ = var33
+	_ = var330
+	_ = var331
+	_ = var332
+	_ = var333
+	_ = var334
+	_ = var335
+	_ = var336
+	_ = var337
+	_ = var338
+	_ = var339
+	_ = var34
+	_ = var340
+	_ = var341
+	_ = var342
+	_ = var343
+	_ = var344
+	_ = var345
+	_ = var346
+	_ = var347
+	_ = var348
+	_ = var349
+	_ = var35
+	_ = var350
+	_ = var36
+	_ = var37
+	_ = var38
+	_ = var39
+	_ = var4
+	_ = var40
+	_ = var41
+	_ = var42
+	_ = var43
+	_ = var44
+	_ = var45
+	_ = var46
+	_ = var47
+	_ = var48
+	_ = var49
+	_ = var5
+	_ = var50
+	_ = var51
+	_ = var52
+	_ = var53
+	_ = var54
+	_ = var55
+	_ = var56
+	_ = var57
+	_ = var58
+	_ = var59
+	_ = var6
+	_ = var60
+	_ = var61
+	_ = var62
+	_ = var63
+	_ = var64
+	_ = var65
+	_ = var66
+	_ = var67
+	_ = var68
+	_ = var69
+	_ = var7
+	_ = var70
+	_ = var71
+	_ = var72
+	_ = var73
+	_ = var74
+	_ = var75
+	_ = var76
+	_ = var77
+	_ = var78
+	_ = var79
+	_ = var8
+	_ = var80
+	_ = var81
+	_ = var82
+	_ = var83
+	_ = var84
+	_ = var85
+	_ = var86
+	_ = var87
+	_ = var88
+	_ = var89
+	_ = var9
+	_ = var90
+	_ = var91
+	_ = var92
+	_ = var93
+	_ = var94
+	_ = var95
+	_ = var96
+	_ = var97
+	_ = var98
+	_ = var99
+	_ = state
+	_ = babybearChip
+	_ = p2
 	return nil
 }

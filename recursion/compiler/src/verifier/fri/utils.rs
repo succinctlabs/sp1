@@ -51,6 +51,18 @@ impl<C: Config> Builder<C> {
         output
     }
 
+    pub fn num2bits_v_circuit(&mut self, num: Var<C::N>, num_bits: usize) -> Vec<Var<C::N>> {
+        let mut output = Vec::new();
+        for _ in 0..num_bits {
+            output.push(self.uninit());
+        }
+
+        self.operations
+            .push(DslIR::CircuitNum2BitsV(num, num_bits, output.clone()));
+
+        output
+    }
+
     /// Converts a var to a fixed length of bits.
     pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
         // TODO: A separate function for a circuit backend.

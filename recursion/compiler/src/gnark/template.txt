@@ -3,6 +3,7 @@ package verifier
 
 import (
 	"github.com/consensys/gnark/frontend"
+	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
 	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
 )
 
@@ -12,8 +13,12 @@ type Circuit struct {
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
-	var state [3]frontend.Variable
+	var state []frontend.Variable
+	babybearChip := babybear.NewChip(api)
 	p2 := poseidon2.NewPoseidon2Chip(api)
 {{LINES}}
+	_ = state
+	_ = babybearChip
+	_ = p2
 	return nil
 }
