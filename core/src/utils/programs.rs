@@ -72,4 +72,22 @@ pub mod tests {
 
     pub const SHA2_ELF: &[u8] =
         include_bytes!("../../../tests/sha2/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_ADD_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-add/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_DOUBLE_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-double/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SECP256K1_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/secp256k1-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BLS12381_ADD_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-add/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BLS12381_DOUBLE_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-double/elf/riscv32im-succinct-zkvm-elf");
 }

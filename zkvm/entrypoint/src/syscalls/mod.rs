@@ -1,4 +1,6 @@
 mod blake3_compress;
+mod bls12381;
+mod bn254;
 mod ed25519;
 mod halt;
 mod io;
@@ -10,6 +12,8 @@ mod sha_extend;
 mod sys;
 mod unconstrained;
 
+pub use bls12381::*;
+pub use bn254::*;
 pub use ed25519::*;
 pub use halt::*;
 pub use io::*;
@@ -65,3 +69,15 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
+
+/// Executes `BN254_ADD`.
+pub const BN254_ADD: u32 = 0x00_01_01_0E;
+
+/// Executes `BN254_DOUBLE`.
+pub const BN254_DOUBLE: u32 = 0x00_00_01_0F;
+
+/// Executes the `BLS12381_ADD` precompile.
+pub const BLS12381_ADD: u32 = 0x00_01_01_11;
+
+/// Executes the `BLS12381_DOUBLE` precompile.
+pub const BLS12381_DOUBLE: u32 = 0x00_00_01_12;
