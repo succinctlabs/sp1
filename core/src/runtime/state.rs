@@ -77,4 +77,7 @@ pub(crate) struct ForkState {
 
     /// Full shard from original state
     pub(crate) record: ExecutionRecord,
+
+    // Emit events from original state
+    pub(crate) emit_events: bool,
 }

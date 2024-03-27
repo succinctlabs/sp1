@@ -2,6 +2,8 @@ use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, SymbolicUsize, Usize}
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
+use p3_field::AbstractExtensionField;
+use p3_field::AbstractField;
 
 #[derive(Debug, Clone)]
 pub struct Builder<C: Config> {
@@ -32,7 +34,7 @@ impl<C: Config> Builder<C> {
         }
     }
 
-    pub(crate) fn push(&mut self, op: DslIR<C>) {
+    pub fn push(&mut self, op: DslIR<C>) {
         self.operations.push(op);
     }
 
@@ -171,6 +173,27 @@ impl<C: Config> Builder<C> {
             end: end.into(),
             builder: self,
         }
+    }
+
+    pub fn print_v(&mut self, dst: Var<C::N>) {
+        self.operations.push(DslIR::PrintV(dst));
+    }
+
+    pub fn print_f(&mut self, dst: Felt<C::F>) {
+        self.operations.push(DslIR::PrintF(dst));
+    }
+
+    pub fn print_e(&mut self, dst: Ext<C::F, C::EF>) {
+        self.operations.push(DslIR::PrintE(dst));
+    }
+
+    pub fn ext_from_base_slice(&mut self, arr: &[Felt<C::F>]) -> Ext<C::F, C::EF> {
+        assert_eq!(arr.len(), <C::EF as AbstractExtensionField::<C::F>>::D);
+        let mut res = SymbolicExt::Const(C::EF::zero());
+        for i in 0..arr.len() {
+            res += arr[i] * SymbolicExt::Const(C::EF::monomial(i));
+        }
+        self.eval(res)
     }
 }
 

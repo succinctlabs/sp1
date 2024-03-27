@@ -1,4 +1,5 @@
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{self, AssertUnwindSafe};
+use std::process::exit;
 
 use p3_air::{
     Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
@@ -77,15 +78,24 @@ pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
             builder.is_last_row = Val::<SC>::one();
             builder.is_transition = Val::<SC>::zero();
         }
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = catch_unwind_silent(AssertUnwindSafe(|| {
             chip.eval(&mut builder);
         }));
         if result.is_err() {
-            println!("local: {:?}", main_local);
-            println!("next:  {:?}", main_next);
-            panic!("failed at row {} of chip {}", i, chip.name());
+            eprintln!("local: {:?}", main_local);
+            eprintln!("next:  {:?}", main_next);
+            eprintln!("failed at row {} of chip {}", i, chip.name());
+            exit(1);
         }
     });
+}
+
+fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(f: F) -> std::thread::Result<R> {
+    let prev_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let result = panic::catch_unwind(f);
+    panic::set_hook(prev_hook);
+    result
 }
 
 /// Checks that all the interactions between the chips has been satisfied.
@@ -188,7 +198,8 @@ where
         let f: F = x.into();
         if f != F::zero() {
             let backtrace = std::backtrace::Backtrace::force_capture();
-            panic!("constraint failed: {}", backtrace);
+            eprintln!("constraint failed: {:?} != 0\n{}", f, backtrace);
+            panic!();
         }
     }
 }
