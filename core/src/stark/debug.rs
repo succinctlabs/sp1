@@ -1,31 +1,37 @@
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::panic::{self, AssertUnwindSafe};
+use std::process::exit;
 
 use p3_air::{
     Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
 };
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::air::{EmptyMessageBuilder, MachineAir};
+use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 
-use super::{ChipRef, StarkGenericConfig};
+use super::{MachineChip, StarkGenericConfig, Val};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<SC: StarkGenericConfig>(
-    chip: &ChipRef<SC>,
-    preprocessed: Option<&RowMajorMatrix<SC::Val>>,
-    main: &RowMajorMatrix<SC::Val>,
+pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
+    chip: &MachineChip<SC, A>,
+    preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
+    main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
-) {
+) where
+    Val<SC>: PrimeField32,
+    A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+{
     assert_eq!(main.height(), perm.height());
     let height = main.height();
     if height == 0 {
         return;
     }
+
+    let cumulative_sum = perm.row_slice(perm.height() - 1).last().copied().unwrap();
 
     // Check that constraints are satisfied.
     (0..height).for_each(|i| {
@@ -33,13 +39,13 @@ pub fn debug_constraints<SC: StarkGenericConfig>(
 
         let main_local = main.row_slice(i);
         let main_next = main.row_slice(i_next);
-        let preprocessed_local = if preprocessed.is_some() {
-            preprocessed.as_ref().unwrap().row_slice(i)
+        let preprocessed_local = if let Some(preprocessed) = preprocessed {
+            preprocessed.row_slice(i)
         } else {
             &[]
         };
-        let preprocessed_next = if preprocessed.is_some() {
-            preprocessed.as_ref().unwrap().row_slice(i_next)
+        let preprocessed_next = if let Some(preprocessed) = preprocessed {
+            preprocessed.row_slice(i_next)
         } else {
             &[]
         };
@@ -60,26 +66,36 @@ pub fn debug_constraints<SC: StarkGenericConfig>(
                 next: perm_next,
             },
             perm_challenges,
-            is_first_row: SC::Val::zero(),
-            is_last_row: SC::Val::zero(),
-            is_transition: SC::Val::one(),
+            cumulative_sum,
+            is_first_row: Val::<SC>::zero(),
+            is_last_row: Val::<SC>::zero(),
+            is_transition: Val::<SC>::one(),
         };
         if i == 0 {
-            builder.is_first_row = SC::Val::one();
+            builder.is_first_row = Val::<SC>::one();
         }
         if i == height - 1 {
-            builder.is_last_row = SC::Val::one();
-            builder.is_transition = SC::Val::zero();
+            builder.is_last_row = Val::<SC>::one();
+            builder.is_transition = Val::<SC>::zero();
         }
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = catch_unwind_silent(AssertUnwindSafe(|| {
             chip.eval(&mut builder);
         }));
         if result.is_err() {
-            println!("local: {:?}", main_local);
-            println!("next:  {:?}", main_local);
-            panic!("failed at row {} of chip {}", i, chip.name());
+            eprintln!("local: {:?}", main_local);
+            eprintln!("next:  {:?}", main_next);
+            eprintln!("failed at row {} of chip {}", i, chip.name());
+            exit(1);
         }
     });
+}
+
+fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(f: F) -> std::thread::Result<R> {
+    let prev_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let result = panic::catch_unwind(f);
+    panic::set_hook(prev_hook);
+    result
 }
 
 /// Checks that all the interactions between the chips has been satisfied.
@@ -98,6 +114,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) preprocessed: TwoRowMatrixView<'a, F>,
     pub(crate) main: TwoRowMatrixView<'a, F>,
     pub(crate) perm: TwoRowMatrixView<'a, EF>,
+    pub(crate) cumulative_sum: EF,
     pub(crate) perm_challenges: &'a [EF],
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
@@ -181,8 +198,21 @@ where
         let f: F = x.into();
         if f != F::zero() {
             let backtrace = std::backtrace::Backtrace::force_capture();
-            panic!("constraint failed: {}", backtrace);
+            eprintln!("constraint failed: {:?} != 0\n{}", f, backtrace);
+            panic!();
         }
+    }
+}
+
+impl<'a, F, EF> MultiTableAirBuilder for DebugConstraintBuilder<'a, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    type Sum = EF;
+
+    fn cumulative_sum(&self) -> Self::Sum {
+        self.cumulative_sum
     }
 }
 

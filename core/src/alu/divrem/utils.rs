@@ -1,7 +1,7 @@
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{CurtaAirBuilder, Word, WORD_SIZE};
+use crate::air::{SP1AirBuilder, Word, WORD_SIZE};
 use crate::runtime::Opcode;
 
 /// Returns `true` if the given `opcode` is a signed operation.
@@ -56,7 +56,7 @@ pub fn eval_abs_value<AB>(
     abs_value: &Word<AB::Var>,
     is_negative: &AB::Var,
 ) where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     for i in 0..WORD_SIZE {
         let exp_sum_if_negative = AB::Expr::from_canonical_u32({
@@ -72,7 +72,7 @@ pub fn eval_abs_value<AB>(
             .assert_eq(value[i] + abs_value[i], exp_sum_if_negative.clone());
 
         builder
-            .when(AB::Expr::one() - *is_negative)
+            .when_not(*is_negative)
             .assert_eq(value[i], abs_value[i]);
     }
 }

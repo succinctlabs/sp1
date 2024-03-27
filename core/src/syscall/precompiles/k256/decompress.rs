@@ -1,18 +1,21 @@
 use crate::air::BaseAirBuilder;
-use crate::air::CurtaAirBuilder;
 use crate::air::MachineAir;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
-use crate::cpu::MemoryReadRecord;
-use crate::cpu::MemoryWriteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
-use crate::operations::field::fp_op::FpOpCols;
-use crate::operations::field::fp_op::FpOperation;
-use crate::operations::field::fp_sqrt::FpSqrtCols;
+use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOperation;
+use crate::operations::field::field_sqrt::FieldSqrtCols;
+use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryReadRecord;
+use crate::runtime::MemoryWriteRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
+
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
@@ -35,15 +38,17 @@ use num::Zero;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::MatrixRowSlices;
+use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use typenum::U32;
 
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
-use valida_derive::AlignedBorrow;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct K256DecompressEvent {
     pub shard: u32,
     pub clk: u32,
@@ -72,28 +77,19 @@ impl K256DecompressChip {
 
 impl Syscall for K256DecompressChip {
     fn num_extra_cycles(&self) -> u32 {
-        4
+        0
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let a0 = crate::runtime::Register::X10;
-
+    fn execute(&self, rt: &mut SyscallContext, slice_ptr: u32, is_odd: u32) -> Option<u32> {
         let start_clk = rt.clk;
-
-        // TODO: this will have to be be constrained, but can do it later.
-        let slice_ptr = rt.register_unsafe(a0);
-        if slice_ptr % 4 != 0 {
-            panic!();
-        }
+        assert!(slice_ptr % 4 == 0, "slice_ptr must be 4-byte aligned");
+        assert!(is_odd <= 1, "is_odd must be 0 or 1");
 
         let (x_memory_records_vec, x_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
             NUM_WORDS_FIELD_ELEMENT,
         );
         let x_memory_records: [MemoryReadRecord; 8] = x_memory_records_vec.try_into().unwrap();
-
-        // This unsafe read is okay because we do mw_slice into the first 8 words later.
-        let is_odd = rt.byte_unsafe(slice_ptr);
 
         let x_bytes: [u8; COMPRESSED_POINT_BYTES] = words_to_bytes_le(&x_vec);
         let mut x_bytes_be = x_bytes;
@@ -129,9 +125,7 @@ impl Syscall for K256DecompressChip {
                 y_memory_records,
             });
 
-        rt.clk += 4;
-
-        slice_ptr
+        None
     }
 }
 
@@ -142,52 +136,47 @@ pub struct K256DecompressCols<T> {
     pub shard: T,
     pub clk: T,
     pub ptr: T,
+    pub is_odd: T,
     pub x_access: [MemoryReadCols<T>; NUM_WORDS_FIELD_ELEMENT],
     pub y_access: [MemoryReadWriteCols<T>; NUM_WORDS_FIELD_ELEMENT],
-    pub(crate) x_2: FpOpCols<T>,
-    pub(crate) x_3: FpOpCols<T>,
-    pub(crate) x_3_plus_b: FpOpCols<T>,
-    pub(crate) y: FpSqrtCols<T>,
-    pub(crate) neg_y: FpOpCols<T>,
+    pub(crate) x_2: FieldOpCols<T, Secp256k1BaseField>,
+    pub(crate) x_3: FieldOpCols<T, Secp256k1BaseField>,
+    pub(crate) x_3_plus_b: FieldOpCols<T, Secp256k1BaseField>,
+    pub(crate) y: FieldSqrtCols<T, Secp256k1BaseField>,
+    pub(crate) neg_y: FieldOpCols<T, Secp256k1BaseField>,
     pub(crate) y_least_bits: [T; 8],
 }
 
-impl<F: Field> K256DecompressCols<F> {
-    pub fn populate(&mut self, event: K256DecompressEvent, shard: &mut ExecutionRecord) {
-        let mut new_field_events = Vec::new();
+impl<F: PrimeField32> K256DecompressCols<F> {
+    pub fn populate(&mut self, event: K256DecompressEvent, record: &mut ExecutionRecord) {
+        let mut new_byte_lookup_events = Vec::new();
         self.is_real = F::from_bool(true);
         self.shard = F::from_canonical_u32(event.shard);
         self.clk = F::from_canonical_u32(event.clk);
         self.ptr = F::from_canonical_u32(event.ptr);
+        self.is_odd = F::from_canonical_u32(event.is_odd as u32);
         for i in 0..8 {
-            self.x_access[i].populate(event.x_memory_records[i], &mut new_field_events);
-            self.y_access[i].populate_write(event.y_memory_records[i], &mut new_field_events);
+            self.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+            self.y_access[i].populate_write(event.y_memory_records[i], &mut new_byte_lookup_events);
         }
 
         let x = &BigUint::from_bytes_le(&event.x_bytes);
-        self.populate_fp_ops(x);
+        self.populate_field_ops(x);
 
-        shard.field_events.append(&mut new_field_events);
+        record.add_byte_lookup_events(new_byte_lookup_events);
     }
 
-    fn populate_fp_ops(&mut self, x: &BigUint) {
+    fn populate_field_ops(&mut self, x: &BigUint) {
         // Y = sqrt(x^3 + b)
         let x_2 = self
             .x_2
-            .populate::<Secp256k1BaseField>(&x.clone(), &x.clone(), FpOperation::Mul);
-        let x_3 = self
-            .x_3
-            .populate::<Secp256k1BaseField>(&x_2, x, FpOperation::Mul);
+            .populate(&x.clone(), &x.clone(), FieldOperation::Mul);
+        let x_3 = self.x_3.populate(&x_2, x, FieldOperation::Mul);
         let b = Secp256k1Parameters::b_int();
-        let x_3_plus_b = self
-            .x_3_plus_b
-            .populate::<Secp256k1BaseField>(&x_3, &b, FpOperation::Add);
-        let y = self
-            .y
-            .populate::<Secp256k1BaseField>(&x_3_plus_b, secp256k1_sqrt);
+        let x_3_plus_b = self.x_3_plus_b.populate(&x_3, &b, FieldOperation::Add);
+        let y = self.y.populate(&x_3_plus_b, secp256k1_sqrt);
         let zero = BigUint::zero();
-        self.neg_y
-            .populate::<Secp256k1BaseField>(&zero, &y, FpOperation::Sub);
+        self.neg_y.populate(&zero, &y, FieldOperation::Sub);
         // Decompose bits of least significant Y byte
         let y_bytes = y.to_bytes_le();
         let y_lsb = if y_bytes.is_empty() { 0 } else { y_bytes[0] };
@@ -198,38 +187,27 @@ impl<F: Field> K256DecompressCols<F> {
 }
 
 impl<V: Copy> K256DecompressCols<V> {
-    pub fn eval<AB: CurtaAirBuilder<Var = V>>(&self, builder: &mut AB)
+    pub fn eval<AB: SP1AirBuilder<Var = V>>(&self, builder: &mut AB)
     where
         V: Into<AB::Expr>,
     {
-        // Get the 32nd byte of the slice, which should be `should_be_odd`.
-        let should_be_odd: AB::Expr = self.y_access[0].prev_value[0].into();
-        builder.assert_bool(should_be_odd.clone());
+        builder.assert_bool(self.is_odd);
 
-        let x = limbs_from_prev_access(&self.x_access);
+        let x: Limbs<V, U32> = limbs_from_prev_access(&self.x_access);
         self.x_2
-            .eval::<AB, Secp256k1BaseField, _, _>(builder, &x, &x, FpOperation::Mul);
-        self.x_3.eval::<AB, Secp256k1BaseField, _, _>(
-            builder,
-            &self.x_2.result,
-            &x,
-            FpOperation::Mul,
-        );
+            .eval::<AB, _, _>(builder, &x, &x, FieldOperation::Mul);
+        self.x_3
+            .eval::<AB, _, _>(builder, &self.x_2.result, &x, FieldOperation::Mul);
         let b = Secp256k1Parameters::b_int();
-        let b_const = Secp256k1BaseField::to_limbs_field::<AB::F>(&b);
-        self.x_3_plus_b.eval::<AB, Secp256k1BaseField, _, _>(
-            builder,
-            &self.x_3.result,
-            &b_const,
-            FpOperation::Add,
-        );
-        self.y
-            .eval::<AB, Secp256k1BaseField>(builder, &self.x_3_plus_b.result);
-        self.neg_y.eval::<AB, Secp256k1BaseField, _, _>(
+        let b_const = Secp256k1BaseField::to_limbs_field::<AB::F, _>(&b);
+        self.x_3_plus_b
+            .eval::<AB, _, _>(builder, &self.x_3.result, &b_const, FieldOperation::Add);
+        self.y.eval::<AB>(builder, &self.x_3_plus_b.result);
+        self.neg_y.eval::<AB, _, _>(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.y.multiplication.result,
-            FpOperation::Sub,
+            FieldOperation::Sub,
         );
 
         // Constrain decomposition of least significant byte of Y into `y_least_bits`
@@ -251,22 +229,19 @@ impl<V: Copy> K256DecompressCols<V> {
         // Interpret the lowest bit of Y as whether it is odd or not.
         let y_is_odd = self.y_least_bits[0];
 
-        // When y_is_odd == should_be_odd, the result is y, otherwise it is -y.
-        let y_limbs = limbs_from_access(&self.y_access);
+        // Constrain that the result is written into the Y memory access.
+        // When y_is_odd == should_be_odd, result is y
+        // (Equivalent: y_is_odd != !should_be_odd)
+        let y_limbs: Limbs<V, U32> = limbs_from_access(&self.y_access);
         builder
             .when(self.is_real)
-            .when(AB::Expr::one() - (y_is_odd.into() - should_be_odd.clone()))
+            .when_ne(y_is_odd.into(), AB::Expr::one() - self.is_odd)
             .assert_all_eq(self.y.multiplication.result, y_limbs);
+        // When y_is_odd != should_be_odd, result is -y.
         builder
             .when(self.is_real)
-            .when_ne(y_is_odd, should_be_odd)
+            .when_ne(y_is_odd, self.is_odd)
             .assert_all_eq(self.neg_y.result, y_limbs);
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            self.is_real.into() * self.is_real.into() * self.is_real.into()
-                - self.is_real.into() * self.is_real.into() * self.is_real.into(),
-        );
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
             builder.constraint_memory_access(
@@ -286,30 +261,37 @@ impl<V: Copy> K256DecompressCols<V> {
                 self.is_real,
             );
         }
+
+        builder.receive_syscall(
+            self.shard,
+            self.clk,
+            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DECOMPRESS.syscall_id()),
+            self.ptr,
+            self.is_odd,
+            self.is_real,
+        );
     }
 }
 
-impl<F: Field> MachineAir<F> for K256DecompressChip {
+impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "K256Decompress".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].k256_decompress_events = input.k256_decompress_events.clone();
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.k256_decompress_events.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for i in 0..record.k256_decompress_events.len() {
-            let event = record.k256_decompress_events[i];
+        for i in 0..input.k256_decompress_events.len() {
+            let event = input.k256_decompress_events[i].clone();
             let mut row = [F::zero(); NUM_K256_DECOMPRESS_COLS];
             let cols: &mut K256DecompressCols<F> = row.as_mut_slice().borrow_mut();
-            cols.populate(event, record);
+            cols.populate(event.clone(), output);
 
             rows.push(row);
         }
@@ -335,7 +317,7 @@ impl<F: Field> MachineAir<F> for K256DecompressChip {
                     .unwrap();
                 cols.x_access[i].access.value = Word(word_bytes);
             }
-            cols.populate_fp_ops(&dummy_value);
+            cols.populate_field_ops(&dummy_value);
             row
         });
 
@@ -343,6 +325,10 @@ impl<F: Field> MachineAir<F> for K256DecompressChip {
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_K256_DECOMPRESS_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.k256_decompress_events.is_empty()
     }
 }
 
@@ -354,7 +340,7 @@ impl<F> BaseAir<F> for K256DecompressChip {
 
 impl<AB> Air<AB> for K256DecompressChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -370,35 +356,39 @@ pub mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
+    use crate::utils::run_test;
+    use crate::utils::run_test_io;
+    use crate::utils::setup_logger;
+    use crate::utils::tests::ECRECOVER_ELF;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
-    use crate::utils::BabyBearBlake3;
-    use crate::{
-        runtime::{Program, Runtime},
-        utils::{prove_core, setup_logger},
-    };
+    use crate::Program;
+    use crate::SP1Stdin;
 
     #[test]
     fn test_k256_decompress() {
         setup_logger();
         let mut rng = StdRng::seed_from_u64(2);
 
-        for _ in 0..4 {
+        for _ in 0..1 {
             let secret_key = k256::SecretKey::random(&mut rng);
             let public_key = secret_key.public_key();
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
             let compressed = public_key.to_sec1_bytes();
-            let mut result: [u8; 65] = [0; 65];
 
-            let program = Program::from(SECP256K1_DECOMPRESS_ELF);
-            let mut runtime = Runtime::new(program);
-            runtime.write_stdin_slice(&compressed);
-            runtime.run();
-            runtime.read_stdout_slice(&mut result);
+            let inputs = SP1Stdin::from(&compressed);
 
+            let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
+            let mut result = [0; 65];
+            proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
-            let config = BabyBearBlake3::new();
-            prove_core(config, &mut runtime);
         }
+    }
+
+    #[test]
+    fn test_ecrecover_program() {
+        setup_logger();
+        let program = Program::from(ECRECOVER_ELF);
+        run_test(program).unwrap();
     }
 }

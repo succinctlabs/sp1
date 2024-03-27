@@ -4,6 +4,7 @@ mod instruction;
 mod jump;
 mod memory;
 mod opcode;
+mod opcode_specific;
 
 pub use auipc::*;
 pub use branch::*;
@@ -11,11 +12,11 @@ pub use instruction::*;
 pub use jump::*;
 pub use memory::*;
 pub use opcode::*;
+pub use opcode_specific::*;
 
-use core::borrow::{Borrow, BorrowMut};
 use p3_util::indices_arr;
+use sp1_derive::AlignedBorrow;
 use std::mem::{size_of, transmute};
-use valida_derive::AlignedBorrow;
 
 use crate::{
     air::Word,
@@ -26,17 +27,19 @@ pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 
 pub const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
-pub const OPCODE_SPECIFIC_COLUMNS_SIZE: usize = size_of_opcode_specific_columns();
-
 /// The column layout for the CPU.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct CpuCols<T> {
+pub struct CpuCols<T: Copy> {
     /// The current shard.
     pub shard: T,
 
-    /// The clock cycle value.
+    /// The clock cycle value.  This should be within 24 bits.
     pub clk: T,
+    /// The least significant 16 bit limb of clk.
+    pub clk_16bit_limb: T,
+    /// The most significant 8 bit limb of clk.
+    pub clk_8bit_limb: T,
 
     /// The program counter value.
     pub pc: T,
@@ -52,8 +55,7 @@ pub struct CpuCols<T> {
     pub op_b_access: MemoryReadCols<T>,
     pub op_c_access: MemoryReadCols<T>,
 
-    /// This is transmuted to MemoryColumns, BranchColumns, JumpColumns, or AUIPCColumns
-    pub opcode_specific_columns: [T; OPCODE_SPECIFIC_COLUMNS_SIZE],
+    pub opcode_specific_columns: OpcodeSpecificCols<T>,
 
     /// Selector to label whether this row is a non padded row.
     pub is_real: T,
@@ -82,22 +84,26 @@ pub struct CpuCols<T> {
     /// The unsigned memory value is the value after the offset logic is applied. Used for the load
     /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
     pub unsigned_mem_val: Word<T>,
+
+    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
+    /// TODO: this can be moved into `opcode_specific_columns` for ECALL.
+    pub ecall_mul_send_to_table: T,
 }
 
-impl<T: Clone> CpuCols<T> {
+impl<T: Copy> CpuCols<T> {
     /// Gets the value of the first operand.
     pub fn op_a_val(&self) -> Word<T> {
-        self.op_a_access.value().clone()
+        *self.op_a_access.value()
     }
 
     /// Gets the value of the second operand.
     pub fn op_b_val(&self) -> Word<T> {
-        self.op_b_access.value().clone()
+        *self.op_b_access.value()
     }
 
     /// Gets the value of the third operand.
     pub fn op_c_val(&self) -> Word<T> {
-        self.op_c_access.value().clone()
+        *self.op_c_access.value()
     }
 }
 
@@ -105,22 +111,4 @@ impl<T: Clone> CpuCols<T> {
 const fn make_col_map() -> CpuCols<usize> {
     let indices_arr = indices_arr::<NUM_CPU_COLS>();
     unsafe { transmute::<[usize; NUM_CPU_COLS], CpuCols<usize>>(indices_arr) }
-}
-
-/// Returns the size of the opcode specific columns and makes sure each opcode specific column fits.
-const fn size_of_opcode_specific_columns() -> usize {
-    let memory_columns_size = NUM_MEMORY_COLUMNS;
-    let branch_columns_size = NUM_BRANCH_COLS;
-    let jump_columns_size = NUM_JUMP_COLS;
-    let aui_pc_columns_size = NUM_AUIPC_COLS;
-
-    if branch_columns_size > memory_columns_size {
-        panic!("BranchColumns is too large to fit in the opcode_specific_columns array.");
-    } else if jump_columns_size > memory_columns_size {
-        panic!("JumpColumns is too large to fit in the opcode_specific_columns array.");
-    } else if aui_pc_columns_size > memory_columns_size {
-        panic!("AUIPCColumns is too large to fit in the opcode_specific_columns array.");
-    }
-
-    memory_columns_size
 }

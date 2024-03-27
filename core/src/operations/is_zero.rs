@@ -4,15 +4,12 @@
 //!
 //! The idea is that 1 - input * inverse is exactly the boolean value indicating whether the input
 //! is 0.
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
-use std::mem::size_of;
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 
 /// A set of columns needed to compute whether the given word is 0.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -43,7 +40,7 @@ impl<F: Field> IsZeroOperation<F> {
         (a == F::zero()) as u32
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: AB::Expr,
         cols: IsZeroOperation<AB::Var>,

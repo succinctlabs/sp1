@@ -1,19 +1,22 @@
+use std::hash::Hash;
+
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::Field;
+use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_util::log2_ceil_usize;
 
 use crate::{
-    air::{CurtaAirBuilder, MachineAir, MultiTableAirBuilder},
+    air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder},
-    runtime::ExecutionRecord,
+    runtime::Program,
 };
 
 use super::{
-    eval_permutation_constraints, DebugConstraintBuilder, ProverConstraintFolder,
-    StarkGenericConfig, VerifierConstraintFolder,
+    eval_permutation_constraints, generate_permutation_trace, DebugConstraintBuilder,
+    ProverConstraintFolder, StarkGenericConfig, Val, VerifierConstraintFolder,
 };
 
+/// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
     /// The underlying AIR of the chip for constraint evaluation.
     air: A,
@@ -25,38 +28,27 @@ pub struct Chip<F: Field, A> {
     log_quotient_degree: usize,
 }
 
-pub struct ChipRef<'a, SC: StarkGenericConfig> {
-    air: &'a dyn StarkAir<SC>,
-    sends: &'a [Interaction<SC::Val>],
-    receives: &'a [Interaction<SC::Val>],
-    log_quotient_degree: usize,
-}
-
 impl<F: Field, A> Chip<F, A> {
+    /// The send interactions of the chip.
     pub fn sends(&self) -> &[Interaction<F>] {
         &self.sends
     }
 
+    /// The receive interactions of the chip.
     pub fn receives(&self) -> &[Interaction<F>] {
         &self.receives
     }
 
+    /// The relative log degree of the quotient polynomial, i.e. `log2(max_constraint_degree - 1)`.
     pub const fn log_quotient_degree(&self) -> usize {
         self.log_quotient_degree
     }
 }
 
-impl<'a, SC: StarkGenericConfig> ChipRef<'a, SC> {
-    pub fn sends(&self) -> &[Interaction<SC::Val>] {
-        self.sends
-    }
-
-    pub fn receives(&self) -> &[Interaction<SC::Val>] {
-        self.receives
-    }
-
-    pub const fn log_quotient_degree(&self) -> usize {
-        self.log_quotient_degree
+impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
+    /// Returns whether the given chip is included in the execution record of the shard.
+    pub fn included(&self, shard: &A::Record) -> bool {
+        self.air.included(shard)
     }
 }
 
@@ -64,31 +56,34 @@ impl<'a, SC: StarkGenericConfig> ChipRef<'a, SC> {
 ///
 /// This trait is for specifying a trait bound for explicit types of builders used in the stark
 /// proving system. It is automatically implemented on any type that implements `Air<AB>` with
-/// `AB: CurtaAirBuilder`. Users should not need to implement this trait manually.
+/// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
 pub trait StarkAir<SC: StarkGenericConfig>:
-    MachineAir<SC::Val>
-    + Air<InteractionBuilder<SC::Val>>
+    MachineAir<Val<SC>>
+    + Air<InteractionBuilder<Val<SC>>>
     + for<'a> Air<ProverConstraintFolder<'a, SC>>
     + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+    + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
 {
 }
 
 impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
-    T: MachineAir<SC::Val>
-        + Air<InteractionBuilder<SC::Val>>
+    T: MachineAir<Val<SC>>
+        + Air<InteractionBuilder<Val<SC>>>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
         + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
+        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
 {
 }
 
 impl<F, A> Chip<F, A>
 where
     F: Field,
-    A: Air<InteractionBuilder<F>>,
 {
-    pub fn new(air: A) -> Self {
+    /// Records the interactions and constraint degree from the air and crates a new chip.
+    pub fn new(air: A) -> Self
+    where
+        A: Air<InteractionBuilder<F>>,
+    {
         let mut builder = InteractionBuilder::new(air.width());
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
@@ -109,16 +104,22 @@ where
         self.sends.len() + self.receives.len()
     }
 
-    pub fn as_ref<SC: StarkGenericConfig<Val = F>>(&self) -> ChipRef<SC>
+    pub fn generate_permutation_trace<EF: ExtensionField<F>>(
+        &self,
+        preprocessed: &Option<RowMajorMatrix<F>>,
+        main: &RowMajorMatrix<F>,
+        random_elements: &[EF],
+    ) -> RowMajorMatrix<EF>
     where
-        A: StarkAir<SC>,
+        F: PrimeField,
     {
-        ChipRef {
-            air: &self.air,
-            sends: &self.sends,
-            receives: &self.receives,
-            log_quotient_degree: self.log_quotient_degree,
-        }
+        generate_permutation_trace(
+            &self.sends,
+            &self.receives,
+            preprocessed,
+            main,
+            random_elements,
+        )
     }
 }
 
@@ -141,20 +142,29 @@ where
     F: Field,
     A: MachineAir<F>,
 {
+    type Record = A::Record;
+
     fn name(&self) -> String {
         self.air.name()
     }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
-        self.air.generate_trace(record)
+    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+        <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        self.air.shard(input, outputs);
+    fn preprocessed_width(&self) -> usize {
+        self.air.preprocessed_width()
     }
 
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        self.air.include(record)
+    fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
+        self.air.generate_trace(input, output)
+    }
+
+    fn generate_dependencies(&self, input: &A::Record, output: &mut A::Record) {
+        self.air.generate_dependencies(input, output)
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        self.air.included(shard)
     }
 }
 
@@ -163,7 +173,7 @@ impl<F, A, AB> Air<AB> for Chip<F, A>
 where
     F: Field,
     A: Air<AB>,
-    AB: CurtaAirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
+    AB: SP1AirBuilder<F = F> + MultiTableAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Evaluate the execution trace constraints.
@@ -173,54 +183,24 @@ where
     }
 }
 
-// Implement Air on ChipRef similar to Chip.
-
-impl<'a, SC: StarkGenericConfig> BaseAir<SC::Val> for ChipRef<'a, SC> {
-    fn width(&self) -> usize {
-        <dyn StarkAir<SC> as BaseAir<SC::Val>>::width(self.air)
-    }
-
-    fn preprocessed_trace(&self) -> Option<RowMajorMatrix<SC::Val>> {
-        <dyn StarkAir<SC> as BaseAir<SC::Val>>::preprocessed_trace(self.air)
-    }
-}
-
-impl<'a, SC: StarkGenericConfig> MachineAir<SC::Val> for ChipRef<'a, SC> {
-    fn name(&self) -> String {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::name(self.air)
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<SC::Val> {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::generate_trace(self.air, record)
-    }
-
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::shard(self.air, input, outputs);
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        <dyn StarkAir<SC> as MachineAir<SC::Val>>::include(self.air, record)
-    }
-}
-
-impl<'a, 'b, SC: StarkGenericConfig> Air<ProverConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
-    fn eval(&self, builder: &mut ProverConstraintFolder<'b, SC>) {
-        <dyn StarkAir<SC> as Air<ProverConstraintFolder<'b, SC>>>::eval(self.air, builder);
-    }
-}
-
-impl<'a, 'b, SC: StarkGenericConfig> Air<VerifierConstraintFolder<'b, SC>> for ChipRef<'a, SC> {
-    fn eval(&self, builder: &mut VerifierConstraintFolder<'b, SC>) {
-        <dyn StarkAir<SC> as Air<VerifierConstraintFolder<'b, SC>>>::eval(self.air, builder);
-    }
-}
-
-impl<'a, 'b, SC: StarkGenericConfig> Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>
-    for ChipRef<'a, SC>
+impl<F, A> PartialEq for Chip<F, A>
+where
+    F: Field,
+    A: PartialEq,
 {
-    fn eval(&self, builder: &mut DebugConstraintBuilder<'b, SC::Val, SC::Challenge>) {
-        <dyn StarkAir<SC> as Air<DebugConstraintBuilder<'b, SC::Val, SC::Challenge>>>::eval(
-            self.air, builder,
-        );
+    fn eq(&self, other: &Self) -> bool {
+        self.air == other.air
+    }
+}
+
+impl<F: Field, A: Eq> Eq for Chip<F, A> where F: Field + Eq {}
+
+impl<F, A> Hash for Chip<F, A>
+where
+    F: Field,
+    A: Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.air.hash(state);
     }
 }

@@ -1,14 +1,12 @@
 use std::array::IntoIter;
-use std::mem::size_of;
 use std::ops::{Index, IndexMut};
 
-use core::borrow::{Borrow, BorrowMut};
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 
-use super::CurtaAirBuilder;
+use super::SP1AirBuilder;
 
 /// The size of a word in bytes.
 pub const WORD_SIZE: usize = 4;
@@ -28,7 +26,7 @@ impl<T> Word<T> {
     }
 
     /// Extends a variable to a word.
-    pub fn extend_var<AB: CurtaAirBuilder<Var = T>>(var: T) -> Word<AB::Expr> {
+    pub fn extend_var<AB: SP1AirBuilder<Var = T>>(var: T) -> Word<AB::Expr> {
         Word([
             AB::Expr::zero() + var,
             AB::Expr::zero(),
@@ -40,7 +38,7 @@ impl<T> Word<T> {
 
 impl<T: AbstractField> Word<T> {
     /// Extends a variable to a word.
-    pub fn extend_expr<AB: CurtaAirBuilder<Expr = T>>(expr: T) -> Word<AB::Expr> {
+    pub fn extend_expr<AB: SP1AirBuilder<Expr = T>>(expr: T) -> Word<AB::Expr> {
         Word([
             AB::Expr::zero() + expr,
             AB::Expr::zero(),

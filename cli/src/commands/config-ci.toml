@@ -1,0 +1,16 @@
+changelog-seen = 2
+
+[build]
+target = ["riscv32im-succinct-zkvm-elf"]
+extended = true
+tools = ["cargo", "cargo-clippy", "clippy", "rustfmt"]
+configure-args = []
+cargo-native-static = true
+
+[rust]
+lld = true
+llvm-tools = true
+channel = "nightly"
+
+[llvm]
+download-ci-llvm = false

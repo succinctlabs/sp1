@@ -1,9 +1,9 @@
-use core::fmt::Debug;
-
 use super::Opcode;
+use core::fmt::Debug;
+use serde::{Deserialize, Serialize};
 
 /// An instruction specifies an operation to execute and the operands.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Instruction {
     pub opcode: Opcode,
     pub op_a: u32,
@@ -14,6 +14,7 @@ pub struct Instruction {
 }
 
 impl Instruction {
+    /// Create a new instruction.
     pub fn new(opcode: Opcode, op_a: u32, op_b: u32, op_c: u32, imm_b: bool, imm_c: bool) -> Self {
         Self {
             opcode,
@@ -50,6 +51,11 @@ impl Instruction {
         )
     }
 
+    /// Returns if the instruction is a ecall instruction.
+    pub fn is_ecall_instruction(&self) -> bool {
+        self.opcode == Opcode::ECALL
+    }
+
     /// Returns if the instruction is a memory instruction.
     pub fn is_memory_instruction(&self) -> bool {
         matches!(
@@ -73,6 +79,7 @@ impl Instruction {
         )
     }
 
+    /// Returns if the instruction is a jump instruction.
     pub fn is_jump_instruction(&self) -> bool {
         matches!(self.opcode, Opcode::JAL | Opcode::JALR)
     }

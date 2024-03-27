@@ -1,15 +1,13 @@
-use core::borrow::Borrow;
-
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
-use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{BranchCols, CpuCols, OpcodeSelectorCols, NUM_BRANCH_COLS};
+use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
+use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
     /// Computes whether the opcode is a branch instruction.
-    pub(crate) fn is_branch_instruction<AB: CurtaAirBuilder>(
+    pub(crate) fn is_branch_instruction<AB: SP1AirBuilder>(
         &self,
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
@@ -29,7 +27,7 @@ impl CpuChip {
     /// 2. It verifies the correct value of branching based on the helper bool columns (a_eq_b,
     ///    a_gt_b, a_lt_b).
     /// 3. It verifier the correct values of the helper bool columns based on op_a and op_b.
-    pub(crate) fn branch_ops_eval<AB: CurtaAirBuilder>(
+    pub(crate) fn branch_ops_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         is_branch_instruction: AB::Expr,
@@ -37,8 +35,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the branch specific columns.
-        let branch_cols: BranchCols<AB::Var> =
-            *local.opcode_specific_columns[..NUM_BRANCH_COLS].borrow();
+        let branch_cols = local.opcode_specific_columns.branch();
 
         // Evaluate program counter constraints.
         {
@@ -50,6 +47,7 @@ impl CpuChip {
             // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
             builder
                 .when_transition()
+                .when(next.is_real)
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
@@ -64,9 +62,9 @@ impl CpuChip {
 
             // When we are not branching, assert that local.pc + 4 <==> next.pc.
             builder
-                .when(local.not_branching)
                 .when_transition()
                 .when(next.is_real)
+                .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
         }
 

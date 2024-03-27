@@ -69,19 +69,19 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_derive::AlignedBorrow;
 use tracing::instrument;
-use valida_derive::AlignedBorrow;
 
 use self::utils::eval_abs_value;
 use crate::air::MachineAir;
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{SP1AirBuilder, Word};
 use crate::alu::divrem::utils::{get_msb, get_quotient_and_remainder, is_signed_operation};
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{env, pad_to_power_of_two};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `DivRemChip`.
 pub const NUM_DIVREM_COLS: usize = size_of::<DivRemCols<u8>>();
@@ -182,29 +182,21 @@ pub struct DivRemCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for DivRemChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "DivRem".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .divrem_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].divrem_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.divrem_events.is_empty()
-    }
-
-    #[instrument(name = "generate divrem trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate divrem trace", level = "debug", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
         let mut rows: Vec<[F; NUM_DIVREM_COLS]> = vec![];
-        let divrem_events = record.divrem_events.clone();
+        let divrem_events = input.divrem_events.clone();
         for event in divrem_events.iter() {
             assert!(
                 event.opcode == Opcode::DIVU
@@ -268,7 +260,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             c: 0,
                         });
                     }
-                    record.add_byte_lookup_events(blu_events);
+                    output.add_byte_lookup_events(blu_events);
                 }
             }
 
@@ -326,7 +318,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         c: event.c,
                         b: quotient,
                     };
-                    record.mul_events.push(lower_multiplication);
+                    output.add_mul_event(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
                         clk: event.clk,
@@ -342,7 +334,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         b: quotient,
                     };
 
-                    record.mul_events.push(upper_multiplication);
+                    output.add_mul_event(upper_multiplication);
 
                     let lt_event = if is_signed_operation(event.opcode) {
                         AluEvent {
@@ -361,14 +353,14 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                             clk: event.clk,
                         }
                     };
-                    record.lt_events.push(lt_event);
+                    output.add_lt_event(lt_event);
                 }
 
                 // Range check.
                 {
-                    record.add_u8_range_checks(&quotient.to_le_bytes());
-                    record.add_u8_range_checks(&remainder.to_le_bytes());
-                    record.add_u8_range_checks(&c_times_quotient);
+                    output.add_u8_range_checks(&quotient.to_le_bytes());
+                    output.add_u8_range_checks(&remainder.to_le_bytes());
+                    output.add_u8_range_checks(&c_times_quotient);
                 }
             }
 
@@ -400,11 +392,15 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
             row
         };
         debug_assert!(padded_row_template.len() == NUM_DIVREM_COLS);
-        for i in record.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
+        for i in input.divrem_events.len() * NUM_DIVREM_COLS..trace.values.len() {
             trace.values[i] = padded_row_template[i % NUM_DIVREM_COLS];
         }
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.divrem_events.is_empty()
     }
 }
 
@@ -416,7 +412,7 @@ impl<F> BaseAir<F> for DivRemChip {
 
 impl<AB> Air<AB> for DivRemChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -556,13 +552,13 @@ where
                         );
                     builder
                         .when(not_overflow.clone())
-                        .when(one.clone() - local.b_neg)
-                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
+                        .when_ne(one.clone(), local.b_neg)
+                        .assert_zero(c_times_quotient_plus_remainder[i].clone());
 
                     // The only exception to the upper-4-byte check is the overflow case.
                     builder
                         .when(local.is_overflow)
-                        .assert_eq(c_times_quotient_plus_remainder[i].clone(), zero.clone());
+                        .assert_zero(c_times_quotient_plus_remainder[i].clone());
                 }
             }
         }
@@ -758,6 +754,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -766,7 +763,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        utils::BabyBearPoseidon2,
     };
 
     use super::DivRemChip;
@@ -776,7 +773,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -837,7 +835,8 @@ mod tests {
         let mut shard = ExecutionRecord::default();
         shard.divrem_events = divrem_events;
         let chip = DivRemChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

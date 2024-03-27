@@ -6,23 +6,21 @@ use crate::{air::MachineAir, runtime::ExecutionRecord};
 
 pub const NUM_ROWS: usize = 1 << 16;
 
-impl<F: Field> MachineAir<F> for ByteChip {
+impl<F: Field> MachineAir<F> for ByteChip<F> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Byte".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].byte_lookups = input.byte_lookups.clone();
-    }
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        _output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        let (mut trace, event_map) = ByteChip::trace_and_map();
 
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.byte_lookups.is_empty()
-    }
-
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
-        let (mut trace, event_map) = ByteChip::trace_and_map::<F>();
-
-        for (lookup, mult) in record.byte_lookups.iter() {
+        for (lookup, mult) in input.byte_lookups.iter() {
             let (row, index) = event_map[lookup];
 
             // Get the column index for the multiplicity.
@@ -32,5 +30,9 @@ impl<F: Field> MachineAir<F> for ByteChip {
         }
 
         trace
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.byte_lookups.is_empty()
     }
 }

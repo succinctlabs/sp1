@@ -1,0 +1,11 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "sha2-test"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+hex-literal = "0.4.1"
+sha2 = { git = "https://github.com/succinctbot/RustCrypto-hashes.git" }
+hex = "0.4.3"

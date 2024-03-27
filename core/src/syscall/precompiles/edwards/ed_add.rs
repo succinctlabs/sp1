@@ -1,19 +1,19 @@
-use crate::air::CurtaAirBuilder;
 use crate::air::MachineAir;
-use crate::field::event::FieldEvent;
+use crate::air::SP1AirBuilder;
+use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
-use crate::operations::field::fp_den::FpDenCols;
-use crate::operations::field::fp_inner_product::FpInnerProductCols;
-use crate::operations::field::fp_op::FpOpCols;
-use crate::operations::field::fp_op::FpOperation;
-use crate::operations::field::params::Limbs;
-use crate::operations::field::params::NUM_LIMBS;
+use crate::operations::field::field_den::FieldDenCols;
+use crate::operations::field::field_inner_product::FieldInnerProductCols;
+use crate::operations::field::field_op::FieldOpCols;
+use crate::operations::field::field_op::FieldOperation;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
+use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::AffinePoint;
@@ -27,15 +27,15 @@ use num::Zero;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
+use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use tracing::instrument;
-use valida_derive::AlignedBorrow;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
@@ -50,17 +50,16 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub q_ptr_access: MemoryReadCols<T>,
-    pub p_access: [MemoryWriteCols<T>; 16],
-    pub q_access: [MemoryReadCols<T>; 16],
-    pub(crate) x3_numerator: FpInnerProductCols<T>,
-    pub(crate) y3_numerator: FpInnerProductCols<T>,
-    pub(crate) x1_mul_y1: FpOpCols<T>,
-    pub(crate) x2_mul_y2: FpOpCols<T>,
-    pub(crate) f: FpOpCols<T>,
-    pub(crate) d_mul_f: FpOpCols<T>,
-    pub(crate) x3_ins: FpDenCols<T>,
-    pub(crate) y3_ins: FpDenCols<T>,
+    pub p_access: [MemoryWriteCols<T>; Ed25519BaseField::NB_LIMBS],
+    pub q_access: [MemoryReadCols<T>; Ed25519BaseField::NB_LIMBS],
+    pub(crate) x3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
+    pub(crate) y3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
+    pub(crate) x1_mul_y1: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) x2_mul_y2: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) f: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) d_mul_f: FieldOpCols<T, Ed25519BaseField>,
+    pub(crate) x3_ins: FieldDenCols<T, Ed25519BaseField>,
+    pub(crate) y3_ins: FieldDenCols<T, Ed25519BaseField>,
 }
 
 #[derive(Default)]
@@ -74,7 +73,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
             _marker: PhantomData,
         }
     }
-    fn populate_fp_ops<F: Field>(
+    fn populate_field_ops<F: PrimeField32>(
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -83,108 +82,98 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
     ) {
         let x3_numerator = cols
             .x3_numerator
-            .populate::<E::BaseField>(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
+            .populate(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
         let y3_numerator = cols
             .y3_numerator
-            .populate::<E::BaseField>(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
-        let x1_mul_y1 = cols
-            .x1_mul_y1
-            .populate::<E::BaseField>(&p_x, &p_y, FpOperation::Mul);
-        let x2_mul_y2 = cols
-            .x2_mul_y2
-            .populate::<E::BaseField>(&q_x, &q_y, FpOperation::Mul);
-        let f = cols
-            .f
-            .populate::<E::BaseField>(&x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+            .populate(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
+        let x1_mul_y1 = cols.x1_mul_y1.populate(&p_x, &p_y, FieldOperation::Mul);
+        let x2_mul_y2 = cols.x2_mul_y2.populate(&q_x, &q_y, FieldOperation::Mul);
+        let f = cols.f.populate(&x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
-        let d_mul_f = cols
-            .d_mul_f
-            .populate::<E::BaseField>(&f, &d, FpOperation::Mul);
+        let d_mul_f = cols.d_mul_f.populate(&f, &d, FieldOperation::Mul);
 
-        cols.x3_ins
-            .populate::<E::BaseField>(&x3_numerator, &d_mul_f, true);
-        cols.y3_ins
-            .populate::<E::BaseField>(&y3_numerator, &d_mul_f, false);
+        cols.x3_ins.populate(&x3_numerator, &d_mul_f, true);
+        cols.y3_ins.populate(&y3_numerator, &d_mul_f, false);
     }
 }
 
 impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     fn num_extra_cycles(&self) -> u32 {
-        8
+        1
     }
 
-    fn execute(&self, rt: &mut SyscallContext) -> u32 {
-        let event = create_ec_add_event::<E>(rt);
+    fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
+        let event = create_ec_add_event::<E>(rt, arg1, arg2);
         rt.record_mut().ed_add_events.push(event);
-        event.p_ptr + 1
+        None
     }
 }
 
-impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "EdAddAssign".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        outputs[0].ed_add_events = input.ed_add_events.clone();
-    }
+    #[instrument(name = "generate ed add trace", level = "debug", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
+        let (mut rows, new_byte_lookup_events): (
+            Vec<[F; NUM_ED_ADD_COLS]>,
+            Vec<Vec<ByteLookupEvent>>,
+        ) = input
+            .ed_add_events
+            .par_iter()
+            .map(|event| {
+                let mut row = [F::zero(); NUM_ED_ADD_COLS];
+                let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
 
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.ed_add_events.is_empty()
-    }
+                // Decode affine points.
+                let p = &event.p;
+                let q = &event.q;
+                let p = AffinePoint::<E>::from_words_le(p);
+                let (p_x, p_y) = (p.x, p.y);
+                let q = AffinePoint::<E>::from_words_le(q);
+                let (q_x, q_y) = (q.x, q.y);
 
-    #[instrument(name = "generate Ed Add trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
-        let (mut rows, new_field_events_list): (Vec<[F; NUM_ED_ADD_COLS]>, Vec<Vec<FieldEvent>>) =
-            record
-                .ed_add_events
-                .par_iter()
-                .map(|event| {
-                    let mut row = [F::zero(); NUM_ED_ADD_COLS];
-                    let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
+                // Populate basic columns.
+                cols.is_real = F::one();
+                cols.shard = F::from_canonical_u32(event.shard);
+                cols.clk = F::from_canonical_u32(event.clk);
+                cols.p_ptr = F::from_canonical_u32(event.p_ptr);
+                cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-                    // Decode affine points.
-                    let p = &event.p;
-                    let q = &event.q;
-                    let p = AffinePoint::<E>::from_words_le(p);
-                    let (p_x, p_y) = (p.x, p.y);
-                    let q = AffinePoint::<E>::from_words_le(q);
-                    let (q_x, q_y) = (q.x, q.y);
+                Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
 
-                    // Populate basic columns.
-                    cols.is_real = F::one();
-                    cols.shard = F::from_canonical_u32(event.shard);
-                    cols.clk = F::from_canonical_u32(event.clk);
-                    cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-                    cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+                // Populate the memory access columns.
+                let mut new_byte_lookup_events = Vec::new();
+                for i in 0..16 {
+                    cols.q_access[i]
+                        .populate(event.q_memory_records[i], &mut new_byte_lookup_events);
+                }
+                for i in 0..16 {
+                    cols.p_access[i]
+                        .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
+                }
 
-                    Self::populate_fp_ops(cols, p_x, p_y, q_x, q_y);
+                (row, new_byte_lookup_events)
+            })
+            .unzip();
 
-                    // Populate the memory access columns.
-                    let mut new_field_events = Vec::new();
-                    for i in 0..16 {
-                        cols.q_access[i].populate(event.q_memory_records[i], &mut new_field_events);
-                    }
-                    for i in 0..16 {
-                        cols.p_access[i].populate(event.p_memory_records[i], &mut new_field_events);
-                    }
-                    cols.q_ptr_access
-                        .populate(event.q_ptr_record, &mut new_field_events);
-
-                    (row, new_field_events)
-                })
-                .unzip();
-
-        for new_field_events in new_field_events_list {
-            record.field_events.extend(new_field_events);
+        for byte_lookup_events in new_byte_lookup_events {
+            output.add_byte_lookup_events(byte_lookup_events);
         }
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
             let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            Self::populate_fp_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
+            Self::populate_field_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
             row
         });
 
@@ -193,6 +182,10 @@ impl<F: Field, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssi
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_ED_ADD_COLS,
         )
+    }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.ed_add_events.is_empty()
     }
 }
 
@@ -204,7 +197,7 @@ impl<F, E: EllipticCurve + EdwardsParameters> BaseAir<F> for EdAddAssignChip<E> 
 
 impl<AB, E: EllipticCurve + EdwardsParameters> Air<AB> for EdAddAssignChip<E>
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -216,45 +209,42 @@ where
         let y2 = limbs_from_prev_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        row.x3_numerator
-            .eval::<AB, E::BaseField>(builder, &[x1, x2], &[y2, y1]);
+        row.x3_numerator.eval::<AB>(builder, &[x1, x2], &[y2, y1]);
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        row.y3_numerator
-            .eval::<AB, E::BaseField>(builder, &[y1, x1], &[y2, x2]);
+        row.y3_numerator.eval::<AB>(builder, &[y1, x1], &[y2, x2]);
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
-            .eval::<AB, E::BaseField, _, _>(builder, &x1, &y1, FpOperation::Mul);
+            .eval::<AB, _, _>(builder, &x1, &y1, FieldOperation::Mul);
         row.x2_mul_y2
-            .eval::<AB, E::BaseField, _, _>(builder, &x2, &y2, FpOperation::Mul);
+            .eval::<AB, _, _>(builder, &x2, &y2, FieldOperation::Mul);
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
         row.f
-            .eval::<AB, E::BaseField, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FpOperation::Mul);
+            .eval::<AB, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         // d * f.
         let f = row.f.result;
         let d_biguint = E::d_biguint();
-        let d_const = E::BaseField::to_limbs_field::<AB::F>(&d_biguint);
-        let d_const_expr = Limbs::<AB::Expr>(d_const.0.map(|x| x.into()));
+        let d_const = E::BaseField::to_limbs_field::<AB::Expr, _>(&d_biguint);
         row.d_mul_f
-            .eval::<AB, E::BaseField, _, _>(builder, &f, &d_const_expr, FpOperation::Mul);
+            .eval::<AB, _, _>(builder, &f, &d_const, FieldOperation::Mul);
 
         let d_mul_f = row.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
         row.x3_ins
-            .eval::<AB, E::BaseField>(builder, &row.x3_numerator.result, &d_mul_f, true);
+            .eval::<AB>(builder, &row.x3_numerator.result, &d_mul_f, true);
 
         // y3 = y3_numerator / (1 - d * f).
         row.y3_ins
-            .eval::<AB, E::BaseField>(builder, &row.y3_numerator.result, &d_mul_f, false);
+            .eval::<AB>(builder, &row.y3_numerator.result, &d_mul_f, false);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
-        for i in 0..NUM_LIMBS {
+        for i in 0..E::BaseField::NB_LIMBS {
             builder
                 .when(row.is_real)
                 .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
@@ -263,13 +253,6 @@ where
                 .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
-        builder.constraint_memory_access(
-            row.shard,
-            row.clk, // clk + 0 -> C
-            AB::F::from_canonical_u32(11),
-            &row.q_ptr_access,
-            row.is_real,
-        );
         for i in 0..16 {
             builder.constraint_memory_access(
                 row.shard,
@@ -282,35 +265,41 @@ where
         for i in 0..16 {
             builder.constraint_memory_access(
                 row.shard,
-                row.clk + AB::F::from_canonical_u32(4), // clk + 4 -> Memory
+                row.clk + AB::F::from_canonical_u32(1), // The clk for p is moved by 1.
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),
                 &row.p_access[i as usize],
                 row.is_real,
             );
         }
+
+        builder.receive_syscall(
+            row.shard,
+            row.clk,
+            AB::F::from_canonical_u32(SyscallCode::ED_ADD.syscall_id()),
+            row.p_ptr,
+            row.q_ptr,
+            row.is_real,
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
-
-    use crate::{
-        utils::{
-            self,
-            tests::{ED25519_ELF, ED_ADD_ELF},
-        },
-        SuccinctProver, SuccinctStdin,
-    };
+    use crate::utils;
+    use crate::utils::tests::{ED25519_ELF, ED_ADD_ELF};
+    use crate::Program;
 
     #[test]
     fn test_ed_add_simple() {
         utils::setup_logger();
-        SuccinctProver::prove(ED_ADD_ELF, SuccinctStdin::new()).unwrap();
+        let program = Program::from(ED_ADD_ELF);
+        utils::run_test(program).unwrap();
     }
 
     #[test]
     fn test_ed25519_program() {
         utils::setup_logger();
-        SuccinctProver::prove(ED25519_ELF, SuccinctStdin::new()).unwrap();
+        let program = Program::from(ED25519_ELF);
+        utils::run_test(program).unwrap();
     }
 }

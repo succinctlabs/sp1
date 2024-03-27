@@ -1,19 +1,22 @@
 //! A simple program to be proven inside the zkVM.
 
 #![no_main]
-succinct_zkvm::entrypoint!(main);
+sp1_zkvm::entrypoint!(main);
 
 pub fn main() {
-    let n = succinct_zkvm::io::read::<u32>();
-    let mut a = 0;
-    let mut b = 1;
-    let mut sum;
+    // NOTE: values of n larger than 186 will overflow the u128 type,
+    // resulting in output that doesn't match fibonacci sequence.
+    // However, the resulting proof will still be valid!
+    let n = sp1_zkvm::io::read::<u32>();
+    let mut a: u128 = 0;
+    let mut b: u128 = 1;
+    let mut sum: u128;
     for _ in 1..n {
         sum = a + b;
         a = b;
         b = sum;
     }
 
-    succinct_zkvm::io::write(&a);
-    succinct_zkvm::io::write(&b);
+    sp1_zkvm::io::write(&a);
+    sp1_zkvm::io::write(&b);
 }

@@ -1,34 +1,27 @@
+use std::fs::File;
+use std::io::{Seek, Write};
 use std::time::Instant;
 
+use crate::runtime::{ExecutionRecord, ShardingConfig};
+use crate::stark::MachineRecord;
+use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
+use crate::utils::env::shard_batch_size;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
-    stark::{LocalProver, MainData, OpeningProof},
-    stark::{RiscvStark, StarkGenericConfig},
+    stark::StarkGenericConfig,
+    stark::{LocalProver, OpeningProof, ShardMainData},
 };
+use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
-use p3_commit::Pcs;
+use p3_challenger::CanObserve;
+
 use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
 
-pub trait StarkUtils: StarkGenericConfig {
-    type UniConfig: p3_uni_stark::StarkGenericConfig<
-        Val = Self::Val,
-        PackedVal = Self::PackedVal,
-        Challenge = Self::Challenge,
-        PackedChallenge = Self::PackedChallenge,
-        Pcs = Self::Pcs,
-        Challenger = Self::Challenger,
-    >;
-    fn challenger(&self) -> Self::Challenger;
-
-    fn uni_stark_config(&self) -> &Self::UniConfig;
-}
-
-#[cfg(not(feature = "perf"))]
-use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+const LOG_DEGREE_BOUND: usize = 31;
 
 pub fn get_cycles(program: Program) -> u64 {
     let mut runtime = Runtime::new(program);
@@ -36,107 +29,299 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
-pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
-    let mut runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+pub fn run_test_io(
+    program: Program,
+    inputs: SP1Stdin,
+) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
+        let mut runtime = Runtime::new(program);
+        runtime.write_stdin_slice(&inputs.buffer.data);
+        runtime.run();
+        runtime
+    });
+    let stdout = SP1Stdout::from(&runtime.state.output_stream);
+    let proof = run_test_core(runtime)?;
+    Ok(SP1ProofWithIO {
+        proof,
+        stdin: inputs,
+        stdout,
+    })
+}
+
+pub fn run_test(
+    program: Program,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
     });
+    run_test_core(runtime)
+}
+
+pub fn run_test_core(
+    runtime: Runtime,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let config = BabyBearBlake3::new();
-    prove_core(config, &mut runtime)
-}
+    let machine = RiscvAir::machine(config);
+    let (pk, vk) = machine.setup(runtime.program.as_ref());
+    let mut challenger = machine.config().challenger();
 
-pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
-    let program = Program::from(elf);
-    prove(program)
-}
-
-pub fn prove_core<SC: StarkGenericConfig + StarkUtils + Send + Sync + Serialize + Clone>(
-    config: SC,
-    runtime: &mut Runtime,
-) -> crate::stark::Proof<SC>
-where
-    SC::Challenger: Clone,
-    OpeningProof<SC>: Send + Sync,
-    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-    <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-    MainData<SC>: Serialize + DeserializeOwned,
-    <SC as StarkGenericConfig>::Val: PrimeField32,
-{
-    let mut challenger = config.challenger();
+    #[cfg(feature = "debug")]
+    let record_clone = runtime.record.clone();
 
     let start = Instant::now();
+    let proof = tracing::info_span!("prove")
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
 
-    let (machine, prover_data) = RiscvStark::init(config.clone());
-
-    // Because proving modifies the shard, clone beforehand if we debug interactions.
-    #[cfg(not(feature = "perf"))]
-    let shard = runtime.record.clone();
-
-    // Prove the program.
-    let proof = tracing::info_span!("runtime.prove(...)").in_scope(|| {
-        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger)
-    });
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
+    #[cfg(feature = "debug")]
+    machine.debug_constraints(&pk, record_clone, &mut challenger);
+
+    let mut challenger = machine.config().challenger();
+    machine.verify(&vk, &proof, &mut challenger)?;
+
     tracing::info!(
-        "cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
         cycles,
         time,
         (cycles as f64 / time as f64),
         Size::from_bytes(nb_bytes),
     );
 
-    #[cfg(not(feature = "perf"))]
-    tracing::info_span!("debug interactions with all chips").in_scope(|| {
-        debug_interactions_with_all_chips(
-            &machine.chips(),
-            &shard,
-            vec![
-                InteractionKind::Field,
-                InteractionKind::Range,
-                InteractionKind::Byte,
-                InteractionKind::Alu,
-                InteractionKind::Memory,
-                InteractionKind::Program,
-                InteractionKind::Instruction,
-            ],
-        );
+    Ok(proof)
+}
+
+fn trace_checkpoint(program: Program, file: &File) -> ExecutionRecord {
+    let mut reader = std::io::BufReader::new(file);
+    let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
+    let mut runtime = Runtime::recover(program.clone(), state);
+    let (events, _) = tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record());
+    events
+}
+
+fn reset_seek(file: &mut File) {
+    file.seek(std::io::SeekFrom::Start(0))
+        .expect("failed to seek to start of tempfile");
+}
+
+pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
+    program: Program,
+    stdin: &[u8],
+    config: SC,
+) -> (crate::stark::Proof<SC>, Vec<u8>)
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
+    let mut challenger = config.challenger();
+
+    let machine = RiscvAir::machine(config);
+    let mut runtime = Runtime::new(program.clone());
+
+    runtime.write_stdin_slice(stdin);
+    let (pk, _) = machine.setup(runtime.program.as_ref());
+    let should_batch = shard_batch_size() > 0;
+
+    // If we don't need to batch, we can just run the program normally and prove it.
+    if !should_batch {
+        runtime.run();
+        let stdout = std::mem::take(&mut runtime.state.output_stream);
+        let proof = prove_core(machine.config().clone(), runtime);
+        return (proof, stdout);
+    }
+
+    // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
+    let mut cycles = 0;
+    let mut prove_time = 0;
+    let mut checkpoints = Vec::new();
+    let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
+        // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
+        let (state, done) = runtime.execute_state();
+        let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
+        let mut writer = std::io::BufWriter::new(&mut tempfile);
+        bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
+        writer.flush().expect("failed to flush writer");
+        drop(writer);
+        tempfile
+            .seek(std::io::SeekFrom::Start(0))
+            .expect("failed to seek to start of tempfile");
+        checkpoints.push(tempfile);
+        if done {
+            return std::mem::take(&mut runtime.state.output_stream);
+        }
     });
+
+    // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
+    let sharding_config = ShardingConfig::default();
+    let mut shard_main_datas = Vec::new();
+
+    // If there's only one batch, it already must fit in memory so reuse it later in open multi
+    // rather than running the runtime again.
+    let reuse_shards = checkpoints.len() == 1;
+    let mut all_shards = None;
+
+    for file in checkpoints.iter_mut() {
+        let events = trace_checkpoint(program.clone(), file);
+        reset_seek(&mut *file);
+        cycles += events.cpu_events.len();
+        let shards =
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
+        let (commitments, commit_data) = tracing::info_span!("commit")
+            .in_scope(|| LocalProver::commit_shards(&machine, &shards));
+
+        shard_main_datas.push(commit_data);
+
+        if reuse_shards {
+            all_shards = Some(shards);
+        }
+        for commitment in commitments {
+            challenger.observe(commitment);
+        }
+    }
+
+    // For each checkpoint, generate events and shard again, then prove the shards.
+    let mut shard_proofs = Vec::<ShardProof<SC>>::new();
+    for mut file in checkpoints.into_iter() {
+        let shards = if reuse_shards {
+            Option::take(&mut all_shards).unwrap()
+        } else {
+            let events = trace_checkpoint(program.clone(), &file);
+            reset_seek(&mut file);
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
+        };
+        let start = Instant::now();
+        let mut new_proofs = shards
+            .into_iter()
+            .map(|shard| {
+                let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                let config = machine.config();
+                let shard_data =
+                    LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
+                LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger.clone())
+            })
+            .collect::<Vec<_>>();
+        prove_time += start.elapsed().as_millis();
+        shard_proofs.append(&mut new_proofs);
+    }
+
+    let proof = crate::stark::Proof::<SC> { shard_proofs };
+
+    // Prove the program.
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    tracing::info!(
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        prove_time,
+        (cycles as f64 / prove_time as f64),
+        Size::from_bytes(nb_bytes),
+    );
+
+    (proof, stdout)
+}
+
+pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
+    let mut challenger = config.challenger();
+
+    let start = Instant::now();
+
+    let machine = RiscvAir::machine(config);
+    let (pk, _) = machine.setup(runtime.program.as_ref());
+
+    // Prove the program.
+    let cycles = runtime.state.global_clk;
+    let proof = tracing::info_span!("prove")
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+    let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    tracing::info!(
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+        Size::from_bytes(nb_bytes),
+    );
 
     proof
 }
 
+#[cfg(debug_assertions)]
 pub fn uni_stark_prove<SC, A>(
     config: &SC,
     air: &A,
     challenger: &mut SC::Challenger,
     trace: RowMajorMatrix<SC::Val>,
-) -> Proof<SC::UniConfig>
+) -> Proof<UniConfig<SC>>
 where
-    SC: StarkUtils,
+    SC: StarkGenericConfig,
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
-        + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, SC::UniConfig>>
-        + for<'a> Air<p3_uni_stark::check_constraints::DebugConstraintBuilder<'a, SC::Val>>,
+        + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>
+        + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
 {
-    p3_uni_stark::prove(config.uni_stark_config(), air, challenger, trace)
+    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
 }
 
+#[cfg(not(debug_assertions))]
+pub fn uni_stark_prove<SC, A>(
+    config: &SC,
+    air: &A,
+    challenger: &mut SC::Challenger,
+    trace: RowMajorMatrix<SC::Val>,
+) -> Proof<UniConfig<SC>>
+where
+    SC: StarkGenericConfig,
+    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
+        + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>,
+{
+    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
+}
+
+#[cfg(debug_assertions)]
 pub fn uni_stark_verify<SC, A>(
     config: &SC,
     air: &A,
     challenger: &mut SC::Challenger,
-    proof: &Proof<SC::UniConfig>,
+    proof: &Proof<UniConfig<SC>>,
 ) -> Result<(), p3_uni_stark::VerificationError>
 where
-    SC: StarkUtils,
+    SC: StarkGenericConfig,
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
-        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, SC::Challenge>>
-        + for<'a> Air<p3_uni_stark::check_constraints::DebugConstraintBuilder<'a, SC::Val>>,
+        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>
+        + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
 {
-    p3_uni_stark::verify(config.uni_stark_config(), air, challenger, proof)
+    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
+}
+
+#[cfg(not(debug_assertions))]
+pub fn uni_stark_verify<SC, A>(
+    config: &SC,
+    air: &A,
+    challenger: &mut SC::Challenger,
+    proof: &Proof<UniConfig<SC>>,
+) -> Result<(), p3_uni_stark::VerificationError>
+where
+    SC: StarkGenericConfig,
+    A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
+        + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>,
+{
+    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
 }
 
 pub use baby_bear_keccak::BabyBearKeccak;
@@ -145,55 +330,68 @@ use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
 
-pub(super) mod baby_bear_poseidon2 {
+pub mod baby_bear_poseidon2 {
 
     use crate::utils::prove::RC_16_30;
-    use p3_baby_bear::BabyBear;
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
     use p3_field::{extension::BinomialExtensionField, Field};
-    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
+    use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
+    use p3_poseidon2::Poseidon2;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-    use serde::Serialize;
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
-    use super::StarkUtils;
+    use super::LOG_DEGREE_BOUND;
 
     pub type Val = BabyBear;
-    pub type Domain = Val;
-    pub type Challenge = BinomialExtensionField<Val, 4>;
-    pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 5>;
+    pub type Challenge = BinomialExtensionField<Val, 4>;
+
+    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<<Val as Field>::Packing, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<
+        <Val as Field>::Packing,
+        <Val as Field>::Packing,
+        MyHash,
+        MyCompress,
+        8,
+    >;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
 
-    type Pcs =
-        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
+    type Pcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
     pub struct BabyBearPoseidon2 {
-        perm: Perm,
+        pub perm: Perm,
         pcs: Pcs,
     }
 
+    /// Implement serialization manually instead of using serde to avoid cloing the config.
     impl Serialize for BabyBearPoseidon2 {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            serializer.serialize_none()
+            std::marker::PhantomData::<BabyBearPoseidon2>.serialize(serializer)
+        }
+    }
+
+    impl From<std::marker::PhantomData<BabyBearPoseidon2>> for BabyBearPoseidon2 {
+        fn from(_: std::marker::PhantomData<BabyBearPoseidon2>) -> Self {
+            Self::new()
         }
     }
 
@@ -223,114 +421,100 @@ pub(super) mod baby_bear_poseidon2 {
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(fri_config, dft, val_mmcs);
+            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
 
             Self { pcs, perm }
         }
     }
 
-    impl StarkUtils for BabyBearPoseidon2 {
-        type UniConfig = Self;
-
-        fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
-        }
-
-        fn uni_stark_config(&self) -> &Self::UniConfig {
-            self
+    impl Default for BabyBearPoseidon2 {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
     impl StarkGenericConfig for BabyBearPoseidon2 {
-        type Val = Val;
-        type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
+        type Val = BabyBear;
+        type Domain = <Pcs as p3_commit::Pcs<Challenge, Challenger>>::Domain;
         type Pcs = Pcs;
+        type Challenge = Challenge;
         type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
 
         fn pcs(&self) -> &Self::Pcs {
             &self.pcs
         }
-    }
 
-    impl p3_uni_stark::StarkGenericConfig for BabyBearPoseidon2 {
-        type Val = Val;
-        type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
-        type Pcs = Pcs;
-        type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
-
-        fn pcs(&self) -> &Self::Pcs {
-            &self.pcs
+        fn challenger(&self) -> Self::Challenger {
+            Challenger::new(self.perm.clone())
         }
     }
 }
 
 pub(super) mod baby_bear_keccak {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;
-    use p3_challenger::DuplexChallenger;
+    use p3_challenger::{HashChallenger, SerializingChallenger32};
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field};
-    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
+    use p3_field::extension::BinomialExtensionField;
+    use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_keccak::Keccak256Hash;
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use serde::Serialize;
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
-    use super::StarkUtils;
+    use super::LOG_DEGREE_BOUND;
 
     pub type Val = BabyBear;
-    pub type Domain = Val;
+
     pub type Challenge = BinomialExtensionField<Val, 4>;
-    pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-    type MyHash = SerializingHasher32<Keccak256Hash>;
+    type ByteHash = Keccak256Hash;
+    type FieldHash = SerializingHasher32<ByteHash>;
 
-    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+    type MyCompress = CompressionFunctionFromHasher<u8, ByteHash, 2, 32>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u8, FieldHash, MyCompress, 32>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
 
-    type Pcs =
-        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
+    type Pcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearKeccak>")]
     pub struct BabyBearKeccak {
-        perm: Perm,
         pcs: Pcs,
     }
-
+    // Implement serialization manually instead of using serde(into) to avoid cloing the config
     impl Serialize for BabyBearKeccak {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            serializer.serialize_none()
+            std::marker::PhantomData::<BabyBearKeccak>.serialize(serializer)
+        }
+    }
+
+    impl From<std::marker::PhantomData<BabyBearKeccak>> for BabyBearKeccak {
+        fn from(_: std::marker::PhantomData<BabyBearKeccak>) -> Self {
+            Self::new()
         }
     }
 
     impl BabyBearKeccak {
         #[allow(dead_code)]
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            let byte_hash = ByteHash {};
+            let field_hash = FieldHash::new(byte_hash);
 
-            let hash = MyHash::new(Keccak256Hash {});
+            let compress = MyCompress::new(byte_hash);
 
-            let compress = MyCompress::new(perm.clone());
-
-            let val_mmcs = ValMmcs::new(hash, compress);
+            let val_mmcs = ValMmcs::new(field_hash, compress);
 
             let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
@@ -342,9 +526,15 @@ pub(super) mod baby_bear_keccak {
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(fri_config, dft, val_mmcs);
+            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
 
-            Self { pcs, perm }
+            Self { pcs }
+        }
+    }
+
+    impl Default for BabyBearKeccak {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
@@ -354,110 +544,97 @@ pub(super) mod baby_bear_keccak {
         }
     }
 
-    impl StarkUtils for BabyBearKeccak {
-        type UniConfig = Self;
-
-        fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
-        }
-
-        fn uni_stark_config(&self) -> &Self::UniConfig {
-            self
-        }
-    }
-
     impl StarkGenericConfig for BabyBearKeccak {
         type Val = Val;
         type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
+
+        type Domain = <Pcs as p3_commit::Pcs<Challenge, Challenger>>::Domain;
+
         type Pcs = Pcs;
         type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
 
         fn pcs(&self) -> &Self::Pcs {
             &self.pcs
         }
-    }
 
-    impl p3_uni_stark::StarkGenericConfig for BabyBearKeccak {
-        type Val = Val;
-        type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
-        type Pcs = Pcs;
-        type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
-
-        fn pcs(&self) -> &Self::Pcs {
-            &self.pcs
+        fn challenger(&self) -> Self::Challenger {
+            let byte_hash = ByteHash {};
+            Challenger::from_hasher(vec![], byte_hash)
         }
     }
 }
 
 pub(super) mod baby_bear_blake3 {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::BabyBear;
     use p3_blake3::Blake3;
-    use p3_challenger::DuplexChallenger;
+    use p3_challenger::{HashChallenger, SerializingChallenger32};
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
-    use p3_field::{extension::BinomialExtensionField, Field};
-    use p3_fri::{FriConfig, TwoAdicFriPcs, TwoAdicFriPcsConfig};
+    use p3_field::extension::BinomialExtensionField;
+    use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
-    use p3_poseidon2::{DiffusionMatrixBabybear, Poseidon2};
-    use p3_symmetric::{SerializingHasher32, TruncatedPermutation};
-    use serde::Serialize;
+    use p3_symmetric::{CompressionFunctionFromHasher, SerializingHasher32};
+    use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
-    use super::StarkUtils;
+    use super::LOG_DEGREE_BOUND;
 
     pub type Val = BabyBear;
-    pub type Domain = Val;
+
     pub type Challenge = BinomialExtensionField<Val, 4>;
-    pub type PackedChallenge = BinomialExtensionField<<Domain as Field>::Packing, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
-    type MyHash = SerializingHasher32<Blake3>;
+    type ByteHash = Blake3;
+    type FieldHash = SerializingHasher32<ByteHash>;
 
-    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+    type MyCompress = CompressionFunctionFromHasher<u8, ByteHash, 2, 32>;
 
-    pub type ValMmcs = FieldMerkleTreeMmcs<Val, MyHash, MyCompress, 8>;
+    pub type ValMmcs = FieldMerkleTreeMmcs<Val, u8, FieldHash, MyCompress, 32>;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 
     pub type Dft = Radix2DitParallel;
 
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    type Challenger = SerializingChallenger32<Val, HashChallenger<u8, ByteHash, 32>>;
 
-    type Pcs =
-        TwoAdicFriPcs<TwoAdicFriPcsConfig<Val, Challenge, Challenger, Dft, ValMmcs, ChallengeMmcs>>;
+    type Pcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
+    #[derive(Deserialize)]
+    #[serde(from = "std::marker::PhantomData<BabyBearBlake3>")]
     pub struct BabyBearBlake3 {
-        perm: Perm,
         pcs: Pcs,
     }
 
+    // Implement serialization manually instead of using serde(into) to avoid cloing the config
     impl Serialize for BabyBearBlake3 {
         fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,
         {
-            serializer.serialize_none()
+            std::marker::PhantomData::<Self>.serialize(serializer)
+        }
+    }
+
+    impl From<std::marker::PhantomData<BabyBearBlake3>> for BabyBearBlake3 {
+        fn from(_: std::marker::PhantomData<BabyBearBlake3>) -> Self {
+            Self::new()
+        }
+    }
+
+    impl Clone for BabyBearBlake3 {
+        fn clone(&self) -> Self {
+            Self::new()
         }
     }
 
     impl BabyBearBlake3 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-            Self::from_perm(perm)
-        }
+            let byte_hash = ByteHash {};
+            let field_hash = FieldHash::new(byte_hash);
 
-        fn from_perm(perm: Perm) -> Self {
-            let hash = MyHash::new(Blake3 {});
+            let compress = MyCompress::new(byte_hash);
 
-            let compress = MyCompress::new(perm.clone());
-
-            let val_mmcs = ValMmcs::new(hash, compress);
+            let val_mmcs = ValMmcs::new(field_hash, compress);
 
             let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
 
@@ -469,53 +646,34 @@ pub(super) mod baby_bear_blake3 {
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(fri_config, dft, val_mmcs);
+            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
 
-            Self { pcs, perm }
+            Self { pcs }
         }
     }
 
-    impl Clone for BabyBearBlake3 {
-        fn clone(&self) -> Self {
-            Self::from_perm(self.perm.clone())
-        }
-    }
-
-    impl StarkUtils for BabyBearBlake3 {
-        type UniConfig = Self;
-
-        fn challenger(&self) -> Self::Challenger {
-            Challenger::new(self.perm.clone())
-        }
-
-        fn uni_stark_config(&self) -> &Self::UniConfig {
-            self
+    impl Default for BabyBearBlake3 {
+        fn default() -> Self {
+            Self::new()
         }
     }
 
     impl StarkGenericConfig for BabyBearBlake3 {
         type Val = Val;
         type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
+
+        type Domain = <Pcs as p3_commit::Pcs<Challenge, Challenger>>::Domain;
+
         type Pcs = Pcs;
         type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
 
         fn pcs(&self) -> &Self::Pcs {
             &self.pcs
         }
-    }
 
-    impl p3_uni_stark::StarkGenericConfig for BabyBearBlake3 {
-        type Val = Val;
-        type Challenge = Challenge;
-        type PackedChallenge = PackedChallenge;
-        type Pcs = Pcs;
-        type Challenger = Challenger;
-        type PackedVal = <Val as Field>::Packing;
-
-        fn pcs(&self) -> &Self::Pcs {
-            &self.pcs
+        fn challenger(&self) -> Self::Challenger {
+            let byte_hash = ByteHash {};
+            Challenger::from_hasher(vec![], byte_hash)
         }
     }
 }

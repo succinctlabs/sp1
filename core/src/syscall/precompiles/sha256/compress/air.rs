@@ -2,12 +2,14 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
-use super::ShaCompressChip;
-use crate::air::{BaseAirBuilder, CurtaAirBuilder, Word, WordAirBuilder};
+use super::{ShaCompressChip, SHA_COMPRESS_K};
+use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::memory::MemoryCols;
 use crate::operations::{
-    AddOperation, AndOperation, FixedRotateRightOperation, NotOperation, XorOperation,
+    Add5Operation, AddOperation, AndOperation, FixedRotateRightOperation, NotOperation,
+    XorOperation,
 };
+use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
 use p3_matrix::MatrixRowSlices;
 
@@ -19,31 +21,44 @@ impl<F> BaseAir<F> for ShaCompressChip {
 
 impl<AB> Air<AB> for ShaCompressChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &ShaCompressCols<AB::Var> = main.row_slice(0).borrow();
         let next: &ShaCompressCols<AB::Var> = main.row_slice(1).borrow();
 
-        self.contrain_control_flow_flags(builder, local, next);
+        self.constrain_control_flow_flags(builder, local, next);
 
         self.constrain_memory(builder, local);
 
         self.constrain_compression_ops(builder, local);
 
         self.constrain_finalize_ops(builder, local);
+
+        builder.assert_eq(
+            local.start,
+            local.is_real * local.octet[0] * local.octet_num[0],
+        );
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            AB::F::from_canonical_u32(SyscallCode::SHA_COMPRESS.syscall_id()),
+            local.w_ptr,
+            local.h_ptr,
+            local.start,
+        );
     }
 }
 
 impl ShaCompressChip {
-    fn contrain_control_flow_flags<AB: CurtaAirBuilder>(
+    fn constrain_control_flow_flags<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
         next: &ShaCompressCols<AB::Var>,
     ) {
-        //// Constrain octet columns
+        // Constrain octet columns
         // Verify that all of the octet columns are bool.
         for i in 0..8 {
             builder.assert_bool(local.octet[i]);
@@ -70,8 +85,8 @@ impl ShaCompressChip {
                 .assert_one(next.octet[(i + 1) % 8])
         }
 
-        //// Constrain octet_num columns
-        // Verify taht all of the octet_num columns are bool.
+        // Constrain octet_num columns
+        // Verify that all of the octet_num columns are bool.
         for i in 0..10 {
             builder.assert_bool(local.octet_num[i]);
         }
@@ -84,11 +99,13 @@ impl ShaCompressChip {
         builder.when(local.is_real).assert_one(octet_num_sum);
 
         // Verify that the first row's octet_num value is correct.
+        // The first row should have octet_num[0] = 1 if it's real.
         builder
             .when_first_row()
             .when(local.is_real)
             .assert_one(local.octet_num[0]);
 
+        // If current row is not last of an octet and next row is real, octet_num should be the same.
         for i in 0..10 {
             builder
                 .when_transition()
@@ -97,12 +114,34 @@ impl ShaCompressChip {
                 .assert_eq(local.octet_num[i], next.octet_num[i]);
         }
 
+        // If current row is last of an octet and next row is real, octet_num should rotate by 1.
         for i in 0..10 {
             builder
                 .when_transition()
                 .when(next.is_real)
                 .when(local.octet[7])
                 .assert_eq(local.octet_num[i], next.octet_num[(i + 1) % 10]);
+        }
+
+        // Constrain A-H columns
+        let vars = [
+            local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
+        ];
+        let next_vars = [
+            next.a, next.b, next.c, next.d, next.e, next.f, next.g, next.h,
+        ];
+        for (i, var) in vars.iter().enumerate() {
+            // For all initialize and finalize cycles, A-H should be the same in the next row. The
+            // last cycle is an exception since the next row must be a new 80-cycle loop or nonreal.
+            builder
+                .when_transition()
+                .when(local.octet_num[0] + local.octet_num[9] * (AB::Expr::one() - local.octet[7]))
+                .assert_word_eq(*var, next_vars[i]);
+            // When column is read from memory during init, is should be equal to the memory value.
+            builder
+                .when_transition()
+                .when(local.octet_num[0] * local.octet[i])
+                .assert_word_eq(*var, *local.mem.value());
         }
 
         // Assert that the is_compression flag is correct.
@@ -117,9 +156,40 @@ impl ShaCompressChip {
                 + local.octet_num[7]
                 + local.octet_num[8],
         );
+
+        let is_last_row = local.is_real - (local.octet[7] * local.octet_num[9]);
+
+        // If this row is real and not the last cycle, then next row should have same inputs
+        builder
+            .when_transition()
+            .when(is_last_row.clone())
+            .assert_eq(local.shard, next.shard);
+        builder
+            .when_transition()
+            .when(is_last_row.clone())
+            .assert_eq(local.clk, next.clk);
+        builder
+            .when_transition()
+            .when(is_last_row.clone())
+            .assert_eq(local.w_ptr, next.w_ptr);
+        builder
+            .when_transition()
+            .when(is_last_row.clone())
+            .assert_eq(local.h_ptr, next.h_ptr);
+
+        // If this row is real and not the last cycle, then next row should also be real.
+        builder
+            .when_transition()
+            .when(is_last_row)
+            .assert_one(next.is_real);
+
+        // Assert that the table ends in nonreal columns. Since each compress ecall is 80 cycles and
+        // the table is padded to a power of 2, the last row of the table should always be padding.
+        builder.when_last_row().assert_zero(local.is_real);
     }
 
-    fn constrain_memory<AB: CurtaAirBuilder>(
+    /// Constrains that memory address is correct and that memory is correctly written/read.
+    fn constrain_memory<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -128,7 +198,7 @@ impl ShaCompressChip {
         let is_finalize = local.octet_num[9];
         builder.constraint_memory_access(
             local.shard,
-            local.clk,
+            local.clk + is_finalize,
             local.mem_addr,
             &local.mem,
             is_initialize + local.is_compression + is_finalize,
@@ -149,15 +219,13 @@ impl ShaCompressChip {
         // Verify correct mem address for initialize phase
         builder.when(is_initialize).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
-                + (AB::Expr::from_canonical_u32(64 * 4)
-                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
+            local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
 
         // Verify correct mem address for compression phase
         builder.when(local.is_compression).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
+            local.w_ptr
                 + (((cycle_num - AB::Expr::one()) * AB::Expr::from_canonical_u32(8))
                     + cycle_step.clone())
                     * AB::Expr::from_canonical_u32(4),
@@ -166,29 +234,52 @@ impl ShaCompressChip {
         // Verify correct mem address for finalize phase
         builder.when(is_finalize).assert_eq(
             local.mem_addr,
-            local.w_and_h_ptr
-                + (AB::Expr::from_canonical_u32(64 * 4)
-                    + cycle_step.clone() * AB::Expr::from_canonical_u32(4)),
+            local.h_ptr + cycle_step.clone() * AB::Expr::from_canonical_u32(4),
         );
 
-        // In the initialize phase, verify that local.a, local.b, ... is correctly set to the
-        // memory value.
+        // In the initialize phase, verify that local.a, local.b, ... is correctly read from memory
+        // and does not change
         let vars = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
         ];
-        for i in 0..8 {
+        for (i, var) in vars.iter().enumerate() {
             builder
                 .when(is_initialize)
                 .when(local.octet[i])
-                .assert_word_eq(vars[i], *local.mem.value());
+                .assert_word_eq(*var, *local.mem.prev_value());
+            builder
+                .when(is_initialize)
+                .when(local.octet[i])
+                .assert_word_eq(*var, *local.mem.value());
         }
+
+        // During compression, verify that memory is read only and does not change.
+        builder
+            .when(local.is_compression)
+            .assert_word_eq(local.mem.prev_value, local.mem.access.value);
+
+        // In the finalize phase, verify that the correct value is written to memory.
+        builder
+            .when(is_finalize)
+            .assert_word_eq(*local.mem.value(), local.finalize_add.value);
     }
 
-    fn constrain_compression_ops<AB: CurtaAirBuilder>(
+    fn constrain_compression_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
     ) {
+        // Constrain k column which loops over 64 constant values.
+        for i in 0..64 {
+            let octet_num = i / 8;
+            let inner_index = i % 8;
+            builder
+                .when(local.octet_num[octet_num + 1] * local.octet[inner_index])
+                .assert_all_eq(local.k, Word::<AB::F>::from(SHA_COMPRESS_K[i]));
+        }
+
+        // S1 := (e rightrotate 6) xor (e rightrotate 11) xor (e rightrotate 25).
+        // Calculate e rightrotate 6.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -196,6 +287,7 @@ impl ShaCompressChip {
             local.e_rr_6,
             local.is_compression,
         );
+        // Calculate e rightrotate 11.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -203,6 +295,7 @@ impl ShaCompressChip {
             local.e_rr_11,
             local.is_compression,
         );
+        // Calculate e rightrotate 25.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -210,6 +303,7 @@ impl ShaCompressChip {
             local.e_rr_25,
             local.is_compression,
         );
+        // Calculate (e rightrotate 6) xor (e rightrotate 11).
         XorOperation::<AB::F>::eval(
             builder,
             local.e_rr_6.value,
@@ -217,6 +311,7 @@ impl ShaCompressChip {
             local.s1_intermediate,
             local.is_compression,
         );
+        // Calculate S1 := ((e rightrotate 6) xor (e rightrotate 11)) xor (e rightrotate 25).
         XorOperation::<AB::F>::eval(
             builder,
             local.s1_intermediate.value,
@@ -225,6 +320,8 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        // Calculate ch := (e and f) xor ((not e) and g).
+        // Calculate e and f.
         AndOperation::<AB::F>::eval(
             builder,
             local.e,
@@ -232,7 +329,9 @@ impl ShaCompressChip {
             local.e_and_f,
             local.is_compression,
         );
+        // Calculate not e.
         NotOperation::<AB::F>::eval(builder, local.e, local.e_not, local.is_compression);
+        // Calculate (not e) and g.
         AndOperation::<AB::F>::eval(
             builder,
             local.e_not.value,
@@ -240,6 +339,7 @@ impl ShaCompressChip {
             local.e_not_and_g,
             local.is_compression,
         );
+        // Calculate ch := (e and f) xor ((not e) and g).
         XorOperation::<AB::F>::eval(
             builder,
             local.e_and_f.value,
@@ -248,6 +348,22 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        // Calculate temp1 := h + S1 + ch + k[i] + w[i].
+        Add5Operation::<AB::F>::eval(
+            builder,
+            &[
+                local.h,
+                local.s1.value,
+                local.ch.value,
+                local.k,
+                local.mem.access.value,
+            ],
+            local.is_compression,
+            local.temp1,
+        );
+
+        // Calculate S0 := (a rightrotate 2) xor (a rightrotate 13) xor (a rightrotate 22).
+        // Calculate a rightrotate 2.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -255,6 +371,7 @@ impl ShaCompressChip {
             local.a_rr_2,
             local.is_compression,
         );
+        // Calculate a rightrotate 13.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -262,6 +379,7 @@ impl ShaCompressChip {
             local.a_rr_13,
             local.is_compression,
         );
+        // Calculate a rightrotate 22.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -269,6 +387,7 @@ impl ShaCompressChip {
             local.a_rr_22,
             local.is_compression,
         );
+        // Calculate (a rightrotate 2) xor (a rightrotate 13).
         XorOperation::<AB::F>::eval(
             builder,
             local.a_rr_2.value,
@@ -276,6 +395,7 @@ impl ShaCompressChip {
             local.s0_intermediate,
             local.is_compression,
         );
+        // Calculate S0 := ((a rightrotate 2) xor (a rightrotate 13)) xor (a rightrotate 22).
         XorOperation::<AB::F>::eval(
             builder,
             local.s0_intermediate.value,
@@ -284,6 +404,8 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        // Calculate maj := (a and b) xor (a and c) xor (b and c).
+        // Calculate a and b.
         AndOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -291,6 +413,7 @@ impl ShaCompressChip {
             local.a_and_b,
             local.is_compression,
         );
+        // Calculate a and c.
         AndOperation::<AB::F>::eval(
             builder,
             local.a,
@@ -298,6 +421,7 @@ impl ShaCompressChip {
             local.a_and_c,
             local.is_compression,
         );
+        // Calculate b and c.
         AndOperation::<AB::F>::eval(
             builder,
             local.b,
@@ -305,6 +429,7 @@ impl ShaCompressChip {
             local.b_and_c,
             local.is_compression,
         );
+        // Calculate (a and b) xor (a and c).
         XorOperation::<AB::F>::eval(
             builder,
             local.a_and_b.value,
@@ -312,6 +437,7 @@ impl ShaCompressChip {
             local.maj_intermediate,
             local.is_compression,
         );
+        // Calculate maj := ((a and b) xor (a and c)) xor (b and c).
         XorOperation::<AB::F>::eval(
             builder,
             local.maj_intermediate.value,
@@ -320,32 +446,35 @@ impl ShaCompressChip {
             local.is_compression,
         );
 
+        // Calculate temp2 := s0 + maj.
         AddOperation::<AB::F>::eval(
             builder,
             local.s0.value,
             local.maj.value,
             local.temp2,
-            local.is_compression,
+            local.is_compression.into(),
         );
 
+        // Calculate d + temp1 for the new value of e.
         AddOperation::<AB::F>::eval(
             builder,
             local.d,
             local.temp1.value,
             local.d_add_temp1,
-            local.is_compression,
+            local.is_compression.into(),
         );
 
+        // Calculate temp1 + temp2 for the new value of a.
         AddOperation::<AB::F>::eval(
             builder,
             local.temp1.value,
             local.temp2.value,
             local.temp1_add_temp2,
-            local.is_compression,
+            local.is_compression.into(),
         );
     }
 
-    fn constrain_finalize_ops<AB: CurtaAirBuilder>(
+    fn constrain_finalize_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &ShaCompressCols<AB::Var>,
@@ -353,8 +482,8 @@ impl ShaCompressChip {
         let is_finalize = local.octet_num[9];
         // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h, for each of the
         // phase's 8 rows.
-        // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and [a,b,c,...,h]
-        // which will act as a selector.
+        // We can get the needed operand (a,b,c,...,h) by doing an inner product between octet and
+        // [a,b,c,...,h] which will act as a selector.
         let add_operands = [
             local.a, local.b, local.c, local.d, local.e, local.f, local.g, local.h,
         ];
@@ -370,16 +499,15 @@ impl ShaCompressChip {
             .when(is_finalize)
             .assert_word_eq(filtered_operand, local.finalized_operand.map(|x| x.into()));
 
+        // finalize_add.result = h[i] + finalized_operand
         AddOperation::<AB::F>::eval(
             builder,
             local.mem.prev_value,
             local.finalized_operand,
             local.finalize_add,
-            is_finalize,
+            is_finalize.into(),
         );
 
-        builder
-            .when(is_finalize)
-            .assert_word_eq(*local.mem.value(), local.finalize_add.value);
+        // Memory write is constrained in constrain_memory.
     }
 }

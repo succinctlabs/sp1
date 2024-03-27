@@ -8,11 +8,12 @@ on:
       - "**"
     paths:
       - "core/**"
+      - "recursion/**"
 
 jobs:
   test:
     name: CI Test Suite
-    runs-on: buildjet-32vcpu-ubuntu-2204
+    runs-on: warp-ubuntu-latest-arm64-16x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -26,7 +27,7 @@ jobs:
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
 
       - name: rust-cache
-        uses: buildjet/cache@v3
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/
@@ -46,11 +47,31 @@ jobs:
           toolchain: nightly-2024-01-25
           override: true
 
-      - name: Run cargo test
+      - name: Run cargo test on sp1-core
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p succinct-core --release
+          args: -p sp1-core --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
+      - name: Run cargo test on sp1-recursion-compiler
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-recursion-compiler --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
+      - name: Run cargo test with no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_LOG: 1
@@ -58,7 +79,7 @@ jobs:
 
   lints:
     name: Formatting & Clippy
-    runs-on: buildjet-32vcpu-ubuntu-2204
+    runs-on: warp-ubuntu-latest-arm64-16x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -72,7 +93,7 @@ jobs:
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
 
       - name: rust-cache
-        uses: buildjet/cache@v3
+        uses: actions/cache@v3
         with:
           path: |
             ~/.cargo/bin/

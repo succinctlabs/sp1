@@ -1,0 +1,12 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "io-script"
+edition = "2021"
+
+[dependencies]
+serde = { version = "1.0.196", features = ["derive"] }
+sp1-core = { path = "../../../core" }
+
+[build-dependencies]
+sp1-helper = { path = "../../../helper" }

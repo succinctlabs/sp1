@@ -1,6 +1,4 @@
-use core::borrow::{Borrow, BorrowMut};
-use std::mem::size_of;
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 
 use crate::air::Word;
 
@@ -32,21 +30,22 @@ pub struct MemoryReadWriteCols<T> {
 pub struct MemoryAccessCols<T> {
     pub value: Word<T>,
 
-    // The previous shard and timestamp that this memory access is being read from.
+    /// The previous shard and timestamp that this memory access is being read from.
     pub prev_shard: T,
     pub prev_clk: T,
 
-    // The three columns below are helper/materialized columns used to verify that this memory access is
-    // after the last one.  Specifically, it verifies that the current clk value > timestsamp (if
-    // this access's shard == prev_access's shard) or that the current shard > shard.
-    // These columns will need to be verified in the air.
+    /// This will be true if the current shard == prev_access's shard, else false.
+    pub compare_clk: T,
 
-    // This materialized column is equal to use_clk_comparison ? prev_timestamp : current_shard
-    pub prev_time_value: T,
-    // This will be true if the current shard == prev_access's shard, else false.
-    pub use_clk_comparison: T,
-    // This materialized column is equal to use_clk_comparison ? current_clk : current_shard
-    pub current_time_value: T,
+    /// The following columns are decomposed limbs for the difference between the current access's timestamp
+    /// and the previous access's timestamp.  Note the actual value of the timestamp is either the
+    /// accesses' shard or clk depending on the value of compare_clk.
+
+    /// This column is the least significant 16 bit limb of current access timestamp - prev access timestamp.
+    pub diff_16bit_limb: T,
+
+    /// This column is the most signficant 8 bit limb of current access timestamp - prev access timestamp.
+    pub diff_8bit_limb: T,
 }
 
 /// The common columns for all memory access types.

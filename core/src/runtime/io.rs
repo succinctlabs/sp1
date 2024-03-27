@@ -1,8 +1,7 @@
+use super::Runtime;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::io::Read;
-
-use super::Runtime;
 
 impl Read for Runtime {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
@@ -97,6 +96,6 @@ pub mod tests {
         runtime.write_stdin(&points.1);
         runtime.run();
         let config = BabyBearBlake3::new();
-        prove_core(config, &mut runtime);
+        prove_core(config, runtime);
     }
 }

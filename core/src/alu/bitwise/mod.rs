@@ -4,14 +4,14 @@ use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use sp1_derive::AlignedBorrow;
 use tracing::instrument;
-use valida_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
-use crate::air::{CurtaAirBuilder, Word};
+use crate::air::{SP1AirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::{env, pad_to_power_of_two};
+use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
@@ -43,28 +43,20 @@ pub struct BitwiseCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for BitwiseChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "Bitwise".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .bitwise_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            outputs[i].bitwise_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, record: &ExecutionRecord) -> bool {
-        !record.bitwise_events.is_empty()
-    }
-
-    #[instrument(name = "generate bitwise trace", skip_all)]
-    fn generate_trace(&self, shard: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate bitwise trace", level = "debug", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = shard
+        let rows = input
             .bitwise_events
             .iter()
             .map(|event| {
@@ -90,11 +82,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                         b: b_b as u32,
                         c: b_c as u32,
                     };
-                    shard
-                        .byte_lookups
-                        .entry(byte_event)
-                        .and_modify(|i| *i += 1)
-                        .or_insert(1);
+                    output.add_byte_lookup_event(byte_event);
                 }
 
                 row
@@ -112,6 +100,10 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.bitwise_events.is_empty()
+    }
 }
 
 impl<F> BaseAir<F> for BitwiseChip {
@@ -122,7 +114,7 @@ impl<F> BaseAir<F> for BitwiseChip {
 
 impl<AB> Air<AB> for BitwiseChip
 where
-    AB: CurtaAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -163,19 +155,21 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::air::MachineAir;
+    use crate::stark::StarkGenericConfig;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
 
     use super::BitwiseChip;
     use crate::alu::AluEvent;
     use crate::runtime::{ExecutionRecord, Opcode};
-    use crate::utils::{BabyBearPoseidon2, StarkUtils};
+    use crate::utils::BabyBearPoseidon2;
 
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values)
     }
 
@@ -192,7 +186,8 @@ mod tests {
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
 
         let mut challenger = config.challenger();

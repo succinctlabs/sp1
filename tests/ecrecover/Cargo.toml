@@ -1,0 +1,11 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "ecrecover-test"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+hex-literal = "0.4.1"
+num = { version = "0.4.1", default-features = false }
+k256 = { version = "0.13.3", features = ["ecdsa"] }

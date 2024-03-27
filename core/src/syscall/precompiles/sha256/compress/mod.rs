@@ -1,4 +1,5 @@
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use serde::{Deserialize, Serialize};
 
 mod air;
 mod columns;
@@ -16,18 +17,26 @@ pub const SHA_COMPRESS_K: [u32; 64] = [
     0x748f82ee, 0x78a5636f, 0x84c87814, 0x8cc70208, 0x90befffa, 0xa4506ceb, 0xbef9a3f7, 0xc67178f2,
 ];
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ShaCompressEvent {
     pub shard: u32,
     pub clk: u32,
-    pub w_and_h_ptr: u32,
-    pub w: [u32; 64],
+    pub w_ptr: u32,
+    pub h_ptr: u32,
+    pub w: Vec<u32>,
     pub h: [u32; 8],
     pub h_read_records: [MemoryReadRecord; 8],
-    pub w_i_read_records: [MemoryReadRecord; 64],
+    pub w_i_read_records: Vec<MemoryReadRecord>,
     pub h_write_records: [MemoryWriteRecord; 8],
 }
 
+/// Implements the SHA compress operation which loops over 0 = [0, 63] and modifies A-H in each
+/// iteration. The inputs to the syscall are a pointer to the 64 word array W and a pointer to the 8
+/// word array H.
+///
+/// In the AIR, each SHA compress syscall takes up 80 rows. The first and last 8 rows are for
+/// initialization and finalize respectively. The middle 64 rows are for compression. Each row
+/// operates over a single memory word.
 #[derive(Default)]
 pub struct ShaCompressChip;
 
@@ -41,13 +50,13 @@ impl ShaCompressChip {
 pub mod compress_tests {
 
     use crate::{
-        runtime::{Instruction, Opcode, Program, Runtime},
-        stark::{LocalProver, RiscvStark},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        runtime::{Instruction, Opcode, Program, SyscallCode},
+        utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF},
     };
 
     pub fn sha_compress_program() -> Program {
         let w_ptr = 100;
+        let h_ptr = 1000;
         let mut instructions = vec![Instruction::new(Opcode::ADD, 29, 0, 5, false, true)];
         for i in 0..64 {
             instructions.extend(vec![
@@ -55,25 +64,39 @@ pub mod compress_tests {
                 Instruction::new(Opcode::SW, 29, 30, 0, false, true),
             ]);
         }
+        for i in 0..8 {
+            instructions.extend(vec![
+                Instruction::new(Opcode::ADD, 30, 0, h_ptr + i * 4, false, true),
+                Instruction::new(Opcode::SW, 29, 30, 0, false, true),
+            ]);
+        }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 103, false, true),
+            Instruction::new(
+                Opcode::ADD,
+                5,
+                0,
+                SyscallCode::SHA_COMPRESS as u32,
+                false,
+                true,
+            ),
             Instruction::new(Opcode::ADD, 10, 0, w_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ADD, 11, 0, h_ptr, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
         Program::new(instructions, 0, 0)
     }
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
+        setup_logger();
         let program = sha_compress_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
+        run_test(program).unwrap();
+    }
 
-        let (machine, prover_data) = RiscvStark::init(config);
-
-        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
+    #[test]
+    fn test_sha_compress_program() {
+        setup_logger();
+        let program = Program::from(SHA_COMPRESS_ELF);
+        run_test(program).unwrap();
     }
 }

@@ -1,7 +1,5 @@
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
+use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
-use valida_derive::AlignedBorrow;
 
 use super::NUM_BYTE_OPS;
 

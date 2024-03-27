@@ -1,0 +1,9 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "cycle-tracker-test"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+sp1-derive = { path = "../../derive" }

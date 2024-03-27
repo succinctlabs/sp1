@@ -1,44 +1,41 @@
 mod instruction;
 mod io;
+mod memory;
 mod opcode;
 mod program;
 mod record;
 mod register;
 mod state;
 mod syscall;
+#[macro_use]
+mod utils;
 
-use crate::cpu::{MemoryReadRecord, MemoryRecord, MemoryWriteRecord};
-use crate::utils::env;
-use crate::{alu::AluEvent, cpu::CpuEvent};
 pub use instruction::*;
-use nohash_hasher::BuildNoHashHasher;
+pub use memory::*;
 pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
 pub use state::*;
-use std::collections::hash_map::Entry;
-use std::collections::HashMap;
-use std::rc::Rc;
-use std::sync::Arc;
 pub use syscall::*;
-
-use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+pub use utils::*;
 
 use self::state::ExecutionState;
+use crate::utils::env;
+use crate::{alu::AluEvent, cpu::CpuEvent};
 
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum AccessPosition {
-    Memory = 0,
-    // Note that these AccessPositions mean that when when read/writing registers, they must be
-    // read/written in the following order: C, B, A.
-    C = 1,
-    B = 2,
-    A = 3,
-}
+use nohash_hasher::BuildNoHashHasher;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::BufWriter;
+use std::io::Write;
+use std::rc::Rc;
+use std::sync::Arc;
 
-/// An implementation of a runtime for the Curta VM.
+pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
+
+/// An implementation of a runtime for the SP1 VM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur
 /// during execution (i.e., memory reads, alu operations, etc).
@@ -49,20 +46,31 @@ pub struct Runtime {
     /// The program.
     pub program: Arc<Program>,
 
-    /// Current global state.
+    /// The state of the execution.
     pub state: ExecutionState,
 
-    /// The record containing all events emitted during execution so far.
+    /// The trace of the execution.
     pub record: ExecutionRecord,
 
-    /// The record for the current CPU opcode containing relevant events.
-    pub cpu_record: CpuRecord,
+    /// The memory accesses for the current cycle.
+    pub memory_accesses: MemoryAccessRecord,
 
     /// The maximum size of each shard.
     pub shard_size: u32,
 
+    pub shard_batch_size: u32,
+
     /// A counter for the number of cycles that have been executed in certain functions.
-    pub cycle_tracker: HashMap<String, (u32, u32)>,
+    pub cycle_tracker: HashMap<String, (u64, u32)>,
+
+    /// A buffer for stdout and stderr IO.
+    pub io_buf: HashMap<u32, String>,
+
+    /// A buffer for writing trace events to a file.
+    pub trace_buf: Option<BufWriter<File>>,
+
+    /// Whether the runtime should fail on panic or not.
+    pub fail_on_panic: bool,
 
     /// Whether the runtime is in constrained mode or not.
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
@@ -72,28 +80,70 @@ pub struct Runtime {
     pub(crate) unconstrained_state: ForkState,
 
     pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
+
+    pub max_syscall_cycles: u32,
+
+    pub emit_events: bool,
 }
 
 impl Runtime {
-    // Create a new runtime
+    // Create a new runtime from a program.
     pub fn new(program: Program) -> Self {
-        let program_arc = Arc::new(program);
+        // Create a shared reference to the program.
+        let program = Arc::new(program);
+
+        // Create a default record with the program.
         let record = ExecutionRecord {
-            program: program_arc.clone(),
+            program: program.clone(),
             ..Default::default()
         };
 
+        // If TRACE_FILE is set, initialize the trace buffer.
+        let trace_buf = if let Ok(trace_file) = std::env::var("TRACE_FILE") {
+            let file = File::create(trace_file).unwrap();
+            Some(BufWriter::new(file))
+        } else {
+            None
+        };
+
+        let syscall_map = default_syscall_map();
+        // Determine the maximum number of cycles for any syscall.
+        let max_syscall_cycles = syscall_map
+            .values()
+            .map(|syscall| syscall.num_extra_cycles())
+            .max()
+            .unwrap_or(0);
+
+        let shard_size = env::shard_size() as u32;
+
         Self {
             record,
-            state: ExecutionState::new(program_arc.pc_start),
-            program: program_arc,
-            cpu_record: CpuRecord::default(),
-            shard_size: env::shard_size() as u32 * 4,
+            state: ExecutionState::new(program.pc_start),
+            program,
+            memory_accesses: MemoryAccessRecord::default(),
+            shard_size: shard_size * 4,
+            shard_batch_size: env::shard_batch_size() as u32 * shard_size,
             cycle_tracker: HashMap::new(),
+            io_buf: HashMap::new(),
+            trace_buf,
+            fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
-            syscall_map: default_syscall_map(),
+            syscall_map,
+            emit_events: true,
+            max_syscall_cycles,
         }
+    }
+
+    /// Recover runtime state from a program and existing execution state.
+    pub fn recover(program: Program, state: ExecutionState) -> Self {
+        let mut runtime = Self::new(program);
+        runtime.state = state;
+        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+            .try_into()
+            .unwrap();
+        runtime.record.index = index;
+        runtime
     }
 
     /// Get the current values of the registers.
@@ -102,7 +152,7 @@ impl Runtime {
         for i in 0..32 {
             let addr = Register::from_u32(i as u32) as u32;
             registers[i] = match self.state.memory.get(&addr) {
-                Some((value, _, _)) => *value,
+                Some(record) => record.value,
                 None => 0,
             };
         }
@@ -113,7 +163,7 @@ impl Runtime {
     pub fn register(&self, register: Register) -> u32 {
         let addr = register as u32;
         match self.state.memory.get(&addr) {
-            Some((value, _, _)) => *value,
+            Some(record) => record.value,
             None => 0,
         }
     }
@@ -121,156 +171,161 @@ impl Runtime {
     /// Get the current value of a word.
     pub fn word(&self, addr: u32) -> u32 {
         match self.state.memory.get(&addr) {
-            Some((value, _, _)) => *value,
+            Some(record) => record.value,
             None => 0,
         }
     }
 
+    /// Get the current value of a byte.
     pub fn byte(&self, addr: u32) -> u8 {
         let word = self.word(addr - addr % 4);
         (word >> ((addr % 4) * 8)) as u8
     }
 
-    #[inline]
-    fn clk_from_position(&self, position: &AccessPosition) -> u32 {
+    /// Get the current timestamp for a given memory access position.
+    pub fn timestamp(&self, position: &MemoryAccessPosition) -> u32 {
         self.state.clk + *position as u32
     }
 
-    pub fn current_shard(&self) -> u32 {
+    /// Get the current shard.
+    pub fn shard(&self) -> u32 {
         self.state.current_shard
     }
 
-    fn align(&self, addr: u32) -> u32 {
-        addr - addr % 4
-    }
+    /// Read a word from memory and create an access record.
+    pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
+        // Get the memory record entry.
+        let entry = self.state.memory.entry(addr);
 
-    #[inline]
-    fn validate_memory_access(&self, addr: u32, position: AccessPosition) {
-        if position == AccessPosition::Memory {
-            assert_eq!(addr % 4, 0, "addr is not aligned");
-            let _ = BabyBear::from_canonical_u32(addr);
-            assert!(addr > 40); // Assert that the address is > the max register.
-        } else {
-            let _ = Register::from_u32(addr);
-        }
-    }
-
-    pub fn mr(&mut self, addr: u32, shard: u32, clk: u32) -> MemoryReadRecord {
-        // Get the memory entry.
-        let memory_entry = self.state.memory.entry(addr);
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
         if self.unconstrained {
-            // If we're in unconstrained mode, we don't want to modify state, so we'll save the
-            // original state if it's the first time modifying it.
-            let prev_value = match memory_entry {
+            let record = match entry {
                 Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
             };
             self.unconstrained_state
                 .memory_diff
                 .entry(addr)
-                .or_insert(prev_value.copied());
+                .or_insert(record.copied());
         }
-        // If it's the first time accessing this address, initialize previous values as zero.
-        let entry_value = memory_entry.or_insert((0, 0, 0));
-        // Get the last time this memory address was accessed, and then update with current clock.
-        let (value, prev_shard, prev_timestamp) = *entry_value;
-        (entry_value.1, entry_value.2) = (shard, clk);
 
-        MemoryReadRecord::new(value, shard, clk, prev_shard, prev_timestamp)
+        // If it's the first time accessing this address, initialize previous values as zero.
+        let record = entry.or_default();
+        let value = record.value;
+        let prev_shard = record.shard;
+        let prev_timestamp = record.timestamp;
+        record.shard = shard;
+        record.timestamp = timestamp;
+
+        // Construct the memory read record.
+        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
     }
 
-    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, clk: u32) -> MemoryWriteRecord {
-        // Get the memory entry.
-        let memory_entry = self.state.memory.entry(addr);
+    /// Write a word to memory and create an access record.
+    pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
+        // Get the memory record entry.
+        let entry = self.state.memory.entry(addr);
+
+        // If we're in unconstrained mode, we don't want to modify state, so we'll save the
+        // original state if it's the first time modifying it.
         if self.unconstrained {
-            // If we're in unconstrained mode, we don't want to modify state, so we'll save the
-            // original state if it's the first time modifying it.
-            let prev_value = match memory_entry {
+            let record = match entry {
                 Entry::Occupied(ref entry) => Some(entry.get()),
                 Entry::Vacant(_) => None,
             };
             self.unconstrained_state
                 .memory_diff
                 .entry(addr)
-                .or_insert(prev_value.copied());
+                .or_insert(record.copied());
         }
+
         // If it's the first time accessing this address, initialize previous values as zero.
-        let entry_value = memory_entry.or_insert((0, 0, 0));
-        // Get previous values and then update with new values.
-        let (prev_value, prev_shard, prev_timestamp) = *entry_value;
-        *entry_value = (value, shard, clk);
-        MemoryWriteRecord::new(value, shard, clk, prev_value, prev_shard, prev_timestamp)
+        let record = entry.or_default();
+        let prev_value = record.value;
+        let prev_shard = record.shard;
+        let prev_timestamp = record.timestamp;
+        record.value = value;
+        record.shard = shard;
+        record.timestamp = timestamp;
+
+        // Construct the memory write record.
+        MemoryWriteRecord::new(
+            value,
+            shard,
+            timestamp,
+            prev_value,
+            prev_shard,
+            prev_timestamp,
+        )
     }
 
     /// Read from memory, assuming that all addresses are aligned.
-    pub fn mr_cpu(&mut self, addr: u32, position: AccessPosition) -> u32 {
-        self.validate_memory_access(addr, position);
+    pub fn mr_cpu(&mut self, addr: u32, position: MemoryAccessPosition) -> u32 {
+        // Assert that the address is aligned.
+        assert_valid_memory_access!(addr, position);
 
-        let record = self.mr(
-            addr,
-            self.current_shard(),
-            self.clk_from_position(&position),
-        );
+        // Read the address from memory and create a memory read record.
+        let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
-        if !self.unconstrained {
+        // If we're not in unconstrained mode, record the access for the current cycle.
+        if !self.unconstrained && self.emit_events {
             match position {
-                AccessPosition::A => self.cpu_record.a = Some(record.into()),
-                AccessPosition::B => self.cpu_record.b = Some(record.into()),
-                AccessPosition::C => self.cpu_record.c = Some(record.into()),
-                AccessPosition::Memory => self.cpu_record.memory = Some(record.into()),
+                MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
+                MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
+                MemoryAccessPosition::C => self.memory_accesses.c = Some(record.into()),
+                MemoryAccessPosition::Memory => self.memory_accesses.memory = Some(record.into()),
             }
         }
         record.value
     }
 
     /// Write to memory.
-    pub fn mw_cpu(&mut self, addr: u32, value: u32, position: AccessPosition) {
-        self.validate_memory_access(addr, position);
+    pub fn mw_cpu(&mut self, addr: u32, value: u32, position: MemoryAccessPosition) {
+        // Assert that the address is aligned.
+        assert_valid_memory_access!(addr, position);
 
-        let record = self.mw(
-            addr,
-            value,
-            self.current_shard(),
-            self.clk_from_position(&position),
-        );
+        // Read the address from memory and create a memory read record.
+        let record = self.mw(addr, value, self.shard(), self.timestamp(&position));
 
-        // Set the records.
+        // If we're not in unconstrained mode, record the access for the current cycle.
         if !self.unconstrained {
             match position {
-                AccessPosition::A => {
-                    assert!(self.cpu_record.a.is_none());
-                    self.cpu_record.a = Some(record.into());
+                MemoryAccessPosition::A => {
+                    assert!(self.memory_accesses.a.is_none());
+                    self.memory_accesses.a = Some(record.into());
                 }
-                AccessPosition::B => {
-                    assert!(self.cpu_record.b.is_none());
-                    self.cpu_record.b = Some(record.into());
+                MemoryAccessPosition::B => {
+                    assert!(self.memory_accesses.b.is_none());
+                    self.memory_accesses.b = Some(record.into());
                 }
-                AccessPosition::C => {
-                    assert!(self.cpu_record.c.is_none());
-                    self.cpu_record.c = Some(record.into());
+                MemoryAccessPosition::C => {
+                    assert!(self.memory_accesses.c.is_none());
+                    self.memory_accesses.c = Some(record.into());
                 }
-                AccessPosition::Memory => {
-                    assert!(self.cpu_record.memory.is_none());
-                    self.cpu_record.memory = Some(record.into());
+                MemoryAccessPosition::Memory => {
+                    assert!(self.memory_accesses.memory.is_none());
+                    self.memory_accesses.memory = Some(record.into());
                 }
             }
         }
     }
 
-    /// Read from register.
-    pub fn rr(&mut self, register: Register, position: AccessPosition) -> u32 {
+    /// Read from a register.
+    pub fn rr(&mut self, register: Register, position: MemoryAccessPosition) -> u32 {
         self.mr_cpu(register as u32, position)
     }
 
-    /// Write to register.
+    /// Write to a register.
     pub fn rw(&mut self, register: Register, value: u32) {
+        // We don't write to %x0. See 2.6 Load and Store Instruction on
+        // P.18 of the RISC-V spec.
         if register == Register::X0 {
-            // We don't write to %x0. See 2.6 Load and Store Instruction on
-            // P.18 of the RISC-V spec.
             return;
         }
-        // The only time we are writing to a register is when it is register A.
-        self.mw_cpu(register as u32, value, AccessPosition::A)
+
+        // The only time we are writing to a register is when it is in operand A.
+        self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
     }
 
     /// Emit a CPU event.
@@ -285,7 +340,7 @@ impl Runtime {
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
-        record: CpuRecord,
+        record: MemoryAccessRecord,
     ) {
         let cpu_event = CpuEvent {
             shard,
@@ -343,16 +398,15 @@ impl Runtime {
     }
 
     /// Fetch the destination register and input operand values for an ALU instruction.
-    #[inline]
     fn alu_rr(&mut self, instruction: Instruction) -> (Register, u32, u32) {
         if !instruction.imm_c {
             let (rd, rs1, rs2) = instruction.r_type();
-            let c = self.rr(rs2, AccessPosition::C);
-            let b = self.rr(rs1, AccessPosition::B);
+            let c = self.rr(rs2, MemoryAccessPosition::C);
+            let b = self.rr(rs1, MemoryAccessPosition::B);
             (rd, b, c)
         } else if !instruction.imm_b && instruction.imm_c {
             let (rd, rs1, imm) = instruction.i_type();
-            let (rd, b, c) = (rd, self.rr(rs1, AccessPosition::B), imm);
+            let (rd, b, c) = (rd, self.rr(rs1, MemoryAccessPosition::B), imm);
             (rd, b, c)
         } else {
             assert!(instruction.imm_b && instruction.imm_c);
@@ -366,41 +420,39 @@ impl Runtime {
     }
 
     /// Set the destination register with the result and emit an ALU event.
-    #[inline]
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
-        self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        if self.emit_events {
+            self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        }
     }
 
     /// Fetch the input operand values for a load instruction.
-    #[inline]
     fn load_rr(&mut self, instruction: Instruction) -> (Register, u32, u32, u32, u32) {
         let (rd, rs1, imm) = instruction.i_type();
-        let (b, c) = (self.rr(rs1, AccessPosition::B), imm);
+        let (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
         let addr = b.wrapping_add(c);
-        let memory_value = self.mr_cpu(self.align(addr), AccessPosition::Memory);
+        let memory_value = self.mr_cpu(align(addr), MemoryAccessPosition::Memory);
         (rd, b, c, addr, memory_value)
     }
 
     /// Fetch the input operand values for a store instruction.
-    #[inline]
     fn store_rr(&mut self, instruction: Instruction) -> (u32, u32, u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.s_type();
         let c = imm;
-        let b = self.rr(rs2, AccessPosition::B);
-        let a = self.rr(rs1, AccessPosition::A);
+        let b = self.rr(rs2, MemoryAccessPosition::B);
+        let a = self.rr(rs1, MemoryAccessPosition::A);
         let addr = b.wrapping_add(c);
-        let memory_value = self.word(self.align(addr));
+        let memory_value = self.word(align(addr));
         (a, b, c, addr, memory_value)
     }
 
     /// Fetch the input operand values for a branch instruction.
-    #[inline]
     fn branch_rr(&mut self, instruction: Instruction) -> (u32, u32, u32) {
         let (rs1, rs2, imm) = instruction.b_type();
         let c = imm;
-        let b = self.rr(rs2, AccessPosition::B);
-        let a = self.rr(rs1, AccessPosition::A);
+        let b = self.rr(rs2, MemoryAccessPosition::B);
+        let a = self.rr(rs1, MemoryAccessPosition::A);
         (a, b, c)
     }
 
@@ -410,28 +462,17 @@ impl Runtime {
         self.program.instructions[idx]
     }
 
-    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
-        self.syscall_map.get(&code)
-    }
-
-    fn max_syscall_cycles(&self) -> u32 {
-        self.syscall_map
-            .values()
-            .map(|syscall| syscall.num_extra_cycles())
-            .max()
-            .unwrap_or(0)
-    }
-
     /// Execute the given instruction over the current state of the runtime.
-    fn execute(&mut self, instruction: Instruction) {
+    fn execute_instruction(&mut self, instruction: Instruction) {
         let pc = self.state.pc;
+        let mut clk = self.state.clk;
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
         let (a, b, c): (u32, u32, u32);
         let (addr, memory_read_value): (u32, u32);
         let mut memory_store_value: Option<u32> = None;
-        self.cpu_record = CpuRecord::default();
+        self.memory_accesses = MemoryAccessRecord::default();
 
         match instruction.opcode {
             // Arithmetic instructions.
@@ -544,7 +585,7 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
@@ -555,14 +596,14 @@ impl Runtime {
                     _ => unreachable!(),
                 };
                 memory_store_value = Some(value);
-                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
             Opcode::SW => {
                 (a, b, c, addr, _) = self.store_rr(instruction);
                 assert_eq!(addr % 4, 0, "addr is not aligned");
                 let value = a;
                 memory_store_value = Some(value);
-                self.mw_cpu(self.align(addr), value, AccessPosition::Memory);
+                self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
             }
 
             // B-type instructions.
@@ -613,7 +654,7 @@ impl Runtime {
             }
             Opcode::JALR => {
                 let (rd, rs1, imm) = instruction.i_type();
-                (b, c) = (self.rr(rs1, AccessPosition::B), imm);
+                (b, c) = (self.rr(rs1, MemoryAccessPosition::B), imm);
                 a = self.state.pc + 4;
                 self.rw(rd, a);
                 next_pc = b.wrapping_add(c);
@@ -630,28 +671,39 @@ impl Runtime {
             // System instructions.
             Opcode::ECALL => {
                 let t0 = Register::X5;
-                let a0 = Register::X10;
+                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this register
+                // is that we write to it later.
                 let syscall_id = self.register(t0);
+                c = self.rr(Register::X11, MemoryAccessPosition::C);
+                b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                let init_clk = self.state.clk;
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt);
-                    next_pc = precompile_rt.next_pc;
-                    self.state.clk = precompile_rt.clk;
-                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                let (precompile_next_pc, precompile_cycles) =
+                    if let Some(syscall_impl) = syscall_impl {
+                        // Executing a syscall optionally returns a value to write to the t0 register.
+                        // If it returns None, we just keep the syscall_id in t0.
+                        // Only the "LWA" syscall actually writes to t0, most syscalls don't return a value.
+                        let res = syscall_impl.execute(&mut precompile_rt, b, c);
+                        if let Some(val) = res {
+                            a = val;
+                        } else {
+                            // Default to syscall_id if no value is returned from syscall execution.
+                            a = syscall_id;
+                        }
+                        (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
+                    } else {
+                        panic!("Unsupported syscall: {:?}", syscall);
+                    };
 
-                // We have to do this AFTER the precompile execution because the CPU event
-                // gets emitted at the end of this loop with the incremented clock.
-                // TODO: fix this.
-                self.rw(a0, a);
-                (b, c) = (self.rr(t0, AccessPosition::B), 0);
+                // Allow the syscall impl to modify state.clock (exit unconstrained does this)
+                clk = self.state.clk;
+
+                self.rw(t0, a);
+                next_pc = precompile_next_pc;
+                self.state.clk += precompile_cycles;
             }
 
             Opcode::EBREAK => {
@@ -724,87 +776,142 @@ impl Runtime {
 
         // Update the program counter.
         self.state.pc = next_pc;
+        // Update the clk to the next cycle.
+        self.state.clk += 4;
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(
-            self.current_shard(),
-            self.state.clk,
-            pc,
-            instruction,
-            a,
-            b,
-            c,
-            memory_store_value,
-            self.cpu_record,
-        );
+        if self.emit_events {
+            self.emit_cpu(
+                self.shard(),
+                clk,
+                pc,
+                instruction,
+                a,
+                b,
+                c,
+                memory_store_value,
+                self.memory_accesses,
+            );
+        }
     }
 
-    /// Execute the program.
-    pub fn run(&mut self) {
-        tracing::info_span!("load memory").in_scope(|| {
-            // First load the memory image into the memory table.
-            for (addr, value) in self.program.memory_image.iter() {
-                self.state.memory.insert(*addr, (*value, 0, 0));
-            }
-        });
+    /// Executes one cycle of the program, returning whether the program has finished.
+    #[inline]
+    fn execute_cycle(&mut self) -> bool {
+        // Fetch the instruction at the current program counter.
+        let instruction = self.fetch();
 
-        let max_syscall_cycles = self.max_syscall_cycles();
+        // Log the current state of the runtime.
+        self.log(&instruction);
 
-        self.state.clk += 1;
-        while self.state.pc.wrapping_sub(self.program.pc_base)
-            < (self.program.instructions.len() * 4) as u32
-        {
-            // Fetch the instruction at the current program counter.
-            let instruction = self.fetch();
+        // Execute the instruction.
+        self.execute_instruction(instruction);
 
-            let width = 12;
-            log::trace!(
-                "clk={} [pc=0x{:x?}] {:<width$?} |         x0={:<width$} x1={:<width$} x2={:<width$} x3={:<width$} x4={:<width$} x5={:<width$} x6={:<width$} x7={:<width$} x8={:<width$} x9={:<width$} x10={:<width$} x11={:<width$} x12={:<width$} x13={:<width$} x14={:<width$} x15={:<width$} x16={:<width$} x17={:<width$} x18={:<width$}",
-                self.state.global_clk,
-                self.state.pc,
-                instruction,
-                self.register(Register::X0),
-                self.register(Register::X1),
-                self.register(Register::X2),
-                self.register(Register::X3),
-                self.register(Register::X4),
-                self.register(Register::X5),
-                self.register(Register::X6),
-                self.register(Register::X7),
-                self.register(Register::X8),
-                self.register(Register::X9),
-                self.register(Register::X10),
-                self.register(Register::X11),
-                self.register(Register::X12),
-                self.register(Register::X13),
-                self.register(Register::X14),
-                self.register(Register::X15),
-                self.register(Register::X16),
-                self.register(Register::X17),
-                self.register(Register::X18),
+        // Increment the clock.
+        self.state.global_clk += 1;
+
+        // If there's not enough cycles left for another instruction, move to the next shard.
+        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
+        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
+            self.state.current_shard += 1;
+            self.state.clk = 0;
+        }
+
+        self.state.pc.wrapping_sub(self.program.pc_base)
+            >= (self.program.instructions.len() * 4) as u32
+    }
+
+    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
+    pub fn execute_record(&mut self) -> (ExecutionRecord, bool) {
+        self.emit_events = true;
+        let done = self.execute();
+        (std::mem::take(&mut self.record), done)
+    }
+
+    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
+    pub fn execute_state(&mut self) -> (ExecutionState, bool) {
+        self.emit_events = false;
+        let state = self.state.clone();
+        let done = self.execute();
+        (state, done)
+    }
+
+    fn initialize(&mut self) {
+        self.state.clk = 0;
+
+        tracing::info!("loading memory image");
+        for (addr, value) in self.program.memory_image.iter() {
+            self.state.memory.insert(
+                *addr,
+                MemoryRecord {
+                    value: *value,
+                    shard: 0,
+                    timestamp: 0,
+                },
             );
+        }
 
-            // Execute the instruction.
-            self.execute(instruction);
+        tracing::info!("starting execution");
+    }
 
-            // Increment the clock.
-            self.state.global_clk += 1;
-            self.state.clk += 4;
+    pub fn run(&mut self) {
+        self.emit_events = true;
+        while !self.execute() {}
+    }
 
-            // If there's not enough cycles left for another instruction, move to the next shard.
-            // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-            if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
-                self.state.current_shard += 1;
-                self.state.clk = 0;
+    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
+    fn execute(&mut self) -> bool {
+        if self.state.global_clk == 0 {
+            self.initialize();
+        }
+
+        let mut cycles = 0_u64;
+        let mut done = false;
+        // Loop until we've executed the maximum number of cycles or the program has finished.
+        while self.shard_batch_size == 0 || cycles < self.shard_batch_size as u64 {
+            if self.execute_cycle() {
+                done = true;
+                break;
+            }
+            if !self.unconstrained {
+                cycles += 1;
             }
         }
 
-        // Call postprocess to set up all variables needed for global accounts, like memory
-        // argument or any other deferred tables.
-        tracing::info_span!("postprocess").in_scope(|| self.postprocess());
+        if done {
+            self.postprocess();
+        }
+
+        done
     }
 
     fn postprocess(&mut self) {
+        tracing::info!(
+            "finished execution clk = {} pc = 0x{:x?}",
+            self.state.global_clk,
+            self.state.pc
+        );
+        // Flush remaining stdout/stderr
+        for (fd, buf) in self.io_buf.iter() {
+            if !buf.is_empty() {
+                match fd {
+                    1 => {
+                        println!("stdout: {}", buf);
+                    }
+                    2 => {
+                        println!("stderr: {}", buf);
+                    }
+                    _ => {}
+                }
+            }
+        }
+
+        // Flush trace buf
+        if let Some(ref mut buf) = self.trace_buf {
+            buf.flush().unwrap();
+        }
+
+        // Set up all variables needed for memory argument.
         let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
         for (key, value) in &self.program.memory_image {
             // By default we assume that the program_memory is used.
@@ -816,12 +923,12 @@ impl Runtime {
 
         let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
         for addr in memory_keys {
-            let (value, shard, timestamp) = *self.state.memory.get(&addr).unwrap();
-            if shard == 0 && timestamp == 0 {
+            let record = *self.state.memory.get(&addr).unwrap();
+            if record.shard == 0 && record.timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
                 // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert(addr, (value, 0));
+                program_memory_used.insert(addr, (record.value, 0));
                 continue;
             }
             // If the memory addr was accessed, we only add it to "first_memory_record" if it was
@@ -842,9 +949,9 @@ impl Runtime {
             last_memory_record.push((
                 addr,
                 MemoryRecord {
-                    value,
-                    shard,
-                    timestamp,
+                    value: record.value,
+                    shard: record.shard,
+                    timestamp: record.timestamp,
                 },
                 1,
             ));
@@ -870,6 +977,10 @@ impl Runtime {
         self.record.last_memory_record = last_memory_record;
         self.record.program_memory_record = program_memory_record;
     }
+
+    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
+        self.syscall_map.get(&code)
+    }
 }
 
 #[cfg(test)]
@@ -880,7 +991,7 @@ pub mod tests {
         utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -901,8 +1012,8 @@ pub mod tests {
 
     pub fn ecall_lwa_program() -> Program {
         let instructions = vec![
-            Instruction::new(Opcode::ADD, 5, 0, 101, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::LWA as u32, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ];
         Program::new(instructions, 0, 0)
     }

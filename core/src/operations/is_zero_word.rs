@@ -2,14 +2,11 @@
 //!
 //! This is bijective (i.e., returns 1 if and only if the input is 0). It is also worth noting that
 //! this operation doesn't do a range check.
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
 use p3_air::AirBuilder;
 use p3_field::Field;
-use std::mem::size_of;
-use valida_derive::AlignedBorrow;
+use sp1_derive::AlignedBorrow;
 
-use crate::air::CurtaAirBuilder;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::disassembler::WORD_SIZE;
 
@@ -51,7 +48,7 @@ impl<F: Field> IsZeroWordOperation<F> {
         is_zero as u32
     }
 
-    pub fn eval<AB: CurtaAirBuilder>(
+    pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Expr>,
         cols: IsZeroWordOperation<AB::Var>,

@@ -1,10 +1,6 @@
-use std::ops::Range;
-
-use crate::syscall::precompiles::{MemoryReadRecord, MemoryWriteRecord};
-
-use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS as P3_NUM_KECCAK_COLS};
-
-use self::columns::P3_KECCAK_COLS_OFFSET;
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use p3_keccak_air::KeccakAir;
+use serde::{Deserialize, Serialize};
 
 mod air;
 pub mod columns;
@@ -16,40 +12,36 @@ const STATE_SIZE: usize = 25;
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
 const STATE_NUM_WORDS: usize = 25 * 2;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeccakPermuteEvent {
+    pub shard: u32,
     pub clk: u32,
     pub pre_state: [u64; STATE_SIZE],
     pub post_state: [u64; STATE_SIZE],
-    pub state_read_records: [MemoryReadRecord; STATE_NUM_WORDS],
-    pub state_write_records: [MemoryWriteRecord; STATE_NUM_WORDS],
+    pub state_read_records: Vec<MemoryReadRecord>,
+    pub state_write_records: Vec<MemoryWriteRecord>,
     pub state_addr: u32,
 }
 
 pub struct KeccakPermuteChip {
     p3_keccak: KeccakAir,
-    p3_keccak_col_range: Range<usize>,
 }
 
 impl KeccakPermuteChip {
     pub fn new() -> Self {
-        // Get offset of p3_keccak_cols in KeccakCols
-        let p3_keccak_air = KeccakAir {};
         Self {
-            p3_keccak: p3_keccak_air,
-            p3_keccak_col_range: P3_KECCAK_COLS_OFFSET
-                ..(P3_KECCAK_COLS_OFFSET + P3_NUM_KECCAK_COLS),
+            p3_keccak: KeccakAir {},
         }
     }
 }
 
 #[cfg(test)]
 pub mod permute_tests {
+    use crate::runtime::SyscallCode;
+    use crate::utils::run_test;
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
-        stark::{LocalProver, RiscvStark},
-        utils::{self, tests::KECCAK_PERMUTE_ELF, BabyBearPoseidon2, StarkUtils},
-        SuccinctProver, SuccinctStdin,
+        utils::{self, tests::KECCAK_PERMUTE_ELF},
     };
 
     pub fn keccak_permute_program() -> Program {
@@ -62,9 +54,16 @@ pub mod permute_tests {
             ]);
         }
         instructions.extend(vec![
-            Instruction::new(Opcode::ADD, 5, 0, 106, false, true),
+            Instruction::new(
+                Opcode::ADD,
+                5,
+                0,
+                SyscallCode::KECCAK_PERMUTE as u32,
+                false,
+                true,
+            ),
             Instruction::new(Opcode::ADD, 10, 0, digest_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
 
         Program::new(instructions, 0, 0)
@@ -72,28 +71,24 @@ pub mod permute_tests {
 
     #[test]
     pub fn test_keccak_permute_program_execute() {
+        utils::setup_logger();
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
         runtime.run()
     }
 
     #[test]
-    fn prove_babybear() {
+    fn test_keccak_permute_prove_babybear() {
         utils::setup_logger();
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
 
         let program = keccak_permute_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-
-        let (machine, prover_data) = RiscvStark::init(config);
-        machine.prove::<LocalProver<_>>(&prover_data, &mut runtime.record, &mut challenger);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
-        SuccinctProver::prove(KECCAK_PERMUTE_ELF, SuccinctStdin::new()).unwrap();
+        let program = Program::from(KECCAK_PERMUTE_ELF);
+        run_test(program).unwrap();
     }
 }

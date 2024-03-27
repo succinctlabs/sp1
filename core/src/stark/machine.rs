@@ -1,340 +1,286 @@
+use std::marker::PhantomData;
+
+use super::debug_constraints;
 use crate::air::MachineAir;
-use crate::alu::AddChip;
-use crate::alu::BitwiseChip;
-use crate::alu::DivRemChip;
-use crate::alu::LtChip;
-use crate::alu::MulChip;
-use crate::alu::ShiftLeft;
-use crate::alu::ShiftRightChip;
-use crate::alu::SubChip;
-use crate::bytes::ByteChip;
-use crate::cpu::CpuChip;
-use crate::field::FieldLTUChip;
-use crate::memory::MemoryChipKind;
-use crate::memory::MemoryGlobalChip;
-use crate::program::ProgramChip;
-use crate::runtime::ExecutionRecord;
-use crate::syscall::precompiles::edwards::EdAddAssignChip;
-use crate::syscall::precompiles::edwards::EdDecompressChip;
-use crate::syscall::precompiles::k256::K256DecompressChip;
-use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
-use crate::syscall::precompiles::sha256::ShaCompressChip;
-use crate::syscall::precompiles::sha256::ShaExtendChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
-use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
-use crate::utils::ec::edwards::EdwardsCurve;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-use crate::utils::ec::weierstrass::SWCurve;
-use p3_air::BaseAir;
+use crate::lookup::debug_interactions_with_all_chips;
+use crate::lookup::InteractionBuilder;
+use crate::lookup::InteractionKind;
+use crate::stark::record::MachineRecord;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::VerifierConstraintFolder;
+use p3_air::Air;
 use p3_challenger::CanObserve;
-use p3_commit::Pcs;
+use p3_challenger::FieldChallenger;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
 
 use super::Chip;
-use super::ChipRef;
-use super::Com;
-use super::MainData;
-use super::OpeningProof;
-use super::PcsProverData;
 use super::Proof;
 use super::Prover;
 use super::StarkGenericConfig;
+use super::Val;
 use super::VerificationError;
 use super::Verifier;
 
-pub struct ProverData<SC: StarkGenericConfig> {
-    pub preprocessed_traces: Vec<Option<RowMajorMatrix<SC::Val>>>,
-    pub preprocessed_data: Option<PcsProverData<SC>>,
-}
+pub type MachineChip<SC, A> = Chip<Val<SC>, A>;
 
-pub struct PublicParameters<SC: StarkGenericConfig> {
-    pub preprocessed_commitment: Option<Com<SC>>,
-}
-
-pub struct RiscvStark<SC: StarkGenericConfig> {
+/// A STARK for proving RISC-V execution.
+pub struct MachineStark<SC: StarkGenericConfig, A> {
+    /// The STARK settings for the RISC-V STARK.
     config: SC,
-
-    program: Chip<SC::Val, ProgramChip>,
-    cpu: Chip<SC::Val, CpuChip>,
-    sha_extend: Chip<SC::Val, ShaExtendChip>,
-    sha_compress: Chip<SC::Val, ShaCompressChip>,
-    ed_add_assign: Chip<SC::Val, EdAddAssignChip<EdwardsCurve<Ed25519Parameters>>>,
-    ed_decompress: Chip<SC::Val, EdDecompressChip<Ed25519Parameters>>,
-    k256_decompress: Chip<SC::Val, K256DecompressChip>,
-    weierstrass_add_assign: Chip<SC::Val, WeierstrassAddAssignChip<SWCurve<Secp256k1Parameters>>>,
-    weierstrass_double_assign:
-        Chip<SC::Val, WeierstrassDoubleAssignChip<SWCurve<Secp256k1Parameters>>>,
-    keccak_permute: Chip<SC::Val, KeccakPermuteChip>,
-    add: Chip<SC::Val, AddChip>,
-    sub: Chip<SC::Val, SubChip>,
-    bitwise: Chip<SC::Val, BitwiseChip>,
-    div_rem: Chip<SC::Val, DivRemChip>,
-    mul: Chip<SC::Val, MulChip>,
-    shift_right: Chip<SC::Val, ShiftRightChip>,
-    shift_left: Chip<SC::Val, ShiftLeft>,
-    lt: Chip<SC::Val, LtChip>,
-    field_ltu: Chip<SC::Val, FieldLTUChip>,
-    byte: Chip<SC::Val, ByteChip>,
-
-    memory_init: Chip<SC::Val, MemoryGlobalChip>,
-    memory_finalize: Chip<SC::Val, MemoryGlobalChip>,
-    program_memory_init: Chip<SC::Val, MemoryGlobalChip>,
-
-    // Commitment to the preprocessed data
-    preprocessed_commitment: Option<Com<SC>>,
+    /// The chips that make up the RISC-V STARK machine, in order of their execution.
+    chips: Vec<Chip<Val<SC>, A>>,
 }
 
-impl<SC: StarkGenericConfig> RiscvStark<SC>
-where
-    SC::Val: PrimeField32,
-{
-    pub fn init(config: SC) -> (Self, ProverData<SC>) {
-        let program = Chip::new(ProgramChip::default());
-        let cpu = Chip::new(CpuChip::default());
-        let sha_extend = Chip::new(ShaExtendChip::default());
-        let sha_compress = Chip::new(ShaCompressChip::default());
-        let ed_add_assign = Chip::new(EdAddAssignChip::<EdwardsCurve<Ed25519Parameters>>::new());
-        let ed_decompress = Chip::new(EdDecompressChip::<Ed25519Parameters>::default());
-        let k256_decompress = Chip::new(K256DecompressChip::default());
-        let weierstrass_add_assign =
-            Chip::new(WeierstrassAddAssignChip::<SWCurve<Secp256k1Parameters>>::new());
-        let weierstrass_double_assign =
-            Chip::new(WeierstrassDoubleAssignChip::<SWCurve<Secp256k1Parameters>>::new());
-        let keccak_permute = Chip::new(KeccakPermuteChip::new());
-        let add = Chip::new(AddChip::default());
-        let sub = Chip::new(SubChip::default());
-        let bitwise = Chip::new(BitwiseChip::default());
-        let div_rem = Chip::new(DivRemChip::default());
-        let mul = Chip::new(MulChip::default());
-        let shift_right = Chip::new(ShiftRightChip::default());
-        let shift_left = Chip::new(ShiftLeft::default());
-        let lt = Chip::new(LtChip::default());
-        let field_ltu = Chip::new(FieldLTUChip::default());
-        let byte = Chip::new(ByteChip::default());
-        let memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Init));
-        let memory_finalize = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Finalize));
-        let program_memory_init = Chip::new(MemoryGlobalChip::new(MemoryChipKind::Program));
+impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
+    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>) -> Self {
+        Self { config, chips }
+    }
+}
 
-        let mut machine = Self {
-            config,
-            program,
-            cpu,
-            sha_extend,
-            sha_compress,
-            ed_add_assign,
-            ed_decompress,
-            k256_decompress,
-            weierstrass_add_assign,
-            weierstrass_double_assign,
-            keccak_permute,
-            add,
-            sub,
-            bitwise,
-            div_rem,
-            mul,
-            shift_right,
-            shift_left,
-            lt,
-            field_ltu,
-            byte,
-            memory_init,
-            memory_finalize,
-            program_memory_init,
+#[derive(Debug, Clone)]
+pub struct ProvingKey<SC: StarkGenericConfig> {
+    //TODO
+    marker: std::marker::PhantomData<SC>,
+}
 
-            preprocessed_commitment: None,
-        };
+#[derive(Debug, Clone)]
+pub struct VerifyingKey<SC: StarkGenericConfig> {
+    // TODO:
+    marker: std::marker::PhantomData<SC>,
+}
 
-        // Compute commitments to the preprocessed data
-        let preprocessed_traces = machine
-            .chips()
-            .iter()
-            .map(|chip| chip.preprocessed_trace())
-            .collect::<Vec<_>>();
-        let traces = preprocessed_traces
-            .iter()
-            .flatten()
-            .cloned()
-            .collect::<Vec<_>>();
-        let (commit, data) = if !traces.is_empty() {
-            Some(machine.config.pcs().commit_batches(traces))
-        } else {
-            None
-        }
-        .unzip();
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
+    /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
+    pub fn chips(&self) -> &[MachineChip<SC, A>] {
+        &self.chips
+    }
 
-        // Store the commitments in the machine
-        machine.preprocessed_commitment = commit;
+    pub fn shard_chips<'a, 'b>(
+        &'a self,
+        shard: &'b A::Record,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+    where
+        'a: 'b,
+    {
+        self.chips.iter().filter(|chip| chip.included(shard))
+    }
 
+    /// The setup preprocessing phase.
+    ///
+    /// Given a program, this function generates the proving and verifying keys. The keys correspond
+    /// to the program code and other preprocessed colunms such as lookup tables.
+    pub fn setup<P>(&self, _program: &P) -> (ProvingKey<SC>, VerifyingKey<SC>) {
         (
-            machine,
-            ProverData {
-                preprocessed_traces,
-                preprocessed_data: data,
+            ProvingKey {
+                marker: PhantomData,
+            },
+            VerifyingKey {
+                marker: PhantomData,
             },
         )
     }
 
-    pub fn chips(&self) -> [ChipRef<SC>; 23] {
-        [
-            self.program.as_ref(),
-            self.cpu.as_ref(),
-            self.sha_extend.as_ref(),
-            self.sha_compress.as_ref(),
-            self.ed_add_assign.as_ref(),
-            self.ed_decompress.as_ref(),
-            self.k256_decompress.as_ref(),
-            self.weierstrass_add_assign.as_ref(),
-            self.weierstrass_double_assign.as_ref(),
-            self.keccak_permute.as_ref(),
-            self.add.as_ref(),
-            self.sub.as_ref(),
-            self.bitwise.as_ref(),
-            self.div_rem.as_ref(),
-            self.mul.as_ref(),
-            self.shift_right.as_ref(),
-            self.shift_left.as_ref(),
-            self.lt.as_ref(),
-            self.field_ltu.as_ref(),
-            self.byte.as_ref(),
-            self.memory_init.as_ref(),
-            self.memory_finalize.as_ref(),
-            self.program_memory_init.as_ref(),
-        ]
-    }
-
-    /// Prove the program.
-    ///
-    /// The function returns a vector of segment proofs, one for each segment, and a global proof.
-    pub fn prove<P>(
+    pub fn shard(
         &self,
-        prover_data: &ProverData<SC>,
-        record: &mut ExecutionRecord,
-        challenger: &mut SC::Challenger,
-    ) -> Proof<SC>
-    where
-        P: Prover<SC>,
-        SC: Send + Sync,
-        SC::Challenger: Clone,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::Commitment: Send + Sync,
-        <SC::Pcs as Pcs<SC::Val, RowMajorMatrix<SC::Val>>>::ProverData: Send + Sync,
-        MainData<SC>: Serialize + DeserializeOwned,
-        OpeningProof<SC>: Send + Sync,
-    {
+        mut record: A::Record,
+        config: &<A::Record as MachineRecord>::Config,
+    ) -> Vec<A::Record> {
         // Get the local and global chips.
         let chips = self.chips();
 
-        tracing::info!("Generating trace for each chip.");
-        // Display the statistics about the workload. This is incomplete because it's run before
-        // generate_trace, which can adds events to the record.
-        tracing::info!(
-            "Record stats before generate_trace (incomplete): {:#?}",
-            record.stats()
-        );
-
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
         chips.iter().for_each(|chip| {
-            chip.generate_trace(record);
+            let mut output = A::Record::default();
+            output.set_index(record.index());
+            chip.generate_dependencies(&record, &mut output);
+            record.append(&mut output);
         });
 
-        // Display the statistics about the workload after generate_trace.
-        tracing::info!("Record stats finalized {:#?}", record.stats());
-        tracing::info!("Sharding execution record by chip.");
+        // Display some statistics about the workload.
+        let stats = record.stats();
+        for (k, v) in stats {
+            log::info!("{} = {}", k, v);
+        }
 
         // For each chip, shard the events into segments.
-        let mut shards: Vec<ExecutionRecord> = Vec::new();
-        chips.iter().for_each(|chip| {
-            chip.shard(record, &mut shards);
-        });
+        record.shard(config)
+    }
 
-        tracing::info!("Generating and commiting traces for each shard.");
-        // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = P::commit_shards(&self.config, &mut shards, &chips);
+    /// Prove the execution record is valid.
+    ///
+    /// Given a proving key `pk` and a matching execution record `record`, this function generates
+    /// a STARK proof that the execution record is valid.
+    pub fn prove<P: Prover<SC, A>>(
+        &self,
+        pk: &ProvingKey<SC>,
+        record: A::Record,
+        challenger: &mut SC::Challenger,
+    ) -> Proof<SC>
+    where
+        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
+            + Air<InteractionBuilder<Val<SC>>>
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        tracing::debug!("sharding the execution record");
+        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
-        // Observe the challenges for each segment.
-        tracing::info_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
-        });
+        tracing::debug!("generating the shard proofs");
+        P::prove_shards(self, pk, shards, challenger)
+    }
 
-        // Generate a proof for each segment. Note that we clone the challenger so we can observe
-        // identical global challenges across the segments.
-        let shard_proofs = shard_data
-            .into_par_iter()
-            .map(|data| {
-                let data = tracing::info_span!("materializing data")
-                    .in_scope(|| data.materialize().expect("failed to load shard main data"));
-                let chips = self
-                    .chips()
-                    .into_iter()
-                    .filter(|chip| data.chip_ids.contains(&chip.name()))
-                    .collect::<Vec<_>>();
-                tracing::info_span!("proving shard").in_scope(|| {
-                    P::prove_shard(
-                        &self.config,
-                        &mut challenger.clone(),
-                        &chips,
-                        data,
-                        &prover_data.preprocessed_traces,
-                        &prover_data.preprocessed_data,
-                    )
-                })
-            })
-            .collect::<Vec<_>>();
-
-        Proof { shard_proofs }
+    pub const fn config(&self) -> &SC {
+        &self.config
     }
 
     pub fn verify(
         &self,
-        challenger: &mut SC::Challenger,
+        _vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
+        challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
     where
-        SC::Val: PrimeField32,
         SC::Challenger: Clone,
+        A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
-        tracing::info_span!("observe challenges for all segments").in_scope(|| {
+        tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
             });
         });
 
         // Verify the segment proofs.
+        tracing::info!("verifying shard proofs");
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
-            tracing::info_span!("verifying segment", segment = i).in_scope(|| {
+            tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
                     .chips()
-                    .into_iter()
+                    .iter()
                     .filter(|chip| proof.chip_ids.contains(&chip.name()))
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
+        tracing::info!("success");
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
-        #[cfg(feature = "perf")]
-        {
-            for proof in proof.shard_proofs.iter() {
-                sum += proof.cumulative_sum();
-            }
+        for proof in proof.shard_proofs.iter() {
+            sum += proof.cumulative_sum();
         }
-
         match sum.is_zero() {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
+        }
+    }
+
+    pub fn debug_constraints(
+        &self,
+        _pk: &ProvingKey<SC>,
+        record: A::Record,
+        challenger: &mut SC::Challenger,
+    ) where
+        SC::Val: PrimeField32,
+        A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    {
+        tracing::debug!("sharding the execution record");
+        let mut shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
+
+        tracing::debug!("checking constraints for each shard");
+
+        let mut cumulative_sum = SC::Challenge::zero();
+        for shard in shards.iter() {
+            // Filter the chips based on what is used.
+            let chips = self.shard_chips(shard).collect::<Vec<_>>();
+
+            // Generate the main trace for each chip.
+            let traces = chips
+                .par_iter()
+                .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+                .collect::<Vec<_>>();
+
+            // Get a permutation challenge.
+            // Obtain the challenges used for the permutation argument.
+            let mut permutation_challenges: Vec<SC::Challenge> = Vec::new();
+            for _ in 0..2 {
+                permutation_challenges.push(challenger.sample_ext_element());
+            }
+
+            // Generate the permutation traces.
+            let mut permutation_traces = Vec::with_capacity(chips.len());
+            let mut cumulative_sums = Vec::with_capacity(chips.len());
+            tracing::debug_span!("generate permutation traces").in_scope(|| {
+                chips
+                    .par_iter()
+                    .zip(traces.par_iter())
+                    .map(|(chip, main_trace)| {
+                        let perm_trace = chip.generate_permutation_trace(
+                            &None,
+                            main_trace,
+                            &permutation_challenges,
+                        );
+                        let cumulative_sum = perm_trace
+                            .row_slice(main_trace.height() - 1)
+                            .last()
+                            .copied()
+                            .unwrap();
+                        (perm_trace, cumulative_sum)
+                    })
+                    .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
+            });
+
+            cumulative_sum += cumulative_sums.iter().copied().sum::<SC::Challenge>();
+
+            // Compute some statistics.
+            for i in 0..chips.len() {
+                let trace_width = traces[i].width();
+                let permutation_width = permutation_traces[i].width();
+                let total_width = trace_width + permutation_width;
+                tracing::debug!(
+                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                chips[i].name(),
+                total_width,
+                traces[i].height(),
+                total_width * traces[i].height(),
+                (100f32 * trace_width as f32) / total_width as f32,
+                (100f32 * permutation_width as f32) / total_width as f32);
+            }
+
+            tracing::info_span!("debug constraints").in_scope(|| {
+                for i in 0..chips.len() {
+                    debug_constraints::<SC, A>(
+                        chips[i],
+                        None,
+                        &traces[i],
+                        &permutation_traces[i],
+                        &permutation_challenges,
+                    );
+                }
+            });
+        }
+
+        // If the cumulative sum is not zero, debug the interactions.
+        if !cumulative_sum.is_zero() {
+            // Get the total record
+            let mut record = A::Record::default();
+            for shard in shards.iter_mut() {
+                record.append(shard);
+            }
+            debug_interactions_with_all_chips::<SC, A>(
+                self.chips(),
+                &record,
+                InteractionKind::all_kinds(),
+            );
         }
     }
 }
@@ -344,6 +290,7 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
+    DebugInteractionsFailed,
 }
 
 #[cfg(test)]
@@ -354,27 +301,31 @@ pub mod tests {
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
-    use crate::utils::prove;
+    use crate::utils::run_test;
     use crate::utils::setup_logger;
 
     #[test]
     fn test_simple_prove() {
+        utils::setup_logger();
         let program = simple_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
+        utils::setup_logger();
         let program = ecall_lwa_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_shift_prove() {
+        utils::setup_logger();
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
         let operands = [
             (1, 1),
@@ -391,20 +342,21 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
 
     #[test]
     fn test_sub_prove() {
+        utils::setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -416,7 +368,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
@@ -438,7 +390,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -453,7 +405,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            prove(program);
+            run_test(program).unwrap();
         }
     }
 
@@ -468,7 +420,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            prove(program);
+            run_test(program).unwrap();
         }
     }
 
@@ -490,7 +442,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                prove(program);
+                run_test(program).unwrap();
             }
         }
     }
@@ -499,12 +451,18 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-        prove(program);
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
-        prove(program);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_ssz_withdrawal() {
+        let program = ssz_withdrawals_program();
+        run_test(program).unwrap();
     }
 }

@@ -1,77 +1,71 @@
-use super::columns::{
-    AUIPCCols, BranchCols, JumpCols, CPU_COL_MAP, NUM_AUIPC_COLS, NUM_BRANCH_COLS, NUM_CPU_COLS,
-    NUM_JUMP_COLS, NUM_MEMORY_COLUMNS,
-};
+use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::alu::{self, AluEvent};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::cpu::columns::{CpuCols, MemoryColumns};
-use crate::cpu::memory::MemoryRecordEnum;
+use crate::cpu::columns::CpuCols;
+use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
-use crate::field::event::FieldEvent;
 use crate::memory::MemoryCols;
+use crate::runtime::MemoryRecordEnum;
 use crate::runtime::{ExecutionRecord, Opcode};
-use crate::utils::env;
-use p3_field::PrimeField;
+use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
 use tracing::instrument;
 
-impl<F: PrimeField> MachineAir<F> for CpuChip {
+impl<F: PrimeField32> MachineAir<F> for CpuChip {
+    type Record = ExecutionRecord;
+
     fn name(&self) -> String {
         "CPU".to_string()
     }
 
-    fn shard(&self, input: &ExecutionRecord, outputs: &mut Vec<ExecutionRecord>) {
-        let shards = input
-            .cpu_events
-            .chunks(env::shard_size())
-            .collect::<Vec<_>>();
-        for i in 0..shards.len() {
-            if i >= outputs.len() {
-                let mut shard = ExecutionRecord::default();
-                shard.index = (i + 1) as u32;
-                shard.program = input.program.clone();
-                outputs.push(shard);
-            }
-            outputs[i].cpu_events = shards[i].to_vec();
-        }
-    }
-
-    fn include(&self, _: &ExecutionRecord) -> bool {
-        true
-    }
-
-    #[instrument(name = "generate CPU trace", skip_all)]
-    fn generate_trace(&self, record: &mut ExecutionRecord) -> RowMajorMatrix<F> {
+    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
+    fn generate_trace(
+        &self,
+        input: &ExecutionRecord,
+        output: &mut ExecutionRecord,
+    ) -> RowMajorMatrix<F> {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
-        let mut new_field_events: Vec<FieldEvent> = Vec::new();
 
         // Generate the trace rows for each event.
-        let rows_with_events = record
+        let mut rows_with_events = input
             .cpu_events
             .par_iter()
             .map(|op: &CpuEvent| self.event_to_row::<F>(*op))
             .collect::<Vec<_>>();
 
+        // No need to sort by the shard, since the cpu events are already partitioned by that.
+        rows_with_events.sort_unstable_by_key(|(event, _, _)| event[CPU_COL_MAP.clk]);
+
         let mut rows = Vec::<F>::new();
         rows_with_events.into_iter().for_each(|row_with_events| {
-            let (row, alu_events, blu_events, field_events) = row_with_events;
+            let (row, alu_events, blu_events) = row_with_events;
             rows.extend(row);
-            new_alu_events.extend(alu_events);
+            for (key, value) in alu_events {
+                new_alu_events
+                    .entry(key)
+                    .and_modify(|op_new_events: &mut Vec<AluEvent>| {
+                        op_new_events.extend(value.clone())
+                    })
+                    .or_insert(value);
+            }
             new_blu_events.extend(blu_events);
-            new_field_events.extend(field_events);
         });
 
         // Add the dependency events to the shard.
-        record.add_alu_events(new_alu_events);
-        record.add_byte_lookup_events(new_blu_events);
-        record.field_events.extend(new_field_events);
+        for (_, value) in new_alu_events.iter_mut() {
+            value.sort_unstable_by_key(|event| event.clk);
+        }
+        new_blu_events.sort_unstable_by_key(|event| event.a1);
+        output.add_alu_events(new_alu_events);
+        output.add_byte_lookup_events(new_blu_events);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(rows, NUM_CPU_COLS);
@@ -81,29 +75,66 @@ impl<F: PrimeField> MachineAir<F> for CpuChip {
 
         trace
     }
+
+    #[instrument(name = "generate cpu dependencies", level = "debug", skip_all)]
+    fn generate_dependencies(&self, input: &ExecutionRecord, output: &mut ExecutionRecord) {
+        // Generate the trace rows for each event.
+        let chunk_size = std::cmp::max(input.cpu_events.len() / num_cpus::get(), 1);
+        let events = input
+            .cpu_events
+            .par_chunks(chunk_size)
+            .map(|ops: &[CpuEvent]| {
+                let mut alu = HashMap::new();
+                let mut blu: Vec<_> = Vec::default();
+                ops.iter().for_each(|op| {
+                    let (_, alu_events, blu_events) = self.event_to_row::<F>(*op);
+                    alu_events.into_iter().for_each(|(key, value)| {
+                        alu.entry(key).or_insert(Vec::default()).extend(value);
+                    });
+                    blu.extend(blu_events);
+                });
+                (alu, blu)
+            })
+            .collect::<Vec<_>>();
+
+        events
+            .into_iter()
+            .for_each(|(mut alu_events, mut blu_events)| {
+                for (_, value) in alu_events.iter_mut() {
+                    value.sort_unstable_by_key(|event| event.clk);
+                }
+                // Add the dependency events to the shard.
+                output.add_alu_events(alu_events);
+                blu_events.sort_unstable_by_key(|event| event.a1);
+                output.add_byte_lookup_events(blu_events);
+            });
+    }
+
+    fn included(&self, _: &Self::Record) -> bool {
+        true
+    }
 }
 
 impl CpuChip {
     /// Create a row from an event.
-    fn event_to_row<F: PrimeField>(
+    fn event_to_row<F: PrimeField32>(
         &self,
         event: CpuEvent,
     ) -> (
         [F; NUM_CPU_COLS],
         HashMap<Opcode, Vec<alu::AluEvent>>,
         Vec<ByteLookupEvent>,
-        Vec<FieldEvent>,
     ) {
         let mut new_alu_events = HashMap::new();
         let mut new_blu_events = Vec::new();
-        let mut new_field_events = Vec::new();
 
         let mut row = [F::zero(); NUM_CPU_COLS];
         let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
 
+        // Populate shard and clk columns.
+        self.populate_shard_clk(cols, event, &mut new_blu_events);
+
         // Populate basic fields.
-        cols.shard = F::from_canonical_u32(event.shard);
-        cols.clk = F::from_canonical_u32(event.clk);
         cols.pc = F::from_canonical_u32(event.pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
@@ -113,23 +144,22 @@ impl CpuChip {
 
         // Populate memory accesses for a, b, and c.
         if let Some(record) = event.a_record {
-            cols.op_a_access.populate(record, &mut new_field_events)
+            cols.op_a_access.populate(record, &mut new_blu_events)
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.b_record {
-            cols.op_b_access.populate(record, &mut new_field_events)
+            cols.op_b_access.populate(record, &mut new_blu_events)
         }
         if let Some(MemoryRecordEnum::Read(record)) = event.c_record {
-            cols.op_c_access.populate(record, &mut new_field_events)
+            cols.op_c_access.populate(record, &mut new_blu_events)
         }
 
         // Populate memory accesses for reading from memory.
         assert_eq!(event.memory_record.is_some(), event.memory.is_some());
-        let memory_columns: &mut MemoryColumns<F> =
-            cols.opcode_specific_columns[..NUM_MEMORY_COLUMNS].borrow_mut();
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
         if let Some(record) = event.memory_record {
             memory_columns
                 .memory_access
-                .populate(record, &mut new_field_events)
+                .populate(record, &mut new_blu_events)
         }
 
         // Populate memory, branch, jump, and auipc specific fields.
@@ -137,11 +167,31 @@ impl CpuChip {
         self.populate_branch(cols, event, &mut new_alu_events);
         self.populate_jump(cols, event, &mut new_alu_events);
         self.populate_auipc(cols, event, &mut new_alu_events);
+        self.populate_ecall(cols, event);
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
 
-        (row, new_alu_events, new_blu_events, new_field_events)
+        (row, new_alu_events, new_blu_events)
+    }
+
+    /// Populates the shard and clk related rows.
+    fn populate_shard_clk<F: PrimeField>(
+        &self,
+        cols: &mut CpuCols<F>,
+        event: CpuEvent,
+        new_blu_events: &mut Vec<ByteLookupEvent>,
+    ) {
+        cols.shard = F::from_canonical_u32(event.shard);
+        new_blu_events.push(ByteLookupEvent::new(U16Range, event.shard, 0, 0, 0));
+
+        cols.clk = F::from_canonical_u32(event.clk);
+        let clk_16bit_limb = event.clk & 0xffff;
+        cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
+        let clk_8bit_limb = (event.clk >> 16) & 0xff;
+        cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
+        new_blu_events.push(ByteLookupEvent::new(U16Range, clk_16bit_limb, 0, 0, 0));
+        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, clk_8bit_limb));
     }
 
     /// Populates columns related to memory.
@@ -167,8 +217,7 @@ impl CpuChip {
         }
 
         // Populate addr_word and addr_aligned columns.
-        let memory_columns: &mut MemoryColumns<F> =
-            cols.opcode_specific_columns[0..NUM_MEMORY_COLUMNS].borrow_mut();
+        let memory_columns = cols.opcode_specific_columns.memory_mut();
         let memory_addr = event.b.wrapping_add(event.c);
         memory_columns.addr_word = memory_addr.into();
         memory_columns.addr_aligned =
@@ -275,8 +324,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_branch_instruction() {
-            let branch_columns: &mut BranchCols<F> =
-                cols.opcode_specific_columns[..NUM_BRANCH_COLS].borrow_mut();
+            let branch_columns = cols.opcode_specific_columns.branch_mut();
 
             let a_eq_b = event.a == event.b;
 
@@ -371,8 +419,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if event.instruction.is_jump_instruction() {
-            let jump_columns: &mut JumpCols<F> =
-                cols.opcode_specific_columns[..NUM_JUMP_COLS].borrow_mut();
+            let jump_columns = cols.opcode_specific_columns.jump_mut();
 
             match event.instruction.opcode {
                 Opcode::JAL => {
@@ -423,8 +470,7 @@ impl CpuChip {
         alu_events: &mut HashMap<Opcode, Vec<alu::AluEvent>>,
     ) {
         if matches!(event.instruction.opcode, Opcode::AUIPC) {
-            let auipc_columns: &mut AUIPCCols<F> =
-                cols.opcode_specific_columns[..NUM_AUIPC_COLS].borrow_mut();
+            let auipc_columns = cols.opcode_specific_columns.auipc_mut();
 
             auipc_columns.pc = event.pc.into();
 
@@ -440,6 +486,15 @@ impl CpuChip {
                 .entry(Opcode::ADD)
                 .and_modify(|op_new_events| op_new_events.push(add_event))
                 .or_insert(vec![add_event]);
+        }
+    }
+
+    /// Populate columns related to ECALL.
+    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) {
+        if cols.selectors.is_ecall == F::one() {
+            // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
+            // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
+            cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
         }
     }
 
@@ -479,10 +534,12 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use super::*;
+
+    use crate::stark::StarkGenericConfig;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{
         runtime::{tests::simple_program, ExecutionRecord, Instruction, Runtime},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        utils::BabyBearPoseidon2,
     };
 
     #[test]
@@ -510,7 +567,8 @@ mod tests {
             memory_record: None,
         }];
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut shard);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
     }
 
@@ -520,7 +578,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
         for cpu_event in runtime.record.cpu_events {
             println!("{:?}", cpu_event);
         }
@@ -536,7 +595,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
         let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(&mut runtime.record);
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
         trace.rows().for_each(|row| println!("{:?}", row));
 
         let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
