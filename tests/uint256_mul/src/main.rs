@@ -1,36 +1,64 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
+use num::{BigUint, One, Zero};
+use rand::Rng;
+use std::convert::TryInto;
+
 extern "C" {
-    fn syscall_uint256_mul(x: *mut u32, y: *mut u32);
+    fn syscall_uint256_mul(x: *mut u32, y: *const u32);
+}
+
+fn uint256_mul(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
+    println!("cycle-tracker-start: uint256_mul");
+    unsafe {
+        syscall_uint256_mul(x.as_mut_ptr() as *mut u32, y.as_ptr() as *const u32);
+    }
+    println!("cycle-tracker-end: uint256_mul");
+    *x
 }
 
 #[sp1_derive::cycle_tracker]
-pub fn main() {
-    // 20393249858788985237231628593243673548167146579814268721945474994541877372611
-    let mut x: [u8; 32] = [
-        195, 166, 157, 207, 218, 220, 175, 197, 111, 65, 104, 252, 174, 190, 58, 35, 202, 211, 126,
-        116, 143, 161, 250, 182, 149, 86, 86, 22, 158, 43, 22, 45,
-    ];
+fn main() {
+    for _ in 0..100 {
+        // Test with random numbers.
+        let mut rng = rand::thread_rng();
+        let mut x: [u8; 32] = rng.gen();
+        let y: [u8; 32] = rng.gen();
 
-    // 31717728572175158701898635111983295176935961585742968051419350619945173564862
-    let y: [u8; 32] = [
-        190, 189, 200, 77, 201, 212, 57, 105, 191, 85, 188, 85, 211, 64, 17, 192, 184, 233, 140,
-        100, 211, 197, 111, 120, 221, 222, 181, 14, 35, 153, 31, 70,
-    ];
+        // Convert byte arrays to BigUint
+        let x_big = BigUint::from_bytes_le(&x);
+        let y_big = BigUint::from_bytes_le(&y);
 
-    println!("cycle-tracker-start: uint256_mul");
-    unsafe {
-        syscall_uint256_mul(x.as_mut_ptr() as *mut u32, y.as_ptr() as *mut u32);
+        let result_bytes = uint256_mul(&mut x, &y);
+
+        let mask = BigUint::one() << 256;
+        let result = (x_big * y_big) % mask;
+
+        let result_syscall = BigUint::from_bytes_le(&result_bytes);
+
+        assert_eq!(result, result_syscall);
     }
-    println!("cycle-tracker-end: uint256_mul");
 
-    // 51322802423430141345283427329623147305270980883777033508307825758397730896826
-    let c: [u8; 32] = [
-        186, 187, 119, 106, 27, 127, 68, 151, 114, 22, 132, 70, 158, 202, 195, 162, 53, 206, 229,
-        192, 68, 94, 65, 134, 205, 19, 237, 49, 64, 173, 119, 113,
-    ];
+    // Test with random numbers.
+    let mut rng = rand::thread_rng();
+    let mut x: [u8; 32] = rng.gen();
+    let y: [u8; 32] = rng.gen();
 
-    assert_eq!(x, c);
-    println!("done");
+    // Hardcoded edge case: Multiplying by 1
+    let mut one: [u8; 32] = [0; 32];
+    one[0] = 1; // Least significant byte set to 1, represents the number 1
+    let original_x = x; // Copy original x value before multiplication by 1
+    let result_one = uint256_mul(&mut x, &one);
+    assert_eq!(
+        result_one, original_x,
+        "Multiplying by 1 should yield the same number."
+    );
+
+    // Hardcoded edge case: Multiplying by 0
+    let zero: [u8; 32] = [0; 32]; // Represents the number 0
+    let result_zero = uint256_mul(&mut x, &zero);
+    assert_eq!(result_zero, zero, "Multiplying by 0 should yield 0.");
+
+    println!("All tests passed successfully!");
 }

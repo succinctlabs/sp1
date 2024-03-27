@@ -8,7 +8,7 @@ use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
-use crate::utils::{limbs_from_prev_access, pad_rows};
+use crate::utils::{bytes_to_words_le, limbs_from_prev_access, pad_rows, words_to_bytes_le};
 use num::{BigUint, One};
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
@@ -21,13 +21,10 @@ use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 
-pub const NUM_UINT256_MUL_COLS: usize = size_of::<Uint256MulColumn<u8>>();
+pub const NUM_UINT256_MUL_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 /// Number of `u32` words in a `BigUint` representing a 256 bit number.
 pub const NUM_WORDS_IN_UINT256: usize = U256Field::NB_LIMBS / 4;
-
-//***************************** Event ****************************/
-//------------------------------------------------------------------------
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
@@ -41,9 +38,6 @@ pub struct Uint256MulEvent {
     pub y_memory_records: [MemoryReadRecord; NUM_WORDS_IN_UINT256],
 }
 
-//***************************** Chip ****************************/
-//------------------------------------------------------------------------
-
 #[derive(Default)]
 pub struct Uint256MulChip;
 
@@ -53,13 +47,10 @@ impl Uint256MulChip {
     }
 }
 
-//*****************************  Column ****************************/
-//-----------------------------------------------------------------------
-
 /// A set of columns for the Uint256Mul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct Uint256MulColumn<T> {
+pub struct Uint256MulCols<T> {
     pub is_real: T,
     pub shard: T,
     pub clk: T,
@@ -106,11 +97,11 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                     .iter()
                     .map(|event| {
                         let mut row: [F; NUM_UINT256_MUL_COLS] = [F::zero(); NUM_UINT256_MUL_COLS];
-                        let cols: &mut Uint256MulColumn<F> = row.as_mut_slice().borrow_mut();
+                        let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
                         // Decode uint256 points
-                        let x = biguint_from_words(&event.x);
-                        let y = biguint_from_words(&event.y);
+                        let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
+                        let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
 
                         // Assign basic values to the columns.
                         {
@@ -169,9 +160,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     }
 }
 
-//************************ SYSCALL HANDLING  *****************************************
-//------------------------------------------------------------------------------------
-
 impl Syscall for Uint256MulChip {
     fn num_extra_cycles(&self) -> u32 {
         1
@@ -195,22 +183,26 @@ impl Syscall for Uint256MulChip {
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, NUM_WORDS_IN_UINT256);
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
-        let y: [u32; 8] = y_vec.try_into().unwrap();
+        let y: [u32; NUM_WORDS_IN_UINT256] = y_vec.try_into().unwrap();
 
-        let uint256_x = biguint_from_words(&x);
-        let uint256_y = biguint_from_words(&y);
+        let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&x));
+        let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&y));
 
         // Create a mask for the 256 bit number.
         let mask = BigUint::one() << 256;
 
         // Perform the multiplication and take the result modulo the mask.
-        let result = (uint256_x * uint256_y) % mask;
+        let result: BigUint = (uint256_x * uint256_y) % mask;
 
-        // Increment the clock as we are writing to the state.
+        // Increment the clock since x and y could be the same and therefore we read them at different
+        // clocks.
         rt.clk += 1;
 
+        let mut result_bytes = result.to_bytes_le();
+        result_bytes.resize(32, 0u8);
+
         // Convert the result to low endian u32 words.
-        let result = biguint_to_words(&result);
+        let result = bytes_to_words_le::<NUM_WORDS_IN_UINT256>(&result_bytes);
 
         // write the state
         let state_memory_records = rt.mw_slice(x_ptr, &result).try_into().unwrap();
@@ -232,9 +224,6 @@ impl Syscall for Uint256MulChip {
     }
 }
 
-//****************************** AIR  ****************************************/
-//-----------------------------------------------------------------------------
-
 impl<F> BaseAir<F> for Uint256MulChip {
     fn width(&self) -> usize {
         NUM_UINT256_MUL_COLS
@@ -248,7 +237,7 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &Uint256MulColumn<AB::Var> = main.row_slice(0).borrow();
+        let local: &Uint256MulCols<AB::Var> = main.row_slice(0).borrow();
 
         let x = limbs_from_prev_access(&local.x_memory);
         let y = limbs_from_prev_access(&local.y_memory);
@@ -289,29 +278,4 @@ where
             local.is_real,
         );
     }
-}
-
-//****************************** HELPER METHODS *******************************
-//-----------------------------------------------------------------------------
-
-// Convert a vector of u32 words into a BigUint
-fn biguint_from_words(words: &[u32]) -> BigUint {
-    let bytes = words
-        .iter()
-        .flat_map(|n| n.to_le_bytes())
-        .collect::<Vec<_>>();
-    BigUint::from_bytes_le(bytes.as_slice())
-}
-
-// Convert a BigUint into a vector of u32 words
-fn biguint_to_words(value: &BigUint) -> [u32; NUM_WORDS_IN_UINT256] {
-    let mut bytes = value.to_bytes_le();
-    bytes.resize(NUM_WORDS_IN_UINT256 * 4, 0u8);
-
-    let mut words = [0u32; NUM_WORDS_IN_UINT256];
-    bytes
-        .chunks_exact(4)
-        .enumerate()
-        .for_each(|(i, chunk)| words[i] = u32::from_le_bytes(chunk.try_into().unwrap()));
-    words
 }

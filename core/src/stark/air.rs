@@ -89,7 +89,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A precompile for the Blake3 compression function.
     Blake3Compress(Blake3CompressInnerChip),
     /// A precompile for uint256 mul.
-    BigUint(Uint256MulChip),
+    Uint256(Uint256MulChip),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -130,8 +130,8 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let blake3_compress_inner = Blake3CompressInnerChip::new();
         chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
-        let big_uint = Uint256MulChip::default();
-        chips.push(RiscvAir::BigUint(big_uint));
+        let uint256_mul = Uint256MulChip::default();
+        chips.push(RiscvAir::Uint256(uint256_mul));
         let add = AddSubChip::default();
         chips.push(RiscvAir::Add(add));
         let bitwise = BitwiseChip::default();

@@ -11,15 +11,18 @@ use serde::{Deserialize, Serialize};
 pub struct U256Field;
 
 impl FieldParameters for U256Field {
+    /// The modulus of the field. It is represented as a little-endian array of 33 bytes.
     const MODULUS: &'static [u8] = &[
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
-        255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255,
+        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1,
     ];
 
+    /// A rough witness-offset estimate given the size of the limbs and the size of the field.
     const WITNESS_OFFSET: usize = 1usize << 13;
 
+    /// The modulus of Uint235 is 2^256.
     fn modulus() -> BigUint {
-        (BigUint::one() << 256) - BigUint::one()
+        BigUint::one() << 256
     }
 }
 
@@ -32,8 +35,10 @@ impl NumLimbs for U256Field {
 mod tests {
 
     use crate::{
+        syscall::precompiles::uint256::U256Field,
         utils::{
             self,
+            ec::{field::FieldParameters, utils::biguint_from_limbs},
             tests::{UINT256_DIV, UINT256_MUL},
         },
         SP1Prover, SP1Stdin,
@@ -49,5 +54,10 @@ mod tests {
     fn test_uint256_div() {
         utils::setup_logger();
         SP1Prover::prove(UINT256_DIV, SP1Stdin::new()).unwrap();
+    }
+
+    #[test]
+    fn test_uint256_modulus() {
+        assert_eq!(biguint_from_limbs(U256Field::MODULUS), U256Field::modulus());
     }
 }
