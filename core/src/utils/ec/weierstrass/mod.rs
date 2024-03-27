@@ -10,6 +10,7 @@ use super::field::NumLimbs;
 
 pub mod bn254;
 pub mod secp256k1;
+pub mod bls12_381;
 
 /// Parameters that specify a short Weierstrass curve : y^2 = x^3 + ax + b.
 pub trait WeierstrassParameters: EllipticCurveParameters {

@@ -1,4 +1,5 @@
 use crate::runtime::{Register, Runtime};
+use crate::stark::Bls12381DecompressChip;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
@@ -68,6 +69,9 @@ pub enum SyscallCode {
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 0x00_38_01_0D,
+
+    /// Executes the `BLS12381_DECOMPRESS` precompile.
+    BLS12381_DECOMPRESS = 0x00_00_01_0E,
 }
 
 impl SyscallCode {
@@ -88,6 +92,7 @@ impl SyscallCode {
             0x00_00_01_0B => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_0C => SyscallCode::SECP256K1_DECOMPRESS,
             0x00_38_01_0D => SyscallCode::BLAKE3_COMPRESS_INNER,
+            0x00_00_01_0E => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -253,6 +258,10 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(SyscallExitUnconstrained::new()),
     );
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
+    syscall_map.insert(
+        SyscallCode::BLS12381_DECOMPRESS,
+        Rc::new(Bls12381DecompressChip::new()),
+    );
 
     syscall_map
 }
@@ -321,6 +330,9 @@ mod tests {
                 }
                 SyscallCode::SECP256K1_DECOMPRESS => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
+                }
+                SyscallCode::BLS12381_DECOMPRESS => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_DECOMPRESS)
                 }
             }
         }

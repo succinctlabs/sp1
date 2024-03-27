@@ -9,6 +9,7 @@ mod sha_compress;
 mod sha_extend;
 mod sys;
 mod unconstrained;
+mod bls12381;
 
 pub use ed25519::*;
 pub use halt::*;
@@ -20,6 +21,7 @@ pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
 pub use unconstrained::*;
+pub use bls12381::*;
 
 /// These codes MUST match the codes in `core/src/runtime/syscall.rs`. There is a derived test
 /// that checks that the enum is consistent with the syscalls.
@@ -65,3 +67,6 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
+
+/// Executes `BLS12381_DECOMPRESS`.
+pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_0E;
