@@ -182,16 +182,23 @@ where
         let (main_commit, main_data) = pcs.commit(domains_and_traces);
 
         // Get the filtered chip ids.
-        let chip_ids = filtered_chips
+        // let chip_ids = filtered_chips
+        //     .iter()
+        //     .map(|chip| chip.name())
+        //     .collect::<Vec<_>>();
+
+        // Get the chip ordering.
+        let chip_ordering = filtered_chips
             .iter()
-            .map(|chip| chip.name())
-            .collect::<Vec<_>>();
+            .enumerate()
+            .map(|(i, chip)| (chip.name(), i))
+            .collect();
 
         ShardMainData {
             traces,
             main_commit,
             main_data,
-            chip_ids,
+            chip_ordering,
             index,
         }
     }
