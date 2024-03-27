@@ -158,7 +158,11 @@ pub trait ByteAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to words in an AIR.
 pub trait WordAirBuilder: ByteAirBuilder {
     /// Asserts that the two words are equal.
-    fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {
+    fn assert_word_eq<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(
+        &mut self,
+        left: Word<I1>,
+        right: Word<I2>,
+    ) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);
         }

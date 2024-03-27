@@ -7,8 +7,8 @@ use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
-use crate::runtime::MemoryRecordEnum;
 use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{MemoryRecordEnum, SyscallCode};
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
@@ -494,7 +494,32 @@ impl CpuChip {
         if cols.selectors.is_ecall == F::one() {
             // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
             // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
+            let ecall_cols = cols.opcode_specific_columns.ecall_mut();
+
             cols.ecall_mul_send_to_table = cols.selectors.is_ecall * cols.op_a_access.prev_value[1];
+
+            let syscall_id = cols.op_a_access.prev_value[0];
+            // let send_to_table = cols.op_a_access.prev_value[1];
+            // let num_cycles = cols.op_a_access.prev_value[2];
+            // let is_halt = cols.op_a_access.prev_value[3];
+
+            // Populate `is_enter_unconstrained`.
+            ecall_cols
+                .is_enter_unconstrained
+                .populate_from_field_element(
+                    syscall_id
+                        - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+                );
+
+            // Populate `is_lwa`.
+            ecall_cols.is_lwa.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::LWA.syscall_id()),
+            );
+
+            // Populate `is_halt`.
+            ecall_cols.is_halt.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
+            );
         }
     }
 
