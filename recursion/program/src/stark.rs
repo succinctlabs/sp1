@@ -1,5 +1,9 @@
+use crate::challenger::DuplexChallengerVariable;
 use crate::commit::PolynomialSpaceVariable;
 use crate::folder::RecursiveVerifierConstraintFolder;
+use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::fri::TwoAdicPcsMatsVariable;
+use crate::fri::TwoAdicPcsRoundVariable;
 use p3_air::Air;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
@@ -10,13 +14,7 @@ use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_compiler::verifier::fri::TwoAdicPcsMatsVariable;
-use sp1_recursion_compiler::verifier::fri::TwoAdicPcsRoundVariable;
-use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCosetVariable;
-use sp1_recursion_compiler::{
-    ir::{Builder, Config, Usize},
-    verifier::challenger::DuplexChallengerVariable,
-};
+use sp1_recursion_compiler::ir::{Builder, Config, Usize};
 
 use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
 
@@ -213,19 +211,18 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::{
         asm::{AsmConfig, VmBuilder},
         ir::{Builder, Config, ExtConst, Usize},
-        verifier::{
-            challenger::DuplexChallengerVariable,
-            fri::types::{Commitment, DIGEST_SIZE},
-        },
     };
-    use sp1_recursion_core::runtime::Runtime;
+    use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
 
     use crate::{
+        challenger::DuplexChallengerVariable,
         fri::{
             const_fri_config, const_two_adic_pcs_proof, default_fri_config, TwoAdicFriPcsVariable,
         },
         stark::StarkVerifier,
-        types::{ChipOpenedValuesVariable, ShardOpenedValuesVariable, ShardProofVariable},
+        types::{
+            ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
+        },
     };
 
     type SC = BabyBearPoseidon2;

@@ -1,4 +1,5 @@
 use crate::folder::RecursiveVerifierConstraintFolder;
+use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::ChipOpenedValuesVariable;
 use crate::types::ChipOpening;
 use p3_air::Air;
@@ -15,8 +16,6 @@ use crate::commit::PolynomialSpaceVariable;
 use sp1_recursion_compiler::prelude::Config;
 use sp1_recursion_compiler::prelude::ExtConst;
 use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
-
-use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCosetVariable;
 
 use crate::stark::StarkVerifier;
 
@@ -173,7 +172,10 @@ mod tests {
 
     use p3_commit::{Pcs, PolynomialSpace};
 
-    use crate::{commit::PolynomialSpaceVariable, stark::StarkVerifier, types::ChipOpening};
+    use crate::{
+        commit::PolynomialSpaceVariable, fri::TwoAdicMultiplicativeCosetVariable,
+        stark::StarkVerifier, types::ChipOpening,
+    };
 
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
@@ -326,7 +328,8 @@ mod tests {
                 let values = ChipOpening::from_constant(&mut builder, values_vals);
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
-                let trace_domain = builder.const_domain(&trace_domain_val);
+                let trace_domain: TwoAdicMultiplicativeCosetVariable<_> =
+                    builder.eval_const(trace_domain_val);
                 let sels = trace_domain.selectors_at_point(&mut builder, zeta);
                 let folded_constraints = StarkVerifier::<_, SC>::eval_constrains(
                     &mut builder,
@@ -346,7 +349,9 @@ mod tests {
 
                 let qc_domains = qc_domains_vals
                     .iter()
-                    .map(|domain| builder.const_domain(domain))
+                    .map(|domain| {
+                        builder.eval_const::<TwoAdicMultiplicativeCosetVariable<_>>(*domain)
+                    })
                     .collect::<Vec<_>>();
                 let quotient = StarkVerifier::<_, SC>::recompute_quotient(
                     &mut builder,
@@ -419,10 +424,10 @@ mod tests {
                 let opening = builder.eval_const(values_vals);
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
-                let trace_domain = builder.const_domain(&trace_domain_val);
+                let trace_domain = builder.eval_const(trace_domain_val);
                 let qc_domains = qc_domains_vals
                     .iter()
-                    .map(|domain| builder.const_domain(domain))
+                    .map(|domain| builder.eval_const(*domain))
                     .collect::<Vec<_>>();
 
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
