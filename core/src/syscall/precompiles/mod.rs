@@ -5,11 +5,11 @@ pub mod keccak256;
 pub mod sha256;
 pub mod weierstrass;
 
+use crate::runtime::SyscallContext;
+use core::fmt::Debug;
 use generic_array::{ArrayLength, GenericArray};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use typenum::Unsigned;
-
-use crate::runtime::SyscallContext;
 
 use crate::utils::ec::field::NumWords;
 use crate::utils::ec::{AffinePoint, EllipticCurve};
@@ -77,6 +77,59 @@ pub fn create_ec_add_event<E: EllipticCurve>(
         q,
         p_memory_records,
         q_memory_records,
+    }
+}
+
+/// Define a trait that is meant to be implemented by `EcAddEvent<E>` for any `E` that implements
+/// `EllipticCurve`. It acts as a common interface for the different `EcAddEvent` types.
+/// During the trace generation, one can use this trait to handle events generically without
+/// knowing the exact type of the event. It is used to abstract over the specific
+/// curve type.
+trait EcEventTrait: Debug {
+    fn shard(&self) -> u32;
+    fn clk(&self) -> u32;
+    fn p_ptr(&self) -> u32;
+    fn p(&self) -> &[u32];
+    fn q_ptr(&self) -> u32;
+    fn q(&self) -> &[u32];
+    fn p_memory_records(&self) -> &[MemoryWriteRecord];
+    fn q_memory_records(&self) -> &[MemoryReadRecord];
+}
+
+impl<E: EllipticCurve> EcEventTrait for ECAddEvent<E>
+where
+    <E::BaseField as NumWords>::WordsCurvePoint: ArrayLength,
+{
+    fn shard(&self) -> u32 {
+        self.shard
+    }
+
+    fn clk(&self) -> u32 {
+        self.clk
+    }
+
+    fn p_ptr(&self) -> u32 {
+        self.p_ptr
+    }
+
+    fn p(&self) -> &[u32] {
+        self.p.as_slice()
+    }
+
+    fn q_ptr(&self) -> u32 {
+        self.q_ptr
+    }
+
+    fn q(&self) -> &[u32] {
+        self.q.as_slice()
+    }
+
+    fn p_memory_records(&self) -> &[MemoryWriteRecord] {
+        self.p_memory_records.as_slice()
+    }
+
+    fn q_memory_records(&self) -> &[MemoryReadRecord] {
+        self.q_memory_records.as_slice()
     }
 }
 
@@ -165,18 +218,38 @@ where
             where
                 A: SeqAccess<'de>,
             {
-                let shard = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
-                let clk = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
-                let p_ptr = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
-                let p_slice: Vec<u32> = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
-                let p = GenericArray::try_from(p_slice).map_err(|_| serde::de::Error::invalid_length(3, &self))?;
-                let q_ptr = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
-                let q_slice: Vec<u32> = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(5, &self))?;
-                let q = GenericArray::try_from(q_slice).map_err(|_| serde::de::Error::invalid_length(5, &self))?;
-                let p_memory_records_slice: Vec<MemoryWriteRecord> = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(6, &self))?;
-                let p_memory_records = GenericArray::try_from(p_memory_records_slice).map_err(|_| serde::de::Error::invalid_length(6, &self))?;
-                let q_memory_records_slice: Vec<MemoryReadRecord> = seq.next_element()?.ok_or_else(|| serde::de::Error::invalid_length(7, &self))?;
-                let q_memory_records = GenericArray::try_from(q_memory_records_slice).map_err(|_| serde::de::Error::invalid_length(7, &self))?;
+                let shard = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(0, &self))?;
+                let clk = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(1, &self))?;
+                let p_ptr = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(2, &self))?;
+                let p_slice: Vec<u32> = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(3, &self))?;
+                let p = GenericArray::try_from(p_slice)
+                    .map_err(|_| serde::de::Error::invalid_length(3, &self))?;
+                let q_ptr = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(4, &self))?;
+                let q_slice: Vec<u32> = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(5, &self))?;
+                let q = GenericArray::try_from(q_slice)
+                    .map_err(|_| serde::de::Error::invalid_length(5, &self))?;
+                let p_memory_records_slice: Vec<MemoryWriteRecord> = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(6, &self))?;
+                let p_memory_records = GenericArray::try_from(p_memory_records_slice)
+                    .map_err(|_| serde::de::Error::invalid_length(6, &self))?;
+                let q_memory_records_slice: Vec<MemoryReadRecord> = seq
+                    .next_element()?
+                    .ok_or_else(|| serde::de::Error::invalid_length(7, &self))?;
+                let q_memory_records = GenericArray::try_from(q_memory_records_slice)
+                    .map_err(|_| serde::de::Error::invalid_length(7, &self))?;
 
                 Ok(ECAddEvent {
                     shard,
@@ -191,6 +264,19 @@ where
             }
         }
 
-        deserializer.deserialize_struct("ECAddEvent", &["shard", "clk", "p_ptr", "p", "q_ptr", "q", "p_memory_records", "q_memory_records"], ECAddEventVisitor(std::marker::PhantomData))
+        deserializer.deserialize_struct(
+            "ECAddEvent",
+            &[
+                "shard",
+                "clk",
+                "p_ptr",
+                "p",
+                "q_ptr",
+                "q",
+                "p_memory_records",
+                "q_memory_records",
+            ],
+            ECAddEventVisitor(std::marker::PhantomData),
+        )
     }
 }

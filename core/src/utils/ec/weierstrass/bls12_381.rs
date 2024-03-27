@@ -26,7 +26,7 @@ impl FieldParameters for Bls12381BaseField {
         27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
     ];
 
-    const WITNESS_OFFSET: usize = 1usize << 20;
+    const WITNESS_OFFSET: usize = 1usize << 13;
 
     fn modulus() -> BigUint {
         BigUint::from_str_radix(

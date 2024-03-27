@@ -10,7 +10,7 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
-use crate::syscall::precompiles::ECAddEvent;
+use crate::syscall::precompiles::EcEventTrait;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
@@ -36,19 +36,12 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_derive::AlignedBorrow;
-use sp1_zkvm::precompiles::secp256k1;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 use typenum::Unsigned;
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
-}
-
-enum ECAddEventEnum {
-    Secp256k1(Vec<ECAddEvent<Secp256k1>>),
-    Bn254(Vec<ECAddEvent<Bn254>>),
-    Bls12381(Vec<ECAddEvent<Bls12381>>),
 }
 
 /// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
@@ -180,30 +173,23 @@ where
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // // collects the events based on the curve type.
-        // let events: &[ECAddEvent<E>] = match E::CURVE_TYPE {
-        //     CurveType::Secp256k1 => input.secp256k1_add_events.as_slice(),
-        //     CurveType::Bn254 => input.bn254_add_events.as_slice(),
-        //     CurveType::Bls12381 => input.bls12381_add_events.as_slice(),
-        //     _ => panic!("Unsupported curve"),
-        // };
-
-        let events_ptr = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => input.secp256k1_add_events.as_ptr() as *const ECAddEvent<E>,
-            CurveType::Bn254 => input.bn254_add_events.as_ptr() as *const ECAddEvent<E>,
-            CurveType::Bls12381 => input.bls12381_add_events.as_ptr() as *const ECAddEvent<E>,
-            _ => panic!("Unsupported curve"),
-        };
-        let events = match E::CURVE_TYPE {
-            CurveType::Secp256k1 => unsafe {
-                std::slice::from_raw_parts(events_ptr, input.secp256k1_add_events.len())
-            },
-            CurveType::Bn254 => unsafe {
-                std::slice::from_raw_parts(events_ptr, input.bn254_add_events.len())
-            },
-            CurveType::Bls12381 => unsafe {
-                std::slice::from_raw_parts(events_ptr, input.bls12381_add_events.len())
-            },
+        // Handle different types of ECAddEvents through a dynamic dispatch.
+        let events: Vec<Box<dyn EcEventTrait>> = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => input
+                .secp256k1_add_events
+                .iter()
+                .map(|x| Box::new(x.clone()) as Box<dyn EcEventTrait>)
+                .collect(),
+            CurveType::Bn254 => input
+                .bn254_add_events
+                .iter()
+                .map(|x| Box::new(x.clone()) as Box<dyn EcEventTrait>)
+                .collect(),
+            CurveType::Bls12381 => input
+                .bls12381_add_events
+                .iter()
+                .map(|x| Box::new(x.clone()) as Box<dyn EcEventTrait>)
+                .collect(),
             _ => panic!("Unsupported curve"),
         };
 
@@ -218,8 +204,8 @@ where
                 row.as_mut_slice().borrow_mut();
 
             // Decode affine points.
-            let p = &event.p;
-            let q = &event.q;
+            let p = event.p();
+            let q = event.q();
             let p = AffinePoint::<E>::from_words_le(p);
             let (p_x, p_y) = (p.x, p.y);
             let q = AffinePoint::<E>::from_words_le(q);
@@ -227,19 +213,19 @@ where
 
             // Populate basic columns.
             cols.is_real = F::one();
-            cols.shard = F::from_canonical_u32(event.shard);
-            cols.clk = F::from_canonical_u32(event.clk);
-            cols.p_ptr = F::from_canonical_u32(event.p_ptr);
-            cols.q_ptr = F::from_canonical_u32(event.q_ptr);
+            cols.shard = F::from_canonical_u32(event.shard());
+            cols.clk = F::from_canonical_u32(event.clk());
+            cols.p_ptr = F::from_canonical_u32(event.p_ptr());
+            cols.q_ptr = F::from_canonical_u32(event.q_ptr());
 
             Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
 
             // Populate the memory access columns.
             for i in 0..cols.q_access.len() {
-                cols.q_access[i].populate(event.q_memory_records[i], &mut new_byte_lookup_events);
+                cols.q_access[i].populate(event.q_memory_records()[i], &mut new_byte_lookup_events);
             }
             for i in 0..cols.p_access.len() {
-                cols.p_access[i].populate(event.p_memory_records[i], &mut new_byte_lookup_events);
+                cols.p_access[i].populate(event.p_memory_records()[i], &mut new_byte_lookup_events);
             }
 
             rows.push(row);
@@ -357,9 +343,10 @@ where
             builder
                 .when(row.is_real)
                 .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
-            builder
-                .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
+            builder.when(row.is_real).assert_eq(
+                row.y3_ins.result[i],
+                row.p_access[num_words_field_element + i / 4].value()[i % 4],
+            );
         }
 
         builder.constraint_memory_access_slice(
