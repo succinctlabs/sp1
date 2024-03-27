@@ -21,3 +21,6 @@ p3-merkle-tree = { workspace = true }
 p3-commit = { workspace = true }
 p3-dft = { workspace = true }
 p3-challenger = { workspace = true }
+p3-fri = { workspace = true }
+zkhash = { git = "https://github.com/HorizenLabs/poseidon2" }
+ff = { version = "0.13", features = ["derive", "derive_bits"] }

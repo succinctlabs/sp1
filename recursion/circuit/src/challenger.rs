@@ -2,6 +2,7 @@
 
 use p3_field::AbstractField;
 use p3_field::Field;
+use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 
 use crate::poseidon2::P2CircuitBuilder;
@@ -101,6 +102,14 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
             .pop()
             .expect("output buffer should be non-empty")
     }
+
+    pub fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
+        let a = self.sample(builder);
+        let b = self.sample(builder);
+        let c = self.sample(builder);
+        let d = self.sample(builder);
+        builder.ext_from_base_slice(&[a, b, c, d])
+    }
 }
 
 #[cfg(test)]
@@ -114,7 +123,7 @@ mod tests {
     use p3_field::split_32 as split_32_gt;
     use p3_field::AbstractField;
     use sp1_recursion_compiler::{gnark::GnarkBackend, ir::Builder};
-    use sp1_recursion_core::stark::bn254::{Challenger, Perm};
+    use sp1_recursion_core::stark::config::{OuterChallenger, OuterPerm};
 
     use super::reduce_32;
     use super::split_32;
@@ -185,8 +194,8 @@ mod tests {
 
     #[test]
     fn test_challenger() {
-        let perm = Perm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
-        let mut challenger = Challenger::new(perm).unwrap();
+        let perm = OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
+        let mut challenger = OuterChallenger::new(perm).unwrap();
         let a = BabyBear::from_canonical_usize(1);
         let b = BabyBear::from_canonical_usize(2);
         let c = BabyBear::from_canonical_usize(3);
