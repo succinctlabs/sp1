@@ -252,7 +252,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-        next: &CpuCols<AB::Var>,
+        _next: &CpuCols<AB::Var>,
     ) -> (AB::Expr, AB::Expr) {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
@@ -293,7 +293,7 @@ impl CpuChip {
         };
 
         // Constrain EcallCols.is_halt.result == syscall_id is HALT.
-        let is_halt = {
+        let _is_halt = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
