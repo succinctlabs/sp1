@@ -65,23 +65,27 @@ where
 
         // Constrain that the inputs stay the same throughout the 24 rows of each cycle
         let mut not_last_in_cycle = local.keccak.step_flags[0].into();
-        for i in 1..NUM_ROUNDS {
+        for i in 1..NUM_ROUNDS - 1 {
             not_last_in_cycle = not_last_in_cycle + local.keccak.step_flags[i];
         }
         builder
+            .when_transition()
             .when(not_last_in_cycle.clone() * local.is_real)
             .assert_eq(local.shard, next.shard);
         builder
+            .when_transition()
             .when(not_last_in_cycle.clone() * local.is_real)
             .assert_eq(local.clk, next.clk);
         builder
+            .when_transition()
             .when(not_last_in_cycle.clone() * local.is_real)
             .assert_eq(local.state_addr, next.state_addr);
         builder
+            .when_transition()
             .when(not_last_in_cycle)
             .assert_eq(local.is_real, next.is_real);
 
-        // The last row must be nonreal because NUM_ROUNDS is not a power of 2. This constrain
+        // The last row must be nonreal because NUM_ROUNDS is not a power of 2. This constraint
         // ensures that the table does not end abruptly.
         builder.when_last_row().assert_zero(local.is_real);
 

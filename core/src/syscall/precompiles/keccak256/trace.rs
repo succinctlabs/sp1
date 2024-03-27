@@ -68,6 +68,8 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
 
                             cols.shard = F::from_canonical_u32(shard);
                             cols.clk = F::from_canonical_u32(start_clk);
+                            cols.state_addr = F::from_canonical_u32(event.state_addr);
+                            cols.is_real = F::one();
 
                             // If this is the first row, then populate read memory accesses
                             if i == 0 {
@@ -77,7 +79,6 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                         .populate_read(*read_record, &mut new_byte_lookup_events);
                                 }
 
-                                cols.state_addr = F::from_canonical_u32(event.state_addr);
                                 cols.do_memory_check = F::one();
                                 cols.receive_ecall = F::one();
                             }
@@ -91,11 +92,8 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                                         .populate_write(*write_record, &mut new_byte_lookup_events);
                                 }
 
-                                cols.state_addr = F::from_canonical_u32(event.state_addr);
                                 cols.do_memory_check = F::one();
                             }
-
-                            cols.is_real = F::one();
 
                             rows.push(row);
                         }
@@ -121,7 +119,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             padded_nb_rows = 4;
         }
         if padded_nb_rows > nb_rows {
-            let mut dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]; NUM_ROUNDS]);
+            let mut dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);
             let mut dummy_rows = Vec::new();
             for i in 0..NUM_ROUNDS {
                 let dummy_row = dummy_keccak_rows.row_mut(i);
@@ -129,9 +127,14 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                 row[..NUM_KECCAK_COLS].copy_from_slice(dummy_row);
                 dummy_rows.push(row);
             }
-            for i in 0..(padded_nb_rows - nb_rows) {
-                rows.push(dummy_rows[i % NUM_ROUNDS]);
-            }
+            rows.append(
+                &mut dummy_rows
+                    .iter()
+                    .cloned()
+                    .cycle()
+                    .take(padded_nb_rows - nb_rows)
+                    .collect::<Vec<_>>(),
+            );
         }
 
         // Convert the trace to a row major matrix.
