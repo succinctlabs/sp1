@@ -1,3 +1,4 @@
+use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_derive::DslVariable;
 
@@ -47,6 +48,25 @@ impl<C: Config> Builder<C> {
             size: self.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
             shift: self.eval(domain.shift),
             g: self.eval(g_val),
+        }
+    }
+}
+
+impl<C: Config> FromConstant<C> for TwoAdicMultiplicativeCosetVariable<C>
+where
+    C::F: TwoAdicField,
+{
+    type Constant = TwoAdicMultiplicativeCoset<C::F>;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        let log_d_val = value.log_n as u32;
+        let g_val = C::F::two_adic_generator(value.log_n);
+        // Initialize a domain.
+        TwoAdicMultiplicativeCosetVariable::<C> {
+            log_n: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
+            size: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
+            shift: builder.eval(value.shift),
+            g: builder.eval(g_val),
         }
     }
 }

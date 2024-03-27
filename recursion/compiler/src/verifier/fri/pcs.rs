@@ -2,9 +2,15 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_recursion_derive::DslVariable;
 
+use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_symmetric::Hash;
+
 use super::types::Dimensions;
+use super::types::DIGEST_SIZE;
 use super::types::{Commitment, FriConfigVariable, FriProofVariable};
+use crate::prelude::ExtConst;
 use crate::prelude::Felt;
+use crate::prelude::FromConstant;
 use crate::prelude::MemVariable;
 use crate::prelude::Ptr;
 use crate::prelude::SymbolicExt;
@@ -178,4 +184,61 @@ pub fn verify_two_adic_pcs<C: Config>(
         &fri_challenges,
         &reduced_openings,
     );
+}
+
+impl<C: Config> FromConstant<C> for TwoAdicPcsRoundVariable<C>
+where
+    C::F: TwoAdicField,
+{
+    type Constant = (
+        Hash<C::F, C::F, DIGEST_SIZE>,
+        Vec<(TwoAdicMultiplicativeCoset<C::F>, Vec<(C::EF, Vec<C::EF>)>)>,
+    );
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        let (commit_val, domains_and_openings_val) = value;
+
+        // Allocate the commitment.
+        let mut commit = builder.dyn_array::<Felt<_>>(DIGEST_SIZE);
+        let commit_val: [C::F; DIGEST_SIZE] = commit_val.into();
+        for (i, f) in commit_val.into_iter().enumerate() {
+            builder.set(&mut commit, i, f);
+        }
+
+        let mut mats =
+            builder.dyn_array::<TwoAdicPcsMatsVariable<C>>(domains_and_openings_val.len());
+
+        for (i, (domain, openning)) in domains_and_openings_val.into_iter().enumerate() {
+            let domain = builder.eval_const::<TwoAdicMultiplicativeCosetVariable<_>>(domain);
+
+            let points_val = openning.iter().map(|(p, _)| *p).collect::<Vec<_>>();
+            let values_val = openning.iter().map(|(_, v)| v.clone()).collect::<Vec<_>>();
+            let mut points: Array<_, Ext<_, _>> = builder.dyn_array(points_val.len());
+            for (j, point) in points_val.into_iter().enumerate() {
+                let el: Ext<_, _> = builder.eval(point.cons());
+                builder.set(&mut points, j, el);
+            }
+            let mut values: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(values_val.len());
+            for (j, val) in values_val.into_iter().enumerate() {
+                let mut tmp = builder.dyn_array(val.len());
+                for (k, v) in val.into_iter().enumerate() {
+                    let el: Ext<_, _> = builder.eval(v.cons());
+                    builder.set(&mut tmp, k, el);
+                }
+                builder.set(&mut values, j, tmp);
+            }
+
+            let mat = TwoAdicPcsMatsVariable {
+                domain,
+                points,
+                values,
+            };
+            builder.set(&mut mats, i, mat);
+        }
+
+        Self {
+            batch_commit: commit,
+            mats,
+        }
+    }
 }

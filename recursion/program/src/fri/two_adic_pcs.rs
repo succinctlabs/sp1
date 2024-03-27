@@ -89,7 +89,6 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
     use sp1_recursion_compiler::verifier::challenger::DuplexChallengerVariable;
-    use sp1_recursion_compiler::verifier::fri::pcs::TwoAdicPcsMatsVariable;
     use sp1_recursion_compiler::verifier::fri::types::Commitment;
     use sp1_recursion_compiler::verifier::fri::types::FriCommitPhaseProofStepVariable;
     use sp1_recursion_compiler::verifier::fri::types::FriConfigVariable;
@@ -239,63 +238,6 @@ pub(crate) mod tests {
         proof_var
     }
 
-    #[allow(clippy::type_complexity)]
-    #[allow(clippy::needless_range_loop)]
-    fn const_two_adic_pcs_rounds(
-        builder: &mut RecursionBuilder,
-        commit: [Val; DIGEST_SIZE],
-        os: Vec<(
-            TwoAdicMultiplicativeCoset<Val>,
-            Vec<(Challenge, Vec<Challenge>)>,
-        )>,
-    ) -> (
-        Array<RecursionConfig, Felt<Val>>,
-        Array<RecursionConfig, TwoAdicPcsRoundVariable<RecursionConfig>>,
-    ) {
-        let mut commit_var: Array<_, Felt<_>> = builder.dyn_array(DIGEST_SIZE);
-        for i in 0..DIGEST_SIZE {
-            let el: Felt<_> = builder.eval(commit[i]);
-            builder.set(&mut commit_var, i, el);
-        }
-
-        let mut mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(os.len());
-        // os.sort_by_key(|(coset, _)| Reverse(coset.log_n));
-        for (m, (domain, poly)) in os.into_iter().enumerate() {
-            let domain = builder.const_domain(&domain);
-            let points = poly.iter().map(|(p, _)| *p).collect::<Vec<_>>();
-            let values = poly.iter().map(|(_, v)| v.clone()).collect::<Vec<_>>();
-            let mut pointsvar: Array<_, Ext<_, _>> = builder.dyn_array(points.len());
-            for i in 0..points.len() {
-                let el: Ext<_, _> = builder.eval(SymbolicExt::Const(points[i]));
-                builder.set(&mut pointsvar, i, el);
-            }
-            let mut valuesvar: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(values.len());
-            for i in 0..values.len() {
-                let mut tmp = builder.dyn_array(values[i].len());
-                for j in 0..values[i].len() {
-                    let el: Ext<_, _> = builder.eval(SymbolicExt::Const(values[i][j]));
-                    builder.set(&mut tmp, j, el);
-                }
-                builder.set(&mut valuesvar, i, tmp);
-            }
-            let mat = TwoAdicPcsMatsVariable {
-                domain,
-                points: pointsvar,
-                values: valuesvar,
-            };
-            builder.set(&mut mats, m, mat);
-        }
-
-        let mut rounds_var: Array<_, TwoAdicPcsRoundVariable<_>> = builder.dyn_array(1);
-        let round_var = TwoAdicPcsRoundVariable {
-            batch_commit: commit_var.clone(),
-            mats,
-        };
-        builder.set(&mut rounds_var, 0, round_var);
-
-        (commit_var, rounds_var)
-    }
-
     pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
         let hash = Hash::new(perm.clone());
@@ -311,7 +253,7 @@ pub(crate) mod tests {
 
     #[allow(clippy::type_complexity)]
     #[test]
-    fn test_two_adic_fri_pcs() {
+    fn test_two_adic_fri_pcs_single_batch() {
         let mut rng = &mut OsRng;
         let log_degrees = &[10, 16];
         let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
@@ -372,7 +314,8 @@ pub(crate) mod tests {
         let mut builder = RecursionBuilder::default();
         let config = const_fri_config(&mut builder, default_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
-        let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
+        let rounds =
+            builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(vec![(commit, os.clone())]);
 
         // Test natural domain for degree.
         for log_d_val in log_degrees.iter() {
@@ -394,7 +337,126 @@ pub(crate) mod tests {
         // Test proof verification.
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
+        let commit = <[Val; DIGEST_SIZE]>::from(commit).to_vec();
+        let commit = builder.eval_const::<Array<_, _>>(commit);
         challenger.observe_commitment(&mut builder, commit);
+        challenger.sample_ext(&mut builder);
+        pcs.verify(&mut builder, rounds, proof, &mut challenger);
+
+        let program = builder.compile();
+        let mut runtime = Runtime::<Val, Challenge, _>::new(&program, perm.clone());
+        runtime.run();
+        println!(
+            "The program executed successfully, number of cycles: {}",
+            runtime.clk.as_canonical_u32() / 4
+        );
+    }
+
+    #[allow(clippy::type_complexity)]
+    #[test]
+    fn test_two_adic_fri_pcs_multi_batches() {
+        let mut rng = &mut OsRng;
+        let log_degrees = &[10, 16];
+        let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+        let fri_config = default_fri_config();
+        let hash = Hash::new(perm.clone());
+        let compress = Compress::new(perm.clone());
+        let val_mmcs = ValMmcs::new(hash, compress);
+        let dft = Dft {};
+        let pcs_val: CustomPcs = CustomPcs::new(
+            log_degrees.iter().copied().max().unwrap(),
+            dft,
+            val_mmcs,
+            fri_config,
+        );
+
+        // Generate proof.
+        let num_of_batches = 3;
+
+        let mut batch_domains_and_polys = vec![];
+        let mut batches_commits = vec![];
+        let mut batches_prover_data = vec![];
+
+        for _ in 0..num_of_batches {
+            let domains_and_polys = log_degrees
+                .iter()
+                .map(|&d| {
+                    (
+                        <CustomPcs as Pcs<Challenge, Challenger>>::natural_domain_for_degree(
+                            &pcs_val,
+                            1 << d,
+                        ),
+                        RowMajorMatrix::<Val>::rand(&mut rng, 1 << d, 10 + d),
+                    )
+                })
+                .sorted_by_key(|(dom, _)| Reverse(dom.log_n))
+                .collect::<Vec<_>>();
+            let (commit, data) = <CustomPcs as Pcs<Challenge, Challenger>>::commit(
+                &pcs_val,
+                domains_and_polys.clone(),
+            );
+
+            batch_domains_and_polys.push(domains_and_polys);
+            batches_commits.push(commit);
+            batches_prover_data.push(data);
+        }
+
+        let mut challenger = Challenger::new(perm.clone());
+        for commit in batches_commits.iter() {
+            challenger.observe(*commit);
+        }
+
+        let zeta = challenger.sample_ext_element::<Challenge>();
+        let points = log_degrees.iter().map(|_| vec![zeta]).collect::<Vec<_>>();
+
+        let data_and_points = batches_prover_data
+            .iter()
+            .map(|data| (data, points.clone()))
+            .collect::<Vec<_>>();
+        let (opening, proof) = pcs_val.open(data_and_points, &mut challenger);
+
+        // Verify proof.
+        let mut challenger = Challenger::new(perm.clone());
+        for commit in batches_commits.iter() {
+            challenger.observe(*commit);
+        }
+        challenger.sample_ext_element::<Challenge>();
+
+        let rounds_val = batches_commits
+            .clone()
+            .into_iter()
+            .zip(batch_domains_and_polys)
+            .zip(opening)
+            .map(|((commit, domains_and_polys), open_vals)| {
+                let os = domains_and_polys
+                    .iter()
+                    .zip(open_vals)
+                    .map(|((domain, _), mat_openings)| {
+                        (*domain, vec![(zeta, mat_openings[0].clone())])
+                    })
+                    .collect();
+                (commit, os)
+            })
+            .collect::<Vec<_>>();
+
+        pcs_val
+            .verify(rounds_val.clone(), &proof, &mut challenger)
+            .unwrap();
+
+        // Test the recursive Pcs.
+        let mut builder = RecursionBuilder::default();
+        let config = const_fri_config(&mut builder, default_fri_config());
+        let pcs = TwoAdicFriPcsVariable { config };
+        let rounds = builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(rounds_val);
+
+        // // Test proof verification.
+        let proof = const_two_adic_pcs_proof(&mut builder, proof);
+        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+        for commit in batches_commits {
+            let commit: [Val; DIGEST_SIZE] = commit.into();
+            let commit = builder.eval_const::<Array<_, _>>(commit.to_vec());
+            challenger.observe_commitment(&mut builder, commit);
+        }
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proof, &mut challenger);
 
