@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -21,5 +21,5 @@ fn main() {
         .save("proof-with-pis.json")
         .expect("saving proof failed");
 
-    println!("succesfully generated and verified proof for the program!")
+    println!("successfully generated and verified proof for the program!")
 }

@@ -1,6 +1,7 @@
-use core::mem::size_of;
-use sp1_derive::AlignedBorrow;
+mod block;
+mod extension;
+mod is_ext_zero;
 
-#[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-#[repr(C)]
-pub struct Word<T>(pub [T; 4]);
+pub use block::*;
+pub use extension::*;
+pub use is_ext_zero::*;

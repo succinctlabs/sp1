@@ -1,15 +1,15 @@
-#![no_std]
-
+#![allow(clippy::type_complexity)]
+#![allow(clippy::needless_range_loop)]
+#![allow(clippy::type_complexity)]
 extern crate alloc;
 
 pub mod asm;
-pub mod builder;
-pub mod heap;
+pub mod gnark;
 pub mod ir;
 pub mod util;
+pub mod verifier;
 
 pub mod prelude {
-    pub use crate::asm::AsmBuilder;
-    pub use crate::builder::Builder;
-    pub use crate::ir::{Bool, Felt, Int, Symbolic, SymbolicInt, SymbolicLogic};
+    pub use crate::asm::AsmCompiler;
+    pub use crate::ir::*;
 }

@@ -5,7 +5,7 @@ name = "cycle-tracking-script"
 edition = "2021"
 
 [dependencies]
-sp1-sdk = { path = "../../../sdk" }
+sp1-core = { path = "../../../core" }
 
 [build-dependencies]
 sp1-helper = { path = "../../../helper" }

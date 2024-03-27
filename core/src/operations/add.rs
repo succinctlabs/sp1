@@ -1,7 +1,6 @@
 use p3_air::AirBuilder;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
-use std::mem::size_of;
 
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
@@ -61,12 +60,12 @@ impl<F: Field> AddOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AddOperation<AB::Var>,
-        is_real: AB::Var,
+        is_real: AB::Expr,
     ) {
         let one = AB::Expr::one();
         let base = AB::F::from_canonical_u32(256);
 
-        let mut builder_is_real = builder.when(is_real);
+        let mut builder_is_real = builder.when(is_real.clone());
 
         // For each limb, assert that difference between the carried result and the non-carried
         // result is either zero or the base.
@@ -93,12 +92,12 @@ impl<F: Field> AddOperation<F> {
         builder_is_real.assert_bool(cols.carry[0]);
         builder_is_real.assert_bool(cols.carry[1]);
         builder_is_real.assert_bool(cols.carry[2]);
-        builder_is_real.assert_bool(is_real);
+        builder_is_real.assert_bool(is_real.clone());
 
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, is_real);
-            builder.slice_range_check_u8(&b.0, is_real);
+            builder.slice_range_check_u8(&a.0, is_real.clone());
+            builder.slice_range_check_u8(&b.0, is_real.clone());
             builder.slice_range_check_u8(&cols.value.0, is_real);
         }
 

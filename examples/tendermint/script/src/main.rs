@@ -1,5 +1,5 @@
 use reqwest::Client;
-use sp1_sdk::{utils::setup_logger, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 use crate::util::fetch_latest_commit;
 use crate::util::fetch_light_block;
@@ -10,7 +10,7 @@ mod util;
 #[tokio::main]
 async fn main() {
     // Generate proof.
-    setup_logger();
+    utils::setup_logger();
     // Uniquely identify a peer in the network.
     let peer_id: [u8; 20] = [
         0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
@@ -53,5 +53,5 @@ async fn main() {
         .save("proof-with-pis.json")
         .expect("saving proof failed");
 
-    println!("succesfully generated and verified proof for the program!")
+    println!("successfully generated and verified proof for the program!")
 }

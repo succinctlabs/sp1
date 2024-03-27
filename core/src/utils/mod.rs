@@ -2,7 +2,7 @@ mod buffer;
 pub mod ec;
 pub mod env;
 mod logger;
-mod poseidon2_instance;
+pub mod poseidon2_instance;
 mod programs;
 mod prove;
 mod tracer;
@@ -16,6 +16,7 @@ pub use tracer::*;
 pub use programs::*;
 
 use crate::{memory::MemoryCols, operations::field::params::Limbs};
+use generic_array::ArrayLength;
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];
@@ -36,7 +37,9 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
-pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
+pub fn limbs_from_prev_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(
+    cols: &[M],
+) -> Limbs<T, N> {
     let vec = cols
         .iter()
         .flat_map(|access| access.prev_value().0)
@@ -48,7 +51,7 @@ pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T>
     Limbs(sized)
 }
 
-pub fn limbs_from_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
+pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T, N> {
     let vec = cols
         .iter()
         .flat_map(|access| access.value().0)
@@ -95,8 +98,8 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
         .unwrap()
 }
 
-/// Converts a u32 to a string with commas every 3 digits.
-pub fn u32_to_comma_separated(value: u32) -> String {
+/// Converts a num to a string with commas every 3 digits.
+pub fn num_to_comma_separated<T: ToString>(value: T) -> String {
     value
         .to_string()
         .chars()
@@ -119,4 +122,11 @@ pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
         result.push(current_chunk);
     }
     result
+}
+
+#[inline]
+pub fn log2_strict_usize(n: usize) -> usize {
+    let res = n.trailing_zeros();
+    assert_eq!(n.wrapping_shr(res), 1, "Not a power of two: {n}");
+    res as usize
 }

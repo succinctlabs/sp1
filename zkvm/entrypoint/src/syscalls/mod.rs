@@ -21,44 +21,47 @@ pub use sha_extend::*;
 pub use sys::*;
 pub use unconstrained::*;
 
+/// These codes MUST match the codes in `core/src/runtime/syscall.rs`. There is a derived test
+/// that checks that the enum is consistent with the syscalls.
+
 /// Halts the program.
-pub const HALT: u32 = 100;
+pub const HALT: u32 = 0x01_00_00_00;
 
 /// Loads a word supplied from the prover.
-pub const LWA: u32 = 101;
-
-/// Executes `SHA_EXTEND`.
-pub const SHA_EXTEND: u32 = 102;
-
-/// Executes `SHA_COMPRESS`.
-pub const SHA_COMPRESS: u32 = 103;
-
-/// Executes `ED_ADD`.
-pub const ED_ADD: u32 = 104;
-
-/// Executes `ED_DECOMPRESS`.
-pub const ED_DECOMPRESS: u32 = 105;
-
-/// Executes `KECCAK_PERMUTE`.
-pub const KECCAK_PERMUTE: u32 = 106;
-
-/// Executes `SECP256K1_ADD`.
-pub const SECP256K1_ADD: u32 = 107;
-
-/// Executes `SECP256K1_DOUBLE`.
-pub const SECP256K1_DOUBLE: u32 = 108;
-
-/// Executes `K256_DECOMPRESS`.
-pub const SECP256K1_DECOMPRESS: u32 = 109;
-
-/// Enter an unconstrained execution block.
-pub const ENTER_UNCONSTRAINED: u32 = 110;
-
-/// Exit an unconstrained execution block.
-pub const EXIT_UNCONSTRAINED: u32 = 111;
-
-/// Executes `BLAKE3_COMPRESS_INNER`.
-pub const BLAKE3_COMPRESS_INNER: u32 = 112;
+pub const LWA: u32 = 0x00_00_00_01;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
-pub const WRITE: u32 = 999;
+pub const WRITE: u32 = 0x00_00_00_02;
+
+/// Enter an unconstrained execution block.
+pub const ENTER_UNCONSTRAINED: u32 = 0x00_00_00_03;
+
+/// Exit an unconstrained execution block.
+pub const EXIT_UNCONSTRAINED: u32 = 0x00_00_00_04;
+
+/// Executes `SHA_EXTEND`.
+pub const SHA_EXTEND: u32 = 0x00_30_01_05;
+
+/// Executes `SHA_COMPRESS`.
+pub const SHA_COMPRESS: u32 = 0x00_01_01_06;
+
+/// Executes `ED_ADD`.
+pub const ED_ADD: u32 = 0x00_01_01_07;
+
+/// Executes `ED_DECOMPRESS`.
+pub const ED_DECOMPRESS: u32 = 0x00_00_01_08;
+
+/// Executes `KECCAK_PERMUTE`.
+pub const KECCAK_PERMUTE: u32 = 0x00_01_01_09;
+
+/// Executes `SECP256K1_ADD`.
+pub const SECP256K1_ADD: u32 = 0x00_01_01_0A;
+
+/// Executes `SECP256K1_DOUBLE`.
+pub const SECP256K1_DOUBLE: u32 = 0x00_00_01_0B;
+
+/// Executes `K256_DECOMPRESS`.
+pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
+
+/// Executes `BLAKE3_COMPRESS_INNER`.
+pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;

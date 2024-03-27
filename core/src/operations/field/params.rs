@@ -1,16 +1,32 @@
 use crate::air::Polynomial;
+use generic_array::{ArrayLength, GenericArray};
 use std::fmt::Debug;
 use std::ops::Index;
 use std::slice::Iter;
+use std::usize;
 
-pub const NUM_LIMBS: usize = 32;
 pub const NB_BITS_PER_LIMB: usize = 8;
-pub const NUM_WITNESS_LIMBS: usize = 2 * NUM_LIMBS - 2;
 
-#[derive(Default, Debug, Clone, Copy)]
-pub struct Limbs<T>(pub [T; NUM_LIMBS]);
+#[derive(Debug, Clone)]
+/// An array representing N limbs of T.
+///
+/// GenericArray allows us to constrain the correct array lengths so we can have # of limbs and # of
+/// witness limbs associated in NumLimbs / FieldParameters.
+/// See: https://github.com/RustCrypto/traits/issues/1481
+pub struct Limbs<T, N: ArrayLength>(pub GenericArray<T, N>);
 
-impl<T> Index<usize> for Limbs<T> {
+impl<T: Copy, N: ArrayLength> Copy for Limbs<T, N> where N::ArrayType<T>: Copy {}
+
+impl<T, N: ArrayLength> Default for Limbs<T, N>
+where
+    T: Default + Copy,
+{
+    fn default() -> Self {
+        Self(GenericArray::default())
+    }
+}
+
+impl<T, N: ArrayLength> Index<usize> for Limbs<T, N> {
     type Output = T;
 
     fn index(&self, index: usize) -> &Self::Output {
@@ -18,17 +34,19 @@ impl<T> Index<usize> for Limbs<T> {
     }
 }
 
-impl<T> IntoIterator for Limbs<T> {
+impl<T, N: ArrayLength> IntoIterator for Limbs<T, N> {
     type Item = T;
-    type IntoIter = std::array::IntoIter<T, NUM_LIMBS>;
+    type IntoIter = <GenericArray<T, N> as IntoIterator>::IntoIter;
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
     }
 }
 
-impl<Var: Into<Expr> + Clone, Expr: Clone> From<Limbs<Var>> for Polynomial<Expr> {
-    fn from(value: Limbs<Var>) -> Self {
+impl<Var: Into<Expr> + Clone, N: ArrayLength, Expr: Clone> From<Limbs<Var, N>>
+    for Polynomial<Expr>
+{
+    fn from(value: Limbs<Var, N>) -> Self {
         Polynomial::from_coefficients(&value.0.into_iter().map(|x| x.into()).collect::<Vec<_>>())
     }
 }
@@ -39,14 +57,14 @@ impl<'a, Var: Into<Expr> + Clone, Expr: Clone> From<Iter<'a, Var>> for Polynomia
     }
 }
 
-impl<T: Debug + Default + Clone> From<Polynomial<T>> for Limbs<T> {
+impl<T: Debug + Default + Clone, N: ArrayLength> From<Polynomial<T>> for Limbs<T, N> {
     fn from(value: Polynomial<T>) -> Self {
         let inner = value.as_coefficients().try_into().unwrap();
         Self(inner)
     }
 }
 
-impl<'a, T: Debug + Default + Clone> From<Iter<'a, T>> for Limbs<T> {
+impl<'a, T: Debug + Default + Clone, N: ArrayLength> From<Iter<'a, T>> for Limbs<T, N> {
     fn from(value: Iter<'a, T>) -> Self {
         let vec: Vec<T> = value.cloned().collect();
         let inner = vec.try_into().unwrap();
@@ -63,7 +81,7 @@ mod tests {
     #[test]
     fn test_modulus() {
         // Convert the MODULUS array to BigUint
-        let array_modulus = BigUint::from_bytes_le(&Ed25519BaseField::MODULUS);
+        let array_modulus = BigUint::from_bytes_le(Ed25519BaseField::MODULUS);
 
         // Get the modulus from the function
         let func_modulus = Ed25519BaseField::modulus();

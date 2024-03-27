@@ -8,6 +8,7 @@ use p3_matrix::MatrixRowSlices;
 use crate::{
     air::{SP1AirBuilder, SubAirBuilder},
     memory::MemoryCols,
+    runtime::SyscallCode,
 };
 
 use super::{
@@ -40,12 +41,22 @@ where
         for i in 0..STATE_NUM_WORDS as u32 {
             builder.constraint_memory_access(
                 local_mem.shard,
-                local_mem.clk,
+                local_mem.clk + local_keccak.step_flags[23], // The clk increments by 1 when step_flags[23] == 1
                 local_mem.state_addr + AB::Expr::from_canonical_u32(i * 4),
                 &local_mem.state_mem[i as usize],
                 local_mem.do_memory_check,
             );
         }
+
+        // TODO: constraint "ecall_receive"
+        builder.receive_syscall(
+            local_mem.shard,
+            local_mem.clk,
+            AB::F::from_canonical_u32(SyscallCode::KECCAK_PERMUTE.syscall_id()),
+            local_mem.state_addr,
+            AB::Expr::zero(),
+            local_mem.ecall_receive,
+        );
 
         // Verify that local.a values are equal to the memory values when local.step_flags[0] == 1
         // (for the permutation input) and when local.step_flags[23] == 1 (for the permutation output).
