@@ -465,7 +465,7 @@ impl Runtime {
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute_instruction(&mut self, instruction: Instruction) {
-        let pc = self.state.pc;
+        let mut pc = self.state.pc;
         let mut clk = self.state.clk;
         let mut next_pc = self.state.pc.wrapping_add(4);
 
@@ -699,8 +699,9 @@ impl Runtime {
                         panic!("Unsupported syscall: {:?}", syscall);
                     };
 
-                // Allow the syscall impl to modify state.clock (exit unconstrained does this)
+                // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
                 clk = self.state.clk;
+                pc = self.state.pc;
 
                 self.rw(t0, a);
                 next_pc = precompile_next_pc;
