@@ -23,7 +23,6 @@ impl<F: Field> XorOperation<F> {
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();
         for i in 0..WORD_SIZE {
-            self.value[i] = F::from_canonical_u8(x_bytes[i] ^ y_bytes[i]);
             let xor = x_bytes[i] ^ y_bytes[i];
             self.value[i] = F::from_canonical_u8(xor);
 

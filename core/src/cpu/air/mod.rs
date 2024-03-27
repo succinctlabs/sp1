@@ -200,6 +200,7 @@ impl CpuChip {
         // Verify that the word form of next.pc is correct for both jump instructions.
         builder
             .when_transition()
+            .when(next.is_real)
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 

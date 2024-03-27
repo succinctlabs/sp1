@@ -35,15 +35,15 @@ where
         // Copy over the inputs until the result has been computed (every 48 rows).
         builder
             .when_transition()
-            .when_not(local.cycle_48_end)
+            .when_not(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(local.shard, next.shard);
         builder
             .when_transition()
-            .when_not(local.cycle_48_end)
+            .when_not(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when_not(local.cycle_48_end)
+            .when_not(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(local.w_ptr, next.w_ptr);
 
         // Read w[i-15].
@@ -83,6 +83,7 @@ where
         );
 
         // Compute `s0`.
+        // w[i-15] rightrotate 7.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             *local.w_i_minus_15.value(),
@@ -90,6 +91,7 @@ where
             local.w_i_minus_15_rr_7,
             local.is_real,
         );
+        // w[i-15] rightrotate 18.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             *local.w_i_minus_15.value(),
@@ -97,6 +99,7 @@ where
             local.w_i_minus_15_rr_18,
             local.is_real,
         );
+        // w[i-15] rightshift 3.
         FixedShiftRightOperation::<AB::F>::eval(
             builder,
             *local.w_i_minus_15.value(),
@@ -104,6 +107,7 @@ where
             local.w_i_minus_15_rs_3,
             local.is_real,
         );
+        // (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18)
         XorOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_15_rr_7.value,
@@ -111,6 +115,7 @@ where
             local.s0_intermediate,
             local.is_real,
         );
+        // s0 := (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)
         XorOperation::<AB::F>::eval(
             builder,
             local.s0_intermediate.value,
@@ -120,6 +125,7 @@ where
         );
 
         // Compute `s1`.
+        // w[i-2] rightrotate 17.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             *local.w_i_minus_2.value(),
@@ -127,6 +133,7 @@ where
             local.w_i_minus_2_rr_17,
             local.is_real,
         );
+        // w[i-2] rightrotate 19.
         FixedRotateRightOperation::<AB::F>::eval(
             builder,
             *local.w_i_minus_2.value(),
@@ -134,6 +141,7 @@ where
             local.w_i_minus_2_rr_19,
             local.is_real,
         );
+        // w[i-2] rightshift 10.
         FixedShiftRightOperation::<AB::F>::eval(
             builder,
             *local.w_i_minus_2.value(),
@@ -141,6 +149,7 @@ where
             local.w_i_minus_2_rs_10,
             local.is_real,
         );
+        // (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19)
         XorOperation::<AB::F>::eval(
             builder,
             local.w_i_minus_2_rr_17.value,
@@ -148,6 +157,7 @@ where
             local.s1_intermediate,
             local.is_real,
         );
+        // s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)
         XorOperation::<AB::F>::eval(
             builder,
             local.s1_intermediate.value,
@@ -156,7 +166,7 @@ where
             local.is_real,
         );
 
-        // Compute `s2`.
+        // s2 := w[i-16] + s0 + w[i-7] + s1.
         Add4Operation::<AB::F>::eval(
             builder,
             *local.w_i_minus_16.value(),
@@ -176,6 +186,7 @@ where
             local.is_real,
         );
 
+        // Receive syscall event in first row of 48-cycle.
         builder.receive_syscall(
             local.shard,
             local.clk,
@@ -184,5 +195,15 @@ where
             AB::Expr::zero(),
             local.cycle_48_start,
         );
+
+        // If this row is real and not the last cycle, then next row should also be real.
+        builder
+            .when_transition()
+            .when(local.is_real - local.cycle_48_end)
+            .assert_one(next.is_real);
+
+        // Assert that the table ends in nonreal columns. Since each extend ecall is 48 cycles and
+        // the table is padded to a power of 2, the last row of the table should always be padding.
+        builder.when_last_row().assert_zero(local.is_real);
     }
 }
