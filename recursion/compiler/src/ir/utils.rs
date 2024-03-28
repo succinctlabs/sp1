@@ -19,6 +19,18 @@ impl<C: Config> Builder<C> {
         self.eval(e)
     }
 
+    pub fn num2bits_v_circuit(&mut self, num: Var<C::N>, bits: usize) -> Vec<Var<C::N>> {
+        let mut output = Vec::new();
+        for _ in 0..bits {
+            output.push(self.uninit());
+        }
+
+        self.operations
+            .push(DslIR::CircuitNum2BitsV(num, bits, output.clone()));
+
+        output
+    }
+
     pub fn num2bits_f_circuit(&mut self, num: Felt<C::F>) -> Vec<Var<C::N>> {
         let mut output = Vec::new();
         for _ in 0..32 {
