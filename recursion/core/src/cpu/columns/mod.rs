@@ -12,6 +12,8 @@ pub use alu::*;
 pub use instruction::*;
 pub use opcode::*;
 
+pub const NUM_CPU_COLS: usize = core::mem::size_of::<CpuCols<u8>>();
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Debug)]
 #[repr(C)]
