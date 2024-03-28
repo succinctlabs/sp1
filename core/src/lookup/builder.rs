@@ -159,16 +159,13 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 
 #[cfg(test)]
 mod tests {
-    use p3_air::{Air, BaseAir, VirtualPairCol};
+    use p3_air::{Air, BaseAir};
     use p3_baby_bear::BabyBear;
-    use p3_field::{AbstractField, Field};
+    use p3_field::AbstractField;
     use p3_matrix::MatrixRowSlices;
 
     use super::*;
-    use crate::{
-        air::SP1AirBuilder,
-        lookup::{InteractionBuilder, InteractionKind},
-    };
+    use crate::{air::SP1AirBuilder, lookup::InteractionKind};
 
     #[test]
     fn test_symbolic_to_virtual_pair_col() {
