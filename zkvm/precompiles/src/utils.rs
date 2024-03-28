@@ -30,13 +30,11 @@ impl<C: CurveOperations + Copy> AffinePoint<C> {
     /// Construct an AffinePoint from the x and y coordinates. The coordinates are expected to be
     /// in little-endian byte order.
     pub fn from(x_bytes: [u8; 32], y_bytes: [u8; 32]) -> Self {
-        let mut limbs = [0; 16];
-        for i in 0..8 {
-            let x_byte = u32::from_le_bytes(x_bytes[i * 4..(i + 1) * 4].try_into().unwrap());
-            let y_byte = u32::from_le_bytes(y_bytes[i * 4..(i + 1) * 4].try_into().unwrap());
-            limbs[i] = x_byte;
-            limbs[i + 8] = y_byte;
-        }
+        let mut limbs = [0u32; 16];
+        let x = bytes_to_words_le::<8>(&x_bytes);
+        let y = bytes_to_words_le::<8>(&y_bytes);
+        limbs[..8].copy_from_slice(&x);
+        limbs[8..].copy_from_slice(&y);
         Self::new(limbs)
     }
 
@@ -69,12 +67,7 @@ impl<C: CurveOperations + Copy> AffinePoint<C> {
     }
 
     pub fn from_le_bytes(limbs: [u8; 64]) -> Self {
-        let u32_limbs = limbs
-            .chunks_exact(4)
-            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
-            .collect::<Vec<u32>>()
-            .try_into()
-            .unwrap();
+        let u32_limbs = bytes_to_words_le::<16>(&limbs);
         Self {
             limbs: u32_limbs,
             _marker: std::marker::PhantomData,
@@ -82,12 +75,28 @@ impl<C: CurveOperations + Copy> AffinePoint<C> {
     }
 
     pub fn to_le_bytes(&self) -> [u8; 64] {
-        self.limbs
-            .iter()
-            .enumerate()
-            .fold([0u8; 64], |mut acc, (i, &limb)| {
-                acc[i * 4..(i + 1) * 4].copy_from_slice(&limb.to_le_bytes());
-                acc
-            })
+        words_to_bytes_le::<64>(&self.limbs)
     }
+}
+
+/// Converts a slice of words to a byte array in little endian.
+pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
+    debug_assert_eq!(words.len() * 4, B);
+    words
+        .iter()
+        .flat_map(|word| word.to_le_bytes().to_vec())
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
+}
+
+/// Converts a byte array in little endian to a slice of words.
+pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
+    debug_assert_eq!(bytes.len(), W * 4);
+    bytes
+        .chunks_exact(4)
+        .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap()
 }
