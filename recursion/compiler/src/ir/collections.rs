@@ -56,8 +56,6 @@ impl<C: Config> Builder<C> {
             Usize::Const(len) => self.eval(C::N::from_canonical_usize(len)),
             Usize::Var(len) => len,
         };
-        // let size: Var<C::N> = self.eval(len * C::N::from_canonical_usize(V::size_of()));
-        // let size = Usize::Var(size);
         let len = Usize::Var(len);
         let ptr = self.alloc(len, V::size_of());
         Array::Dyn(ptr, len)
@@ -201,13 +199,10 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
                 }
             }
             (Array::Dyn(_, lhs_len), Array::Dyn(_, rhs_len)) => {
-                // let lhs_len_var = builder.materialize(lhs_len);
-                // let rhs_len_var = builder.materialize(rhs_len);
                 builder.assert_usize_eq(lhs_len, rhs_len);
 
-                let start = Usize::Const(0);
                 let end = lhs_len;
-                builder.range(start, end).for_each(|i, builder| {
+                builder.range(0, end).for_each(|i, builder| {
                     let a = builder.get(&lhs, i);
                     let b = builder.get(&rhs, i);
                     builder.assert_ne::<T>(a, b);
@@ -227,11 +222,8 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
         match self {
             Array::Dyn(dst, Usize::Var(len)) => {
                 let mut index = index;
-                // let address = builder.eval(src);
                 dst.load(src, index, builder);
                 index.offset += <Ptr<C::N> as MemVariable<C>>::size_of();
-                // offset += <Ptr<C::N> as MemVariable<C>>::size_of();
-                // let address = builder.eval(src + Usize::Const(offset));
                 len.load(src, index, builder);
             }
             _ => unreachable!(),
@@ -242,10 +234,8 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
         match self {
             Array::Dyn(src, Usize::Var(len)) => {
                 let mut index = index;
-                // let address = builder.eval(dst + Usize::Const(offset));
                 src.store(dst, index, builder);
                 index.offset += <Ptr<C::N> as MemVariable<C>>::size_of();
-                // let address = builder.eval(dst + Usize::Const(offset));
                 len.store(dst, index, builder);
             }
             _ => unreachable!(),

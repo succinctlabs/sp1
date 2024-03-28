@@ -19,24 +19,12 @@ impl<C: Config> Builder<C> {
         ptr
     }
 
-    pub fn load<V: MemVariable<C>, P: Into<SymbolicPtr<C::N>>>(
-        &mut self,
-        var: V,
-        ptr: P,
-        index: MemIndex<C::N>,
-    ) {
-        let load_ptr = self.eval(ptr);
-        var.load(load_ptr, index, self);
+    pub fn load<V: MemVariable<C>>(&mut self, var: V, ptr: Ptr<C::N>, index: MemIndex<C::N>) {
+        var.load(ptr, index, self);
     }
 
-    pub fn store<V: MemVariable<C>, P: Into<SymbolicPtr<C::N>>>(
-        &mut self,
-        ptr: P,
-        index: MemIndex<C::N>,
-        value: V,
-    ) {
-        let store_ptr = self.eval(ptr);
-        value.store(store_ptr, index, self);
+    pub fn store<V: MemVariable<C>>(&mut self, ptr: Ptr<C::N>, index: MemIndex<C::N>, value: V) {
+        value.store(ptr, index, self);
     }
 }
 
