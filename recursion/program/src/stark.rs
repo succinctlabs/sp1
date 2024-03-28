@@ -424,6 +424,7 @@ pub(crate) mod tests {
             "Number of bit decompositions: {}",
             runtime.nb_bit_decompositions
         );
+        println!("Number of ext operations: {}", runtime.nb_ext_ops);
         println!("Execution took: {:?}", elapsed);
     }
 

@@ -54,7 +54,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     pub nb_bit_decompositions: u64,
 
-    pub nb_print_v: u64,
+    pub nb_ext_ops: u64,
 
     /// The current clock.
     pub clk: F,
@@ -99,7 +99,7 @@ where
             timestamp: 0,
             nb_poseidons: 0,
             nb_bit_decompositions: 0,
-            nb_print_v: 0,
+            nb_ext_ops: 0,
             clk: F::zero(),
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
@@ -261,7 +261,6 @@ where
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
                 Opcode::PrintF => {
-                    self.nb_print_v += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
                     println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
@@ -302,6 +301,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EADD | Opcode::EFADD => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(sum.as_base_slice());
@@ -309,6 +309,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EMUL | Opcode::EFMUL => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(product.as_base_slice());
@@ -316,6 +317,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::ESUB | Opcode::EFSUB | Opcode::FESUB => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(diff.as_base_slice());
@@ -323,6 +325,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EDIV | Opcode::EFDIV | Opcode::FEDIV => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(quotient.as_base_slice());
