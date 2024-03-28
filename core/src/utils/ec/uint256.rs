@@ -4,6 +4,9 @@ use crate::utils::ec::field::{FieldParameters, NumLimbs};
 use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
 
+/// Although `U256` is technically not a field, we utilize `FieldParameters` here for compatibility.
+/// This approach is specifically for the `FieldOps` multiplication operation, which employs these
+/// parameters solely as a modulus, rather than enforcing the requirement of being a proper field.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct U256Field;
 

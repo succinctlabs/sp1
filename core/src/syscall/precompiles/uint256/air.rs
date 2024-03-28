@@ -61,7 +61,6 @@ pub struct Uint256MulCols<T> {
     // Memory columns.
     pub x_memory: [MemoryWriteCols<T>; NUM_WORDS],
     pub y_memory: [MemoryReadCols<T>; NUM_WORDS],
-    pub y_ptr_access: MemoryReadCols<T>,
 
     // Input values for the multiplication.
     pub x_input: [T; NUM_WORDS],
