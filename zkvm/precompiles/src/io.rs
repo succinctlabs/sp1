@@ -1,6 +1,5 @@
 #![allow(unused_unsafe)]
 use crate::{syscall_read, syscall_write};
-use bincode;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::io::Read;

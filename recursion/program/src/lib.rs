@@ -1,3 +1,4 @@
+#![feature(generic_const_exprs)]
 pub mod challenger;
 pub mod commit;
 pub mod config;

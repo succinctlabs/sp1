@@ -1,4 +1,4 @@
-use alloc::{format, string::String};
+use alloc::format;
 use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::Field;

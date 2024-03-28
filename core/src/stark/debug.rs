@@ -15,15 +15,16 @@ use super::{MachineChip, StarkGenericConfig, Val};
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
+pub fn debug_constraints<SC, A>(
     chip: &MachineChip<SC, A>,
     preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
 ) where
+    SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
-    A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    A: MachineAir<Val<SC>> + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
 {
     assert_eq!(main.height(), perm.height());
     let height = main.height();

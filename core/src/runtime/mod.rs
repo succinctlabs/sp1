@@ -20,7 +20,6 @@ pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
-use self::state::ExecutionState;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};

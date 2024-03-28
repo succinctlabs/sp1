@@ -11,6 +11,7 @@ use typenum::{U32, U62};
 use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
 use k256::FieldElement;
 use num::traits::FromBytes;
@@ -48,6 +49,7 @@ impl NumLimbs for Secp256k1BaseField {
 
 impl EllipticCurveParameters for Secp256k1Parameters {
     type BaseField = Secp256k1BaseField;
+    const CURVE_TYPE: CurveType = CurveType::Secp256k1;
 }
 
 impl WeierstrassParameters for Secp256k1Parameters {

@@ -8,7 +8,7 @@ use typenum::{U32, U62};
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
-use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
+use crate::utils::ec::{AffinePoint, CurveType, EllipticCurveParameters};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;
 
@@ -38,6 +38,7 @@ impl NumLimbs for Ed25519BaseField {
 
 impl EllipticCurveParameters for Ed25519Parameters {
     type BaseField = Ed25519BaseField;
+    const CURVE_TYPE: CurveType = CurveType::Ed25519;
 }
 
 impl EdwardsParameters for Ed25519Parameters {
