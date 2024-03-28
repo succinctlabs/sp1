@@ -62,18 +62,18 @@ impl<C: Config> Builder<C> {
         dst
     }
 
-    pub fn assert_eq<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+    pub fn assert_eq<V: Variable<C>>(
         &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
+        lhs: impl Into<V::Expression>,
+        rhs: impl Into<V::Expression>,
     ) {
         V::assert_eq(lhs, rhs, self);
     }
 
-    pub fn assert_ne<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+    pub fn assert_ne<V: Variable<C>>(
         &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
+        lhs: impl Into<V::Expression>,
+        rhs: impl Into<V::Expression>,
     ) {
         V::assert_ne(lhs, rhs, self);
     }
@@ -83,7 +83,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Var<C::N>, _, _>(lhs, rhs);
+        self.assert_eq::<Var<C::N>>(lhs, rhs);
     }
 
     pub fn assert_var_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
@@ -91,7 +91,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Var<C::N>, _, _>(lhs, rhs);
+        self.assert_ne::<Var<C::N>>(lhs, rhs);
     }
 
     pub fn assert_felt_eq<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
@@ -99,7 +99,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Felt<C::F>, _, _>(lhs, rhs);
+        self.assert_eq::<Felt<C::F>>(lhs, rhs);
     }
 
     pub fn assert_felt_ne<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
@@ -107,7 +107,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Felt<C::F>, _, _>(lhs, rhs);
+        self.assert_ne::<Felt<C::F>>(lhs, rhs);
     }
 
     pub fn assert_usize_eq<
@@ -118,11 +118,11 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Usize<C::N>, _, _>(lhs, rhs);
+        self.assert_eq::<Usize<C::N>>(lhs, rhs);
     }
 
     pub fn assert_usize_ne(&mut self, lhs: SymbolicUsize<C::N>, rhs: SymbolicUsize<C::N>) {
-        self.assert_ne::<Usize<C::N>, _, _>(lhs, rhs);
+        self.assert_ne::<Usize<C::N>>(lhs, rhs);
     }
 
     pub fn assert_ext_eq<
@@ -133,7 +133,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_eq::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
     pub fn assert_ext_ne<
@@ -144,7 +144,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
@@ -239,7 +239,7 @@ impl<C: Config> Builder<C> {
             self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
         }
         // Finally, assert that the sum is equal to the original number.
-        self.assert_eq::<Usize<_>, _, _>(sum, num);
+        self.assert_eq::<Usize<_>>(sum, num);
 
         output
     }

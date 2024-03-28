@@ -103,8 +103,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         let bits = builder.num2bits_f(rand_f);
         let sum: Var<C::N> = builder.eval(C::N::zero());
         let power: Var<C::N> = builder.eval(C::N::from_canonical_usize(1));
-        // TODO: why do we need to materialize the nb_bits for this for loop to work?
-        let nb_bits = builder.materialize(nb_bits);
         builder.range(0, nb_bits).for_each(|i, builder| {
             let bit = builder.get(&bits, i);
             builder.assign(sum, sum + bit * power);

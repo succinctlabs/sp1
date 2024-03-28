@@ -157,14 +157,14 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
             (Array::Dyn(_, lhs_len), Array::Dyn(_, rhs_len)) => {
                 let lhs_len_var = builder.materialize(lhs_len);
                 let rhs_len_var = builder.materialize(rhs_len);
-                builder.assert_eq::<Var<_>, _, _>(lhs_len_var, rhs_len_var);
+                builder.assert_eq::<Var<_>>(lhs_len_var, rhs_len_var);
 
                 let start = Usize::Const(0);
                 let end = lhs_len;
                 builder.range(start, end).for_each(|i, builder| {
                     let a = builder.get(&lhs, i);
                     let b = builder.get(&rhs, i);
-                    T::assert_eq(T::Expression::from(a), T::Expression::from(b), builder);
+                    builder.assert_eq::<T>(a, b);
                 });
             }
             _ => panic!("cannot compare arrays of different types"),
@@ -190,16 +190,16 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
                 }
             }
             (Array::Dyn(_, lhs_len), Array::Dyn(_, rhs_len)) => {
-                let lhs_len_var = builder.materialize(lhs_len);
-                let rhs_len_var = builder.materialize(rhs_len);
-                builder.assert_eq::<Var<_>, _, _>(lhs_len_var, rhs_len_var);
+                // let lhs_len_var = builder.materialize(lhs_len);
+                // let rhs_len_var = builder.materialize(rhs_len);
+                builder.assert_usize_eq(lhs_len, rhs_len);
 
                 let start = Usize::Const(0);
                 let end = lhs_len;
                 builder.range(start, end).for_each(|i, builder| {
                     let a = builder.get(&lhs, i);
                     let b = builder.get(&rhs, i);
-                    T::assert_ne(T::Expression::from(a), T::Expression::from(b), builder);
+                    builder.assert_ne::<T>(a, b);
                 });
             }
             _ => panic!("cannot compare arrays of different types"),

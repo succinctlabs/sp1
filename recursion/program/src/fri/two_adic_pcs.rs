@@ -555,8 +555,7 @@ pub(crate) mod tests {
             let expected_domain =
                 TwoAdicMultiplicativeCosetVariable::from_constant(&mut builder, domain_val);
 
-            builder
-                .assert_eq::<TwoAdicMultiplicativeCosetVariable<_>, _, _>(domain, expected_domain);
+            builder.assert_eq::<TwoAdicMultiplicativeCosetVariable<_>>(domain, expected_domain);
         }
 
         // Test proof verification.
