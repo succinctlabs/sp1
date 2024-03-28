@@ -102,6 +102,14 @@ func (c *Chip) Select(cond frontend.Variable, a, b *Variable) *Variable {
 	}
 }
 
+func (c *Chip) AddFelt(a *ExtensionVariable, b *Variable) *ExtensionVariable {
+	v1 := c.Add(a.value[0], b)
+	v2 := c.Add(a.value[1], NewVariable(0))
+	v3 := c.Add(a.value[2], NewVariable(0))
+	v4 := c.Add(a.value[3], NewVariable(0))
+	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
+}
+
 func (c *Chip) AddExtension(a, b *ExtensionVariable) *ExtensionVariable {
 	v1 := c.Add(a.value[0], b.value[0])
 	v2 := c.Add(a.value[1], b.value[1])
@@ -130,9 +138,9 @@ func (c *Chip) MulExtension(a, b *ExtensionVariable) *ExtensionVariable {
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
-				v[i+j-4] = c.Add(v[i+j-4], c.Mul(c.Mul(v[i], v[j]), w))
+				v[i+j-4] = c.Add(v[i+j-4], c.Mul(c.Mul(a.value[i], b.value[j]), w))
 			} else {
-				v[i+j] = c.Add(v[i+j], c.Mul(v[i], v[j]))
+				v[i+j] = c.Add(v[i+j], c.Mul(a.value[i], b.value[j]))
 			}
 		}
 	}
@@ -188,27 +196,40 @@ func (c *Chip) SelectExtension(cond frontend.Variable, a, b *ExtensionVariable) 
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *Chip) SplitIntoBabyBear(in frontend.Variable) [3]Variable {
+func (c *Chip) SplitIntoBabyBear(in frontend.Variable) [8]Variable {
 	bits := c.api.ToBinary(in)
-	x := frontend.Variable(0)
-	y := frontend.Variable(0)
-	z := frontend.Variable(0)
-	power := frontend.Variable(1)
-
-	for i := 0; i < 32; i++ {
-		x = c.api.Add(x, c.api.Mul(bits[i], power))
-		y = c.api.Add(y, c.api.Mul(bits[i+32], power))
-		z = c.api.Add(z, c.api.Mul(bits[i+64], power))
-		power = c.api.Mul(power, frontend.Variable(2))
+	var result [8]frontend.Variable
+	for i := 0; i < 8; i++ {
+		result[i] = frontend.Variable(0)
 	}
 
-	x1 := c.field.NewElement(x)
-	y1 := c.field.NewElement(y)
-	z1 := c.field.NewElement(z)
+	for i := 0; i < 8; i++ {
+		for j := 0; j < 8; j++ {
+			if i*8+j <= 254 {
+				result[i] = c.api.Add(result[i], c.api.Mul(bits[i*8+j], frontend.Variable(1<<j)))
+			}
+		}
+	}
 
-	return [3]Variable{{Value: x1}, {Value: y1}, {Value: z1}}
+	var result2 [8]Variable
+	for i := 0; i < 8; i++ {
+		result2[i] = Variable{Value: c.field.NewElement(result[i])}
+	}
+
+	return result2
 }
 
 func (c *Chip) ToBinary(in *Variable) []frontend.Variable {
-	return c.field.ToBits(in.Value)
+	return c.field.ToBits(c.field.Reduce(in.Value))
+}
+
+func (c *Chip) PrintF(in *Variable) {
+	c.api.Println(c.field.Reduce(in.Value).Limbs[0])
+}
+
+func (c *Chip) PrintE(in *ExtensionVariable) {
+	c.PrintF(in.value[0])
+	c.PrintF(in.value[1])
+	c.PrintF(in.value[2])
+	c.PrintF(in.value[3])
 }

@@ -1,6 +1,6 @@
 use core::marker::PhantomData;
 use itertools::Itertools;
-use p3_field::PrimeField;
+use p3_field::{AbstractExtensionField, PrimeField};
 use std::collections::HashMap;
 
 use crate::ir::{Config, DslIR};
@@ -76,6 +76,11 @@ impl<C: Config> GnarkBackend<C> {
                 }
                 DslIR::ImmExt(a, b) => {
                     let operator = self.assign(a.id());
+                    let b = b.as_base_slice();
+                    let b_start = "[4]int{";
+                    let b = b.iter().map(|x| x.to_string()).join(",");
+                    let b_end = "}";
+                    let b = format!("{}{}{}", b_start, b, b_end);
                     lines.push(format!(
                         "{} {} babybear.NewExtensionVariable({})",
                         a.id(),
@@ -135,6 +140,11 @@ impl<C: Config> GnarkBackend<C> {
                 }
                 DslIR::AddEI(a, b, c) => {
                     let operator = self.assign(a.id());
+                    let c = c.as_base_slice();
+                    let c_start = "[4]int{";
+                    let c = c.iter().map(|x| x.to_string()).join(",");
+                    let c_end = "}";
+                    let c = format!("{}{}{}", c_start, c, c_end);
                     lines.push(format!(
                         "{} {} babybearChip.AddExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
@@ -155,6 +165,11 @@ impl<C: Config> GnarkBackend<C> {
                 }
                 DslIR::AddEFFI(a, b, c) => {
                     let operator = self.assign(a.id());
+                    let c = c.as_base_slice();
+                    let c_start = "[4]int{";
+                    let c = c.iter().map(|x| x.to_string()).join(",");
+                    let c_end = "}";
+                    let c = format!("{}{}{}", c_start, c, c_end);
                     lines.push(format!(
                         "{} {} babybearChip.AddFelt(babybear.NewExtensionVariable({}), {})",
                         a.id(),
@@ -225,6 +240,11 @@ impl<C: Config> GnarkBackend<C> {
                 }
                 DslIR::MulEI(a, b, c) => {
                     let operator = self.assign(a.id());
+                    let c = c.as_base_slice();
+                    let c_start = "[4]int{";
+                    let c = c.iter().map(|x| x.to_string()).join(",");
+                    let c_end = "}";
+                    let c = format!("{}{}{}", c_start, c, c_end);
                     lines.push(format!(
                         "{} {} babybearChip.MulExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
@@ -619,6 +639,11 @@ impl<C: Config> GnarkBackend<C> {
                     ));
                 }
                 DslIR::AssertEqEI(a, b) => {
+                    let b = b.as_base_slice();
+                    let b_start = "[4]int{";
+                    let b = b.iter().map(|x| x.to_string()).join(",");
+                    let b_end = "}";
+                    let b = format!("{}{}{}", b_start, b, b_end);
                     lines.push(format!(
                         "babybearChip.AssertEqExtension({}, babybear.NewExtensionVariable({}))",
                         a.id(),
@@ -659,6 +684,23 @@ impl<C: Config> GnarkBackend<C> {
                         let operator = self.assign(output[i].id());
                         lines.push(format!("{} {} state2[{}]", output[i].id(), operator, i));
                     }
+                }
+                DslIR::PrintF(var) => {
+                    lines.push(format!("babybearChip.PrintF({})", var.id()));
+                }
+                DslIR::PrintE(var) => {
+                    lines.push(format!("babybearChip.PrintE({})", var.id()));
+                }
+                DslIR::CircuitSelectF(cond, a, b, c) => {
+                    let assign = self.assign(c.id());
+                    lines.push(format!(
+                        "{} {} babybearChip.Select({}, {}, {})",
+                        c.id(),
+                        assign,
+                        cond.id(),
+                        a.id(),
+                        b.id(),
+                    ));
                 }
                 _ => todo!(),
             };

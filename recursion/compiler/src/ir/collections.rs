@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use p3_field::AbstractField;
 
-use super::{Builder, Config, MemVariable, Ptr, Usize, Var, Variable};
+use super::{Builder, Config, DslIR, Felt, MemVariable, Ptr, Usize, Var, Variable};
 
 /// An array that is either of static or dynamic size.
 ///
@@ -79,6 +79,16 @@ impl<C: Config> Builder<C> {
     /// Initialize an array of fixed length `len`. The entries will be uninitialized.
     pub fn array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
         self.dyn_array(len)
+    }
+
+    pub fn vec<V: MemVariable<C>>(&mut self, v: Vec<V>) -> Array<C, V> {
+        Array::Fixed(v)
+    }
+
+    pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
+        let c = self.uninit();
+        self.operations.push(DslIR::CircuitSelectF(cond, a, b, c));
+        c
     }
 
     pub fn dyn_array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {

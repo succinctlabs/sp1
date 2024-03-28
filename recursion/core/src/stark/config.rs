@@ -12,7 +12,7 @@ use sp1_core::utils::poseidon2_instance::RC_16_30;
 
 use super::poseidon2::bn254_poseidon2_rc3;
 
-/// A configuration for outter recursion.
+/// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
 pub type OuterChallenge = BinomialExtensionField<OuterVal, 4>;
 pub type OuterPerm = Poseidon2<Bn254Fr, DiffusionMatrixBN254, 3, 5>;
@@ -26,12 +26,12 @@ pub type OuterPcs = TwoAdicFriPcs<OuterVal, OuterDft, OuterValMmcs, OuterChallen
 pub type OuterFriProof = FriProof<OuterChallenge, OuterChallengeMmcs, OuterVal>;
 pub type OuterPcsProof = TwoAdicFriPcsProof<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
 
-/// The permutation for outter recursion.
+/// The permutation for outer recursion.
 pub fn outer_perm() -> OuterPerm {
     OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254)
 }
 
-/// The FRI config for outter recursion.
+/// The FRI config for outer recursion.
 pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let perm = outer_perm();
     let hash = OuterHash::new(perm.clone()).unwrap();

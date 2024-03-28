@@ -109,4 +109,5 @@ pub enum DslIR<C: Config> {
     CircuitPoseidon2Permute([Var<C::N>; 3]),
     CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
     CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
+    CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
 }
