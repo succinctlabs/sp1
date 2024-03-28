@@ -1,16 +1,19 @@
-use std::cmp::Reverse;
-
 use itertools::Itertools;
 use p3_matrix::Dimensions;
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, Var};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
+use std::cmp::Reverse;
+
+use crate::{poseidon2::P2CircuitBuilder, DIGEST_SIZE};
+
+pub type OuterDigest<C: Config> = [Var<C::N>; DIGEST_SIZE];
 
 pub fn verify_batch<C: Config, const D: usize>(
     builder: &mut Builder<C>,
-    commit: &Array<C, Var<C::N>>,
-    dimensions: &[Dimensions],
-    index_bits: Array<C, Var<C::N>>,
-    opened_values: Array<C, Array<C, Ext<C::F, C::EF>>>,
-    proof: &Array<C, Array<C, Var<C::N>>>,
+    commit: OuterDigest<C>,
+    dimensions: Vec<Dimensions>,
+    index_bits: Vec<Var<C::N>>,
+    opened_values: Vec<Vec<Felt<C::F>>>,
+    proof: Vec<OuterDigest<C>>,
 ) {
     let mut heights_tallest_first = dimensions
         .iter()
@@ -25,57 +28,40 @@ pub fn verify_batch<C: Config, const D: usize>(
         .height
         .next_power_of_two();
 
-    // TODO: compute root
+    let mut root = builder.p2_hash(
+        heights_tallest_first
+            .peeking_take_while(|(_, dims)| dims.height.next_power_of_two() == curr_height_padded)
+            .flat_map(|(i, _)| opened_values[i].as_slice())
+            .cloned()
+            .collect::<Vec<_>>()
+            .as_slice(),
+    );
 
-    todo!()
+    for (i, sibling) in proof.iter().enumerate() {
+        let bit = index_bits[i];
+        let left = [builder.select_v(bit, sibling[0], root[0])];
+        let right = [builder.select_v(bit, root[0], sibling[0])];
 
-    // // The index of which table to process next.
-    // let index: Var<C::N> = builder.eval(C::N::zero());
+        root = builder.p2_compress([left, right]);
+        curr_height_padded >>= 1;
 
-    // // The height of the current layer (padded).
-    // let current_height = builder.get(&dimensions, index).height;
+        let next_height = heights_tallest_first
+            .peek()
+            .map(|(_, dims)| dims.height)
+            .filter(|h| h.next_power_of_two() == curr_height_padded);
 
-    // // Reduce all the tables that have the same height to a single root.
-    // let root = reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+        if let Some(next_height) = next_height {
+            let next_height_openings_digest = builder.p2_hash(
+                heights_tallest_first
+                    .peeking_take_while(|(_, dims)| dims.height == next_height)
+                    .flat_map(|(i, _)| opened_values[i].as_slice())
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .as_slice(),
+            );
+            root = builder.p2_compress([root, next_height_openings_digest]);
+        }
+    }
 
-    // // For each sibling in the proof, reconstruct the root.
-    // let one: Var<_> = builder.eval(C::N::one());
-    // builder.range(0, proof.len()).for_each(|i, builder| {
-    //     let sibling = builder.get(proof, i);
-
-    //     let bit = builder.get(&index_bits, i);
-    //     let left: Array<C, Felt<C::F>> = builder.uninit();
-    //     let right: Array<C, Felt<C::F>> = builder.uninit();
-    //     builder.if_eq(bit, C::N::one()).then_or_else(
-    //         |builder| {
-    //             builder.assign(left.clone(), sibling.clone());
-    //             builder.assign(right.clone(), root.clone());
-    //         },
-    //         |builder| {
-    //             builder.assign(left.clone(), root.clone());
-    //             builder.assign(right.clone(), sibling.clone());
-    //         },
-    //     );
-
-    //     let new_root = builder.poseidon2_compress(&left, &right);
-    //     builder.assign(root.clone(), new_root);
-    //     builder.assign(current_height, current_height * (C::N::two().inverse()));
-
-    //     let next_height = builder.get(&dimensions, index).height;
-    //     builder.if_ne(index, dimensions.len()).then(|builder| {
-    //         builder.if_eq(next_height, current_height).then(|builder| {
-    //             let next_height_openings_digest =
-    //                 reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
-    //             let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
-    //             builder.assign(root.clone(), new_root);
-    //         });
-    //     })
-    // });
-
-    // // Assert that the commitments match.
-    // builder.range(0, commit.len()).for_each(|i, builder| {
-    //     let e1 = builder.get(commit, i);
-    //     let e2 = builder.get(&root, i);
-    //     builder.assert_felt_eq(e1, e2);
-    // });
+    builder.assert_var_eq(root[0], commit[0]);
 }
