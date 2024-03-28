@@ -16,26 +16,21 @@ impl<C: Config> P2CircuitBuilder<C> for Builder<C> {
 
 #[cfg(test)]
 pub mod tests {
-    use std::collections::HashMap;
-    use std::fs::File;
-    use std::io::Write;
-    use std::marker::PhantomData;
-
     use ff::PrimeField as FFPrimeField;
     use p3_bn254_fr::FFBn254Fr;
     use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
     use p3_field::AbstractField;
     use p3_poseidon2::Poseidon2;
     use p3_symmetric::Permutation;
-    use sp1_recursion_compiler::gnark::GnarkBackend;
     use sp1_recursion_compiler::ir::{Builder, Var};
+    use sp1_recursion_compiler::r1cs::{gnark, R1CSBackend};
+    use sp1_recursion_compiler::OuterConfig;
     use zkhash::ark_ff::BigInteger;
     use zkhash::ark_ff::PrimeField;
     use zkhash::fields::bn256::FpBN256 as ark_FpBN256;
     use zkhash::poseidon2::poseidon2_instance_bn256::RC3;
 
     use crate::poseidon2::P2CircuitBuilder;
-    use crate::GnarkConfig;
 
     fn bn254_from_ark_ff(input: ark_FpBN256) -> Bn254Fr {
         let bytes = input.into_bigint().to_bytes_le();
@@ -92,7 +87,7 @@ pub mod tests {
         let mut output = input;
         poseidon2.permute_mut(&mut output);
 
-        let mut builder = Builder::<GnarkConfig>::default();
+        let mut builder = Builder::<OuterConfig>::default();
         let a: Var<_> = builder.eval(input[0]);
         let b: Var<_> = builder.eval(input[1]);
         let c: Var<_> = builder.eval(input[2]);
@@ -102,15 +97,8 @@ pub mod tests {
         builder.assert_var_eq(b, output[1]);
         builder.assert_var_eq(c, output[2]);
 
-        let mut backend = GnarkBackend::<GnarkConfig> {
-            nb_backend_vars: 0,
-            used: HashMap::new(),
-            phantom: PhantomData,
-        };
-        let result = backend.compile(builder.operations);
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let path = format!("{}/build/verifier.go", manifest_dir);
-        let mut file = File::create(path).unwrap();
-        file.write_all(result.as_bytes()).unwrap();
+        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        gnark::ffi_test_circuit(constraints);
     }
 }
