@@ -6,9 +6,9 @@ use super::{
 };
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
-use alloc::vec::Vec;
+use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use p3_field::{AbstractExtensionField, TwoAdicField};
+use p3_field::TwoAdicField;
 use sp1_recursion_core::runtime::{DIGEST_SIZE, NUM_BITS, PERMUTATION_WIDTH};
 
 #[derive(Debug, Clone)]
@@ -526,13 +526,13 @@ impl<C: Config> Builder<C> {
         result
     }
 
-    pub fn exp_power_of_2_v<V: Variable<C>>(
+    pub fn exp_power_of_2_v<V>(
         &mut self,
         base: impl Into<V::Expression>,
         power_log: impl Into<Usize<C::N>>,
     ) -> V
     where
-        V: Copy + Mul<Output = V::Expression>,
+        V: Variable<C> + Copy + Mul<Output = V::Expression>,
     {
         let power_log = power_log.into();
         let result: V = self.eval(base);
@@ -542,9 +542,9 @@ impl<C: Config> Builder<C> {
     }
 
     /// Multiplies `base` by `2^{log_power}`.
-    pub fn sll<V: Variable<C>>(&mut self, base: impl Into<V::Expression>, shift: Usize<C::N>) -> V
+    pub fn sll<V>(&mut self, base: impl Into<V::Expression>, shift: Usize<C::N>) -> V
     where
-        V: Copy + Add<Output = V::Expression>,
+        V: Variable<C> + Copy + Add<Output = V::Expression>,
     {
         let result: V = self.eval(base);
         self.range(0, shift)

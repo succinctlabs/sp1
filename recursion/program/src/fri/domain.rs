@@ -179,11 +179,9 @@ pub(crate) mod tests {
 
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
-    use sp1_recursion_compiler::prelude::ExtConst;
 
     use super::*;
-    use p3_commit::{Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
-    use p3_field::TwoAdicField;
+    use p3_commit::{Pcs, PolynomialSpace};
     use rand::{thread_rng, Rng};
     use sp1_core::stark::Dom;
     use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};

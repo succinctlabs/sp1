@@ -1,5 +1,6 @@
 #![allow(unused)]
 
+use crate::utils::{AffinePoint, CurveOperations};
 use crate::{syscall_secp256k1_add, syscall_secp256k1_decompress, syscall_secp256k1_double};
 use anyhow::Context;
 use anyhow::{anyhow, Result};
@@ -15,6 +16,29 @@ use k256::{PublicKey, Scalar, Secp256k1};
 
 use crate::io;
 use crate::unconstrained;
+
+#[derive(Copy, Clone)]
+pub struct Secp256k1Operations;
+
+impl CurveOperations for Secp256k1Operations {
+    // The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
+    const GENERATOR: [u32; 16] = [
+        385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
+        4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853,
+        1211816567,
+    ];
+    fn add_assign(limbs: &mut [u32; 16], other: &[u32; 16]) {
+        unsafe {
+            syscall_secp256k1_add(limbs.as_mut_ptr(), other.as_ptr());
+        }
+    }
+
+    fn double(limbs: &mut [u32; 16]) {
+        unsafe {
+            syscall_secp256k1_double(limbs.as_mut_ptr());
+        }
+    }
+}
 
 /// Decompresses a compressed public key using secp256k1_decompress precompile.
 pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
@@ -61,8 +85,15 @@ pub fn verify_signature(
             let pubkey_x = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[1..33]).unwrap()).unwrap();
             let pubkey_y = Scalar::from_repr(bits2field::<Secp256k1>(&pubkey[33..]).unwrap()).unwrap();
 
+            let mut pubkey_x_le_bytes = pubkey_x.to_bytes();
+            pubkey_x_le_bytes.reverse();
+            let mut pubkey_y_le_bytes = pubkey_y.to_bytes();
+            pubkey_y_le_bytes.reverse();
+
             // Convert the public key to an affine point
-            let affine = AffinePoint::from(pubkey_x, pubkey_y);
+            let affine = AffinePoint::<Secp256k1Operations>::from(pubkey_x_le_bytes.into(), pubkey_y_le_bytes.into());
+
+            const GENERATOR: AffinePoint<Secp256k1Operations> = AffinePoint::<Secp256k1Operations>::generator_in_affine();
 
             let field = bits2field::<Secp256k1>(msg_hash);
             if field.is_err() {
@@ -115,57 +146,14 @@ pub fn verify_signature(
     }
 }
 
-/// An affine point on the Edwards curve.
-///
-/// The point is represented internally by bytes in order to ensure a contiguous memory layout.
-///
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub(crate) struct AffinePoint {
-    limbs: [u32; 16],
-}
-
-impl AffinePoint {
-    pub fn from(x: Scalar, y: Scalar) -> Self {
-        let mut x_bytes = x.to_bytes();
-        let mut y_bytes = y.to_bytes();
-        // convert to LE
-        x_bytes.reverse();
-        y_bytes.reverse();
-        let mut limbs = [0; 16];
-        for i in 0..8 {
-            let x_byte = u32::from_le_bytes(x_bytes[i * 4..(i + 1) * 4].try_into().unwrap());
-            let y_byte = u32::from_le_bytes(y_bytes[i * 4..(i + 1) * 4].try_into().unwrap());
-            limbs[i] = x_byte;
-            limbs[i + 8] = y_byte;
-        }
-        Self { limbs }
-    }
-
-    pub const fn from_limbs(limbs: [u32; 16]) -> Self {
-        Self { limbs }
-    }
-
-    pub fn add_assign(&mut self, other: &mut AffinePoint) {
-        unsafe {
-            syscall_secp256k1_add(self.limbs.as_mut_ptr(), other.limbs.as_mut_ptr());
-        }
-    }
-
-    pub fn double(&mut self) {
-        unsafe {
-            syscall_secp256k1_double(self.limbs.as_mut_ptr());
-        }
-    }
-}
-
 #[allow(non_snake_case)]
 fn double_and_add_base(
     a: &Scalar,
-    A: &AffinePoint,
+    A: &AffinePoint<Secp256k1Operations>,
     b: &Scalar,
-    B: &AffinePoint,
-) -> Option<AffinePoint> {
-    let mut res: Option<AffinePoint> = None;
+    B: &AffinePoint<Secp256k1Operations>,
+) -> Option<AffinePoint<Secp256k1Operations>> {
+    let mut res: Option<AffinePoint<Secp256k1Operations>> = None;
     let mut temp_A = *A;
     let mut temp_B = *B;
 
@@ -174,14 +162,14 @@ fn double_and_add_base(
     for (a_bit, b_bit) in a_bits.iter().zip(b_bits) {
         if *a_bit {
             match res.as_mut() {
-                Some(res) => res.add_assign(&mut temp_A),
+                Some(res) => res.add_assign(&temp_A),
                 None => res = Some(temp_A),
             };
         }
 
         if b_bit {
             match res.as_mut() {
-                Some(res) => res.add_assign(&mut temp_B),
+                Some(res) => res.add_assign(&temp_B),
                 None => res = Some(temp_B),
             };
         }
@@ -192,11 +180,6 @@ fn double_and_add_base(
 
     res
 }
-
-const GENERATOR: AffinePoint = AffinePoint::from_limbs([
-    385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
-    4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853, 1211816567,
-]);
 
 /// Outside of the VM, computes the pubkey and s_inverse value from a signature and a message hash.
 ///
