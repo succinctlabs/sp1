@@ -50,8 +50,19 @@ pub struct GetProofStatusResponse {
     #[prost(uint32, optional, tag = "7")]
     pub stage_total: ::core::option::Option<u32>,
 }
-#[derive(serde::Serialize, serde::Deserialize)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
 #[repr(i32)]
 pub enum ProofStatus {
     UnspecifiedStatus = 0,
@@ -90,18 +101,21 @@ impl ProofStatus {
     }
 }
 pub const SERVICE_FQN: &str = "/prover.SP1ProverService";
-#[async_trait::async_trait]
+#[twirp::async_trait::async_trait]
 pub trait Sp1ProverService {
     async fn create_proof(
         &self,
+        ctx: twirp::Context,
         req: CreateProofRequest,
     ) -> Result<CreateProofResponse, twirp::TwirpErrorResponse>;
     async fn submit_proof(
         &self,
+        ctx: twirp::Context,
         req: SubmitProofRequest,
     ) -> Result<SubmitProofResponse, twirp::TwirpErrorResponse>;
     async fn get_proof_status(
         &self,
+        ctx: twirp::Context,
         req: GetProofStatusRequest,
     ) -> Result<GetProofStatusResponse, twirp::TwirpErrorResponse>;
 }
@@ -112,25 +126,25 @@ where
     twirp::details::TwirpRouterBuilder::new(api)
         .route(
             "/CreateProof",
-            |api: std::sync::Arc<T>, req: CreateProofRequest| async move {
-                api.create_proof(req).await
+            |api: std::sync::Arc<T>, ctx: twirp::Context, req: CreateProofRequest| async move {
+                api.create_proof(ctx, req).await
             },
         )
         .route(
             "/SubmitProof",
-            |api: std::sync::Arc<T>, req: SubmitProofRequest| async move {
-                api.submit_proof(req).await
+            |api: std::sync::Arc<T>, ctx: twirp::Context, req: SubmitProofRequest| async move {
+                api.submit_proof(ctx, req).await
             },
         )
         .route(
             "/GetProofStatus",
-            |api: std::sync::Arc<T>, req: GetProofStatusRequest| async move {
-                api.get_proof_status(req).await
+            |api: std::sync::Arc<T>, ctx: twirp::Context, req: GetProofStatusRequest| async move {
+                api.get_proof_status(ctx, req).await
             },
         )
         .build()
 }
-#[async_trait::async_trait]
+#[twirp::async_trait::async_trait]
 pub trait Sp1ProverServiceClient: Send + Sync + std::fmt::Debug {
     async fn create_proof(
         &self,
@@ -145,7 +159,7 @@ pub trait Sp1ProverServiceClient: Send + Sync + std::fmt::Debug {
         req: GetProofStatusRequest,
     ) -> Result<GetProofStatusResponse, twirp::ClientError>;
 }
-#[async_trait::async_trait]
+#[twirp::async_trait::async_trait]
 impl Sp1ProverServiceClient for twirp::client::Client {
     async fn create_proof(
         &self,
@@ -165,7 +179,9 @@ impl Sp1ProverServiceClient for twirp::client::Client {
         &self,
         req: GetProofStatusRequest,
     ) -> Result<GetProofStatusResponse, twirp::ClientError> {
-        let url = self.base_url.join("prover.SP1ProverService/GetProofStatus")?;
+        let url = self
+            .base_url
+            .join("prover.SP1ProverService/GetProofStatus")?;
         self.request(url, req).await
     }
 }

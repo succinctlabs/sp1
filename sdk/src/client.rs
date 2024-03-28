@@ -95,7 +95,15 @@ impl SP1ProverServiceClient {
             })
             .await?;
 
+        println!("status: {:?}", res.status());
+        println!(
+            "succeeded status: {:?}\n\n",
+            res.status() == ProofStatus::Succeeded
+        );
+
         let result = if res.status() == ProofStatus::Succeeded {
+            println!("result_get_url: {:?}", res.result_get_url.clone());
+            println!("downloading proof\n\n");
             let proof = self
                 .http
                 .get(res.result_get_url.clone())
@@ -103,7 +111,8 @@ impl SP1ProverServiceClient {
                 .await?
                 .bytes()
                 .await?;
-            Some(bincode::deserialize(&proof)?)
+            println!("downloaded\n\n");
+            Some(bincode::deserialize(&proof).expect("Failed to deserialize proof"))
         } else {
             None
         };

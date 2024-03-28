@@ -80,21 +80,28 @@ impl SP1Prover {
         let mut pb = StageProgressBar::new();
         loop {
             let status = client.get_proof_status(&id).await;
-            if let std::result::Result::Ok(status) = status {
-                if status.0.status() == ProofStatus::Failed {
-                    pb.finish();
-                    return Err(anyhow::anyhow!("Proof failed"));
+            match status {
+                std::result::Result::Ok(status) => {
+                    if status.0.status() == ProofStatus::Failed {
+                        pb.finish();
+                        return Err(anyhow::anyhow!("Proof failed"));
+                    }
+                    if let Some(result) = status.1 {
+                        println!("Proof succeeded\n\n");
+                        pb.finish();
+                        return Ok(result);
+                    }
+                    pb.update(
+                        status.0.stage,
+                        status.0.total_stages,
+                        &status.0.stage_name,
+                        status.0.stage_progress.map(|p| (p, status.0.stage_total())),
+                    );
                 }
-                if let Some(result) = status.1 {
+                Err(e) => {
                     pb.finish();
-                    return Ok(result);
+                    return Err(e);
                 }
-                pb.update(
-                    status.0.stage,
-                    status.0.total_stages,
-                    &status.0.stage_name,
-                    status.0.stage_progress.map(|p| (p, status.0.stage_total())),
-                );
             }
             sleep(Duration::from_secs(1)).await;
         }
