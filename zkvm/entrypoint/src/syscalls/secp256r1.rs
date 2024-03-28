@@ -33,6 +33,7 @@ pub extern "C" fn syscall_secp256r1_double(p: *mut u32) {
             "ecall",
             in("t0") crate::syscalls::SECP256R1_DOUBLE,
             in("a0") p,
+            in("a1") 0
         );
     }
 
