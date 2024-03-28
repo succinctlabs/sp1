@@ -22,8 +22,9 @@ pub mod tests {
     use p3_field::AbstractField;
     use p3_poseidon2::Poseidon2;
     use p3_symmetric::Permutation;
+    use serial_test::serial;
+    use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintBackend};
     use sp1_recursion_compiler::ir::{Builder, Var};
-    use sp1_recursion_compiler::r1cs::{gnark, R1CSBackend};
     use sp1_recursion_compiler::OuterConfig;
     use zkhash::ark_ff::BigInteger;
     use zkhash::ark_ff::PrimeField;
@@ -66,6 +67,7 @@ pub mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_p2_permute_mut() {
         const WIDTH: usize = 3;
         const D: u64 = 5;
@@ -97,8 +99,8 @@ pub mod tests {
         builder.assert_var_eq(b, output[1]);
         builder.assert_var_eq(c, output[2]);
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 }

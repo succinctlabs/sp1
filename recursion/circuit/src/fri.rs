@@ -76,9 +76,10 @@ mod tests {
     use p3_fri::verifier;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
+    use serial_test::serial;
     use sp1_recursion_compiler::{
+        constraints::{gnark_ffi, ConstraintBackend},
         ir::{Builder, SymbolicExt, Var},
-        r1cs::{gnark, R1CSBackend},
         OuterConfig,
     };
     use sp1_recursion_core::stark::config::{
@@ -152,14 +153,8 @@ mod tests {
         }
     }
 
-    /// Generates code to test [verifier::verify_shape_and_sample_challenges].
-    ///
-    /// To test the generated Go code, run:
-    ///
-    /// > `go test -v -timeout 600s -run ^TestCircuit$ github.com/succinctlabs/sp1-recursion-gnark`.
-    ///
-    /// It will take a few minutes to compile the code.
     #[test]
+    #[serial]
     fn test_fri_verify_shape_and_sample_challenges() {
         let mut rng = &mut OsRng;
         let log_degrees = &[16, 9, 7, 4, 2];
@@ -235,13 +230,13 @@ mod tests {
 
         for i in 0..fri_challenges_gt.query_indices.len() {
             builder.assert_var_eq(
-                Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i] + 1),
+                Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
                 fri_challenges.query_indices.vec()[i],
             );
         }
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 }

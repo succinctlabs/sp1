@@ -6,8 +6,8 @@ use std::{
 
 use super::Constraint;
 
-pub fn ffi_test_circuit(constraints: Vec<Constraint>) {
-    let serialized = serde_json::to_string_pretty(&constraints).unwrap();
+pub fn test_circuit(constraints: Vec<Constraint>) {
+    let serialized = serde_json::to_string(&constraints).unwrap();
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let dir = format!("{}/../circuit/interpreter", manifest_dir);
     let path = format!("{}/constraints.json", dir);

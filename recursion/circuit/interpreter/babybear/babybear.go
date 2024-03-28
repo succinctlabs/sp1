@@ -86,7 +86,7 @@ func (c *Chip) Inv(a *Variable) *Variable {
 	}
 }
 
-func (c *Chip) AssertIsEqual(a, b *Variable) {
+func (c *Chip) AssertIsEqualV(a, b *Variable) {
 	c.field.AssertIsEqual(a.Value, b.Value)
 }
 
@@ -166,11 +166,11 @@ func (c *Chip) InvExtension(a *ExtensionVariable) *ExtensionVariable {
 	return &ExtensionVariable{value: v}
 }
 
-func (c *Chip) AssertIsEqualExtension(a, b *ExtensionVariable) {
-	c.AssertIsEqual(a.value[0], b.value[0])
-	c.AssertIsEqual(a.value[1], b.value[1])
-	c.AssertIsEqual(a.value[2], b.value[2])
-	c.AssertIsEqual(a.value[3], b.value[3])
+func (c *Chip) AssertIsEqualE(a, b *ExtensionVariable) {
+	c.AssertIsEqualV(a.value[0], b.value[0])
+	c.AssertIsEqualV(a.value[1], b.value[1])
+	c.AssertIsEqualV(a.value[2], b.value[2])
+	c.AssertIsEqualV(a.value[3], b.value[3])
 }
 
 func (c *Chip) AssertNeExtension(a, b *ExtensionVariable) {
