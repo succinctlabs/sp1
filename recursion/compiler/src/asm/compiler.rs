@@ -354,17 +354,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     }
                 }
                 DslIR::For(start, end, loop_var, block) => {
-                    if let (Usize::Const(start), Usize::Const(end)) = (start, end) {
-                        for i in start..end {
-                            self.push(AsmInstruction::ADDI(
-                                loop_var.fp(),
-                                ZERO,
-                                F::from_canonical_usize(i),
-                            ));
-                            self.build(block.clone());
-                        }
-                        continue;
-                    }
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,

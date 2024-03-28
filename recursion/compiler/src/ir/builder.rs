@@ -465,6 +465,7 @@ impl<C: Config> Builder<C> {
         // Compute the reverse bits.
         let bit_len = bit_len.into();
         let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
+        // let bit_len = self.materialize(bit_len);
         self.range(0, bit_len).for_each(|i, builder| {
             let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
             let entry = builder.get(index_bits, index);
@@ -763,6 +764,14 @@ pub struct RangeBuilder<'a, C: Config> {
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
+        if let (Usize::Const(start), Usize::Const(end)) = (self.start, self.end) {
+            let loop_var: Var<_> = self.builder.eval(C::N::from_canonical_usize(start));
+            for _ in start..end {
+                f(loop_var, self.builder);
+                self.builder.assign(loop_var, loop_var + C::N::one());
+            }
+            return;
+        }
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,
