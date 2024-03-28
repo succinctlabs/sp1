@@ -1,4 +1,6 @@
+use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
+use crate::challenger::FeltChallenger;
 use crate::commit::PolynomialSpaceVariable;
 use crate::folder::RecursiveVerifierConstraintFolder;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
@@ -64,11 +66,11 @@ where
             );
         }
 
-        challenger.observe_commitment(builder, permutation_commit.clone());
+        challenger.observe(builder, permutation_commit.clone());
 
         let alpha = challenger.sample_ext(builder);
 
-        challenger.observe_commitment(builder, quotient_commit.clone());
+        challenger.observe(builder, quotient_commit.clone());
 
         let zeta = challenger.sample_ext(builder);
 
@@ -200,6 +202,8 @@ where
 pub(crate) mod tests {
     use std::time::Instant;
 
+    use crate::challenger::CanObserveVariable;
+    use crate::challenger::FeltChallenger;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use sp1_core::{
@@ -332,7 +336,7 @@ pub(crate) mod tests {
         for proof in proofs {
             let proof = const_proof(&mut builder, &machine, proof);
             let ShardCommitment { main_commit, .. } = proof.commitment;
-            challenger.observe_commitment(&mut builder, main_commit);
+            challenger.observe(&mut builder, main_commit);
         }
 
         // Sample the permutation challenges.
@@ -391,7 +395,7 @@ pub(crate) mod tests {
         for proof_val in proofs {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
-            challenger.observe_commitment(&mut builder, main_commit.clone());
+            challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
         }
 
@@ -457,7 +461,7 @@ pub(crate) mod tests {
             proof_val.commitment.main_commit = [F::zero(); DIGEST_SIZE].into();
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
-            challenger.observe_commitment(&mut builder, main_commit.clone());
+            challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
         }
 

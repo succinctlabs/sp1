@@ -1,3 +1,4 @@
+use crate::challenger::FeltChallenger;
 use p3_field::TwoAdicField;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
@@ -281,8 +282,9 @@ pub(crate) mod tests {
 
     use std::cmp::Reverse;
 
+    use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
-    use crate::commit::PolynomialSpaceVariable;
+    use crate::challenger::FeltChallenger;
     use crate::fri::TwoAdicMultiplicativeCosetVariable;
     use crate::fri::TwoAdicPcsRoundVariable;
     use crate::types::Commitment;
@@ -554,8 +556,8 @@ pub(crate) mod tests {
                 1 << log_d_val,
             );
 
-            let expected_domain =
-                TwoAdicMultiplicativeCosetVariable::from_constant(&mut builder, domain_val);
+            let expected_domain: TwoAdicMultiplicativeCosetVariable<_> =
+                builder.eval_const(domain_val);
 
             builder.assert_eq::<TwoAdicMultiplicativeCosetVariable<_>>(domain, expected_domain);
         }
@@ -565,7 +567,7 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         let commit = <[Val; DIGEST_SIZE]>::from(commit).to_vec();
         let commit = builder.eval_const::<Array<_, _>>(commit);
-        challenger.observe_commitment(&mut builder, commit);
+        challenger.observe(&mut builder, commit);
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proof, &mut challenger);
 
@@ -681,7 +683,7 @@ pub(crate) mod tests {
         for commit in batches_commits {
             let commit: [Val; DIGEST_SIZE] = commit.into();
             let commit = builder.eval_const::<Array<_, _>>(commit.to_vec());
-            challenger.observe_commitment(&mut builder, commit);
+            challenger.observe(&mut builder, commit);
         }
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proof, &mut challenger);

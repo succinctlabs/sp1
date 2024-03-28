@@ -66,7 +66,7 @@ where
                 log_n: i,
                 shift: C::F::one(),
             };
-            let domain_value = TwoAdicMultiplicativeCosetVariable::from_constant(builder, constant);
+            let domain_value: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(constant);
             builder.assign(domain.clone(), domain_value);
             builder.assign(is_valid, C::N::one());
         });
@@ -83,17 +83,17 @@ where
 {
     type Constant = p3_commit::TwoAdicMultiplicativeCoset<C::F>;
 
-    fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self {
-        let log_d_val = constant.log_n as u32;
-        let g_val = C::F::two_adic_generator(constant.log_n);
-        // Initialize a domain.
-        TwoAdicMultiplicativeCosetVariable::<C> {
-            log_n: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
-            size: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
-            shift: builder.eval(constant.shift),
-            g: builder.eval(g_val),
-        }
-    }
+    // fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self {
+    //     let log_d_val = constant.log_n as u32;
+    //     let g_val = C::F::two_adic_generator(constant.log_n);
+    //     // Initialize a domain.
+    //     TwoAdicMultiplicativeCosetVariable::<C> {
+    //         log_n: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
+    //         size: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
+    //         shift: builder.eval(constant.shift),
+    //         g: builder.eval(g_val),
+    //     }
+    // }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L77
     fn next_point(

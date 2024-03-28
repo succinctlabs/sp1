@@ -24,7 +24,10 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
 
+use crate::challenger::CanObserveVariable;
+use crate::challenger::CanSampleBitsVariable;
 use crate::challenger::DuplexChallengerVariable;
+use crate::challenger::FeltChallenger;
 use crate::types::Commitment;
 use crate::types::Dimensions;
 use crate::types::FriChallenges;
@@ -45,7 +48,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         .range(0, proof.commit_phase_commits.len())
         .for_each(|i, builder| {
             let comm = builder.get(&proof.commit_phase_commits, i);
-            challenger.observe_commitment(builder, comm);
+            challenger.observe(builder, comm);
             let sample = challenger.sample_ext(builder);
             builder.set(&mut betas, i, sample);
         });

@@ -1,12 +1,12 @@
 use p3_commit::{LagrangeSelectors, PolynomialSpace};
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, Usize};
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, FromConstant, Usize};
 
 use crate::fri::TwoAdicPcsRoundVariable;
 
-pub trait PolynomialSpaceVariable<C: Config>: Sized {
+pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
     type Constant: PolynomialSpace<Val = C::F>;
 
-    fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self;
+    // fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self;
 
     fn next_point(&self, builder: &mut Builder<C>, point: Ext<C::F, C::EF>) -> Ext<C::F, C::EF>;
 
