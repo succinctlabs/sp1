@@ -8,7 +8,7 @@ use super::Opcode;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
-use crate::runtime::MemoryRecord;
+use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
@@ -82,11 +82,11 @@ pub struct ExecutionRecord {
 
     pub uint256_mul_events: Vec<Uint256MulEvent>,
 
-    /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
-    /// we keep this information in this struct for now.
-    pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 }
 
 pub struct ShardingConfig {
@@ -239,12 +239,12 @@ impl MachineRecord for ExecutionRecord {
                 .or_insert(*mult);
         }
 
-        self.first_memory_record
-            .append(&mut other.first_memory_record);
-        self.last_memory_record
-            .append(&mut other.last_memory_record);
-        self.program_memory_record
-            .append(&mut other.program_memory_record);
+        self.memory_initialize_events
+            .append(&mut other.memory_initialize_events);
+        self.memory_finalize_events
+            .append(&mut other.memory_finalize_events);
+        self.program_memory_events
+            .append(&mut other.program_memory_events);
     }
 
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
@@ -415,14 +415,14 @@ impl MachineRecord for ExecutionRecord {
         let last_shard = shards.last_mut().unwrap();
 
         last_shard
-            .first_memory_record
-            .extend_from_slice(&self.first_memory_record);
+            .memory_initialize_events
+            .extend_from_slice(&self.memory_initialize_events);
         last_shard
-            .last_memory_record
-            .extend_from_slice(&self.last_memory_record);
+            .memory_finalize_events
+            .extend_from_slice(&self.memory_finalize_events);
         last_shard
-            .program_memory_record
-            .extend_from_slice(&self.program_memory_record);
+            .program_memory_events
+            .extend_from_slice(&self.program_memory_events);
 
         shards
     }

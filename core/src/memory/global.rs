@@ -1,5 +1,5 @@
-use crate::air::MachineAir;
 use crate::air::{AirInteraction, SP1AirBuilder, Word};
+use crate::air::{MachineAir, WordAirBuilder};
 use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -7,16 +7,18 @@ use p3_matrix::dense::RowMajorMatrix;
 use crate::runtime::ExecutionRecord;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
-use p3_air::Air;
 use p3_air::BaseAir;
+use p3_air::{Air, AirBuilder};
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
 
+use super::MemoryInitializeFinalizeEvent;
+
 #[derive(PartialEq)]
 pub enum MemoryChipKind {
-    Init,
+    Initialize,
     Finalize,
     Program,
 }
@@ -42,7 +44,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
 
     fn name(&self) -> String {
         match self.kind {
-            MemoryChipKind::Init => "MemoryInit".to_string(),
+            MemoryChipKind::Initialize => "MemoryInit".to_string(),
             MemoryChipKind::Finalize => "MemoryFinalize".to_string(),
             MemoryChipKind::Program => "MemoryProgram".to_string(),
         }
@@ -53,21 +55,28 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let memory_record = match self.kind {
-            MemoryChipKind::Init => &input.first_memory_record,
-            MemoryChipKind::Finalize => &input.last_memory_record,
-            MemoryChipKind::Program => &input.program_memory_record,
+        let memory_events = match self.kind {
+            MemoryChipKind::Initialize => &input.memory_initialize_events,
+            MemoryChipKind::Finalize => &input.memory_finalize_events,
+            MemoryChipKind::Program => &input.program_memory_events,
         };
-        let rows: Vec<[F; 8]> = (0..memory_record.len()) // TODO: change this back to par_iter
+        let rows: Vec<[F; 8]> = (0..memory_events.len()) // TODO: change this back to par_iter
             .map(|i| {
-                let (addr, record, multiplicity) = memory_record[i];
+                let MemoryInitializeFinalizeEvent {
+                    addr,
+                    value,
+                    shard,
+                    timestamp,
+                    used,
+                } = memory_events[i];
                 let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                 let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
-                cols.shard = F::from_canonical_u32(record.shard);
-                cols.timestamp = F::from_canonical_u32(record.timestamp);
-                cols.value = record.value.into();
-                cols.is_real = F::from_canonical_u32(multiplicity);
+                cols.shard = F::from_canonical_u32(shard);
+                cols.timestamp = F::from_canonical_u32(timestamp);
+                cols.value = value.into();
+                cols.is_real = F::from_canonical_u32(used);
+
                 row
             })
             .collect::<Vec<_>>();
@@ -84,9 +93,9 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
 
     fn included(&self, shard: &Self::Record) -> bool {
         match self.kind {
-            MemoryChipKind::Init => !shard.first_memory_record.is_empty(),
-            MemoryChipKind::Finalize => !shard.last_memory_record.is_empty(),
-            MemoryChipKind::Program => !shard.program_memory_record.is_empty(),
+            MemoryChipKind::Initialize => !shard.memory_initialize_events.is_empty(),
+            MemoryChipKind::Finalize => !shard.memory_finalize_events.is_empty(),
+            MemoryChipKind::Program => !shard.program_memory_events.is_empty(),
         }
     }
 }
@@ -124,7 +133,7 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        if self.kind == MemoryChipKind::Init || self.kind == MemoryChipKind::Program {
+        if self.kind == MemoryChipKind::Initialize || self.kind == MemoryChipKind::Program {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(local.value.map(Into::into));
             builder.receive(AirInteraction::new(
@@ -144,6 +153,16 @@ where
                 local.is_real.into(),
                 crate::lookup::InteractionKind::Memory,
             ));
+        }
+
+        // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
+        // P.18 of the RISC-V spec.  To ensure that, we expect that the first row of the Initialize
+        // and Finalize global memory chip is for register %x0 (i.e. addr = 0x0), and that those rows
+        // have a value of 0.  Additionally, in the CPU air, we ensure that whenever op_a is set to
+        // %x0, its value is 0.
+        if self.kind == MemoryChipKind::Initialize || self.kind == MemoryChipKind::Finalize {
+            builder.when_first_row().assert_zero(local.addr);
+            builder.when_first_row().assert_word_zero(local.value);
         }
     }
 }
@@ -171,7 +190,7 @@ mod tests {
         runtime.run();
         let shard = runtime.record.clone();
 
-        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let chip: MemoryGlobalChip = MemoryGlobalChip::new(MemoryChipKind::Initialize);
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -182,8 +201,8 @@ mod tests {
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
         println!("{:?}", trace.values);
 
-        for (addr, record, _) in shard.last_memory_record {
-            println!("{:?} {:?}", addr, record);
+        for mem_event in shard.memory_finalize_events {
+            println!("{:?}", mem_event);
         }
     }
 
@@ -196,7 +215,7 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let chip = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let chip = MemoryGlobalChip::new(MemoryChipKind::Initialize);
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
@@ -213,7 +232,8 @@ mod tests {
         let mut runtime = Runtime::new(program);
         runtime.run();
 
-        let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+        let machine: crate::stark::MachineStark<BabyBearPoseidon2, RiscvAir<BabyBear>> =
+            RiscvAir::machine(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
             &runtime.record,
