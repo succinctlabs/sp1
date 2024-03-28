@@ -94,7 +94,7 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(&Bn254BaseField::MODULUS),
+            biguint_from_limbs(Bn254BaseField::MODULUS),
             Bn254BaseField::modulus()
         );
     }

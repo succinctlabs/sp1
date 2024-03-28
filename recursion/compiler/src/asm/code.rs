@@ -1,6 +1,6 @@
 use super::AsmInstruction;
+use alloc::collections::BTreeMap;
 use alloc::format;
-use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 use core::fmt::Display;
 use p3_field::{ExtensionField, PrimeField32};
