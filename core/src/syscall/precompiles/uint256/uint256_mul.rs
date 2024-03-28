@@ -1,6 +1,6 @@
 use super::U256Field;
 use crate::air::{MachineAir, SP1AirBuilder};
-use crate::memory::{MemoryReadCols, MemoryWriteCols};
+use crate::memory::{MemoryCols, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::Limbs;
 use crate::runtime::{ExecutionRecord, Syscall, SyscallCode};
@@ -10,7 +10,7 @@ use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
 use crate::utils::{bytes_to_words_le, limbs_from_prev_access, pad_rows, words_to_bytes_le};
 use num::{BigUint, One};
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -251,6 +251,13 @@ where
         local
             .output
             .eval::<AB, _, _>(builder, &x, &y, FieldOperation::Mul);
+
+        // Assert that the output is equal to whats written to the memory record.
+        for i in 0..32 {
+            builder
+                .when(local.is_real)
+                .assert_eq(local.output.result[i], local.x_memory[i / 4].value()[i % 4]);
+        }
 
         // Constraint the memory reads for the x and y values.
         builder.constraint_memory_access_slice(
