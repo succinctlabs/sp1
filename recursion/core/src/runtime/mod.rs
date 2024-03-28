@@ -124,6 +124,20 @@ where
         }
     }
 
+    pub fn print_stats(&self) {
+        println!("Number of cycles: {}", self.timestamp);
+        println!("Number of Poseidon permutes: {}", self.nb_poseidons);
+        println!(
+            "Number of bit decompositions: {}",
+            self.nb_bit_decompositions
+        );
+        println!("Number of base ops: {}", self.nb_base_ops);
+        println!("Number of ext ops: {}", self.nb_ext_ops);
+        println!("Number of memory ops: {}", self.nb_memory_ops);
+        println!("Number of printf ops: {}", self.nb_print_f);
+        println!("Number of printef ops: {}", self.nb_print_e);
+    }
+
     fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
         let entry = self.memory[addr.as_canonical_u32() as usize].clone();

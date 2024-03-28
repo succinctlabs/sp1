@@ -415,18 +415,7 @@ pub(crate) mod tests {
         let time = Instant::now();
         runtime.run();
         let elapsed = time.elapsed();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.timestamp
-        );
-        println!("Number of Poseidon permutes: {}", runtime.nb_poseidons);
-        println!(
-            "Number of bit decompositions: {}",
-            runtime.nb_bit_decompositions
-        );
-        println!("Number of base operations: {}", runtime.nb_base_ops);
-        println!("Number of ext operations: {}", runtime.nb_ext_ops);
-        println!("Number of memory operations: {}", runtime.nb_memory_ops);
+        runtime.print_stats();
         println!("Execution took: {:?}", elapsed);
     }
 

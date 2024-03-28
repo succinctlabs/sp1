@@ -157,10 +157,12 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                                 let ro_at_log_height = builder.get(&ro, log_height);
                                 let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
-                                let new_ro_at_log_height: Ext<C::F, C::EF> = builder
-                                    .eval(ro_at_log_height + alpha_pow_at_log_height * quotient);
 
-                                builder.set(&mut ro, log_height, new_ro_at_log_height);
+                                builder.set(
+                                    &mut ro,
+                                    log_height,
+                                    ro_at_log_height + alpha_pow_at_log_height * quotient,
+                                );
                                 builder.set(
                                     &mut alpha_pow,
                                     log_height,
