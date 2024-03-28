@@ -8,7 +8,8 @@ use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
-    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
+    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallMagicLen,
+    SyscallMagicRead, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
@@ -68,6 +69,9 @@ pub enum SyscallCode {
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 0x00_38_01_0D,
+
+    MAGIC_LEN = 0x00_00_00_F0,
+    MAGIC_READ = 0x00_00_00_F1,
 }
 
 impl SyscallCode {
@@ -88,6 +92,8 @@ impl SyscallCode {
             0x00_00_01_0B => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_0C => SyscallCode::SECP256K1_DECOMPRESS,
             0x00_38_01_0D => SyscallCode::BLAKE3_COMPRESS_INNER,
+            0x00_00_00_F0 => SyscallCode::MAGIC_LEN,
+            0x00_00_00_F1 => SyscallCode::MAGIC_READ,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -253,6 +259,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(SyscallExitUnconstrained::new()),
     );
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
+    syscall_map.insert(SyscallCode::MAGIC_LEN, Rc::new(SyscallMagicLen::new()));
+    syscall_map.insert(SyscallCode::MAGIC_READ, Rc::new(SyscallMagicRead::new()));
 
     syscall_map
 }
@@ -322,6 +330,8 @@ mod tests {
                 SyscallCode::SECP256K1_DECOMPRESS => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
                 }
+                SyscallCode::MAGIC_LEN => assert_eq!(code as u32, sp1_zkvm::syscalls::MAGIC_LEN),
+                SyscallCode::MAGIC_READ => assert_eq!(code as u32, sp1_zkvm::syscalls::MAGIC_READ),
             }
         }
     }

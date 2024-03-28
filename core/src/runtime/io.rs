@@ -34,6 +34,16 @@ impl Runtime {
         buf.copy_from_slice(&self.state.output_stream[start..end]);
         self.state.output_stream_ptr = end;
     }
+
+    pub fn write_magic<T: Serialize>(&mut self, input: &T) {
+        let mut buf = Vec::new();
+        bincode::serialize_into(&mut buf, input).expect("serialization failed");
+        self.state.magic_input_stream.push(buf.to_vec());
+    }
+
+    pub fn write_magic_slice(&mut self, input: &[u8]) {
+        self.state.magic_input_stream.push(input.to_vec());
+    }
 }
 
 #[cfg(test)]

@@ -73,3 +73,38 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
     #[cfg(not(target_os = "zkvm"))]
     unreachable!()
 }
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_magic_len() -> usize {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        let len;
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::MAGIC_LEN,
+            lateout("t0") len,
+        );
+        len
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}
+
+#[allow(unused_variables)]
+#[no_mangle]
+pub extern "C" fn syscall_magic_read(ptr: *mut u8, len: usize) {
+    #[cfg(target_os = "zkvm")]
+    unsafe {
+        asm!(
+            "ecall",
+            in("t0") crate::syscalls::MAGIC_READ,
+            in("a0") ptr,
+            in("a1") len,
+        );
+    }
+
+    #[cfg(not(target_os = "zkvm"))]
+    unreachable!()
+}

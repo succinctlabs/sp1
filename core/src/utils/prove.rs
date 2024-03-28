@@ -110,7 +110,7 @@ fn reset_seek(file: &mut File) {
 
 pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
-    stdin: &[u8],
+    stdin: SP1Stdin,
     config: SC,
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
@@ -126,7 +126,10 @@ where
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
 
-    runtime.write_stdin_slice(stdin);
+    runtime.write_stdin_slice(&stdin.buffer.data);
+    for vec in stdin.magic {
+        runtime.write_magic_slice(&vec);
+    }
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
