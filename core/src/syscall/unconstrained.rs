@@ -23,8 +23,10 @@ impl Syscall for SyscallEnterUnconstrained {
             memory_diff: HashMap::default(),
             record: std::mem::take(&mut ctx.rt.record),
             op_record: std::mem::take(&mut ctx.rt.memory_accesses),
+            emit_events: ctx.rt.emit_events,
         };
-        None
+        ctx.rt.emit_events = false;
+        Some(1)
     }
 }
 
@@ -56,10 +58,11 @@ impl Syscall for SyscallExitUnconstrained {
             }
             ctx.rt.record = std::mem::take(&mut ctx.rt.unconstrained_state.record);
             ctx.rt.memory_accesses = std::mem::take(&mut ctx.rt.unconstrained_state.op_record);
+            ctx.rt.emit_events = ctx.rt.unconstrained_state.emit_events;
             ctx.rt.unconstrained = false;
         }
         ctx.rt.unconstrained_state = ForkState::default();
-        None
+        Some(0)
     }
 }
 

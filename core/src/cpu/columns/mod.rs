@@ -1,5 +1,6 @@
 mod auipc;
 mod branch;
+mod ecall;
 mod instruction;
 mod jump;
 mod memory;
@@ -8,6 +9,7 @@ mod opcode_specific;
 
 pub use auipc::*;
 pub use branch::*;
+pub use ecall::*;
 pub use instruction::*;
 pub use jump::*;
 pub use memory::*;
@@ -86,7 +88,6 @@ pub struct CpuCols<T: Copy> {
     pub unsigned_mem_val: Word<T>,
 
     /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
-    /// TODO: this can be moved into `opcode_specific_columns` for ECALL.
     pub ecall_mul_send_to_table: T,
 }
 
