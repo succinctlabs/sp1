@@ -8,6 +8,7 @@ mod secp256k1;
 mod sha_compress;
 mod sha_extend;
 mod sys;
+mod uint256_mul;
 mod unconstrained;
 
 pub use ed25519::*;
@@ -19,6 +20,7 @@ pub use secp256k1::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
+pub use uint256_mul::*;
 pub use unconstrained::*;
 
 /// These codes MUST match the codes in `core/src/runtime/syscall.rs`. There is a derived test
@@ -65,3 +67,6 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
+
+/// Executes the `UINT256_MUL` precompile.
+pub const UINT256_MUL: u32 = 0x00_01_01_10;

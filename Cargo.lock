@@ -2901,6 +2901,7 @@ dependencies = [
  "cfg-if",
  "getrandom",
  "k256",
+ "num",
  "rand",
  "serde",
 ]

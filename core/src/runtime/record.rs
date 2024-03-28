@@ -16,6 +16,7 @@ use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
+use crate::syscall::precompiles::uint256::Uint256MulEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
 use itertools::Itertools;
@@ -79,6 +80,8 @@ pub struct ExecutionRecord {
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
+    pub uint256_mul_events: Vec<Uint256MulEvent>,
+
     pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
 
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
@@ -100,6 +103,7 @@ pub struct ShardingConfig {
     pub keccak_len: usize,
     pub weierstrass_add_len: usize,
     pub weierstrass_double_len: usize,
+    pub uint256_mul_len: usize,
 }
 
 impl ShardingConfig {
@@ -125,6 +129,7 @@ impl Default for ShardingConfig {
             keccak_len: shard_size,
             weierstrass_add_len: shard_size,
             weierstrass_double_len: shard_size,
+            uint256_mul_len: shard_size,
         }
     }
 }
@@ -190,6 +195,10 @@ impl MachineRecord for ExecutionRecord {
             "blake3_compress_inner_events".to_string(),
             self.blake3_compress_inner_events.len(),
         );
+        stats.insert(
+            "uint256_mul_events".to_string(),
+            self.uint256_mul_events.len(),
+        );
         stats
     }
 
@@ -220,6 +229,8 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.uint256_mul_events
+            .append(&mut other.uint256_mul_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
@@ -343,6 +354,16 @@ impl MachineRecord for ExecutionRecord {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
+        // Uint256 mul arithmetic events.
+        for (uint256_mul_chunk, shard) in take(&mut self.uint256_mul_events)
+            .chunks_mut(config.uint256_mul_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .uint256_mul_events
+                .extend_from_slice(&uint256_mul_chunk);
+        }
+
         // Weierstrass curve add events.
         for (weierstrass_add_chunk, shard) in take(&mut self.weierstrass_add_events)
             .chunks_mut(config.weierstrass_add_len)
@@ -383,6 +404,9 @@ impl MachineRecord for ExecutionRecord {
 
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
+
+        // Uint256 mul arithmetic events.
+        first.uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
 
         // Put all byte lookups in the first shard (as the table size is fixed)
         first.byte_lookups = std::mem::take(&mut self.byte_lookups);
