@@ -1,4 +1,5 @@
 #![allow(unused_unsafe)]
+use crate::{syscall_magic_len, syscall_magic_read};
 use crate::{syscall_read, syscall_write};
 use bincode;
 use serde::de::DeserializeOwned;
@@ -70,4 +71,15 @@ pub fn hint<T: Serialize>(value: &T) {
 pub fn hint_slice(buf: &[u8]) {
     let mut my_reader = SyscallWriter { fd: FD_HINT };
     my_reader.write_all(buf).unwrap();
+}
+
+pub fn read_magic_vec() -> Vec<u8> {
+    let len = unsafe { syscall_magic_len() };
+    let mut vec = Vec::with_capacity(len);
+    let ptr = vec.as_mut_ptr();
+    unsafe {
+        syscall_magic_read(ptr, len);
+        vec.set_len(len);
+    }
+    vec
 }

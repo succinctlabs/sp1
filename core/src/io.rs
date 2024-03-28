@@ -3,9 +3,10 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use crate::utils::Buffer;
 
 /// Standard input for the prover.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SP1Stdin {
     pub buffer: Buffer,
+    pub magic: Vec<Vec<u8>>,
 }
 
 /// Standard output for the prover.
@@ -19,6 +20,7 @@ impl SP1Stdin {
     pub fn new() -> Self {
         Self {
             buffer: Buffer::new(),
+            magic: Vec::new(),
         }
     }
 
@@ -26,6 +28,7 @@ impl SP1Stdin {
     pub fn from(data: &[u8]) -> Self {
         Self {
             buffer: Buffer::from(data),
+            magic: Vec::new(),
         }
     }
 
@@ -47,6 +50,10 @@ impl SP1Stdin {
     /// Write a slice of bytes to the buffer.
     pub fn write_slice(&mut self, slice: &[u8]) {
         self.buffer.write_slice(slice);
+    }
+
+    pub fn write_magic(&mut self, magic: Vec<u8>) {
+        self.magic.push(magic);
     }
 }
 
