@@ -164,6 +164,21 @@ where
     }
 }
 
+impl<'a, F, EF> DebugConstraintBuilder<'a, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    #[inline]
+    fn debug_constraint(&self, x: F, y: F) {
+        if x != y {
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            eprintln!("constraint failed: {:?} != {:?}\n{}", x, y, backtrace);
+            panic!();
+        }
+    }
+}
+
 impl<'a, F, EF> AirBuilder for DebugConstraintBuilder<'a, F, EF>
 where
     F: Field,
@@ -195,10 +210,23 @@ where
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let f: F = x.into();
-        if f != F::zero() {
+        self.debug_constraint(x.into(), F::zero());
+    }
+
+    fn assert_one<I: Into<Self::Expr>>(&mut self, x: I) {
+        self.debug_constraint(x.into(), F::one());
+    }
+
+    fn assert_eq<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(&mut self, x: I1, y: I2) {
+        self.debug_constraint(x.into(), y.into());
+    }
+
+    /// Assert that `x` is a boolean, i.e. either 0 or 1.
+    fn assert_bool<I: Into<Self::Expr>>(&mut self, x: I) {
+        let x = x.into();
+        if x != F::zero() && x != F::one() {
             let backtrace = std::backtrace::Backtrace::force_capture();
-            eprintln!("constraint failed: {:?} != 0\n{}", f, backtrace);
+            eprintln!("constraint failed: {:?} is not a bool\n{}", x, backtrace);
             panic!();
         }
     }
