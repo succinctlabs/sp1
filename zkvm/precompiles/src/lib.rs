@@ -1,7 +1,9 @@
+pub mod bn254;
 pub mod io;
 pub mod secp256k1;
 pub mod uint256_div;
 pub mod unconstrained;
+pub mod utils;
 
 extern "C" {
     pub fn syscall_halt(exit_code: u8) -> !;
@@ -14,6 +16,8 @@ extern "C" {
     pub fn syscall_secp256k1_add(p: *mut u32, q: *const u32);
     pub fn syscall_secp256k1_double(p: *mut u32);
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
+    pub fn syscall_bn254_add(p: *mut u32, q: *const u32);
+    pub fn syscall_bn254_double(p: *mut u32);
     pub fn syscall_keccak_permute(state: *mut u64);
     pub fn syscall_uint256_mul(x: *mut u32, y: *const u32);
     pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
