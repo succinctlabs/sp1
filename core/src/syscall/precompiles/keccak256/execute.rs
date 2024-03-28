@@ -5,7 +5,7 @@ use crate::{
 
 use p3_keccak_air::{NUM_ROUNDS, RC};
 
-use super::{KeccakPermuteChip, STATE_NUM_WORDS};
+use super::{KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE};
 
 const RHO: [u32; 24] = [
     1, 3, 6, 10, 15, 21, 28, 36, 45, 55, 2, 14, 27, 41, 56, 8, 25, 43, 62, 18, 39, 61, 20, 44,
@@ -87,8 +87,7 @@ impl Syscall for KeccakPermuteChip {
         // Increment the clk by 1 before writing because we read from memory at start_clk.
         rt.clk += 1;
         let mut values_to_write = Vec::new();
-        // TODO: where does this 25 come from.
-        for i in 0..25 {
+        for i in 0..STATE_SIZE {
             let most_sig = ((state[i] >> 32) & 0xFFFFFFFF) as u32;
             let least_sig = (state[i] & 0xFFFFFFFF) as u32;
             values_to_write.push(least_sig);
