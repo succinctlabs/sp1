@@ -112,6 +112,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                             cols.y_ptr = F::from_canonical_u32(event.y_ptr);
                         }
+
                         // Memory columns.
                         {
                             // Populate the columns with the input values.
