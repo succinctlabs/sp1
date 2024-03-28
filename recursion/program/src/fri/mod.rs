@@ -141,8 +141,10 @@ where
     let two_adic_generator_ef: Ext<_, _> = builder.eval(SymbolicExt::Base(
         SymbolicFelt::Val(two_adic_generator_f).into(),
     ));
-    let power_bits = builder.reverse_bits_len(index_bits, log_max_height);
-    let x = builder.exp_bits(two_adic_generator_ef, &power_bits);
+    // let power_bits = builder.reverse_bits_len(index_bits, log_max_height);
+    // let x = builder.exp_bits(two_adic_generator_ef, &power_bits);
+
+    let x = builder.exp_reverse_bits_len(two_adic_generator_ef, index_bits, log_max_height);
 
     let log_max_height = log_max_height.materialize(builder);
     builder

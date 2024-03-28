@@ -457,7 +457,8 @@ impl<C: Config> Builder<C> {
     ///
     /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
     /// behavior.
-    pub fn reverse_bits_len(
+    #[allow(dead_code)]
+    fn reverse_bits_len(
         &mut self,
         index_bits: &Array<C, Var<C::N>>,
         bit_len: impl Into<Usize<C::N>>,
@@ -503,6 +504,31 @@ impl<C: Config> Builder<C> {
         let power_f: V = self.eval(x);
         self.range(0, power_bits.len()).for_each(|i, builder| {
             let bit = builder.get(power_bits, i);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
+        });
+        result
+    }
+
+    // Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
+    pub fn exp_reverse_bits_len<V: Variable<C>>(
+        &mut self,
+        x: V,
+        power_bits: &Array<C, Var<C::N>>,
+        bit_len: impl Into<Usize<C::N>>,
+    ) -> V
+    where
+        V::Expression: AbstractField,
+        V: Copy + Mul<Output = V::Expression>,
+    {
+        let result = self.eval(V::Expression::one());
+        let power_f: V = self.eval(x);
+        let bit_len = bit_len.into();
+        self.range(0, bit_len).for_each(|i, builder| {
+            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
+            let bit = builder.get(power_bits, index);
             builder
                 .if_eq(bit, C::N::one())
                 .then(|builder| builder.assign(result, result * power_f));

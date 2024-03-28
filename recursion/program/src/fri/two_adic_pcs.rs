@@ -136,13 +136,14 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let bits_reduced: Var<C::N> =
                             builder.eval(log_global_max_height - log_height);
                         let index_bits_shifted = index_bits.shift(builder, bits_reduced);
-                        let rev_reduced_index_bits =
-                            builder.reverse_bits_len(&index_bits_shifted, Usize::Var(log_height));
 
                         let g = builder.generator();
                         let two_adic_generator = builder.two_adic_generator(Usize::Var(log_height));
-                        let two_adic_generator_exp =
-                            builder.exp_bits(two_adic_generator, &rev_reduced_index_bits);
+                        let two_adic_generator_exp = builder.exp_reverse_bits_len(
+                            two_adic_generator,
+                            &index_bits_shifted,
+                            Usize::Var(log_height),
+                        );
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
