@@ -1,31 +1,58 @@
 //! An implementation of Poseidon2 over BN254.
 
+use itertools::Itertools;
+use p3_field::AbstractField;
+use p3_field::Field;
+use sp1_recursion_compiler::ir::{Array, Felt};
 use sp1_recursion_compiler::ir::{Builder, Config, DslIR, Var};
 
+use crate::challenger::reduce_32;
+use crate::RATE;
 use crate::SPONGE_SIZE;
 
 pub trait P2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
+    fn p2_hash(&mut self, input: &[Felt<C::F>]) -> Array<C, Var<C::N>>;
 }
 
 impl<C: Config> P2CircuitBuilder<C> for Builder<C> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]) {
         self.push(DslIR::CircuitPoseidon2Permute(state))
     }
+
+    fn p2_hash(&mut self, input: &[Felt<C::F>]) -> Array<C, Var<C::N>> {
+        let num_f_elms = C::N::bits() / C::F::bits();
+        let mut state: [Var<C::N>; SPONGE_SIZE] = [
+            self.eval(C::N::zero()),
+            self.eval(C::N::zero()),
+            self.eval(C::N::zero()),
+        ];
+        for block_chunk in &input.iter().chunks(RATE) {
+            for (chunk_id, chunk) in (&block_chunk.chunks(num_f_elms)).into_iter().enumerate() {
+                let chunk = chunk.collect_vec().into_iter().copied().collect::<Vec<_>>();
+                state[chunk_id] = reduce_32(self, chunk.as_slice());
+            }
+            self.p2_permute_mut(state);
+        }
+
+        self.vec(vec![state[0]])
+    }
 }
 
 #[cfg(test)]
 pub mod tests {
     use ff::PrimeField as FFPrimeField;
+    use p3_baby_bear::BabyBear;
     use p3_bn254_fr::FFBn254Fr;
     use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
     use p3_field::AbstractField;
     use p3_poseidon2::Poseidon2;
-    use p3_symmetric::Permutation;
+    use p3_symmetric::{CryptographicHasher, Permutation};
     use serial_test::serial;
     use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintBackend};
-    use sp1_recursion_compiler::ir::{Builder, Var};
+    use sp1_recursion_compiler::ir::{Builder, Felt, Var};
     use sp1_recursion_compiler::OuterConfig;
+    use sp1_recursion_core::stark::config::{OuterHash, OuterPerm};
     use zkhash::ark_ff::BigInteger;
     use zkhash::ark_ff::PrimeField;
     use zkhash::fields::bn256::FpBN256 as ark_FpBN256;
@@ -98,6 +125,48 @@ pub mod tests {
         builder.assert_var_eq(a, output[0]);
         builder.assert_var_eq(b, output[1]);
         builder.assert_var_eq(c, output[2]);
+
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        gnark_ffi::test_circuit(constraints);
+    }
+
+    #[test]
+    #[serial]
+    fn test_p2_hash() {
+        const ROUNDS_F: usize = 8;
+        const ROUNDS_P: usize = 56;
+
+        let perm: OuterPerm = Poseidon2::new(
+            ROUNDS_F,
+            ROUNDS_P,
+            bn254_poseidon2_rc3(),
+            DiffusionMatrixBN254,
+        );
+        let hasher = OuterHash::new(perm.clone()).unwrap();
+
+        let input: [BabyBear; 7] = [
+            BabyBear::from_canonical_u32(0),
+            BabyBear::from_canonical_u32(1),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+            BabyBear::from_canonical_u32(2),
+        ];
+        let output = hasher.hash_iter(input.into_iter());
+
+        let mut builder = Builder::<OuterConfig>::default();
+        let a: Felt<_> = builder.eval(input[0]);
+        let b: Felt<_> = builder.eval(input[1]);
+        let c: Felt<_> = builder.eval(input[2]);
+        let d: Felt<_> = builder.eval(input[3]);
+        let e: Felt<_> = builder.eval(input[4]);
+        let f: Felt<_> = builder.eval(input[5]);
+        let g: Felt<_> = builder.eval(input[6]);
+        let result = builder.p2_hash(&[a, b, c, d, e, f, g]);
+
+        builder.assert_var_eq(result.vec()[0], output[0]);
 
         let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);

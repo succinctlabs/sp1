@@ -1,4 +1,8 @@
+use std::cmp::Reverse;
+
+use itertools::Itertools;
 use p3_fri::FriConfig;
+use p3_matrix::Dimensions;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::Array;
 use sp1_recursion_compiler::prelude::MemVariable;
@@ -42,6 +46,120 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         betas: builder.vec(betas),
     }
 }
+
+// pub fn verify_challenges<C: Config>(
+//     builder: &mut Builder<C>,
+//     config: &FriConfig<OuterChallengeMmcs>,
+//     proof: &FriProofVariable<C>,
+//     challenges: &FriChallenges<C>,
+//     reduced_openings: &Array<C, Array<C, Ext<C::F, C::EF>>>,
+// ) where
+//     C::EF: TwoAdicField,
+// {
+//     let log_max_height = proof.commit_phase_commits.vec().len() + config.log_blowup;
+//     for i in 0..challenges.query_indices.vec().len() {
+//         let index = challenges.query_indices.vec()[i];
+//         let query_proof = &proof.query_proofs.vec()[i];
+//         let ro = &reduced_openings.vec()[i];
+
+//         let folded_eval = verify_query(
+//             builder,
+//             config,
+//             &proof.commit_phase_commits,
+//             index,
+//             query_proof,
+//             &challenges.betas,
+//             ro,
+//             log_max_height,
+//         );
+
+//         // builder.assert_ext_eq(folded_eval, proof.final_poly);
+//     }
+// }
+
+// pub fn verify_query<C: Config>(
+//     builder: &mut Builder<C>,
+//     config: &FriConfig<OuterChallengeMmcs>,
+//     commit_phase_commits: &Array<C, Array<C, Var<C::N>>>,
+//     index: Var<C::N>,
+//     proof: &FriQueryProofVariable<C>,
+//     betas: &Array<C, Ext<C::F, C::EF>>,
+//     reduced_openings: &Array<C, Ext<C::F, C::EF>>,
+//     log_max_height: usize,
+// ) -> Ext<C::F, C::EF>
+// where
+//     C::EF: TwoAdicField,
+// {
+//     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
+//     let two_adic_generator_ef = builder.eval(SymbolicExt::Const(C::EF::two_adic_generator(
+//         log_max_height,
+//     )));
+//     let power = builder.reverse_bits_len(index, log_max_height);
+//     let x = builder.exp_usize_ef(two_adic_generator_ef, power);
+//     let index_bits = builder.num2bits_v_circuit(index, 32);
+
+//     // builder
+//     //     .range(0, commit_phase_commits.len())
+//     //     .for_each(|i, builder| {
+//     //         let log_folded_height: Var<_> = builder.eval(log_max_height - i - C::N::one());
+//     //         let log_folded_height_plus_one: Var<_> = builder.eval(log_folded_height + C::N::one());
+//     //         let commit = builder.get(commit_phase_commits, i);
+//     //         let step = builder.get(&proof.commit_phase_openings, i);
+//     //         let beta = builder.get(betas, i);
+
+//     //         let reduced_opening = builder.get(reduced_openings, log_folded_height_plus_one);
+//     //         builder.assign(folded_eval, folded_eval + reduced_opening);
+
+//     //         let index_bit = builder.get(&index_bits, i);
+//     //         let index_sibling_mod_2: Var<C::N> =
+//     //             builder.eval(SymbolicVar::Const(C::N::one()) - index_bit);
+//     //         let i_plus_one = builder.eval(i + C::N::one());
+//     //         let index_pair = index_bits.shift(builder, i_plus_one);
+
+//     //         let mut evals: Array<C, Ext<C::F, C::EF>> = builder.array(2);
+//     //         builder.set(&mut evals, 0, folded_eval);
+//     //         builder.set(&mut evals, 1, folded_eval);
+//     //         builder.set(&mut evals, index_sibling_mod_2, step.sibling_value);
+
+//     //         let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
+//     //         let dims = Dimensions::<C> {
+//     //             height: builder.exp_usize_v(two, Usize::Var(log_folded_height)),
+//     //         };
+//     //         let mut dims_slice: Array<C, Dimensions<C>> = builder.array(1);
+//     //         builder.set(&mut dims_slice, 0, dims);
+
+//     //         let mut opened_values = builder.array(1);
+//     //         builder.set(&mut opened_values, 0, evals.clone());
+//     //         verify_batch::<C, 4>(
+//     //             builder,
+//     //             &commit,
+//     //             dims_slice,
+//     //             index_pair,
+//     //             opened_values,
+//     //             &step.opening_proof,
+//     //         );
+
+//     //         let mut xs: Array<C, Ext<C::F, C::EF>> = builder.array(2);
+//     //         let two_adic_generator_one = builder.two_adic_generator(Usize::Const(1));
+//     //         builder.set(&mut xs, 0, x);
+//     //         builder.set(&mut xs, 1, x);
+//     //         builder.set(&mut xs, index_sibling_mod_2, x * two_adic_generator_one);
+
+//     //         let xs_0 = builder.get(&xs, 0);
+//     //         let xs_1 = builder.get(&xs, 1);
+//     //         let eval_0 = builder.get(&evals, 0);
+//     //         let eval_1 = builder.get(&evals, 1);
+//     //         builder.assign(
+//     //             folded_eval,
+//     //             eval_0 + (beta - xs_0) * (eval_1 - eval_0) / (xs_1 - xs_0),
+//     //         );
+
+//     //         builder.assign(x, x * x);
+//     //     });
+
+//     // folded_eval
+//     todo!()
+// }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(DslVariable, Clone)]
