@@ -193,25 +193,44 @@ where
     /// Fetch the destination address input operand values for a load instruction (from heap).
     fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         let a_ptr = self.fp + instruction.op_a;
+
+        let offset = if instruction.imm_c {
+            instruction.op_c[0]
+        } else {
+            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
+        };
+
+        let size = instruction.imm;
+
         let b = if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
         } else if instruction.imm_b {
             instruction.op_b
         } else {
             let address = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            self.mr(address[0], MemoryAccessPosition::A)
+            self.mr(address[0] + offset * size, MemoryAccessPosition::A)
         };
+
         (a_ptr, b)
     }
 
     /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
+        let offset = if instruction.imm_c {
+            instruction.op_c[0]
+        } else {
+            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
+        };
+
+        let size = instruction.imm;
+
         let a_ptr = if instruction.imm_b {
             // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
-            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
+            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0] + offset * size
         };
+
         let b = if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
         } else if instruction.imm_b {
@@ -219,6 +238,7 @@ where
         } else {
             self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         };
+
         (a_ptr, b)
     }
 

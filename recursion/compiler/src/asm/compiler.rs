@@ -390,12 +390,24 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::Alloc(ptr, len) => {
                     self.alloc(ptr, len);
                 }
-                DslIR::LoadV(var, ptr) => self.push(AsmInstruction::LW(var.fp(), ptr.fp())),
-                DslIR::LoadF(var, ptr) => self.push(AsmInstruction::LW(var.fp(), ptr.fp())),
-                DslIR::LoadE(var, ptr) => self.push(AsmInstruction::LE(var.fp(), ptr.fp())),
-                DslIR::StoreV(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
-                DslIR::StoreF(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
-                DslIR::StoreE(ptr, var) => self.push(AsmInstruction::SE(ptr.fp(), var.fp())),
+                DslIR::LoadV(var, ptr) => {
+                    self.push(AsmInstruction::LWI(var.fp(), ptr.fp(), F::zero(), F::one()))
+                }
+                DslIR::LoadF(var, ptr) => {
+                    self.push(AsmInstruction::LWI(var.fp(), ptr.fp(), F::zero(), F::one()))
+                }
+                DslIR::LoadE(var, ptr) => {
+                    self.push(AsmInstruction::LEI(var.fp(), ptr.fp(), F::zero(), F::one()))
+                }
+                DslIR::StoreV(ptr, var) => {
+                    self.push(AsmInstruction::SWI(ptr.fp(), var.fp(), F::zero(), F::one()))
+                }
+                DslIR::StoreF(ptr, var) => {
+                    self.push(AsmInstruction::SWI(ptr.fp(), var.fp(), F::zero(), F::one()))
+                }
+                DslIR::StoreE(ptr, var) => {
+                    self.push(AsmInstruction::SEI(ptr.fp(), var.fp(), F::zero(), F::one()))
+                }
                 DslIR::HintBitsU(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), Usize::Var(src)) => {
                         self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
