@@ -1,10 +1,10 @@
 use super::params::Limbs;
-use super::params::NUM_WITNESS_LIMBS;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
+
 use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -19,21 +19,16 @@ use std::fmt::Debug;
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
-pub struct FieldDenCols<T> {
+pub struct FieldDenCols<T, P: FieldParameters> {
     /// The result of `a den b`, where a, b are field elements
-    pub result: Limbs<T>,
-    pub(crate) carry: Limbs<T>,
-    pub(crate) witness_low: [T; NUM_WITNESS_LIMBS],
-    pub(crate) witness_high: [T; NUM_WITNESS_LIMBS],
+    pub result: Limbs<T, P::Limbs>,
+    pub(crate) carry: Limbs<T, P::Limbs>,
+    pub(crate) witness_low: Limbs<T, P::Witness>,
+    pub(crate) witness_high: Limbs<T, P::Witness>,
 }
 
-impl<F: PrimeField32> FieldDenCols<F> {
-    pub fn populate<P: FieldParameters>(
-        &mut self,
-        a: &BigUint,
-        b: &BigUint,
-        sign: bool,
-    ) -> BigUint {
+impl<F: PrimeField32, P: FieldParameters> FieldDenCols<F, P> {
+    pub fn populate(&mut self, a: &BigUint, b: &BigUint, sign: bool) -> BigUint {
         let p = P::modulus();
         let minus_b_int = &p - b;
         let b_signed = if sign { b.clone() } else { minus_b_int };
@@ -53,11 +48,11 @@ impl<F: PrimeField32> FieldDenCols<F> {
         debug_assert!(carry < p);
         debug_assert_eq!(&carry * &p, &equation_lhs - &equation_rhs);
 
-        let p_a: Polynomial<F> = P::to_limbs_field::<F>(a).into();
-        let p_b: Polynomial<F> = P::to_limbs_field::<F>(b).into();
-        let p_p: Polynomial<F> = P::to_limbs_field::<F>(&p).into();
-        let p_result: Polynomial<F> = P::to_limbs_field::<F>(&result).into();
-        let p_carry: Polynomial<F> = P::to_limbs_field::<F>(&carry).into();
+        let p_a: Polynomial<F> = P::to_limbs_field::<F, _>(a).into();
+        let p_b: Polynomial<F> = P::to_limbs_field::<F, _>(b).into();
+        let p_p: Polynomial<F> = P::to_limbs_field::<F, _>(&p).into();
+        let p_result: Polynomial<F> = P::to_limbs_field::<F, _>(&result).into();
+        let p_carry: Polynomial<F> = P::to_limbs_field::<F, _>(&carry).into();
 
         // Compute the vanishing polynomial.
         let vanishing_poly = if sign {
@@ -76,20 +71,23 @@ impl<F: PrimeField32> FieldDenCols<F> {
 
         self.result = p_result.into();
         self.carry = p_carry.into();
-        self.witness_low = p_witness_low.try_into().unwrap();
-        self.witness_high = p_witness_high.try_into().unwrap();
+        self.witness_low = Limbs(p_witness_low.try_into().unwrap());
+        self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         result
     }
 }
 
-impl<V: Copy> FieldDenCols<V> {
+impl<V: Copy, P: FieldParameters> FieldDenCols<V, P>
+where
+    Limbs<V, P::Limbs>: Copy,
+{
     #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder<Var = V>, P: FieldParameters>(
+    pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &Limbs<AB::Var>,
-        b: &Limbs<AB::Var>,
+        a: &Limbs<AB::Var, P::Limbs>,
+        b: &Limbs<AB::Var, P::Limbs>,
         sign: bool,
     ) where
         V: Into<AB::Expr>,
@@ -115,8 +113,8 @@ impl<V: Copy> FieldDenCols<V> {
 
         let p_vanishing = p_lhs_minus_rhs - &p_carry * &p_limbs;
 
-        let p_witness_low = self.witness_low.iter().into();
-        let p_witness_high = self.witness_high.iter().into();
+        let p_witness_low = self.witness_low.0.iter().into();
+        let p_witness_high = self.witness_high.0.iter().into();
 
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
     }
@@ -147,14 +145,15 @@ mod tests {
     use p3_matrix::MatrixRowSlices;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
-    #[derive(AlignedBorrow, Debug, Clone)]
-    pub struct TestCols<T> {
-        pub a: Limbs<T>,
-        pub b: Limbs<T>,
-        pub a_den_b: FieldDenCols<T>,
+
+    #[derive(Debug, Clone, AlignedBorrow)]
+    pub struct TestCols<T, P: FieldParameters> {
+        pub a: Limbs<T, P::Limbs>,
+        pub b: Limbs<T, P::Limbs>,
+        pub a_den_b: FieldDenCols<T, P>,
     }
 
-    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8>>();
+    pub const NUM_TEST_COLS: usize = size_of::<TestCols<u8, Ed25519BaseField>>();
 
     struct FieldDenChip<P: FieldParameters> {
         pub sign: bool,
@@ -206,10 +205,10 @@ mod tests {
                 .iter()
                 .map(|(a, b)| {
                     let mut row = [F::zero(); NUM_TEST_COLS];
-                    let cols: &mut TestCols<F> = row.as_mut_slice().borrow_mut();
-                    cols.a = P::to_limbs_field::<F>(a);
-                    cols.b = P::to_limbs_field::<F>(b);
-                    cols.a_den_b.populate::<P>(a, b, self.sign);
+                    let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
+                    cols.a = P::to_limbs_field::<F, _>(a);
+                    cols.b = P::to_limbs_field::<F, _>(b);
+                    cols.a_den_b.populate(a, b, self.sign);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -237,13 +236,14 @@ mod tests {
     impl<AB, P: FieldParameters> Air<AB> for FieldDenChip<P>
     where
         AB: SP1AirBuilder,
+        Limbs<AB::Var, P::Limbs>: Copy,
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var> = main.row_slice(0).borrow();
+            let local: &TestCols<AB::Var, P> = main.row_slice(0).borrow();
             local
                 .a_den_b
-                .eval::<AB, P>(builder, &local.a, &local.b, self.sign);
+                .eval::<AB>(builder, &local.a, &local.b, self.sign);
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
@@ -262,7 +262,7 @@ mod tests {
     }
 
     #[test]
-    fn prove_babybear() {
+    fn prove_field() {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 

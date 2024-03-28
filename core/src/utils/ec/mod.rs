@@ -7,11 +7,12 @@ pub mod weierstrass;
 use field::FieldParameters;
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
+use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
 
 use crate::air::WORD_SIZE;
-use crate::operations::field::params::NUM_LIMBS;
+
+use self::field::NumWords;
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
 pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;
@@ -20,6 +21,25 @@ pub const COMPRESSED_POINT_BYTES: usize = 32;
 /// Number of words needed to represent a point on an elliptic curve. This is twice the number of
 /// words needed to represent a field element as a point consists of the x and y coordinates.
 pub const NUM_WORDS_EC_POINT: usize = 2 * NUM_WORDS_FIELD_ELEMENT;
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum CurveType {
+    Secp256k1,
+    Bn254,
+    Ed25519,
+    Secp256r1,
+}
+
+impl Display for CurveType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result {
+        match self {
+            CurveType::Secp256k1 => write!(f, "Secp256k1"),
+            CurveType::Bn254 => write!(f, "Bn254"),
+            CurveType::Ed25519 => write!(f, "Ed25519"),
+            CurveType::Secp256r1 => write!(f, "Secp256r1"),
+        }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AffinePoint<E> {
@@ -58,9 +78,9 @@ impl<E> AffinePoint<E> {
 
     pub fn to_words_le(&self) -> [u32; 16] {
         let mut x_bytes = self.x.to_bytes_le();
-        x_bytes.resize(NUM_LIMBS, 0u8);
+        x_bytes.resize(32, 0u8);
         let mut y_bytes = self.y.to_bytes_le();
-        y_bytes.resize(NUM_LIMBS, 0u8);
+        y_bytes.resize(32, 0u8);
 
         let mut words = [0u32; 16];
         for i in 0..8 {
@@ -84,12 +104,16 @@ impl<E> AffinePoint<E> {
 pub trait EllipticCurveParameters:
     Debug + Send + Sync + Copy + Serialize + DeserializeOwned + 'static
 {
-    type BaseField: FieldParameters;
-    const NAME: &'static str;
+    type BaseField: FieldParameters + NumWords;
+
+    const CURVE_TYPE: CurveType;
 }
 
 /// An interface for elliptic curve groups.
 pub trait EllipticCurve: EllipticCurveParameters {
+    const NB_LIMBS: usize = Self::BaseField::NB_LIMBS;
+
+    const NB_WITNESS_LIMBS: usize = Self::BaseField::NB_WITNESS_LIMBS;
     /// Adds two different points on the curve.
     ///
     /// Warning: This method assumes that the two points are different.

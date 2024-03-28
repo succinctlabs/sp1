@@ -1,4 +1,4 @@
-use super::Ptr;
+use super::{Array, Ptr};
 
 use super::{Config, Ext, Felt, Usize, Var};
 
@@ -70,6 +70,7 @@ pub enum DslIR<C: Config> {
     AssertNeFI(Felt<C::F>, C::F),
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
+
     // Memory instructions.
     /// Allocate (ptr, len) a memory slice of length len
     Alloc(Ptr<C::N>, Usize<C::N>),
@@ -85,4 +86,25 @@ pub enum DslIR<C: Config> {
     StoreF(Ptr<C::N>, Felt<C::F>),
     /// Store extension field at adress
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
+
+    // Miscellaneous instructions.
+    PrintV(Var<C::N>),
+    PrintF(Felt<C::F>),
+    PrintE(Ext<C::F, C::EF>),
+    Error(),
+    Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),
+    Num2BitsF(Array<C, Var<C::N>>, Felt<C::F>),
+
+    HintBitsU(Array<C, Var<C::N>>, Usize<C::N>),
+    HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
+    HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
+    ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
+    ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
+    ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
+    Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
+
+    // Circuit-specific instructions.
+    Poseidon2PermuteBn254([Var<C::N>; 3]),
 }

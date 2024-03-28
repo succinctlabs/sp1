@@ -1,3 +1,5 @@
+use p3_field::AbstractField;
+
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Opcode {
@@ -16,8 +18,10 @@ pub enum Opcode {
     // Mixed arithmetic operations.
     EFADD = 20,
     EFSUB = 21,
+    FESUB = 24,
     EFMUL = 22,
     EFDIV = 23,
+    FEDIV = 25,
 
     // Memory instructions.
     LW = 4,
@@ -37,4 +41,20 @@ pub enum Opcode {
 
     // System instructions.
     TRAP = 30,
+
+    // Hash instructions.
+    Poseidon2Perm = 31,
+
+    // Bit instructions.
+    HintBits = 32,
+
+    PrintF = 33,
+    PrintE = 34,
+    Ext2Felt = 35,
+}
+
+impl Opcode {
+    pub fn as_field<F: AbstractField>(&self) -> F {
+        F::from_canonical_u32(*self as u32)
+    }
 }

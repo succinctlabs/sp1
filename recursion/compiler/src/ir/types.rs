@@ -1,35 +1,48 @@
-use alloc::{format, string::String};
+use alloc::format;
+use p3_field::AbstractField;
+use p3_field::ExtensionField;
+use p3_field::Field;
+use serde::Deserialize;
+use serde::Serialize;
 
 use core::marker::PhantomData;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
+use std::collections::HashMap;
+use std::hash::Hash;
 
+use super::ExtConst;
+use super::FromConstant;
 use super::MemVariable;
 use super::Ptr;
+use super::SymbolicUsize;
 use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Variable};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var<N>(pub u32, pub PhantomData<N>);
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
-#[derive(Debug, Clone, Copy)]
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
 
-#[derive(Debug, Clone, Copy)]
-
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Usize<N> {
     Const(usize),
     Var(Var<N>),
 }
 
-impl<N> Usize<N> {
+impl<N: AbstractField> Usize<N> {
     pub fn value(&self) -> usize {
         match self {
             Usize::Const(c) => *c,
             Usize::Var(_) => panic!("Cannot get the value of a variable"),
+        }
+    }
+
+    pub fn materialize<C: Config<N = N>>(&self, builder: &mut Builder<C>) -> Var<C::N> {
+        match self {
+            Usize::Const(c) => builder.eval(C::N::from_canonical_usize(*c)),
+            Usize::Var(v) => v.clone(),
         }
     }
 }
@@ -64,6 +77,13 @@ impl<F> Felt<F> {
     pub fn id(&self) -> String {
         format!("felt{}", self.0)
     }
+
+    pub fn inverse(&self) -> SymbolicFelt<F>
+    where
+        F: Field,
+    {
+        SymbolicFelt::<F>::one() / *self
+    }
 }
 
 impl<F, EF> Ext<F, EF> {
@@ -74,18 +94,99 @@ impl<F, EF> Ext<F, EF> {
     pub fn id(&self) -> String {
         format!("ext{}", self.0)
     }
+
+    pub fn inverse(&self) -> SymbolicExt<F, EF>
+    where
+        F: Field,
+        EF: ExtensionField<F>,
+    {
+        SymbolicExt::<F, EF>::one() / *self
+    }
 }
 
-impl<C: Config> Variable<C> for Var<C::N> {
-    type Expression = SymbolicVar<C::N>;
+impl<C: Config> Variable<C> for Usize<C::N> {
+    type Expression = SymbolicUsize<C::N>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let var = Var(builder.var_count, PhantomData);
-        builder.var_count += 1;
-        var
+        builder.uninit::<Var<C::N>>().into()
     }
 
     fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        match self {
+            Usize::Const(_) => {
+                panic!("cannot assign to a constant usize")
+            }
+            Usize::Var(v) => match src {
+                SymbolicUsize::Const(src) => {
+                    builder.assign(*v, C::N::from_canonical_usize(src));
+                }
+                SymbolicUsize::Var(src) => {
+                    builder.assign(*v, src);
+                }
+            },
+        }
+    }
+
+    fn assert_eq(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Const(rhs)) => {
+                assert_eq!(lhs, rhs, "constant usizes do not match");
+            }
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Var(rhs)) => {
+                builder.assert_var_eq(C::N::from_canonical_usize(lhs), rhs);
+            }
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Const(rhs)) => {
+                builder.assert_var_eq(lhs, C::N::from_canonical_usize(rhs));
+            }
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Var(rhs)) => builder.assert_var_eq(lhs, rhs),
+        }
+    }
+
+    fn assert_ne(
+        lhs: impl Into<Self::Expression>,
+        rhs: impl Into<Self::Expression>,
+        builder: &mut Builder<C>,
+    ) {
+        let lhs = lhs.into();
+        let rhs = rhs.into();
+
+        match (lhs, rhs) {
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Const(rhs)) => {
+                assert_ne!(lhs, rhs, "constant usizes do not match");
+            }
+            (SymbolicUsize::Const(lhs), SymbolicUsize::Var(rhs)) => {
+                builder.assert_var_ne(C::N::from_canonical_usize(lhs), rhs);
+            }
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Const(rhs)) => {
+                builder.assert_var_ne(lhs, C::N::from_canonical_usize(rhs));
+            }
+            (SymbolicUsize::Var(lhs), SymbolicUsize::Var(rhs)) => {
+                builder.assert_var_ne(lhs, rhs);
+            }
+        }
+    }
+}
+
+impl<N: Field> Var<N> {
+    fn assign_with_cache<C: Config<N = N>>(
+        &self,
+        src: SymbolicVar<N>,
+        builder: &mut Builder<C>,
+        cache: &mut HashMap<SymbolicVar<N>, Self>,
+    ) {
+        if let Some(v) = cache.get(&src) {
+            builder
+                .operations
+                .push(DslIR::AddVI(*self, *v, C::N::zero()));
+            return;
+        }
         match src {
             SymbolicVar::Const(c) => {
                 builder.operations.push(DslIR::Imm(*self, c));
@@ -131,9 +232,11 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddV(*self, lhs_value, rhs_value));
                 }
             },
@@ -147,7 +250,8 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 }
                 (SymbolicVar::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulVI(*self, rhs_value, *lhs));
                 }
                 (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs)) => {
@@ -158,24 +262,29 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 }
                 (SymbolicVar::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulV(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicVar::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::MulVI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicVar::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::MulV(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulV(*self, lhs_value, rhs_value));
                 }
             },
@@ -189,7 +298,8 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 }
                 (SymbolicVar::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubVIN(*self, *lhs, rhs_value));
                 }
                 (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs)) => {
@@ -200,24 +310,29 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 }
                 (SymbolicVar::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubV(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicVar::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::SubVI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicVar::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::SubV(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubV(*self, lhs_value, rhs_value));
                 }
             },
@@ -231,11 +346,26 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 }
                 operand => {
                     let operand_value = Self::uninit(builder);
-                    operand_value.assign(operand.clone(), builder);
+                    operand_value.assign_with_cache(operand.clone(), builder, cache);
+                    cache.insert(operand.clone(), operand_value);
                     builder.push(DslIR::SubVIN(*self, C::N::zero(), operand_value));
                 }
             },
         }
+    }
+}
+
+impl<C: Config> Variable<C> for Var<C::N> {
+    type Expression = SymbolicVar<C::N>;
+
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        let var = Var(builder.var_count, PhantomData);
+        builder.var_count += 1;
+        var
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        self.assign_with_cache(src, builder, &mut HashMap::new());
     }
 
     fn assert_eq(
@@ -335,16 +465,19 @@ impl<C: Config> MemVariable<C> for Var<C::N> {
     }
 }
 
-impl<C: Config> Variable<C> for Felt<C::F> {
-    type Expression = SymbolicFelt<C::F>;
-
-    fn uninit(builder: &mut Builder<C>) -> Self {
-        let felt = Felt(builder.felt_count, PhantomData);
-        builder.felt_count += 1;
-        felt
-    }
-
-    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+impl<F: Field> Felt<F> {
+    fn assign_with_cache<C: Config<F = F>>(
+        &self,
+        src: SymbolicFelt<F>,
+        builder: &mut Builder<C>,
+        cache: &mut HashMap<SymbolicFelt<F>, Self>,
+    ) {
+        if let Some(v) = cache.get(&src) {
+            builder
+                .operations
+                .push(DslIR::AddFI(*self, *v, C::F::zero()));
+            return;
+        }
         match src {
             SymbolicFelt::Const(c) => {
                 builder.operations.push(DslIR::ImmFelt(*self, c));
@@ -364,7 +497,8 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddFI(*self, rhs_value, *lhs));
                 }
                 (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
@@ -375,24 +509,29 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddF(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicFelt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::AddFI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicFelt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::AddF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddF(*self, lhs_value, rhs_value));
                 }
             },
@@ -406,7 +545,8 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulFI(*self, rhs_value, *lhs));
                 }
                 (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
@@ -417,24 +557,29 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulF(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicFelt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::MulFI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicFelt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::MulF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulF(*self, lhs_value, rhs_value));
                 }
             },
@@ -448,7 +593,8 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubFIN(*self, *lhs, rhs_value));
                 }
                 (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
@@ -459,24 +605,29 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubF(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicFelt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::SubFI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicFelt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::SubF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubF(*self, lhs_value, rhs_value));
                 }
             },
@@ -490,7 +641,8 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivFIN(*self, *lhs, rhs_value));
                 }
                 (SymbolicFelt::Val(lhs), SymbolicFelt::Const(rhs)) => {
@@ -501,24 +653,29 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 (SymbolicFelt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivF(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicFelt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::DivFI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicFelt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::DivF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_cache(lhs.clone(), builder, cache);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_cache(rhs.clone(), builder, cache);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivF(*self, lhs_value, rhs_value));
                 }
             },
@@ -532,11 +689,26 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 }
                 operand => {
                     let operand_value = Self::uninit(builder);
-                    operand_value.assign(operand.clone(), builder);
+                    operand_value.assign_with_cache(operand.clone(), builder, cache);
+                    cache.insert(operand.clone(), operand_value);
                     builder.push(DslIR::SubFIN(*self, C::F::zero(), operand_value));
                 }
             },
         }
+    }
+}
+
+impl<C: Config> Variable<C> for Felt<C::F> {
+    type Expression = SymbolicFelt<C::F>;
+
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        let felt = Felt(builder.felt_count, PhantomData);
+        builder.felt_count += 1;
+        felt
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        self.assign_with_cache(src, builder, &mut HashMap::new());
     }
 
     fn assert_eq(
@@ -636,16 +808,22 @@ impl<C: Config> MemVariable<C> for Felt<C::F> {
     }
 }
 
-impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
-    type Expression = SymbolicExt<C::F, C::EF>;
-
-    fn uninit(builder: &mut Builder<C>) -> Self {
-        let ext = Ext(builder.ext_count, PhantomData);
-        builder.ext_count += 1;
-        ext
-    }
-
-    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
+    // Todo: refactor base
+    #[allow(clippy::only_used_in_recursion)]
+    fn assign_with_caches<C: Config<F = F, EF = EF>>(
+        &self,
+        src: SymbolicExt<F, EF>,
+        builder: &mut Builder<C>,
+        ext_cache: &mut HashMap<SymbolicExt<F, EF>, Ext<F, EF>>,
+        base_cache: &mut HashMap<SymbolicFelt<F>, Felt<F>>,
+    ) {
+        if let Some(v) = ext_cache.get(&src) {
+            builder
+                .operations
+                .push(DslIR::AddEI(*self, *v, C::EF::zero()));
+            return;
+        }
         match src {
             SymbolicExt::Base(v) => match &*v {
                 SymbolicFelt::Const(c) => {
@@ -703,14 +881,17 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 (lhs, SymbolicExt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::AddE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddE(*self, lhs_value, rhs_value));
                 }
             },
@@ -724,7 +905,8 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 (SymbolicExt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulEI(*self, rhs_value, *lhs));
                 }
                 (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
@@ -735,24 +917,29 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 (SymbolicExt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulE(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicExt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::MulEI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicExt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::MulE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::MulE(*self, lhs_value, rhs_value));
                 }
             },
@@ -766,7 +953,8 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 (SymbolicExt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubEIN(*self, *lhs, rhs_value));
                 }
                 (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
@@ -777,22 +965,26 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 (SymbolicExt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::SubE(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicExt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::SubEI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicExt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::SubE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign(rhs.clone(), builder);
                     builder.push(DslIR::SubE(*self, lhs_value, rhs_value));
@@ -808,7 +1000,8 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 (SymbolicExt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivEIN(*self, *lhs, rhs_value));
                 }
                 (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
@@ -819,24 +1012,29 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 (SymbolicExt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivE(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicExt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::DivEI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicExt::Val(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::DivE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::DivE(*self, lhs_value, rhs_value));
                 }
             },
@@ -850,11 +1048,31 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 }
                 operand => {
                     let operand_value = Self::uninit(builder);
-                    operand_value.assign(operand.clone(), builder);
+                    operand_value.assign_with_caches(
+                        operand.clone(),
+                        builder,
+                        ext_cache,
+                        base_cache,
+                    );
+                    ext_cache.insert(operand.clone(), operand_value);
                     builder.push(DslIR::SubEFIN(*self, C::F::zero(), operand_value));
                 }
             },
         }
+    }
+}
+
+impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
+    type Expression = SymbolicExt<C::F, C::EF>;
+
+    fn uninit(builder: &mut Builder<C>) -> Self {
+        let ext = Ext(builder.ext_count, PhantomData);
+        builder.ext_count += 1;
+        ext
+    }
+
+    fn assign(&self, src: Self::Expression, builder: &mut Builder<C>) {
+        self.assign_with_caches(src, builder, &mut HashMap::new(), &mut HashMap::new());
     }
 
     fn assert_eq(
@@ -951,5 +1169,29 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
         builder.push(DslIR::StoreE(ptr, *self));
+    }
+}
+
+impl<C: Config> FromConstant<C> for Var<C::N> {
+    type Constant = C::N;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value)
+    }
+}
+
+impl<C: Config> FromConstant<C> for Felt<C::F> {
+    type Constant = C::F;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value)
+    }
+}
+
+impl<C: Config> FromConstant<C> for Ext<C::F, C::EF> {
+    type Constant = C::EF;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        builder.eval(value.cons())
     }
 }

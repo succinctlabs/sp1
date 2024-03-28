@@ -53,6 +53,42 @@ fn test_compiler_arithmetic() {
 
     let program = builder.compile();
 
-    let mut runtime = Runtime::<F, EF>::new(&program);
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+    runtime.run();
+}
+
+#[test]
+fn test_compiler_caching_arithmetic() {
+    let mut rng = thread_rng();
+    type SC = BabyBearPoseidon2;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    let mut builder = VmBuilder::<F, EF>::default();
+
+    let one: Felt<_> = builder.eval(F::one());
+    let random: Felt<_> = builder.eval(rng.gen::<F>());
+
+    let num_ops = 10;
+    let mut a: SymbolicFelt<_> = one.into();
+    let mut b: SymbolicFelt<_> = one.into();
+    let mut c = a.clone() + a.clone() + a.clone();
+    for _ in 0..num_ops {
+        a += one.into();
+        b *= a.clone() + random;
+        c += a.clone() + b.clone();
+    }
+    let d = a + b + c;
+    let _: Felt<_> = builder.eval(d);
+
+    let code = builder.compile_to_asm();
+    println!("{}", code);
+
+    let program = code.machine_code();
+
+    println!("Program length: {:?}", program.instructions.len());
+
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }

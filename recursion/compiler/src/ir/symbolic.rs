@@ -10,7 +10,7 @@ use std::iter::{Product, Sum};
 use std::mem;
 use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicVar<N> {
     Const(N),
     Val(Var<N>),
@@ -20,7 +20,7 @@ pub enum SymbolicVar<N> {
     Neg(Rc<SymbolicVar<N>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicFelt<F> {
     Const(F),
     Val(Felt<F>),
@@ -31,7 +31,7 @@ pub enum SymbolicFelt<F> {
     Neg(Rc<SymbolicFelt<F>>),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicExt<F, EF> {
     Const(EF),
     Base(Rc<SymbolicFelt<F>>),
@@ -41,6 +41,12 @@ pub enum SymbolicExt<F, EF> {
     Sub(Rc<SymbolicExt<F, EF>>, Rc<SymbolicExt<F, EF>>),
     Div(Rc<SymbolicExt<F, EF>>, Rc<SymbolicExt<F, EF>>),
     Neg(Rc<SymbolicExt<F, EF>>),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum SymbolicUsize<N> {
+    Const(usize),
+    Var(SymbolicVar<N>),
 }
 
 #[derive(Debug, Clone)]
@@ -1007,6 +1013,281 @@ impl<F: Field, EF: ExtensionField<F>, E: Any> ExtensionOperand<F, EF> for E {
                 value_ref.clone()
             }
             _ => unimplemented!("unsupported type"),
+        }
+    }
+}
+
+impl<F: Field> Add<SymbolicFelt<F>> for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn add(self, rhs: SymbolicFelt<F>) -> Self::Output {
+        SymbolicFelt::<F>::from(self) + rhs
+    }
+}
+
+impl<F: Field, EF: ExtensionField<F>> From<Felt<F>> for SymbolicExt<F, EF> {
+    fn from(value: Felt<F>) -> Self {
+        SymbolicExt::Base(Rc::new(SymbolicFelt::Val(value)))
+    }
+}
+
+impl<F: Field, EF: ExtensionField<F>> Neg for Ext<F, EF> {
+    type Output = SymbolicExt<F, EF>;
+    fn neg(self) -> Self::Output {
+        SymbolicExt::Neg(Rc::new(SymbolicExt::Val(self)))
+    }
+}
+
+impl<F: Field> Neg for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn neg(self) -> Self::Output {
+        SymbolicFelt::Neg(Rc::new(SymbolicFelt::Val(self)))
+    }
+}
+
+impl<N: Field> Neg for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn neg(self) -> Self::Output {
+        SymbolicVar::Neg(Rc::new(SymbolicVar::Val(self)))
+    }
+}
+
+impl<N> From<usize> for SymbolicUsize<N> {
+    fn from(n: usize) -> Self {
+        SymbolicUsize::Const(n)
+    }
+}
+
+impl<N> From<SymbolicVar<N>> for SymbolicUsize<N> {
+    fn from(n: SymbolicVar<N>) -> Self {
+        SymbolicUsize::Var(n)
+    }
+}
+
+impl<N> From<Var<N>> for SymbolicUsize<N> {
+    fn from(n: Var<N>) -> Self {
+        SymbolicUsize::Var(SymbolicVar::from(n))
+    }
+}
+
+impl<N: Field> Add for SymbolicUsize<N> {
+    type Output = Self;
+
+    fn add(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (SymbolicUsize::Const(a), SymbolicUsize::Const(b)) => SymbolicUsize::Const(a + b),
+            (SymbolicUsize::Var(a), SymbolicUsize::Const(b)) => {
+                SymbolicUsize::Var(a + N::from_canonical_usize(b))
+            }
+            (SymbolicUsize::Const(a), SymbolicUsize::Var(b)) => {
+                SymbolicUsize::Var(b + N::from_canonical_usize(a))
+            }
+            (SymbolicUsize::Var(a), SymbolicUsize::Var(b)) => SymbolicUsize::Var(a + b),
+        }
+    }
+}
+
+impl<N: Field> Sub for SymbolicUsize<N> {
+    type Output = Self;
+
+    fn sub(self, rhs: Self) -> Self::Output {
+        match (self, rhs) {
+            (SymbolicUsize::Const(a), SymbolicUsize::Const(b)) => SymbolicUsize::Const(a - b),
+            (SymbolicUsize::Var(a), SymbolicUsize::Const(b)) => {
+                SymbolicUsize::Var(a - N::from_canonical_usize(b))
+            }
+            (SymbolicUsize::Const(a), SymbolicUsize::Var(b)) => {
+                SymbolicUsize::Var(b - N::from_canonical_usize(a))
+            }
+            (SymbolicUsize::Var(a), SymbolicUsize::Var(b)) => SymbolicUsize::Var(a - b),
+        }
+    }
+}
+
+impl<N: Field> Add<usize> for SymbolicUsize<N> {
+    type Output = Self;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        match self {
+            SymbolicUsize::Const(a) => SymbolicUsize::Const(a + rhs),
+            SymbolicUsize::Var(a) => SymbolicUsize::Var(a + N::from_canonical_usize(rhs)),
+        }
+    }
+}
+
+impl<N: Field> Sub<usize> for SymbolicUsize<N> {
+    type Output = Self;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        match self {
+            SymbolicUsize::Const(a) => SymbolicUsize::Const(a - rhs),
+            SymbolicUsize::Var(a) => SymbolicUsize::Var(a - N::from_canonical_usize(rhs)),
+        }
+    }
+}
+
+impl<N> From<Usize<N>> for SymbolicUsize<N> {
+    fn from(n: Usize<N>) -> Self {
+        match n {
+            Usize::Const(n) => SymbolicUsize::Const(n),
+            Usize::Var(n) => SymbolicUsize::Var(SymbolicVar::from(n)),
+        }
+    }
+}
+
+impl<N: Field> Add<Usize<N>> for SymbolicUsize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn add(self, rhs: Usize<N>) -> Self::Output {
+        self + Self::from(rhs)
+    }
+}
+
+impl<N: Field> Sub<Usize<N>> for SymbolicUsize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn sub(self, rhs: Usize<N>) -> Self::Output {
+        self - Self::from(rhs)
+    }
+}
+
+impl<N: Field> Add<usize> for Usize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn add(self, rhs: usize) -> Self::Output {
+        SymbolicUsize::from(self) + rhs
+    }
+}
+
+impl<N: Field> Sub<usize> for Usize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn sub(self, rhs: usize) -> Self::Output {
+        SymbolicUsize::from(self) - rhs
+    }
+}
+
+impl<N: Field> Add<Usize<N>> for Usize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn add(self, rhs: Usize<N>) -> Self::Output {
+        SymbolicUsize::from(self) + rhs
+    }
+}
+
+impl<N: Field> Sub<Usize<N>> for Usize<N> {
+    type Output = SymbolicUsize<N>;
+
+    fn sub(self, rhs: Usize<N>) -> Self::Output {
+        SymbolicUsize::from(self) - rhs
+    }
+}
+
+impl<F: Field> MulAssign<Felt<F>> for SymbolicFelt<F> {
+    fn mul_assign(&mut self, rhs: Felt<F>) {
+        *self = Self::from(rhs);
+    }
+}
+
+impl<F: Field> Mul<SymbolicFelt<F>> for Felt<F> {
+    type Output = SymbolicFelt<F>;
+
+    fn mul(self, rhs: SymbolicFelt<F>) -> Self::Output {
+        SymbolicFelt::<F>::from(self) * rhs
+    }
+}
+
+impl<N> Mul<SymbolicVar<N>> for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn mul(self, rhs: SymbolicVar<N>) -> Self::Output {
+        SymbolicVar::<N>::from(self) * rhs
+    }
+}
+
+impl<N: Field> Sub<Usize<N>> for SymbolicVar<N> {
+    type Output = SymbolicVar<N>;
+
+    fn sub(self, rhs: Usize<N>) -> Self::Output {
+        match rhs {
+            Usize::Const(n) => self - N::from_canonical_usize(n),
+            Usize::Var(n) => self - n,
+        }
+    }
+}
+
+impl<N: Field> Add<Usize<N>> for SymbolicVar<N> {
+    type Output = SymbolicVar<N>;
+
+    fn add(self, rhs: Usize<N>) -> Self::Output {
+        match rhs {
+            Usize::Const(n) => self + N::from_canonical_usize(n),
+            Usize::Var(n) => self + n,
+        }
+    }
+}
+
+impl<N: Field> Add<Usize<N>> for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn add(self, rhs: Usize<N>) -> Self::Output {
+        SymbolicVar::<N>::from(self) + rhs
+    }
+}
+
+impl<N: Field> Sub<Usize<N>> for Var<N> {
+    type Output = SymbolicVar<N>;
+
+    fn sub(self, rhs: Usize<N>) -> Self::Output {
+        SymbolicVar::<N>::from(self) - rhs
+    }
+}
+
+impl<N: Field> Sub<SymbolicVar<N>> for Usize<N> {
+    type Output = SymbolicVar<N>;
+
+    fn sub(self, rhs: SymbolicVar<N>) -> Self::Output {
+        match self {
+            Usize::Const(n) => SymbolicVar::Const(N::from_canonical_usize(n)) - rhs,
+            Usize::Var(n) => SymbolicVar::<N>::from(n) - rhs,
+        }
+    }
+}
+
+impl<N: Field> Add<SymbolicVar<N>> for Usize<N> {
+    type Output = SymbolicVar<N>;
+
+    fn add(self, rhs: SymbolicVar<N>) -> Self::Output {
+        match self {
+            Usize::Const(n) => SymbolicVar::Const(N::from_canonical_usize(n)) + rhs,
+            Usize::Var(n) => SymbolicVar::<N>::from(n) + rhs,
+        }
+    }
+}
+
+impl<N: Field> Add<Var<N>> for Usize<N> {
+    type Output = SymbolicVar<N>;
+
+    fn add(self, rhs: Var<N>) -> Self::Output {
+        self + SymbolicVar::<N>::from(rhs)
+    }
+}
+
+impl<N: Field> Sub<Var<N>> for Usize<N> {
+    type Output = SymbolicVar<N>;
+
+    fn sub(self, rhs: Var<N>) -> Self::Output {
+        self - SymbolicVar::<N>::from(rhs)
+    }
+}
+
+impl<N: Field> From<Usize<N>> for SymbolicVar<N> {
+    fn from(value: Usize<N>) -> Self {
+        match value {
+            Usize::Const(n) => SymbolicVar::Const(N::from_canonical_usize(n)),
+            Usize::Var(n) => SymbolicVar::Val(n),
         }
     }
 }

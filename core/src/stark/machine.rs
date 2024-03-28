@@ -1,5 +1,8 @@
 use std::marker::PhantomData;
 
+use itertools::Itertools;
+use std::collections::HashMap;
+
 use super::debug_constraints;
 use crate::air::MachineAir;
 use crate::lookup::debug_interactions_with_all_chips;
@@ -69,6 +72,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         'a: 'b,
     {
         self.chips.iter().filter(|chip| chip.included(shard))
+    }
+
+    pub fn shard_chips_ordered<'a, 'b>(
+        &'a self,
+        chip_ordering: &'b HashMap<String, usize>,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+    where
+        'a: 'b,
+    {
+        self.chips
+            .iter()
+            .filter(|chip| chip_ordering.contains_key(&chip.name()))
+            .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
     }
 
     /// The setup preprocessing phase.
@@ -163,9 +179,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
-                    .chips()
-                    .iter()
-                    .filter(|chip| proof.chip_ids.contains(&chip.name()))
+                    .shard_chips_ordered(&proof.chip_ordering)
                     .collect::<Vec<_>>();
                 Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
@@ -178,7 +192,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         for proof in proof.shard_proofs.iter() {
             sum += proof.cumulative_sum();
         }
-
         match sum.is_zero() {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
@@ -302,6 +315,7 @@ pub mod tests {
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
@@ -311,18 +325,21 @@ pub mod tests {
 
     #[test]
     fn test_simple_prove() {
+        utils::setup_logger();
         let program = simple_program();
         run_test(program).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
+        utils::setup_logger();
         let program = ecall_lwa_program();
         run_test(program).unwrap();
     }
 
     #[test]
     fn test_shift_prove() {
+        utils::setup_logger();
         let shift_ops = [Opcode::SRL, Opcode::SRA, Opcode::SLL];
         let operands = [
             (1, 1),
@@ -346,6 +363,7 @@ pub mod tests {
 
     #[test]
     fn test_sub_prove() {
+        utils::setup_logger();
         let instructions = vec![
             Instruction::new(Opcode::ADD, 29, 0, 5, false, true),
             Instruction::new(Opcode::ADD, 30, 0, 8, false, true),
@@ -453,6 +471,12 @@ pub mod tests {
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_ssz_withdrawal() {
+        let program = ssz_withdrawals_program();
         run_test(program).unwrap();
     }
 }

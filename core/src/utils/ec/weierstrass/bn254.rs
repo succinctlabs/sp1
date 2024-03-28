@@ -1,8 +1,12 @@
+use generic_array::GenericArray;
 use num::{BigUint, Num, Zero};
 use serde::{Deserialize, Serialize};
+use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
@@ -16,19 +20,16 @@ pub type Bn254 = SwCurve<Bn254Parameters>;
 pub struct Bn254BaseField;
 
 impl FieldParameters for Bn254BaseField {
-    const NB_BITS_PER_LIMB: usize = 16;
-
-    const NB_LIMBS: usize = 16;
-
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-
-    const MODULUS: [u8; MAX_NB_LIMBS] = [
+    const MODULUS: &'static [u8] = &[
         71, 253, 124, 216, 22, 140, 32, 60, 141, 202, 113, 104, 145, 106, 129, 151, 93, 88, 129,
         129, 182, 69, 80, 184, 41, 160, 49, 225, 114, 78, 100, 48,
     ];
 
-    const WITNESS_OFFSET: usize = 1usize << 20;
+    // A rough witness-offset estimate given the size of the limbs and the size of the field.
+    const WITNESS_OFFSET: usize = 1usize << 13;
 
+    // The modulus has been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py#L10-L11
     fn modulus() -> BigUint {
         BigUint::from_str_radix(
             "21888242871839275222246405745257275088696311157297823662689037894645226208583",
@@ -38,21 +39,29 @@ impl FieldParameters for Bn254BaseField {
     }
 }
 
+impl NumLimbs for Bn254BaseField {
+    type Limbs = U32;
+    type Witness = U62;
+}
+
 impl EllipticCurveParameters for Bn254Parameters {
     type BaseField = Bn254BaseField;
-    const NAME: &'static str = "bn254";
+
+    const CURVE_TYPE: CurveType = CurveType::Bn254;
 }
 
 impl WeierstrassParameters for Bn254Parameters {
-    const A: [u16; MAX_NB_LIMBS] = [
+    // The values have been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py
+    const A: GenericArray<u8, U32> = GenericArray::from_array([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
 
-    const B: [u16; MAX_NB_LIMBS] = [
+    const B: GenericArray<u8, U32> = GenericArray::from_array([
         3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from(1u32);
         let y = BigUint::from(2u32);
@@ -85,7 +94,7 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(&Bn254BaseField::MODULUS),
+            biguint_from_limbs(Bn254BaseField::MODULUS),
             Bn254BaseField::modulus()
         );
     }

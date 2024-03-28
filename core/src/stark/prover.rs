@@ -1,6 +1,7 @@
 use super::{quotient_values, MachineStark, PcsProverData, Val};
 use super::{ProvingKey, VerifierConstraintFolder};
 use crate::lookup::InteractionBuilder;
+use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
@@ -18,6 +19,7 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use std::cmp::Reverse;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
@@ -26,9 +28,6 @@ use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
 use crate::air::MachineAir;
 use crate::utils::env;
-
-#[cfg(not(feature = "perf"))]
-use crate::stark::debug_constraints;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
     let mut result = Vec::new();
@@ -102,22 +101,22 @@ where
             shard_data_chunks
                 .into_par_iter()
                 .zip(shard_chunks.into_par_iter())
-                .enumerate()
-                .map(|(i, (datas, shards))| {
+                .map(|(datas, shards)| {
                     datas
                         .into_iter()
                         .zip(shards)
-                        .enumerate()
-                        .map(|(j, (data, shard))| {
+                        .map(|(data, shard)| {
                             let start = Instant::now();
-                            let idx = i * chunk_size + j;
+
+                            let idx = shard.index() as usize;
                             let data = if reconstruct_commitments {
                                 Self::commit_main(config, machine, &shard, idx)
                             } else {
                                 data.materialize()
                                     .expect("failed to materialize shard main data")
                             };
-                            let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                            let ordering = data.chip_ordering.clone();
+                            let chips = machine.shard_chips_ordered(&ordering).collect::<Vec<_>>();
                             let proof = Self::prove_shard(
                                 config,
                                 pk,
@@ -163,19 +162,27 @@ where
         index: usize,
     ) -> ShardMainData<SC> {
         // Filter the chips based on what is used.
-        let filtered_chips = machine.shard_chips(shard).collect::<Vec<_>>();
+        let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
-        let traces = filtered_chips
+        let mut named_traces = shard_chips
             .par_iter()
-            .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+            .map(|chip| {
+                (
+                    chip.name(),
+                    chip.generate_trace(shard, &mut A::Record::default()),
+                )
+            })
             .collect::<Vec<_>>();
+
+        // Order the chips and traces by trace size (biggest first), and get the ordering map.
+        named_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
 
         let pcs = config.pcs();
 
-        let domains_and_traces = traces
+        let domains_and_traces = named_traces
             .iter()
-            .map(|trace| {
+            .map(|(_, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 (domain, trace.to_owned())
             })
@@ -184,17 +191,23 @@ where
         // Commit to the batch of traces.
         let (main_commit, main_data) = pcs.commit(domains_and_traces);
 
-        // Get the filtered chip ids.
-        let chip_ids = filtered_chips
+        // Get the chip ordering.
+        let chip_ordering = named_traces
             .iter()
-            .map(|chip| chip.name())
+            .enumerate()
+            .map(|(i, (name, _))| (name.to_owned(), i))
+            .collect();
+
+        let traces = named_traces
+            .into_iter()
+            .map(|(_, trace)| trace)
             .collect::<Vec<_>>();
 
         ShardMainData {
             traces,
             main_commit,
             main_data,
-            chip_ids,
+            chip_ordering,
             index,
         }
     }
@@ -443,11 +456,11 @@ where
                 chips: opened_values,
             },
             opening_proof,
-            chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
+            chip_ordering: shard_data.chip_ordering,
         }
     }
 
-    fn commit_shards<F, EF>(
+    pub fn commit_shards<F, EF>(
         machine: &MachineStark<SC, A>,
         shards: &[A::Record],
     ) -> (Vec<Com<SC>>, Vec<ShardMainDataWrapper<SC>>)
@@ -474,15 +487,14 @@ where
                 let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
                     .par_chunks(chunk_size)
-                    .enumerate()
-                    .map(|(i, shard_batch)| {
+                    .map(|shard_batch| {
                         shard_batch
                             .iter()
-                            .enumerate()
-                            .map(|(j, shard)| {
-                                let index = i * chunk_size + j;
+                            .map(|shard| {
+                                let index = shard.index();
                                 let start = Instant::now();
-                                let data = Self::commit_main(config, machine, shard, index);
+                                let data =
+                                    Self::commit_main(config, machine, shard, index as usize);
                                 finished.fetch_add(1, Ordering::Relaxed);
                                 log::info!(
                                     "> commit shards ({}/{}): shard = {}, time = {:.2} secs",
@@ -492,10 +504,10 @@ where
                                     start.elapsed().as_secs_f64()
                                 );
                                 let commitment = data.main_commit.clone();
-                                let file = tempfile::tempfile().unwrap();
                                 let data = if reconstruct_commitments {
                                     ShardMainDataWrapper::Empty()
                                 } else if num_shards > save_disk_threshold {
+                                    let file = tempfile::tempfile().unwrap();
                                     tracing::info_span!("saving trace to disk").in_scope(|| {
                                         data.save(file).expect("failed to save shard main data")
                                     })

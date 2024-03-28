@@ -7,6 +7,9 @@ use std::{marker::PhantomData, sync::Arc};
 
 pub use instruction::*;
 pub use opcode::*;
+use p3_poseidon2::Poseidon2;
+use p3_symmetric::CryptographicPermutation;
+use p3_symmetric::Permutation;
 pub use program::*;
 pub use record::*;
 
@@ -17,8 +20,17 @@ use crate::memory::MemoryRecord;
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
 
-pub const STACK_SIZE: usize = 1 << 20;
-pub const MEMORY_SIZE: usize = 1 << 26;
+pub const STACK_SIZE: usize = 1 << 24;
+pub const MEMORY_SIZE: usize = 1 << 28;
+
+/// The width of the Poseidon2 permutation.
+pub const PERMUTATION_WIDTH: usize = 16;
+pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
+
+/// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
+pub const DIGEST_SIZE: usize = 8;
+
+pub const NUM_BITS: usize = 31;
 
 pub const D: usize = 4;
 
@@ -35,7 +47,11 @@ pub struct MemoryEntry<F: PrimeField32> {
     pub timestamp: F,
 }
 
-pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>> {
+pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
+    pub timestamp: u64,
+
+    pub nb_poseidons: u64,
+
     /// The current clock.
     pub clk: F,
 
@@ -57,22 +73,34 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
+    perm: Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>,
+
     _marker: PhantomData<EF>,
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
-    pub fn new(program: &Program<F>) -> Self {
+impl<F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<F, EF, Diffusion>
+where
+    Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>:
+        CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
+{
+    pub fn new(
+        program: &Program<F>,
+        perm: Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>,
+    ) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
             ..Default::default()
         };
         Self {
+            timestamp: 0,
+            nb_poseidons: 0,
             clk: F::zero(),
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
             memory: vec![MemoryEntry::default(); MEMORY_SIZE],
             record,
+            perm,
             access: CpuRecord::default(),
             _marker: PhantomData,
         }
@@ -173,6 +201,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
     /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         let a_ptr = if instruction.imm_b {
+            // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
             self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
@@ -203,6 +232,18 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
+                Opcode::PrintF => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::PrintE => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    println!("PRINTEF={:?}", a_val);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::ADD => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
@@ -245,14 +286,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::ESUB | Opcode::EFSUB => {
+                Opcode::ESUB | Opcode::EFSUB | Opcode::FESUB => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(diff.as_base_slice());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EDIV | Opcode::EFDIV => {
+                Opcode::EDIV | Opcode::EFDIV | Opcode::FEDIV => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(quotient.as_base_slice());
@@ -336,6 +377,60 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
                 Opcode::TRAP => {
                     panic!("TRAP instruction encountered")
                 }
+                Opcode::Ext2Felt => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    self.memory[dst].value[0] = b_val[0];
+                    self.memory[dst + 1].value[0] = b_val[1];
+                    self.memory[dst + 2].value[0] = b_val[2];
+                    self.memory[dst + 3].value[0] = b_val[3];
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::Poseidon2Perm => {
+                    self.nb_poseidons += 1;
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+
+                    // Get the dst array ptr.
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    // Get the src array ptr.
+                    let src = b_val[0].as_canonical_u32() as usize;
+
+                    let array: [_; PERMUTATION_WIDTH] = self.memory[src..src + PERMUTATION_WIDTH]
+                        .iter()
+                        .map(|entry| entry.value[0])
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+
+                    // Perform the permutation.
+                    let result = self.perm.permute(array);
+
+                    // Write the value back to the array at ptr.
+                    // TODO: fix the timestamp as part of integrating the precompile if needed.
+                    for (i, value) in result.iter().enumerate() {
+                        self.memory[dst + i].value[0] = *value;
+                    }
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::HintBits => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+
+                    // Get the dst array ptr.
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    // Get the src value.
+                    let num = b_val[0].as_canonical_u32();
+
+                    // Decompose the num into bits.
+                    let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
+                    // Write the bits to the array at dst.
+                    for (i, bit) in bits.iter().enumerate() {
+                        self.memory[dst + i].value[0] = F::from_canonical_u32(*bit);
+                    }
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
             };
 
             let event = CpuEvent {
@@ -353,6 +448,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> Runtime<F, EF> {
             self.pc = next_pc;
             self.record.cpu_events.push(event);
             self.clk += F::from_canonical_u32(4);
+            self.timestamp += 1;
             self.access = CpuRecord::default();
         }
 

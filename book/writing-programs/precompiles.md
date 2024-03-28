@@ -1,6 +1,6 @@
 # Precompiles
 
-Precompiles are built into the SP1 zkVM and accelerate commonly used operations such as elliptic curve arithmetic and hashing. 
+Precompiles are built into the SP1 zkVM and accelerate commonly used operations such as elliptic curve arithmetic and hashing.
 Under the hood, precompiles are implemented as custom tables dedicated to proving one or few operations. **They typically improve the performance
 of executing expensive operations by a few order of magnitudes.**
 
@@ -72,7 +72,7 @@ pub extern "C" fn syscall_secp256k1_add(p: *mut u32, q: *mut u32)
 
 #### Secp256k1 Double
 
-Doubles a Secp256k1 point. The result is stored in the first point.
+Doubles a Secp256k1 point inplace.
 
 ```rust,noplayground
 pub extern "C" fn syscall_secp256k1_double(p: *mut u32)
@@ -80,11 +80,43 @@ pub extern "C" fn syscall_secp256k1_double(p: *mut u32)
 
 #### Secp256k1 Decompress
 
-Decompess a Secp256k1 point. 
+Decompess a Secp256k1 point.
 
 The input array should be 32 bytes long, with the first 16 bytes containing the X coordinate in
 big-endian format. The second half of the input will be overwritten with the decompressed point.
 
 ```rust,noplayground
 pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
+```
+
+#### Bn254 Add
+
+Adds two Bn254 points. The result is stored in the first point.
+
+```rust,noplayground
+pub extern "C" fn syscall_bn254_add(p: *mut u32, q: *mut u32)
+```
+
+#### Bn254 Double
+
+Doubles a Bn256 point inplace.
+
+```rust,noplayground
+pub extern "C" fn syscall_bn254_double(p: *mut u32)
+```
+
+#### Secp256r1 Add
+
+Adds two Secp256r1 points. The result is stored in the first point.
+
+```rust,noplayground
+pub extern "C" fn syscall_secp256r1_add(p: *mut u32, q: *mut u32)
+```
+
+#### Secp256r1 Double
+
+Doubles a Secp256r1 point inplace.
+
+```rust,noplayground
+pub extern "C" fn syscall_secp256r1_double(p: *mut u32)
 ```

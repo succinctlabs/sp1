@@ -1,7 +1,7 @@
 use super::{Builder, Config, Ptr};
 
-pub trait Variable<C: Config>: Copy {
-    type Expression;
+pub trait Variable<C: Config>: Clone {
+    type Expression: From<Self>;
 
     fn uninit(builder: &mut Builder<C>) -> Self;
 
@@ -24,4 +24,10 @@ pub trait MemVariable<C: Config>: Variable<C> {
     fn size_of() -> usize;
     fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>);
     fn store(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>);
+}
+
+pub trait FromConstant<C: Config>: Variable<C> {
+    type Constant;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self;
 }

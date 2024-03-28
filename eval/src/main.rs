@@ -1,3 +1,4 @@
+#![feature(generic_const_exprs)]
 use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;

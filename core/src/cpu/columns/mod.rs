@@ -1,5 +1,6 @@
 mod auipc;
 mod branch;
+mod ecall;
 mod instruction;
 mod jump;
 mod memory;
@@ -8,6 +9,7 @@ mod opcode_specific;
 
 pub use auipc::*;
 pub use branch::*;
+pub use ecall::*;
 pub use instruction::*;
 pub use jump::*;
 pub use memory::*;
@@ -34,8 +36,12 @@ pub struct CpuCols<T: Copy> {
     /// The current shard.
     pub shard: T,
 
-    /// The clock cycle value.
+    /// The clock cycle value.  This should be within 24 bits.
     pub clk: T,
+    /// The least significant 16 bit limb of clk.
+    pub clk_16bit_limb: T,
+    /// The most significant 8 bit limb of clk.
+    pub clk_8bit_limb: T,
 
     /// The program counter value.
     pub pc: T,
@@ -80,6 +86,9 @@ pub struct CpuCols<T: Copy> {
     /// The unsigned memory value is the value after the offset logic is applied. Used for the load
     /// memory opcodes (i.e. LB, LH, LW, LBU, and LHU).
     pub unsigned_mem_val: Word<T>,
+
+    /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
+    pub ecall_mul_send_to_table: T,
 }
 
 impl<T: Copy> CpuCols<T> {

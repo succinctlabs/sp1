@@ -1,5 +1,5 @@
-use hashbrown::HashMap;
 use std::collections::BTreeMap;
+use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
 
@@ -8,8 +8,7 @@ use super::Opcode;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
-use crate::field::event::FieldEvent;
-use crate::runtime::MemoryRecord;
+use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
@@ -19,6 +18,7 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// A record of the execution of a program. Contains event data for everything that happened during
@@ -61,9 +61,6 @@ pub struct ExecutionRecord {
     /// A trace of the byte lookups needed.
     pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
 
-    /// A trace of field LTU events.
-    pub field_events: Vec<FieldEvent>,
-
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
     pub sha_compress_events: Vec<ShaCompressEvent>,
@@ -78,19 +75,23 @@ pub struct ExecutionRecord {
 
     pub secp256k1_double_events: Vec<ECDoubleEvent>,
 
-    pub k256_decompress_events: Vec<K256DecompressEvent>,
+    pub bn254_add_events: Vec<ECAddEvent>,
 
-    pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+    pub bn254_double_events: Vec<ECDoubleEvent>,
 
     pub secp256r1_add_events: Vec<ECAddEvent>,
 
     pub secp256r1_double_events: Vec<ECDoubleEvent>,
 
-    /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
-    /// we keep this information in this struct for now.
-    pub first_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub last_memory_record: Vec<(u32, MemoryRecord, u32)>,
-    pub program_memory_record: Vec<(u32, MemoryRecord, u32)>,
+    pub k256_decompress_events: Vec<K256DecompressEvent>,
+
+    pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+
+    pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 }
 
 pub struct ShardingConfig {
@@ -105,8 +106,12 @@ pub struct ShardingConfig {
     pub lt_len: usize,
     pub field_len: usize,
     pub keccak_len: usize,
-    pub weierstrass_add_len: usize,
-    pub weierstrass_double_len: usize,
+    pub secp256k1_add_len: usize,
+    pub secp256k1_double_len: usize,
+    pub bn254_add_len: usize,
+    pub bn254_double_len: usize,
+    pub secp256r1_add_len: usize,
+    pub secp256r1_double_len: usize,
 }
 
 impl ShardingConfig {
@@ -130,8 +135,12 @@ impl Default for ShardingConfig {
             shift_right_len: shard_size,
             field_len: shard_size * 4,
             keccak_len: shard_size,
-            weierstrass_add_len: shard_size,
-            weierstrass_double_len: shard_size,
+            secp256k1_add_len: shard_size,
+            secp256k1_double_len: shard_size,
+            bn254_add_len: shard_size,
+            bn254_double_len: shard_size,
+            secp256r1_add_len: shard_size,
+            secp256r1_double_len: shard_size,
         }
     }
 }
@@ -164,7 +173,6 @@ impl MachineRecord for ExecutionRecord {
         );
         stats.insert("divrem_events".to_string(), self.divrem_events.len());
         stats.insert("lt_events".to_string(), self.lt_events.len());
-        stats.insert("field_events".to_string(), self.field_events.len());
         stats.insert(
             "sha_extend_events".to_string(),
             self.sha_extend_events.len(),
@@ -190,13 +198,10 @@ impl MachineRecord for ExecutionRecord {
             "secp256k1_double_events".to_string(),
             self.secp256k1_double_events.len(),
         );
+        stats.insert("bn254_add_events".to_string(), self.bn254_add_events.len());
         stats.insert(
-            "k256_decompress_events".to_string(),
-            self.k256_decompress_events.len(),
-        );
-        stats.insert(
-            "blake3_compress_inner_events".to_string(),
-            self.blake3_compress_inner_events.len(),
+            "bn254_double_events".to_string(),
+            self.bn254_double_events.len(),
         );
         stats.insert(
             "secp256r1_add_events".to_string(),
@@ -206,12 +211,18 @@ impl MachineRecord for ExecutionRecord {
             "secp256r1_double_events".to_string(),
             self.secp256r1_double_events.len(),
         );
+        stats.insert(
+            "k256_decompress_events".to_string(),
+            self.k256_decompress_events.len(),
+        );
+        stats.insert(
+            "blake3_compress_inner_events".to_string(),
+            self.blake3_compress_inner_events.len(),
+        );
         stats
     }
 
     fn append(&mut self, other: &mut ExecutionRecord) {
-        assert_eq!(self.index, other.index, "Shard index mismatch");
-
         self.cpu_events.append(&mut other.cpu_events);
         self.add_events.append(&mut other.add_events);
         self.sub_events.append(&mut other.sub_events);
@@ -222,7 +233,6 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.shift_right_events);
         self.divrem_events.append(&mut other.divrem_events);
         self.lt_events.append(&mut other.lt_events);
-        self.field_events.append(&mut other.field_events);
         self.sha_extend_events.append(&mut other.sha_extend_events);
         self.sha_compress_events
             .append(&mut other.sha_compress_events);
@@ -235,14 +245,17 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.secp256k1_add_events);
         self.secp256k1_double_events
             .append(&mut other.secp256k1_double_events);
-        self.k256_decompress_events
-            .append(&mut other.k256_decompress_events);
-        self.blake3_compress_inner_events
-            .append(&mut other.blake3_compress_inner_events);
+        self.bn254_add_events.append(&mut other.bn254_add_events);
+        self.bn254_double_events
+            .append(&mut other.bn254_double_events);
         self.secp256r1_add_events
             .append(&mut other.secp256r1_add_events);
         self.secp256r1_double_events
             .append(&mut other.secp256r1_double_events);
+        self.k256_decompress_events
+            .append(&mut other.k256_decompress_events);
+        self.blake3_compress_inner_events
+            .append(&mut other.blake3_compress_inner_events);
 
         for (event, mult) in other.byte_lookups.iter_mut() {
             self.byte_lookups
@@ -251,28 +264,43 @@ impl MachineRecord for ExecutionRecord {
                 .or_insert(*mult);
         }
 
-        self.first_memory_record
-            .append(&mut other.first_memory_record);
-        self.last_memory_record
-            .append(&mut other.last_memory_record);
-        self.program_memory_record
-            .append(&mut other.program_memory_record);
+        self.memory_initialize_events
+            .append(&mut other.memory_initialize_events);
+        self.memory_finalize_events
+            .append(&mut other.memory_finalize_events);
+        self.program_memory_events
+            .append(&mut other.program_memory_events);
     }
 
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Make the shard vector by splitting CPU and program events.
-        let num_shards = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size;
+        let num_cpu_events = self.cpu_events.len();
+        let mut num_shards = 0;
+        if num_cpu_events > 0 {
+            // The first shard is at 1.  See [ExecutionState::new].
+            num_shards = self.cpu_events[num_cpu_events - 1].shard;
+        }
+
         let mut shards = (0..num_shards)
             .map(|_| ExecutionRecord::default())
             .collect::<Vec<_>>();
-        while !self.cpu_events.is_empty() {
-            // Iterate from end so we can truncate cpu_events as we go.
-            let index = (self.cpu_events.len() + config.shard_size - 1) / config.shard_size - 1;
-            let start = index * config.shard_size;
-            let shard = &mut shards[index];
-            shard.index = (index + 1) as u32;
-            shard.cpu_events = self.cpu_events.split_off(start);
-            shard.program = self.program.clone();
+        let mut start_idx = 0;
+        let mut current_shard_num = 1;
+        for (i, cpu_event) in self.cpu_events.iter().enumerate() {
+            let at_last_event = i == num_cpu_events - 1;
+            if cpu_event.shard != current_shard_num || at_last_event {
+                let last_idx = if at_last_event { i + 1 } else { i };
+
+                let shard = &mut shards[current_shard_num as usize - 1];
+                shard.index = current_shard_num;
+                shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
+                shard.program = self.program.clone();
+
+                if !(at_last_event) {
+                    start_idx = i;
+                    current_shard_num = cpu_event.shard;
+                }
+            }
         }
 
         // Shard all the other events according to the configuration.
@@ -343,15 +371,6 @@ impl MachineRecord for ExecutionRecord {
             shard.lt_events.extend_from_slice(lt_chunk);
         }
 
-        // Shard the field events.
-        take(&mut self.field_events)
-            .into_iter()
-            .enumerate()
-            .for_each(|(i, event)| {
-                let shard = &mut shards[i / config.field_len];
-                shard.field_events.push(event);
-            });
-
         // Keccak-256 permute events.
         for (keccak_chunk, shard) in take(&mut self.keccak_permute_events)
             .chunks_mut(config.keccak_len)
@@ -360,9 +379,9 @@ impl MachineRecord for ExecutionRecord {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
-        // Secp256k1 curve add events.
+        // secp256k1 curve add events.
         for (secp256k1_add_chunk, shard) in take(&mut self.secp256k1_add_events)
-            .chunks_mut(config.weierstrass_add_len)
+            .chunks_mut(config.secp256k1_add_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -370,9 +389,9 @@ impl MachineRecord for ExecutionRecord {
                 .extend_from_slice(secp256k1_add_chunk);
         }
 
-        // Secp256k1 curve double events.
+        // secp256k1 curve double events.
         for (secp256k1_double_chunk, shard) in take(&mut self.secp256k1_double_events)
-            .chunks_mut(config.weierstrass_double_len)
+            .chunks_mut(config.secp256k1_double_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -380,9 +399,27 @@ impl MachineRecord for ExecutionRecord {
                 .extend_from_slice(secp256k1_double_chunk);
         }
 
+        // bn254 curve add events.
+        for (bn254_add_chunk, shard) in take(&mut self.bn254_add_events)
+            .chunks_mut(config.bn254_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard.bn254_add_events.extend_from_slice(bn254_add_chunk);
+        }
+
+        // bn254 curve double events.
+        for (bn254_double_chunk, shard) in take(&mut self.bn254_double_events)
+            .chunks_mut(config.bn254_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bn254_double_events
+                .extend_from_slice(bn254_double_chunk);
+        }
+
         // Secp256r1 curve add events.
         for (secp256r1_add_chunk, shard) in take(&mut self.secp256r1_add_events)
-            .chunks_mut(config.weierstrass_add_len)
+            .chunks_mut(config.secp256r1_double_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -392,7 +429,7 @@ impl MachineRecord for ExecutionRecord {
 
         // Secp256r1 curve double events.
         for (secp256r1_double_chunk, shard) in take(&mut self.secp256r1_double_events)
-            .chunks_mut(config.weierstrass_double_len)
+            .chunks_mut(config.secp256r1_add_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -428,14 +465,14 @@ impl MachineRecord for ExecutionRecord {
         let last_shard = shards.last_mut().unwrap();
 
         last_shard
-            .first_memory_record
-            .extend_from_slice(&self.first_memory_record);
+            .memory_initialize_events
+            .extend_from_slice(&self.memory_initialize_events);
         last_shard
-            .last_memory_record
-            .extend_from_slice(&self.last_memory_record);
+            .memory_finalize_events
+            .extend_from_slice(&self.memory_finalize_events);
         last_shard
-            .program_memory_record
-            .extend_from_slice(&self.program_memory_record);
+            .program_memory_events
+            .extend_from_slice(&self.program_memory_events);
 
         shards
     }
@@ -458,14 +495,6 @@ impl ExecutionRecord {
         self.lt_events.push(lt_event);
     }
 
-    pub fn add_field_event(&mut self, field_event: FieldEvent) {
-        self.field_events.push(field_event);
-    }
-
-    pub fn add_field_events(&mut self, field_events: &[FieldEvent]) {
-        self.field_events.extend_from_slice(field_events);
-    }
-
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
         self.byte_lookups
             .entry(blu_event)
@@ -474,7 +503,8 @@ impl ExecutionRecord {
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
-        for opcode in alu_events.keys() {
+        let keys = alu_events.keys().sorted();
+        for opcode in keys {
             match opcode {
                 Opcode::ADD => {
                     self.add_events.extend_from_slice(&alu_events[opcode]);

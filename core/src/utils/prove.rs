@@ -1,13 +1,21 @@
+use std::fs::File;
+use std::io::{Seek, Write};
 use std::time::Instant;
 
-use crate::stark::{Com, PcsProverData, RiscvAir, UniConfig};
+use crate::runtime::{ExecutionRecord, ShardingConfig};
+use crate::stark::MachineRecord;
+use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
+use crate::utils::env::shard_batch_size;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
+use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
+use p3_challenger::CanObserve;
+
 use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -21,37 +29,57 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
-pub fn prove(program: Program) -> crate::stark::Proof<BabyBearBlake3> {
+pub fn run_test_io(
+    program: Program,
+    inputs: SP1Stdin,
+) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
+        runtime.write_stdin_slice(&inputs.buffer.data);
         runtime.run();
         runtime
     });
-    let config = BabyBearBlake3::new();
-    prove_core(config, runtime)
+    let stdout = SP1Stdout::from(&runtime.state.output_stream);
+    let proof = run_test_core(runtime)?;
+    Ok(SP1ProofWithIO {
+        proof,
+        stdin: inputs,
+        stdout,
+    })
 }
 
-#[cfg(test)]
-#[cfg(not(debug))]
-pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
+pub fn run_test(
+    program: Program,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
     });
+    run_test_core(runtime)
+}
+
+pub fn run_test_core(
+    runtime: Runtime,
+) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
-    let start = Instant::now();
+    #[cfg(feature = "debug")]
     let record_clone = runtime.record.clone();
+
+    let start = Instant::now();
     let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, record_clone, &mut challenger));
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
 
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    #[cfg(feature = "debug")]
+    machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
@@ -64,32 +92,140 @@ pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificatio
         Size::from_bytes(nb_bytes),
     );
 
-    Ok(())
+    Ok(proof)
 }
 
-#[cfg(test)]
-#[cfg(debug)]
-pub fn run_test(program: Program) -> Result<(), crate::stark::ProgramVerificationError> {
-    let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-        runtime
-    });
-    let config = BabyBearBlake3::new();
+fn trace_checkpoint(program: Program, file: &File) -> ExecutionRecord {
+    let mut reader = std::io::BufReader::new(file);
+    let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
+    let mut runtime = Runtime::recover(program.clone(), state);
+    let (events, _) = tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record());
+    events
+}
+
+fn reset_seek(file: &mut File) {
+    file.seek(std::io::SeekFrom::Start(0))
+        .expect("failed to seek to start of tempfile");
+}
+
+pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
+    program: Program,
+    stdin: &[u8],
+    config: SC,
+) -> (crate::stark::Proof<SC>, Vec<u8>)
+where
+    SC::Challenger: Clone,
+    OpeningProof<SC>: Send + Sync,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+    <SC as StarkGenericConfig>::Val: PrimeField32,
+{
+    let mut challenger = config.challenger();
+
     let machine = RiscvAir::machine(config);
-    let (pk, vk) = machine.setup(runtime.program.as_ref());
-    let mut challenger = machine.config().challenger();
+    let mut runtime = Runtime::new(program.clone());
 
-    let start = Instant::now();
-    let record = runtime.record;
-    machine.debug_constraints(&pk, record, &mut challenger);
+    runtime.write_stdin_slice(stdin);
+    let (pk, _) = machine.setup(runtime.program.as_ref());
+    let should_batch = shard_batch_size() > 0;
 
-    Ok(())
-}
+    // If we don't need to batch, we can just run the program normally and prove it.
+    if !should_batch {
+        runtime.run();
+        let stdout = std::mem::take(&mut runtime.state.output_stream);
+        let proof = prove_core(machine.config().clone(), runtime);
+        return (proof, stdout);
+    }
 
-pub fn prove_elf(elf: &[u8]) -> crate::stark::Proof<BabyBearBlake3> {
-    let program = Program::from(elf);
-    prove(program)
+    // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
+    let mut cycles = 0;
+    let mut prove_time = 0;
+    let mut checkpoints = Vec::new();
+    let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
+        // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
+        let (state, done) = runtime.execute_state();
+        let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
+        let mut writer = std::io::BufWriter::new(&mut tempfile);
+        bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
+        writer.flush().expect("failed to flush writer");
+        drop(writer);
+        tempfile
+            .seek(std::io::SeekFrom::Start(0))
+            .expect("failed to seek to start of tempfile");
+        checkpoints.push(tempfile);
+        if done {
+            return std::mem::take(&mut runtime.state.output_stream);
+        }
+    });
+
+    // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
+    let sharding_config = ShardingConfig::default();
+    let mut shard_main_datas = Vec::new();
+
+    // If there's only one batch, it already must fit in memory so reuse it later in open multi
+    // rather than running the runtime again.
+    let reuse_shards = checkpoints.len() == 1;
+    let mut all_shards = None;
+
+    for file in checkpoints.iter_mut() {
+        let events = trace_checkpoint(program.clone(), file);
+        reset_seek(&mut *file);
+        cycles += events.cpu_events.len();
+        let shards =
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config));
+        let (commitments, commit_data) = tracing::info_span!("commit")
+            .in_scope(|| LocalProver::commit_shards(&machine, &shards));
+
+        shard_main_datas.push(commit_data);
+
+        if reuse_shards {
+            all_shards = Some(shards);
+        }
+        for commitment in commitments {
+            challenger.observe(commitment);
+        }
+    }
+
+    // For each checkpoint, generate events and shard again, then prove the shards.
+    let mut shard_proofs = Vec::<ShardProof<SC>>::new();
+    for mut file in checkpoints.into_iter() {
+        let shards = if reuse_shards {
+            Option::take(&mut all_shards).unwrap()
+        } else {
+            let events = trace_checkpoint(program.clone(), &file);
+            reset_seek(&mut file);
+            tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
+        };
+        let start = Instant::now();
+        let mut new_proofs = shards
+            .into_iter()
+            .map(|shard| {
+                let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                let config = machine.config();
+                let shard_data =
+                    LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
+                LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger.clone())
+            })
+            .collect::<Vec<_>>();
+        prove_time += start.elapsed().as_millis();
+        shard_proofs.append(&mut new_proofs);
+    }
+
+    let proof = crate::stark::Proof::<SC> { shard_proofs };
+
+    // Prove the program.
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    tracing::info!(
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        prove_time,
+        (cycles as f64 / prove_time as f64),
+        Size::from_bytes(nb_bytes),
+    );
+
+    (proof, stdout)
 }
 
 pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
@@ -139,7 +275,7 @@ where
         + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>
         + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
 {
-    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace)
+    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
 }
 
 #[cfg(not(debug_assertions))]
@@ -154,7 +290,7 @@ where
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
         + for<'a> Air<p3_uni_stark::ProverConstraintFolder<'a, UniConfig<SC>>>,
 {
-    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace)
+    p3_uni_stark::prove(&UniConfig(config.clone()), air, challenger, trace, &vec![])
 }
 
 #[cfg(debug_assertions)]
@@ -170,7 +306,7 @@ where
         + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>
         + for<'a> Air<p3_uni_stark::DebugConstraintBuilder<'a, SC::Val>>,
 {
-    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof)
+    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
 }
 
 #[cfg(not(debug_assertions))]
@@ -185,7 +321,7 @@ where
     A: Air<p3_uni_stark::SymbolicAirBuilder<SC::Val>>
         + for<'a> Air<p3_uni_stark::VerifierConstraintFolder<'a, UniConfig<SC>>>,
 {
-    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof)
+    p3_uni_stark::verify(&UniConfig(config.clone()), air, challenger, proof, &vec![])
 }
 
 pub use baby_bear_keccak::BabyBearKeccak;
@@ -239,7 +375,7 @@ pub mod baby_bear_poseidon2 {
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
     pub struct BabyBearPoseidon2 {
-        perm: Perm,
+        pub perm: Perm,
         pcs: Pcs,
     }
 

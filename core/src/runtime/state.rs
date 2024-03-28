@@ -1,13 +1,17 @@
-use hashbrown::HashMap;
+use std::collections::HashMap;
+
 use nohash_hasher::BuildNoHashHasher;
+use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 
 use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
 
 /// Holds data describing the current state of a program's execution.
-#[derive(Debug, Clone, Default)]
+#[serde_as]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ExecutionState {
     /// The global clock keeps track of how many instrutions have been executed through all shards.
-    pub global_clk: u32,
+    pub global_clk: u64,
 
     /// The shard clock keeps track of how many shards have been executed.
     pub current_shard: u32,
@@ -40,7 +44,7 @@ impl ExecutionState {
     pub fn new(pc_start: u32) -> Self {
         Self {
             global_clk: 0,
-            // Start at shard 1 since zero is reserved for memory initialization.
+            // Start at shard 1 since shard 0 is reserved for memory initialization.
             current_shard: 1,
             clk: 0,
             pc: pc_start,
@@ -57,7 +61,7 @@ impl ExecutionState {
 #[derive(Debug, Clone, Default)]
 pub(crate) struct ForkState {
     /// Original global_clk
-    pub(crate) global_clk: u32,
+    pub(crate) global_clk: u64,
 
     /// Original clk
     pub(crate) clk: u32,
@@ -73,4 +77,7 @@ pub(crate) struct ForkState {
 
     /// Full shard from original state
     pub(crate) record: ExecutionRecord,
+
+    // Emit events from original state
+    pub(crate) emit_events: bool,
 }

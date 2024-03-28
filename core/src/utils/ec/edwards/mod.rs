@@ -1,13 +1,17 @@
 pub mod ed25519;
 
+use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
+use super::field::NumLimbs;
+use super::CurveType;
+
 pub trait EdwardsParameters: EllipticCurveParameters {
-    const D: [u16; MAX_NB_LIMBS];
+    const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;
 
     fn generator() -> (BigUint, BigUint);
 
@@ -16,7 +20,7 @@ pub trait EdwardsParameters: EllipticCurveParameters {
     fn d_biguint() -> BigUint {
         let mut modulus = BigUint::zero();
         for (i, limb) in Self::D.iter().enumerate() {
-            modulus += BigUint::from(*limb) << (16 * i);
+            modulus += BigUint::from(*limb) << (8 * i);
         }
         modulus
     }
@@ -31,7 +35,7 @@ pub trait EdwardsParameters: EllipticCurveParameters {
 pub struct EdwardsCurve<E: EdwardsParameters>(pub E);
 
 impl<E: EdwardsParameters> EdwardsParameters for EdwardsCurve<E> {
-    const D: [u16; MAX_NB_LIMBS] = E::D;
+    const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs> = E::D;
 
     fn generator() -> (BigUint, BigUint) {
         E::generator()
@@ -52,7 +56,8 @@ impl<E: EdwardsParameters> EdwardsParameters for EdwardsCurve<E> {
 
 impl<E: EdwardsParameters> EllipticCurveParameters for EdwardsCurve<E> {
     type BaseField = E::BaseField;
-    const NAME: &'static str = E::NAME;
+
+    const CURVE_TYPE: CurveType = E::CURVE_TYPE;
 }
 
 impl<E: EdwardsParameters> EdwardsCurve<E> {
@@ -95,7 +100,7 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
         &self,
         other: &AffinePoint<EdwardsCurve<E>>,
     ) -> AffinePoint<EdwardsCurve<E>> {
-        let p = E::BaseField::modulus();
+        let p = <E as EllipticCurveParameters>::BaseField::modulus();
         let x_3n = (&self.x * &other.y + &self.y * &other.x) % &p;
         let y_3n = (&self.y * &other.y + &self.x * &other.x) % &p;
 
@@ -120,12 +125,10 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
 mod tests {
 
     use num::bigint::RandBigInt;
-    use num::BigUint;
     use rand::thread_rng;
 
-    use super::{EdwardsParameters, *};
+    use super::*;
     use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-    use crate::utils::ec::{EllipticCurve, EllipticCurveParameters};
 
     #[test]
     fn test_bigint_ed_add() {

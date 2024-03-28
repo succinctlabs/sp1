@@ -3,12 +3,15 @@
 
 use std::str::FromStr;
 
+use generic_array::GenericArray;
 use num::BigUint;
 use serde::{Deserialize, Serialize};
+use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
+use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
@@ -25,13 +28,7 @@ pub type Secp256r1 = SwCurve<Secp256r1Parameters>;
 pub struct Secp256r1BaseField;
 
 impl FieldParameters for Secp256r1BaseField {
-    const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-
-    const NB_LIMBS: usize = NUM_LIMBS;
-
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-
-    const MODULUS: [u8; MAX_NB_LIMBS] = [
+    const MODULUS: &'static [u8] = &[
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x00, 0x00, 0x00,
         0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0xff, 0xff,
         0xff, 0xff,
@@ -41,25 +38,30 @@ impl FieldParameters for Secp256r1BaseField {
     const WITNESS_OFFSET: usize = 1usize << 14;
 
     fn modulus() -> BigUint {
-        BigUint::from_bytes_le(&Self::MODULUS)
+        BigUint::from_bytes_le(Self::MODULUS)
     }
+}
+
+impl NumLimbs for Secp256r1BaseField {
+    type Limbs = U32;
+    type Witness = U62;
 }
 
 impl EllipticCurveParameters for Secp256r1Parameters {
     type BaseField = Secp256r1BaseField;
-    const NAME: &'static str = "secp256r1";
+    const CURVE_TYPE: CurveType = CurveType::Secp256r1;
 }
 
 impl WeierstrassParameters for Secp256r1Parameters {
-    const A: [u16; MAX_NB_LIMBS] = [
-        65532, 65535, 65535, 65535, 65535, 65535, 0, 0, 0, 0, 0, 0, 1, 0, 65535, 65535, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
+    const A: GenericArray<u8, U32> = GenericArray::from_array([
+        252, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        0, 0, 1, 0, 0, 0, 255, 255, 255, 255,
+    ]);
 
-    const B: [u16; MAX_NB_LIMBS] = [
-        24651, 10194, 15422, 15310, 45302, 52307, 1712, 25885, 34492, 30360, 48469, 46059, 37863,
-        43578, 13784, 23238, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-    ];
+    const B: GenericArray<u8, U32> = GenericArray::from_array([
+        75, 96, 210, 39, 62, 60, 206, 59, 246, 176, 83, 204, 176, 6, 29, 101, 188, 134, 152, 118,
+        85, 189, 235, 179, 231, 147, 58, 170, 216, 53, 198, 90,
+    ]);
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from_str(
             "48439561293906451759052585252797914202762949526041747995844080717082404635286",
@@ -117,12 +119,10 @@ mod tests {
             biguint_from_limbs(&Secp256r1BaseField::MODULUS),
             Secp256r1BaseField::modulus()
         );
-        println!("{:?}", Secp256r1Parameters::a_int());
-        println!("{:?}", Secp256r1Parameters::b_int());
     }
 
     #[test]
-    fn test_secp256r1_sqrt() {
+    fn test_secp256r_sqrt() {
         let mut rng = thread_rng();
         for _ in 0..10 {
             // Check that sqrt(x^2)^2 == x^2

@@ -8,6 +8,7 @@ on:
       - "**"
     paths:
       - "core/**"
+      - "recursion/**"
 
 jobs:
   test:
@@ -61,6 +62,16 @@ jobs:
         with:
           command: test
           args: -p sp1-recursion-compiler --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
+      - name: Run cargo test on sp1-recursion-program
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-recursion-program --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_LOG: 1

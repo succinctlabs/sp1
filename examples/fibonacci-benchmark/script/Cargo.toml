@@ -1,0 +1,11 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "fibonacci-benchmark-script"
+edition = "2021"
+
+[dependencies]
+sp1-core = { path = "../../../core" }
+
+[build-dependencies]
+sp1-helper = { path = "../../../helper" }
