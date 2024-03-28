@@ -1,6 +1,5 @@
 use alloc::collections::BTreeMap;
 use alloc::format;
-use alloc::string::String;
 use core::fmt;
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::Opcode;

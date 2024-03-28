@@ -9,6 +9,7 @@ use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 use super::field::NumLimbs;
 use super::CurveType;
+use super::CurveType;
 
 pub trait EdwardsParameters: EllipticCurveParameters {
     const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;
@@ -124,12 +125,10 @@ impl<E: EdwardsParameters> AffinePoint<EdwardsCurve<E>> {
 mod tests {
 
     use num::bigint::RandBigInt;
-    use num::BigUint;
     use rand::thread_rng;
 
-    use super::{EdwardsParameters, *};
+    use super::*;
     use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-    use crate::utils::ec::{EllipticCurve, EllipticCurveParameters};
 
     #[test]
     fn test_bigint_ed_add() {

@@ -1,35 +1,72 @@
 use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
 
-use sp1_recursion_compiler::verifier::TwoAdicMultiplicativeCosetVariable;
-
 use p3_field::{AbstractField, TwoAdicField};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Usize, Var};
+use sp1_recursion_compiler::prelude::*;
 
 use crate::commit::PolynomialSpaceVariable;
 
-// /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
-// #[derive(DslVariable, Clone)]
-// pub struct TwoAdicMultiplicativeCoset<C: Config> {
-//     pub log_n: Var<C::N>,
-//     pub size: Var<C::N>,
-//     pub shift: Felt<C::F>,
-//     pub g: Felt<C::F>,
+/// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
+#[derive(DslVariable, Clone, Copy)]
+pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
+    pub log_n: Var<C::N>,
+    pub size: Var<C::N>,
+    pub shift: Felt<C::F>,
+    pub g: Felt<C::F>,
+}
+
+impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L74
+    pub fn first_point(&self) -> Felt<C::F> {
+        self.shift
+    }
+
+    pub fn size(&self) -> Var<C::N> {
+        self.size
+    }
+
+    pub fn gen(&self) -> Felt<C::F> {
+        self.g
+    }
+}
+
+// impl<C: Config> Builder<C> {
+//     pub fn const_domain(
+//         &mut self,
+//         domain: &TwoAdicMultiplicativeCoset<C::F>,
+//     ) -> TwoAdicMultiplicativeCosetVariable<C>
+//     where
+//         C::F: TwoAdicField,
+//     {
+//         let log_d_val = domain.log_n as u32;
+//         let g_val = C::F::two_adic_generator(domain.log_n);
+//         // Initialize a domain.
+//         TwoAdicMultiplicativeCosetVariable::<C> {
+//             log_n: self.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
+//             size: self.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
+//             shift: self.eval(domain.shift),
+//             g: self.eval(g_val),
+//         }
+//     }
 // }
 
-// impl<C: Config> TwoAdicMultiplicativeCoset<C> {
-//     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L74
-//     pub fn first_point(&self) -> Felt<C::F> {
-//         self.shift
-//     }
+impl<C: Config> FromConstant<C> for TwoAdicMultiplicativeCosetVariable<C>
+where
+    C::F: TwoAdicField,
+{
+    type Constant = TwoAdicMultiplicativeCoset<C::F>;
 
-//     pub fn size(&self) -> Var<C::N> {
-//         self.size
-//     }
-
-//     pub fn gen(&self) -> Felt<C::F> {
-//         self.g
-//     }
-// }
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        let log_d_val = value.log_n as u32;
+        let g_val = C::F::two_adic_generator(value.log_n);
+        // Initialize a domain.
+        TwoAdicMultiplicativeCosetVariable::<C> {
+            log_n: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
+            size: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
+            shift: builder.eval(value.shift),
+            g: builder.eval(g_val),
+        }
+    }
+}
 
 pub fn new_coset<C: Config>(
     builder: &mut Builder<C>,
@@ -134,7 +171,6 @@ where
         let mut domains = vec![];
 
         for _ in 0..num_chunks {
-            builder.print_f(domain_power);
             domains.push(TwoAdicMultiplicativeCosetVariable {
                 log_n,
                 size,
@@ -163,11 +199,9 @@ pub(crate) mod tests {
 
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
-    use sp1_recursion_compiler::prelude::ExtConst;
 
     use super::*;
-    use p3_commit::{Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset};
-    use p3_field::TwoAdicField;
+    use p3_commit::{Pcs, PolynomialSpace};
     use rand::{thread_rng, Rng};
     use sp1_core::stark::Dom;
     use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
@@ -222,7 +256,7 @@ pub(crate) mod tests {
 
             // Initialize a reference doamin.
             let domain_val = natural_domain_for_degree(1 << log_d_val);
-            let domain = builder.const_domain(&domain_val);
+            let domain = builder.eval_const(domain_val);
             // builder.assert_felt_eq(domain.shift, domain_val.shift);
             let zeta_val = rng.gen::<EF>();
             domain_assertions(&mut builder, &domain, &domain_val, zeta_val);
@@ -230,7 +264,7 @@ pub(crate) mod tests {
             // Try a shifted domain.
             let disjoint_domain_val =
                 domain_val.create_disjoint_domain(1 << (log_d_val + log_quotient_degree));
-            let disjoint_domain = builder.const_domain(&disjoint_domain_val);
+            let disjoint_domain = builder.eval_const(disjoint_domain_val);
             domain_assertions(
                 &mut builder,
                 &disjoint_domain,
@@ -250,7 +284,7 @@ pub(crate) mod tests {
             // Now try splited domains
             let qc_domains_val = disjoint_domain_val.split_domains(1 << log_quotient_degree);
             for dom_val in qc_domains_val.iter() {
-                let dom = builder.const_domain(dom_val);
+                let dom = builder.eval_const(*dom_val);
                 domain_assertions(&mut builder, &dom, dom_val, zeta_val);
             }
 

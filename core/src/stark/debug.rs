@@ -15,15 +15,16 @@ use super::{MachineChip, StarkGenericConfig, Val};
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
+pub fn debug_constraints<SC, A>(
     chip: &MachineChip<SC, A>,
     preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
 ) where
+    SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
-    A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    A: MachineAir<Val<SC>> + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
 {
     assert_eq!(main.height(), perm.height());
     let height = main.height();
@@ -164,6 +165,21 @@ where
     }
 }
 
+impl<'a, F, EF> DebugConstraintBuilder<'a, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    #[inline]
+    fn debug_constraint(&self, x: F, y: F) {
+        if x != y {
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            eprintln!("constraint failed: {:?} != {:?}\n{}", x, y, backtrace);
+            panic!();
+        }
+    }
+}
+
 impl<'a, F, EF> AirBuilder for DebugConstraintBuilder<'a, F, EF>
 where
     F: Field,
@@ -195,10 +211,23 @@ where
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let f: F = x.into();
-        if f != F::zero() {
+        self.debug_constraint(x.into(), F::zero());
+    }
+
+    fn assert_one<I: Into<Self::Expr>>(&mut self, x: I) {
+        self.debug_constraint(x.into(), F::one());
+    }
+
+    fn assert_eq<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(&mut self, x: I1, y: I2) {
+        self.debug_constraint(x.into(), y.into());
+    }
+
+    /// Assert that `x` is a boolean, i.e. either 0 or 1.
+    fn assert_bool<I: Into<Self::Expr>>(&mut self, x: I) {
+        let x = x.into();
+        if x != F::zero() && x != F::one() {
             let backtrace = std::backtrace::Backtrace::force_capture();
-            eprintln!("constraint failed: {:?} != 0\n{}", f, backtrace);
+            eprintln!("constraint failed: {:?} is not a bool\n{}", x, backtrace);
             panic!();
         }
     }

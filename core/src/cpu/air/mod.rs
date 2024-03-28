@@ -8,12 +8,16 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
+use crate::air::BaseAirBuilder;
+use crate::air::Word;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
+use crate::operations::IsZeroOperation;
+use crate::runtime::SyscallCode;
 use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl<AB> Air<AB> for CpuChip
@@ -67,15 +71,20 @@ where
 
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.
+        // If we are writing to register 0, then the new value should be zero.
+        builder
+            .when(local.instruction.op_a_0)
+            .assert_word_zero(*local.op_a_access.value());
         builder.constraint_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
             &local.op_a_access,
-            AB::Expr::one() - local.selectors.is_noop - local.selectors.reg_0_write,
+            local.is_real,
         );
 
         // If we are performing a branch or a store, then the value of `a` is the previous value.
+        // Also, if op_a is register 0, then ensure that its value is 0.
         builder
             .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
@@ -125,7 +134,7 @@ where
         self.auipc_eval(builder, local);
 
         // ECALL instruction.
-        let (num_cycles, _is_halt) = self.ecall_eval(builder, local, next);
+        let (num_cycles, is_halt) = self.ecall_eval(builder, local);
 
         builder.send_alu(
             local.instruction.opcode,
@@ -135,19 +144,20 @@ where
             is_alu_instruction,
         );
 
-        // TODO: update the PC.
-        // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
-        // The other case is handled by eval_jump, eval_branch and eval_ecall.
-        // builder
-        //     .when_not(
-        //         is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
-        //     )
-        //     .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
-
         self.shard_clk_eval(builder, local, next, num_cycles);
 
-        // Range checks.
+        self.pc_eval(builder, local, next, is_branch_instruction.clone());
+
+        self.halt_unimpl_eval(builder, local, next, is_halt);
+
+        // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
+        // change value.
         builder.assert_bool(local.is_real);
+        builder.when_first_row().assert_one(local.is_real);
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
@@ -185,8 +195,12 @@ impl CpuChip {
         let jump_columns = local.opcode_specific_columns.jump();
 
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
+        // When op_a is set to register X0, the RISC-V spec states that the jump instruction will
+        // not have a return destination address (it is effectively a GOTO command).  In this case,
+        // we shouldn't verify the return address.
         builder
             .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .when_not(local.instruction.op_a_0)
             .assert_eq(
                 local.op_a_val().reduce::<AB>(),
                 local.pc + AB::F::from_canonical_u8(4),
@@ -248,8 +262,8 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-        _next: &CpuCols<AB::Var>,
     ) -> (AB::Expr, AB::Expr) {
+        let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
         // The syscall code is the read-in value of op_a at the start of the instruction.
         let syscall_code = local.op_a_access.prev_value();
@@ -263,10 +277,9 @@ impl CpuChip {
         // Check that the ecall_mul_send_to_table column is equal to send_to_table * is_ecall_instruction.
         // This is a separate column because it is used as a multiplicity in an interaction which
         // requires degree 1 columns.
-        builder.assert_eq(
-            send_to_table * is_ecall_instruction.clone(),
-            local.ecall_mul_send_to_table,
-        );
+        builder
+            .when(is_ecall_instruction.clone())
+            .assert_eq(send_to_table, local.ecall_mul_send_to_table);
         builder.send_syscall(
             local.shard,
             local.clk,
@@ -276,24 +289,52 @@ impl CpuChip {
             local.ecall_mul_send_to_table,
         );
 
-        // For LWA we assume prover-supplied values. Although to be honest, I'm not 100% sure we need this.
-        // builder
-        //     .when(local.is_ecall)
-        //     .when_not(is_lwa)
-        //     .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+        // Constrain EcallCols.is_enter_unconstrained.result == syscall_id is ENTER_UNCONSTRAINED.
+        let is_enter_unconstrained = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id
+                    - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
+                ecall_cols.is_enter_unconstrained,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_enter_unconstrained.result
+        };
 
-        // TODO: fill in constraints if the syscall is HALT.
-        // For halt instructions, the next pc is 0.
-        // builder
-        //     .when(is_halt)
-        //     .assert_eq(next.pc, AB::Expr::from_canonical_u16(0));
-        // // If we're halting and it's a transition, then the next.is_real should be 0.
-        // builder
-        //     .when_transition()
-        //     .when(is_halt)
-        //     .assert_eq(next.is_real, AB::Expr::zero());
-        // builder.when_first_row().assert_one(local.is_real);
-        // We probably need a "halted" flag, this can be "is_noop" that turns on to control "is_real".
+        // Constrain EcallCols.is_halt.result == syscall_id is HALT.
+        let _is_halt = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
+                ecall_cols.is_halt,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_halt.result
+        };
+
+        // Constrain EcallCols.is_lwa.result == syscall_id is LWA.
+        let is_lwa = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::LWA.syscall_id()),
+                ecall_cols.is_lwa,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_lwa.result
+        };
+
+        // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
+        let zero_word = Word::<AB::F>::from(0);
+        builder
+            .when(is_ecall_instruction.clone() * is_enter_unconstrained)
+            .assert_word_eq(local.op_a_val(), zero_word);
+
+        // When the syscall is not one of ENTER_UNCONSTRAINED, LWA, or HALT, op_a shouldn't change.
+        builder
+            .when(is_ecall_instruction.clone())
+            .when_not(is_enter_unconstrained + is_lwa + is_halt)
+            .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+
         (
             num_cycles * is_ecall_instruction.clone(),
             is_halt * is_ecall_instruction,
@@ -314,10 +355,7 @@ impl CpuChip {
         num_cycles: AB::Expr,
     ) {
         // Verify that all shard values are the same.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.shard, next.shard);
+        builder.when_transition().assert_eq(local.shard, next.shard);
 
         // Verify that the shard value is within 16 bits.
         builder.send_byte(
@@ -338,6 +376,12 @@ impl CpuChip {
             .when(next.is_real)
             .assert_eq(local.clk + clk_increment, next.clk);
 
+        // The clk value is carried down to the last row for non-real rows.
+        builder
+            .when_transition()
+            .when_not(next.is_real)
+            .assert_eq(local.clk, next.clk);
+
         // Range check that the clk is within 24 bits using it's limb values.
         // First verify that the limb values are correct.
         builder.verify_range_24bits(
@@ -346,6 +390,49 @@ impl CpuChip {
             local.clk_8bit_limb,
             local.is_real,
         );
+    }
+
+    /// Constraints related to the pc for non jump, branch, and halt instructions.
+    ///
+    /// The function will verify that the pc increments by 4 for all instructions except branch, jump
+    /// and halt instructions. Also, it ensures that the pc is carried down to the last row for non-real rows.
+    pub(crate) fn pc_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+        is_branch_instruction: AB::Expr,
+    ) {
+        // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
+        // The other case is handled by eval_jump, eval_branch and eval_ecall (for halt).
+        // Note that when the instruction is halt, we already contrain that the next new is not real,
+        // so the `when(next.is_real)` condition implies that the instruction is not halt.
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
+            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+        // The pc value is carried down to the last row for non-real rows.
+        builder
+            .when_transition()
+            .when_not(next.is_real)
+            .assert_eq(local.pc, next.pc);
+    }
+
+    /// Constraint related to the halt and unimpl instruction.
+    pub(crate) fn halt_unimpl_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+        is_halt: AB::Expr,
+    ) {
+        // If we're halting and it's a transition, then the next.is_real should be 0.
+        builder
+            .when_transition()
+            .when(is_halt + local.selectors.is_unimpl)
+            .assert_zero(next.is_real);
     }
 }
 

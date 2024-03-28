@@ -22,6 +22,7 @@ use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
@@ -174,26 +175,6 @@ where
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Handle different types of ECAddEvents through a dynamic dispatch.
-        // let events = match E::CURVE_TYPE {
-        //     CurveType::Secp256k1 => input
-        //         .secp256k1_add_events
-        //         .iter()
-        //         .map(|x| Box::new(x.clone()) as Box<ECAddEvent<dyn E::EventType>>)
-        //         .collect(),
-        //     CurveType::Bn254 => input
-        //         .bn254_add_events
-        //         .iter()
-        //         .map(|x| Box::new(x.clone()) as Box<ECAddEvent<dyn E::EventType>>)
-        //         .collect(),
-        //     CurveType::Bls12381 => input
-        //         .bls12381_add_events
-        //         .iter()
-        //         .map(|x| Box::new(x.clone()) as Box<ECAddEvent<dyn E::EventType>>)
-        //         .collect(),
-        //     _ => panic!("Unsupported curve"),
-        // };
-
         let events: Vec<Box<dyn EcEventTrait>> = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input
                 .secp256k1_add_events

@@ -8,6 +8,7 @@ use field::FieldParameters;
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::{Debug, Display, Formatter, Result};
+use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
 use typenum::Unsigned;
 

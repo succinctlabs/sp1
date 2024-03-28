@@ -130,7 +130,11 @@ impl<F: PrimeField32> RiscvAir<F> {
         let secp256k1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::Secp256k1Add(secp256k1_add_assign));
         let secp256k1_double_assign =
+        let secp256k1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
+        chips.push(RiscvAir::Secp256k1Add(secp256k1_add_assign));
+        let secp256k1_double_assign =
             WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new();
+        chips.push(RiscvAir::Secp256k1Double(secp256k1_double_assign));
         chips.push(RiscvAir::Secp256k1Double(secp256k1_double_assign));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
@@ -158,7 +162,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ShiftLeft(shift_left));
         let lt = LtChip::default();
         chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Init);
+        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Initialize);
         chips.push(RiscvAir::MemoryInit(memory_init));
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
