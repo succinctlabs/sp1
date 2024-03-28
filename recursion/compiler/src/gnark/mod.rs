@@ -685,6 +685,9 @@ impl<C: Config> GnarkBackend<C> {
                         lines.push(format!("{} {} state2[{}]", output[i].id(), operator, i));
                     }
                 }
+                DslIR::PrintV(var) => {
+                    lines.push(format!("api.Println({})", var.id()));
+                }
                 DslIR::PrintF(var) => {
                     lines.push(format!("babybearChip.PrintF({})", var.id()));
                 }

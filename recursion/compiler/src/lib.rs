@@ -6,6 +6,7 @@ extern crate alloc;
 pub mod asm;
 pub mod gnark;
 pub mod ir;
+pub mod r1cs;
 pub mod util;
 pub mod verifier;
 

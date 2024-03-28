@@ -3,6 +3,7 @@ use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::Array;
 use sp1_recursion_compiler::prelude::MemVariable;
 use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_compiler::verifier::fri::types::FriChallenges;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 use sp1_recursion_derive::DslVariable;
 
@@ -11,10 +12,10 @@ use crate::{challenger::MultiFieldChallengerVariable, DIGEST_SIZE};
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
 pub fn verify_shape_and_sample_challenges<C: Config>(
     builder: &mut Builder<C>,
-    _: &FriConfig<OuterChallengeMmcs>,
+    config: &FriConfig<OuterChallengeMmcs>,
     proof: &FriProofVariable<C>,
     challenger: &mut MultiFieldChallengerVariable<C>,
-) {
+) -> FriChallenges<C> {
     let mut betas = vec![];
 
     #[allow(clippy::never_loop)]
@@ -28,8 +29,18 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         betas.push(sample);
     }
 
-    for beta in betas.iter() {
-        builder.print_e(*beta);
+    assert_eq!(proof.query_proofs.vec().len(), config.num_queries);
+
+    challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
+
+    let log_max_height = proof.commit_phase_commits.vec().len() + config.log_blowup;
+    let query_indices: Vec<Var<_>> = (0..config.num_queries)
+        .map(|_| challenger.sample_bits(builder, log_max_height))
+        .collect();
+
+    FriChallenges {
+        query_indices: builder.vec(query_indices),
+        betas: builder.vec(betas),
     }
 }
 
@@ -59,10 +70,11 @@ pub struct FriQueryProofVariable<C: Config> {
 mod tests {
     use std::{fs::File, io::Write};
 
-    use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
-    use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
+    use p3_commit::Pcs;
+    use p3_field::AbstractField;
+    use p3_fri::verifier;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
     use sp1_recursion_compiler::{
@@ -141,6 +153,13 @@ mod tests {
         }
     }
 
+    /// Generates code to test [verifier::verify_shape_and_sample_challenges].
+    ///
+    /// To test the generated Go code, run:
+    ///
+    /// > `go test -v -timeout 600s -run ^TestCircuit$ github.com/succinctlabs/sp1-recursion-gnark`.
+    ///
+    /// It will take a few minutes to compile the code.
     #[test]
     fn test_fri_verify_shape_and_sample_challenges() {
         let mut rng = &mut OsRng;
@@ -182,21 +201,18 @@ mod tests {
             .iter()
             .map(|_| vec![zeta])
             .collect::<Vec<_>>();
-        let (opening, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+        let (_, proof) = pcs.open(vec![(&data, points)], &mut challenger);
 
         // Verify proof.
         let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
         challenger.observe(commit);
-        let os: Vec<(
-            TwoAdicMultiplicativeCoset<OuterVal>,
-            Vec<(OuterChallenge, Vec<OuterChallenge>)>,
-        )> = domains_and_polys
-            .iter()
-            .zip(&opening[0])
-            .map(|((domain, _), mat_openings)| (*domain, vec![(zeta, mat_openings[0].clone())]))
-            .collect();
-        pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger)
-            .unwrap();
+        let _: OuterChallenge = challenger.sample();
+        let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
+            &outer_fri_config(),
+            &proof.fri_proof,
+            &mut challenger,
+        )
+        .unwrap();
 
         // Define circuit.
         let mut builder = Builder::<GnarkConfig>::default();
@@ -207,9 +223,23 @@ mod tests {
         let commit: [Bn254Fr; DIGEST_SIZE] = commit.into();
         let commit: Var<_> = builder.eval(commit[0]);
         challenger.observe_commitment(&mut builder, [commit]);
-        let s = challenger.sample_ext(&mut builder);
-        builder.print_e(s);
-        verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
+        let _ = challenger.sample_ext(&mut builder);
+        let fri_challenges =
+            verify_shape_and_sample_challenges(&mut builder, &config, &fri_proof, &mut challenger);
+
+        for i in 0..fri_challenges_gt.betas.len() {
+            builder.assert_ext_eq(
+                SymbolicExt::Const(fri_challenges_gt.betas[i]),
+                fri_challenges.betas.vec()[i],
+            );
+        }
+
+        for i in 0..fri_challenges_gt.query_indices.len() {
+            builder.assert_var_eq(
+                Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
+                fri_challenges.query_indices.vec()[i],
+            );
+        }
 
         let mut backend = GnarkBackend::<GnarkConfig>::default();
         let result = backend.compile(builder.operations);

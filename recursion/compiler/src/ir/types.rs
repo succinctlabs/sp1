@@ -65,6 +65,10 @@ impl<N> Var<N> {
     pub fn id(&self) -> String {
         format!("var{}", self.0)
     }
+
+    pub fn loc(&self) -> String {
+        self.0.to_string()
+    }
 }
 
 impl<F> Felt<F> {
@@ -74,6 +78,10 @@ impl<F> Felt<F> {
 
     pub fn id(&self) -> String {
         format!("felt{}", self.0)
+    }
+
+    pub fn loc(&self) -> String {
+        self.0.to_string()
     }
 
     pub fn inverse(&self) -> SymbolicFelt<F>
@@ -91,6 +99,10 @@ impl<F, EF> Ext<F, EF> {
 
     pub fn id(&self) -> String {
         format!("ext{}", self.0)
+    }
+
+    pub fn loc(&self) -> String {
+        self.0.to_string()
     }
 
     pub fn inverse(&self) -> SymbolicExt<F, EF>
