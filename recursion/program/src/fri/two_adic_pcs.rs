@@ -73,7 +73,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
             let query_opening = builder.get(&proof.query_openings, i);
-            let index = builder.get(&fri_challenges.query_indices, i);
+            let index_bits = builder.get(&fri_challenges.query_indices, i);
             let mut ro: Array<C, Ext<C::F, C::EF>> = builder.array(32);
             let zero: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::zero()));
             for j in 0..32 {
@@ -109,7 +109,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let log_batch_max_height = builder.get(&batch_heights_log2, 0);
                 let bits_reduced: Var<_> =
                     builder.eval(log_global_max_height - log_batch_max_height);
-                let index_bits = builder.num2bits_v(index);
+                // let index_bits = builder.num2bits_v(index);
                 let index_bits_shifted_v1 = index_bits.shift(builder, bits_reduced);
                 verify_batch::<C, 1>(
                     builder,

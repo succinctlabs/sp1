@@ -98,17 +98,26 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L144
-    pub fn sample_bits(&mut self, builder: &mut Builder<C>, nb_bits: Usize<C::N>) -> Var<C::N> {
+    pub fn sample_bits(
+        &mut self,
+        builder: &mut Builder<C>,
+        nb_bits: Usize<C::N>,
+    ) -> Array<C, Var<C::N>> {
         let rand_f = self.sample(builder);
-        let bits = builder.num2bits_f(rand_f);
-        let sum: Var<C::N> = builder.eval(C::N::zero());
-        let power: Var<C::N> = builder.eval(C::N::from_canonical_usize(1));
-        builder.range(0, nb_bits).for_each(|i, builder| {
-            let bit = builder.get(&bits, i);
-            builder.assign(sum, sum + bit * power);
-            builder.assign(power, power * C::N::from_canonical_usize(2));
+        let mut bits = builder.num2bits_f(rand_f);
+
+        builder.range(nb_bits, bits.len()).for_each(|i, builder| {
+            builder.set(&mut bits, i, C::N::zero());
         });
-        sum
+        // let sum: Var<C::N> = builder.eval(C::N::zero());
+        // let power: Var<C::N> = builder.eval(C::N::from_canonical_usize(1));
+        // builder.range(0, nb_bits).for_each(|i, builder| {
+        //     let bit = builder.get(&bits, i);
+        //     builder.assign(sum, sum + bit * power);
+        //     builder.assign(power, power * C::N::from_canonical_usize(2));
+        // });
+        // sum
+        bits
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/grinding_challenger.rs#L16
@@ -119,8 +128,12 @@ impl<C: Config> DuplexChallengerVariable<C> {
         witness: Felt<C::F>,
     ) {
         self.observe(builder, witness);
-        let element = self.sample_bits(builder, Usize::Var(nb_bits));
-        builder.assert_var_eq(element, C::N::zero());
+        let element_bits = self.sample_bits(builder, Usize::Var(nb_bits));
+        builder.range(0, nb_bits).for_each(|i, builder| {
+            let element = builder.get(&element_bits, i);
+            builder.assert_var_eq(element, C::N::zero());
+        });
+        // builder.assert_var_eq(element, C::N::zero());
     }
 }
 
