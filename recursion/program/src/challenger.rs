@@ -126,7 +126,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
             let element = builder.get(&element_bits, i);
             builder.assert_var_eq(element, C::N::zero());
         });
-        // builder.assert_var_eq(element, C::N::zero());
     }
 }
 
