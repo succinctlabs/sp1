@@ -42,6 +42,7 @@ pub enum ConstraintOpcode {
     PrintV,
     PrintF,
     PrintE,
+    SelectV,
     SelectF,
 }
 
@@ -130,6 +131,13 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     opcode: ConstraintOpcode::AddV,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIR::AddVI(a, b, c) => {
+                    let tmp = self.alloc_v(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::AddV,
+                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
                 DslIR::AddF(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::AddF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -221,6 +229,12 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     opcode: ConstraintOpcode::Permute,
                     args: state.iter().map(|x| vec![x.id()]).collect(),
                 }),
+                DslIR::CircuitSelectV(cond, a, b, out) => {
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SelectV,
+                        args: vec![vec![out.id()], vec![cond.id()], vec![a.id()], vec![b.id()]],
+                    });
+                }
                 DslIR::CircuitSelectF(cond, a, b, out) => {
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SelectF,

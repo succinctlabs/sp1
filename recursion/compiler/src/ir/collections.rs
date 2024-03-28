@@ -86,6 +86,12 @@ impl<C: Config> Builder<C> {
         Array::Fixed(v)
     }
 
+    pub fn select_v(&mut self, cond: Var<C::N>, a: Var<C::N>, b: Var<C::N>) -> Var<C::N> {
+        let c = self.uninit();
+        self.operations.push(DslIR::CircuitSelectV(cond, a, b, c));
+        c
+    }
+
     pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
         let c = self.uninit();
         self.operations.push(DslIR::CircuitSelectF(cond, a, b, c));
