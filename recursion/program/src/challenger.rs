@@ -109,14 +109,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         builder.range(nb_bits, bits.len()).for_each(|i, builder| {
             builder.set(&mut bits, i, C::N::zero());
         });
-        // let sum: Var<C::N> = builder.eval(C::N::zero());
-        // let power: Var<C::N> = builder.eval(C::N::from_canonical_usize(1));
-        // builder.range(0, nb_bits).for_each(|i, builder| {
-        //     let bit = builder.get(&bits, i);
-        //     builder.assign(sum, sum + bit * power);
-        //     builder.assign(power, power * C::N::from_canonical_usize(2));
-        // });
-        // sum
+
         bits
     }
 
