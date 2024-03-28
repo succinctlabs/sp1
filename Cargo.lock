@@ -2919,6 +2919,7 @@ dependencies = [
  "itertools 0.12.1",
  "p3-air",
  "p3-baby-bear",
+ "p3-bn254-fr",
  "p3-challenger",
  "p3-commit",
  "p3-dft",

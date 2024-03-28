@@ -1,0 +1,37 @@
+use std::{
+    fs::File,
+    io::Write,
+    process::{Command, Stdio},
+};
+
+use super::Constraint;
+
+pub fn ffi_test_circuit(constraints: Vec<Constraint>) {
+    let serialized = serde_json::to_string_pretty(&constraints).unwrap();
+    let manifest_dir = env!("CARGO_MANIFEST_DIR");
+    let dir = format!("{}/../circuit/interpreter", manifest_dir);
+    let path = format!("{}/constraints.json", dir);
+    let mut file = File::create(path).unwrap();
+    file.write_all(serialized.as_bytes()).unwrap();
+
+    let result = Command::new("go")
+        .args([
+            "test",
+            "-v",
+            "-timeout",
+            "300s",
+            "-run",
+            "^TestMain$",
+            "github.com/succinctlabs/sp1-recursion-gnark",
+        ])
+        .current_dir(dir)
+        .stderr(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stdin(Stdio::inherit())
+        .output()
+        .unwrap();
+
+    if !result.status.success() {
+        panic!("failed to run test circuit");
+    }
+}

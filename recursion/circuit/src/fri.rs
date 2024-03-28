@@ -68,7 +68,6 @@ pub struct FriQueryProofVariable<C: Config> {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, io::Write};
 
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
@@ -78,8 +77,9 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
     use sp1_recursion_compiler::{
-        gnark::GnarkBackend,
         ir::{Builder, SymbolicExt, Var},
+        r1cs::{gnark, R1CSBackend},
+        OuterConfig,
     };
     use sp1_recursion_core::stark::config::{
         outer_fri_config, outer_perm, OuterChallenge, OuterChallenger, OuterCompress, OuterDft,
@@ -90,14 +90,13 @@ mod tests {
         verify_shape_and_sample_challenges, FriCommitPhaseProofStepVariable, FriProofVariable,
     };
     use crate::{
-        challenger::MultiFieldChallengerVariable, fri::FriQueryProofVariable, GnarkConfig,
-        DIGEST_SIZE,
+        challenger::MultiFieldChallengerVariable, fri::FriQueryProofVariable, DIGEST_SIZE,
     };
 
     pub fn const_fri_proof(
-        builder: &mut Builder<GnarkConfig>,
+        builder: &mut Builder<OuterConfig>,
         fri_proof: OuterFriProof,
-    ) -> FriProofVariable<GnarkConfig> {
+    ) -> FriProofVariable<OuterConfig> {
         // Set the commit phase commits.
         let commit_phase_commits = fri_proof
             .commit_phase_commits
@@ -215,7 +214,7 @@ mod tests {
         .unwrap();
 
         // Define circuit.
-        let mut builder = Builder::<GnarkConfig>::default();
+        let mut builder = Builder::<OuterConfig>::default();
         let config = outer_fri_config();
         let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
@@ -236,16 +235,13 @@ mod tests {
 
         for i in 0..fri_challenges_gt.query_indices.len() {
             builder.assert_var_eq(
-                Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
+                Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i] + 1),
                 fri_challenges.query_indices.vec()[i],
             );
         }
 
-        let mut backend = GnarkBackend::<GnarkConfig>::default();
-        let result = backend.compile(builder.operations);
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let path = format!("{}/build/verifier.go", manifest_dir);
-        let mut file = File::create(path).unwrap();
-        file.write_all(result.as_bytes()).unwrap();
+        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        gnark::ffi_test_circuit(constraints);
     }
 }

@@ -41,34 +41,34 @@ func NewChip(api frontend.API) *Chip {
 	}
 }
 
-func NewVariable(value string) *Variable {
+func NewF(value string) *Variable {
 	variable := emulated.ValueOf[Params](value)
 	return &Variable{
 		Value: &variable,
 	}
 }
 
-func NewExtensionVariable(value []string) *ExtensionVariable {
-	a := NewVariable(value[0])
-	b := NewVariable(value[1])
-	c := NewVariable(value[2])
-	d := NewVariable(value[3])
+func NewE(value []string) *ExtensionVariable {
+	a := NewF(value[0])
+	b := NewF(value[1])
+	c := NewF(value[2])
+	d := NewF(value[3])
 	return &ExtensionVariable{value: [4]*Variable{a, b, c, d}}
 }
 
-func (c *Chip) Add(a, b *Variable) *Variable {
+func (c *Chip) AddF(a, b *Variable) *Variable {
 	return &Variable{
 		Value: c.field.Add(a.Value, b.Value),
 	}
 }
 
-func (c *Chip) Sub(a, b *Variable) *Variable {
+func (c *Chip) SubF(a, b *Variable) *Variable {
 	return &Variable{
 		Value: c.field.Sub(a.Value, b.Value),
 	}
 }
 
-func (c *Chip) Mul(a, b *Variable) *Variable {
+func (c *Chip) MulF(a, b *Variable) *Variable {
 	return &Variable{
 		Value: c.field.Mul(a.Value, b.Value),
 	}
@@ -86,7 +86,7 @@ func (c *Chip) Inv(a *Variable) *Variable {
 	}
 }
 
-func (c *Chip) AssertEq(a, b *Variable) {
+func (c *Chip) AssertIsEqual(a, b *Variable) {
 	c.field.AssertIsEqual(a.Value, b.Value)
 }
 
@@ -96,51 +96,51 @@ func (c *Chip) AssertNe(a, b *Variable) {
 	c.api.AssertIsEqual(isZero, frontend.Variable(0))
 }
 
-func (c *Chip) Select(cond frontend.Variable, a, b *Variable) *Variable {
+func (c *Chip) SelectF(cond frontend.Variable, a, b *Variable) *Variable {
 	return &Variable{
 		Value: c.field.Select(cond, a.Value, b.Value),
 	}
 }
 
-func (c *Chip) AddFelt(a *ExtensionVariable, b *Variable) *ExtensionVariable {
-	v1 := c.Add(a.value[0], b)
-	v2 := c.Add(a.value[1], NewVariable("0"))
-	v3 := c.Add(a.value[2], NewVariable("0"))
-	v4 := c.Add(a.value[3], NewVariable("0"))
+func (c *Chip) AddEF(a *ExtensionVariable, b *Variable) *ExtensionVariable {
+	v1 := c.AddF(a.value[0], b)
+	v2 := c.AddF(a.value[1], NewF("0"))
+	v3 := c.AddF(a.value[2], NewF("0"))
+	v4 := c.AddF(a.value[3], NewF("0"))
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *Chip) AddExtension(a, b *ExtensionVariable) *ExtensionVariable {
-	v1 := c.Add(a.value[0], b.value[0])
-	v2 := c.Add(a.value[1], b.value[1])
-	v3 := c.Add(a.value[2], b.value[2])
-	v4 := c.Add(a.value[3], b.value[3])
+func (c *Chip) AddE(a, b *ExtensionVariable) *ExtensionVariable {
+	v1 := c.AddF(a.value[0], b.value[0])
+	v2 := c.AddF(a.value[1], b.value[1])
+	v3 := c.AddF(a.value[2], b.value[2])
+	v4 := c.AddF(a.value[3], b.value[3])
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *Chip) SubExtension(a, b *ExtensionVariable) *ExtensionVariable {
-	v1 := c.Sub(a.value[0], b.value[0])
-	v2 := c.Sub(a.value[1], b.value[1])
-	v3 := c.Sub(a.value[2], b.value[2])
-	v4 := c.Sub(a.value[3], b.value[3])
+func (c *Chip) SubE(a, b *ExtensionVariable) *ExtensionVariable {
+	v1 := c.SubF(a.value[0], b.value[0])
+	v2 := c.SubF(a.value[1], b.value[1])
+	v3 := c.SubF(a.value[2], b.value[2])
+	v4 := c.SubF(a.value[3], b.value[3])
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *Chip) MulExtension(a, b *ExtensionVariable) *ExtensionVariable {
-	w := NewVariable("11")
+func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
+	w := NewF("11")
 	v := [4]*Variable{
-		NewVariable("0"),
-		NewVariable("0"),
-		NewVariable("0"),
-		NewVariable("0"),
+		NewF("0"),
+		NewF("0"),
+		NewF("0"),
+		NewF("0"),
 	}
 
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
-				v[i+j-4] = c.Add(v[i+j-4], c.Mul(c.Mul(a.value[i], b.value[j]), w))
+				v[i+j-4] = c.AddF(v[i+j-4], c.MulF(c.MulF(a.value[i], b.value[j]), w))
 			} else {
-				v[i+j] = c.Add(v[i+j], c.Mul(a.value[i], b.value[j]))
+				v[i+j] = c.AddF(v[i+j], c.MulF(a.value[i], b.value[j]))
 			}
 		}
 	}
@@ -158,19 +158,19 @@ func (c *Chip) NegExtension(a *ExtensionVariable) *ExtensionVariable {
 
 func (c *Chip) InvExtension(a *ExtensionVariable) *ExtensionVariable {
 	v := [4]*Variable{
-		NewVariable("0"),
-		NewVariable("0"),
-		NewVariable("0"),
-		NewVariable("0"),
+		NewF("0"),
+		NewF("0"),
+		NewF("0"),
+		NewF("0"),
 	}
 	return &ExtensionVariable{value: v}
 }
 
-func (c *Chip) AssertEqExtension(a, b *ExtensionVariable) {
-	c.AssertEq(a.value[0], b.value[0])
-	c.AssertEq(a.value[1], b.value[1])
-	c.AssertEq(a.value[2], b.value[2])
-	c.AssertEq(a.value[3], b.value[3])
+func (c *Chip) AssertIsEqualExtension(a, b *ExtensionVariable) {
+	c.AssertIsEqual(a.value[0], b.value[0])
+	c.AssertIsEqual(a.value[1], b.value[1])
+	c.AssertIsEqual(a.value[2], b.value[2])
+	c.AssertIsEqual(a.value[3], b.value[3])
 }
 
 func (c *Chip) AssertNeExtension(a, b *ExtensionVariable) {
@@ -189,10 +189,10 @@ func (c *Chip) AssertNeExtension(a, b *ExtensionVariable) {
 }
 
 func (c *Chip) SelectExtension(cond frontend.Variable, a, b *ExtensionVariable) *ExtensionVariable {
-	v1 := c.Select(cond, a.value[0], b.value[0])
-	v2 := c.Select(cond, a.value[1], b.value[1])
-	v3 := c.Select(cond, a.value[2], b.value[2])
-	v4 := c.Select(cond, a.value[3], b.value[3])
+	v1 := c.SelectF(cond, a.value[0], b.value[0])
+	v2 := c.SelectF(cond, a.value[1], b.value[1])
+	v3 := c.SelectF(cond, a.value[2], b.value[2])
+	v4 := c.SelectF(cond, a.value[3], b.value[3])
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 

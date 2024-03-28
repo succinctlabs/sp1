@@ -14,7 +14,7 @@ type TestPoseidon2Circuit struct {
 }
 
 func (circuit *TestPoseidon2Circuit) Define(api frontend.API) error {
-	poseidon2Chip := NewPoseidon2Chip(api)
+	poseidon2Chip := NewChip(api)
 
 	input := [WIDTH]frontend.Variable{}
 	for i := 0; i < WIDTH; i++ {
