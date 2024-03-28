@@ -10,6 +10,7 @@ use crate::runtime::ExecutionRecord;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
+use crate::syscall::precompiles::ECAddEvent;
 use crate::syscall::precompiles::EcEventTrait;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::FieldParameters;
@@ -174,6 +175,25 @@ where
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Handle different types of ECAddEvents through a dynamic dispatch.
+        // let events = match E::CURVE_TYPE {
+        //     CurveType::Secp256k1 => input
+        //         .secp256k1_add_events
+        //         .iter()
+        //         .map(|x| Box::new(x.clone()) as Box<ECAddEvent<dyn E::EventType>>)
+        //         .collect(),
+        //     CurveType::Bn254 => input
+        //         .bn254_add_events
+        //         .iter()
+        //         .map(|x| Box::new(x.clone()) as Box<ECAddEvent<dyn E::EventType>>)
+        //         .collect(),
+        //     CurveType::Bls12381 => input
+        //         .bls12381_add_events
+        //         .iter()
+        //         .map(|x| Box::new(x.clone()) as Box<ECAddEvent<dyn E::EventType>>)
+        //         .collect(),
+        //     _ => panic!("Unsupported curve"),
+        // };
+
         let events: Vec<Box<dyn EcEventTrait>> = match E::CURVE_TYPE {
             CurveType::Secp256k1 => input
                 .secp256k1_add_events

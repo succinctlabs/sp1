@@ -26,8 +26,11 @@ impl FieldParameters for Bls12381BaseField {
         27, 75, 154, 230, 127, 57, 234, 17, 1, 26,
     ];
 
+    // A rough witness-offset estimate given the size of the limbs and the size of the field.
     const WITNESS_OFFSET: usize = 1usize << 13;
 
+    // The modulus has been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/fields/field_properties.py#L30
     fn modulus() -> BigUint {
         BigUint::from_str_radix(
             "4002409555221667393417789825735904156556882819939007885332058136124031650490837864442687629129015664037894272559787",
@@ -44,11 +47,12 @@ impl NumLimbs for Bls12381BaseField {
 
 impl EllipticCurveParameters for Bls12381Parameters {
     type BaseField = Bls12381BaseField;
-
     const CURVE_TYPE: CurveType = CurveType::Bls12381;
 }
 
 impl WeierstrassParameters for Bls12381Parameters {
+    // The values of `A` and `B` has been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L31
     const A: GenericArray<u8, U48> = GenericArray::from_array([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -58,6 +62,9 @@ impl WeierstrassParameters for Bls12381Parameters {
         4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
     ]);
+
+    // The generator has been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L38-L45
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from_str_radix(
             "3685416753713387016781088315183077757961620795782546409894578378688607592378376318836054947676345821548104185464507", 10
@@ -70,6 +77,8 @@ impl WeierstrassParameters for Bls12381Parameters {
         (x, y)
     }
 
+    // The prime group order has been taken from py_ecc python library by Ethereum Foundation.
+    // https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/bls12_381/bls12_381_curve.py#L21-L23
     fn prime_group_order() -> num::BigUint {
         BigUint::from_str_radix(
             "52435875175126190479447740508185965837690552500527637822603658699938581184513",

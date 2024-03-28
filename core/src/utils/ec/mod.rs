@@ -105,30 +105,6 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
         }
         words
     }
-
-    // pub fn to_words_le(&self) -> GenericArray<u32, <E::BaseField as NumWords>::WordsCurvePoint> {
-    //     let mut x_bytes = self.x.to_bytes_le();
-    //     x_bytes.resize(<E::BaseField as NumBytes>::BytesFieldElement::USIZE, 0u8);
-    //     let mut y_bytes = self.y.to_bytes_le();
-    //     y_bytes.resize(<E::BaseField as NumBytes>::BytesFieldElement::USIZE, 0u8);
-
-    //     let mut words = GenericArray::<u32, <E::BaseField as NumWords>::WordsCurvePoint>::default();
-    //     for i in 0..<E::BaseField as NumWords>::WordsFieldElement::USIZE {
-    //         words[i] = u32::from_le_bytes([
-    //             x_bytes[i * 4],
-    //             x_bytes[i * 4 + 1],
-    //             x_bytes[i * 4 + 2],
-    //             x_bytes[i * 4 + 3],
-    //         ]);
-    //         words[i + <E::BaseField as NumWords>::WordsFieldElement::USIZE] = u32::from_le_bytes([
-    //             y_bytes[i * 4],
-    //             y_bytes[i * 4 + 1],
-    //             y_bytes[i * 4 + 2],
-    //             y_bytes[i * 4 + 3],
-    //         ]);
-    //     }
-    //     words
-    // }
 }
 
 pub trait EllipticCurveParameters:

@@ -77,11 +77,11 @@ pub struct ExecutionRecord {
 
     pub secp256k1_add_events: Vec<ECAddEvent<Secp256k1>>,
 
-    pub secp256k1_double_events: Vec<ECDoubleEvent>,
+    pub secp256k1_double_events: Vec<ECDoubleEvent<Secp256k1>>,
 
     pub bn254_add_events: Vec<ECAddEvent<Bn254>>,
 
-    pub bn254_double_events: Vec<ECDoubleEvent>,
+    pub bn254_double_events: Vec<ECDoubleEvent<Bn254>>,
 
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
@@ -89,7 +89,7 @@ pub struct ExecutionRecord {
 
     pub bls12381_add_events: Vec<ECAddEvent<Bls12381>>,
 
-    pub bls12381_double_events: Vec<ECDoubleEvent>,
+    pub bls12381_double_events: Vec<ECDoubleEvent<Bls12381>>,
 
     /// Information needed for global chips. This shouldn't really be here but for legacy reasons,
     /// we keep this information in this struct for now.

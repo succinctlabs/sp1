@@ -38,6 +38,7 @@ impl NumLimbs for Ed25519BaseField {
 
 impl EllipticCurveParameters for Ed25519Parameters {
     type BaseField = Ed25519BaseField;
+
     const CURVE_TYPE: CurveType = CurveType::Ed25519;
 }
 
