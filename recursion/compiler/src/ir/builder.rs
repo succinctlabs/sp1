@@ -7,8 +7,8 @@ use super::{
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
-use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
+use p3_field::{AbstractExtensionField, TwoAdicField};
 use sp1_recursion_core::runtime::{DIGEST_SIZE, NUM_BITS, PERMUTATION_WIDTH};
 
 #[derive(Debug, Clone)]
@@ -432,15 +432,25 @@ impl<C: Config> Builder<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L302
     #[allow(unused_variables)]
-    pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
-        let generator: Felt<C::F> = self.eval(C::F::from_canonical_usize(440564289));
-        let two_adicity: Var<C::N> = self.eval(C::N::from_canonical_usize(27));
-        let bits_var = bits.materialize(self);
-        let nb_squares: Var<C::N> = self.eval(two_adicity - bits_var);
-        self.range(0, nb_squares).for_each(|_, builder| {
-            builder.assign(generator, generator * generator);
-        });
-        generator
+    pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F>
+    where
+        C::F: TwoAdicField,
+    {
+        let two_addicity = C::F::TWO_ADICITY;
+
+        let is_valid: Var<_> = self.eval(C::N::zero());
+        let result: Felt<_> = self.uninit();
+        for i in 1..=two_addicity {
+            let i_f = C::N::from_canonical_usize(i);
+            self.if_eq(bits, i_f).then(|builder| {
+                let constant = C::F::two_adic_generator(i);
+                builder.assign(result, constant);
+                builder.assign(is_valid, C::N::one());
+            });
+        }
+        self.assert_var_eq(is_valid, C::N::one());
+
+        result
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59

@@ -85,6 +85,7 @@ pub fn verify_challenges<C: Config>(
     challenges: &FriChallenges<C>,
     reduced_openings: &Array<C, Array<C, Ext<C::F, C::EF>>>,
 ) where
+    C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
@@ -129,6 +130,7 @@ pub fn verify_query<C: Config>(
     log_max_height: Usize<C::N>,
 ) -> Ext<C::F, C::EF>
 where
+    C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());

@@ -424,6 +424,7 @@ pub(crate) mod tests {
             "Number of bit decompositions: {}",
             runtime.nb_bit_decompositions
         );
+        println!("Number of loops: {}", runtime.nb_print_v);
         println!("Execution took: {:?}", elapsed);
     }
 

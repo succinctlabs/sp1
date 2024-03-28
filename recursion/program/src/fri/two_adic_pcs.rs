@@ -52,6 +52,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     proof: TwoAdicPcsProofVariable<C>,
     challenger: &mut DuplexChallengerVariable<C>,
 ) where
+    C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let alpha = challenger.sample_ext(builder);
@@ -122,6 +123,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                 builder
                     .range(0, batch_opening.opened_values.len())
                     .for_each(|k, builder| {
+                        builder.print_v(k);
                         let mat_opening = builder.get(&batch_opening.opened_values, k);
                         let mat = builder.get(&mats, k);
                         let mat_points = mat.points;
