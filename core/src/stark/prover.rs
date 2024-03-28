@@ -26,7 +26,7 @@ use std::time::Instant;
 
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
-use crate::air::MachineAir;
+use crate::air::{MachineAir, Word};
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -45,7 +45,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -70,7 +70,7 @@ where
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -89,7 +89,7 @@ where
         });
 
         // Observe the public input digest.
-        challenger.observe(pi_digest);
+        challenger.observe_slice(&pi_digest.iter().flat_map(|elm| elm.0).collect_vec());
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -210,7 +210,7 @@ where
         chips: &[&MachineChip<SC, A>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> ShardProof<SC>
     where
         Val<SC>: PrimeField32,

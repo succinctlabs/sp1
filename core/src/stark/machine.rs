@@ -2,6 +2,7 @@ use std::marker::PhantomData;
 
 use super::debug_constraints;
 use crate::air::MachineAir;
+use crate::air::Word;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -9,6 +10,7 @@ use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::VerifierConstraintFolder;
+use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
@@ -123,7 +125,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -147,7 +149,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         _vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> Result<(), ProgramVerificationError>
     where
         SC::Challenger: Clone,
@@ -163,7 +165,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         });
 
         // Observe the public input digest
-        challenger.observe(pi_digest);
+        challenger.observe_slice(&pi_digest.iter().flat_map(|elm| elm.0).collect_vec());
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
@@ -202,6 +204,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         _pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
@@ -277,6 +280,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
+                        pi_digest
+                            .iter()
+                            .flat_map(|elm| elm.0)
+                            .collect_vec()
+                            .as_slice()
+                            .try_into()
+                            .unwrap(),
                     );
                 }
             });
@@ -310,6 +320,7 @@ pub enum ProgramVerificationError {
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use crate::air::Word;
     use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
@@ -322,22 +333,31 @@ pub mod tests {
     use crate::utils::run_test;
     use crate::utils::setup_logger;
 
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+
     use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 
-    const EMPTY_PI_DIGEST: [u32; PI_DIGEST_WORD_SIZE] = [0; PI_DIGEST_WORD_SIZE];
+    use std::sync::OnceLock;
+
+    pub fn get_empty_pi_digest() -> &'static [Word<BabyBear>; PI_DIGEST_WORD_SIZE] {
+        static EMPTY_PI_DIGEST: OnceLock<[Word<BabyBear>; PI_DIGEST_WORD_SIZE]> = OnceLock::new();
+
+        EMPTY_PI_DIGEST.get_or_init(|| [Word([BabyBear::zero(); 4]); PI_DIGEST_WORD_SIZE])
+    }
 
     #[test]
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test(program, EMPTY_PI_DIGEST).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 
     #[test]
     fn test_ecall_lwa_prove() {
         utils::setup_logger();
         let program = ecall_lwa_program();
-        run_test(program, EMPTY_PI_DIGEST).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 
     #[test]
@@ -359,7 +379,7 @@ pub mod tests {
                     Instruction::new(*shift_op, 31, 29, 3, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program, EMPTY_PI_DIGEST).unwrap();
+                run_test(program, *get_empty_pi_digest()).unwrap();
             }
         }
     }
@@ -373,7 +393,7 @@ pub mod tests {
             Instruction::new(Opcode::SUB, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program, EMPTY_PI_DIGEST).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 
     #[test]
@@ -385,7 +405,7 @@ pub mod tests {
             Instruction::new(Opcode::ADD, 31, 30, 29, false, false),
         ];
         let program = Program::new(instructions, 0, 0);
-        run_test(program, EMPTY_PI_DIGEST).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 
     #[test]
@@ -407,7 +427,7 @@ pub mod tests {
                     Instruction::new(*mul_op, 31, 30, 29, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program, EMPTY_PI_DIGEST).unwrap();
+                run_test(program, *get_empty_pi_digest()).unwrap();
             }
         }
     }
@@ -422,7 +442,7 @@ pub mod tests {
                 Instruction::new(*lt_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program, EMPTY_PI_DIGEST).unwrap();
+            run_test(program, *get_empty_pi_digest()).unwrap();
         }
     }
 
@@ -437,7 +457,7 @@ pub mod tests {
                 Instruction::new(*bitwise_op, 31, 30, 29, false, false),
             ];
             let program = Program::new(instructions, 0, 0);
-            run_test(program, EMPTY_PI_DIGEST).unwrap();
+            run_test(program, *get_empty_pi_digest()).unwrap();
         }
     }
 
@@ -459,7 +479,7 @@ pub mod tests {
                     Instruction::new(*div_rem_op, 31, 29, 30, false, false),
                 ];
                 let program = Program::new(instructions, 0, 0);
-                run_test(program, EMPTY_PI_DIGEST).unwrap();
+                run_test(program, *get_empty_pi_digest()).unwrap();
             }
         }
     }
@@ -468,18 +488,18 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-        run_test(program, EMPTY_PI_DIGEST).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
-        run_test(program, EMPTY_PI_DIGEST).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 
     #[test]
     fn test_ssz_withdrawal() {
         let program = ssz_withdrawals_program();
-        run_test(program, EMPTY_PI_DIGEST).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 }

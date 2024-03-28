@@ -339,6 +339,7 @@ where
 pub mod tests {
     use crate::{
         runtime::Program,
+        stark::tests::get_empty_pi_digest,
         utils::{self, tests::ED_DECOMPRESS_ELF},
     };
 
@@ -346,6 +347,6 @@ pub mod tests {
     fn test_ed_decompress() {
         utils::setup_logger();
         let program = Program::from(ED_DECOMPRESS_ELF);
-        utils::run_test(program).unwrap();
+        utils::run_test(program, *get_empty_pi_digest()).unwrap();
     }
 }

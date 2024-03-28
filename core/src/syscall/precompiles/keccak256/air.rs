@@ -107,6 +107,7 @@ where
 #[cfg(feature = "keccak")]
 #[cfg(test)]
 mod test {
+    use crate::stark::tests::get_empty_pi_digest;
     use crate::SP1Stdin;
     use crate::{
         utils::{setup_logger, tests::KECCAK256_ELF},
@@ -141,8 +142,8 @@ mod test {
             stdin.write(&input);
         }
 
-        let mut proof = SP1Prover::prove(KECCAK256_ELF, stdin).unwrap();
-        SP1Verifier::verify(KECCAK256_ELF, &proof).unwrap();
+        let mut proof = SP1Prover::prove(KECCAK256_ELF, stdin, *get_empty_pi_digest()).unwrap();
+        SP1Verifier::verify(KECCAK256_ELF, &proof, *get_empty_pi_digest()).unwrap();
 
         for i in 0..NUM_TEST_CASES {
             let expected = outputs.get(i).unwrap();

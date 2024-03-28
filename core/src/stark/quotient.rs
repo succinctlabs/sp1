@@ -1,3 +1,5 @@
+use crate::air::Word;
+
 use super::folder::ProverConstraintFolder;
 use super::Chip;
 use super::Domain;
@@ -28,7 +30,7 @@ pub fn quotient_values<SC, A, Mat>(
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[SC::Challenge],
     alpha: SC::Challenge,
-    pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+    pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
 ) -> Vec<SC::Challenge>
 where
     A: StarkAir<SC>,
@@ -119,7 +121,13 @@ where
                 is_transition,
                 alpha,
                 accumulator,
-                pi_digest,
+                pi_digest: pi_digest
+                    .iter()
+                    .flat_map(|word| word.0)
+                    .collect::<Vec<_>>()
+                    .as_slice()
+                    .try_into()
+                    .unwrap(),
             };
             chip.eval(&mut folder);
 

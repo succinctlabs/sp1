@@ -613,6 +613,8 @@ checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 name = "fibonacci-script"
 version = "0.1.0"
 dependencies = [
+ "p3-baby-bear",
+ "p3-field",
  "sp1-core",
  "sp1-helper",
 ]

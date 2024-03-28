@@ -330,6 +330,7 @@ where
 mod tests {
     use crate::{
         runtime::Program,
+        stark::tests::get_empty_pi_digest,
         utils::{run_test, setup_logger, tests::SECP256K1_ADD_ELF},
     };
 
@@ -337,6 +338,6 @@ mod tests {
     fn test_secp256k1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF);
-        run_test(program).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 }

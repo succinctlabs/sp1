@@ -2,11 +2,13 @@ use std::panic::{self, AssertUnwindSafe};
 use std::process::exit;
 
 use p3_air::{
-    Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
+    Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
+    PermutationAirBuilder, TwoRowMatrixView,
 };
 use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 
@@ -21,6 +23,7 @@ pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
+    pi_digest: [Val<SC>; PI_DIGEST_WORD_SIZE * 4],
 ) where
     Val<SC>: PrimeField32,
     A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
@@ -70,6 +73,7 @@ pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
+            pi_digest,
         };
         if i == 0 {
             builder.is_first_row = Val::<SC>::one();
@@ -119,6 +123,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
     pub(crate) is_transition: F,
+    pub(crate) pi_digest: [F; PI_DIGEST_WORD_SIZE * 4],
 }
 
 impl<'a, F, EF> ExtensionBuilder for DebugConstraintBuilder<'a, F, EF>
@@ -219,4 +224,12 @@ where
 impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
     for DebugConstraintBuilder<'a, F, EF>
 {
+}
+
+impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
+    for DebugConstraintBuilder<'a, F, EF>
+{
+    fn public_values(&self) -> &[F] {
+        &self.pi_digest
+    }
 }

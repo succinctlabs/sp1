@@ -115,6 +115,7 @@ pub mod compress_tests {
     use crate::runtime::Opcode;
     use crate::runtime::Register;
     use crate::runtime::SyscallCode;
+    use crate::stark::tests::get_empty_pi_digest;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
     use crate::utils::tests::BLAKE3_COMPRESS_ELF;
@@ -168,13 +169,13 @@ pub mod compress_tests {
     fn prove_babybear() {
         setup_logger();
         let program = blake3_compress_internal_program();
-        run_test(program).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 
     #[test]
     fn test_blake3_compress_inner_elf() {
         setup_logger();
         let program = Program::from(BLAKE3_COMPRESS_ELF);
-        run_test(program).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 }

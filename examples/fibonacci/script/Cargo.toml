@@ -6,6 +6,8 @@ edition = "2021"
 
 [dependencies]
 sp1-core = { path = "../../../core" }
+p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-field = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 
 [build-dependencies]
 sp1-helper = { path = "../../../helper" }

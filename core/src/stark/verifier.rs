@@ -1,5 +1,5 @@
 use super::Domain;
-use crate::air::MachineAir;
+use crate::air::{MachineAir, Word};
 use crate::stark::MachineChip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -33,7 +33,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> Result<(), VerificationError>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -189,6 +189,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[cfg(feature = "perf")]
     fn verify_constraints(
         chip: &MachineChip<SC, A>,
@@ -198,7 +199,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -230,7 +231,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pi_digest: [u32; PI_DIGEST_WORD_SIZE],
+        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -264,7 +265,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
-            pi_digest,
+            pi_digest: pi_digest
+                .iter()
+                .flat_map(|word| word.0)
+                .collect::<Vec<_>>()
+                .as_slice()
+                .try_into()
+                .unwrap(),
             _marker: PhantomData,
         };
         chip.eval(&mut folder);

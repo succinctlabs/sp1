@@ -356,6 +356,7 @@ pub mod tests {
     use rand::rngs::StdRng;
     use rand::SeedableRng;
 
+    use crate::stark::tests::get_empty_pi_digest;
     use crate::utils::run_test;
     use crate::utils::run_test_io;
     use crate::utils::setup_logger;
@@ -378,7 +379,12 @@ pub mod tests {
 
             let inputs = SP1Stdin::from(&compressed);
 
-            let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
+            let mut proof = run_test_io(
+                Program::from(SECP256K1_DECOMPRESS_ELF),
+                inputs,
+                *get_empty_pi_digest(),
+            )
+            .unwrap();
             let mut result = [0; 65];
             proof.stdout.read_slice(&mut result);
             assert_eq!(result, decompressed);
@@ -389,6 +395,6 @@ pub mod tests {
     fn test_ecrecover_program() {
         setup_logger();
         let program = Program::from(ECRECOVER_ELF);
-        run_test(program).unwrap();
+        run_test(program, *get_empty_pi_digest()).unwrap();
     }
 }

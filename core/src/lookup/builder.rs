@@ -1,5 +1,5 @@
 use crate::air::{AirInteraction, MessageBuilder};
-use p3_air::{AirBuilder, PairCol, VirtualPairCol};
+use p3_air::{AirBuilder, AirBuilderWithPublicValues, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
@@ -89,6 +89,12 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
 
         self.receives
             .push(Interaction::new(values, multiplicity, message.kind));
+    }
+}
+
+impl<F: Field> AirBuilderWithPublicValues for InteractionBuilder<F> {
+    fn public_values(&self) -> &[Self::F] {
+        &[]
     }
 }
 
