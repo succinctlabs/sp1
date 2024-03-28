@@ -13,7 +13,6 @@ use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::VerifierConstraintFolder;
-use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
