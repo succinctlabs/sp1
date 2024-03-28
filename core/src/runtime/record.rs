@@ -419,7 +419,7 @@ impl MachineRecord for ExecutionRecord {
 
         // Secp256r1 curve add events.
         for (secp256r1_add_chunk, shard) in take(&mut self.secp256r1_add_events)
-            .chunks_mut(config.secp256r1_double_len)
+            .chunks_mut(config.secp256r1_add_len)
             .zip(shards.iter_mut())
         {
             shard
@@ -429,7 +429,7 @@ impl MachineRecord for ExecutionRecord {
 
         // Secp256r1 curve double events.
         for (secp256r1_double_chunk, shard) in take(&mut self.secp256r1_double_events)
-            .chunks_mut(config.secp256r1_add_len)
+            .chunks_mut(config.secp256r1_double_len)
             .zip(shards.iter_mut())
         {
             shard

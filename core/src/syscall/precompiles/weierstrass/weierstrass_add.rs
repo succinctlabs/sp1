@@ -382,6 +382,7 @@ mod tests {
         let program = Program::from(SECP256K1_ADD_ELF);
         run_test(program).unwrap();
     }
+
     #[test]
     fn test_bn254_add_simple() {
         setup_logger();

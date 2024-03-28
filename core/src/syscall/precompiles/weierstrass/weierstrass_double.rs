@@ -433,6 +433,7 @@ pub mod tests {
         let program = Program::from(SECP256K1_DOUBLE_ELF);
         run_test(program).unwrap();
     }
+
     #[test]
     fn test_bn254_double_simple() {
         setup_logger();
