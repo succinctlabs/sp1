@@ -18,7 +18,7 @@ sp1-core = { path = "../../core" }
 sp1-sdk = { path = "../../sdk" }
 itertools = "0.12.1"
 serde = { version = "1.0.197", features = ["derive"] }
-sp1-recursion-derive = { path = "../derive" }
+p3-symmetric = { workspace = true }
 
 [dev-dependencies]
 p3-baby-bear = { workspace = true }

@@ -25,10 +25,11 @@ macro_rules! unconstrained {
             };
 
             _unconstrained_closure();
+
+            unsafe {
+                syscall_exit_unconstrained();
+            }
         }
 
-        unsafe {
-            syscall_exit_unconstrained();
-        }
     };
 }

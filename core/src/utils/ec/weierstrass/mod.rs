@@ -7,6 +7,7 @@ use crate::utils::ec::utils::biguint_to_bits_le;
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 use super::field::NumLimbs;
+use super::CurveType;
 
 pub mod bn254;
 pub mod secp256k1;
@@ -71,6 +72,8 @@ impl<E: WeierstrassParameters> WeierstrassParameters for SwCurve<E> {
 
 impl<E: WeierstrassParameters> EllipticCurveParameters for SwCurve<E> {
     type BaseField = E::BaseField;
+
+    const CURVE_TYPE: CurveType = E::CURVE_TYPE;
 }
 
 impl<E: WeierstrassParameters> EllipticCurve for SwCurve<E> {

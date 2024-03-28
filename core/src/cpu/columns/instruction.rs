@@ -3,6 +3,7 @@ use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 use std::{iter::once, vec::IntoIter};
 
+use crate::runtime::Register;
 use crate::{air::Word, runtime::Instruction};
 
 pub const NUM_INSTRUCTION_COLS: usize = size_of::<InstructionCols<u8>>();
@@ -22,6 +23,9 @@ pub struct InstructionCols<T> {
 
     /// The third operand for this instruction.
     pub op_c: Word<T>,
+
+    /// Flags to indicate if op_a is register 0.
+    pub op_a_0: T,
 }
 
 impl<F: PrimeField> InstructionCols<F> {
@@ -30,6 +34,8 @@ impl<F: PrimeField> InstructionCols<F> {
         self.op_a = instruction.op_a.into();
         self.op_b = instruction.op_b.into();
         self.op_c = instruction.op_c.into();
+
+        self.op_a_0 = F::from_bool(instruction.op_a == Register::X0 as u32);
     }
 }
 
@@ -42,6 +48,7 @@ impl<T> IntoIterator for InstructionCols<T> {
             .chain(self.op_a)
             .chain(self.op_b)
             .chain(self.op_c)
+            .chain(once(self.op_a_0))
             .collect::<Vec<_>>()
             .into_iter()
     }

@@ -1,4 +1,4 @@
-use super::{Builder, Config, MemVariable, Ptr, Usize, Var, Variable};
+use super::{Builder, Config, FromConstant, MemVariable, Ptr, Usize, Var, Variable};
 use itertools::Itertools;
 use p3_field::AbstractField;
 
@@ -238,5 +238,19 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
             }
             _ => unreachable!(),
         }
+    }
+}
+
+impl<C: Config, V: FromConstant<C> + MemVariable<C>> FromConstant<C> for Array<C, V> {
+    type Constant = Vec<V::Constant>;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        let mut array = builder.dyn_array(value.len());
+        // Assign each element.
+        for (i, val) in value.into_iter().enumerate() {
+            let val = V::eval_const(val, builder);
+            builder.set(&mut array, i, val);
+        }
+        array
     }
 }
