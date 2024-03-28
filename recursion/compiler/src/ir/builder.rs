@@ -7,8 +7,8 @@ use super::{
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use alloc::vec::Vec;
-use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
+use p3_field::{AbstractExtensionField, TwoAdicField};
 use sp1_recursion_core::runtime::{DIGEST_SIZE, NUM_BITS, PERMUTATION_WIDTH};
 
 #[derive(Debug, Clone)]
@@ -62,18 +62,18 @@ impl<C: Config> Builder<C> {
         dst
     }
 
-    pub fn assert_eq<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+    pub fn assert_eq<V: Variable<C>>(
         &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
+        lhs: impl Into<V::Expression>,
+        rhs: impl Into<V::Expression>,
     ) {
         V::assert_eq(lhs, rhs, self);
     }
 
-    pub fn assert_ne<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+    pub fn assert_ne<V: Variable<C>>(
         &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
+        lhs: impl Into<V::Expression>,
+        rhs: impl Into<V::Expression>,
     ) {
         V::assert_ne(lhs, rhs, self);
     }
@@ -83,7 +83,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Var<C::N>, _, _>(lhs, rhs);
+        self.assert_eq::<Var<C::N>>(lhs, rhs);
     }
 
     pub fn assert_var_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
@@ -91,7 +91,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Var<C::N>, _, _>(lhs, rhs);
+        self.assert_ne::<Var<C::N>>(lhs, rhs);
     }
 
     pub fn assert_felt_eq<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
@@ -99,7 +99,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Felt<C::F>, _, _>(lhs, rhs);
+        self.assert_eq::<Felt<C::F>>(lhs, rhs);
     }
 
     pub fn assert_felt_ne<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
@@ -107,7 +107,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Felt<C::F>, _, _>(lhs, rhs);
+        self.assert_ne::<Felt<C::F>>(lhs, rhs);
     }
 
     pub fn assert_usize_eq<
@@ -118,11 +118,11 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Usize<C::N>, _, _>(lhs, rhs);
+        self.assert_eq::<Usize<C::N>>(lhs, rhs);
     }
 
     pub fn assert_usize_ne(&mut self, lhs: SymbolicUsize<C::N>, rhs: SymbolicUsize<C::N>) {
-        self.assert_ne::<Usize<C::N>, _, _>(lhs, rhs);
+        self.assert_ne::<Usize<C::N>>(lhs, rhs);
     }
 
     pub fn assert_ext_eq<
@@ -133,7 +133,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_eq::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
     pub fn assert_ext_ne<
@@ -144,7 +144,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
@@ -239,7 +239,7 @@ impl<C: Config> Builder<C> {
             self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
         }
         // Finally, assert that the sum is equal to the original number.
-        self.assert_eq::<Usize<_>, _, _>(sum, num);
+        self.assert_eq::<Usize<_>>(sum, num);
 
         output
     }
@@ -432,35 +432,43 @@ impl<C: Config> Builder<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L302
     #[allow(unused_variables)]
-    pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F> {
-        let generator: Felt<C::F> = self.eval(C::F::from_canonical_usize(440564289));
-        let two_adicity: Var<C::N> = self.eval(C::N::from_canonical_usize(27));
-        let bits_var = bits.materialize(self);
-        let nb_squares: Var<C::N> = self.eval(two_adicity - bits_var);
-        self.range(0, nb_squares).for_each(|_, builder| {
-            builder.assign(generator, generator * generator);
-        });
-        generator
+    pub fn two_adic_generator(&mut self, bits: Usize<C::N>) -> Felt<C::F>
+    where
+        C::F: TwoAdicField,
+    {
+        let two_addicity = C::F::TWO_ADICITY;
+
+        let is_valid: Var<_> = self.eval(C::N::zero());
+        let result: Felt<_> = self.uninit();
+        for i in 1..=two_addicity {
+            let i_f = C::N::from_canonical_usize(i);
+            self.if_eq(bits, i_f).then(|builder| {
+                let constant = C::F::two_adic_generator(i);
+                builder.assign(result, constant);
+                builder.assign(is_valid, C::N::one());
+            });
+        }
+        self.assert_var_eq(is_valid, C::N::one());
+
+        result
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
-    #[allow(unused_variables)]
     ///
     /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
     /// behavior.
     pub fn reverse_bits_len(
         &mut self,
-        index: Var<C::N>,
+        index_bits: &Array<C, Var<C::N>>,
         bit_len: impl Into<Usize<C::N>>,
-    ) -> Usize<C::N> {
-        let bits = self.num2bits_usize(index);
-
+    ) -> Array<C, Var<C::N>> {
         // Compute the reverse bits.
         let bit_len = bit_len.into();
         let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
+        // let bit_len = self.materialize(bit_len);
         self.range(0, bit_len).for_each(|i, builder| {
             let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
-            let entry = builder.get(&bits, index);
+            let entry = builder.get(index_bits, index);
             builder.set(&mut result_bits, i, entry);
         });
 
@@ -468,7 +476,7 @@ impl<C: Config> Builder<C> {
             builder.set(&mut result_bits, i, C::N::zero());
         });
 
-        self.bits_to_num_usize(&result_bits)
+        result_bits
     }
 
     #[allow(unused_variables)]
@@ -486,14 +494,15 @@ impl<C: Config> Builder<C> {
         result
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
-    #[allow(unused_variables)]
-    pub fn exp_usize_f(&mut self, x: Felt<C::F>, power: Usize<C::N>) -> Felt<C::F> {
-        let result = self.eval(C::F::one());
-        let power_f: Felt<_> = self.eval(x);
-        let bits = self.num2bits_usize(power);
-        self.range(0, bits.len()).for_each(|i, builder| {
-            let bit = builder.get(&bits, i);
+    pub fn exp_bits<V: Variable<C>>(&mut self, x: V, power_bits: &Array<C, Var<C::N>>) -> V
+    where
+        V::Expression: AbstractField,
+        V: Copy + Mul<Output = V::Expression>,
+    {
+        let result = self.eval(V::Expression::one());
+        let power_f: V = self.eval(x);
+        self.range(0, power_bits.len()).for_each(|i, builder| {
+            let bit = builder.get(power_bits, i);
             builder
                 .if_eq(bit, C::N::one())
                 .then(|builder| builder.assign(result, result * power_f));
@@ -504,8 +513,13 @@ impl<C: Config> Builder<C> {
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
     #[allow(unused_variables)]
-    pub fn exp_usize_v(&mut self, x: Var<C::N>, power: Usize<C::N>) -> Var<C::N> {
-        let result = self.eval(C::N::one());
+    pub fn exp<V>(&mut self, x: V, power: impl Into<Usize<C::N>>) -> V
+    where
+        V::Expression: AbstractField,
+        V: Variable<C> + Copy + Mul<Output = V::Expression>,
+    {
+        let power = power.into();
+        let result = self.eval(V::Expression::one());
         self.range(0, power).for_each(|_, builder| {
             builder.assign(result, result * x);
         });
@@ -515,11 +529,12 @@ impl<C: Config> Builder<C> {
     pub fn exp_power_of_2_v<V: Variable<C>>(
         &mut self,
         base: impl Into<V::Expression>,
-        power_log: Usize<C::N>,
+        power_log: impl Into<Usize<C::N>>,
     ) -> V
     where
         V: Copy + Mul<Output = V::Expression>,
     {
+        let power_log = power_log.into();
         let result: V = self.eval(base);
         self.range(0, power_log)
             .for_each(|_, builder| builder.assign(result, result * result));
@@ -749,6 +764,14 @@ pub struct RangeBuilder<'a, C: Config> {
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
+        if let (Usize::Const(start), Usize::Const(end)) = (self.start, self.end) {
+            let loop_var: Var<_> = self.builder.eval(C::N::from_canonical_usize(start));
+            for _ in start..end {
+                f(loop_var, self.builder);
+                self.builder.assign(loop_var, loop_var + C::N::one());
+            }
+            return;
+        }
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,
@@ -853,14 +876,17 @@ mod tests {
 
         // Materialize the number as a var
         let x: Var<_> = builder.eval(x_val);
+        let x_bits = builder.num2bits_v(x);
 
         for i in 1..NUM_BITS {
             // Get the reference value.
             let expected_value = reverse_bits_len(x_val.as_canonical_u32() as usize, i);
-            let value = builder.reverse_bits_len(x, i);
+            let value_bits = builder.reverse_bits_len(&x_bits, i);
+            let value = builder.bits_to_num_var(&value_bits);
             builder.assert_usize_eq(value, expected_value);
             let var_i: Var<_> = builder.eval(F::from_canonical_usize(i));
-            let value_var = builder.reverse_bits_len(x, var_i);
+            let value_var_bits = builder.reverse_bits_len(&x_bits, var_i);
+            let value_var = builder.bits_to_num_var(&value_var_bits);
             builder.assert_usize_eq(value_var, expected_value);
         }
 

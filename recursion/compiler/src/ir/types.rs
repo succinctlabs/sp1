@@ -11,6 +11,7 @@ use std::hash::Hash;
 
 use super::ExtConst;
 use super::FromConstant;
+use super::MemIndex;
 use super::MemVariable;
 use super::Ptr;
 use super::SymbolicUsize;
@@ -456,12 +457,12 @@ impl<C: Config> MemVariable<C> for Var<C::N> {
         1
     }
 
-    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::LoadV(*self, ptr));
+    fn load(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadV(*self, ptr, index));
     }
 
-    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::StoreV(ptr, *self));
+    fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::StoreV(ptr, *self, index));
     }
 }
 
@@ -799,18 +800,17 @@ impl<C: Config> MemVariable<C> for Felt<C::F> {
         1
     }
 
-    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::LoadF(*self, ptr));
+    fn load(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadF(*self, ptr, index));
     }
 
-    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::StoreF(ptr, *self));
+    fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::StoreF(ptr, *self, index));
     }
 }
 
 impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
     // Todo: refactor base
-    #[allow(clippy::only_used_in_recursion)]
     fn assign_with_caches<C: Config<F = F, EF = EF>>(
         &self,
         src: SymbolicExt<F, EF>,
@@ -858,25 +858,60 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                 (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
                     builder.operations.push(DslIR::AddEI(*self, *rhs, *lhs));
                 }
+                (SymbolicExt::Const(lhs), SymbolicExt::Base(rhs)) => {
+                    match rhs.as_ref() {
+                        SymbolicFelt::Const(rhs) => {
+                            let sum = *lhs + C::EF::from_base(*rhs);
+                            builder.operations.push(DslIR::ImmExt(*self, sum));
+                        }
+                        SymbolicFelt::Val(rhs) => {
+                            builder.operations.push(DslIR::AddEFFI(*self, *rhs, *lhs));
+                        }
+                        rhs => {
+                            let rhs_value: Felt<_> = Felt::uninit(builder);
+                            rhs_value.assign_with_cache(rhs.clone(), builder, base_cache);
+                            base_cache.insert(rhs.clone(), rhs_value);
+                            builder
+                                .operations
+                                .push(DslIR::AddEFFI(*self, rhs_value, *lhs));
+                        }
+                    }
+                    // builder.operations.push(DslIR::AddEI(*self, *rhs, *lhs));
+                }
                 (SymbolicExt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddEI(*self, rhs_value, *lhs));
                 }
                 (SymbolicExt::Val(lhs), SymbolicExt::Const(rhs)) => {
                     builder.push(DslIR::AddEI(*self, *lhs, *rhs));
                 }
+                (SymbolicExt::Val(lhs), SymbolicExt::Base(rhs)) => match rhs.as_ref() {
+                    SymbolicFelt::Const(rhs) => {
+                        builder.push(DslIR::AddEFI(*self, *lhs, *rhs));
+                    }
+                    SymbolicFelt::Val(rhs) => {
+                        builder.push(DslIR::AddEF(*self, *lhs, *rhs));
+                    }
+                    rhs => {
+                        let rhs = builder.eval(rhs.clone());
+                        builder.push(DslIR::AddEF(*self, *lhs, rhs));
+                    }
+                },
                 (SymbolicExt::Val(lhs), SymbolicExt::Val(rhs)) => {
                     builder.push(DslIR::AddE(*self, *lhs, *rhs));
                 }
                 (SymbolicExt::Val(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
-                    rhs_value.assign(rhs.clone(), builder);
+                    rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIR::AddE(*self, *lhs, rhs_value));
                 }
                 (lhs, SymbolicExt::Const(rhs)) => {
                     let lhs_value = Self::uninit(builder);
-                    lhs_value.assign(lhs.clone(), builder);
+                    lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIR::AddEI(*self, lhs_value, *rhs));
                 }
                 (lhs, SymbolicExt::Val(rhs)) => {
@@ -1163,12 +1198,12 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
         4
     }
 
-    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::LoadE(*self, ptr));
+    fn load(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::LoadE(*self, ptr, index));
     }
 
-    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        builder.push(DslIR::StoreE(ptr, *self));
+    fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        builder.push(DslIR::StoreE(ptr, *self, index));
     }
 }
 

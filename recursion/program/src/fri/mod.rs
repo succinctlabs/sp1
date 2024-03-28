@@ -63,8 +63,8 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
     let mut query_indices = builder.array(config.num_queries);
     builder.range(0, config.num_queries).for_each(|i, builder| {
-        let index = challenger.sample_bits(builder, Usize::Var(log_max_height));
-        builder.set(&mut query_indices, i, index);
+        let index_bits = challenger.sample_bits(builder, Usize::Var(log_max_height));
+        builder.set(&mut query_indices, i, index_bits);
     });
 
     FriChallenges {
@@ -85,6 +85,7 @@ pub fn verify_challenges<C: Config>(
     challenges: &FriChallenges<C>,
     reduced_openings: &Array<C, Array<C, Ext<C::F, C::EF>>>,
 ) where
+    C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
@@ -92,7 +93,7 @@ pub fn verify_challenges<C: Config>(
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {
-            let index = builder.get(&challenges.query_indices, i);
+            let index_bits = builder.get(&challenges.query_indices, i);
             let query_proof = builder.get(&proof.query_proofs, i);
             let ro = builder.get(reduced_openings, i);
 
@@ -100,7 +101,7 @@ pub fn verify_challenges<C: Config>(
                 builder,
                 config,
                 &proof.commit_phase_commits,
-                index,
+                &index_bits,
                 &query_proof,
                 &challenges.betas,
                 &ro,
@@ -122,24 +123,24 @@ pub fn verify_query<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfigVariable<C>,
     commit_phase_commits: &Array<C, Commitment<C>>,
-    index: Var<C::N>,
+    index_bits: &Array<C, Var<C::N>>,
     proof: &FriQueryProofVariable<C>,
     betas: &Array<C, Ext<C::F, C::EF>>,
     reduced_openings: &Array<C, Ext<C::F, C::EF>>,
     log_max_height: Usize<C::N>,
 ) -> Ext<C::F, C::EF>
 where
+    C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = builder.two_adic_generator(log_max_height);
-    let two_adic_generator_ef = builder.eval(SymbolicExt::Base(
+    let two_adic_generator_ef: Ext<_, _> = builder.eval(SymbolicExt::Base(
         SymbolicFelt::Val(two_adic_generator_f).into(),
     ));
-    let power = builder.reverse_bits_len(index, log_max_height);
-    let x = builder.exp_usize_ef(two_adic_generator_ef, power);
+    let power_bits = builder.reverse_bits_len(index_bits, log_max_height);
+    let x = builder.exp_bits(two_adic_generator_ef, &power_bits);
 
-    let index_bits = builder.num2bits_v(index);
     let log_max_height = log_max_height.materialize(builder);
     builder
         .range(0, commit_phase_commits.len())
@@ -153,7 +154,7 @@ where
             let reduced_opening = builder.get(reduced_openings, log_folded_height_plus_one);
             builder.assign(folded_eval, folded_eval + reduced_opening);
 
-            let index_bit = builder.get(&index_bits, i);
+            let index_bit = builder.get(index_bits, i);
             let index_sibling_mod_2: Var<C::N> =
                 builder.eval(SymbolicVar::Const(C::N::one()) - index_bit);
             let i_plus_one = builder.eval(i + C::N::one());
@@ -166,7 +167,7 @@ where
 
             let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
             let dims = Dimensions::<C> {
-                height: builder.exp_usize_v(two, Usize::Var(log_folded_height)),
+                height: builder.exp(two, log_folded_height),
             };
             let mut dims_slice: Array<C, Dimensions<C>> = builder.array(1);
             builder.set(&mut dims_slice, 0, dims);

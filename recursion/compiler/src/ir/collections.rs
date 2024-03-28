@@ -1,4 +1,4 @@
-use super::{Builder, Config, FromConstant, MemVariable, Ptr, Usize, Var, Variable};
+use super::{Builder, Config, FromConstant, MemIndex, MemVariable, Ptr, Usize, Var, Variable};
 use itertools::Itertools;
 use p3_field::AbstractField;
 
@@ -56,10 +56,9 @@ impl<C: Config> Builder<C> {
             Usize::Const(len) => self.eval(C::N::from_canonical_usize(len)),
             Usize::Var(len) => len,
         };
-        let size: Var<C::N> = self.eval(len * C::N::from_canonical_usize(V::size_of()));
-        let size = Usize::Var(size);
-        let ptr = self.alloc(size);
-        Array::Dyn(ptr, Usize::Var(len))
+        let len = Usize::Var(len);
+        let ptr = self.alloc(len, V::size_of());
+        Array::Dyn(ptr, len)
     }
 
     pub fn array_to_dyn<V: MemVariable<C>>(&mut self, array: Array<C, V>) -> Array<C, V> {
@@ -92,8 +91,13 @@ impl<C: Config> Builder<C> {
                 }
             }
             Array::Dyn(ptr, _) => {
+                let index = MemIndex {
+                    index,
+                    offset: 0,
+                    size: V::size_of(),
+                };
                 let var: V = self.uninit();
-                self.load(var.clone(), *ptr + index * V::size_of());
+                self.load(var.clone(), *ptr, index);
                 var
             }
         }
@@ -112,8 +116,13 @@ impl<C: Config> Builder<C> {
                 todo!()
             }
             Array::Dyn(ptr, _) => {
+                let index = MemIndex {
+                    index,
+                    offset: 0,
+                    size: V::size_of(),
+                };
                 let value: V = self.eval(value);
-                self.store(*ptr + index * V::size_of(), value);
+                self.store(*ptr, index, value);
             }
         }
     }
@@ -157,14 +166,14 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
             (Array::Dyn(_, lhs_len), Array::Dyn(_, rhs_len)) => {
                 let lhs_len_var = builder.materialize(lhs_len);
                 let rhs_len_var = builder.materialize(rhs_len);
-                builder.assert_eq::<Var<_>, _, _>(lhs_len_var, rhs_len_var);
+                builder.assert_eq::<Var<_>>(lhs_len_var, rhs_len_var);
 
                 let start = Usize::Const(0);
                 let end = lhs_len;
                 builder.range(start, end).for_each(|i, builder| {
                     let a = builder.get(&lhs, i);
                     let b = builder.get(&rhs, i);
-                    T::assert_eq(T::Expression::from(a), T::Expression::from(b), builder);
+                    builder.assert_eq::<T>(a, b);
                 });
             }
             _ => panic!("cannot compare arrays of different types"),
@@ -190,16 +199,13 @@ impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
                 }
             }
             (Array::Dyn(_, lhs_len), Array::Dyn(_, rhs_len)) => {
-                let lhs_len_var = builder.materialize(lhs_len);
-                let rhs_len_var = builder.materialize(rhs_len);
-                builder.assert_eq::<Var<_>, _, _>(lhs_len_var, rhs_len_var);
+                builder.assert_usize_eq(lhs_len, rhs_len);
 
-                let start = Usize::Const(0);
                 let end = lhs_len;
-                builder.range(start, end).for_each(|i, builder| {
+                builder.range(0, end).for_each(|i, builder| {
                     let a = builder.get(&lhs, i);
                     let b = builder.get(&rhs, i);
-                    T::assert_ne(T::Expression::from(a), T::Expression::from(b), builder);
+                    builder.assert_ne::<T>(a, b);
                 });
             }
             _ => panic!("cannot compare arrays of different types"),
@@ -212,29 +218,25 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
         2
     }
 
-    fn load(&self, src: Ptr<C::N>, builder: &mut Builder<C>) {
+    fn load(&self, src: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
         match self {
             Array::Dyn(dst, Usize::Var(len)) => {
-                let mut offset = 0;
-                let address = builder.eval(src + Usize::Const(offset));
-                dst.load(address, builder);
-                offset += <Ptr<C::N> as MemVariable<C>>::size_of();
-                let address = builder.eval(src + Usize::Const(offset));
-                len.load(address, builder);
+                let mut index = index;
+                dst.load(src, index, builder);
+                index.offset += <Ptr<C::N> as MemVariable<C>>::size_of();
+                len.load(src, index, builder);
             }
             _ => unreachable!(),
         }
     }
 
-    fn store(&self, dst: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
+    fn store(&self, dst: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
         match self {
             Array::Dyn(src, Usize::Var(len)) => {
-                let mut offset = 0;
-                let address = builder.eval(dst + Usize::Const(offset));
-                src.store(address, builder);
-                offset += <Ptr<C::N> as MemVariable<C>>::size_of();
-                let address = builder.eval(dst + Usize::Const(offset));
-                len.store(address, builder);
+                let mut index = index;
+                src.store(dst, index, builder);
+                index.offset += <Ptr<C::N> as MemVariable<C>>::size_of();
+                len.store(dst, index, builder);
             }
             _ => unreachable!(),
         }

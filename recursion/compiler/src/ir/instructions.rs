@@ -1,4 +1,4 @@
-use super::{Array, Ptr};
+use super::{Array, MemIndex, Ptr};
 
 use super::{Config, Ext, Felt, Usize, Var};
 
@@ -72,20 +72,20 @@ pub enum DslIR<C: Config> {
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
 
     // Memory instructions.
-    /// Allocate (ptr, len) a memory slice of length len
-    Alloc(Ptr<C::N>, Usize<C::N>),
-    /// Load variable (var, ptr)
-    LoadV(Var<C::N>, Ptr<C::N>),
-    /// Load field element (var, ptr)
-    LoadF(Felt<C::F>, Ptr<C::N>),
+    /// Allocate (ptr, len, size) a memory slice of length len
+    Alloc(Ptr<C::N>, Usize<C::N>, usize),
+    /// Load variable (var, ptr, index)
+    LoadV(Var<C::N>, Ptr<C::N>, MemIndex<C::N>),
+    /// Load field element (var, ptr, index)
+    LoadF(Felt<C::F>, Ptr<C::N>, MemIndex<C::N>),
     /// Load extension field
-    LoadE(Ext<C::F, C::EF>, Ptr<C::N>),
+    LoadE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
     /// Store variable at address
-    StoreV(Ptr<C::N>, Var<C::N>),
+    StoreV(Ptr<C::N>, Var<C::N>, MemIndex<C::N>),
     /// Store field element at adress
-    StoreF(Ptr<C::N>, Felt<C::F>),
+    StoreF(Ptr<C::N>, Felt<C::F>, MemIndex<C::N>),
     /// Store extension field at adress
-    StoreE(Ptr<C::N>, Ext<C::F, C::EF>),
+    StoreE(Ptr<C::N>, Ext<C::F, C::EF>, MemIndex<C::N>),
 
     // Miscellaneous instructions.
     PrintV(Var<C::N>),

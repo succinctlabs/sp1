@@ -1,4 +1,4 @@
-use super::{Builder, Config, Ptr};
+use super::{Builder, Config, Ptr, Usize};
 
 pub trait Variable<C: Config>: Clone {
     type Expression: From<Self>;
@@ -20,10 +20,17 @@ pub trait Variable<C: Config>: Clone {
     );
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct MemIndex<N> {
+    pub index: Usize<N>,
+    pub offset: usize,
+    pub size: usize,
+}
+
 pub trait MemVariable<C: Config>: Variable<C> {
     fn size_of() -> usize;
-    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>);
-    fn store(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>);
+    fn load(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>);
+    fn store(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>);
 }
 
 pub trait FromConstant<C: Config>: Variable<C> {

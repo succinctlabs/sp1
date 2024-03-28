@@ -29,26 +29,6 @@ impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
     }
 }
 
-// impl<C: Config> Builder<C> {
-//     pub fn const_domain(
-//         &mut self,
-//         domain: &TwoAdicMultiplicativeCoset<C::F>,
-//     ) -> TwoAdicMultiplicativeCosetVariable<C>
-//     where
-//         C::F: TwoAdicField,
-//     {
-//         let log_d_val = domain.log_n as u32;
-//         let g_val = C::F::two_adic_generator(domain.log_n);
-//         // Initialize a domain.
-//         TwoAdicMultiplicativeCosetVariable::<C> {
-//             log_n: self.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
-//             size: self.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
-//             shift: self.eval(domain.shift),
-//             g: self.eval(g_val),
-//         }
-//     }
-// }
-
 impl<C: Config> FromConstant<C> for TwoAdicMultiplicativeCosetVariable<C>
 where
     C::F: TwoAdicField,
@@ -165,7 +145,7 @@ where
         let g_dom = self.gen();
 
         // We can compute a generator for the domain by computing g_dom^{log_num_chunks}
-        let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks.into());
+        let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks);
 
         let domain_power: Felt<_> = builder.eval(C::F::one());
         let mut domains = vec![];

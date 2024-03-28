@@ -52,6 +52,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     proof: TwoAdicPcsProofVariable<C>,
     challenger: &mut DuplexChallengerVariable<C>,
 ) where
+    C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let alpha = challenger.sample_ext(builder);
@@ -72,7 +73,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
             let query_opening = builder.get(&proof.query_openings, i);
-            let index = builder.get(&fri_challenges.query_indices, i);
+            let index_bits = builder.get(&fri_challenges.query_indices, i);
             let mut ro: Array<C, Ext<C::F, C::EF>> = builder.array(32);
             let zero: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::zero()));
             for j in 0..32 {
@@ -108,7 +109,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let log_batch_max_height = builder.get(&batch_heights_log2, 0);
                 let bits_reduced: Var<_> =
                     builder.eval(log_global_max_height - log_batch_max_height);
-                let index_bits = builder.num2bits_v(index);
+                // let index_bits = builder.num2bits_v(index);
                 let index_bits_shifted_v1 = index_bits.shift(builder, bits_reduced);
                 verify_batch::<C, 1>(
                     builder,
@@ -133,19 +134,14 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                         let bits_reduced: Var<C::N> =
                             builder.eval(log_global_max_height - log_height);
-                        let index_bits_shifted_v2 = index_bits.shift(builder, bits_reduced);
-                        let index_shifted_v2 = builder.bits_to_num_var(&index_bits_shifted_v2);
-                        // TODO: perf
-                        let rev_reduced_index =
-                            builder.reverse_bits_len(index_shifted_v2, Usize::Var(log_height));
-                        let rev_reduced_index = rev_reduced_index.materialize(builder);
+                        let index_bits_shifted = index_bits.shift(builder, bits_reduced);
+                        let rev_reduced_index_bits =
+                            builder.reverse_bits_len(&index_bits_shifted, Usize::Var(log_height));
 
                         let g = builder.generator();
                         let two_adic_generator = builder.two_adic_generator(Usize::Var(log_height));
                         let two_adic_generator_exp =
-                        // TODO: don't duplicate this bit decomposition
-                        // TODO: add break to early terminate
-                            builder.exp_usize_f(two_adic_generator, Usize::Var(rev_reduced_index));
+                            builder.exp_bits(two_adic_generator, &rev_reduced_index_bits);
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
@@ -559,8 +555,7 @@ pub(crate) mod tests {
             let expected_domain =
                 TwoAdicMultiplicativeCosetVariable::from_constant(&mut builder, domain_val);
 
-            builder
-                .assert_eq::<TwoAdicMultiplicativeCosetVariable<_>, _, _>(domain, expected_domain);
+            builder.assert_eq::<TwoAdicMultiplicativeCosetVariable<_>>(domain, expected_domain);
         }
 
         // Test proof verification.
