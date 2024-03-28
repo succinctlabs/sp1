@@ -14,9 +14,9 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
     cfg_if::cfg_if! {
         if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
             let dividend = BigUint::from_bytes_le(x);
-            let divisor = BigUint::from_bytes_le(y);
 
             unconstrained!{
+                let divisor = BigUint::from_bytes_le(y);
                 let (quotient, remainder) = dividend.div_rem(&divisor);
 
                 let mut quotient_bytes = quotient.to_bytes_le();
