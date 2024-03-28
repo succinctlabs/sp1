@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
@@ -22,7 +23,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub main_commit: Com<SC>,
     pub main_data: PcsProverData<SC>,
-    pub chip_ids: Vec<String>,
+    pub chip_ordering: HashMap<String, usize>,
     pub index: usize,
 }
 
@@ -31,14 +32,14 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         traces: Vec<RowMajorMatrix<Val<SC>>>,
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
-        chip_ids: Vec<String>,
+        chip_ordering: HashMap<String, usize>,
         index: usize,
     ) -> Self {
         Self {
             traces,
             main_commit,
             main_data,
-            chip_ids,
+            chip_ordering,
             index,
         }
     }
@@ -123,7 +124,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub commitment: ShardCommitment<Com<SC>>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
-    pub chip_ids: Vec<String>,
+    pub chip_ordering: HashMap<String, usize>,
 }
 
 impl<T> AirOpenedValues<T> {
