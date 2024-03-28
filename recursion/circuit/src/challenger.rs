@@ -115,6 +115,18 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
         let d = self.sample(builder);
         builder.ext_from_base_slice(&[a, b, c, d])
     }
+
+    pub fn sample_bits(&mut self, builder: &mut Builder<C>, bits: usize) -> Var<C::N> {
+        let rand_f = self.sample(builder);
+        let rand_f_bits = builder.num2bits_f_circuit(rand_f);
+        builder.bits_to_num_var_circuit(&rand_f_bits[0..bits])
+    }
+
+    pub fn check_witness(&mut self, builder: &mut Builder<C>, bits: usize, witness: Felt<C::F>) {
+        self.observe(builder, witness);
+        let element = self.sample_bits(builder, bits);
+        builder.assert_var_eq(element, C::N::from_canonical_usize(0));
+    }
 }
 
 #[cfg(test)]
