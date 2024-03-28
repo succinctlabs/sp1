@@ -3,7 +3,6 @@ use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::Array;
 use sp1_recursion_compiler::prelude::MemVariable;
 use sp1_recursion_compiler::prelude::*;
-use sp1_recursion_compiler::verifier::fri::types::FriChallenges;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 use sp1_recursion_derive::DslVariable;
 
@@ -64,6 +63,13 @@ pub struct FriCommitPhaseProofStepVariable<C: Config> {
 #[derive(DslVariable, Clone)]
 pub struct FriQueryProofVariable<C: Config> {
     pub commit_phase_openings: Array<C, FriCommitPhaseProofStepVariable<C>>,
+}
+
+/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
+#[derive(DslVariable, Clone)]
+pub struct FriChallenges<C: Config> {
+    pub query_indices: Array<C, Var<C::N>>,
+    pub betas: Array<C, Ext<C::F, C::EF>>,
 }
 
 #[cfg(test)]
