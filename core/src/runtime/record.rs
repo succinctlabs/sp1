@@ -17,10 +17,6 @@ use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
-use crate::utils::ec::edwards::ed25519::Ed25519;
-use crate::utils::ec::weierstrass::bls12_381::Bls12381;
-use crate::utils::ec::weierstrass::bn254::Bn254;
-use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
 use crate::utils::env;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -71,29 +67,25 @@ pub struct ExecutionRecord {
 
     pub keccak_permute_events: Vec<KeccakPermuteEvent>,
 
-    pub ed_add_events: Vec<ECAddEvent<Ed25519>>,
+    pub ed_add_events: Vec<ECAddEvent>,
 
     pub ed_decompress_events: Vec<EdDecompressEvent>,
 
-    pub secp256k1_add_events: Vec<ECAddEvent<Secp256k1>>,
+    pub secp256k1_add_events: Vec<ECAddEvent>,
 
-    pub secp256k1_double_events: Vec<ECDoubleEvent<Secp256k1>>,
+    pub secp256k1_double_events: Vec<ECDoubleEvent>,
 
-    pub bn254_add_events: Vec<ECAddEvent<Bn254>>,
+    pub bn254_add_events: Vec<ECAddEvent>,
 
-    pub bn254_double_events: Vec<ECDoubleEvent<Bn254>>,
+    pub bn254_double_events: Vec<ECDoubleEvent>,
 
     pub k256_decompress_events: Vec<K256DecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
-    pub bls12381_add_events: Vec<ECAddEvent<Bls12381>>,
+    pub bls12381_add_events: Vec<ECAddEvent>,
 
-    pub bls12381_double_events: Vec<ECDoubleEvent<Bls12381>>,
-
-    pub bls12381_add_events: Vec<ECAddEvent<Bls12381>>,
-
-    pub bls12381_double_events: Vec<ECDoubleEvent<Bls12381>>,
+    pub bls12381_double_events: Vec<ECDoubleEvent>,
 
     pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
 

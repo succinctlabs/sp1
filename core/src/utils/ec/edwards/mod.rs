@@ -9,7 +9,6 @@ use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 use super::field::NumLimbs;
 use super::CurveType;
-use super::CurveType;
 
 pub trait EdwardsParameters: EllipticCurveParameters {
     const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;

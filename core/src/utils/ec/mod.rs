@@ -8,12 +8,9 @@ use field::FieldParameters;
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::{Debug, Display, Formatter, Result};
-use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
-use typenum::Unsigned;
 
 use crate::air::WORD_SIZE;
-use crate::operations::field::params::Limbs;
 
 use self::field::NumWords;
 
@@ -79,30 +76,31 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
         }
     }
 
-    pub fn to_words_le(&self) -> Limbs<u32, <E::BaseField as NumWords>::WordsCurvePoint> {
-        let n = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
-        let num_bytes = n * 4;
-        let half_words = n / 2;
+    pub fn to_words_le<const N: usize>(&self) -> [u32; N] {
+        let num_bytes = N * 4;
+        let half_words = N / 2;
 
         let mut x_bytes = self.x.to_bytes_le();
         x_bytes.resize(num_bytes / 2, 0u8);
         let mut y_bytes = self.y.to_bytes_le();
         y_bytes.resize(num_bytes / 2, 0u8);
 
-        let mut words = Limbs::<u32, <E::BaseField as NumWords>::WordsCurvePoint>::default();
+        let mut words = [0u32; N];
         for i in 0..half_words {
-            words[i] = u32::from_le_bytes([
-                x_bytes[i * 4],
-                x_bytes[i * 4 + 1],
-                x_bytes[i * 4 + 2],
-                x_bytes[i * 4 + 3],
+            let x = u32::from_le_bytes([
+                x_bytes[4 * i],
+                x_bytes[4 * i + 1],
+                x_bytes[4 * i + 2],
+                x_bytes[4 * i + 3],
             ]);
-            words[i + half_words] = u32::from_le_bytes([
-                y_bytes[i * 4],
-                y_bytes[i * 4 + 1],
-                y_bytes[i * 4 + 2],
-                y_bytes[i * 4 + 3],
+            let y = u32::from_le_bytes([
+                y_bytes[4 * i],
+                y_bytes[4 * i + 1],
+                y_bytes[4 * i + 2],
+                y_bytes[4 * i + 3],
             ]);
+            words[i] = x;
+            words[half_words + i] = y;
         }
         words
     }

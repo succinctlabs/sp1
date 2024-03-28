@@ -9,7 +9,6 @@ use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::{AffinePoint, CurveType, EllipticCurveParameters};
-use crate::utils::ec::{AffinePoint, CurveType, EllipticCurveParameters};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;
 
