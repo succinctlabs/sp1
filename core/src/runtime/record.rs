@@ -377,7 +377,7 @@ impl MachineRecord for ExecutionRecord {
         {
             shard
                 .uint256_mul_events
-                .extend_from_slice(&uint256_mul_chunk);
+                .extend_from_slice(uint256_mul_chunk);
         }
 
         // secp256k1 curve add events.
