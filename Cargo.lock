@@ -2905,6 +2905,7 @@ dependencies = [
  "p3-util",
  "rand",
  "serde",
+ "serial_test",
  "sp1-core",
  "sp1-recursion-compiler",
  "sp1-recursion-core",

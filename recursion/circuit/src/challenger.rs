@@ -142,9 +142,10 @@ mod tests {
     use p3_field::split_32 as split_32_gt;
     use p3_field::AbstractField;
     use p3_symmetric::Hash;
+    use serial_test::serial;
+    use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintBackend};
     use sp1_recursion_compiler::ir::Builder;
     use sp1_recursion_compiler::ir::SymbolicExt;
-    use sp1_recursion_compiler::r1cs::{gnark, R1CSBackend};
     use sp1_recursion_compiler::OuterConfig;
     use sp1_recursion_core::stark::config::{OuterChallenger, OuterPerm};
 
@@ -154,6 +155,7 @@ mod tests {
     use crate::{challenger::MultiFieldChallengerVariable, poseidon2::tests::bn254_poseidon2_rc3};
 
     #[test]
+    #[serial]
     fn test_num2bits_v() {
         let mut builder = Builder::<OuterConfig>::default();
         let mut value_u32 = 1345237507;
@@ -164,12 +166,13 @@ mod tests {
             value_u32 >>= 1;
         }
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 
     #[test]
+    #[serial]
     fn test_reduce_32() {
         let value_1 = BabyBear::from_canonical_u32(1345237507);
         let value_2 = BabyBear::from_canonical_u32(1000001);
@@ -181,12 +184,13 @@ mod tests {
         let result = reduce_32(&mut builder, &[value_1, value_2]);
         builder.assert_var_eq(result, gt);
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 
     #[test]
+    #[serial]
     fn test_split_32() {
         let value = Bn254Fr::from_canonical_u32(1345237507);
         let gt: Vec<BabyBear> = split_32_gt(value, 3);
@@ -199,12 +203,13 @@ mod tests {
         builder.assert_felt_eq(result[1], gt[1]);
         builder.assert_felt_eq(result[2], gt[2]);
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 
     #[test]
+    #[serial]
     fn test_challenger() {
         let perm = OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
         let mut challenger = OuterChallenger::new(perm).unwrap();
@@ -236,12 +241,13 @@ mod tests {
         let result2 = challenger.sample(&mut builder);
         builder.assert_felt_eq(gt2, result2);
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 
     #[test]
+    #[serial]
     fn test_challenger_sample_ext() {
         let perm = OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
         let mut challenger = OuterChallenger::new(perm).unwrap();
@@ -278,8 +284,8 @@ mod tests {
         builder.assert_ext_eq(SymbolicExt::Const(gt1), result1);
         builder.assert_ext_eq(SymbolicExt::Const(gt2), result2);
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 }

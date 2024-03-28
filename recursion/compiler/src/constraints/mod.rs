@@ -1,4 +1,4 @@
-pub mod gnark;
+pub mod gnark_ffi;
 
 use core::fmt::Debug;
 use p3_field::AbstractExtensionField;
@@ -52,12 +52,12 @@ pub struct Constraint {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct R1CSBackend<C: Config> {
+pub struct ConstraintBackend<C: Config> {
     pub allocator: usize,
     pub phantom: PhantomData<C>,
 }
 
-impl<C: Config + Debug> R1CSBackend<C> {
+impl<C: Config + Debug> ConstraintBackend<C> {
     pub fn alloc_id(&mut self) -> String {
         let id = self.allocator;
         self.allocator += 1;
@@ -303,9 +303,9 @@ mod tests {
             DslIR::PrintF(Felt::new(1)),
             DslIR::PrintE(Ext::new(2)),
         ];
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(program);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 
     #[test]
@@ -316,9 +316,9 @@ mod tests {
         let c: Var<_> = builder.eval(a * b);
         builder.assert_var_eq(c, Bn254Fr::from_canonical_u32(200));
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 
     #[test]
@@ -331,8 +331,8 @@ mod tests {
             builder.assert_var_eq(bits[i], Bn254Fr::from_canonical_u32((value_u32 >> i) & 1));
         }
 
-        let mut backend = R1CSBackend::<OuterConfig>::default();
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark::ffi_test_circuit(constraints);
+        gnark_ffi::test_circuit(constraints);
     }
 }

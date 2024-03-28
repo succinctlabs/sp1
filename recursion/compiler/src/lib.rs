@@ -9,15 +9,23 @@ use prelude::Config;
 extern crate alloc;
 
 pub mod asm;
-pub mod gnark;
+pub mod constraints;
 pub mod ir;
-pub mod r1cs;
 pub mod util;
 pub mod verifier;
 
 pub mod prelude {
     pub use crate::asm::AsmCompiler;
     pub use crate::ir::*;
+}
+
+#[derive(Clone, Default, Debug)]
+pub struct InnerConfig;
+
+impl Config for InnerConfig {
+    type N = BabyBear;
+    type F = BabyBear;
+    type EF = BinomialExtensionField<BabyBear, 4>;
 }
 
 #[derive(Clone, Default, Debug)]
