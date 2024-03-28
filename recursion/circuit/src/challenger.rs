@@ -36,9 +36,9 @@ pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -
         let result: Felt<C::F> = builder.eval(C::F::zero());
         for j in 0..32 {
             let bit = bits[i * 32 + j];
-            builder.if_eq(bit, C::N::one()).then(|builder| {
-                builder.assign(result, result + C::F::from_wrapped_u32(1 << j));
-            })
+            let t = builder.eval(result + C::F::from_wrapped_u32(1 << j));
+            let z = builder.select_f(bit, t, result);
+            builder.assign(result, z);
         }
         results.push(result);
     }
@@ -47,6 +47,7 @@ pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -
 
 impl<C: Config> MultiFieldChallengerVariable<C> {
     pub fn new(builder: &mut Builder<C>) -> Self {
+        println!("num_f_elms: {}", C::N::bits() / C::F::bits());
         MultiFieldChallengerVariable::<C> {
             sponge_state: [builder.uninit(), builder.uninit(), builder.uninit()],
             input_buffer: vec![],
@@ -75,6 +76,7 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
     }
 
     pub fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
+        builder.print_f(value);
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
@@ -86,10 +88,13 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
     pub fn observe_commitment(
         &mut self,
         builder: &mut Builder<C>,
-        value: [Felt<C::F>; DIGEST_SIZE],
+        value: [Var<C::N>; DIGEST_SIZE],
     ) {
         for i in 0..DIGEST_SIZE {
-            self.observe(builder, value[i]);
+            let f_vals: Vec<Felt<C::F>> = split_32(builder, value[i], self.num_f_elms);
+            for f_val in f_vals {
+                self.observe(builder, f_val);
+            }
         }
     }
 
@@ -118,15 +123,20 @@ mod tests {
 
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
+    use p3_challenger::FieldChallenger;
     use p3_challenger::{CanObserve, CanSample};
+    use p3_field::extension::BinomialExtensionField;
     use p3_field::reduce_32 as reduce_32_gt;
     use p3_field::split_32 as split_32_gt;
     use p3_field::AbstractField;
+    use p3_symmetric::Hash;
+    use sp1_recursion_compiler::ir::SymbolicExt;
     use sp1_recursion_compiler::{gnark::GnarkBackend, ir::Builder};
     use sp1_recursion_core::stark::config::{OuterChallenger, OuterPerm};
 
     use super::reduce_32;
     use super::split_32;
+    use crate::DIGEST_SIZE;
     use crate::{
         challenger::MultiFieldChallengerVariable, poseidon2::tests::bn254_poseidon2_rc3,
         GnarkConfig,
@@ -223,6 +233,51 @@ mod tests {
         challenger.observe(&mut builder, c);
         let result2 = challenger.sample(&mut builder);
         builder.assert_felt_eq(gt2, result2);
+
+        let mut backend = GnarkBackend::<GnarkConfig>::default();
+        let result = backend.compile(builder.operations);
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let path = format!("{}/build/verifier.go", manifest_dir);
+        let mut file = File::create(path).unwrap();
+        file.write_all(result.as_bytes()).unwrap();
+    }
+
+    #[test]
+    fn test_challenger_sample_ext() {
+        let perm = OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
+        let mut challenger = OuterChallenger::new(perm).unwrap();
+        let a = BabyBear::from_canonical_usize(1);
+        let b = BabyBear::from_canonical_usize(2);
+        let c = BabyBear::from_canonical_usize(3);
+        let hash = Hash::from([Bn254Fr::two(); DIGEST_SIZE]);
+        challenger.observe(hash);
+        challenger.observe(a);
+        challenger.observe(b);
+        challenger.observe(c);
+        let gt1: BinomialExtensionField<BabyBear, 4> = challenger.sample_ext_element();
+        challenger.observe(a);
+        challenger.observe(b);
+        challenger.observe(c);
+        let gt2: BinomialExtensionField<BabyBear, 4> = challenger.sample_ext_element();
+
+        let mut builder = Builder::<GnarkConfig>::default();
+        let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
+        let a = builder.eval(a);
+        let b = builder.eval(b);
+        let c = builder.eval(c);
+        let hash = builder.eval(Bn254Fr::two());
+        challenger.observe_commitment(&mut builder, [hash]);
+        challenger.observe(&mut builder, a);
+        challenger.observe(&mut builder, b);
+        challenger.observe(&mut builder, c);
+        let result1 = challenger.sample_ext(&mut builder);
+        challenger.observe(&mut builder, a);
+        challenger.observe(&mut builder, b);
+        challenger.observe(&mut builder, c);
+        let result2 = challenger.sample_ext(&mut builder);
+
+        builder.assert_ext_eq(SymbolicExt::Const(gt1), result1);
+        builder.assert_ext_eq(SymbolicExt::Const(gt2), result2);
 
         let mut backend = GnarkBackend::<GnarkConfig>::default();
         let result = backend.compile(builder.operations);

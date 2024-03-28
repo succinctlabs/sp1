@@ -2,6 +2,8 @@
 package verifier
 
 import (
+	"fmt"
+	
 	"github.com/consensys/gnark/frontend"
 	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
 	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
@@ -13,6 +15,7 @@ type Circuit struct {
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
+	fmt.Println("running")
 	var state [3]frontend.Variable
 	state2 := make([]frontend.Variable, 256)
 	babybearChip := babybear.NewChip(api)
