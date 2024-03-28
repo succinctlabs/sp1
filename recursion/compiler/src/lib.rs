@@ -12,11 +12,11 @@ pub mod asm;
 pub mod constraints;
 pub mod ir;
 pub mod util;
-pub mod verifier;
 
 pub mod prelude {
     pub use crate::asm::AsmCompiler;
     pub use crate::ir::*;
+    pub use sp1_recursion_derive::DslVariable;
 }
 
 #[derive(Clone, Default, Debug)]
