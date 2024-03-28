@@ -1,4 +1,3 @@
-use super::U256Field;
 use crate::air::{MachineAir, SP1AirBuilder};
 use crate::memory::{MemoryCols, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
@@ -8,6 +7,7 @@ use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
+use crate::utils::ec::uint256::U256Field;
 use crate::utils::{bytes_to_words_le, limbs_from_prev_access, pad_rows, words_to_bytes_le};
 use num::{BigUint, One};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -21,21 +21,22 @@ use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 
-pub const NUM_UINT256_MUL_COLS: usize = size_of::<Uint256MulCols<u8>>();
+/// The number of columns in the Uint256MulCols.
+const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 /// Number of `u32` words in a `BigUint` representing a 256 bit number.
-pub const NUM_WORDS_IN_UINT256: usize = U256Field::NB_LIMBS / 4;
+const NUM_WORDS: usize = U256Field::NB_LIMBS / 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
     pub shard: u32,
     pub clk: u32,
     pub x_ptr: u32,
-    pub x: [u32; NUM_WORDS_IN_UINT256],
+    pub x: [u32; NUM_WORDS],
     pub y_ptr: u32,
-    pub y: [u32; NUM_WORDS_IN_UINT256],
-    pub x_memory_records: [MemoryWriteRecord; NUM_WORDS_IN_UINT256],
-    pub y_memory_records: [MemoryReadRecord; NUM_WORDS_IN_UINT256],
+    pub y: [u32; NUM_WORDS],
+    pub x_memory_records: [MemoryWriteRecord; NUM_WORDS],
+    pub y_memory_records: [MemoryReadRecord; NUM_WORDS],
 }
 
 #[derive(Default)]
@@ -58,13 +59,13 @@ pub struct Uint256MulCols<T> {
     pub y_ptr: T,
 
     // Memory columns.
-    pub x_memory: [MemoryWriteCols<T>; NUM_WORDS_IN_UINT256],
-    pub y_memory: [MemoryReadCols<T>; NUM_WORDS_IN_UINT256],
+    pub x_memory: [MemoryWriteCols<T>; NUM_WORDS],
+    pub y_memory: [MemoryReadCols<T>; NUM_WORDS],
     pub y_ptr_access: MemoryReadCols<T>,
 
     // Input values for the multiplication.
-    pub x_input: [T; NUM_WORDS_IN_UINT256],
-    pub y_input: [T; NUM_WORDS_IN_UINT256],
+    pub x_input: [T; NUM_WORDS],
+    pub y_input: [T; NUM_WORDS],
 
     // Output values.
     pub output: FieldOpCols<T, U256Field>,
@@ -96,7 +97,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                 let rows = events
                     .iter()
                     .map(|event| {
-                        let mut row: [F; NUM_UINT256_MUL_COLS] = [F::zero(); NUM_UINT256_MUL_COLS];
+                        let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
                         // Decode uint256 points
@@ -114,7 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         // Memory columns.
                         {
                             // Populate the columns with the input values.
-                            for i in 0..NUM_WORDS_IN_UINT256 {
+                            for i in 0..NUM_WORDS {
                                 // Populate the input_x columns.
                                 cols.x_memory[i].populate(
                                     event.x_memory_records[i],
@@ -146,13 +147,10 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             output.append(&mut record);
         }
 
-        pad_rows(&mut rows, || [F::zero(); NUM_UINT256_MUL_COLS]);
+        pad_rows(&mut rows, || [F::zero(); NUM_COLS]);
 
         // Convert the trace to a row major matrix.
-        RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_UINT256_MUL_COLS,
-        )
+        RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS)
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
@@ -176,14 +174,11 @@ impl Syscall for Uint256MulChip {
             panic!();
         }
 
-        let x: [u32; NUM_WORDS_IN_UINT256] = rt
-            .slice_unsafe(x_ptr, NUM_WORDS_IN_UINT256)
-            .try_into()
-            .unwrap();
+        let x: [u32; NUM_WORDS] = rt.slice_unsafe(x_ptr, NUM_WORDS).try_into().unwrap();
 
-        let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, NUM_WORDS_IN_UINT256);
+        let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, NUM_WORDS);
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
-        let y: [u32; NUM_WORDS_IN_UINT256] = y_vec.try_into().unwrap();
+        let y: [u32; NUM_WORDS] = y_vec.try_into().unwrap();
 
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&x));
         let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&y));
@@ -202,7 +197,7 @@ impl Syscall for Uint256MulChip {
         result_bytes.resize(32, 0u8);
 
         // Convert the result to low endian u32 words.
-        let result = bytes_to_words_le::<NUM_WORDS_IN_UINT256>(&result_bytes);
+        let result = bytes_to_words_le::<NUM_WORDS>(&result_bytes);
 
         // write the state
         let state_memory_records = rt.mw_slice(x_ptr, &result).try_into().unwrap();
@@ -226,7 +221,7 @@ impl Syscall for Uint256MulChip {
 
 impl<F> BaseAir<F> for Uint256MulChip {
     fn width(&self) -> usize {
-        NUM_UINT256_MUL_COLS
+        NUM_COLS
     }
 }
 

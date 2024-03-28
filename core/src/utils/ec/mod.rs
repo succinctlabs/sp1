@@ -1,6 +1,7 @@
 pub mod edwards;
 pub mod field;
 pub mod scalar_mul;
+pub mod uint256;
 pub mod utils;
 pub mod weierstrass;
 
