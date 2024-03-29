@@ -8,7 +8,8 @@ use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
-    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
+    SyscallCommit, SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA,
+    SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1;
@@ -68,6 +69,9 @@ pub enum SyscallCode {
 
     /// Executes the `BLAKE3_COMPRESS_INNER` precompile.
     BLAKE3_COMPRESS_INNER = 0x00_38_01_0D,
+
+    /// Executes the `COMMIT` precompile.
+    COMMIT = 0x00_00_00_0E,
 }
 
 impl SyscallCode {
@@ -88,6 +92,7 @@ impl SyscallCode {
             0x00_00_01_0B => SyscallCode::SECP256K1_DOUBLE,
             0x00_00_01_0C => SyscallCode::SECP256K1_DECOMPRESS,
             0x00_38_01_0D => SyscallCode::BLAKE3_COMPRESS_INNER,
+            0x00_00_00_0E => SyscallCode::COMMIT,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -254,6 +259,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     );
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
 
+    syscall_map.insert(SyscallCode::COMMIT, Rc::new(SyscallCommit::new()));
+
     syscall_map
 }
 
@@ -322,6 +329,7 @@ mod tests {
                 SyscallCode::SECP256K1_DECOMPRESS => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
                 }
+                SyscallCode::COMMIT => assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT),
             }
         }
     }

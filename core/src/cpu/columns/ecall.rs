@@ -1,7 +1,7 @@
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
-use crate::operations::IsZeroOperation;
+use crate::{air::Word, operations::IsZeroOperation};
 
 pub const NUM_ECALL_COLS: usize = size_of::<EcallCols<u8>>();
 
@@ -16,4 +16,9 @@ pub struct EcallCols<T> {
 
     /// Whether the current ecall is HALT.
     pub is_halt: IsZeroOperation<T>,
+
+    /// Whether the current ecall is a COMMIT.
+    pub is_commit: IsZeroOperation<T>,
+    pub digest_word: Word<T>,
+    pub index_bitmap: [T; 8],
 }

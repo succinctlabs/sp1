@@ -65,3 +65,6 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
+
+/// Executes the `COMMIT` precompile.
+pub const COMMIT: u32 = 0x00_00_00_0E;

@@ -126,7 +126,6 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local: &MemoryInitCols<AB::Var> = main.row_slice(0).borrow();
-        let pi_digest = builder.public_values();
 
         // Dummy constraint of degree 3.
         builder.assert_eq(

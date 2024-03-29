@@ -2,6 +2,7 @@ use crate::{
     runtime::{Register, Syscall, SyscallContext},
     utils::num_to_comma_separated,
 };
+use sha2::digest::Update;
 
 pub struct SyscallWrite;
 
@@ -16,7 +17,7 @@ impl Syscall for SyscallWrite {
         let a2 = Register::X12;
         let rt = &mut ctx.rt;
         let fd = arg1;
-        if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
+        if fd == 1 || fd == 2 || fd == 3 || fd == 4 || fd == 5 {
             let write_buf = arg2;
             let nbytes = rt.register(a2);
             // Read nbytes from memory starting at write_buf.
@@ -73,6 +74,11 @@ impl Syscall for SyscallWrite {
                 rt.state.output_stream.extend_from_slice(slice);
             } else if fd == 4 {
                 rt.state.input_stream.extend_from_slice(slice);
+            } else if fd == 5 {
+                rt.pi_hasher
+                    .as_mut()
+                    .expect("runtime pi hasher should be Some")
+                    .update(slice);
             } else {
                 unreachable!()
             }

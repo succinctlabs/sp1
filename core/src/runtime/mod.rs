@@ -16,6 +16,7 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 pub use state::*;
 pub use syscall::*;
 pub use utils::*;
@@ -26,6 +27,7 @@ use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
 use nohash_hasher::BuildNoHashHasher;
+use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
@@ -85,6 +87,10 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
+
+    pub pi_hasher: Option<Sha256>,
+
+    pub pi_digest: Option<[u32; PI_DIGEST_WORD_SIZE]>,
 }
 
 impl Runtime {
@@ -133,6 +139,8 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
+            pi_hasher: Some(Sha256::new()),
+            pi_digest: None,
         }
     }
 
