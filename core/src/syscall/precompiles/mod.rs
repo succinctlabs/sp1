@@ -101,7 +101,6 @@ pub fn create_ec_double_event<E: EllipticCurve>(
 
     let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
 
-    // Read N words from memory.
     let p = rt.slice_unsafe(p_ptr, num_words);
 
     let p_affine = AffinePoint::<E>::from_words_le(&p);
