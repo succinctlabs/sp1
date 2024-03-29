@@ -206,13 +206,13 @@ pub(crate) mod tests {
         air::MachineAir,
         stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
-        SP1Prover, SP1Stdin,
     };
     use sp1_recursion_compiler::{
         asm::{AsmConfig, VmBuilder},
         ir::{Builder, Config, ExtConst, Usize},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
+    use sp1_sdk::{SP1Prover, SP1Stdin};
 
     use crate::{
         challenger::DuplexChallengerVariable,

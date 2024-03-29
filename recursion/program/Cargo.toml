@@ -15,6 +15,7 @@ p3-util = { workspace = true }
 sp1-recursion-core = { path = "../core" }
 sp1-recursion-compiler = { path = "../compiler" }
 sp1-core = { path = "../../core" }
+sp1-sdk = { path = "../../sdk" }
 itertools = "0.12.1"
 serde = { version = "1.0.197", features = ["derive"] }
 p3-symmetric = { workspace = true }
