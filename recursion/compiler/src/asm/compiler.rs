@@ -33,6 +33,10 @@ pub type VmBuilder<F, EF> = Builder<AsmConfig<F, EF>>;
 pub struct AsmCompiler<F, EF> {
     pub basic_blocks: Vec<BasicBlock<F, EF>>,
 
+    break_label: Option<F>,
+
+    break_label_map: BTreeMap<F, F>,
+
     function_labels: BTreeMap<String, F>,
 }
 
@@ -110,8 +114,17 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
     pub fn new() -> Self {
         Self {
             basic_blocks: vec![BasicBlock::new()],
+            break_label: None,
+            break_label_map: BTreeMap::new(),
             function_labels: BTreeMap::new(),
         }
+    }
+
+    pub fn new_break_label(&mut self) -> F {
+        let label = self.break_label_map.len();
+        let label = F::from_canonical_usize(label);
+        self.break_label = Some(label);
+        label
     }
 
     pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
@@ -350,6 +363,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                             |builder| builder.build(else_block),
                         );
                     }
+                }
+                DslIR::Break => {
+                    let label = self.break_label.expect("No break label set");
+                    self.push(AsmInstruction::j(label));
                 }
                 DslIR::For(start, end, loop_var, block) => {
                     let for_compiler = ForCompiler {
@@ -673,24 +690,25 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
         self.set_loop_var();
         // Save the label of the for loop call
         let loop_call_label = self.compiler.block_label();
+
         // A basic block for the loop body
         self.compiler.basic_block();
         // Save the loop body label for the loop condition.
         let loop_label = self.compiler.block_label();
         // The loop body.
         f(self.loop_var, self.compiler);
+        // Increment the loop variable.
         self.compiler.push(AsmInstruction::ADDI(
             self.loop_var.fp(),
             self.loop_var.fp(),
             F::one(),
         ));
 
-        // loop_var, loop_var + B::F::one());
         // Add a basic block for the loop condition.
         self.compiler.basic_block();
         // Jump to loop body if the loop condition still holds.
         self.jump_to_loop_body(loop_label);
-        // Add a jump instruction to the loop condition in the following block
+        // Add a jump instruction to the loop condition in the loop call block.
         let label = self.compiler.block_label();
         let instr = AsmInstruction::j(label);
         self.compiler.push_to_block(loop_call_label, instr);

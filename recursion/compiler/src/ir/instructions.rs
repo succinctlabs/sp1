@@ -53,11 +53,16 @@ pub enum DslIR<C: Config> {
     InvV(Var<C::N>, Var<C::N>),
     InvF(Felt<C::F>, Felt<C::F>),
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+
+    // Control flow instructions.
     For(Usize<C::N>, Usize<C::N>, Var<C::N>, Vec<DslIR<C>>),
     IfEq(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfNe(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfEqI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfNeI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),
+    Break,
+
+    // Assertions
     AssertEqV(Var<C::N>, Var<C::N>),
     AssertNeV(Var<C::N>, Var<C::N>),
     AssertEqF(Felt<C::F>, Felt<C::F>),
