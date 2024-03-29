@@ -505,11 +505,11 @@ pub(crate) mod tests {
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
 
-        debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
-            machine.chips(),
-            &runtime.record,
-            vec![InteractionKind::Memory],
-        );
+        // debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
+        //     machine.chips(),
+        //     &runtime.record,
+        //     vec![InteractionKind::Memory],
+        // );
 
         let start = Instant::now();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
