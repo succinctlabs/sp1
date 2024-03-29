@@ -5,6 +5,8 @@ use crate::utils::Buffer;
 /// Standard input for the prover.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1Stdin {
+    /// Input stored as a vec of vec of bytes. It's stored this way because the read syscall reads
+    /// a vec of bytes at a time.
     pub buffer: Vec<Vec<u8>>,
     pub ptr: usize,
 }

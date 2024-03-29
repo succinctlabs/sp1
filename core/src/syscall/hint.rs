@@ -42,14 +42,19 @@ impl Syscall for SyscallHintRead {
             len,
             "hint input stream read length mismatch"
         );
-        // Iterate on 4 byte words
+        // Iterate through the vec in 4-byte chunks
         for i in (0..len).step_by(4) {
+            // Get each byte in the chunk
             let b1 = vec[i as usize];
+            // In case the vec is not a multiple of 4, right-pad with 0s. This is fine because we
+            // are assuming the word is uninitialized, so filling it with 0s makes sense.
             let b2 = vec.get(i as usize + 1).copied().unwrap_or(0);
             let b3 = vec.get(i as usize + 2).copied().unwrap_or(0);
             let b4 = vec.get(i as usize + 3).copied().unwrap_or(0);
             let word = u32::from_le_bytes([b1, b2, b3, b4]);
             let record = ctx.rt.state.memory.entry(ptr + i);
+
+            // Insert the word into the memory record.
             record
                 .and_modify(|_| panic!("hint read address is initialized already"))
                 .or_insert(MemoryRecord {
@@ -57,6 +62,7 @@ impl Syscall for SyscallHintRead {
                     timestamp: 0,
                     shard: 0,
                 });
+            // Add the memory initialization event with the word we are reading.
             ctx.rt
                 .record
                 .memory_initialize_events
