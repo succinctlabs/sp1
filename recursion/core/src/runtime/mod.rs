@@ -458,7 +458,7 @@ where
             if entry.timestamp != F::zero() {
                 self.record
                     .first_memory_record
-                    .push(F::from_canonical_usize(addr));
+                    .push((F::from_canonical_usize(addr), entry.value));
                 self.record.last_memory_record.push((
                     F::from_canonical_usize(addr),
                     entry.timestamp,

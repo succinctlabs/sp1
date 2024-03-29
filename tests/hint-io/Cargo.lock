@@ -200,6 +200,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "hint-io-test"
+version = "0.1.0"
+dependencies = [
+ "sp1-zkvm",
+]
+
+[[package]]
 name = "hmac"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -233,13 +240,6 @@ name = "libm"
 version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4ec2a862134d2a7d32d7983ddcdd1c4923530833c9f2ea1a44fc5fa473989058"
-
-[[package]]
-name = "magic-io-test"
-version = "0.1.0"
-dependencies = [
- "sp1-zkvm",
-]
 
 [[package]]
 name = "once_cell"

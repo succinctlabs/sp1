@@ -1,26 +1,13 @@
 #![allow(unused_unsafe)]
-use crate::{syscall_magic_len, syscall_magic_read};
-use crate::{syscall_read, syscall_write};
+use crate::syscall_write;
+use crate::{syscall_hint_len, syscall_hint_read};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::io::Read;
+use std::alloc::Layout;
 use std::io::Write;
 
 const FD_IO: u32 = 3;
 const FD_HINT: u32 = 4;
-pub struct SyscallReader {
-    fd: u32,
-}
-
-impl std::io::Read for SyscallReader {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
-        let len = buf.len();
-        unsafe {
-            syscall_read(self.fd, buf.as_mut_ptr(), len);
-        }
-        Ok(len)
-    }
-}
 
 pub struct SyscallWriter {
     fd: u32,
@@ -41,15 +28,30 @@ impl std::io::Write for SyscallWriter {
     }
 }
 
-pub fn read<T: DeserializeOwned>() -> T {
-    let my_reader = SyscallReader { fd: FD_IO };
-    let result = bincode::deserialize_from::<_, T>(my_reader);
-    result.unwrap()
+pub fn read_vec() -> Vec<u8> {
+    let len = unsafe { syscall_hint_len() };
+    // Allocate a buffer of the required length that is 4 byte aligned
+    let layout = Layout::from_size_align(len, 4).expect("vec is too large");
+    let ptr = unsafe { std::alloc::alloc(layout) };
+    // SAFETY:
+    // 1. `ptr` was allocated using alloc
+    // 2. We assuume that the VM global allocator doesn't dealloc
+    // 3/6. Size is correct from above
+    // 4/5. Length is 0
+    // 7. Layout::from_size_align already checks this
+    let mut vec = unsafe { Vec::from_raw_parts(ptr, 0, len) };
+    // Read the vec into uninitialized memory. The syscall assumes the memory is uninitialized,
+    // which should be true because the allocator does not dealloc, so a new alloc should be fresh.
+    unsafe {
+        syscall_hint_read(ptr, len);
+        vec.set_len(len);
+    }
+    vec
 }
 
-pub fn read_slice(buf: &mut [u8]) {
-    let mut my_reader = SyscallReader { fd: FD_IO };
-    my_reader.read_exact(buf).unwrap();
+pub fn read<T: DeserializeOwned>() -> T {
+    let vec = read_vec();
+    bincode::deserialize(&vec).expect("deserialization failed")
 }
 
 pub fn write<T: Serialize>(value: &T) {
@@ -70,15 +72,4 @@ pub fn hint<T: Serialize>(value: &T) {
 pub fn hint_slice(buf: &[u8]) {
     let mut my_reader = SyscallWriter { fd: FD_HINT };
     my_reader.write_all(buf).unwrap();
-}
-
-pub fn read_magic_vec() -> Vec<u8> {
-    let len = unsafe { syscall_magic_len() };
-    let mut vec = Vec::with_capacity(len);
-    let ptr = vec.as_mut_ptr();
-    unsafe {
-        syscall_magic_read(ptr, len);
-        vec.set_len(len);
-    }
-    vec
 }

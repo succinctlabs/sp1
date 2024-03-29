@@ -1,7 +1,7 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "magic-io-test"
+name = "hint-io-test"
 edition = "2021"
 
 [dependencies]

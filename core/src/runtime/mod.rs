@@ -194,6 +194,12 @@ impl Runtime {
 
     /// Read a word from memory and create an access record.
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
+        if addr == 2330704 {
+            println!(
+                "mr: addr: {}, shard: {}, timestamp: {}, pc: {}",
+                addr, shard, timestamp, self.state.pc
+            );
+        }
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
 
@@ -211,6 +217,13 @@ impl Runtime {
         }
 
         // If it's the first time accessing this address, initialize previous values as zero.
+        if addr != 0 {
+            if let Entry::Vacant(_) = entry {
+                self.record
+                    .memory_initialize_events
+                    .push(MemoryInitializeFinalizeEvent::initialize(addr, 0, true))
+            }
+        }
         let record = entry.or_default();
         let value = record.value;
         let prev_shard = record.shard;
@@ -224,6 +237,12 @@ impl Runtime {
 
     /// Write a word to memory and create an access record.
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
+        if addr == 2330704 {
+            println!(
+                "mw: addr: {}, shard: {}, timestamp: {}, pc: {}",
+                addr, shard, timestamp, self.state.pc
+            );
+        }
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
 
@@ -241,6 +260,13 @@ impl Runtime {
         }
 
         // If it's the first time accessing this address, initialize previous values as zero.
+        if addr != 0 {
+            if let Entry::Vacant(_) = entry {
+                self.record
+                    .memory_initialize_events
+                    .push(MemoryInitializeFinalizeEvent::initialize(addr, 0, true))
+            }
+        }
         let record = entry.or_default();
         let prev_value = record.value;
         let prev_shard = record.shard;
@@ -685,7 +711,6 @@ impl Runtime {
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
                         // If it returns None, we just keep the syscall_id in t0.
-                        // Only the "LWA" syscall actually writes to t0, most syscalls don't return a value.
                         let res = syscall_impl.execute(&mut precompile_rt, b, c);
                         if let Some(val) = res {
                             a = val;
@@ -852,6 +877,10 @@ impl Runtime {
             );
         }
 
+        self.record
+            .memory_initialize_events
+            .push(MemoryInitializeFinalizeEvent::initialize(0, 0, true));
+
         tracing::info!("starting execution");
     }
 
@@ -923,8 +952,8 @@ impl Runtime {
             program_memory_map.insert(key, (*value, true));
         }
 
-        let mut memory_initialize_events = Vec::new();
-        let mut memory_finalize_events = Vec::new();
+        // let memory_initialize_events = &mut self.record.memory_initialize_events;
+        let memory_finalize_events = &mut self.record.memory_finalize_events;
 
         // We handle the addr = 0 case separately, as we constraint it to be 0 in the first row
         // of the memory initialize/finalize table so it must be first in the array of events.
@@ -938,8 +967,6 @@ impl Runtime {
                 timestamp: 0,
             },
         };
-
-        memory_initialize_events.push(MemoryInitializeFinalizeEvent::intialize(0, 0, true));
         memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
             0,
             addr_0_final_record,
@@ -962,10 +989,10 @@ impl Runtime {
             // If the memory addr was accessed, we only add it to "memory_initialize_events" if it was
             // not in the program_memory_image, otherwise it'll be accounted from the
             // program_memory_image table.
-            if !self.program.memory_image.contains_key(addr) {
-                memory_initialize_events
-                    .push(MemoryInitializeFinalizeEvent::intialize(*addr, 0, true));
-            }
+            // if !self.program.memory_image.contains_key(addr) {
+            //     memory_initialize_events
+            //         .push(MemoryInitializeFinalizeEvent::initialize(*addr, 0, true));
+            // }
 
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
                 *addr, &record,
@@ -975,15 +1002,15 @@ impl Runtime {
         let mut program_memory_events = program_memory_map
             .into_iter()
             .map(|(addr, (value, used))| {
-                MemoryInitializeFinalizeEvent::intialize(*addr, value, used)
+                MemoryInitializeFinalizeEvent::initialize(*addr, value, used)
             })
             .collect::<Vec<MemoryInitializeFinalizeEvent>>();
         // Sort the program_memory_events by addr to create a canonical ordering for the
         // preprocessed table, as this is part of the vkey.
         program_memory_events.sort_by_key(|event| event.addr);
 
-        self.record.memory_initialize_events = memory_initialize_events;
-        self.record.memory_finalize_events = memory_finalize_events;
+        // self.record.memory_initialize_events = memory_initialize_events;
+        // self.record.memory_finalize_events = memory_finalize_events;
         self.record.program_memory_events = program_memory_events;
     }
 
@@ -1000,7 +1027,7 @@ pub mod tests {
         utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
-    use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
+    use super::{Instruction, Opcode, Program, Runtime};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -1017,14 +1044,6 @@ pub mod tests {
 
     pub fn ssz_withdrawals_program() -> Program {
         Program::from(SSZ_WITHDRAWALS_ELF)
-    }
-
-    pub fn ecall_lwa_program() -> Program {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::LWA as u32, false, true),
-            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
-        ];
-        Program::new(instructions, 0, 0)
     }
 
     #[test]

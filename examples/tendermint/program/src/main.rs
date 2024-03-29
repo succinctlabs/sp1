@@ -16,8 +16,8 @@ fn main() {
     println!("cycle-tracker-start: reading bytes");
     // let encoded_1 = sp1_zkvm::io::read::<Vec<u8>>();
     // let encoded_2 = sp1_zkvm::io::read::<Vec<u8>>();
-    let encoded_1 = sp1_zkvm::io::read_magic_vec();
-    let encoded_2 = sp1_zkvm::io::read_magic_vec();
+    let encoded_1 = sp1_zkvm::io::read_vec();
+    let encoded_2 = sp1_zkvm::io::read_vec();
     println!("cycle-tracker-end: reading bytes");
     println!("first 10 bytes: {:?}", &encoded_1[..10]);
     println!("first 10 bytes: {:?}", &encoded_2[..10]);

@@ -312,15 +312,15 @@ impl CpuChip {
             ecall_cols.is_halt.result
         };
 
-        // Constrain EcallCols.is_lwa.result == syscall_id is LWA.
-        let is_lwa = {
+        // Constrain EcallCols.is_hint_len.result == syscall_id is HINT_LEN.
+        let is_hint_len = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
-                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::LWA.syscall_id()),
-                ecall_cols.is_lwa,
+                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
+                ecall_cols.is_hint_len,
                 is_ecall_instruction.clone(),
             );
-            ecall_cols.is_lwa.result
+            ecall_cols.is_hint_len.result
         };
 
         // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
@@ -329,10 +329,10 @@ impl CpuChip {
             .when(is_ecall_instruction.clone() * is_enter_unconstrained)
             .assert_word_eq(local.op_a_val(), zero_word);
 
-        // When the syscall is not one of ENTER_UNCONSTRAINED, LWA, or HALT, op_a shouldn't change.
+        // When the syscall is not one of ENTER_UNCONSTRAINED, HINT_LEN, or HALT, op_a shouldn't change.
         builder
             .when(is_ecall_instruction.clone())
-            .when_not(is_enter_unconstrained + is_lwa + is_halt)
+            .when_not(is_enter_unconstrained + is_hint_len + is_halt)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
         (

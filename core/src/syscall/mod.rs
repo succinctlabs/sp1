@@ -1,12 +1,10 @@
 mod halt;
-mod lwa;
-mod magic;
+mod hint;
 pub mod precompiles;
 mod unconstrained;
 mod write;
 
 pub use halt::*;
-pub use lwa::*;
-pub use magic::*;
+pub use hint::*;
 pub use unconstrained::*;
 pub use write::*;

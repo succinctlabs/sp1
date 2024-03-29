@@ -37,8 +37,8 @@ async fn main() {
 
     // stdin.write(&encoded_1);
     // stdin.write(&encoded_2);
-    stdin.write_magic(encoded_1);
-    stdin.write_magic(encoded_2);
+    stdin.write_vec(encoded_1);
+    stdin.write_vec(encoded_2);
 
     // TODO: normally we could just write the LightBlock, but bincode doesn't work with LightBlock.
     // The following code will panic.

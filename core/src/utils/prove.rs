@@ -35,7 +35,7 @@ pub fn run_test_io(
 ) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&inputs.buffer.data);
+        runtime.write_vecs(&inputs.buffer);
         runtime.run();
         runtime
     });
@@ -125,17 +125,18 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
-
-    runtime.write_stdin_slice(&stdin.buffer.data);
-    for vec in stdin.magic {
-        runtime.write_magic_slice(&vec);
-    }
+    runtime.write_vecs(&stdin.buffer);
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
     // If we don't need to batch, we can just run the program normally and prove it.
     if !should_batch {
         runtime.run();
+        #[cfg(feature = "debug")]
+        {
+            let record_clone = runtime.record.clone();
+            machine.debug_constraints(&pk, record_clone, &mut challenger);
+        }
         let stdout = std::mem::take(&mut runtime.state.output_stream);
         let proof = prove_core(machine.config().clone(), runtime);
         return (proof, stdout);

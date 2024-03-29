@@ -14,11 +14,17 @@ impl Runtime {
     pub fn write_stdin<T: Serialize>(&mut self, input: &T) {
         let mut buf = Vec::new();
         bincode::serialize_into(&mut buf, input).expect("serialization failed");
-        self.state.input_stream.extend(buf);
+        self.state.input_stream.push(buf);
     }
 
     pub fn write_stdin_slice(&mut self, input: &[u8]) {
-        self.state.input_stream.extend(input);
+        self.state.input_stream.push(input.to_vec());
+    }
+
+    pub fn write_vecs(&mut self, inputs: &[Vec<u8>]) {
+        for input in inputs {
+            self.state.input_stream.push(input.clone());
+        }
     }
 
     pub fn read_stdout<T: DeserializeOwned>(&mut self) -> T {
@@ -33,16 +39,6 @@ impl Runtime {
         assert!(end <= self.state.output_stream.len());
         buf.copy_from_slice(&self.state.output_stream[start..end]);
         self.state.output_stream_ptr = end;
-    }
-
-    pub fn write_magic<T: Serialize>(&mut self, input: &T) {
-        let mut buf = Vec::new();
-        bincode::serialize_into(&mut buf, input).expect("serialization failed");
-        self.state.magic_input_stream.push(buf.to_vec());
-    }
-
-    pub fn write_magic_slice(&mut self, input: &[u8]) {
-        self.state.magic_input_stream.push(input.to_vec());
     }
 }
 
