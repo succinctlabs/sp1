@@ -7,6 +7,7 @@ use std::io::Write;
 
 const FD_IO: u32 = 3;
 const FD_HINT: u32 = 4;
+pub const FD_PUBLIC_INPUT: u32 = 5;
 pub struct SyscallReader {
     fd: u32,
 }
@@ -57,7 +58,14 @@ pub fn write<T: Serialize>(value: &T) {
 }
 
 pub fn write_slice(buf: &[u8]) {
-    let mut my_reader = SyscallWriter { fd: FD_IO };
+    let mut my_writer = SyscallWriter { fd: FD_IO };
+    my_writer.write_all(buf).unwrap();
+}
+
+pub fn public_input(buf: &mut [u8]) {
+    let mut my_reader = SyscallWriter {
+        fd: FD_PUBLIC_INPUT,
+    };
     my_reader.write_all(buf).unwrap();
 }
 

@@ -3,6 +3,7 @@ cfg_if::cfg_if! {
         use core::arch::asm;
         use crate::zkvm;
         use sha2::digest::Update;
+        use sp1_precompiles::io::FD_PUBLIC_INPUT;
     }
 }
 
@@ -77,9 +78,9 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
             }
 
             // Public Inputs writes
-            if fd == 5 {
+            if fd == FD_PUBLIC_INPUT {
                 let pi_slice: &[u8] = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
-                unsafe { zkvm::PI_HASHER.as_mut().unwrap_unchecked().update(pi_slice) };
+                let hasher = zkvm::PI_HASHER.lock().unwrap().update(pi_slice);
             }
         } else {
             unreachable!()

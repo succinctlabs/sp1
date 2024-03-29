@@ -526,9 +526,12 @@ impl CpuChip {
                 syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
             );
 
-            let digest_idx = cols.op_b_access.value().to_u32() as usize;
-            ecall_cols.index_bitmap[digest_idx] = F::one();
-            ecall_cols.digest_word = *cols.op_c_access.value();
+            // If the syscall is a `COMMIT`, set the index bitmap and digest word.
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()) {
+                let digest_idx = cols.op_b_access.value().to_u32() as usize;
+                ecall_cols.index_bitmap[digest_idx] = F::one();
+                ecall_cols.digest_word = *cols.op_c_access.value();
+            }
         }
     }
 

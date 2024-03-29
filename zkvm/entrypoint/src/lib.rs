@@ -40,15 +40,16 @@ mod zkvm {
     use crate::PI_DIGEST_NUM_WORDS;
 
     use getrandom::{register_custom_getrandom, Error};
+    use once_cell::sync::Lazy;
     use sha2::{Digest, Sha256};
+    use std::borrow::ToOwned;
+    use std::sync::Mutex;
 
-    pub static mut PI_HASHER: Option<Sha256> = None;
+    pub static PI_HASHER: Lazy<Mutex<Sha256>> = Lazy::new(|| Mutex::new(Sha256::new()));
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
-        PI_HASHER = Some(Sha256::new());
-
         {
             extern "C" {
                 fn main();
@@ -56,8 +57,7 @@ mod zkvm {
             main()
         }
 
-        let pi_hasher = core::mem::take(&mut PI_HASHER);
-        let pi_digest_bytes = pi_hasher.unwrap().finalize();
+        let pi_digest_bytes = PI_HASHER.lock().unwrap().to_owned().finalize().to_vec();
         let pi_digest_words: [u32; PI_DIGEST_NUM_WORDS] = pi_digest_bytes
             .chunks_exact(4)
             .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
