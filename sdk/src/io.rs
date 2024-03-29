@@ -5,6 +5,7 @@ use sp1_core::utils::Buffer;
 #[derive(Serialize, Deserialize, Clone)]
 pub struct SP1Stdin {
     pub buffer: Vec<Vec<u8>>,
+    #[serde(skip)]
     pub ptr: usize,
 }
 

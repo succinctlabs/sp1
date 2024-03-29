@@ -52,7 +52,7 @@ impl SP1Prover {
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1Stdout> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&stdin.buffer.data);
+        runtime.write_vecs(&stdin.buffer);
         runtime.run();
         Ok(SP1Stdout::from(&runtime.state.output_stream))
     }
@@ -77,7 +77,7 @@ impl SP1Prover {
     {
         let access_token = std::env::var("PROVER_NETWORK_ACCESS_TOKEN").unwrap();
         let client = SP1ProverServiceClient::with_token(access_token);
-        let id = client.create_proof(elf, &stdin.buffer.data).await?;
+        let id = client.create_proof(elf, stdin).await?;
 
         let mut pb = StageProgressBar::new();
         loop {
@@ -139,7 +139,15 @@ impl SP1Prover {
             }
         } else {
             let program = Program::from(elf);
-            let (proof, stdout_vec) = run_and_prove(program, stdin.clone(), config);
+            let (proof, stdout_vec) = run_and_prove(
+                program,
+                #[allow(deprecated)]
+                sp1_core::SP1Stdin {
+                    buffer: stdin.buffer.clone(),
+                    ptr: 0,
+                },
+                config,
+            );
             let stdout = SP1Stdout::from(&stdout_vec);
             Ok(SP1ProofWithIO {
                 proof,
