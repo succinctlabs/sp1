@@ -105,7 +105,7 @@ impl<C: Config> Builder<C> {
         b: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectEF(cond, a, b, c));
+        self.operations.push(DslIR::CircuitSelectE(cond, a, b, c));
         c
     }
 

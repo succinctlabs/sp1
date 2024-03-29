@@ -41,6 +41,7 @@ pub enum ConstraintOpcode {
     Num2BitsF,
     SelectV,
     SelectF,
+    SelectE,
     Ext2Felt,
     PrintV,
     PrintF,
@@ -247,6 +248,12 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                 DslIR::CircuitSelectF(cond, a, b, out) => {
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SelectF,
+                        args: vec![vec![out.id()], vec![cond.id()], vec![a.id()], vec![b.id()]],
+                    });
+                }
+                DslIR::CircuitSelectE(cond, a, b, out) => {
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SelectE,
                         args: vec![vec![out.id()], vec![cond.id()], vec![a.id()], vec![b.id()]],
                     });
                 }

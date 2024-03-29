@@ -6,12 +6,8 @@ use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
-use sp1_recursion_compiler::prelude::Array;
-use sp1_recursion_compiler::prelude::MemVariable;
 use sp1_recursion_compiler::prelude::*;
-use sp1_recursion_compiler::OuterConfig;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
-use sp1_recursion_derive::DslVariable;
 
 use crate::mmcs::{verify_batch, OuterDigest};
 use crate::{challenger::MultiFieldChallengerVariable, DIGEST_SIZE};
@@ -27,8 +23,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 
     #[allow(clippy::never_loop)]
     for i in 0..proof.commit_phase_commits.len() {
-        let commitment: [Var<C::N>; DIGEST_SIZE] =
-            proof.commit_phase_commits[i].try_into().unwrap();
+        let commitment: [Var<C::N>; DIGEST_SIZE] = proof.commit_phase_commits[i];
         challenger.observe_commitment(builder, commitment);
         let sample = challenger.sample_ext(builder);
         betas.push(sample);
@@ -88,7 +83,8 @@ pub fn verify_two_adic_pcs<C: Config>(
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
-    let reduced_openings = proof.query_openings[0..1]
+    let reduced_openings = proof
+        .query_openings
         .iter()
         .zip(&fri_challenges.query_indices)
         .map(|(query_opening, &index)| {
@@ -97,7 +93,7 @@ pub fn verify_two_adic_pcs<C: Config>(
             let mut alpha_pow: [Ext<C::F, C::EF>; 32] =
                 [builder.eval(SymbolicExt::Const(C::EF::one())); 32];
 
-            for (batch_opening, round) in izip!(query_opening, &rounds) {
+            for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
                 let batch_commit = round.batch_commit;
                 let mats = &round.mats;
                 let batch_heights = mats
@@ -124,8 +120,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     batch_opening.opened_values.clone(),
                     batch_opening.opening_proof.clone(),
                 );
-                for (mat_opening, mat) in izip!(&batch_opening.opened_values, mats) {
-                    let mat_opening = mat_opening.clone()[0].clone();
+                for (mat_opening, mat) in izip!(batch_opening.opened_values.clone(), mats) {
                     let mat_domain = mat.domain;
                     let mat_points = &mat.points;
                     let mat_values = &mat.values;
@@ -144,6 +139,7 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
+                            let p_at_x = builder.ext_from_base_slice(&p_at_x);
                             let quotient: SymbolicExt<C::F, C::EF> = (-p_at_z + p_at_x) / (-*z + x);
                             ro[log_height] =
                                 builder.eval(ro[log_height] + alpha_pow[log_height] * quotient);
@@ -155,6 +151,14 @@ pub fn verify_two_adic_pcs<C: Config>(
             ro
         })
         .collect::<Vec<_>>();
+
+    verify_challenges(
+        builder,
+        config,
+        &proof.fri_proof,
+        &fri_challenges,
+        reduced_openings,
+    );
 }
 
 pub fn verify_challenges<C: Config>(
@@ -162,9 +166,10 @@ pub fn verify_challenges<C: Config>(
     config: &FriConfig<OuterChallengeMmcs>,
     proof: &FriProofVariable<C>,
     challenges: &FriChallenges<C>,
-    reduced_openings: Vec<Vec<[Ext<C::F, C::EF>; 32]>>,
+    reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
+    #[allow(clippy::never_loop)]
     for (&index, query_proof, ro) in izip!(
         &challenges.query_indices,
         &proof.query_proofs,
@@ -179,7 +184,6 @@ pub fn verify_challenges<C: Config>(
             ro,
             log_max_height,
         );
-
         builder.assert_ext_eq(folded_eval, proof.final_poly);
     }
 }
@@ -192,7 +196,7 @@ pub fn verify_query<C: Config>(
     index: Var<C::N>,
     proof: FriQueryProofVariable<C>,
     betas: Vec<Ext<C::F, C::EF>>,
-    reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
+    reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
 ) -> Ext<C::F, C::EF> {
     let mut folded_eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::zero()));
@@ -204,6 +208,7 @@ pub fn verify_query<C: Config>(
     let mut x = builder.exp_usize_ef_bits(two_adic_generator, rev_reduced_index);
 
     let mut offset = 0;
+    #[allow(clippy::never_loop)]
     for (log_folded_height, commit, step, beta) in izip!(
         (0..log_max_height).rev(),
         commit_phase_commits,
@@ -213,8 +218,8 @@ pub fn verify_query<C: Config>(
         folded_eval = builder.eval(folded_eval + reduced_openings[log_folded_height + 1]);
 
         let one: Var<_> = builder.eval(C::N::one());
-        let index_sibling: Var<_> = builder.eval(one - index_bits.clone()[0]);
-        let index_pair = &index_bits[offset..];
+        let index_sibling: Var<_> = builder.eval(one - index_bits.clone()[offset]);
+        let index_pair = &index_bits[(offset + 1)..];
 
         let evals_ext = [
             builder.select_ef(index_sibling, folded_eval, step.sibling_value),
@@ -252,90 +257,6 @@ pub fn verify_query<C: Config>(
     folded_eval
 }
 
-// pub fn verify_query<C: Config>(
-//     builder: &mut Builder<C>,
-//     config: &FriConfig<OuterChallengeMmcs>,
-//     commit_phase_commits: &Array<C, Array<C, Var<C::N>>>,
-//     index: Var<C::N>,
-//     proof: &FriQueryProofVariable<C>,
-//     betas: &Array<C, Ext<C::F, C::EF>>,
-//     reduced_openings: &Array<C, Ext<C::F, C::EF>>,
-//     log_max_height: usize,
-// ) -> Ext<C::F, C::EF>
-// where
-//     C::EF: TwoAdicField,
-// {
-//     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
-//     let two_adic_generator_ef = builder.eval(SymbolicExt::Const(C::EF::two_adic_generator(
-//         log_max_height,
-//     )));
-//     let power = builder.reverse_bits_len(index, log_max_height);
-//     let x = builder.exp_usize_ef(two_adic_generator_ef, power);
-//     let index_bits = builder.num2bits_v_circuit(index, 32);
-
-//     // builder
-//     //     .range(0, commit_phase_commits.len())
-//     //     .for_each(|i, builder| {
-//     //         let log_folded_height: Var<_> = builder.eval(log_max_height - i - C::N::one());
-//     //         let log_folded_height_plus_one: Var<_> = builder.eval(log_folded_height + C::N::one());
-//     //         let commit = builder.get(commit_phase_commits, i);
-//     //         let step = builder.get(&proof.commit_phase_openings, i);
-//     //         let beta = builder.get(betas, i);
-
-//     //         let reduced_opening = builder.get(reduced_openings, log_folded_height_plus_one);
-//     //         builder.assign(folded_eval, folded_eval + reduced_opening);
-
-//     //         let index_bit = builder.get(&index_bits, i);
-//     //         let index_sibling_mod_2: Var<C::N> =
-//     //             builder.eval(SymbolicVar::Const(C::N::one()) - index_bit);
-//     //         let i_plus_one = builder.eval(i + C::N::one());
-//     //         let index_pair = index_bits.shift(builder, i_plus_one);
-
-//     //         let mut evals: Array<C, Ext<C::F, C::EF>> = builder.array(2);
-//     //         builder.set(&mut evals, 0, folded_eval);
-//     //         builder.set(&mut evals, 1, folded_eval);
-//     //         builder.set(&mut evals, index_sibling_mod_2, step.sibling_value);
-
-//     //         let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
-//     //         let dims = Dimensions::<C> {
-//     //             height: builder.exp_usize_v(two, Usize::Var(log_folded_height)),
-//     //         };
-//     //         let mut dims_slice: Array<C, Dimensions<C>> = builder.array(1);
-//     //         builder.set(&mut dims_slice, 0, dims);
-
-//     //         let mut opened_values = builder.array(1);
-//     //         builder.set(&mut opened_values, 0, evals.clone());
-//     //         verify_batch::<C, 4>(
-//     //             builder,
-//     //             &commit,
-//     //             dims_slice,
-//     //             index_pair,
-//     //             opened_values,
-//     //             &step.opening_proof,
-//     //         );
-
-//     //         let mut xs: Array<C, Ext<C::F, C::EF>> = builder.array(2);
-//     //         let two_adic_generator_one = builder.two_adic_generator(Usize::Const(1));
-//     //         builder.set(&mut xs, 0, x);
-//     //         builder.set(&mut xs, 1, x);
-//     //         builder.set(&mut xs, index_sibling_mod_2, x * two_adic_generator_one);
-
-//     //         let xs_0 = builder.get(&xs, 0);
-//     //         let xs_1 = builder.get(&xs, 1);
-//     //         let eval_0 = builder.get(&evals, 0);
-//     //         let eval_1 = builder.get(&evals, 1);
-//     //         builder.assign(
-//     //             folded_eval,
-//     //             eval_0 + (beta - xs_0) * (eval_1 - eval_0) / (xs_1 - xs_0),
-//     //         );
-
-//     //         builder.assign(x, x * x);
-//     //     });
-
-//     // folded_eval
-//     todo!()
-// }
-
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(Clone)]
 pub struct FriProofVariable<C: Config> {
@@ -368,9 +289,6 @@ pub struct FriChallenges<C: Config> {
 #[cfg(test)]
 mod tests {
 
-    use std::ops::Mul;
-
-    use itertools::Itertools;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
     use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};

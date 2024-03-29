@@ -120,6 +120,17 @@ func (c *Chip) SelectF(cond frontend.Variable, a, b *Variable) *Variable {
 	}
 }
 
+func (c *Chip) SelectE(cond frontend.Variable, a, b *ExtensionVariable) *ExtensionVariable {
+	return &ExtensionVariable{
+		value: [4]*Variable{
+			c.SelectF(cond, a.value[0], b.value[0]),
+			c.SelectF(cond, a.value[1], b.value[1]),
+			c.SelectF(cond, a.value[2], b.value[2]),
+			c.SelectF(cond, a.value[3], b.value[3]),
+		},
+	}
+}
+
 func (c *Chip) AddEF(a *ExtensionVariable, b *Variable) *ExtensionVariable {
 	v1 := c.AddF(a.value[0], b)
 	v2 := c.AddF(a.value[1], NewF("0"))

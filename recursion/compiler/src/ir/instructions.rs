@@ -111,7 +111,7 @@ pub enum DslIR<C: Config> {
     CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    CircuitSelectEF(
+    CircuitSelectE(
         Var<C::N>,
         Ext<C::F, C::EF>,
         Ext<C::F, C::EF>,
