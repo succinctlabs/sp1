@@ -81,7 +81,7 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
     pub fn to_words_le(&self) -> Vec<u32> {
         let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
         let num_bytes = num_words * 4;
-        let half_words = num_words * 2;
+        let half_words = num_words / 2;
 
         let mut x_bytes = self.x.to_bytes_le();
         x_bytes.resize(num_bytes / 2, 0u8);
