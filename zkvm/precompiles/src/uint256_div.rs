@@ -1,3 +1,4 @@
+#![allow(unused_imports)]
 use crate::io;
 use crate::syscall_uint256_mul;
 use crate::unconstrained;
