@@ -1,6 +1,5 @@
-use std::cmp::Reverse;
-
 use itertools::{izip, Itertools};
+use p3_commit::{PolynomialSpace, TwoAdicMultiplicativeCoset};
 use p3_field::AbstractField;
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
@@ -12,7 +11,7 @@ use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 use sp1_recursion_derive::DslVariable;
 
-use crate::mmcs::OuterDigest;
+use crate::mmcs::{verify_batch, OuterDigest};
 use crate::{challenger::MultiFieldChallengerVariable, DIGEST_SIZE};
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
@@ -52,8 +51,8 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 
 #[derive(Clone)]
 pub struct BatchOpeningVariable<C: Config> {
-    pub opened_values: Vec<Vec<Ext<C::F, C::EF>>>,
-    pub opening_proof: Vec<Vec<Felt<C::F>>>,
+    pub opened_values: Vec<Vec<Felt<C::F>>>,
+    pub opening_proof: Vec<OuterDigest<C>>,
 }
 
 #[derive(Clone)]
@@ -71,17 +70,9 @@ pub struct TwoAdicPcsRoundVariable<C: Config> {
 #[allow(clippy::type_complexity)]
 #[derive(Clone)]
 pub struct TwoAdicPcsMatsVariable<C: Config> {
-    pub domain: TwoAdicMultiplicativeCosetVariable<C>,
-    pub points: Array<C, Ext<C::F, C::EF>>,
-    pub values: Array<C, Array<C, Ext<C::F, C::EF>>>,
-}
-
-#[derive(Clone, Copy)]
-pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
-    pub log_n: Var<C::N>,
-    pub size: usize,
-    pub shift: Felt<C::F>,
-    pub g: Felt<C::F>,
+    pub domain: TwoAdicMultiplicativeCoset<C::F>,
+    pub points: Vec<Ext<C::F, C::EF>>,
+    pub values: Vec<Vec<Ext<C::F, C::EF>>>,
 }
 
 pub fn verify_two_adic_pcs<C: Config>(
@@ -113,7 +104,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let mats = &round.mats;
                 let batch_heights = mats
                     .iter()
-                    .map(|mat| mat.domain.size << config.log_blowup)
+                    .map(|mat| mat.domain.size() << config.log_blowup)
                     .collect_vec();
                 let batch_dims = batch_heights
                     .iter()
@@ -124,9 +115,20 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let log_batch_max_height = log2_strict_usize(*batch_max_height);
                 let bits_reduced = log_global_max_height - log_batch_max_height;
 
-                // let reduced_index = index >> bits_reduced;
+                let index_bits = builder.num2bits_v_circuit(index, 256);
+                let reduced_index_bits = index_bits[bits_reduced..].to_vec();
+
+                verify_batch::<C>(
+                    builder,
+                    batch_commit,
+                    batch_dims,
+                    reduced_index_bits,
+                    batch_opening.opened_values.clone(),
+                    batch_opening.opening_proof.clone(),
+                );
             }
-        });
+        })
+        .collect::<Vec<_>>();
 }
 
 // pub fn verify_challenges<C: Config>(
@@ -275,29 +277,36 @@ pub struct FriChallenges<C: Config> {
 #[cfg(test)]
 mod tests {
 
+    use std::ops::Mul;
+
+    use itertools::Itertools;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
-    use p3_commit::Pcs;
+    use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
     use p3_field::AbstractField;
-    use p3_fri::verifier;
+    use p3_fri::{verifier, TwoAdicFriPcsProof};
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
     use serial_test::serial;
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, SymbolicExt, Var},
+        ir::{Builder, Ext, Felt, SymbolicExt, Var},
         OuterConfig,
     };
     use sp1_recursion_core::stark::config::{
-        outer_fri_config, outer_perm, OuterChallenge, OuterChallenger, OuterCompress, OuterDft,
-        OuterFriProof, OuterHash, OuterPcs, OuterVal, OuterValMmcs,
+        outer_fri_config, outer_perm, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
+        OuterCompress, OuterDft, OuterFriProof, OuterHash, OuterPcs, OuterVal, OuterValMmcs,
     };
 
     use super::{
-        verify_shape_and_sample_challenges, FriCommitPhaseProofStepVariable, FriProofVariable,
+        verify_shape_and_sample_challenges, verify_two_adic_pcs, FriCommitPhaseProofStepVariable,
+        FriProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
     };
     use crate::{
-        challenger::MultiFieldChallengerVariable, fri::FriQueryProofVariable, DIGEST_SIZE,
+        challenger::MultiFieldChallengerVariable,
+        fri::{BatchOpeningVariable, FriQueryProofVariable, TwoAdicPcsMatsVariable},
+        mmcs::OuterDigest,
+        DIGEST_SIZE,
     };
 
     pub fn const_fri_proof(
@@ -357,6 +366,88 @@ mod tests {
             final_poly: builder.eval(SymbolicExt::Const(fri_proof.final_poly)),
             pow_witness: builder.eval(fri_proof.pow_witness),
         }
+    }
+
+    pub fn const_two_adic_pcs_proof(
+        builder: &mut Builder<OuterConfig>,
+        proof: TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>,
+    ) -> TwoAdicPcsProofVariable<OuterConfig> {
+        let fri_proof = const_fri_proof(builder, proof.fri_proof);
+        let query_openings = proof
+            .query_openings
+            .iter()
+            .map(|query_opening| {
+                query_opening
+                    .iter()
+                    .map(|opening| BatchOpeningVariable {
+                        opened_values: opening
+                            .opened_values
+                            .iter()
+                            .map(|opened_value| {
+                                opened_value
+                                    .iter()
+                                    .map(|value| builder.eval::<Felt<OuterVal>, _>(*value))
+                                    .collect::<Vec<_>>()
+                            })
+                            .collect::<Vec<_>>(),
+                        opening_proof: opening
+                            .opening_proof
+                            .iter()
+                            .map(|opening_proof| [builder.eval(opening_proof[0])])
+                            .collect::<Vec<_>>(),
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        TwoAdicPcsProofVariable {
+            fri_proof,
+            query_openings,
+        }
+    }
+
+    pub fn const_two_adic_pcs_rounds(
+        builder: &mut Builder<OuterConfig>,
+        commit: [Bn254Fr; DIGEST_SIZE],
+        os: Vec<(
+            TwoAdicMultiplicativeCoset<OuterVal>,
+            Vec<(OuterChallenge, Vec<OuterChallenge>)>,
+        )>,
+    ) -> (
+        OuterDigest<OuterConfig>,
+        Vec<TwoAdicPcsRoundVariable<OuterConfig>>,
+    ) {
+        let commit: OuterDigest<OuterConfig> = [builder.eval(commit[0])];
+
+        let mut mats = Vec::new();
+        for (m, (domain, poly)) in os.into_iter().enumerate() {
+            let points: Vec<Ext<OuterVal, OuterChallenge>> = poly
+                .iter()
+                .map(|(p, _)| builder.eval(SymbolicExt::Const(*p)))
+                .collect::<Vec<_>>();
+            let values: Vec<Vec<Ext<OuterVal, OuterChallenge>>> = poly
+                .iter()
+                .map(|(_, v)| {
+                    v.clone()
+                        .iter()
+                        .map(|t| builder.eval(SymbolicExt::Const(*t)))
+                        .collect::<Vec<_>>()
+                })
+                .collect::<Vec<_>>();
+            let mat = TwoAdicPcsMatsVariable {
+                domain,
+                points,
+                values,
+            };
+            mats.push(mat);
+        }
+
+        (
+            commit,
+            vec![TwoAdicPcsRoundVariable {
+                batch_commit: commit,
+                mats,
+            }],
+        )
     }
 
     #[test]
@@ -440,6 +531,80 @@ mod tests {
                 fri_challenges.query_indices[i],
             );
         }
+
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        gnark_ffi::test_circuit(constraints);
+    }
+
+    #[test]
+    #[serial]
+    fn test_verify_two_adic_pcs() {
+        let mut rng = &mut OsRng;
+        let log_degrees = &[16, 9, 7, 4, 2];
+        let perm = outer_perm();
+        let fri_config = outer_fri_config();
+        let hash = OuterHash::new(perm.clone()).unwrap();
+        let compress = OuterCompress::new(perm.clone());
+        let val_mmcs = OuterValMmcs::new(hash, compress);
+        let dft = OuterDft {};
+        let pcs: OuterPcs = OuterPcs::new(
+            log_degrees.iter().copied().max().unwrap(),
+            dft,
+            val_mmcs,
+            fri_config,
+        );
+
+        // Generate proof.
+        let domains_and_polys = log_degrees
+            .iter()
+            .map(|&d| {
+                (
+                    <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::natural_domain_for_degree(
+                        &pcs,
+                        1 << d,
+                    ),
+                    RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 10),
+                )
+            })
+            .collect::<Vec<_>>();
+        let (commit, data) = <OuterPcs as Pcs<OuterChallenge, OuterChallenger>>::commit(
+            &pcs,
+            domains_and_polys.clone(),
+        );
+        let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
+        challenger.observe(commit);
+        let zeta = challenger.sample_ext_element::<OuterChallenge>();
+        let points = domains_and_polys
+            .iter()
+            .map(|_| vec![zeta])
+            .collect::<Vec<_>>();
+        let (opening, proof) = pcs.open(vec![(&data, points)], &mut challenger);
+
+        // Verify proof.
+        let mut challenger = OuterChallenger::new(perm.clone()).unwrap();
+        challenger.observe(commit);
+        challenger.sample_ext_element::<OuterChallenge>();
+        let os: Vec<(
+            TwoAdicMultiplicativeCoset<OuterVal>,
+            Vec<(OuterChallenge, Vec<OuterChallenge>)>,
+        )> = domains_and_polys
+            .iter()
+            .zip(&opening[0])
+            .map(|((domain, _), mat_openings)| (*domain, vec![(zeta, mat_openings[0].clone())]))
+            .collect();
+        pcs.verify(vec![(commit, os.clone())], &proof, &mut challenger)
+            .unwrap();
+
+        // Define circuit.
+        let mut builder = Builder::<OuterConfig>::default();
+        let config = outer_fri_config();
+        let proof = const_two_adic_pcs_proof(&mut builder, proof);
+        let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
+        let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
+        challenger.observe_commitment(&mut builder, commit);
+        challenger.sample_ext(&mut builder);
+        verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
         let mut backend = ConstraintBackend::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);

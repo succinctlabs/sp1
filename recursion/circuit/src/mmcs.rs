@@ -5,9 +5,10 @@ use std::cmp::Reverse;
 
 use crate::{poseidon2::P2CircuitBuilder, DIGEST_SIZE};
 
+#[allow(type_alias_bounds)]
 pub type OuterDigest<C: Config> = [Var<C::N>; DIGEST_SIZE];
 
-pub fn verify_batch<C: Config, const D: usize>(
+pub fn verify_batch<C: Config>(
     builder: &mut Builder<C>,
     commit: OuterDigest<C>,
     dimensions: Vec<Dimensions>,
