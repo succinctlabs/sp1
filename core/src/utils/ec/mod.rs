@@ -9,6 +9,8 @@ use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
 use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
+use std::usize;
+use typenum::Unsigned;
 
 use crate::air::WORD_SIZE;
 
@@ -76,16 +78,18 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
         }
     }
 
-    pub fn to_words_le<const N: usize>(&self) -> [u32; N] {
-        let num_bytes = N * 4;
-        let half_words = N / 2;
+    pub fn to_words_le(&self) -> Vec<u32> {
+        let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+        let num_bytes = num_words * 4;
+        let half_words = num_words * 2;
 
         let mut x_bytes = self.x.to_bytes_le();
         x_bytes.resize(num_bytes / 2, 0u8);
         let mut y_bytes = self.y.to_bytes_le();
         y_bytes.resize(num_bytes / 2, 0u8);
 
-        let mut words = [0u32; N];
+        let mut words = vec![0u32; num_words];
+
         for i in 0..half_words {
             let x = u32::from_le_bytes([
                 x_bytes[4 * i],
@@ -99,9 +103,11 @@ impl<E: EllipticCurveParameters> AffinePoint<E> {
                 y_bytes[4 * i + 2],
                 y_bytes[4 * i + 3],
             ]);
+
             words[i] = x;
             words[half_words + i] = y;
         }
+
         words
     }
 }

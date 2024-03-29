@@ -104,8 +104,7 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        // Each point is represented as 32 bytes, so we have 16 u32 words.
-        let event = create_ec_add_event::<16, E>(rt, arg1, arg2);
+        let event = create_ec_add_event::<E>(rt, arg1, arg2);
         rt.record_mut().ed_add_events.push(event);
         None
     }

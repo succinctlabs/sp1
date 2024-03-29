@@ -5,8 +5,10 @@ pub mod keccak256;
 pub mod sha256;
 pub mod weierstrass;
 use crate::runtime::SyscallContext;
+use crate::utils::ec::field::NumWords;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
+use typenum::Unsigned;
 
 use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
@@ -28,7 +30,7 @@ pub struct ECAddEvent {
 /// from memory, adds them together, and writes the result back to the first memory location.
 /// The generic parameter `N` is the number of u32 words in the point representation. For example, for
 /// the secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
-pub fn create_ec_add_event<const N: usize, E: EllipticCurve>(
+pub fn create_ec_add_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,
     arg2: u32,
@@ -43,9 +45,11 @@ pub fn create_ec_add_event<const N: usize, E: EllipticCurve>(
         panic!();
     }
 
-    let p = rt.slice_unsafe(p_ptr, N);
-    let (q_memory_records, q_vec) = rt.mr_slice(q_ptr, N);
-    let q = q_vec;
+    let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+
+    let p = rt.slice_unsafe(p_ptr, num_words);
+
+    let (q_memory_records, q) = rt.mr_slice(q_ptr, num_words);
 
     // When we write to p, we want the clk to be incremented because p and q could be the same.
     rt.clk += 1;
@@ -54,7 +58,7 @@ pub fn create_ec_add_event<const N: usize, E: EllipticCurve>(
     let q_affine = AffinePoint::<E>::from_words_le(&q);
     let result_affine = p_affine + q_affine;
 
-    let result_words = result_affine.to_words_le::<N>();
+    let result_words = result_affine.to_words_le();
 
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
@@ -84,7 +88,7 @@ pub struct ECDoubleEvent {
 /// from memory, doubles it, and writes the result back to the memory location. The generic parameter
 /// `N` is the number of u32 words in the point representation. For example, for the secp256k1 curve, `N`
 /// would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
-pub fn create_ec_double_event<const N: usize, E: EllipticCurve>(
+pub fn create_ec_double_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,
     _: u32,
@@ -95,11 +99,17 @@ pub fn create_ec_double_event<const N: usize, E: EllipticCurve>(
         panic!();
     }
 
+    let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+
     // Read N words from memory.
-    let p = rt.slice_unsafe(p_ptr, N);
+    let p = rt.slice_unsafe(p_ptr, num_words);
+
     let p_affine = AffinePoint::<E>::from_words_le(&p);
+
     let result_affine = E::ec_double(&p_affine);
-    let result_words = result_affine.to_words_le::<N>();
+
+    let result_words = result_affine.to_words_le();
+
     let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     ECDoubleEvent {
