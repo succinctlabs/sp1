@@ -1,8 +1,10 @@
 use std::cmp::Reverse;
 
-use itertools::Itertools;
+use itertools::{izip, Itertools};
+use p3_field::AbstractField;
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
+use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::Array;
 use sp1_recursion_compiler::prelude::MemVariable;
@@ -10,6 +12,7 @@ use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 use sp1_recursion_derive::DslVariable;
 
+use crate::mmcs::OuterDigest;
 use crate::{challenger::MultiFieldChallengerVariable, DIGEST_SIZE};
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
@@ -42,9 +45,88 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         .collect();
 
     FriChallenges {
-        query_indices: builder.vec(query_indices),
-        betas: builder.vec(betas),
+        query_indices,
+        betas,
     }
+}
+
+#[derive(Clone)]
+pub struct BatchOpeningVariable<C: Config> {
+    pub opened_values: Vec<Vec<Ext<C::F, C::EF>>>,
+    pub opening_proof: Vec<Vec<Felt<C::F>>>,
+}
+
+#[derive(Clone)]
+pub struct TwoAdicPcsProofVariable<C: Config> {
+    pub fri_proof: FriProofVariable<C>,
+    pub query_openings: Vec<Vec<BatchOpeningVariable<C>>>,
+}
+
+#[derive(Clone)]
+pub struct TwoAdicPcsRoundVariable<C: Config> {
+    pub batch_commit: OuterDigest<C>,
+    pub mats: Vec<TwoAdicPcsMatsVariable<C>>,
+}
+
+#[allow(clippy::type_complexity)]
+#[derive(Clone)]
+pub struct TwoAdicPcsMatsVariable<C: Config> {
+    pub domain: TwoAdicMultiplicativeCosetVariable<C>,
+    pub points: Array<C, Ext<C::F, C::EF>>,
+    pub values: Array<C, Array<C, Ext<C::F, C::EF>>>,
+}
+
+#[derive(Clone, Copy)]
+pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
+    pub log_n: Var<C::N>,
+    pub size: usize,
+    pub shift: Felt<C::F>,
+    pub g: Felt<C::F>,
+}
+
+pub fn verify_two_adic_pcs<C: Config>(
+    builder: &mut Builder<C>,
+    config: &FriConfig<OuterChallengeMmcs>,
+    proof: &TwoAdicPcsProofVariable<C>,
+    challenger: &mut MultiFieldChallengerVariable<C>,
+    rounds: Vec<TwoAdicPcsRoundVariable<C>>,
+) {
+    let alpha = challenger.sample_ext(builder);
+    let fri_challenges =
+        verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
+
+    let log_global_max_height =
+        proof.fri_proof.commit_phase_commits.vec().len() + config.log_blowup;
+
+    let reduced_openings = proof
+        .query_openings
+        .iter()
+        .zip(&fri_challenges.query_indices)
+        .map(|(query_opening, &index)| {
+            let mut ro: [Ext<C::F, C::EF>; 32] =
+                [builder.eval(SymbolicExt::Const(C::EF::zero())); 32];
+            let mut alpha_pow: [Ext<C::F, C::EF>; 32] =
+                [builder.eval(SymbolicExt::Const(C::EF::one())); 32];
+
+            for (batch_opening, round) in izip!(query_opening, &rounds) {
+                let batch_commit = round.batch_commit;
+                let mats = &round.mats;
+                let batch_heights = mats
+                    .iter()
+                    .map(|mat| mat.domain.size << config.log_blowup)
+                    .collect_vec();
+                let batch_dims = batch_heights
+                    .iter()
+                    .map(|&height| Dimensions { width: 0, height })
+                    .collect_vec();
+
+                let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
+                let log_batch_max_height = log2_strict_usize(*batch_max_height);
+                let bits_reduced = log_global_max_height - log_batch_max_height;
+
+                // let reduced_index = index >> bits_reduced;
+            }
+        });
 }
 
 // pub fn verify_challenges<C: Config>(
@@ -184,10 +266,10 @@ pub struct FriQueryProofVariable<C: Config> {
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
-#[derive(DslVariable, Clone)]
+#[derive(Clone)]
 pub struct FriChallenges<C: Config> {
-    pub query_indices: Array<C, Var<C::N>>,
-    pub betas: Array<C, Ext<C::F, C::EF>>,
+    pub query_indices: Vec<Var<C::N>>,
+    pub betas: Vec<Ext<C::F, C::EF>>,
 }
 
 #[cfg(test)]
@@ -348,14 +430,14 @@ mod tests {
         for i in 0..fri_challenges_gt.betas.len() {
             builder.assert_ext_eq(
                 SymbolicExt::Const(fri_challenges_gt.betas[i]),
-                fri_challenges.betas.vec()[i],
+                fri_challenges.betas[i],
             );
         }
 
         for i in 0..fri_challenges_gt.query_indices.len() {
             builder.assert_var_eq(
                 Bn254Fr::from_canonical_usize(fri_challenges_gt.query_indices[i]),
-                fri_challenges.query_indices.vec()[i],
+                fri_challenges.query_indices[i],
             );
         }
 
