@@ -1,6 +1,8 @@
-use crate::runtime::{Syscall, SyscallContext};
+use crate::{
+    air::PiDigest,
+    runtime::{Syscall, SyscallContext},
+};
 use sha2::Digest;
-use sp1_zkvm::PiDigest;
 
 pub struct SyscallHalt;
 

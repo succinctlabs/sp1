@@ -9,9 +9,8 @@ use p3_air::{
 use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
-use sp1_zkvm::PiDigest;
 
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, Word};
+use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PiDigest, Word};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 
@@ -75,7 +74,7 @@ pub fn debug_constraints<SC, A>(
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
-            pi_digest,
+            public_values: &pi_digest.into_iter().flatten().collect_vec(),
         };
         if i == 0 {
             builder.is_first_row = Val::<SC>::one();
@@ -125,7 +124,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
     pub(crate) is_transition: F,
-    pub(crate) pi_digest: PiDigest<Word<F>>,
+    pub(crate) public_values: &'a [F],
 }
 
 impl<'a, F, EF> ExtensionBuilder for DebugConstraintBuilder<'a, F, EF>
@@ -260,6 +259,6 @@ impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
     for DebugConstraintBuilder<'a, F, EF>
 {
     fn public_values(&self) -> &[F] {
-        &self.pi_digest.into_iter().flatten().collect_vec()
+        self.public_values
     }
 }

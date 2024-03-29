@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
-use crate::air::Word;
+use crate::air::{PiDigest, Word};
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -23,8 +23,6 @@ use p3_field::PrimeField32;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
-
-use sp1_zkvm::PiDigest;
 
 const LOG_DEGREE_BOUND: usize = 31;
 
@@ -158,7 +156,7 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut pi_digest: PiDigest<Word<SC::Val>>;
+    let mut pi_digest: PiDigest<Word<SC::Val>> = Default::default();
     let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();

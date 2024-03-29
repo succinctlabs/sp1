@@ -1,4 +1,4 @@
-use crate::air::Word;
+use crate::air::{PiDigest, Word};
 
 use super::folder::ProverConstraintFolder;
 use super::Chip;
@@ -7,6 +7,7 @@ use super::PackedChallenge;
 use super::PackedVal;
 use super::StarkAir;
 use super::Val;
+use itertools::Itertools;
 use p3_air::Air;
 use p3_air::TwoRowMatrixView;
 use p3_commit::PolynomialSpace;
@@ -16,7 +17,6 @@ use p3_field::PackedValue;
 use p3_matrix::MatrixGet;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
-use sp1_zkvm::PiDigest;
 
 use super::StarkGenericConfig;
 
@@ -121,7 +121,7 @@ where
                 is_transition,
                 alpha,
                 accumulator,
-                pi_digest,
+                public_values: &pi_digest.into_iter().flatten().collect_vec(),
             };
             chip.eval(&mut folder);
 

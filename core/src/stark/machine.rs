@@ -4,8 +4,7 @@ use itertools::Itertools;
 use std::collections::HashMap;
 
 use super::debug_constraints;
-use crate::air::MachineAir;
-use crate::air::Word;
+use crate::air::{MachineAir, PiDigest, Word};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -22,8 +21,6 @@ use p3_field::PrimeField32;
 use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
-
-use sp1_zkvm::PiDigest;
 
 use super::Chip;
 use super::Proof;

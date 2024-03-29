@@ -10,6 +10,7 @@ use p3_matrix::MatrixRowSlices;
 
 use crate::air::BaseAirBuilder;
 use crate::air::Word;
+use crate::air::WORD_SIZE;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
@@ -443,9 +444,9 @@ impl CpuChip {
         let public_values = builder.public_values();
 
         // Convert public values into words.
-        let mut pi_digest: [Word<AB::F>; PI_DIGEST_WORD_SIZE] = Default::default();
-        for (i, word) in public_values.chunks_exact(4).enumerate() {
-            pi_digest[i] = Word(word.try_into().unwrap());
+        let mut digest_words = Vec::new();
+        for bytes in public_values.chunks_exact(WORD_SIZE) {
+            digest_words.push(Word::<AB::F>(bytes.try_into().unwrap()));
         }
 
         let ecall_columns = local.opcode_specific_columns.ecall();
@@ -459,17 +460,7 @@ impl CpuChip {
         builder.when(is_commit.clone()).assert_one(bitmap_sum);
 
         // Verify the pi_digest_word.
-        let mut pi_digest_word = Word([
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-        ]);
-        for (word, bit) in pi_digest.iter().zip(ecall_columns.index_bitmap.iter()) {
-            for i in 0..4 {
-                pi_digest_word[i] = pi_digest_word[i].clone() + *bit * word[i];
-            }
-        }
+        let pi_digest_word = builder.index_word_array(&digest_words, &ecall_columns.index_bitmap);
 
         builder
             .when(is_commit)

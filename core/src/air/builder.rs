@@ -1,10 +1,11 @@
+use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder};
 use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
 use super::interaction::AirInteraction;
 use super::word::Word;
-use super::BinomialExtension;
+use super::{BinomialExtension, WORD_SIZE};
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
@@ -65,6 +66,25 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         EB: Into<Self::Expr> + Clone,
     {
         condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
+    }
+
+    /// Index an array of words using an index bitmap.
+    fn index_array<I: Into<Self::Expr>, EIndex: Into<Self::Expr> + Clone>(
+        &mut self,
+        array: &[I],
+        index_bitmap: &[EIndex],
+    ) -> Self::Expr
+    where
+        I: Into<Self::Expr> + Clone,
+        EIndex: Into<Self::Expr> + Clone,
+    {
+        let mut result = Self::Expr::zero();
+
+        for (value, i) in array.iter().zip(index_bitmap) {
+            result += value.clone().into() * i.clone().into();
+        }
+
+        result
     }
 }
 
@@ -173,6 +193,26 @@ pub trait WordAirBuilder: ByteAirBuilder {
         for limb in word.0 {
             self.assert_zero(limb);
         }
+    }
+
+    /// Index an array of words using an index bitmap.
+    fn index_word_array<I: Into<Self::Expr> + Clone, EIndex: Into<Self::Expr> + Clone>(
+        &mut self,
+        array: &[Word<I>],
+        index_bitmap: &[EIndex],
+    ) -> Word<Self::Expr> {
+        let mut result = Word::default();
+        for i in 0..WORD_SIZE {
+            result[i] = self.index_array(
+                array
+                    .iter()
+                    .map(|word| word[i].clone())
+                    .collect_vec()
+                    .as_slice(),
+                index_bitmap,
+            );
+        }
+        result
     }
 
     /// Check that each limb of the given slice is a u8.

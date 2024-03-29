@@ -1,8 +1,3 @@
-use std::array::IntoIter;
-use std::ops::Index;
-
-use serde::{Deserialize, Serialize};
-
 pub mod heap;
 pub mod syscalls;
 pub mod io {
@@ -34,62 +29,16 @@ macro_rules! entrypoint {
     };
 }
 
+pub const PI_DIGEST_NUM_WORDS: usize = 8;
+
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
-
-const PI_DIGEST_NUM_WORDS: usize = 8;
-
-#[derive(Serialize, Deserialize)]
-pub struct PiDigest<T>(pub [T; PI_DIGEST_NUM_WORDS]);
-
-impl<T> Index<usize> for PiDigest<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl<T> IntoIterator for PiDigest<T> {
-    type Item = T;
-    type IntoIter = IntoIter<T, PI_DIGEST_NUM_WORDS>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-impl PiDigest<u32> {
-    pub fn from_bytes(bytes: &[u8]) -> Self {
-        const WORD_SIZE: usize = 4;
-
-        assert!(bytes.len() == PI_DIGEST_NUM_WORDS * WORD_SIZE);
-
-        let mut words = [0u32; PI_DIGEST_NUM_WORDS];
-        for i in 0..PI_DIGEST_NUM_WORDS {
-            words[i] = u32::from_le_bytes(
-                bytes[i * WORD_SIZE..(i + 1) * WORD_SIZE]
-                    .try_into()
-                    .unwrap(),
-            );
-        }
-        Self(words)
-    }
-
-    pub fn empty() -> Self {
-        Self([0; PI_DIGEST_NUM_WORDS])
-    }
-}
-
-impl<T: From<u32>> PiDigest<T> {
-    pub fn new(orig: PiDigest<u32>) -> Self {
-        PiDigest(orig.0.map(|x| x.into()))
-    }
-}
 
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
+    use crate::PI_DIGEST_NUM_WORDS;
+
     use getrandom::{register_custom_getrandom, Error};
     use sha2::{Digest, Sha256};
 
@@ -109,9 +58,14 @@ mod zkvm {
 
         let pi_hasher = core::mem::take(&mut PI_HASHER);
         let pi_digest_bytes = pi_hasher.unwrap().finalize();
+        let pi_digest_words: [u32; PI_DIGEST_NUM_WORDS] = pi_digest_bytes
+            .chunks_exact(4)
+            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
 
-        let pi_digest = PiDigest::from(pi_digest);
-        syscall_halt(0, &pi_digest);
+        syscall_halt(0, &pi_digest_words);
     }
 
     static STACK_TOP: u32 = 0x0020_0400;

@@ -10,10 +10,9 @@ use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_zkvm::PiDigest;
 use tracing::trace;
 
-use crate::air::Word;
+use crate::air::{PiDigest, Word};
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 

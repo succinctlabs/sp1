@@ -1,5 +1,5 @@
 use super::Domain;
-use crate::air::{MachineAir, Word};
+use crate::air::{MachineAir, PiDigest, Word};
 use crate::stark::MachineChip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -10,7 +10,6 @@ use p3_commit::Pcs;
 use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use sp1_zkvm::PiDigest;
 
 use std::fmt::Formatter;
 use std::marker::PhantomData;
@@ -264,7 +263,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
-            pi_digest,
+            public_values: &pi_digest.into_iter().flatten().collect_vec(),
             _marker: PhantomData,
         };
         chip.eval(&mut folder);

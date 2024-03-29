@@ -16,11 +16,11 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
-use sp1_zkvm::PiDigest;
 pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
+use crate::air::PiDigest;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
