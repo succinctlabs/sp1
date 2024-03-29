@@ -1,3 +1,5 @@
+#![feature(generic_const_exprs)]
+pub mod bls12381;
 pub mod bn254;
 pub mod io;
 pub mod secp256k1;
@@ -17,6 +19,8 @@ extern "C" {
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
     pub fn syscall_bn254_add(p: *mut u32, q: *const u32);
     pub fn syscall_bn254_double(p: *mut u32);
+    pub fn syscall_bls12381_add(p: *mut u32, q: *const u32);
+    pub fn syscall_bls12381_double(p: *mut u32);
     pub fn syscall_keccak_permute(state: *mut u64);
     pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
     pub fn syscall_enter_unconstrained() -> bool;

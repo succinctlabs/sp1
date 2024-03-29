@@ -90,4 +90,7 @@ pub mod tests {
 
     pub const BLS12381_DOUBLE_ELF: &[u8] =
         include_bytes!("../../../tests/bls12381-double/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BLS12381_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-mul/elf/riscv32im-succinct-zkvm-elf");
 }

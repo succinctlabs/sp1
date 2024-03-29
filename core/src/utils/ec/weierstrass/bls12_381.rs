@@ -20,6 +20,9 @@ pub type Bls12381 = SwCurve<Bls12381Parameters>;
 pub struct Bls12381BaseField;
 
 impl FieldParameters for Bls12381BaseField {
+    // The modulus has been taken from py_ecc python library by Ethereum Foundation.
+    // // https://github.com/ethereum/py_ecc/blob/7b9e1b3/py_ecc/fields/field_properties.py#L30
+    // The below value is the little-endian representation of the modulus.
     const MODULUS: &'static [u8] = &[
         171, 170, 255, 255, 255, 255, 254, 185, 255, 255, 83, 177, 254, 255, 171, 30, 36, 246, 176,
         246, 160, 210, 48, 103, 191, 18, 133, 243, 132, 75, 119, 100, 215, 172, 75, 67, 182, 167,
