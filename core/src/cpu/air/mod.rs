@@ -7,7 +7,6 @@ use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
-use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 
 use crate::air::BaseAirBuilder;
 use crate::air::Word;

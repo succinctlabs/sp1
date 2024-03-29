@@ -19,6 +19,7 @@ use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+use sp1_zkvm::PiDigest;
 use std::cmp::Reverse;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -45,7 +46,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -70,7 +71,7 @@ where
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -89,7 +90,7 @@ where
         });
 
         // Observe the public input digest.
-        challenger.observe_slice(&pi_digest.iter().flat_map(|elm| elm.0).collect_vec());
+        challenger.observe_slice(&pi_digest.into_iter().flatten().collect_vec());
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -228,7 +229,7 @@ where
         chips: &[&MachineChip<SC, A>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> ShardProof<SC>
     where
         Val<SC>: PrimeField32,

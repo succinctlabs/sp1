@@ -23,7 +23,7 @@ use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
-use sp1_zkvm::{PiDigest, PI_DIGEST_NUM_WORDS};
+use sp1_zkvm::PiDigest;
 
 use super::Chip;
 use super::Proof;
@@ -140,7 +140,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<Word<Val<SC>>, PI_DIGEST_NUM_WORDS>,
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -179,7 +179,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         });
 
         // Observe the public input digest
-        challenger.observe_slice(&proof.pi_digest.iter().flat_map(|elm| elm.0).collect_vec());
+        challenger.observe_slice(&proof.pi_digest.into_iter().flatten().collect_vec());
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
@@ -217,7 +217,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         _pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<Word<Val<SC>>, PI_DIGEST_NUM_WORDS>,
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
@@ -293,13 +293,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
-                        pi_digest
-                            .iter()
-                            .flat_map(|elm| elm.0)
-                            .collect_vec()
-                            .as_slice()
-                            .try_into()
-                            .unwrap(),
+                        pi_digest,
                     );
                 }
             });

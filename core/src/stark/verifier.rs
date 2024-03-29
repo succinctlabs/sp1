@@ -10,8 +10,7 @@ use p3_commit::Pcs;
 use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-
-use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+use sp1_zkvm::PiDigest;
 
 use std::fmt::Formatter;
 use std::marker::PhantomData;
@@ -33,7 +32,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> Result<(), VerificationError>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -199,7 +198,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -231,7 +230,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -265,13 +264,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
-            pi_digest: pi_digest
-                .iter()
-                .flat_map(|word| word.0)
-                .collect::<Vec<_>>()
-                .as_slice()
-                .try_into()
-                .unwrap(),
+            pi_digest,
             _marker: PhantomData,
         };
         chip.eval(&mut folder);

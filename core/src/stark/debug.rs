@@ -1,6 +1,7 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::process::exit;
 
+use itertools::Itertools;
 use p3_air::{
     Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
     PermutationAirBuilder, TwoRowMatrixView,
@@ -8,9 +9,9 @@ use p3_air::{
 use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
-use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+use sp1_zkvm::PiDigest;
 
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
+use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, Word};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 
@@ -23,7 +24,7 @@ pub fn debug_constraints<SC, A>(
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
-    pi_digest: [Val<SC>; PI_DIGEST_WORD_SIZE * 4],
+    pi_digest: PiDigest<Word<Val<SC>>>,
 ) where
     SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
@@ -124,7 +125,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
     pub(crate) is_transition: F,
-    pub(crate) pi_digest: [F; PI_DIGEST_WORD_SIZE * 4],
+    pub(crate) pi_digest: PiDigest<Word<F>>,
 }
 
 impl<'a, F, EF> ExtensionBuilder for DebugConstraintBuilder<'a, F, EF>
@@ -259,6 +260,6 @@ impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
     for DebugConstraintBuilder<'a, F, EF>
 {
     fn public_values(&self) -> &[F] {
-        &self.pi_digest
+        &self.pi_digest.into_iter().flatten().collect_vec()
     }
 }

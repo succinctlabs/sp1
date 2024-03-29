@@ -16,7 +16,7 @@ use p3_field::PackedValue;
 use p3_matrix::MatrixGet;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
-use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+use sp1_zkvm::PiDigest;
 
 use super::StarkGenericConfig;
 
@@ -30,7 +30,7 @@ pub fn quotient_values<SC, A, Mat>(
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[SC::Challenge],
     alpha: SC::Challenge,
-    pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+    pi_digest: PiDigest<Word<Val<SC>>>,
 ) -> Vec<SC::Challenge>
 where
     A: StarkAir<SC>,
@@ -121,13 +121,7 @@ where
                 is_transition,
                 alpha,
                 accumulator,
-                pi_digest: pi_digest
-                    .iter()
-                    .flat_map(|word| word.0)
-                    .collect::<Vec<_>>()
-                    .as_slice()
-                    .try_into()
-                    .unwrap(),
+                pi_digest,
             };
             chip.eval(&mut folder);
 

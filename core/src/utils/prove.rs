@@ -24,6 +24,8 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
 
+use sp1_zkvm::PiDigest;
+
 const LOG_DEGREE_BOUND: usize = 31;
 
 pub fn get_cycles(program: Program) -> u64 {
@@ -79,7 +81,7 @@ pub fn run_test_core(
             &pk,
             runtime.record,
             &mut challenger,
-            runtime.pi_digest.unwrap().into(),
+            PiDigest::new(runtime.pi_digest.unwrap()),
         )
     });
 
@@ -92,7 +94,7 @@ pub fn run_test_core(
         &pk,
         record_clone,
         &mut challenger,
-        runtime.pi_digest.unwrap().map(|x| x.into()),
+        PiDigest::new(runtime.pi_digest.unwrap()),
     );
 
     let mut challenger = machine.config().challenger();
@@ -156,7 +158,7 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut pi_digest: [Word<SC::Val>; PI_DIGEST_WORD_SIZE] = Default::default();
+    let mut pi_digest: PiDigest<Word<SC::Val>>;
     let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
@@ -170,7 +172,7 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            pi_digest = runtime.pi_digest.unwrap().map(|x| x.into());
+            pi_digest = PiDigest::<Word<SC::Val>>::new(runtime.pi_digest.unwrap());
             return std::mem::take(&mut runtime.state.output_stream);
         }
     });
@@ -203,7 +205,7 @@ where
         }
     }
 
-    challenger.observe_slice(&pi_digest.iter().flat_map(|elm| elm.0).collect_vec());
+    challenger.observe_slice(&pi_digest.into_iter().flatten().collect_vec());
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
@@ -279,7 +281,7 @@ where
             &pk,
             runtime.record,
             &mut challenger,
-            runtime.pi_digest.unwrap().map(|x| x.into()),
+            PiDigest::new(runtime.pi_digest.unwrap()),
         )
     });
     let time = start.elapsed().as_millis();
@@ -363,7 +365,6 @@ pub use baby_bear_poseidon2::BabyBearPoseidon2;
 use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
-use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 
 pub mod baby_bear_poseidon2 {
 

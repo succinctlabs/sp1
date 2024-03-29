@@ -4,13 +4,14 @@ use std::{
 };
 
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
-use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
+use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder, Word};
+use itertools::Itertools;
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
     TwoRowMatrixView,
 };
 use p3_field::{AbstractField, ExtensionField, Field};
-use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+use sp1_zkvm::PiDigest;
 
 /// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
@@ -24,7 +25,7 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub is_transition: PackedVal<SC>,
     pub alpha: SC::Challenge,
     pub accumulator: PackedChallenge<SC>,
-    pub pi_digest: [Val<SC>; PI_DIGEST_WORD_SIZE * 4],
+    pub pi_digest: PiDigest<Word<SC::Val>>,
 }
 
 impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
@@ -107,7 +108,7 @@ impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<
 
 impl<'a, SC: StarkGenericConfig> AirBuilderWithPublicValues for ProverConstraintFolder<'a, SC> {
     fn public_values(&self) -> &[Self::F] {
-        &self.pi_digest
+        &self.pi_digest.into_iter().flatten().collect_vec()
     }
 }
 
@@ -126,7 +127,7 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, Var, Expr> {
     pub is_transition: Var,
     pub alpha: Var,
     pub accumulator: Expr,
-    pub pi_digest: [F; PI_DIGEST_WORD_SIZE * 4],
+    pub pi_digest: PiDigest<Word<F>>,
     pub _marker: PhantomData<F>,
 }
 
@@ -380,6 +381,6 @@ where
         + Mul<Expr, Output = Expr>,
 {
     fn public_values(&self) -> &[Self::F] {
-        &self.pi_digest
+        &self.pi_digest.into_iter().flatten().collect_vec()
     }
 }

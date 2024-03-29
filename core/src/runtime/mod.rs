@@ -16,7 +16,7 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
-use sp1_zkvm::{PiDigest, PI_DIGEST_NUM_WORDS};
+use sp1_zkvm::PiDigest;
 pub use state::*;
 pub use syscall::*;
 pub use utils::*;
@@ -89,7 +89,7 @@ pub struct Runtime {
 
     pub pi_hasher: Option<Sha256>,
 
-    pub pi_digest: Option<PiDigest<u32, PI_DIGEST_NUM_WORDS>>,
+    pub pi_digest: Option<PiDigest<u32>>,
 }
 
 impl Runtime {

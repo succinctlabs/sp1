@@ -1,11 +1,11 @@
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
 
-use crate::{PiDigest, PI_DIGEST_NUM_WORDS};
+use crate::PiDigest;
 
 /// Halts the program.
 #[allow(unused_variables)]
-pub extern "C" fn syscall_halt(exit_code: u8, pi_digest: &PiDigest<u32, PI_DIGEST_NUM_WORDS>) -> ! {
+pub extern "C" fn syscall_halt(exit_code: u8, pi_digest: &PiDigest<u32>) -> ! {
     #[cfg(target_os = "zkvm")]
     unsafe {
         for i in 0..PI_DIGEST_NUM_WORDS {

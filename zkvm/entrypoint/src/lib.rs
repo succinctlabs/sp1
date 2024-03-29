@@ -1,3 +1,8 @@
+use std::array::IntoIter;
+use std::ops::Index;
+
+use serde::{Deserialize, Serialize};
+
 pub mod heap;
 pub mod syscalls;
 pub mod io {
@@ -32,39 +37,53 @@ macro_rules! entrypoint {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
-pub const PI_DIGEST_NUM_WORDS: usize = 8;
+const PI_DIGEST_NUM_WORDS: usize = 8;
 
-pub struct PiDigest<T, const S: usize> {
-    pub words: [T; S],
-}
+#[derive(Serialize, Deserialize)]
+pub struct PiDigest<T>(pub [T; PI_DIGEST_NUM_WORDS]);
 
-impl<T: From<u32>, const S: usize> From<PiDigest<u32, S>> for PiDigest<T, S> {
-    fn from(other: PiDigest<u32, S>) -> Self {
-        Self {
-            words: other.words.map(|x| x.into()),
-        }
+impl<T> Index<usize> for PiDigest<T> {
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
     }
 }
 
-impl<const S: usize> PiDigest<u32, S> {
+impl<T> IntoIterator for PiDigest<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T, PI_DIGEST_NUM_WORDS>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+impl PiDigest<u32> {
     pub fn from_bytes(bytes: &[u8]) -> Self {
         const WORD_SIZE: usize = 4;
 
-        assert!(bytes.len() == S * WORD_SIZE);
+        assert!(bytes.len() == PI_DIGEST_NUM_WORDS * WORD_SIZE);
 
-        let mut words = [0u32; S];
-        for i in 0..S {
+        let mut words = [0u32; PI_DIGEST_NUM_WORDS];
+        for i in 0..PI_DIGEST_NUM_WORDS {
             words[i] = u32::from_le_bytes(
                 bytes[i * WORD_SIZE..(i + 1) * WORD_SIZE]
                     .try_into()
                     .unwrap(),
             );
         }
-        Self { words }
+        Self(words)
     }
 
     pub fn empty() -> Self {
-        Self { words: [0; S] }
+        Self([0; PI_DIGEST_NUM_WORDS])
+    }
+}
+
+impl<T: From<u32>> PiDigest<T> {
+    pub fn new(orig: PiDigest<u32>) -> Self {
+        PiDigest(orig.0.map(|x| x.into()))
     }
 }
 
