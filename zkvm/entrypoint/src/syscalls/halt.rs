@@ -15,7 +15,7 @@ pub extern "C" fn syscall_halt(exit_code: u8, pi_digest: &[u32; PI_DIGEST_NUM_WO
         asm!(
             "ecall",
             in("t0") crate::syscalls::HALT,
-            in("a0") exit_code,
+            in("a0") exit_code
         );
         unreachable!()
     }

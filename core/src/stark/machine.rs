@@ -478,7 +478,6 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-
         run_test(program).unwrap();
     }
 

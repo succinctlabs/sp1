@@ -449,9 +449,10 @@ impl CpuChip {
             digest_words.push(Word::<AB::F>(bytes.try_into().unwrap()));
         }
 
+        // Get the ecall specific columns.
         let ecall_columns = local.opcode_specific_columns.ecall();
 
-        // Verify the bitmap.
+        // Verify the index bitmap.
         let mut bitmap_sum = AB::Expr::zero();
         for bit in ecall_columns.index_bitmap.iter() {
             builder.when(local.selectors.is_ecall).assert_bool(*bit);

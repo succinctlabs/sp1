@@ -24,12 +24,11 @@ use strum_macros::EnumIter;
 /// - The second byte is 0/1 depending on whether the syscall has a separate table. This is used
 /// in the CPU table to determine whether to lookup the syscall using the syscall interaction.
 /// - The third byte is the number of additional cycles the syscall uses.
-/// - The fourth byte is 0/1 depending on whether the syscall is the HALT syscall.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
 #[allow(non_camel_case_types)]
 pub enum SyscallCode {
     /// Halts the program.
-    HALT = 0x01_00_00_00,
+    HALT = 0x00_00_00_00,
 
     /// Loads a word supplied from the prover.
     LWA = 0x00_00_00_01,
