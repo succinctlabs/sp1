@@ -25,7 +25,7 @@ pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     /// Verify a proof for a collection of air chips.
-    #[cfg(feature = "perf")]
+
     pub fn verify_shard(
         config: &SC,
         chips: &[&MachineChip<SC, A>],
@@ -35,157 +35,148 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
-        use itertools::izip;
-
-        let ShardProof {
-            commitment,
-            opened_values,
-            opening_proof,
-            ..
-        } = proof;
-
-        let pcs = config.pcs();
-
-        let log_degrees = opened_values
-            .chips
-            .iter()
-            .map(|val| val.log_degree)
-            .collect::<Vec<_>>();
-
-        let log_quotient_degrees = chips
-            .iter()
-            .map(|chip| chip.log_quotient_degree())
-            .collect::<Vec<_>>();
-
-        let trace_domains = log_degrees
-            .iter()
-            .map(|log_degree| pcs.natural_domain_for_degree(1 << log_degree))
-            .collect::<Vec<_>>();
-
-        let ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        } = commitment;
-
-        let permutation_challenges = (0..2)
-            .map(|_| challenger.sample_ext_element::<SC::Challenge>())
-            .collect::<Vec<_>>();
-
         #[cfg(feature = "perf")]
-        challenger.observe(permutation_commit.clone());
+        {
+            use itertools::izip;
 
-        let alpha = challenger.sample_ext_element::<SC::Challenge>();
-
-        // Observe the quotient commitments.
-        challenger.observe(quotient_commit.clone());
-
-        let zeta = challenger.sample_ext_element::<SC::Challenge>();
-
-        let main_domains_points_and_opens = trace_domains
-            .iter()
-            .zip_eq(proof.opened_values.chips.iter())
-            .map(|(domain, values)| {
-                (
-                    *domain,
-                    vec![
-                        (zeta, values.main.local.clone()),
-                        (domain.next_point(zeta).unwrap(), values.main.next.clone()),
-                    ],
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let perm_domains_points_and_opens = trace_domains
-            .iter()
-            .zip_eq(proof.opened_values.chips.iter())
-            .map(|(domain, values)| {
-                (
-                    *domain,
-                    vec![
-                        (zeta, values.permutation.local.clone()),
-                        (
-                            domain.next_point(zeta).unwrap(),
-                            values.permutation.next.clone(),
-                        ),
-                    ],
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let quotient_chunk_domains = trace_domains
-            .iter()
-            .zip_eq(log_degrees)
-            .zip_eq(log_quotient_degrees)
-            .map(|((domain, log_degree), log_quotient_degree)| {
-                let quotient_degree = 1 << log_quotient_degree;
-                let quotient_domain =
-                    domain.create_disjoint_domain(1 << (log_degree + log_quotient_degree));
-                quotient_domain.split_domains(quotient_degree)
-            })
-            .collect::<Vec<_>>();
-
-        let quotient_domains_points_and_opens = proof
-            .opened_values
-            .chips
-            .iter()
-            .zip_eq(quotient_chunk_domains.iter())
-            .flat_map(|(values, qc_domains)| {
-                values
-                    .quotient
-                    .iter()
-                    .zip_eq(qc_domains)
-                    .map(move |(values, q_domain)| (*q_domain, vec![(zeta, values.clone())]))
-            })
-            .collect::<Vec<_>>();
-
-        config
-            .pcs()
-            .verify(
-                vec![
-                    (main_commit.clone(), main_domains_points_and_opens),
-                    (permutation_commit.clone(), perm_domains_points_and_opens),
-                    (quotient_commit.clone(), quotient_domains_points_and_opens),
-                ],
+            let ShardProof {
+                commitment,
+                opened_values,
                 opening_proof,
-                challenger,
-            )
-            .map_err(|_| VerificationError::InvalidopeningArgument)?;
+                ..
+            } = proof;
 
-        // Verify the constrtaint evaluations.
+            let pcs = config.pcs();
 
-        for (chip, trace_domain, qc_domains, values) in izip!(
-            chips.iter(),
-            trace_domains,
-            quotient_chunk_domains,
-            opened_values.chips.iter(),
-        ) {
-            Self::verify_constraints(
-                chip,
-                values.clone(),
-                trace_domain,
-                qc_domains,
-                zeta,
-                alpha,
-                &permutation_challenges,
-            )
-            .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
+            let log_degrees = opened_values
+                .chips
+                .iter()
+                .map(|val| val.log_degree)
+                .collect::<Vec<_>>();
+
+            let log_quotient_degrees = chips
+                .iter()
+                .map(|chip| chip.log_quotient_degree())
+                .collect::<Vec<_>>();
+
+            let trace_domains = log_degrees
+                .iter()
+                .map(|log_degree| pcs.natural_domain_for_degree(1 << log_degree))
+                .collect::<Vec<_>>();
+
+            let ShardCommitment {
+                main_commit,
+                permutation_commit,
+                quotient_commit,
+            } = commitment;
+
+            let permutation_challenges = (0..2)
+                .map(|_| challenger.sample_ext_element::<SC::Challenge>())
+                .collect::<Vec<_>>();
+
+            challenger.observe(permutation_commit.clone());
+
+            let alpha = challenger.sample_ext_element::<SC::Challenge>();
+
+            // Observe the quotient commitments.
+            challenger.observe(quotient_commit.clone());
+
+            let zeta = challenger.sample_ext_element::<SC::Challenge>();
+
+            let main_domains_points_and_opens = trace_domains
+                .iter()
+                .zip_eq(proof.opened_values.chips.iter())
+                .map(|(domain, values)| {
+                    (
+                        *domain,
+                        vec![
+                            (zeta, values.main.local.clone()),
+                            (domain.next_point(zeta).unwrap(), values.main.next.clone()),
+                        ],
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            let perm_domains_points_and_opens = trace_domains
+                .iter()
+                .zip_eq(proof.opened_values.chips.iter())
+                .map(|(domain, values)| {
+                    (
+                        *domain,
+                        vec![
+                            (zeta, values.permutation.local.clone()),
+                            (
+                                domain.next_point(zeta).unwrap(),
+                                values.permutation.next.clone(),
+                            ),
+                        ],
+                    )
+                })
+                .collect::<Vec<_>>();
+
+            let quotient_chunk_domains = trace_domains
+                .iter()
+                .zip_eq(log_degrees)
+                .zip_eq(log_quotient_degrees)
+                .map(|((domain, log_degree), log_quotient_degree)| {
+                    let quotient_degree = 1 << log_quotient_degree;
+                    let quotient_domain =
+                        domain.create_disjoint_domain(1 << (log_degree + log_quotient_degree));
+                    quotient_domain.split_domains(quotient_degree)
+                })
+                .collect::<Vec<_>>();
+
+            let quotient_domains_points_and_opens = proof
+                .opened_values
+                .chips
+                .iter()
+                .zip_eq(quotient_chunk_domains.iter())
+                .flat_map(|(values, qc_domains)| {
+                    values
+                        .quotient
+                        .iter()
+                        .zip_eq(qc_domains)
+                        .map(move |(values, q_domain)| (*q_domain, vec![(zeta, values.clone())]))
+                })
+                .collect::<Vec<_>>();
+
+            config
+                .pcs()
+                .verify(
+                    vec![
+                        (main_commit.clone(), main_domains_points_and_opens),
+                        (permutation_commit.clone(), perm_domains_points_and_opens),
+                        (quotient_commit.clone(), quotient_domains_points_and_opens),
+                    ],
+                    opening_proof,
+                    challenger,
+                )
+                .map_err(|_| VerificationError::InvalidopeningArgument)?;
+
+            // Verify the constrtaint evaluations.
+
+            for (chip, trace_domain, qc_domains, values) in izip!(
+                chips.iter(),
+                trace_domains,
+                quotient_chunk_domains,
+                opened_values.chips.iter(),
+            ) {
+                Self::verify_constraints(
+                    chip,
+                    values.clone(),
+                    trace_domain,
+                    qc_domains,
+                    zeta,
+                    alpha,
+                    &permutation_challenges,
+                )
+                .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
+            }
         }
 
         Ok(())
     }
 
-    #[cfg(not(feature = "perf"))]
-    pub fn verify_shard(
-        _config: &SC,
-        _chips: &[&MachineChip<SC, A>],
-        _challenger: &mut SC::Challenger,
-        _proof: &ShardProof<SC>,
-    ) -> Result<(), VerificationError> {
-        Ok(())
-    }
-
-    #[cfg(feature = "perf")]
     fn verify_constraints(
         chip: &MachineChip<SC, A>,
         opening: ChipOpenedValues<SC::Challenge>,
@@ -212,7 +203,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         }
     }
 
-    #[cfg(feature = "perf")]
     pub fn eval_constraints(
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValues<SC::Challenge>,
@@ -259,7 +249,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         folder.accumulator
     }
 
-    #[cfg(feature = "perf")]
     pub fn recompute_quotient(
         opening: &ChipOpenedValues<SC::Challenge>,
         qc_domains: &[Domain<SC>],
