@@ -260,22 +260,6 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
-    use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::AbstractField;
-    use sp1_core::runtime::Program;
-    use sp1_core::{
-        air::MachineAir,
-        stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
-        utils::BabyBearPoseidon2,
-    };
-    use sp1_recursion_compiler::ir::Array;
-    use sp1_recursion_compiler::{
-        asm::{AsmConfig, VmBuilder},
-        ir::{Builder, Config, ExtConst, Usize},
-    };
-    use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
-    use sp1_sdk::{SP1Prover, SP1Stdin};
-
     use crate::{
         challenger::DuplexChallengerVariable,
         fri::{
@@ -286,6 +270,27 @@ pub(crate) mod tests {
             ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
         },
     };
+    use p3_baby_bear::BabyBear;
+    use p3_challenger::{CanObserve, FieldChallenger};
+    use p3_field::AbstractField;
+    use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
+    use sp1_core::runtime::Program;
+    use sp1_core::stark::LocalProver;
+    use sp1_core::{
+        air::MachineAir,
+        stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
+        utils::BabyBearPoseidon2,
+    };
+    use sp1_recursion_compiler::ir::Array;
+    use sp1_recursion_compiler::{
+        asm::{AsmConfig, VmBuilder},
+        ir::{Builder, Config, ExtConst, Usize},
+    };
+    use sp1_recursion_core::{
+        runtime::{Runtime, DIGEST_SIZE},
+        stark::RecursionAir,
+    };
+    use sp1_sdk::{SP1Prover, SP1Stdin};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -494,6 +499,25 @@ pub(crate) mod tests {
         let elapsed = time.elapsed();
         runtime.print_stats();
         println!("Execution took: {:?}", elapsed);
+
+        let config = BabyBearPoseidon2::new();
+        let machine = RecursionAir::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let mut challenger = machine.config().challenger();
+
+        debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
+            machine.chips(),
+            &runtime.record,
+            vec![InteractionKind::Memory],
+        );
+
+        let start = Instant::now();
+        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let duration = start.elapsed().as_secs();
+
+        let mut challenger = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        println!("proving duration = {}", duration);
     }
 
     #[test]
