@@ -42,7 +42,6 @@ impl Syscall for SyscallHintRead {
             len,
             "hint input stream read length mismatch"
         );
-        // println!("first 10 bytes: {:?}", &vec[..10]);
         // Iterate on 4 byte words
         for i in (0..len).step_by(4) {
             let b1 = vec[i as usize];

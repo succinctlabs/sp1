@@ -194,12 +194,6 @@ impl Runtime {
 
     /// Read a word from memory and create an access record.
     pub fn mr(&mut self, addr: u32, shard: u32, timestamp: u32) -> MemoryReadRecord {
-        if addr == 2330704 {
-            println!(
-                "mr: addr: {}, shard: {}, timestamp: {}, pc: {}",
-                addr, shard, timestamp, self.state.pc
-            );
-        }
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
 
@@ -237,12 +231,6 @@ impl Runtime {
 
     /// Write a word to memory and create an access record.
     pub fn mw(&mut self, addr: u32, value: u32, shard: u32, timestamp: u32) -> MemoryWriteRecord {
-        if addr == 2330704 {
-            println!(
-                "mw: addr: {}, shard: {}, timestamp: {}, pc: {}",
-                addr, shard, timestamp, self.state.pc
-            );
-        }
         // Get the memory record entry.
         let entry = self.state.memory.entry(addr);
 
@@ -877,6 +865,7 @@ impl Runtime {
             );
         }
 
+        // Create init event for register 0 because it needs to be the first row in MemoryInit.
         self.record
             .memory_initialize_events
             .push(MemoryInitializeFinalizeEvent::initialize(0, 0, true));
@@ -952,11 +941,10 @@ impl Runtime {
             program_memory_map.insert(key, (*value, true));
         }
 
-        // let memory_initialize_events = &mut self.record.memory_initialize_events;
         let memory_finalize_events = &mut self.record.memory_finalize_events;
 
-        // We handle the addr = 0 case separately, as we constraint it to be 0 in the first row
-        // of the memory initialize/finalize table so it must be first in the array of events.
+        // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
+        // of the memory finalize table so it must be first in the array of events.
         let addr_0_record = self.state.memory.get(&0u32);
 
         let addr_0_final_record = match addr_0_record {
@@ -986,14 +974,6 @@ impl Runtime {
                 continue;
             }
 
-            // If the memory addr was accessed, we only add it to "memory_initialize_events" if it was
-            // not in the program_memory_image, otherwise it'll be accounted from the
-            // program_memory_image table.
-            // if !self.program.memory_image.contains_key(addr) {
-            //     memory_initialize_events
-            //         .push(MemoryInitializeFinalizeEvent::initialize(*addr, 0, true));
-            // }
-
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
                 *addr, &record,
             ));
@@ -1009,8 +989,6 @@ impl Runtime {
         // preprocessed table, as this is part of the vkey.
         program_memory_events.sort_by_key(|event| event.addr);
 
-        // self.record.memory_initialize_events = memory_initialize_events;
-        // self.record.memory_finalize_events = memory_finalize_events;
         self.record.program_memory_events = program_memory_events;
     }
 

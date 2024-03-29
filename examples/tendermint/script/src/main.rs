@@ -35,8 +35,6 @@ async fn main() {
     let encoded_1 = serde_cbor::to_vec(&light_block_1).unwrap();
     let encoded_2 = serde_cbor::to_vec(&light_block_2).unwrap();
 
-    // stdin.write(&encoded_1);
-    // stdin.write(&encoded_2);
     stdin.write_vec(encoded_1);
     stdin.write_vec(encoded_2);
 
