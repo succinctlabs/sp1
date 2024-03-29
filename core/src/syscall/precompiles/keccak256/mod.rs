@@ -38,7 +38,6 @@ impl KeccakPermuteChip {
 #[cfg(test)]
 pub mod permute_tests {
     use crate::runtime::SyscallCode;
-    use crate::stark::tests::get_empty_pi_digest;
     use crate::utils::run_test;
     use crate::{
         runtime::{Instruction, Opcode, Program, Runtime},
@@ -83,13 +82,13 @@ pub mod permute_tests {
         utils::setup_logger();
 
         let program = keccak_permute_program();
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_keccak_permute_program_prove() {
         utils::setup_logger();
         let program = Program::from(KECCAK_PERMUTE_ELF);
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 }

@@ -4,8 +4,8 @@ use std::time::Instant;
 
 use crate::air::Word;
 use crate::runtime::{ExecutionRecord, ShardingConfig};
+use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
-use crate::stark::{MachineRecord, Val};
 use crate::utils::env::shard_batch_size;
 use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
@@ -17,7 +17,6 @@ use crate::{
 use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
 use itertools::Itertools;
-use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 
 use p3_field::PrimeField32;
@@ -36,7 +35,6 @@ pub fn get_cycles(program: Program) -> u64 {
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
-    pi_digest: [Word<BabyBear>; PI_DIGEST_WORD_SIZE],
 ) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
@@ -45,7 +43,7 @@ pub fn run_test_io(
         runtime
     });
     let stdout = SP1Stdout::from(&runtime.state.output_stream);
-    let proof = run_test_core(runtime, pi_digest)?;
+    let proof = run_test_core(runtime)?;
     Ok(SP1ProofWithIO {
         proof,
         stdin: inputs,
@@ -55,19 +53,17 @@ pub fn run_test_io(
 
 pub fn run_test(
     program: Program,
-    pi_digest: [Word<BabyBear>; PI_DIGEST_WORD_SIZE],
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
         runtime
     });
-    run_test_core(runtime, pi_digest)
+    run_test_core(runtime)
 }
 
 pub fn run_test_core(
     runtime: Runtime,
-    pi_digest: [Word<BabyBear>; PI_DIGEST_WORD_SIZE],
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
@@ -79,7 +75,12 @@ pub fn run_test_core(
 
     let start = Instant::now();
     let proof = tracing::info_span!("prove").in_scope(|| {
-        machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger, pi_digest)
+        machine.prove::<LocalProver<_, _>>(
+            &pk,
+            runtime.record,
+            &mut challenger,
+            runtime.pi_digest.unwrap().map(|x| x.into()),
+        )
     });
 
     let cycles = runtime.state.global_clk;
@@ -87,10 +88,15 @@ pub fn run_test_core(
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     #[cfg(feature = "debug")]
-    machine.debug_constraints(&pk, record_clone, &mut challenger, pi_digest);
+    machine.debug_constraints(
+        &pk,
+        record_clone,
+        &mut challenger,
+        runtime.pi_digest.unwrap().map(|x| x.into()),
+    );
 
     let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger, pi_digest)?;
+    machine.verify(&vk, &proof, &mut challenger)?;
 
     tracing::info!(
         "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
@@ -120,7 +126,6 @@ pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
     stdin: &[u8],
     config: SC,
-    pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
     SC::Challenger: Clone,
@@ -143,7 +148,7 @@ where
     if !should_batch {
         runtime.run();
         let stdout = std::mem::take(&mut runtime.state.output_stream);
-        let proof = prove_core(machine.config().clone(), runtime, pi_digest);
+        let proof = prove_core(machine.config().clone(), runtime);
         return (proof, stdout);
     }
 
@@ -151,6 +156,7 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
+    let mut pi_digest: [Word<SC::Val>; PI_DIGEST_WORD_SIZE] = Default::default();
     let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
@@ -164,6 +170,7 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
+            pi_digest = runtime.pi_digest.unwrap().map(|x| x.into());
             return std::mem::take(&mut runtime.state.output_stream);
         }
     });
@@ -230,7 +237,10 @@ where
         shard_proofs.append(&mut new_proofs);
     }
 
-    let proof = crate::stark::Proof::<SC> { shard_proofs };
+    let proof = crate::stark::Proof::<SC> {
+        shard_proofs,
+        pi_digest,
+    };
 
     // Prove the program.
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -246,11 +256,7 @@ where
     (proof, stdout)
 }
 
-pub fn prove_core<SC: StarkGenericConfig>(
-    config: SC,
-    runtime: Runtime,
-    pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
-) -> crate::stark::Proof<SC>
+pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -269,7 +275,12 @@ where
     // Prove the program.
     let cycles = runtime.state.global_clk;
     let proof = tracing::info_span!("prove").in_scope(|| {
-        machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger, pi_digest)
+        machine.prove::<LocalProver<_, _>>(
+            &pk,
+            runtime.record,
+            &mut challenger,
+            runtime.pi_digest.unwrap().map(|x| x.into()),
+        )
     });
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

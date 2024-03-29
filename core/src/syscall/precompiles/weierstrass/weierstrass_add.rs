@@ -360,7 +360,6 @@ mod tests {
 
     use crate::{
         runtime::Program,
-        stark::tests::get_empty_pi_digest,
         utils::{
             run_test, setup_logger,
             tests::{BN254_ADD_ELF, BN254_MUL_ELF, SECP256K1_ADD_ELF, SECP256K1_MUL_ELF},
@@ -371,27 +370,27 @@ mod tests {
     fn test_secp256k1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF);
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_bn254_add_simple() {
         setup_logger();
         let program = Program::from(BN254_ADD_ELF);
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_bn254_mul_simple() {
         setup_logger();
         let program = Program::from(BN254_MUL_ELF);
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_secp256k1_mul_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_MUL_ELF);
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 }

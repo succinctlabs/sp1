@@ -4,6 +4,7 @@ use std::ops::{Index, IndexMut};
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
+use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 
 use super::SP1AirBuilder;
@@ -12,7 +13,9 @@ use super::SP1AirBuilder;
 pub const WORD_SIZE: usize = 4;
 
 /// A word is a 32-bit value represented in an AIR.
-#[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(
+    AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize,
+)]
 #[repr(C)]
 pub struct Word<T>(pub [T; WORD_SIZE]);
 

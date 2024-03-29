@@ -397,7 +397,6 @@ pub mod tests {
 
     use crate::{
         runtime::Program,
-        stark::tests::get_empty_pi_digest,
         utils::{run_test, setup_logger, tests::BN254_DOUBLE_ELF, tests::SECP256K1_DOUBLE_ELF},
     };
 
@@ -405,13 +404,13 @@ pub mod tests {
     fn test_secp256k1_double_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_DOUBLE_ELF);
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 
     #[test]
     fn test_bn254_double_simple() {
         setup_logger();
         let program = Program::from(BN254_DOUBLE_ELF);
-        run_test(program, *get_empty_pi_digest()).unwrap();
+        run_test(program).unwrap();
     }
 }

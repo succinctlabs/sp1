@@ -40,7 +40,6 @@ impl Runtime {
 pub mod tests {
     use super::*;
     use crate::runtime::Program;
-    use crate::stark::tests::get_empty_pi_digest;
     use crate::utils::tests::IO_ELF;
     use crate::utils::{self, prove_core, BabyBearBlake3};
     use serde::Deserialize;
@@ -97,6 +96,6 @@ pub mod tests {
         runtime.write_stdin(&points.1);
         runtime.run();
         let config = BabyBearBlake3::new();
-        prove_core(config, runtime, *get_empty_pi_digest());
+        prove_core(config, runtime);
     }
 }

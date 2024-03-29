@@ -10,7 +10,10 @@ use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sp1_zkvm::PI_DIGEST_WORD_SIZE;
 use tracing::trace;
+
+use crate::air::Word;
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
@@ -147,4 +150,5 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 #[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
+    pub pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
 }

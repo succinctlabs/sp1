@@ -147,7 +147,10 @@ where
                 .collect::<Vec<_>>()
         });
 
-        Proof { shard_proofs }
+        Proof {
+            shard_proofs,
+            pi_digest,
+        }
     }
 }
 
