@@ -52,8 +52,8 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // where f_{i, c_k} is the value at row i for column c_k. The computed value is essentially a
     // fingerprint for the interaction.
     let chunk_rate = 1 << 8;
-    let permutation_trace_width = sends.len() + receives.len() + 1;
-    let mut permutation_trace_values:Vec<EF> = {
+    let permutation_trace_width = sends.len() + receives.len() + 3;
+    let mut permutation_trace_values: Vec<EF> = {
         // Compute the permutation trace values in parallel.
 
         let mut parallel = match preprocessed {
@@ -101,63 +101,78 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
 
     //chunk each row of permutation_trace_values into two, and do a weighted sum with their multiplicities
-//    assert_eq!(sends.len(), receives.len());
-    assert_eq!(permutation_trace_values.len() % permutation_trace_width , 0);
+    assert_eq!(permutation_trace_values.len() % permutation_trace_width, 0);
     let permutation_trace_height = permutation_trace_values.len() / permutation_trace_width;
 
-
-    for row_ind in 0..permutation_trace_height{
-	let row = &permutation_trace_values[row_ind * permutation_trace_width .. (row_ind + 1) * permutation_trace_width];
-	let main_row = main.rows().collect::<Vec<_>>()[row_ind];
-	let batched_perm_values = row.par_chunks_exact(2).enumerate().map(|(i,chunk)| {
-	    let mult0 = match sends.get(2*i){
-		Some(x) => x.multiplicity.apply::<F, F>(&[], main_row),
-		None => match receives.get(2*i){
-		    Some(y) => -y.multiplicity.apply::<F, F>(&[], main_row),
-		    None => F::zero()
-		}
-	    };
-	    let mult1 = match sends.get(2*i + 1){
-		Some(x) => x.multiplicity.apply::<F, F>(&[], main_row),
-		None => match receives.get(2*i + 1){
-		    Some(y) => -y.multiplicity.apply::<F, F>(&[], main_row),
-		    None => F::zero()
-		}
-	    };	    
-	    chunk[0]*EF::from_base(mult0) + chunk[1]*EF::from_base(mult1)
-	}).collect::<Vec<_>>();
-	    
+    let mut batched_rows = Vec::new();
+    for row_ind in 0..permutation_trace_height {
+        let row = &permutation_trace_values
+            [row_ind * permutation_trace_width..(row_ind + 1) * permutation_trace_width];
+        let main_row = main.rows().collect::<Vec<_>>()[row_ind];
+        let mut batched_perm_values = row
+            .par_chunks(2)
+            .enumerate()
+            .map(|(i, chunk)| {
+                let mult0 = match sends.get(2 * i) {
+                    Some(x) => x.multiplicity.apply::<F, F>(&[], main_row),
+                    None => match receives.get(2 * i) {
+                        Some(y) => -y.multiplicity.apply::<F, F>(&[], main_row),
+                        None => F::zero(),
+                    },
+                };
+                let mult1 = match sends.get(2 * i + 1) {
+                    Some(x) => x.multiplicity.apply::<F, F>(&[], main_row),
+                    None => match receives.get(2 * i + 1) {
+                        Some(y) => -y.multiplicity.apply::<F, F>(&[], main_row),
+                        None => F::zero(),
+                    },
+                };
+                let mut products = vec![mult0, mult1];
+                let mut sum = EF::zero();
+                for i in 0..chunk.len() {
+                    sum += EF::from_base(products[i]) * chunk[i];
+                }
+                sum
+            })
+            .collect::<Vec<_>>();
+        batched_perm_values.push(EF::zero());
+        batched_perm_values.push(EF::zero());
+        batched_perm_values.push(EF::zero());
+        batched_rows.push(batched_perm_values);
     }
-    
-    let mut permutation_trace =
-        RowMajorMatrix::new(permutation_trace_values, permutation_trace_width);
 
-
-
-    //phi[i] are the cumulative sums
-    // Weight each row of the permutation trace by the respective multiplicities.
-    let mut phi = vec![EF::zero(); permutation_trace.height()];
-    let nb_sends = sends.len();
-    for (i, (main_row, permutation_row)) in main
-        .rows()
-        .zip(permutation_trace.as_view_mut().rows_mut())
-        .enumerate()
-    {
-        if i > 0 {
-            phi[i] = phi[i - 1];
+    //for each row in batched_rows, sum up all the columns
+    let num_rlcs = sends.len() + receives.len();
+    for row in 0..batched_rows.len() {
+        let mut sum = EF::zero();
+        for col in 0..num_rlcs {
+            sum += batched_rows[row][col];
         }
-        // Add all sends
-        for (j, send) in sends.iter().enumerate() {
-            let mult = send.multiplicity.apply::<F, F>(&[], main_row);
-            phi[i] += EF::from_base(mult) * permutation_row[j];
-        }
-        // Subtract all receives
-        for (j, rec) in receives.iter().enumerate() {
-            let mult = rec.multiplicity.apply::<F, F>(&[], main_row);
-            phi[i] -= EF::from_base(mult) * permutation_row[nb_sends + j];
-        }
-        *permutation_row.last_mut().unwrap() = phi[i];
+        batched_rows[row][num_rlcs] = sum;
     }
+
+    //calculate running sum of column sums
+    batched_rows[0][num_rlcs + 1] = batched_rows[0][num_rlcs];
+
+    for i in 1..batched_rows.len() {
+        batched_rows[i][num_rlcs + 1] =
+            batched_rows[i][num_rlcs] + batched_rows[i - 1][num_rlcs + 1];
+    }
+
+    //calculate total sum of column sums and add it to the end of each row
+
+    for i in 0..batched_rows.len() {
+        batched_rows[i][num_rlcs + 2] = batched_rows[batched_rows.len() - 1][num_rlcs + 1];
+    }
+
+    let mut permutation_trace = RowMajorMatrix::new(
+        batched_rows
+            .iter()
+            .flatten()
+            .map(|x| *x)
+            .collect::<Vec<_>>(),
+        permutation_trace_width,
+    );
 
     permutation_trace
 }
