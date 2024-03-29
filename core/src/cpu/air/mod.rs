@@ -457,7 +457,7 @@ impl CpuChip {
             builder.when(local.selectors.is_ecall).assert_bool(*bit);
             bitmap_sum += (*bit).into();
         }
-        builder.when(is_commit).assert_one(bitmap_sum);
+        builder.when(is_commit.clone()).assert_one(bitmap_sum);
 
         // Verify the pi_digest_word.
         let mut pi_digest_word = Word([
@@ -472,9 +472,9 @@ impl CpuChip {
             }
         }
 
-        // builder
-        //     .when(is_commit)
-        //     .assert_word_eq(pi_digest_word, ecall_columns.digest_word);
+        builder
+            .when(is_commit)
+            .assert_word_eq(pi_digest_word, ecall_columns.digest_word);
     }
 
     /// Constraint related to the halt and unimpl instruction.

@@ -501,7 +501,59 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-        run_test(program, *get_empty_pi_digest()).unwrap();
+
+        let pi_digest = [
+            Word([
+                BabyBear::from_canonical_u8(186),
+                BabyBear::from_canonical_u8(165),
+                BabyBear::from_canonical_u8(1),
+                BabyBear::from_canonical_u8(179),
+            ]),
+            Word([
+                BabyBear::from_canonical_u8(114),
+                BabyBear::from_canonical_u8(103),
+                BabyBear::from_canonical_u8(192),
+                BabyBear::from_canonical_u8(109),
+            ]),
+            Word([
+                BabyBear::from_canonical_u8(141),
+                BabyBear::from_canonical_u8(32),
+                BabyBear::from_canonical_u8(243),
+                BabyBear::from_canonical_u8(22),
+            ]),
+            Word([
+                BabyBear::from_canonical_u8(98),
+                BabyBear::from_canonical_u8(47),
+                BabyBear::from_canonical_u8(144),
+                BabyBear::from_canonical_u8(163),
+            ]),
+            Word([
+                BabyBear::from_canonical_u8(227),
+                BabyBear::from_canonical_u8(67),
+                BabyBear::from_canonical_u8(233),
+                BabyBear::from_canonical_u8(231),
+            ]),
+            Word([
+                BabyBear::from_canonical_u8(48),
+                BabyBear::from_canonical_u8(119),
+                BabyBear::from_canonical_u8(31),
+                BabyBear::from_canonical_u8(44),
+            ]),
+            Word([
+                BabyBear::from_canonical_u8(226),
+                BabyBear::from_canonical_u8(227),
+                BabyBear::from_canonical_u8(20),
+                BabyBear::from_canonical_u8(183),
+            ]),
+            Word([
+                BabyBear::from_canonical_u8(148),
+                BabyBear::from_canonical_u8(227),
+                BabyBear::from_canonical_u8(24),
+                BabyBear::from_canonical_u8(83),
+            ]),
+        ];
+
+        run_test(program, pi_digest).unwrap();
     }
 
     #[test]
