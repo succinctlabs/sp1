@@ -86,3 +86,87 @@ fn test_compiler_nested_array_loop() {
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }
+
+#[test]
+fn test_compiler_break() {
+    type SC = BabyBearPoseidon2;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    let mut builder = VmBuilder::<F, EF>::default();
+    type C = AsmConfig<F, EF>;
+
+    let len = 100;
+    let break_len = F::from_canonical_usize(10);
+
+    let mut array: Array<C, Var<_>> = builder.array(len);
+
+    builder.range(0, array.len()).for_each(|i, builder| {
+        builder.set(&mut array, i, i);
+
+        builder
+            .if_eq(i, break_len)
+            .then(|builder| builder.break_loop());
+    });
+
+    // Test that the array is correctly initialized.
+
+    builder.range(0, array.len()).for_each(|i, builder| {
+        let value = builder.get(&array, i);
+        builder.if_eq(i, break_len + F::one()).then_or_else(
+            |builder| builder.assert_var_eq(value, i),
+            |builder| {
+                builder.assert_var_eq(value, F::zero());
+                builder.break_loop();
+            },
+        );
+    });
+
+    let is_break: Var<_> = builder.eval(F::one());
+    builder.range(0, array.len()).for_each(|i, builder| {
+        let exp_value: Var<_> = builder.eval(i * is_break);
+        let value = builder.get(&array, i);
+        builder.assert_var_eq(value, exp_value);
+        builder
+            .if_eq(i, break_len)
+            .then(|builder| builder.assign(is_break, F::zero()));
+    });
+
+    // Test the break instructions in a nested loop.
+
+    let mut array: Array<C, Var<_>> = builder.array(len);
+    builder.range(0, array.len()).for_each(|i, builder| {
+        let counter: Var<_> = builder.eval(F::zero());
+
+        builder.range(0, i).for_each(|_, builder| {
+            builder.assign(counter, counter + F::one());
+            builder
+                .if_eq(counter, break_len)
+                .then(|builder| builder.break_loop());
+        });
+
+        builder.set(&mut array, i, counter);
+    });
+
+    // Test that the array is correctly initialized.
+
+    let is_break: Var<_> = builder.eval(F::one());
+    builder.range(0, array.len()).for_each(|i, builder| {
+        let exp_value: Var<_> =
+            builder.eval(i * is_break + (SymbolicVar::<F>::one() - is_break) * break_len);
+        let value = builder.get(&array, i);
+        builder.assert_var_eq(value, exp_value);
+        builder
+            .if_eq(i, break_len)
+            .then(|builder| builder.assign(is_break, F::zero()));
+    });
+
+    let code = builder.compile_to_asm();
+
+    println!("{}", code);
+
+    let program = code.machine_code();
+
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+    runtime.run();
+}

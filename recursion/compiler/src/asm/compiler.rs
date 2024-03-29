@@ -1,4 +1,5 @@
 use core::marker::PhantomData;
+use std::collections::BTreeSet;
 
 use super::{AssemblyCode, BasicBlock};
 use alloc::collections::BTreeMap;
@@ -36,6 +37,10 @@ pub struct AsmCompiler<F, EF> {
     break_label: Option<F>,
 
     break_label_map: BTreeMap<F, F>,
+
+    break_counter: usize,
+
+    contains_break: BTreeSet<F>,
 
     function_labels: BTreeMap<String, F>,
 }
@@ -116,12 +121,15 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
             basic_blocks: vec![BasicBlock::new()],
             break_label: None,
             break_label_map: BTreeMap::new(),
+            contains_break: BTreeSet::new(),
             function_labels: BTreeMap::new(),
+            break_counter: 0,
         }
     }
 
     pub fn new_break_label(&mut self) -> F {
-        let label = self.break_label_map.len();
+        let label = self.break_counter;
+        self.break_counter += 1;
         let label = F::from_canonical_usize(label);
         self.break_label = Some(label);
         label
@@ -366,7 +374,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 }
                 DslIR::Break => {
                     let label = self.break_label.expect("No break label set");
-                    self.push(AsmInstruction::j(label));
+                    let current_block = self.block_label();
+                    self.contains_break.insert(current_block);
+                    self.push(AsmInstruction::Break(label));
                 }
                 DslIR::For(start, end, loop_var, block) => {
                     let for_compiler = ForCompiler {
@@ -691,6 +701,10 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
         // Save the label of the for loop call
         let loop_call_label = self.compiler.block_label();
 
+        // Initialize a break label for this loop.
+        let break_label = self.compiler.new_break_label();
+        self.compiler.break_label = Some(break_label);
+
         // A basic block for the loop body
         self.compiler.basic_block();
         // Save the loop body label for the loop condition.
@@ -712,6 +726,25 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
         let label = self.compiler.block_label();
         let instr = AsmInstruction::j(label);
         self.compiler.push_to_block(loop_call_label, instr);
+
+        // Initialize the after loop block.
+        self.compiler.basic_block();
+        // resolve the break label
+        let label = self.compiler.block_label();
+        self.compiler.break_label_map.insert(break_label, label);
+        // Replace the break instruction with a jump to the after loop block.
+        for block in self.compiler.contains_break.iter() {
+            for instruction in self.compiler.basic_blocks[block.as_canonical_u32() as usize]
+                .0
+                .iter_mut()
+            {
+                if let AsmInstruction::Break(l) = instruction {
+                    assert_eq!(*l, break_label);
+                    *instruction = AsmInstruction::j(label);
+                }
+            }
+        }
+        self.compiler.contains_break.clear();
     }
 
     fn set_loop_var(&mut self) {

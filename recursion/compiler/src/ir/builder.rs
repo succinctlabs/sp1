@@ -185,6 +185,10 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    pub fn break_loop(&mut self) {
+        self.operations.push(DslIR::Break);
+    }
+
     pub fn print_v(&mut self, dst: Var<C::N>) {
         self.operations.push(DslIR::PrintV(dst));
     }

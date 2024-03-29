@@ -129,6 +129,8 @@ pub enum AsmInstruction<F, EF> {
     EBEQI(F, i32, EF),
     /// Trap
     TRAP,
+    /// Break(label)
+    Break(F),
 
     // HintBits(dst, src) Decompose the field element `src` into bits and write them to the array
     // starting at the address stored at `dst`.
@@ -161,6 +163,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
         let f_u32 = |x: F| [x, F::zero(), F::zero(), F::zero()];
         let zero = [F::zero(), F::zero(), F::zero(), F::zero()];
         match self {
+            AsmInstruction::Break(_) => panic!("Unresolved break instruction"),
             AsmInstruction::LW(dst, src, index, offset, size) => Instruction::new(
                 Opcode::LW,
                 i32_f(dst),
@@ -843,6 +846,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
 
     pub fn fmt(&self, labels: &BTreeMap<F, String>, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
+            AsmInstruction::Break(_) => panic!("Unresolved break instruction"),
             AsmInstruction::LW(dst, src, index, offset, size) => {
                 write!(
                     f,
