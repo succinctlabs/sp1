@@ -741,12 +741,13 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
                 .iter_mut()
             {
                 if let AsmInstruction::Break(l) = instruction {
-                    assert_eq!(*l, break_label);
-                    *instruction = AsmInstruction::j(label);
+                    if *l == break_label {
+                        *instruction = AsmInstruction::j(label);
+                    }
                 }
             }
         }
-        self.compiler.contains_break.clear();
+        // self.compiler.contains_break.clear();
     }
 
     fn set_loop_var(&mut self) {

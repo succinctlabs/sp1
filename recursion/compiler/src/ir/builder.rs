@@ -9,7 +9,7 @@ use super::{SymbolicVar, Variable};
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-use sp1_recursion_core::runtime::{DIGEST_SIZE, NUM_BITS, PERMUTATION_WIDTH};
+use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, NUM_BITS, PERMUTATION_WIDTH};
 
 #[derive(Debug, Clone)]
 pub struct Builder<C: Config> {
@@ -363,34 +363,27 @@ impl<C: Config> Builder<C> {
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
     pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
-        let eight_ctr: Var<_> = self.eval(C::N::from_canonical_usize(0));
-        let target = array.len().materialize(self);
 
-        // TODO: use break, should be target / 8
-        self.range(0, target).for_each(|i, builder| {
-            let element = builder.get(array, i);
-            builder.set(&mut state, eight_ctr, element);
-
-            builder
-                .if_eq(eight_ctr, C::N::from_canonical_usize(7))
-                .then_or_else(
-                    |builder| {
-                        builder.poseidon2_permute_mut(&state);
-                    },
-                    |builder| {
-                        builder.if_eq(i, target - C::N::one()).then(|builder| {
-                            builder.poseidon2_permute_mut(&state);
-                        });
-                    },
-                );
-
-            builder.assign(eight_ctr, eight_ctr + C::N::from_canonical_usize(1));
-            builder
-                .if_eq(eight_ctr, C::N::from_canonical_usize(8))
-                .then(|builder| {
-                    builder.assign(eight_ctr, C::N::from_canonical_usize(0));
+        let break_flag: Var<_> = self.eval(C::N::zero());
+        let last_index: Usize<_> = self.eval(array.len() - 1);
+        self.range(0, array.len())
+            .step_by(HASH_RATE)
+            .for_each(|i, builder| {
+                builder.if_eq(break_flag, C::N::one()).then(|builder| {
+                    builder.break_loop();
                 });
-        });
+                // Insert elements of the chunk.
+                builder.range(0, HASH_RATE).for_each(|j, builder| {
+                    let index: Var<_> = builder.eval(i + j);
+                    let element = builder.get(array, index);
+                    builder.set(&mut state, j, element);
+                    builder.if_eq(index, last_index).then(|builder| {
+                        builder.assign(break_flag, C::N::one());
+                        builder.break_loop();
+                    });
+                });
+                builder.poseidon2_permute_mut(&state);
+            });
 
         let mut result = self.dyn_array(DIGEST_SIZE);
         for i in 0..DIGEST_SIZE {
@@ -802,14 +795,6 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
         let step_size = C::N::from_canonical_usize(self.step_size);
-        if let (Usize::Const(start), Usize::Const(end)) = (self.start, self.end) {
-            let loop_var: Var<_> = self.builder.eval(C::N::from_canonical_usize(start));
-            for _ in start..end {
-                f(loop_var, self.builder);
-                self.builder.assign(loop_var, loop_var + step_size);
-            }
-            return;
-        }
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,
