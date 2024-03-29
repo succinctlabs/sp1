@@ -1,8 +1,15 @@
 package babybear
 
+/*
+#cgo LDFLAGS: ./lib/libbabybear.a -ldl
+#include "../lib/babybear.h"
+*/
+import "C"
+
 import (
 	"math/big"
 
+	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
 )
@@ -16,6 +23,10 @@ func (fp Params) BitsPerLimb() uint        { return 32 }
 func (fp Params) IsPrime() bool            { return true }
 func (fp Params) Modulus() *big.Int        { return MODULUS }
 func (fp Params) NumElmsPerBN254Elm() uint { return 8 }
+
+func init() {
+	solver.RegisterHint(InvEHint)
+}
 
 type Variable struct {
 	Value *emulated.Element[Params]
@@ -90,6 +101,13 @@ func (c *Chip) AssertIsEqualV(a, b *Variable) {
 	c.field.AssertIsEqual(a.Value, b.Value)
 }
 
+func (c *Chip) AssertIsEqualE(a, b *ExtensionVariable) {
+	c.field.AssertIsEqual(a.value[0].Value, b.value[0].Value)
+	c.field.AssertIsEqual(a.value[1].Value, b.value[1].Value)
+	c.field.AssertIsEqual(a.value[2].Value, b.value[2].Value)
+	c.field.AssertIsEqual(a.value[3].Value, b.value[3].Value)
+}
+
 func (c *Chip) AssertNe(a, b *Variable) {
 	diff := c.field.Sub(a.Value, b.Value)
 	isZero := c.field.IsZero(diff)
@@ -161,23 +179,6 @@ func (c *Chip) NegE(a *ExtensionVariable) *ExtensionVariable {
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *Chip) InvE(a *ExtensionVariable) *ExtensionVariable {
-	v := [4]*Variable{
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
-	}
-	return &ExtensionVariable{value: v}
-}
-
-func (c *Chip) AssertIsEqualE(a, b *ExtensionVariable) {
-	c.AssertIsEqualV(a.value[0], b.value[0])
-	c.AssertIsEqualV(a.value[1], b.value[1])
-	c.AssertIsEqualV(a.value[2], b.value[2])
-	c.AssertIsEqualV(a.value[3], b.value[3])
-}
-
 func (c *Chip) AssertNeExtension(a, b *ExtensionVariable) {
 	v1 := c.field.Sub(a.value[0].Value, b.value[0].Value)
 	v2 := c.field.Sub(a.value[1].Value, b.value[1].Value)
@@ -237,4 +238,47 @@ func (c *Chip) PrintE(in *ExtensionVariable) {
 	c.PrintF(in.value[1])
 	c.PrintF(in.value[2])
 	c.PrintF(in.value[3])
+}
+
+func (c *Chip) InvE(in *ExtensionVariable) *ExtensionVariable {
+	x := c.field.Reduce(in.value[0].Value)
+	y := c.field.Reduce(in.value[1].Value)
+	z := c.field.Reduce(in.value[2].Value)
+	l := c.field.Reduce(in.value[3].Value)
+
+	result, err := c.api.Compiler().NewHint(InvEHint, 4, x.Limbs[0], y.Limbs[0], z.Limbs[0], l.Limbs[0])
+	if err != nil {
+		panic(err)
+	}
+
+	xinv := Variable{Value: c.field.NewElement(result[0])}
+	yinv := Variable{Value: c.field.NewElement(result[1])}
+	zinv := Variable{Value: c.field.NewElement(result[2])}
+	linv := Variable{Value: c.field.NewElement(result[3])}
+	out := ExtensionVariable{value: [4]*Variable{&xinv, &yinv, &zinv, &linv}}
+
+	product := c.MulE(in, &out)
+	c.AssertIsEqualE(product, NewE([]string{"1", "0", "0", "0"}))
+
+	return &out
+}
+
+func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	a := C.uint(inputs[0].Uint64())
+	b := C.uint(inputs[1].Uint64())
+	c := C.uint(inputs[2].Uint64())
+	d := C.uint(inputs[3].Uint64())
+	ainv := C.babybearextinv(a, b, c, d, 0)
+	binv := C.babybearextinv(a, b, c, d, 1)
+	cinv := C.babybearextinv(a, b, c, d, 2)
+	dinv := C.babybearextinv(a, b, c, d, 3)
+	results[0].SetUint64(uint64(ainv))
+	results[1].SetUint64(uint64(binv))
+	results[2].SetUint64(uint64(cinv))
+	results[3].SetUint64(uint64(dinv))
+	return nil
+}
+
+func (c *Chip) Ext2Felt(in *ExtensionVariable) [4]*Variable {
+	return in.value
 }

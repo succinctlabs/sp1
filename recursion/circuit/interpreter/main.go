@@ -27,10 +27,6 @@ type Constraint struct {
 	Args   [][]string `json:"args"`
 }
 
-func (c Constraint) Dst() string {
-	return c.Args[0][0]
-}
-
 func (circuit *Circuit) Define(api frontend.API) error {
 	// Get the file name from an environment variable.
 	fileName := os.Getenv("CONSTRAINT_JSON")
@@ -86,8 +82,12 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			felts[cs.Args[0][0]] = fieldAPI.MulF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "MulE":
 			exts[cs.Args[0][0]] = fieldAPI.MulE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "DivE":
+			exts[cs.Args[0][0]] = fieldAPI.DivE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
 		case "NegE":
 			exts[cs.Args[0][0]] = fieldAPI.NegE(exts[cs.Args[1][0]])
+		case "InvE":
+			exts[cs.Args[0][0]] = fieldAPI.InvE(exts[cs.Args[1][0]])
 		case "Num2BitsV":
 			numBits, err := strconv.Atoi(cs.Args[2][0])
 			if err != nil {
@@ -112,6 +112,11 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			vars[cs.Args[0][0]] = api.Select(vars[cs.Args[1][0]], vars[cs.Args[2][0]], vars[cs.Args[3][0]])
 		case "SelectF":
 			felts[cs.Args[0][0]] = fieldAPI.SelectF(vars[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]])
+		case "Ext2Felt":
+			out := fieldAPI.Ext2Felt(exts[cs.Args[4][0]])
+			for i := 0; i < 4; i++ {
+				felts[cs.Args[i][0]] = out[i]
+			}
 		case "AssertEqV":
 			api.AssertIsEqual(vars[cs.Args[0][0]], vars[cs.Args[1][0]])
 		case "AssertEqF":
@@ -133,6 +138,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 }
 
 func main() {
-	res := C.babybearextinv(1, 2, 3, 4)
+	res := C.babybearextinv(1, 2, 3, 4, 0)
 	fmt.Println(res)
 }

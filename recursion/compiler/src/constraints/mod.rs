@@ -39,11 +39,12 @@ pub enum ConstraintOpcode {
     Permute,
     Num2BitsV,
     Num2BitsF,
+    SelectV,
+    SelectF,
+    Ext2Felt,
     PrintV,
     PrintF,
     PrintE,
-    SelectV,
-    SelectF,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -247,6 +248,18 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SelectF,
                         args: vec![vec![out.id()], vec![cond.id()], vec![a.id()], vec![b.id()]],
+                    });
+                }
+                DslIR::CircuitExt2Felt(a, b) => {
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::Ext2Felt,
+                        args: vec![
+                            vec![a[0].id()],
+                            vec![a[1].id()],
+                            vec![a[2].id()],
+                            vec![a[3].id()],
+                            vec![b.id()],
+                        ],
                     });
                 }
                 DslIR::AssertEqV(a, b) => constraints.push(Constraint {

@@ -20,5 +20,5 @@ pub use var::*;
 pub trait Config: Clone {
     type N: PrimeField;
     type F: PrimeField + TwoAdicField;
-    type EF: ExtensionField<Self::F>;
+    type EF: ExtensionField<Self::F> + TwoAdicField;
 }
