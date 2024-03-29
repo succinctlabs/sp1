@@ -83,7 +83,7 @@ impl SyscallCode {
     /// Create a syscall from a u32.
     pub fn from_u32(value: u32) -> Self {
         match value {
-            0x01_00_00_00 => SyscallCode::HALT,
+            0x00_00_00_00 => SyscallCode::HALT,
             0x00_00_00_01 => SyscallCode::LWA,
             0x00_00_00_02 => SyscallCode::WRITE,
             0x00_00_00_03 => SyscallCode::ENTER_UNCONSTRAINED,

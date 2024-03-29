@@ -27,7 +27,7 @@ pub use unconstrained::*;
 /// that checks that the enum is consistent with the syscalls.
 
 /// Halts the program.
-pub const HALT: u32 = 0x01_00_00_00;
+pub const HALT: u32 = 0x00_00_00_00;
 
 /// Loads a word supplied from the prover.
 pub const LWA: u32 = 0x00_00_00_01;
