@@ -1056,7 +1056,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                     builder.push(DslIR::ImmExt(*self, negated));
                 }
                 SymbolicExt::Val(operand) => {
-                    builder.push(DslIR::SubEFIN(*self, C::F::zero(), *operand));
+                    builder.push(DslIR::NegE(*self, *operand));
                 }
                 operand => {
                     let operand_value = Self::uninit(builder);
@@ -1067,7 +1067,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                         base_cache,
                     );
                     ext_cache.insert(operand.clone(), operand_value);
-                    builder.push(DslIR::SubEFIN(*self, C::F::zero(), operand_value));
+                    builder.push(DslIR::NegE(*self, operand_value));
                 }
             },
         }

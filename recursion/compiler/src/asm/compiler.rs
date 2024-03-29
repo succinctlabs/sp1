@@ -9,6 +9,7 @@ use alloc::vec::Vec;
 use p3_field::ExtensionField;
 use p3_field::PrimeField;
 use p3_field::PrimeField32;
+use p3_field::TwoAdicField;
 use sp1_recursion_core::runtime::Program;
 use sp1_recursion_core::runtime::STACK_SIZE;
 
@@ -40,13 +41,15 @@ pub struct AsmCompiler<F, EF> {
 #[derive(Debug, Clone)]
 pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
 
-impl<F: PrimeField, EF: ExtensionField<F>> Config for AsmConfig<F, EF> {
+impl<F: PrimeField + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> Config
+    for AsmConfig<F, EF>
+{
     type N = F;
     type F = F;
     type EF = EF;
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> VmBuilder<F, EF> {
+impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> VmBuilder<F, EF> {
     pub fn compile_to_asm(self) -> AssemblyCode<F, EF> {
         let mut compiler = AsmCompiler::new();
         compiler.build(self.operations);
@@ -84,7 +87,7 @@ impl<F, EF> Ext<F, EF> {
     }
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
+impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCompiler<F, EF> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
@@ -209,13 +212,13 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::InvE(dst, src) => {
                     self.push(AsmInstruction::EDIVIN(dst.fp(), EF::one(), src.fp()));
                 }
-                DslIR::SubEFIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ESUBIN(
-                        dst.fp(),
-                        EF::from_base(lhs),
-                        rhs.fp(),
-                    ));
-                }
+                // DslIR::SubEFIN(dst, lhs, rhs) => {
+                //     self.push(AsmInstruction::ESUBIN(
+                //         dst.fp(),
+                //         EF::from_base(lhs),
+                //         rhs.fp(),
+                //     ));
+                // }
                 DslIR::SubEF(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ESUBF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
@@ -514,7 +517,9 @@ pub struct IfCompiler<'a, F, EF> {
     is_eq: bool,
 }
 
-impl<'a, F: PrimeField32, EF: ExtensionField<F>> IfCompiler<'a, F, EF> {
+impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
+    IfCompiler<'a, F, EF>
+{
     pub fn then<Func>(self, f: Func)
     where
         Func: FnOnce(&mut AsmCompiler<F, EF>),
@@ -597,7 +602,9 @@ pub struct ForCompiler<'a, F, EF> {
     loop_var: Var<F>,
 }
 
-impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
+impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
+    ForCompiler<'a, F, EF>
+{
     pub(super) fn for_each(mut self, f: impl FnOnce(Var<F>, &mut AsmCompiler<F, EF>)) {
         // The function block structure:
         // - Setting the loop range

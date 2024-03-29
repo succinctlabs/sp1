@@ -198,7 +198,7 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn ext_from_base_slice(&mut self, arr: &[Felt<C::F>]) -> Ext<C::F, C::EF> {
-        assert_eq!(arr.len(), <C::EF as AbstractExtensionField::<C::F>>::D);
+        assert!(arr.len() <= <C::EF as AbstractExtensionField::<C::F>>::D);
         let mut res = SymbolicExt::Const(C::EF::zero());
         for i in 0..arr.len() {
             res += arr[i] * SymbolicExt::Const(C::EF::monomial(i));
@@ -210,6 +210,16 @@ impl<C: Config> Builder<C> {
         let result = self.dyn_array(4);
         self.operations.push(DslIR::Ext2Felt(result.clone(), value));
         result
+    }
+
+    pub fn ext2felt_circuit(&mut self, value: Ext<C::F, C::EF>) -> [Felt<C::F>; 4] {
+        let a = self.uninit();
+        let b = self.uninit();
+        let c = self.uninit();
+        let d = self.uninit();
+        self.operations
+            .push(DslIR::CircuitExt2Felt([a, b, c, d], value));
+        [a, b, c, d]
     }
 
     /// Throws an error.
@@ -448,6 +458,24 @@ impl<C: Config> Builder<C> {
     ///
     /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
     /// behavior.
+    pub fn reverse_bits_len_circuit(
+        &mut self,
+        index_bits: Vec<Var<C::N>>,
+        bit_len: usize,
+    ) -> Vec<Var<C::N>> {
+        let mut result_bits = Vec::new();
+        for i in 0..bit_len {
+            let idx = bit_len - i - 1;
+            result_bits.push(index_bits[idx]);
+        }
+        result_bits
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
+    #[allow(unused_variables)]
+    ///
+    /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
+    /// behavior.
     pub fn reverse_bits_len(
         &mut self,
         index: Var<C::N>,
@@ -483,6 +511,38 @@ impl<C: Config> Builder<C> {
                 .then(|builder| builder.assign(result, result * power_f));
             builder.assign(power_f, power_f * power_f);
         });
+        result
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
+    #[allow(unused_variables)]
+    pub fn exp_usize_f_bits(&mut self, x: Felt<C::F>, power_bits: Vec<Var<C::N>>) -> Felt<C::F> {
+        let mut result = self.eval(C::F::one());
+        let mut power_f: Felt<_> = self.eval(x);
+        for i in 0..power_bits.len() {
+            let bit = power_bits[i];
+            let tmp = self.eval(result * power_f);
+            result = self.select_f(bit, tmp, result);
+            power_f = self.eval(power_f * power_f);
+        }
+        result
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
+    #[allow(unused_variables)]
+    pub fn exp_usize_ef_bits(
+        &mut self,
+        x: Ext<C::F, C::EF>,
+        power_bits: Vec<Var<C::N>>,
+    ) -> Ext<C::F, C::EF> {
+        let mut result = self.eval(SymbolicExt::Const(C::EF::one()));
+        let mut power_f: Ext<_, _> = self.eval(x);
+        for i in 0..power_bits.len() {
+            let bit = power_bits[i];
+            let tmp = self.eval(result * power_f);
+            result = self.select_ef(bit, tmp, result);
+            power_f = self.eval(power_f * power_f);
+        }
         result
     }
 

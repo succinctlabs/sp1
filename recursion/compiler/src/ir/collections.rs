@@ -1,7 +1,7 @@
 use itertools::Itertools;
 use p3_field::AbstractField;
 
-use super::{Builder, Config, FromConstant, MemVariable, Ptr, Usize, Var, Variable};
+use super::{Builder, Config, Ext, FromConstant, MemVariable, Ptr, Usize, Var, Variable};
 use super::{DslIR, Felt};
 
 /// An array that is either of static or dynamic size.
@@ -95,6 +95,17 @@ impl<C: Config> Builder<C> {
     pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
         let c = self.uninit();
         self.operations.push(DslIR::CircuitSelectF(cond, a, b, c));
+        c
+    }
+
+    pub fn select_ef(
+        &mut self,
+        cond: Var<C::N>,
+        a: Ext<C::F, C::EF>,
+        b: Ext<C::F, C::EF>,
+    ) -> Ext<C::F, C::EF> {
+        let c = self.uninit();
+        self.operations.push(DslIR::CircuitSelectE(cond, a, b, c));
         c
     }
 

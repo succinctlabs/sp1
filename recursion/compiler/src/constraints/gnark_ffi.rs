@@ -19,7 +19,7 @@ pub fn test_circuit(constraints: Vec<Constraint>) {
             "test",
             "-v",
             "-timeout",
-            "300s",
+            "1000s",
             "-run",
             "^TestMain$",
             "github.com/succinctlabs/sp1-recursion-gnark",

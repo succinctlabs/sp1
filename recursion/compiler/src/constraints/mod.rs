@@ -39,11 +39,13 @@ pub enum ConstraintOpcode {
     Permute,
     Num2BitsV,
     Num2BitsF,
+    SelectV,
+    SelectF,
+    SelectE,
+    Ext2Felt,
     PrintV,
     PrintF,
     PrintE,
-    SelectV,
-    SelectF,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -171,6 +173,18 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                         args: vec![vec![a.id()], vec![tmp], vec![b.id()]],
                     });
                 }
+                DslIR::SubV(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::SubV,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
+                DslIR::SubF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::SubF,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
+                DslIR::SubE(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::SubE,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
                 DslIR::MulV(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::MulV,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -201,17 +215,13 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     opcode: ConstraintOpcode::MulEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
-                DslIR::SubV(a, b, c) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::SubV,
+                DslIR::DivE(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::DivE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
-                DslIR::SubF(a, b, c) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::SubF,
-                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
-                }),
-                DslIR::SubE(a, b, c) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::SubE,
-                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                DslIR::NegE(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::NegE,
+                    args: vec![vec![a.id()], vec![b.id()]],
                 }),
                 DslIR::CircuitNum2BitsV(value, bits, output) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::Num2BitsV,
@@ -239,6 +249,24 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::SelectF,
                         args: vec![vec![out.id()], vec![cond.id()], vec![a.id()], vec![b.id()]],
+                    });
+                }
+                DslIR::CircuitSelectE(cond, a, b, out) => {
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SelectE,
+                        args: vec![vec![out.id()], vec![cond.id()], vec![a.id()], vec![b.id()]],
+                    });
+                }
+                DslIR::CircuitExt2Felt(a, b) => {
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::Ext2Felt,
+                        args: vec![
+                            vec![a[0].id()],
+                            vec![a[1].id()],
+                            vec![a[2].id()],
+                            vec![a[3].id()],
+                            vec![b.id()],
+                        ],
                     });
                 }
                 DslIR::AssertEqV(a, b) => constraints.push(Constraint {

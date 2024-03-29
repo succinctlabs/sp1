@@ -36,7 +36,7 @@ pub enum DslIR<C: Config> {
     SubEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
     SubEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
     SubEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
-    SubEFIN(Ext<C::F, C::EF>, C::F, Ext<C::F, C::EF>),
+    // SubEFIN(Ext<C::F, C::EF>, C::F, Ext<C::F, C::EF>),
     SubEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
     DivF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
     DivFI(Felt<C::F>, Felt<C::F>, C::F),
@@ -111,4 +111,11 @@ pub enum DslIR<C: Config> {
     CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    CircuitSelectE(
+        Var<C::N>,
+        Ext<C::F, C::EF>,
+        Ext<C::F, C::EF>,
+        Ext<C::F, C::EF>,
+    ),
+    CircuitExt2Felt([Felt<C::F>; 4], Ext<C::F, C::EF>),
 }
