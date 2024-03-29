@@ -139,7 +139,7 @@ impl SP1Prover {
             }
         } else {
             let program = Program::from(elf);
-            let (proof, stdout_vec) = run_and_prove(program, &stdin.buffer.data, config);
+            let (proof, stdout_vec) = run_and_prove(program, stdin.clone(), config);
             let stdout = SP1Stdout::from(&stdout_vec);
             Ok(SP1ProofWithIO {
                 proof,
