@@ -170,3 +170,30 @@ fn test_compiler_break() {
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }
+
+#[test]
+fn test_compiler_step_by() {
+    type SC = BabyBearPoseidon2;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    let mut builder = VmBuilder::<F, EF>::default();
+
+    let n_val = BabyBear::from_canonical_u32(20);
+
+    let zero: Var<_> = builder.eval(F::zero());
+    let n: Var<_> = builder.eval(n_val);
+
+    let i_counter: Var<_> = builder.eval(F::zero());
+    builder.range(zero, n).step_by(2).for_each(|_, builder| {
+        builder.assign(i_counter, i_counter + F::one());
+    });
+    // Assert that the outer loop ran n times, in two different ways.
+    let n_exp = n_val / F::two();
+    builder.assert_var_eq(i_counter, n_exp);
+
+    let program = builder.compile();
+
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+    runtime.run();
+}

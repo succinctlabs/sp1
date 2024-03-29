@@ -378,11 +378,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     self.contains_break.insert(current_block);
                     self.push(AsmInstruction::Break(label));
                 }
-                DslIR::For(start, end, loop_var, block) => {
+                DslIR::For(start, end, step_size, loop_var, block) => {
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,
                         end,
+                        step_size,
                         loop_var,
                     };
                     for_compiler.for_each(move |_, builder| builder.build(block));
@@ -687,6 +688,7 @@ pub struct ForCompiler<'a, F, EF> {
     compiler: &'a mut AsmCompiler<F, EF>,
     start: Usize<F>,
     end: Usize<F>,
+    step_size: F,
     loop_var: Var<F>,
 }
 
@@ -715,7 +717,7 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
         self.compiler.push(AsmInstruction::ADDI(
             self.loop_var.fp(),
             self.loop_var.fp(),
-            F::one(),
+            self.step_size,
         ));
 
         // Add a basic block for the loop condition.

@@ -55,7 +55,7 @@ pub enum DslIR<C: Config> {
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
     // Control flow instructions.
-    For(Usize<C::N>, Usize<C::N>, Var<C::N>, Vec<DslIR<C>>),
+    For(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, Vec<DslIR<C>>),
     IfEq(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfNe(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfEqI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),

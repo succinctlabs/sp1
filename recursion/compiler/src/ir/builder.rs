@@ -182,6 +182,7 @@ impl<C: Config> Builder<C> {
             start: start.into(),
             end: end.into(),
             builder: self,
+            step_size: 1,
         }
     }
 
@@ -789,16 +790,23 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 pub struct RangeBuilder<'a, C: Config> {
     start: Usize<C::N>,
     end: Usize<C::N>,
+    step_size: usize,
     builder: &'a mut Builder<C>,
 }
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
+    pub fn step_by(mut self, step_size: usize) -> Self {
+        self.step_size = step_size;
+        self
+    }
+
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
+        let step_size = C::N::from_canonical_usize(self.step_size);
         if let (Usize::Const(start), Usize::Const(end)) = (self.start, self.end) {
             let loop_var: Var<_> = self.builder.eval(C::N::from_canonical_usize(start));
             for _ in start..end {
                 f(loop_var, self.builder);
-                self.builder.assign(loop_var, loop_var + C::N::one());
+                self.builder.assign(loop_var, loop_var + step_size);
             }
             return;
         }
@@ -813,7 +821,13 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
         let loop_instructions = loop_body_builder.operations;
 
-        let op = DslIR::For(self.start, self.end, loop_variable, loop_instructions);
+        let op = DslIR::For(
+            self.start,
+            self.end,
+            step_size,
+            loop_variable,
+            loop_instructions,
+        );
         self.builder.operations.push(op);
     }
 }
