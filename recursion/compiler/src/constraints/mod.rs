@@ -171,6 +171,18 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                         args: vec![vec![a.id()], vec![tmp], vec![b.id()]],
                     });
                 }
+                DslIR::SubV(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::SubV,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
+                DslIR::SubF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::SubF,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
+                DslIR::SubE(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::SubE,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
                 DslIR::MulV(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::MulV,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -201,17 +213,13 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     opcode: ConstraintOpcode::MulEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
-                DslIR::SubV(a, b, c) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::SubV,
+                DslIR::DivE(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::DivE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
-                DslIR::SubF(a, b, c) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::SubF,
-                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
-                }),
-                DslIR::SubE(a, b, c) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::SubE,
-                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                DslIR::NegE(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::NegE,
+                    args: vec![vec![a.id()], vec![b.id()]],
                 }),
                 DslIR::CircuitNum2BitsV(value, bits, output) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::Num2BitsV,

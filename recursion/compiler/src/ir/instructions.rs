@@ -36,7 +36,7 @@ pub enum DslIR<C: Config> {
     SubEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
     SubEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
     SubEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
-    SubEFIN(Ext<C::F, C::EF>, C::F, Ext<C::F, C::EF>),
+    // SubEFIN(Ext<C::F, C::EF>, C::F, Ext<C::F, C::EF>),
     SubEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
     DivF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
     DivFI(Felt<C::F>, Felt<C::F>, C::F),

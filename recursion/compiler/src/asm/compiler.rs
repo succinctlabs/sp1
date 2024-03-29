@@ -210,13 +210,13 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                 DslIR::InvE(dst, src) => {
                     self.push(AsmInstruction::EDIVIN(dst.fp(), EF::one(), src.fp()));
                 }
-                DslIR::SubEFIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ESUBIN(
-                        dst.fp(),
-                        EF::from_base(lhs),
-                        rhs.fp(),
-                    ));
-                }
+                // DslIR::SubEFIN(dst, lhs, rhs) => {
+                //     self.push(AsmInstruction::ESUBIN(
+                //         dst.fp(),
+                //         EF::from_base(lhs),
+                //         rhs.fp(),
+                //     ));
+                // }
                 DslIR::SubEF(dst, lhs, rhs) => {
                     self.push(AsmInstruction::ESUBF(dst.fp(), lhs.fp(), rhs.fp()));
                 }

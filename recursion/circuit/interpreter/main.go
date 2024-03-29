@@ -1,5 +1,11 @@
 package main
 
+/*
+#cgo LDFLAGS: ./lib/libbabybear.a -ldl
+#include "./lib/babybear.h"
+*/
+import "C"
+
 import (
 	"encoding/json"
 	"fmt"
@@ -80,6 +86,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			felts[cs.Args[0][0]] = fieldAPI.MulF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "MulE":
 			exts[cs.Args[0][0]] = fieldAPI.MulE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "NegE":
+			exts[cs.Args[0][0]] = fieldAPI.NegE(exts[cs.Args[1][0]])
 		case "Num2BitsV":
 			numBits, err := strconv.Atoi(cs.Args[2][0])
 			if err != nil {
@@ -122,4 +130,9 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	}
 
 	return nil
+}
+
+func main() {
+	res := C.babybearextinv(1, 2, 3, 4)
+	fmt.Println(res)
 }

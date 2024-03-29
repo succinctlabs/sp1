@@ -1,6 +1,7 @@
 use itertools::{izip, Itertools};
 use p3_commit::{PolynomialSpace, TwoAdicMultiplicativeCoset};
 use p3_field::AbstractField;
+use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
 use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
@@ -89,8 +90,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     let log_global_max_height =
         proof.fri_proof.commit_phase_commits.vec().len() + config.log_blowup;
 
-    let reduced_openings = proof
-        .query_openings
+    let reduced_openings = proof.query_openings[0..1]
         .iter()
         .zip(&fri_challenges.query_indices)
         .map(|(query_opening, &index)| {
@@ -126,6 +126,35 @@ pub fn verify_two_adic_pcs<C: Config>(
                     batch_opening.opened_values.clone(),
                     batch_opening.opening_proof.clone(),
                 );
+                for (mat_opening, mat) in izip!(&batch_opening.opened_values, mats) {
+                    let mat_domain = mat.domain;
+                    let mat_points = &mat.points;
+                    let mat_values = &mat.values;
+                    let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
+
+                    let bits_reduced = log_global_max_height - log_height;
+                    let rev_reduced_index = builder
+                        .reverse_bits_len_circuit(index_bits[bits_reduced..].to_vec(), log_height);
+
+                    let g = builder.generator();
+                    let two_adic_generator: Felt<_> =
+                        builder.eval(C::F::two_adic_generator(log_height));
+                    let two_adic_generator_exp =
+                        builder.exp_usize_f_bits(two_adic_generator, rev_reduced_index);
+                    let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+
+                    for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        for (&p_at_x, &p_at_z) in izip!(mat_opening, ps_at_z) {
+                            let quotient: SymbolicExt<C::F, C::EF> = (-p_at_z + p_at_x) / (-*z + x);
+                            ro[log_height] =
+                                builder.eval(ro[log_height] + alpha_pow[log_height] * quotient);
+                            alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
+                        }
+                    }
+                }
+            }
+            for i in 0..32 {
+                builder.print_e(ro[i]);
             }
         })
         .collect::<Vec<_>>();

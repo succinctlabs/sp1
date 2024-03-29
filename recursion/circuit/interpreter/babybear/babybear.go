@@ -148,7 +148,12 @@ func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
 	return &ExtensionVariable{value: v}
 }
 
-func (c *Chip) NegExtension(a *ExtensionVariable) *ExtensionVariable {
+func (c *Chip) DivE(a, b *ExtensionVariable) *ExtensionVariable {
+	bInv := c.InvE(b)
+	return c.MulE(a, bInv)
+}
+
+func (c *Chip) NegE(a *ExtensionVariable) *ExtensionVariable {
 	v1 := c.Neg(a.value[0])
 	v2 := c.Neg(a.value[1])
 	v3 := c.Neg(a.value[2])
@@ -156,7 +161,7 @@ func (c *Chip) NegExtension(a *ExtensionVariable) *ExtensionVariable {
 	return &ExtensionVariable{value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-func (c *Chip) InvExtension(a *ExtensionVariable) *ExtensionVariable {
+func (c *Chip) InvE(a *ExtensionVariable) *ExtensionVariable {
 	v := [4]*Variable{
 		NewF("0"),
 		NewF("0"),
