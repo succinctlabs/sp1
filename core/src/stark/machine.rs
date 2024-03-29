@@ -23,7 +23,7 @@ use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
-use sp1_zkvm::PI_DIGEST_WORD_SIZE;
+use sp1_zkvm::{PiDigest, PI_DIGEST_NUM_WORDS};
 
 use super::Chip;
 use super::Proof;
@@ -140,7 +140,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>, PI_DIGEST_NUM_WORDS>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -217,7 +217,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         _pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: [Word<Val<SC>>; PI_DIGEST_WORD_SIZE],
+        pi_digest: PiDigest<Word<Val<SC>>, PI_DIGEST_NUM_WORDS>,
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,

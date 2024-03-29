@@ -32,7 +32,41 @@ macro_rules! entrypoint {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
-pub const PI_DIGEST_WORD_SIZE: usize = 8;
+pub const PI_DIGEST_NUM_WORDS: usize = 8;
+
+pub struct PiDigest<T, const S: usize> {
+    pub words: [T; S],
+}
+
+impl<T: From<u32>, const S: usize> From<PiDigest<u32, S>> for PiDigest<T, S> {
+    fn from(other: PiDigest<u32, S>) -> Self {
+        Self {
+            words: other.words.map(|x| x.into()),
+        }
+    }
+}
+
+impl<const S: usize> PiDigest<u32, S> {
+    pub fn from_bytes(bytes: &[u8]) -> Self {
+        const WORD_SIZE: usize = 4;
+
+        assert!(bytes.len() == S * WORD_SIZE);
+
+        let mut words = [0u32; S];
+        for i in 0..S {
+            words[i] = u32::from_le_bytes(
+                bytes[i * WORD_SIZE..(i + 1) * WORD_SIZE]
+                    .try_into()
+                    .unwrap(),
+            );
+        }
+        Self { words }
+    }
+
+    pub fn empty() -> Self {
+        Self { words: [0; S] }
+    }
+}
 
 #[cfg(target_os = "zkvm")]
 mod zkvm {
@@ -41,7 +75,6 @@ mod zkvm {
     use sha2::{Digest, Sha256};
 
     pub static mut PI_HASHER: Option<Sha256> = None;
-    use crate::PI_DIGEST_WORD_SIZE;
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
@@ -56,15 +89,10 @@ mod zkvm {
         }
 
         let pi_hasher = core::mem::take(&mut PI_HASHER);
-        let pi_digest = pi_hasher.unwrap().finalize();
+        let pi_digest_bytes = pi_hasher.unwrap().finalize();
 
-        let mut pi_digest_words = [0u32; PI_DIGEST_WORD_SIZE];
-        for i in 0..PI_DIGEST_WORD_SIZE {
-            pi_digest_words[i] =
-                u32::from_le_bytes(pi_digest.as_slice()[i * 4..(i + 1) * 4].try_into().unwrap());
-        }
-
-        syscall_halt(0, &pi_digest_words);
+        let pi_digest = PiDigest::from(pi_digest);
+        syscall_halt(0, &pi_digest);
     }
 
     static STACK_TOP: u32 = 0x0020_0400;

@@ -79,7 +79,7 @@ pub fn run_test_core(
             &pk,
             runtime.record,
             &mut challenger,
-            runtime.pi_digest.unwrap().map(|x| x.into()),
+            runtime.pi_digest.unwrap().into(),
         )
     });
 
