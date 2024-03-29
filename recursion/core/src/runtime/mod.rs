@@ -184,6 +184,10 @@ where
         };
     }
 
+    fn get_memory_entry(&self, addr: F) -> &MemoryEntry<F> {
+        &self.memory[addr.as_canonical_u32() as usize]
+    }
+
     fn timestamp(&self, position: &MemoryAccessPosition) -> F {
         self.clk + F::from_canonical_u32(*position as u32)
     }
@@ -257,7 +261,8 @@ where
             // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
-            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0] + index * size + offset
+            // Load without touching access. This assumes that the caller will call mw on a_ptr.
+            self.get_memory_entry(self.fp + instruction.op_a).value[0] + index * size + offset
         };
 
         let b = if instruction.imm_b_base() {
@@ -284,6 +289,7 @@ where
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
+
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
@@ -368,7 +374,7 @@ where
                 Opcode::LW => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let prev_a = self.get_memory_entry(a_ptr).value;
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
@@ -383,7 +389,7 @@ where
                 Opcode::SW => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let prev_a = self.get_memory_entry(a_ptr).value;
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
