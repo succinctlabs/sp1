@@ -11,8 +11,8 @@ pub struct EcallCols<T> {
     /// Whether the current ecall is ENTER_UNCONSTRAINED.
     pub is_enter_unconstrained: IsZeroOperation<T>,
 
-    /// Whether the current ecall is LWA.
-    pub is_lwa: IsZeroOperation<T>,
+    /// Whether the current ecall is HINT_LEN.
+    pub is_hint_len: IsZeroOperation<T>,
 
     /// Whether the current ecall is HALT.
     pub is_halt: IsZeroOperation<T>,

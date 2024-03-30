@@ -6,8 +6,7 @@ extern "C" {
 }
 
 pub fn main() {
-    let mut compressed_key: [u8; 33] = [0; 33];
-    sp1_zkvm::io::read_slice(&mut compressed_key);
+    let compressed_key: [u8; 33] = sp1_zkvm::io::read_vec().try_into().unwrap();
 
     let mut decompressed_key: [u8; 64] = [0; 64];
     decompressed_key[..32].copy_from_slice(&compressed_key[1..]);

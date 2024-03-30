@@ -28,9 +28,9 @@ pub struct ExecutionState {
     pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 
     /// A stream of input values (global to the entire program).
-    pub input_stream: Vec<u8>,
+    pub input_stream: Vec<Vec<u8>>,
 
-    /// A ptr to the current position in the input stream incremented by LWA opcode.
+    /// A ptr to the current position in the input stream incremented by HINT_READ opcode.
     pub input_stream_ptr: usize,
 
     /// A stream of output values from the program (global to entire program).

@@ -16,7 +16,7 @@ use crate::{
         CreateProofRequest, GetProofStatusRequest, GetProofStatusResponse, ProofStatus,
         Sp1ProverServiceClient, SubmitProofRequest,
     },
-    SP1ProofWithIO,
+    SP1ProofWithIO, SP1Stdin,
 };
 
 pub struct SP1ProverServiceClient {
@@ -65,11 +65,11 @@ impl SP1ProverServiceClient {
         Ok(())
     }
 
-    pub async fn create_proof(&self, elf: &[u8], stdin: &[u8]) -> Result<String> {
+    pub async fn create_proof(&self, elf: &[u8], stdin: SP1Stdin) -> Result<String> {
         let res = self.rpc.create_proof(CreateProofRequest {}).await?;
 
         let program_bytes = bincode::serialize(elf)?;
-        let stdin_bytes = bincode::serialize(stdin)?;
+        let stdin_bytes = bincode::serialize(&stdin)?;
         let program_promise = self.upload_file(&res.program_put_url, program_bytes);
         let stdin_promise = self.upload_file(&res.stdin_put_url, stdin_bytes);
         let v = vec![program_promise, stdin_promise];
