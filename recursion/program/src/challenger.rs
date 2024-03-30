@@ -136,14 +136,9 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/grinding_challenger.rs#L16
-    pub fn check_witness(
-        &mut self,
-        builder: &mut Builder<C>,
-        nb_bits: Var<C::N>,
-        witness: Felt<C::F>,
-    ) {
+    pub fn check_witness(&mut self, builder: &mut Builder<C>, nb_bits: usize, witness: Felt<C::F>) {
         self.observe(builder, witness);
-        let element_bits = self.sample_bits(builder, Usize::Var(nb_bits));
+        let element_bits = self.sample_bits(builder, Usize::Const(nb_bits));
         builder.range(0, nb_bits).for_each(|i, builder| {
             let element = builder.get(&element_bits, i);
             builder.assert_var_eq(element, C::N::zero());

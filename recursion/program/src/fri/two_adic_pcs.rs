@@ -9,7 +9,7 @@ use crate::types::{Commitment, Dimensions, FriConfigVariable, FriProofVariable};
 use crate::commit::PcsVariable;
 
 use super::{
-    new_coset, verify_batch, verify_challenges, verify_shape_and_sample_challenges,
+    verify_batch, verify_challenges, verify_shape_and_sample_challenges,
     TwoAdicMultiplicativeCosetVariable,
 };
 
@@ -138,7 +138,8 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let index_bits_shifted = index_bits.shift(builder, bits_reduced);
 
                         let g = builder.generator();
-                        let two_adic_generator = builder.two_adic_generator(Usize::Var(log_height));
+                        let two_adic_generator =
+                            config.get_two_adic_generator(builder, Usize::Var(log_height));
                         let two_adic_generator_exp = builder.exp_reverse_bits_len(
                             two_adic_generator,
                             &index_bits_shifted,
@@ -263,7 +264,7 @@ where
         builder: &mut Builder<C>,
         log_degree: Usize<C::N>,
     ) -> Self::Domain {
-        new_coset(builder, log_degree)
+        self.config.get_subgroup(builder, log_degree)
     }
 
     // Todo: change TwoAdicPcsRoundVariable to RoundVariable
@@ -306,6 +307,7 @@ pub(crate) mod tests {
     use p3_field::AbstractField;
     use p3_field::Field;
     use p3_field::PrimeField32;
+    use p3_field::TwoAdicField;
     use p3_fri::FriConfig;
     use p3_fri::FriProof;
     use p3_fri::TwoAdicFriPcs;
@@ -354,10 +356,27 @@ pub(crate) mod tests {
         builder: &mut RecursionBuilder,
         config: FriConfig<ChallengeMmcs>,
     ) -> FriConfigVariable<RecursionConfig> {
+        let two_addicity = Val::TWO_ADICITY;
+        let mut generators = builder.dyn_array(two_addicity);
+        let mut subgroups = builder.dyn_array(two_addicity);
+        for i in 0..two_addicity {
+            let constant_generator = Val::two_adic_generator(i);
+            builder.set(&mut generators, i, constant_generator);
+
+            let constant_domain = TwoAdicMultiplicativeCoset {
+                log_n: i,
+                shift: Val::one(),
+            };
+            let domain_value: TwoAdicMultiplicativeCosetVariable<_> =
+                builder.eval_const(constant_domain);
+            builder.set(&mut subgroups, i, domain_value);
+        }
         FriConfigVariable {
-            log_blowup: builder.eval(Val::from_canonical_usize(config.log_blowup)),
-            num_queries: builder.eval(Val::from_canonical_usize(config.num_queries)),
-            proof_of_work_bits: builder.eval(Val::from_canonical_usize(config.proof_of_work_bits)),
+            log_blowup: Val::from_canonical_usize(config.log_blowup),
+            num_queries: config.num_queries,
+            proof_of_work_bits: config.proof_of_work_bits,
+            subgroups,
+            generators,
         }
     }
 

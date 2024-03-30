@@ -103,7 +103,8 @@ where
 
             let log_quotient_size: Usize<_> =
                 builder.eval(opening.log_degree + log_quotient_degree);
-            let quotient_domain = domain.create_disjoint_domain(builder, log_quotient_size);
+            let quotient_domain =
+                domain.create_disjoint_domain(builder, log_quotient_size, &pcs.config);
             builder.set(&mut quotient_domains, i, quotient_domain.clone());
 
             // let trace_opening_points

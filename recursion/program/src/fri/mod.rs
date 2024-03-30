@@ -55,7 +55,10 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 
     let num_query_proofs = proof.query_proofs.len().materialize(builder);
     builder
-        .if_ne(num_query_proofs, config.num_queries)
+        .if_ne(
+            num_query_proofs,
+            C::N::from_canonical_usize(config.num_queries),
+        )
         .then(|builder| {
             builder.error();
         });
@@ -137,7 +140,7 @@ where
     C::EF: TwoAdicField,
 {
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
-    let two_adic_generator_f = builder.two_adic_generator(log_max_height);
+    let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
     let two_adic_generator_ef: Ext<_, _> = builder.eval(SymbolicExt::Base(
         SymbolicFelt::Val(two_adic_generator_f).into(),
     ));
@@ -189,7 +192,7 @@ where
             );
 
             let mut xs: Array<C, Ext<C::F, C::EF>> = builder.array(2);
-            let two_adic_generator_one = builder.two_adic_generator(Usize::Const(1));
+            let two_adic_generator_one = config.get_two_adic_generator(builder, Usize::Const(1));
             builder.set(&mut xs, 0, x);
             builder.set(&mut xs, 1, x);
             builder.set(&mut xs, index_sibling_mod_2, x * two_adic_generator_one);
