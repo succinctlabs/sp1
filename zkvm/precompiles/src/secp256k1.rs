@@ -206,11 +206,9 @@ pub fn unconstrained_ecrecover(sig: &[u8; 65], msg_hash: &[u8; 32]) -> ([u8; 33]
         io::hint_slice(&s_inverse.to_bytes());
     }
 
-    let mut recovered_bytes = [0_u8; 33];
-    io::read_slice(&mut recovered_bytes);
+    let recovered_bytes: [u8; 33] = io::read_vec().try_into().unwrap();
 
-    let mut s_inv_bytes = [0_u8; 32];
-    io::read_slice(&mut s_inv_bytes);
+    let s_inv_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
     let s_inverse = Scalar::from_repr(bits2field::<Secp256k1>(&s_inv_bytes).unwrap()).unwrap();
 
     (recovered_bytes, s_inverse)

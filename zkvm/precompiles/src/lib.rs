@@ -21,5 +21,7 @@ extern "C" {
     pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();
+    pub fn syscall_hint_len() -> usize;
+    pub fn syscall_hint_read(ptr: *mut u8, len: usize);
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
 }
