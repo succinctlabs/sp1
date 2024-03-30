@@ -9,7 +9,7 @@ use super::Constraint;
 pub fn test_circuit(constraints: Vec<Constraint>) {
     let serialized = serde_json::to_string(&constraints).unwrap();
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
-    let dir = format!("{}/../circuit/interpreter", manifest_dir);
+    let dir = format!("{}/../groth16", manifest_dir);
     let path = format!("{}/constraints.json", dir);
     let mut file = File::create(path).unwrap();
     file.write_all(serialized.as_bytes()).unwrap();
@@ -22,7 +22,7 @@ pub fn test_circuit(constraints: Vec<Constraint>) {
             "1000s",
             "-run",
             "^TestMain$",
-            "github.com/succinctlabs/sp1-recursion-gnark",
+            "github.com/succinctlabs/sp1-recursion-groth16",
         ])
         .current_dir(dir)
         .stderr(Stdio::inherit())

@@ -546,7 +546,7 @@ mod tests {
     #[serial]
     fn test_verify_two_adic_pcs() {
         let mut rng = &mut OsRng;
-        let log_degrees = &[16, 9, 7, 4, 2];
+        let log_degrees = &[19, 19];
         let perm = outer_perm();
         let fri_config = outer_fri_config();
         let hash = OuterHash::new(perm.clone()).unwrap();
@@ -569,7 +569,7 @@ mod tests {
                         &pcs,
                         1 << d,
                     ),
-                    RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 10),
+                    RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 100),
                 )
             })
             .collect::<Vec<_>>();
