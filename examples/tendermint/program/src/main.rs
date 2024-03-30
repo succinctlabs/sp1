@@ -59,10 +59,6 @@ fn main() {
     );
     println!("cycle-tracker-end: verify");
 
-    println!("cycle-tracker-start: write verdict");
-    sp1_zkvm::io::write(&verdict);
-    println!("cycle-tracker-end: write verdict");
-
     println!("cycle-tracker-start: public inputs verdict");
     let verdict_encoded = serde_cbor::to_vec(&verdict).unwrap();
     sp1_zkvm::io::public_input(verdict_encoded.as_slice());

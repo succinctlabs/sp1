@@ -323,7 +323,6 @@ pub enum ProgramVerificationError {
 pub mod tests {
 
     use crate::runtime::tests::ecall_lwa_program;
-    use crate::runtime::tests::fibonacci_pi_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
@@ -477,13 +476,6 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
-        run_test(program).unwrap();
-    }
-
-    #[test]
-    fn test_fibonacci_pi_prove() {
-        setup_logger();
-        let program = fibonacci_pi_program();
         run_test(program).unwrap();
     }
 

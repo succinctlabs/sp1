@@ -14,10 +14,6 @@ pub mod tests {
     pub const FIBONACCI_IO_ELF: &[u8] =
         include_bytes!("../../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
 
-    pub const FIBONACCI_PI_ELF: &[u8] = include_bytes!(
-        "../../../examples/fibonacci-public-inputs/program/elf/riscv32im-succinct-zkvm-elf"
-    );
-
     pub const IO_ELF: &[u8] =
         include_bytes!("../../../examples/io/program/elf/riscv32im-succinct-zkvm-elf");
 

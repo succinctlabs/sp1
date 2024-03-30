@@ -1011,7 +1011,7 @@ pub mod tests {
 
     use crate::{
         runtime::Register,
-        utils::tests::{FIBONACCI_ELF, FIBONACCI_PI_ELF, SSZ_WITHDRAWALS_ELF},
+        utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
     use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
@@ -1027,10 +1027,6 @@ pub mod tests {
 
     pub fn fibonacci_program() -> Program {
         Program::from(FIBONACCI_ELF)
-    }
-
-    pub fn fibonacci_pi_program() -> Program {
-        Program::from(FIBONACCI_PI_ELF)
     }
 
     pub fn ssz_withdrawals_program() -> Program {

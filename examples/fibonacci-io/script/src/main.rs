@@ -1,3 +1,4 @@
+use sha2::{Digest, Sha256};
 use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 /// The ELF we want to execute inside the zkVM.
@@ -8,20 +9,38 @@ fn main() {
     utils::setup_tracer();
 
     // Create an input stream and write '5000' to it.
+    let n = 5000u32;
+
+    // The expected result of the fibonacci calculation
+    let expected_a = 3867074829u32;
+    let expected_b: u32 = 2448710421u32;
+
     let mut stdin = SP1Stdin::new();
-    stdin.write(&5000u32);
+    stdin.write(&n);
 
     // Generate the proof for the given program and input.
     let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
-    // Read the output.
+    // Read and verify the output.
     let a = proof.stdout.read::<u32>();
     let b = proof.stdout.read::<u32>();
+    assert_eq!(a, expected_a);
+    assert_eq!(b, expected_b);
+
     println!("a: {}", a);
     println!("b: {}", b);
 
-    // Verify proof.
+    // Verify proof and public inputs
     SP1Verifier::verify(ELF, &proof).expect("verification failed");
+
+    let mut pi_hasher = Sha256::new();
+    pi_hasher.update(n.to_le_bytes());
+    pi_hasher.update(expected_a.to_le_bytes());
+    pi_hasher.update(expected_b.to_le_bytes());
+    let expected_pi_digest: &[u8] = &pi_hasher.finalize();
+
+    let proof_pi_bytes: Vec<u8> = proof.proof.pi_digest.into();
+    assert_eq!(proof_pi_bytes.as_slice(), expected_pi_digest);
 
     // Save the proof.
     proof
