@@ -80,7 +80,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
     {
         let mut result = Self::Expr::zero();
 
-        for (value, i) in array.iter().zip(index_bitmap) {
+        for (value, i) in array.iter().zip_eq(index_bitmap) {
             result += value.clone().into() * i.clone().into();
         }
 
