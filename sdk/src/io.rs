@@ -1,12 +1,12 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+
+use sp1_core::stark::{Proof, StarkGenericConfig};
 use sp1_core::utils::Buffer;
 
 /// Standard input for the prover.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Serialize, Deserialize)]
 pub struct SP1Stdin {
-    pub buffer: Vec<Vec<u8>>,
-    #[serde(skip)]
-    pub ptr: usize,
+    pub buffer: Buffer,
 }
 
 /// Standard output for the prover.
@@ -25,47 +25,35 @@ impl SP1Stdin {
     /// Create a new `SP1Stdin`.
     pub fn new() -> Self {
         Self {
-            buffer: Vec::new(),
-            ptr: 0,
+            buffer: Buffer::new(),
         }
     }
 
     /// Create a `SP1Stdin` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
         Self {
-            buffer: vec![data.to_vec()],
-            ptr: 0,
+            buffer: Buffer::from(data),
         }
     }
 
     /// Read a value from the buffer.
     pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
-        let result: T =
-            bincode::deserialize(&self.buffer[self.ptr]).expect("failed to deserialize");
-        self.ptr += 1;
-        result
+        self.buffer.read()
     }
 
     /// Read a slice of bytes from the buffer.
     pub fn read_slice(&mut self, slice: &mut [u8]) {
-        slice.copy_from_slice(&self.buffer[self.ptr]);
-        self.ptr += 1;
+        self.buffer.read_slice(slice);
     }
 
     /// Write a value to the buffer.
     pub fn write<T: Serialize>(&mut self, data: &T) {
-        let mut tmp = Vec::new();
-        bincode::serialize_into(&mut tmp, data).expect("serialization failed");
-        self.buffer.push(tmp);
+        self.buffer.write(data);
     }
 
     /// Write a slice of bytes to the buffer.
     pub fn write_slice(&mut self, slice: &[u8]) {
-        self.buffer.push(slice.to_vec());
-    }
-
-    pub fn write_vec(&mut self, vec: Vec<u8>) {
-        self.buffer.push(vec);
+        self.buffer.write_slice(slice);
     }
 }
 
@@ -112,18 +100,20 @@ impl SP1PublicValues {
 }
 
 pub mod proof_serde {
-    use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
-    use sp1_core::stark::{Proof, StarkGenericConfig};
+    use super::*;
+    use rmp_serde::{decode as rmp_decode, encode as rmp_encode};
+    use serde::{Deserializer, Serializer};
 
     pub fn serialize<S, SC: StarkGenericConfig + Serialize>(
         proof: &Proof<SC>,
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         if serializer.is_human_readable() {
-            let bytes = bincode::serialize(proof).unwrap();
+            let mut bytes = Vec::new();
+            rmp_encode::write_named(&mut bytes, proof).unwrap();
             let hex_bytes = hex::encode(bytes);
             serializer.serialize_str(&hex_bytes)
         } else {
@@ -140,8 +130,8 @@ pub mod proof_serde {
         if deserializer.is_human_readable() {
             let hex_bytes = String::deserialize(deserializer).unwrap();
             let bytes = hex::decode(hex_bytes).unwrap();
-            let proof = bincode::deserialize(&bytes).map_err(serde::de::Error::custom)?;
-            Ok(proof)
+            let mut de = rmp_decode::Deserializer::new(&bytes[..]);
+            Proof::<SC>::deserialize(&mut de).map_err(serde::de::Error::custom)
         } else {
             Proof::<SC>::deserialize(deserializer)
         }
@@ -149,36 +139,32 @@ pub mod proof_serde {
 
     #[cfg(test)]
     mod tests {
-
-        use crate::{
-            utils::{setup_logger, BabyBearPoseidon2},
-            SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier,
-        };
+        use crate::{SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier};
 
         pub const FIBONACCI_IO_ELF: &[u8] =
             include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
 
-        /// Tests serialization with a human-readable encoding
+        /// Tests serialization with a human-readable encoding (JSON)
         #[test]
         fn test_json_roundtrip() {
             let mut stdin = SP1Stdin::new();
             stdin.write(&3u32);
             let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
             let json = serde_json::to_string(&proof).unwrap();
-            let output = serde_json::from_str::<SP1ProofWithIO<BabyBearPoseidon2>>(&json).unwrap();
+            let output = serde_json::from_str::<SP1ProofWithIO<_>>(&json).unwrap();
             SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
 
-        /// Tests serialization with a binary encoding
+        /// Tests serialization with MsgPack encoding
         #[test]
-        fn test_bincode_roundtrip() {
-            setup_logger();
+        fn test_msgpack_roundtrip() {
             let mut stdin = SP1Stdin::new();
             stdin.write(&3u32);
             let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
-            let serialized = bincode::serialize(&proof).unwrap();
-            let output =
-                bincode::deserialize::<SP1ProofWithIO<BabyBearPoseidon2>>(&serialized).unwrap();
+            let serialized = rmp_serde::to_vec(&proof).expect("Failed to serialize with MsgPack");
+            let output: SP1ProofWithIO<_> =
+                rmp_serde::from_slice(&serialized).expect("Failed to deserialize with MsgPack");
+
             SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
     }

@@ -3,7 +3,7 @@
 pub mod proto {
     #[rustfmt::skip]
     #[allow(clippy::all)]
-    pub mod prover;
+    pub mod network;
 }
 pub mod client;
 mod io;
@@ -14,11 +14,11 @@ pub mod utils {
     };
 }
 pub use crate::io::*;
-use proto::prover::ProofStatus;
+use proto::network::{ProofStatus, TransactionStatus};
 use utils::*;
 
-use crate::client::SP1ProverServiceClient;
-use anyhow::{Ok, Result};
+use crate::client::{NetworkClient, SP1_VERIFIER_ADDRESS};
+use anyhow::{Context, Ok, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::runtime::{Program, Runtime};
@@ -27,7 +27,9 @@ use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
 use sp1_core::utils::run_and_prove;
+use std::env;
 use std::fs;
+use std::str::FromStr;
 use std::time::Duration;
 use tokio::time::sleep;
 use util::StageProgressBar;
@@ -52,7 +54,7 @@ impl SP1Prover {
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
-        runtime.write_vecs(&stdin.buffer);
+        runtime.write_stdin_slice(&stdin.buffer.data);
         runtime.run();
         Ok(SP1PublicValues::from(&runtime.state.public_values_stream))
     }
@@ -65,7 +67,7 @@ impl SP1Prover {
     async fn prove_remote<SC: StarkGenericConfig>(
         elf: &[u8],
         stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithIO<SC>>
+    ) -> Result<(SP1ProofWithIO<SC>, Option<String>)>
     where
         SC: StarkGenericConfig,
         SC::Challenger: Clone,
@@ -76,22 +78,22 @@ impl SP1Prover {
         SC::Val: p3_field::PrimeField32,
     {
         let access_token = std::env::var("PROVER_NETWORK_ACCESS_TOKEN").unwrap();
-        let client = SP1ProverServiceClient::with_token(access_token);
-        let id = client.create_proof(elf, stdin).await?;
+        let client = NetworkClient::with_token(access_token);
+        let id = client.create_proof(elf, &stdin.buffer.data).await?;
 
         let mut pb = StageProgressBar::new();
         loop {
             let status = client.get_proof_status(&id).await;
             match status {
                 std::result::Result::Ok(status) => {
-                    if status.0.status() == ProofStatus::Failed {
+                    if status.0.status() == ProofStatus::ProofFailed {
                         pb.finish();
                         return Err(anyhow::anyhow!("Proof failed"));
                     }
                     if let Some(result) = status.1 {
                         println!("Proof succeeded\n\n");
                         pb.finish();
-                        return Ok(result);
+                        return Ok((result, Some(id)));
                     }
                     pb.update(
                         status.0.stage,
@@ -109,6 +111,100 @@ impl SP1Prover {
         }
     }
 
+    pub async fn relay_remote(
+        access_token: String,
+        proof_id: &str,
+        chain_ids: Vec<u32>,
+        callbacks: Vec<&str>,
+        callback_datas: Vec<&str>,
+    ) -> Result<Vec<String>> {
+        let client = NetworkClient::with_token(access_token);
+        let verifier = SP1_VERIFIER_ADDRESS;
+
+        let mut tx_details = Vec::new();
+        for ((i, &callback), &callback_data) in
+            callbacks.iter().enumerate().zip(callback_datas.iter())
+        {
+            if let Some(&chain_id) = chain_ids.get(i) {
+                let tx_id = client
+                    .relay_proof(proof_id, chain_id, verifier, callback, callback_data)
+                    .await
+                    .with_context(|| format!("Failed to relay proof to chain {}", chain_id))?;
+                tx_details.push((tx_id, chain_id));
+            }
+        }
+
+        for (tx_id, chain_id) in tx_details.iter() {
+            loop {
+                let (status_res, maybe_tx_hash, maybe_simulation_url) =
+                    client.get_relay_status(tx_id).await?;
+
+                match status_res.status() {
+                    TransactionStatus::TransactionFinalized => {
+                        println!(
+                            "Relaying to chain {} succeeded with tx hash: {:?}",
+                            chain_id,
+                            maybe_tx_hash.unwrap_or("None".to_string())
+                        );
+                        break;
+                    }
+                    TransactionStatus::TransactionFailed
+                    | TransactionStatus::TransactionTimedout => {
+                        return Err(anyhow::anyhow!(
+                            "Relaying to chain {} failed with tx hash: {:?}, simulation url: {:?}",
+                            chain_id,
+                            maybe_tx_hash.unwrap_or("None".to_string()),
+                            maybe_simulation_url.unwrap_or("None".to_string())
+                        ));
+                    }
+                    _ => {
+                        std::thread::sleep(Duration::from_secs(5));
+                    }
+                }
+            }
+        }
+
+        Ok(tx_details.into_iter().map(|(tx_id, _)| tx_id).collect())
+    }
+
+    pub async fn relay_proof_if_required(proof_id: String) -> Result<()> {
+        if let std::result::Result::Ok(chains_env) = env::var("CHAINS") {
+            if !chains_env.is_empty() {
+                log::info!("CHAINS is set, relaying proofs");
+                let access_token = env::var("PROVER_NETWORK_ACCESS_TOKEN")?;
+
+                let chain_ids: Vec<u32> = Self::parse_env_var_array("CHAINS")?;
+                let callbacks: Vec<String> = Self::parse_env_var_array("CALLBACKS")?;
+                let callback_datas: Vec<String> = Self::parse_env_var_array("CALLBACK_DATAS")?;
+
+                if !(chain_ids.len() == callbacks.len() && callbacks.len() == callback_datas.len())
+                {
+                    anyhow::bail!("CHAINS, CALLBACKS, and CALLBACK_DATAS must be of the same size");
+                }
+
+                let callbacks_refs: Vec<&str> = callbacks.iter().map(AsRef::as_ref).collect();
+                let callback_datas_refs: Vec<&str> =
+                    callback_datas.iter().map(AsRef::as_ref).collect();
+
+                SP1Prover::relay_remote(
+                    access_token,
+                    &proof_id,
+                    chain_ids,
+                    callbacks_refs,
+                    callback_datas_refs,
+                )
+                .await?;
+                log::info!("Proofs relayed successfully");
+            } else {
+                log::info!("CHAINS is not set, skipping relay");
+            }
+        } else {
+            log::info!("CHAINS environment variable is not set, no action required");
+        }
+
+        Ok(())
+    }
+
     /// Generate a proof for the execution of the ELF with the given public inputs and a custom config.
     pub fn prove_with_config<SC: StarkGenericConfig>(
         elf: &[u8],
@@ -124,18 +220,28 @@ impl SP1Prover {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         SC::Val: p3_field::PrimeField32,
     {
+        // If PROVER_NETWORK_ACCESS_TOKEN is set, prove remotely
         if std::env::var("PROVER_NETWORK_ACCESS_TOKEN").is_ok() {
             log::info!("PROVER_NETWORK_ACCESS_TOKEN is set, proving remotely");
-            match tokio::runtime::Handle::try_current() {
-                std::result::Result::Ok(handle) => {
-                    tokio::task::block_in_place(|| handle.block_on(Self::prove_remote(elf, stdin)))
-                }
+            let proof_result = match tokio::runtime::Handle::try_current() {
+                std::result::Result::Ok(handle) => tokio::task::block_in_place(|| {
+                    handle.block_on(async { Self::prove_remote(elf, stdin).await })
+                }),
                 Err(_) => {
-                    // Handle case where there is no current Tokio runtime
-                    let rt = tokio::runtime::Runtime::new()
-                        .expect("Failed to create a new Tokio runtime");
-                    rt.handle().block_on(Self::prove_remote(elf, stdin))
+                    let rt = tokio::runtime::Runtime::new()?;
+                    rt.block_on(async { Self::prove_remote(elf, stdin).await })
                 }
+            };
+
+            match proof_result {
+                std::result::Result::Ok((proof_with_io, Some(proof_id))) => {
+                    let rt = tokio::runtime::Runtime::new().expect("Failed to create a Runtime");
+
+                    rt.block_on(async { Self::relay_proof_if_required(proof_id).await })?;
+
+                    Ok(proof_with_io)
+                }
+                _ => Err(anyhow::anyhow!("prove_remote failed")),
             }
         } else {
             let program = Program::from(elf);
@@ -147,6 +253,20 @@ impl SP1Prover {
                 public_values,
             })
         }
+    }
+
+    /// Return a comma separated list of values from the given environment variable.
+    fn parse_env_var_array<T: FromStr>(env_var: &str) -> Result<Vec<T>> {
+        let var_value = env::var(env_var)
+            .with_context(|| format!("{} environment variable not set", env_var))?;
+
+        var_value
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| s.parse::<T>())
+            .collect::<Result<Vec<T>, T::Err>>()
+            .map_err(|_| anyhow::anyhow!("Failed to parse one or more values in {}", env_var))
     }
 }
 
