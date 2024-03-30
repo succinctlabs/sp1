@@ -62,11 +62,11 @@ pub fn write_slice(buf: &[u8]) {
     my_writer.write_all(buf).unwrap();
 }
 
-pub fn public_input(buf: &mut [u8]) {
-    let mut my_reader = SyscallWriter {
+pub fn public_input(buf: &[u8]) {
+    let mut my_writer = SyscallWriter {
         fd: FD_PUBLIC_INPUT,
     };
-    my_reader.write_all(buf).unwrap();
+    my_writer.write_all(buf).unwrap();
 }
 
 pub fn hint<T: Serialize>(value: &T) {

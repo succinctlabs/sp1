@@ -439,9 +439,7 @@ impl MachineRecord for ExecutionRecord {
             .extend_from_slice(&self.program_memory_events);
 
         if self.pi_digest.is_some() {
-            for shard in shards.iter_mut() {
-                shard.set_pi_digest(self.pi_digest.unwrap());
-            }
+            last_shard.set_pi_digest(self.pi_digest.unwrap());
         }
 
         shards

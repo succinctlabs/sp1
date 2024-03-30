@@ -1,6 +1,9 @@
 use reqwest::Client;
 use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
+use sha2::{Digest, Sha256};
+use tendermint_light_client_verifier::Verdict;
+
 use crate::util::fetch_latest_commit;
 use crate::util::fetch_light_block;
 
@@ -43,10 +46,24 @@ async fn main() {
     // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
-    let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
+    let mut proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
 
     // Verify proof.
     SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
+
+    // Read the output.
+    let verdict = proof.stdout.read::<Verdict>();
+    let verdict_encoded = serde_cbor::to_vec(&verdict).unwrap();
+
+    // Verify the public inputs
+    let mut pi_hasher = Sha256::new();
+    pi_hasher.update(light_block_1.signed_header.header.hash());
+    pi_hasher.update(light_block_2.signed_header.header.hash());
+    pi_hasher.update(&verdict_encoded);
+    let pi_digest: &[u8] = &pi_hasher.finalize();
+
+    let proof_pi_bytes: Vec<u8> = proof.proof.pi_digest.into();
+    assert_eq!(proof_pi_bytes.as_slice(), pi_digest);
 
     // Save proof.
     proof

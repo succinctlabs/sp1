@@ -1,3 +1,5 @@
+use core::fmt::Debug;
+
 use std::{array::IntoIter, ops::Index};
 
 use p3_field::Field;
@@ -58,6 +60,24 @@ impl<T> IntoIterator for PiDigest<T> {
         self.0.into_iter()
     }
 }
+
+/// Convertion into a byte vec
+impl From<PiDigest<u32>> for Vec<u8> {
+    fn from(val: PiDigest<u32>) -> Self {
+        val.0
+            .iter()
+            .flat_map(|word| word.to_le_bytes().to_vec())
+            .collect::<Vec<u8>>()
+    }
+}
+
+/// Convertion into a field vec
+impl<T: Debug + Copy> From<PiDigest<Word<T>>> for Vec<T> {
+    fn from(val: PiDigest<Word<T>>) -> Self {
+        val.0.iter().flat_map(|word| word.0).collect::<Vec<T>>()
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
