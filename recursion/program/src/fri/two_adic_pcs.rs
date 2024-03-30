@@ -110,7 +110,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let log_batch_max_height = builder.get(&batch_heights_log2, 0);
                 let bits_reduced: Var<_> =
                     builder.eval(log_global_max_height - log_batch_max_height);
-                // let index_bits = builder.num2bits_v(index);
                 let index_bits_shifted_v1 = index_bits.shift(builder, bits_reduced);
                 verify_batch::<C, 1>(
                     builder,
@@ -138,12 +137,11 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let index_bits_shifted = index_bits.shift(builder, bits_reduced);
 
                         let g = builder.generator();
-                        let two_adic_generator =
-                            config.get_two_adic_generator(builder, Usize::Var(log_height));
+                        let two_adic_generator = config.get_two_adic_generator(builder, log_height);
                         let two_adic_generator_exp = builder.exp_reverse_bits_len(
                             two_adic_generator,
                             &index_bits_shifted,
-                            Usize::Var(log_height),
+                            log_height,
                         );
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
