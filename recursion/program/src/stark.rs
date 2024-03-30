@@ -273,6 +273,7 @@ pub(crate) mod tests {
     use p3_baby_bear::BabyBear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
+    use rand::Rng;
     use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
@@ -282,6 +283,8 @@ pub(crate) mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::ir::Array;
+    use sp1_recursion_compiler::ir::Ext;
+    use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::{
         asm::{AsmConfig, VmBuilder},
         ir::{Builder, Config, ExtConst, Usize},
@@ -290,6 +293,7 @@ pub(crate) mod tests {
         runtime::{Runtime, DIGEST_SIZE},
         stark::RecursionAir,
     };
+    use sp1_sdk::utils::setup_logger;
     use sp1_sdk::{SP1Prover, SP1Stdin};
 
     type SC = BabyBearPoseidon2;
@@ -580,5 +584,61 @@ pub(crate) mod tests {
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
 
         runtime.run();
+    }
+
+    #[test]
+    fn test_kitchen_sink() {
+        setup_logger();
+
+        let time = Instant::now();
+        let mut builder = VmBuilder::<F, EF>::default();
+
+        let a: Felt<_> = builder.eval(F::from_canonical_u32(23));
+        let b: Felt<_> = builder.eval(F::from_canonical_u32(17));
+        let a_plus_b = builder.eval(a + b);
+        let mut rng = rand::thread_rng();
+        let a_ext_val = rng.gen::<EF>();
+        let b_ext_val = rng.gen::<EF>();
+        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
+        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
+        let a_plus_b_ext = builder.eval(a_ext + b_ext);
+        builder.print_f(a_plus_b);
+        builder.print_e(a_plus_b_ext);
+
+        let program = builder.compile();
+        let elapsed = time.elapsed();
+        println!("Building took: {:?}", elapsed);
+
+        let machine = A::machine(SC::default());
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+
+        let time = Instant::now();
+        runtime.run();
+        let elapsed = time.elapsed();
+        runtime.print_stats();
+        println!("Execution took: {:?}", elapsed);
+
+        let config = BabyBearPoseidon2::new();
+        let machine = RecursionAir::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let mut challenger = machine.config().challenger();
+
+        let record_clone = runtime.record.clone();
+        machine.debug_constraints(&pk, record_clone, &mut challenger);
+
+        debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
+            machine.chips(),
+            &runtime.record,
+            vec![InteractionKind::Memory],
+        );
+
+        let start = Instant::now();
+        let mut challenger = machine.config().challenger();
+        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let duration = start.elapsed().as_secs();
+
+        let mut challenger = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        println!("proving duration = {}", duration);
     }
 }

@@ -13,6 +13,6 @@ p3-poseidon2 = { workspace = true }
 p3-symmetric = { workspace = true }
 sp1-derive = { path = "../../derive" }
 tracing = "0.1.40"
-sp1-core = { path = "../../core" }
+sp1-core = { path = "../../core", default-features = false }
 hashbrown = "0.14.3"
 itertools = "0.12.1"
