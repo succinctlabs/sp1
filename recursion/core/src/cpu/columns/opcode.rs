@@ -101,93 +101,32 @@ impl<F: Field> OpcodeSelectorCols<F> {
 }
 
 impl<V: Copy> OpcodeSelectorCols<V> {
-    fn opcode_map(&self) -> HashMap<Opcode, V> {
-        let mut map = HashMap::new();
-        map.insert(Opcode::ADD, self.is_add);
-        map.insert(Opcode::SUB, self.is_sub);
-        map.insert(Opcode::MUL, self.is_mul);
-        map.insert(Opcode::DIV, self.is_div);
-        map.insert(Opcode::EADD, self.is_eadd);
-        map.insert(Opcode::ESUB, self.is_esub);
-        map.insert(Opcode::EMUL, self.is_emul);
-        map.insert(Opcode::EDIV, self.is_ediv);
-        map.insert(Opcode::EFADD, self.is_efadd);
-        map.insert(Opcode::EFSUB, self.is_efsub);
-        map.insert(Opcode::FESUB, self.is_fesub);
-        map.insert(Opcode::EFMUL, self.is_efmul);
-        map.insert(Opcode::EFDIV, self.is_efdiv);
-        map.insert(Opcode::FEDIV, self.is_fediv);
-        map.insert(Opcode::LW, self.is_lw);
-        map.insert(Opcode::SW, self.is_sw);
-        map.insert(Opcode::LE, self.is_le);
-        map.insert(Opcode::SE, self.is_se);
-        map.insert(Opcode::BEQ, self.is_beq);
-        map.insert(Opcode::BNE, self.is_bne);
-        map.insert(Opcode::EBEQ, self.is_ebeq);
-        map.insert(Opcode::EBNE, self.is_ebne);
-        map.insert(Opcode::JAL, self.is_jal);
-        map.insert(Opcode::JALR, self.is_jalr);
-        map.insert(Opcode::TRAP, self.is_trap);
-        // map.insert(Opcode::PrintF, &self.is_noop);
-        // map.insert(Opcode::PrintE, &self.is_noop);
-        map
-    }
-
     pub fn eval<AB: SP1AirBuilder<Var = V>>(&self, builder: &mut AB, row_opcode: AB::Expr)
     where
         V: Into<AB::Expr>,
     {
-        // Ensure that the flags are all 0 or 1.
-        let map = self.opcode_map();
-        // for flag in map.values().cloned() {
-        //     builder.assert_bool(flag);
-        //     // println!("{:?}", flag);
-        // }
-        builder.assert_bool(self.is_add);
-        builder.assert_bool(self.is_sub);
-        builder.assert_bool(self.is_mul);
-        builder.assert_bool(self.is_div);
-        builder.assert_bool(self.is_eadd);
-        builder.assert_bool(self.is_esub);
-        builder.assert_bool(self.is_emul);
-        builder.assert_bool(self.is_ediv);
-        builder.assert_bool(self.is_efadd);
-        builder.assert_bool(self.is_efsub);
-        builder.assert_bool(self.is_fesub);
-        builder.assert_bool(self.is_efmul);
-        builder.assert_bool(self.is_efdiv);
-        builder.assert_bool(self.is_fediv);
-        builder.assert_bool(self.is_lw);
-        builder.assert_bool(self.is_sw);
-        builder.assert_bool(self.is_le);
-        builder.assert_bool(self.is_se);
-        builder.assert_bool(self.is_beq);
-        builder.assert_bool(self.is_bne);
-        builder.assert_bool(self.is_ebeq);
-        builder.assert_bool(self.is_ebne);
-        builder.assert_bool(self.is_jal);
-        builder.assert_bool(self.is_jalr);
-        builder.assert_bool(self.is_trap);
-        builder.assert_bool(self.is_noop);
+        let mut sum = AB::Expr::zero();
+        for flag in self {
+            // Ensure that the flags are all 0 or 1.
+            builder.assert_bool(flag);
+
+            sum = sum + flag;
+        }
 
         // Ensure that exactly one flag is set to 1.
-        // let sum = map
-        //     .values()
-        //     .fold(AB::Expr::zero(), |acc, flag| acc + **flag)
-        //     + self.is_noop;
-        // builder.assert_eq(sum, AB::F::one());
+        builder.assert_eq(sum, AB::F::one());
 
         // Ensure that if the flag is 1, then the opcode is set to the corresponding value.
-        // map.iter().for_each(|(opcode, flag)| {
-        //     builder.when(**flag).assert_eq(
-        //         row_opcode.clone(),
-        //         AB::F::from_canonical_u32(*opcode as u32),
-        //     );
-        // });
+        map.iter().for_each(|(opcode, flag)| {
+            builder.when(**flag).assert_eq(
+                row_opcode.clone(),
+                AB::F::from_canonical_u32(*opcode as u32),
+            );
+        });
     }
 }
 
-impl<T> IntoIterator for OpcodeSelectorCols<T> {
+impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
     type Item = T;
 
     type IntoIter = std::array::IntoIter<T, OPCODE_COUNT>;
