@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::air::PiDigest;
+
 pub trait MachineRecord: Default + Sized + Send + Sync {
     type Config: Default;
 
@@ -12,4 +14,8 @@ pub trait MachineRecord: Default + Sized + Send + Sync {
     fn append(&mut self, other: &mut Self);
 
     fn shard(self, config: &Self::Config) -> Vec<Self>;
+
+    fn pi_digest(&self) -> Option<PiDigest<u32>>;
+
+    fn set_pi_digest(&mut self, digest: PiDigest<u32>);
 }

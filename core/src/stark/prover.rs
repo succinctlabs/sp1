@@ -45,7 +45,6 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<u32>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -70,7 +69,6 @@ where
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<u32>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -87,6 +85,12 @@ where
                 challenger.observe(commitment);
             });
         });
+
+        let pi_digest = shards
+            .last()
+            .expect("at least one shard")
+            .pi_digest()
+            .expect("expected a public input digest");
 
         // Observe the public input digest.
         let pi_digest_field = PiDigest::<Word<Val<SC>>>::new(pi_digest);

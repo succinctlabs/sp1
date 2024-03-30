@@ -74,26 +74,15 @@ pub fn run_test_core(
     let record_clone = runtime.record.clone();
 
     let start = Instant::now();
-    let proof = tracing::info_span!("prove").in_scope(|| {
-        machine.prove::<LocalProver<_, _>>(
-            &pk,
-            runtime.record,
-            &mut challenger,
-            runtime.pi_digest.unwrap(),
-        )
-    });
+    let proof = tracing::info_span!("prove")
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
 
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     #[cfg(feature = "debug")]
-    machine.debug_constraints(
-        &pk,
-        record_clone,
-        &mut challenger,
-        PiDigest::new(runtime.pi_digest.unwrap()),
-    );
+    machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
@@ -170,7 +159,10 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            pi_digest = runtime.pi_digest.unwrap();
+            pi_digest = runtime
+                .record
+                .pi_digest()
+                .expect("Expected a public input digest");
             return std::mem::take(&mut runtime.state.output_stream);
         }
     });
@@ -203,7 +195,7 @@ where
         }
     }
 
-    let pi_digest_field = PiDigest::<Word<SC::Val>>::new(runtime.pi_digest.unwrap());
+    let pi_digest_field = PiDigest::<Word<SC::Val>>::new(pi_digest);
     challenger.observe_slice(&pi_digest_field.into_iter().flatten().collect_vec());
 
     // For each checkpoint, generate events and shard again, then prove the shards.
@@ -275,14 +267,8 @@ where
 
     // Prove the program.
     let cycles = runtime.state.global_clk;
-    let proof = tracing::info_span!("prove").in_scope(|| {
-        machine.prove::<LocalProver<_, _>>(
-            &pk,
-            runtime.record,
-            &mut challenger,
-            runtime.pi_digest.unwrap(),
-        )
-    });
+    let proof = tracing::info_span!("prove")
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 

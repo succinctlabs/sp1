@@ -137,7 +137,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<u32>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -149,7 +148,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
         tracing::debug!("generating the shard proofs");
-        P::prove_shards(self, pk, shards, challenger, pi_digest)
+        P::prove_shards(self, pk, shards, challenger)
     }
 
     pub const fn config(&self) -> &SC {
@@ -214,7 +213,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         _pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<Word<Val<SC>>>,
     ) where
         SC::Val: PrimeField32,
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
@@ -290,7 +288,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
-                        pi_digest,
+                        PiDigest::<Word<Val<SC>>>::new(shard.pi_digest().unwrap()),
                     );
                 }
             });
@@ -325,6 +323,7 @@ pub enum ProgramVerificationError {
 pub mod tests {
 
     use crate::runtime::tests::ecall_lwa_program;
+    use crate::runtime::tests::fibonacci_pi_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
@@ -478,6 +477,13 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_fibonacci_pi_prove() {
+        setup_logger();
+        let program = fibonacci_pi_program();
         run_test(program).unwrap();
     }
 

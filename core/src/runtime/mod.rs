@@ -16,12 +16,14 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
+use sha2::{Digest, Sha256};
 pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
 use crate::air::PiDigest;
 use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::stark::MachineRecord;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -87,8 +89,6 @@ pub struct Runtime {
     pub emit_events: bool,
 
     pub pi_buffer: Vec<u8>,
-
-    pub pi_digest: Option<PiDigest<u32>>,
 }
 
 impl Runtime {
@@ -138,7 +138,6 @@ impl Runtime {
             emit_events: true,
             max_syscall_cycles,
             pi_buffer: Vec::new(),
-            pi_digest: None,
         }
     }
 
@@ -992,6 +991,14 @@ impl Runtime {
         self.record.memory_initialize_events = memory_initialize_events;
         self.record.memory_finalize_events = memory_finalize_events;
         self.record.program_memory_events = program_memory_events;
+
+        // Set the public input digest.
+        let mut pi_hasher = Sha256::new();
+        pi_hasher.update(&self.pi_buffer);
+        let pi_digest_bytes: &[u8] = &pi_hasher.finalize();
+
+        let pi_digest: PiDigest<u32> = pi_digest_bytes.into();
+        self.record.set_pi_digest(pi_digest);
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
@@ -1004,7 +1011,7 @@ pub mod tests {
 
     use crate::{
         runtime::Register,
-        utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
+        utils::tests::{FIBONACCI_ELF, FIBONACCI_PI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
     use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
@@ -1020,6 +1027,10 @@ pub mod tests {
 
     pub fn fibonacci_program() -> Program {
         Program::from(FIBONACCI_ELF)
+    }
+
+    pub fn fibonacci_pi_program() -> Program {
+        Program::from(FIBONACCI_PI_ELF)
     }
 
     pub fn ssz_withdrawals_program() -> Program {

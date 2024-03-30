@@ -11,7 +11,7 @@ const PI_DIGEST_NUM_WORDS: usize = 8;
 
 /// The PiDigest struct is used to represent the public input digest.  This is the hash of all the
 /// bytes that the guest program has written to public input.
-#[derive(Serialize, Deserialize, Clone, Copy, Default)]
+#[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct PiDigest<T>(pub [T; PI_DIGEST_NUM_WORDS]);
 
 /// Convertion from a byte array into a PiDigest<u32>.

@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use super::program::Program;
 use super::Opcode;
+use crate::air::PiDigest;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
@@ -88,6 +89,9 @@ pub struct ExecutionRecord {
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
     pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    /// The public input digest.  Optional since it's only needed for the last shard.
+    pub pi_digest: Option<PiDigest<u32>>,
 }
 
 pub struct ShardingConfig {
@@ -434,15 +438,30 @@ impl MachineRecord for ExecutionRecord {
             .program_memory_events
             .extend_from_slice(&self.program_memory_events);
 
+        if self.pi_digest.is_some() {
+            for shard in shards.iter_mut() {
+                shard.set_pi_digest(self.pi_digest.unwrap());
+            }
+        }
+
         shards
+    }
+
+    fn pi_digest(&self) -> Option<PiDigest<u32>> {
+        self.pi_digest
+    }
+
+    fn set_pi_digest(&mut self, digest: PiDigest<u32>) {
+        self.pi_digest = Some(digest);
     }
 }
 
 impl ExecutionRecord {
-    pub fn new(index: u32, program: Arc<Program>) -> Self {
+    pub fn new(index: u32, program: Arc<Program>, pi_digest: Option<PiDigest<u32>>) -> Self {
         Self {
             index,
             program,
+            pi_digest,
             ..Default::default()
         }
     }
