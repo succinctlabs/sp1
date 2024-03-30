@@ -45,7 +45,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<Word<Val<SC>>>,
+        pi_digest: PiDigest<u32>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -70,7 +70,7 @@ where
         pk: &ProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<Word<Val<SC>>>,
+        pi_digest: PiDigest<u32>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -89,7 +89,8 @@ where
         });
 
         // Observe the public input digest.
-        challenger.observe_slice(&pi_digest.into_iter().flatten().collect_vec());
+        let pi_digest_field = PiDigest::<Word<Val<SC>>>::new(pi_digest);
+        challenger.observe_slice(&pi_digest_field.into_iter().flatten().collect_vec());
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -128,7 +129,7 @@ where
                                 &chips,
                                 data,
                                 &mut challenger.clone(),
-                                pi_digest,
+                                pi_digest_field,
                             );
                             finished.fetch_add(1, Ordering::Relaxed);
                             log::info!(

@@ -26,7 +26,6 @@ use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
 use nohash_hasher::BuildNoHashHasher;
-use sha2::{Digest, Sha256};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
@@ -87,7 +86,7 @@ pub struct Runtime {
 
     pub emit_events: bool,
 
-    pub pi_hasher: Option<Sha256>,
+    pub pi_buffer: Vec<u8>,
 
     pub pi_digest: Option<PiDigest<u32>>,
 }
@@ -138,7 +137,7 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
-            pi_hasher: Some(Sha256::new()),
+            pi_buffer: Vec::new(),
             pi_digest: None,
         }
     }

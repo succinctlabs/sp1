@@ -12,7 +12,7 @@ use size::Size;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
-use crate::air::{PiDigest, Word};
+use crate::air::PiDigest;
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
@@ -149,5 +149,5 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 #[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
-    pub pi_digest: PiDigest<Word<Val<SC>>>,
+    pub pi_digest: PiDigest<u32>,
 }

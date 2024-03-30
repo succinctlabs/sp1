@@ -79,7 +79,7 @@ pub fn run_test_core(
             &pk,
             runtime.record,
             &mut challenger,
-            PiDigest::new(runtime.pi_digest.unwrap()),
+            runtime.pi_digest.unwrap(),
         )
     });
 
@@ -156,7 +156,7 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut pi_digest: PiDigest<Word<SC::Val>> = Default::default();
+    let mut pi_digest: PiDigest<u32> = Default::default();
     let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
@@ -170,7 +170,7 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            pi_digest = PiDigest::<Word<SC::Val>>::new(runtime.pi_digest.unwrap());
+            pi_digest = runtime.pi_digest.unwrap();
             return std::mem::take(&mut runtime.state.output_stream);
         }
     });
@@ -203,7 +203,8 @@ where
         }
     }
 
-    challenger.observe_slice(&pi_digest.into_iter().flatten().collect_vec());
+    let pi_digest_field = PiDigest::<Word<SC::Val>>::new(runtime.pi_digest.unwrap());
+    challenger.observe_slice(&pi_digest_field.into_iter().flatten().collect_vec());
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
@@ -229,7 +230,7 @@ where
                     &chips,
                     shard_data,
                     &mut challenger.clone(),
-                    pi_digest,
+                    pi_digest_field,
                 )
             })
             .collect::<Vec<_>>();
@@ -279,7 +280,7 @@ where
             &pk,
             runtime.record,
             &mut challenger,
-            PiDigest::new(runtime.pi_digest.unwrap()),
+            runtime.pi_digest.unwrap(),
         )
     });
     let time = start.elapsed().as_millis();

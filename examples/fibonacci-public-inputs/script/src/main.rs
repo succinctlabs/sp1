@@ -21,5 +21,13 @@ fn main() {
         .save("proof-with-pis.json")
         .expect("saving proof failed");
 
+    assert_eq!(
+        proof.proof.pi_digest.0,
+        [
+            3842945927, 3634318513, 1710675328, 1629006800, 1586369949, 3548462741, 2465351761,
+            3878278921
+        ]
+    );
+
     println!("successfully generated and verified proof for the program!")
 }

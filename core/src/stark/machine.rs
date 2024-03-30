@@ -137,7 +137,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<Word<Val<SC>>>,
+        pi_digest: PiDigest<u32>,
     ) -> Proof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -176,11 +176,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         });
 
         // Observe the public input digest
-        challenger.observe_slice(&proof.pi_digest.into_iter().flatten().collect_vec());
+        let pi_digest_field = PiDigest::<Word<Val<SC>>>::new(proof.pi_digest);
+        challenger.observe_slice(&pi_digest_field.into_iter().flatten().collect_vec());
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
-        let pi_digest = proof.pi_digest;
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
@@ -191,7 +191,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     &chips,
                     &mut challenger.clone(),
                     proof,
-                    pi_digest,
+                    pi_digest_field,
                 )
                 .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
