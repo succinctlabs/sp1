@@ -139,7 +139,4 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-func main() {
-	res := C.babybearextinv(1, 2, 3, 4, 0)
-	fmt.Println(res)
-}
+func main() {}
