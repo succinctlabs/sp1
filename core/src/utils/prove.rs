@@ -16,7 +16,6 @@ use crate::{
 
 use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
 pub use baby_bear_blake3::BabyBearBlake3;
-use itertools::Itertools;
 use p3_challenger::CanObserve;
 
 use p3_field::PrimeField32;
@@ -195,8 +194,8 @@ where
         }
     }
 
-    let pi_digest_field = PiDigest::<Word<SC::Val>>::new(pi_digest);
-    challenger.observe_slice(&pi_digest_field.into_iter().flatten().collect_vec());
+    let pi_digest_field_values: Vec<SC::Val> = PiDigest::<Word<SC::Val>>::new(pi_digest).into();
+    challenger.observe_slice(&pi_digest_field_values);
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();

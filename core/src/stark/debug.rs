@@ -56,6 +56,7 @@ pub fn debug_constraints<SC, A>(
         let perm_local = perm.row_slice(i);
         let perm_next = perm.row_slice(i_next);
 
+        let public_values: Vec<Val<SC>> = pi_digest.into();
         let mut builder = DebugConstraintBuilder {
             preprocessed: TwoRowMatrixView {
                 local: preprocessed_local,
@@ -74,7 +75,7 @@ pub fn debug_constraints<SC, A>(
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
-            public_values: &pi_digest.into_iter().flatten().collect_vec(),
+            public_values: &public_values,
         };
         if i == 0 {
             builder.is_first_row = Val::<SC>::one();

@@ -93,8 +93,9 @@ where
             .expect("expected a public input digest");
 
         // Observe the public input digest.
-        let pi_digest_field = PiDigest::<Word<Val<SC>>>::new(pi_digest);
-        challenger.observe_slice(&pi_digest_field.into_iter().flatten().collect_vec());
+
+        let pi_digest_field_values: Vec<Val<SC>> = PiDigest::<Word<Val<SC>>>::new(pi_digest).into();
+        challenger.observe_slice(&pi_digest_field_values);
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
