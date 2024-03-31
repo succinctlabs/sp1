@@ -1,3 +1,4 @@
+use crate::runtime::Program;
 use crate::{cpu::InstructionCols, runtime::ExecutionRecord};
 use core::mem::size_of;
 use p3_air::{Air, BaseAir};
@@ -29,6 +30,8 @@ pub struct ProgramCols<T> {
 
 impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     type Record = ExecutionRecord<F>;
+
+    type Program = Program<F>;
 
     fn name(&self) -> String {
         "Program".to_string()

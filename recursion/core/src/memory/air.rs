@@ -12,7 +12,7 @@ use super::columns::MemoryInitCols;
 use crate::air::Block;
 use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::{ExecutionRecord, Program};
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
 
@@ -25,6 +25,7 @@ impl MemoryGlobalChip {
 
 impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     type Record = ExecutionRecord<F>;
+    type Program = Program<F>;
 
     fn name(&self) -> String {
         match self.kind {

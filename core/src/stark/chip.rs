@@ -8,7 +8,6 @@ use p3_util::log2_ceil_usize;
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder},
-    runtime::Program,
 };
 
 use super::{eval_permutation_constraints, generate_permutation_trace};
@@ -118,10 +117,12 @@ where
 {
     type Record = A::Record;
 
+    type Program = A::Program;
+
     fn name(&self) -> String {
         self.air.name()
     }
-    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+    fn generate_preprocessed_trace(&self, program: &A::Program) -> Option<RowMajorMatrix<F>> {
         <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 

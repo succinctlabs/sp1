@@ -12,7 +12,7 @@ use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
 pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
@@ -39,6 +39,8 @@ impl ProgramChip {
 
 impl<F: PrimeField> MachineAir<F> for ProgramChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "Program".to_string()

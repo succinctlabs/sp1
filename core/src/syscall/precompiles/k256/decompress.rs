@@ -11,6 +11,7 @@ use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
@@ -275,6 +276,8 @@ impl<V: Copy> K256DecompressCols<V> {
 
 impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "K256Decompress".to_string()
