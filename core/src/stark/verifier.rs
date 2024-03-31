@@ -31,7 +31,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> Result<(), VerificationError>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -169,7 +168,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
-                pi_digest,
+                proof.pi_digest,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -252,6 +251,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
+        let public_values: Vec<Val<SC>> = pi_digest.into();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
@@ -263,7 +263,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
-            public_values: &pi_digest.into_iter().flatten().collect_vec(),
+            public_values: &public_values,
             _marker: PhantomData,
         };
         chip.eval(&mut folder);

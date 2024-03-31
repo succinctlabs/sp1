@@ -133,7 +133,6 @@ where
                                 &chips,
                                 data,
                                 &mut challenger.clone(),
-                                pi_digest_field,
                             );
                             finished.fetch_add(1, Ordering::Relaxed);
                             log::info!(
@@ -223,6 +222,7 @@ where
             main_data,
             chip_ordering,
             index,
+            pi_digest: PiDigest::<Word<Val<SC>>>::new(shard.pi_digest().unwrap()),
         }
     }
 
@@ -233,7 +233,6 @@ where
         chips: &[&MachineChip<SC, A>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
-        pi_digest: PiDigest<Word<Val<SC>>>,
     ) -> ShardProof<SC>
     where
         Val<SC>: PrimeField32,
@@ -359,7 +358,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &permutation_challenges,
                         alpha,
-                        pi_digest,
+                        shard_data.pi_digest,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -473,6 +472,7 @@ where
             },
             opening_proof,
             chip_ordering: shard_data.chip_ordering,
+            pi_digest: shard_data.pi_digest,
         }
     }
 

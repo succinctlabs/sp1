@@ -7,7 +7,6 @@ use super::PackedChallenge;
 use super::PackedVal;
 use super::StarkAir;
 use super::Val;
-use itertools::Itertools;
 use p3_air::Air;
 use p3_air::TwoRowMatrixView;
 use p3_commit::PolynomialSpace;
@@ -101,6 +100,7 @@ where
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
+            let public_values: Vec<Val<SC>> = pi_digest.into();
             let mut folder = ProverConstraintFolder {
                 preprocessed: TwoRowMatrixView {
                     local: &[],
@@ -121,7 +121,7 @@ where
                 is_transition,
                 alpha,
                 accumulator,
-                public_values: &pi_digest.into_iter().flatten().collect_vec(),
+                public_values: &public_values,
             };
             chip.eval(&mut folder);
 

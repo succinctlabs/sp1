@@ -185,14 +185,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 let chips = self
                     .shard_chips_ordered(&proof.chip_ordering)
                     .collect::<Vec<_>>();
-                Verifier::verify_shard(
-                    &self.config,
-                    &chips,
-                    &mut challenger.clone(),
-                    proof,
-                    pi_digest_field,
-                )
-                .map_err(ProgramVerificationError::InvalidSegmentProof)
+                Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
+                    .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
         tracing::info!("success");
