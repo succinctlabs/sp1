@@ -2,7 +2,6 @@ use super::{quotient_values, MachineStark, PcsProverData, Val};
 use super::{ProvingKey, VerifierConstraintFolder};
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
-use crate::stark::DebugConstraintBuilder;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
 use itertools::Itertools;
@@ -49,8 +48,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>;
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>;
 }
 
 impl<SC, A> Prover<SC, A> for LocalProver<SC, A>
@@ -73,8 +71,7 @@ where
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
@@ -226,8 +223,7 @@ where
         ShardMainData<SC>: DeserializeOwned,
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Get the traces.
         let traces = &shard_data.traces;

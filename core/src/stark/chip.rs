@@ -11,10 +11,7 @@ use crate::{
     runtime::Program,
 };
 
-use super::{
-    eval_permutation_constraints, generate_permutation_trace, DebugConstraintBuilder,
-    ProverConstraintFolder, StarkGenericConfig, Val, VerifierConstraintFolder,
-};
+use super::{eval_permutation_constraints, generate_permutation_trace};
 
 /// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
@@ -50,29 +47,6 @@ impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
     pub fn included(&self, shard: &A::Record) -> bool {
         self.air.included(shard)
     }
-}
-
-/// A trait for AIRs that can be used with STARKs.
-///
-/// This trait is for specifying a trait bound for explicit types of builders used in the stark
-/// proving system. It is automatically implemented on any type that implements `Air<AB>` with
-/// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
-pub trait StarkAir<SC: StarkGenericConfig>:
-    MachineAir<Val<SC>>
-    + Air<InteractionBuilder<Val<SC>>>
-    + for<'a> Air<ProverConstraintFolder<'a, SC>>
-    + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-    + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
-{
-}
-
-impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
-    T: MachineAir<Val<SC>>
-        + Air<InteractionBuilder<Val<SC>>>
-        + for<'a> Air<ProverConstraintFolder<'a, SC>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>
-{
 }
 
 impl<F, A> Chip<F, A>

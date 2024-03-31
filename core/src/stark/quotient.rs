@@ -3,7 +3,6 @@ use super::Chip;
 use super::Domain;
 use super::PackedChallenge;
 use super::PackedVal;
-use super::StarkAir;
 use super::Val;
 use p3_air::Air;
 use p3_air::TwoRowMatrixView;
@@ -29,7 +28,7 @@ pub fn quotient_values<SC, A, Mat>(
     alpha: SC::Challenge,
 ) -> Vec<SC::Challenge>
 where
-    A: StarkAir<SC>,
+    A: for<'a> Air<ProverConstraintFolder<'a, SC>>,
     SC: StarkGenericConfig,
     Mat: MatrixGet<Val<SC>> + Sync,
 {
