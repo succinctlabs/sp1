@@ -4,9 +4,12 @@
 #![allow(type_alias_bounds)]
 
 pub mod challenger;
+pub mod constraints;
+pub mod domain;
 pub mod fri;
 pub mod mmcs;
 pub mod poseidon2;
+pub mod stark;
 pub mod types;
 
 pub const SPONGE_SIZE: usize = 3;

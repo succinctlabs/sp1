@@ -2,6 +2,7 @@ pub mod gnark_ffi;
 
 use core::fmt::Debug;
 use p3_field::AbstractExtensionField;
+use p3_field::Field;
 use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
@@ -185,6 +186,20 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     opcode: ConstraintOpcode::SubE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIR::SubEI(a, b, c) => {
+                    let tmp = self.alloc_e(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SubE,
+                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
+                DslIR::SubEIN(a, b, c) => {
+                    let tmp = self.alloc_e(&mut constraints, b);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::SubE,
+                        args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
+                    });
+                }
                 DslIR::MulV(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::MulV,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
@@ -215,10 +230,24 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     opcode: ConstraintOpcode::MulEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIR::DivFIN(a, b, c) => {
+                    let tmp = self.alloc_f(&mut constraints, b.inverse());
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::MulF,
+                        args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
+                    });
+                }
                 DslIR::DivE(a, b, c) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::DivE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIR::DivEIN(a, b, c) => {
+                    let tmp = self.alloc_e(&mut constraints, b);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::DivE,
+                        args: vec![vec![a.id()], vec![tmp], vec![c.id()]],
+                    });
+                }
                 DslIR::NegE(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::NegE,
                     args: vec![vec![a.id()], vec![b.id()]],

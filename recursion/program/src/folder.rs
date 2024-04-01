@@ -1,6 +1,5 @@
 use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
 use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder};
-
 use sp1_recursion_compiler::{
     ir::{Builder, Config, Ext},
     prelude::SymbolicExt,

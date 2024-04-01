@@ -1,5 +1,11 @@
+use p3_air::BaseAir;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use sp1_recursion_compiler::ir::{Config, Ext, Felt, Var};
+use p3_field::AbstractExtensionField;
+use sp1_core::{
+    air::MachineAir,
+    stark::{AirOpenedValues, Chip, ChipOpenedValues},
+};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
 
 use crate::DIGEST_SIZE;
 
@@ -58,4 +64,122 @@ pub struct TwoAdicPcsMatsVariable<C: Config> {
     pub domain: TwoAdicMultiplicativeCoset<C::F>,
     pub points: Vec<Ext<C::F, C::EF>>,
     pub values: Vec<Vec<Ext<C::F, C::EF>>>,
+}
+
+pub struct ChipOpenedValuesVariable<C: Config> {
+    pub preprocessed: AirOpenedValuesVariable<C>,
+    pub main: AirOpenedValuesVariable<C>,
+    pub permutation: AirOpenedValuesVariable<C>,
+    pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
+    pub cumulative_sum: Ext<C::F, C::EF>,
+    pub log_degree: usize,
+}
+
+#[derive(Debug, Clone)]
+pub struct AirOpenedValuesVariable<C: Config> {
+    pub local: Vec<Ext<C::F, C::EF>>,
+    pub next: Vec<Ext<C::F, C::EF>>,
+}
+
+impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
+    type Constant = AirOpenedValues<C::EF>;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        AirOpenedValuesVariable {
+            local: value.local.iter().map(|x| builder.eval_const(*x)).collect(),
+            next: value.next.iter().map(|x| builder.eval_const(*x)).collect(),
+        }
+    }
+}
+
+impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
+    type Constant = ChipOpenedValues<C::EF>;
+
+    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        ChipOpenedValuesVariable {
+            preprocessed: builder.eval_const(value.preprocessed),
+            main: builder.eval_const(value.main),
+            permutation: builder.eval_const(value.permutation),
+            quotient: value
+                .quotient
+                .iter()
+                .map(|x| x.iter().map(|y| builder.eval_const(*y)).collect())
+                .collect(),
+            cumulative_sum: builder.eval(value.cumulative_sum.cons()),
+            log_degree: value.log_degree,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ChipOpening<C: Config> {
+    pub preprocessed: AirOpenedValues<Ext<C::F, C::EF>>,
+    pub main: AirOpenedValues<Ext<C::F, C::EF>>,
+    pub permutation: AirOpenedValues<Ext<C::F, C::EF>>,
+    pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
+    pub cumulative_sum: Ext<C::F, C::EF>,
+    pub log_degree: usize,
+}
+
+impl<C: Config> ChipOpening<C> {
+    pub fn from_variable<A>(
+        builder: &mut Builder<C>,
+        chip: &Chip<C::F, A>,
+        opening: &ChipOpenedValuesVariable<C>,
+    ) -> Self
+    where
+        A: MachineAir<C::F>,
+    {
+        let mut preprocessed = AirOpenedValues {
+            local: vec![],
+            next: vec![],
+        };
+        let preprocess_width = chip.preprocessed_width();
+        for i in 0..preprocess_width {
+            preprocessed.local.push(opening.preprocessed.local[i]);
+            preprocessed.next.push(opening.preprocessed.next[i]);
+        }
+
+        let mut main = AirOpenedValues {
+            local: vec![],
+            next: vec![],
+        };
+        let main_width = chip.width();
+        for i in 0..main_width {
+            main.local.push(opening.main.local[i]);
+            main.next.push(opening.main.next[i]);
+        }
+
+        let mut permutation = AirOpenedValues {
+            local: vec![],
+            next: vec![],
+        };
+        let permutation_width = C::EF::D * (chip.num_interactions() + 1);
+        for i in 0..permutation_width {
+            permutation.local.push(opening.permutation.local[i]);
+            permutation.next.push(opening.permutation.next[i]);
+        }
+
+        let num_quotient_chunks = 1 << chip.log_quotient_degree();
+
+        let mut quotient = vec![];
+        for i in 0..num_quotient_chunks {
+            let chunk = &opening.quotient[i];
+            let mut quotient_vals = vec![];
+            for j in 0..C::EF::D {
+                let value = &chunk[j];
+                quotient_vals.push(*value);
+            }
+            quotient.push(quotient_vals);
+        }
+
+        ChipOpening {
+            preprocessed,
+            main,
+            permutation,
+            quotient,
+            cumulative_sum: opening.cumulative_sum,
+            log_degree: opening.log_degree,
+        }
+    }
 }

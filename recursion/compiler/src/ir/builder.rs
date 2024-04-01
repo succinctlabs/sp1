@@ -580,9 +580,33 @@ impl<C: Config> Builder<C> {
     where
         V: Copy + Mul<Output = V::Expression>,
     {
-        let result: V = self.eval(base);
-        self.range(0, power_log)
-            .for_each(|_, builder| builder.assign(result, result * result));
+        let mut result: V = self.eval(base);
+        match power_log {
+            Usize::Var(power_log) => {
+                self.range(0, power_log)
+                    .for_each(|_, builder| builder.assign(result, result * result));
+            }
+            Usize::Const(power_log) => {
+                for i in 0..power_log {
+                    result = self.eval(result * result);
+                }
+            }
+        }
+        result
+    }
+
+    pub fn exp_power_of_2_v_circuit<V: Variable<C>>(
+        &mut self,
+        base: impl Into<V::Expression>,
+        power_log: usize,
+    ) -> V
+    where
+        V: Copy + Mul<Output = V::Expression>,
+    {
+        let mut result: V = self.eval(base);
+        for _ in 0..power_log {
+            result = self.eval(result * result)
+        }
         result
     }
 

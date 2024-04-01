@@ -2910,6 +2910,7 @@ dependencies = [
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-derive",
+ "sp1-recursion-program",
  "zkhash",
 ]
 
