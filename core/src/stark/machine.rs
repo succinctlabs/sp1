@@ -60,7 +60,7 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
 
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
-    pub domains_and_dimensions: Vec<(Dom<SC>, Dimensions)>,
+    pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
 }
 
@@ -117,14 +117,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         let pcs = self.config.pcs();
 
-        let (domains_and_dimensions, domains_and_traces): (Vec<_>, Vec<_>) =
-            named_preprocessed_traces
-                .iter()
-                .map(|(_, trace)| {
-                    let domain = pcs.natural_domain_for_degree(trace.height());
-                    ((domain, trace.dimensions()), (domain, trace.to_owned()))
-                })
-                .unzip();
+        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
+            .iter()
+            .map(|(name, trace)| {
+                let domain = pcs.natural_domain_for_degree(trace.height());
+                (
+                    (name.to_owned(), domain, trace.dimensions()),
+                    (domain, trace.to_owned()),
+                )
+            })
+            .unzip();
 
         // Commit to the batch of traces.
         let (commit, data) = pcs.commit(domains_and_traces);
@@ -150,7 +152,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             },
             VerifyingKey {
                 commit,
-                domains_and_dimensions,
+                chip_information,
                 chip_ordering,
             },
         )
@@ -211,7 +213,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn verify(
         &self,
-        _vk: &VerifyingKey<SC>,
+        vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
@@ -235,7 +237,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 let chips = self
                     .shard_chips_ordered(&proof.chip_ordering)
                     .collect::<Vec<_>>();
-                Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
+                Verifier::verify_shard(&self.config, vk, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }

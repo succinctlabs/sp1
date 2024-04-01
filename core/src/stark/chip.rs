@@ -57,7 +57,8 @@ where
     where
         A: Air<InteractionBuilder<F>>,
     {
-        let mut builder = InteractionBuilder::new(air.width());
+        // Todo: correct values
+        let mut builder = InteractionBuilder::new(0, air.width());
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
 

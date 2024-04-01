@@ -1,21 +1,3 @@
-use super::{quotient_values, MachineStark, PcsProverData, Val};
-use super::{ProvingKey, VerifierConstraintFolder};
-use crate::lookup::InteractionBuilder;
-use crate::stark::record::MachineRecord;
-use crate::stark::MachineChip;
-use crate::stark::ProverConstraintFolder;
-use itertools::Itertools;
-use p3_air::Air;
-use p3_challenger::{CanObserve, FieldChallenger};
-use p3_commit::Pcs;
-use p3_commit::PolynomialSpace;
-use p3_field::ExtensionField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::{Matrix, MatrixRowSlices};
-use p3_maybe_rayon::prelude::*;
-use p3_util::log2_ceil_usize;
-use p3_util::log2_strict_usize;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
@@ -23,8 +5,30 @@ use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
+use itertools::Itertools;
+
+use p3_air::Air;
+use p3_challenger::{CanObserve, FieldChallenger};
+use p3_commit::Pcs;
+use p3_commit::PolynomialSpace;
+use p3_field::AbstractField;
+use p3_field::ExtensionField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::{Matrix, MatrixRowSlices};
+use p3_maybe_rayon::prelude::*;
+use p3_util::log2_ceil_usize;
+use p3_util::log2_strict_usize;
+
+use super::{quotient_values, MachineStark, PcsProverData, Val};
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
+use super::{ProvingKey, VerifierConstraintFolder};
+use crate::lookup::InteractionBuilder;
+use crate::stark::record::MachineRecord;
+use crate::stark::MachineChip;
+use crate::stark::ProverConstraintFolder;
+
 use crate::air::MachineAir;
 use crate::utils::env;
 
@@ -212,7 +216,7 @@ where
     /// Prove the program for the given shard and given a commitment to the main data.
     pub fn prove_shard(
         config: &SC,
-        _pk: &ProvingKey<SC>,
+        pk: &ProvingKey<SC>,
         chips: &[&MachineChip<SC, A>],
         shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
@@ -327,6 +331,15 @@ where
                 .into_par_iter()
                 .enumerate()
                 .map(|(i, quotient_domain)| {
+                    let preprocessed_trace_on_quotient_domains = pk
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|&index| {
+                            pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
+                        })
+                        .unwrap_or_else(|| {
+                            RowMajorMatrix::new_col(vec![SC::Val::zero(); quotient_domain.size()])
+                        });
                     let main_trace_on_quotient_domains =
                         pcs.get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain);
                     let permutation_trace_on_quotient_domains =
@@ -336,6 +349,7 @@ where
                         cumulative_sums[i],
                         trace_domains[i],
                         *quotient_domain,
+                        preprocessed_trace_on_quotient_domains,
                         main_trace_on_quotient_domains,
                         permutation_trace_on_quotient_domains,
                         &permutation_challenges,
@@ -367,6 +381,17 @@ where
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
 
+        let preprocessed_opening_points =
+            tracing::debug_span!("compute preprocessed opening points").in_scope(|| {
+                pk.traces
+                    .iter()
+                    .map(|trace| {
+                        let domain = pcs.natural_domain_for_degree(trace.height());
+                        vec![zeta, domain.next_point(zeta).unwrap()]
+                    })
+                    .collect::<Vec<_>>()
+            });
+
         let trace_opening_points =
             tracing::debug_span!("compute trace opening points").in_scope(|| {
                 trace_domains
@@ -383,6 +408,7 @@ where
         let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
             pcs.open(
                 vec![
+                    (&pk.data, preprocessed_opening_points),
                     (&shard_data.main_data, trace_opening_points.clone()),
                     (&permutation_data, trace_opening_points),
                     (&quotient_data, quotient_opening_points),
@@ -392,8 +418,16 @@ where
         });
 
         // Collect the opened values for each chip.
-        let [main_values, permutation_values, mut quotient_values] = openings.try_into().unwrap();
+        let [preprocessed_values, main_values, permutation_values, mut quotient_values] =
+            openings.try_into().unwrap();
         assert!(main_values.len() == chips.len());
+        let preprocessed_opened_values = preprocessed_values
+            .into_iter()
+            .map(|op| {
+                let [local, next] = op.try_into().unwrap();
+                AirOpenedValues { local, next }
+            })
+            .collect::<Vec<_>>();
         let main_opened_values = main_values
             .into_iter()
             .map(|op| {
@@ -424,13 +458,19 @@ where
             .zip_eq(quotient_opened_values)
             .zip_eq(cumulative_sums)
             .zip_eq(log_degrees.iter())
+            .enumerate()
             .map(
-                |((((main, permutation), quotient), cumulative_sum), log_degree)| {
-                    ChipOpenedValues {
-                        preprocessed: AirOpenedValues {
+                |(i, ((((main, permutation), quotient), cumulative_sum), log_degree))| {
+                    let preprocessed = pk
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|&index| preprocessed_opened_values[index].clone())
+                        .unwrap_or(AirOpenedValues {
                             local: vec![],
                             next: vec![],
-                        },
+                        });
+                    ChipOpenedValues {
+                        preprocessed,
                         main,
                         permutation,
                         quotient,

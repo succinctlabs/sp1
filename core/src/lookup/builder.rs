@@ -1,5 +1,5 @@
 use crate::air::{AirInteraction, MessageBuilder};
-use p3_air::{AirBuilder, PairCol, VirtualPairCol};
+use p3_air::{AirBuilder, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
@@ -8,6 +8,7 @@ use super::Interaction;
 
 /// A builder for the lookup table interactions.
 pub struct InteractionBuilder<F: Field> {
+    preprocessed: RowMajorMatrix<SymbolicVariable<F>>,
     main: RowMajorMatrix<SymbolicVariable<F>>,
     sends: Vec<Interaction<F>>,
     receives: Vec<Interaction<F>>,
@@ -15,15 +16,23 @@ pub struct InteractionBuilder<F: Field> {
 
 impl<F: Field> InteractionBuilder<F> {
     /// Creates a new `InteractionBuilder` with the given width.
-    pub fn new(width: usize) -> Self {
-        let values = [false, true]
+    pub fn new(preprocessed_width: usize, main_width: usize) -> Self {
+        let prep_values = [false, true]
             .into_iter()
             .flat_map(|is_next| {
-                (0..width).map(move |column| SymbolicVariable::new(is_next, column))
+                (0..preprocessed_width).map(move |column| SymbolicVariable::new(is_next, column))
+            })
+            .collect();
+
+        let main_values = [false, true]
+            .into_iter()
+            .flat_map(|is_next| {
+                (0..main_width).map(move |column| SymbolicVariable::new(is_next, column))
             })
             .collect();
         Self {
-            main: RowMajorMatrix::new(values, width),
+            preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),
+            main: RowMajorMatrix::new(main_values, main_width),
             sends: vec![],
             receives: vec![],
         }
@@ -62,6 +71,12 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, _x: I) {}
+}
+
+impl<F: Field> PairBuilder for InteractionBuilder<F> {
+    fn preprocessed(&self) -> Self::M {
+        self.preprocessed.clone()
+    }
 }
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
@@ -232,7 +247,7 @@ mod tests {
     fn test_lookup_interactions() {
         let air = LookupTestAir {};
 
-        let mut builder = InteractionBuilder::<BabyBear>::new(NUM_COLS);
+        let mut builder = InteractionBuilder::<BabyBear>::new(0, NUM_COLS);
 
         air.eval(&mut builder);
 
