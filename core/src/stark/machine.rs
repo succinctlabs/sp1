@@ -4,7 +4,7 @@ use itertools::Itertools;
 use std::collections::HashMap;
 
 use super::debug_constraints;
-use crate::air::{MachineAir, PiDigest, Word};
+use crate::air::{MachineAir, PublicValuesDigest, Word};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -175,9 +175,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         });
 
         // Observe the public input digest
-        let pi_digest_field_values: Vec<Val<SC>> =
-            PiDigest::<Word<Val<SC>>>::new(proof.pi_digest).into();
-        challenger.observe_slice(&pi_digest_field_values);
+        let pv_digest_field_elms: Vec<Val<SC>> =
+            PublicValuesDigest::<Word<Val<SC>>>::new(proof.public_values_digest).into();
+        challenger.observe_slice(&pv_digest_field_elms);
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
@@ -283,7 +283,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
-                        PiDigest::<Word<Val<SC>>>::new(shard.pi_digest().unwrap()),
+                        PublicValuesDigest::<Word<Val<SC>>>::new(
+                            shard.public_values_digest().unwrap(),
+                        ),
                     );
                 }
             });

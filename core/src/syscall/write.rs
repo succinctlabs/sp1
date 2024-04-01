@@ -16,7 +16,7 @@ impl Syscall for SyscallWrite {
         let a2 = Register::X12;
         let rt = &mut ctx.rt;
         let fd = arg1;
-        if fd == 1 || fd == 2 || fd == 3 || fd == 4 || fd == 5 {
+        if fd == 1 || fd == 2 || fd == 3 || fd == 4 {
             let write_buf = arg2;
             let nbytes = rt.register(a2);
             // Read nbytes from memory starting at write_buf.
@@ -70,11 +70,9 @@ impl Syscall for SyscallWrite {
                         .for_each(|line| println!("stderr: {}", line));
                 }
             } else if fd == 3 {
-                rt.state.output_stream.extend_from_slice(slice);
+                rt.state.public_values_stream.extend_from_slice(slice);
             } else if fd == 4 {
                 rt.state.input_stream.push(slice.to_vec());
-            } else if fd == 5 {
-                rt.pi_buffer.extend(slice);
             } else {
                 unreachable!()
             }

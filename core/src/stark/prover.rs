@@ -26,7 +26,7 @@ use std::time::Instant;
 
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
-use crate::air::{MachineAir, PiDigest, Word};
+use crate::air::{MachineAir, PublicValuesDigest, Word};
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -86,16 +86,17 @@ where
             });
         });
 
-        let pi_digest = shards
+        let public_values_digest = shards
             .last()
             .expect("at least one shard")
-            .pi_digest()
+            .public_values_digest()
             .expect("expected a public input digest");
 
         // Observe the public input digest.
 
-        let pi_digest_field_values: Vec<Val<SC>> = PiDigest::<Word<Val<SC>>>::new(pi_digest).into();
-        challenger.observe_slice(&pi_digest_field_values);
+        let pv_digest_field_elms: Vec<Val<SC>> =
+            PublicValuesDigest::<Word<Val<SC>>>::new(public_values_digest).into();
+        challenger.observe_slice(&pv_digest_field_elms);
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -153,7 +154,7 @@ where
 
         Proof {
             shard_proofs,
-            pi_digest,
+            public_values_digest,
         }
     }
 }
@@ -223,7 +224,9 @@ where
             main_data,
             chip_ordering,
             index,
-            pi_digest: PiDigest::<Word<Val<SC>>>::new(shard.pi_digest().unwrap()),
+            pv_digest: PublicValuesDigest::<Word<Val<SC>>>::new(
+                shard.public_values_digest().unwrap(),
+            ),
         }
     }
 
@@ -359,7 +362,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &permutation_challenges,
                         alpha,
-                        shard_data.pi_digest,
+                        shard_data.pv_digest,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -473,7 +476,7 @@ where
             },
             opening_proof,
             chip_ordering: shard_data.chip_ordering,
-            pi_digest: shard_data.pi_digest,
+            pv_digest: shard_data.pv_digest,
         }
     }
 

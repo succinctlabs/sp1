@@ -1,5 +1,5 @@
 use super::Domain;
-use crate::air::{MachineAir, PiDigest, Word};
+use crate::air::{MachineAir, PublicValuesDigest, Word};
 use crate::stark::MachineChip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -168,7 +168,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
-                proof.pi_digest,
+                proof.pv_digest,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -196,7 +196,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pi_digest: PiDigest<Word<Val<SC>>>,
+        pv_digest: PublicValuesDigest<Word<Val<SC>>>,
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -210,7 +210,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             &sels,
             alpha,
             permutation_challenges,
-            pi_digest,
+            Some(pv_digest),
         );
 
         // Check that the constraints match the quotient, i.e.
@@ -228,7 +228,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pi_digest: PiDigest<Word<Val<SC>>>,
+        pv_digest: Option<PublicValuesDigest<Word<Val<SC>>>>,
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -250,8 +250,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             local: unflatten(&opening.permutation.local),
             next: unflatten(&opening.permutation.next),
         };
-
-        let public_values: Vec<Val<SC>> = pi_digest.into();
+        if pv_digest.is_none() {
+            return SC::Challenge::zero();
+        }
+        let public_values: Vec<Val<SC>> = if pv_digest.is_none() {
+            Vec::new()
+        } else {
+            pv_digest.unwrap().into()
+        };
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),

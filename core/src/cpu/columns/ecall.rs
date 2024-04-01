@@ -1,5 +1,5 @@
 use sp1_derive::AlignedBorrow;
-use sp1_zkvm::PI_DIGEST_NUM_WORDS;
+use sp1_zkvm::PV_DIGEST_NUM_WORDS;
 use std::mem::size_of;
 
 use crate::{air::Word, operations::IsZeroOperation};
@@ -21,5 +21,5 @@ pub struct EcallCols<T> {
     /// Whether the current ecall is a COMMIT.
     pub is_commit: IsZeroOperation<T>,
     pub digest_word: Word<T>,
-    pub index_bitmap: [T; PI_DIGEST_NUM_WORDS],
+    pub index_bitmap: [T; PV_DIGEST_NUM_WORDS],
 }

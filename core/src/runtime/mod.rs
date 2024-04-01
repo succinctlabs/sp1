@@ -21,7 +21,7 @@ pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
-use crate::air::PiDigest;
+use crate::air::PublicValuesDigest;
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::stark::MachineRecord;
 use crate::utils::env;
@@ -87,8 +87,6 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
-
-    pub pi_buffer: Vec<u8>,
 }
 
 impl Runtime {
@@ -137,7 +135,6 @@ impl Runtime {
             syscall_map,
             emit_events: true,
             max_syscall_cycles,
-            pi_buffer: Vec::new(),
         }
     }
 
@@ -997,13 +994,13 @@ impl Runtime {
 
         self.record.program_memory_events = program_memory_events;
 
-        // Set the public input digest.
-        let mut pi_hasher = Sha256::new();
-        pi_hasher.update(&self.pi_buffer);
-        let pi_digest_bytes: &[u8] = &pi_hasher.finalize();
+        // Calculate and set the public values digest.
+        let mut public_values_hasher = Sha256::new();
+        public_values_hasher.update(&self.state.public_values_stream);
+        let public_values_digest_bytes: &[u8] = &public_values_hasher.finalize();
 
-        let pi_digest: PiDigest<u32> = pi_digest_bytes.into();
-        self.record.set_pi_digest(pi_digest);
+        let public_values_digest: PublicValuesDigest<u32> = public_values_digest_bytes.into();
+        self.record.set_public_values_digest(public_values_digest);
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
