@@ -141,7 +141,8 @@ pub mod proof_serde {
     #[cfg(test)]
     mod tests {
         use crate::{
-            utils::{setup_logger, tests::FIBONACCI_IO_ELF, BabyBearPoseidon2},
+            runtime::Program,
+            utils::{run_test_io, setup_logger, tests::FIBONACCI_IO_ELF, BabyBearPoseidon2},
             SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier,
         };
 
@@ -167,6 +168,15 @@ pub mod proof_serde {
             let output =
                 bincode::deserialize::<SP1ProofWithIO<BabyBearPoseidon2>>(&serialized).unwrap();
             SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
+        }
+
+        #[test]
+        fn test_fibonacci_io() {
+            setup_logger();
+            let mut stdin = SP1Stdin::new();
+            stdin.write(&3u32);
+            let program = Program::from(FIBONACCI_IO_ELF);
+            run_test_io(program, stdin).unwrap();
         }
     }
 }
