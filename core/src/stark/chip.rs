@@ -55,10 +55,10 @@ where
     /// Records the interactions and constraint degree from the air and crates a new chip.
     pub fn new(air: A) -> Self
     where
-        A: Air<InteractionBuilder<F>>,
+        A: MachineAir<F> + Air<InteractionBuilder<F>>,
     {
         // Todo: correct values
-        let mut builder = InteractionBuilder::new(0, air.width());
+        let mut builder = InteractionBuilder::new(air.preprocessed_width(), air.width());
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
 
