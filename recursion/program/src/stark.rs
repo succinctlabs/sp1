@@ -268,6 +268,7 @@ pub(crate) mod tests {
         stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
     };
+    use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::{
         asm::{AsmConfig, VmBuilder},
         ir::{Builder, Config, ExtConst, Usize},
@@ -370,12 +371,15 @@ pub(crate) mod tests {
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
         let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof
             .shard_proofs;
         println!("Proof generated successfully");
+
+        challenger_val.observe(vk.commit);
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
@@ -389,6 +393,10 @@ pub(crate) mod tests {
         let mut builder = VmBuilder::<F, EF>::default();
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
+
+        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
+        challenger.observe(&mut builder, preprocessed_commit);
 
         for proof in proofs {
             let proof = const_proof(&mut builder, &machine, proof);
@@ -435,6 +443,7 @@ pub(crate) mod tests {
             .shard_proofs;
         println!("Proof generated successfully");
 
+        challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
         });
@@ -449,6 +458,10 @@ pub(crate) mod tests {
         let pcs = TwoAdicFriPcsVariable { config };
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
+
+        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
+        challenger.observe(&mut builder, preprocessed_commit);
 
         let mut shard_proofs = vec![];
         for proof_val in proofs {

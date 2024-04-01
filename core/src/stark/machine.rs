@@ -53,6 +53,7 @@ impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
 }
 
 pub struct ProvingKey<SC: StarkGenericConfig> {
+    pub commit: Com<SC>,
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
@@ -155,6 +156,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         (
             ProvingKey {
+                commit: commit.clone(),
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
@@ -230,6 +232,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
+        // Observe the preprocessed commitment.
+        challenger.observe(vk.commit.clone());
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
