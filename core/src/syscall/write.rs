@@ -2,6 +2,7 @@ use crate::{
     runtime::{Register, Syscall, SyscallContext},
     utils::num_to_comma_separated,
 };
+
 pub struct SyscallWrite;
 
 impl SyscallWrite {

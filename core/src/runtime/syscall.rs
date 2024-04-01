@@ -276,10 +276,9 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(SyscallExitUnconstrained::new()),
     );
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
+    syscall_map.insert(SyscallCode::COMMIT, Rc::new(SyscallCommit::new()));
     syscall_map.insert(SyscallCode::HINT_LEN, Rc::new(SyscallHintLen::new()));
     syscall_map.insert(SyscallCode::HINT_READ, Rc::new(SyscallHintRead::new()));
-
-    syscall_map.insert(SyscallCode::COMMIT, Rc::new(SyscallCommit::new()));
 
     syscall_map
 }

@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use p3_field::PrimeField32;
-use sp1_core::air::PiDigest;
 use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
@@ -39,10 +38,4 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     fn shard(self, _: &Self::Config) -> Vec<Self> {
         vec![self]
     }
-
-    fn pi_digest(&self) -> Option<PiDigest<u32>> {
-        None
-    }
-
-    fn set_pi_digest(&mut self, _digest: PiDigest<u32>) {}
 }
