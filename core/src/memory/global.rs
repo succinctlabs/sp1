@@ -4,7 +4,7 @@ use crate::utils::pad_to_power_of_two;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::runtime::ExecutionRecord;
+use crate::runtime::{ExecutionRecord, Program};
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::{size_of, transmute};
 use p3_air::BaseAir;
@@ -41,6 +41,8 @@ impl<F> BaseAir<F> for MemoryGlobalChip {
 
 impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         match self.kind {

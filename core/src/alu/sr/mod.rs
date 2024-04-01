@@ -59,7 +59,7 @@ use crate::alu::sr::utils::{nb_bits_to_shift, nb_bytes_to_shift};
 use crate::bytes::utils::shr_carry;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `ShiftRightChip`.
@@ -124,6 +124,8 @@ pub struct ShiftRightCols<T> {
 
 impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "ShiftRight".to_string()

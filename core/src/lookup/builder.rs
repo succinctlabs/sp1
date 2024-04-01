@@ -1,13 +1,14 @@
 use crate::air::{AirInteraction, MessageBuilder};
-use p3_air::{AirBuilder, PairCol, VirtualPairCol};
+use p3_air::{AirBuilder, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
+use p3_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
 
 use super::Interaction;
 
 /// A builder for the lookup table interactions.
 pub struct InteractionBuilder<F: Field> {
+    preprocessed: RowMajorMatrix<SymbolicVariable<F>>,
     main: RowMajorMatrix<SymbolicVariable<F>>,
     sends: Vec<Interaction<F>>,
     receives: Vec<Interaction<F>>,
@@ -15,15 +16,27 @@ pub struct InteractionBuilder<F: Field> {
 
 impl<F: Field> InteractionBuilder<F> {
     /// Creates a new `InteractionBuilder` with the given width.
-    pub fn new(width: usize) -> Self {
-        let values = [false, true]
+    pub fn new(preprocessed_width: usize, main_width: usize) -> Self {
+        let preprocessed_width = preprocessed_width.max(1);
+        let prep_values = [0, 1]
             .into_iter()
-            .flat_map(|is_next| {
-                (0..width).map(move |column| SymbolicVariable::new(is_next, column))
+            .flat_map(|offset| {
+                (0..preprocessed_width).map(move |column| {
+                    SymbolicVariable::new(Entry::Preprocessed { offset }, column)
+                })
+            })
+            .collect();
+
+        let main_values = [0, 1]
+            .into_iter()
+            .flat_map(|offset| {
+                (0..main_width)
+                    .map(move |column| SymbolicVariable::new(Entry::Main { offset }, column))
             })
             .collect();
         Self {
-            main: RowMajorMatrix::new(values, width),
+            preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),
+            main: RowMajorMatrix::new(main_values, main_width),
             sends: vec![],
             receives: vec![],
         }
@@ -62,6 +75,12 @@ impl<F: Field> AirBuilder for InteractionBuilder<F> {
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, _x: I) {}
+}
+
+impl<F: Field> PairBuilder for InteractionBuilder<F> {
+    fn preprocessed(&self) -> Self::M {
+        self.preprocessed.clone()
+    }
 }
 
 impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for InteractionBuilder<F> {
@@ -109,9 +128,13 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 ) -> (Vec<(PairCol, F)>, F) {
     match expression {
         SymbolicExpression::Constant(c) => (vec![], *c),
-        SymbolicExpression::Variable(v) if !v.is_next => {
-            (vec![(PairCol::Main(v.column), F::one())], F::zero())
-        }
+        SymbolicExpression::Variable(v) => match v.entry {
+            Entry::Preprocessed { offset: 0 } => {
+                (vec![(PairCol::Preprocessed(v.index), F::one())], F::zero())
+            }
+            Entry::Main { offset: 0 } => (vec![(PairCol::Main(v.index), F::one())], F::zero()),
+            _ => panic!("Not an affine expression in current row elements"),
+        },
         SymbolicExpression::Add { x, y, .. } => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
             let (v_r, c_r) = eval_symbolic_to_virtual_pair(y);
@@ -151,9 +174,6 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
         SymbolicExpression::IsTransition => {
             panic!("Not an affine expression in current row elements")
         }
-        SymbolicExpression::Variable(_) => {
-            panic!("Not an affine expression in current row elements")
-        }
     }
 }
 
@@ -171,9 +191,9 @@ mod tests {
     fn test_symbolic_to_virtual_pair_col() {
         type F = BabyBear;
 
-        let x = SymbolicVariable::<F>::new(false, 0);
+        let x = SymbolicVariable::<F>::new(Entry::Main { offset: 0 }, 0);
 
-        let y = SymbolicVariable::<F>::new(false, 1);
+        let y = SymbolicVariable::<F>::new(Entry::Main { offset: 0 }, 1);
 
         let z = x + y;
 
@@ -232,7 +252,7 @@ mod tests {
     fn test_lookup_interactions() {
         let air = LookupTestAir {};
 
-        let mut builder = InteractionBuilder::<BabyBear>::new(NUM_COLS);
+        let mut builder = InteractionBuilder::<BabyBear>::new(0, NUM_COLS);
 
         air.eval(&mut builder);
 

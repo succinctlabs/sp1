@@ -31,7 +31,7 @@ pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>
 pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
-    preprocessed: &Option<RowMajorMatrix<F>>,
+    preprocessed: Option<&RowMajorMatrix<F>>,
     main: &RowMajorMatrix<F>,
     random_elements: &[EF],
 ) -> RowMajorMatrix<EF> {
@@ -40,9 +40,6 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
     let betas = random_elements[1].powers();
-
-    // TODO: Get the preprocessed trace and handle it properly.
-    // let preprocessed = chip.preprocessed_trace();
 
     // Iterate over the rows of the main trace to compute the permutation trace values. In
     // particular, for each row i, interaction j, and columns c_0, ..., c_{k-1} we compute the sum:
@@ -53,45 +50,86 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // fingerprint for the interaction.
     let chunk_rate = 1 << 8;
     let permutation_trace_width = sends.len() + receives.len() + 1;
+
     let mut permutation_trace_values = {
         // Compute the permutation trace values in parallel.
 
-        let mut parallel = match preprocessed {
-            Some(_) => unimplemented!(),
-            None => main
-                .par_row_chunks(chunk_rate)
-                .flat_map(|main_rows_chunk| {
-                    main_rows_chunk
-                        .rows()
-                        .flat_map(|main_row| {
-                            compute_permutation_row(
-                                main_row,
-                                &[],
-                                sends,
-                                receives,
-                                &alphas,
-                                betas.clone(),
-                            )
-                        })
-                        .collect::<Vec<_>>()
-                })
-                .collect::<Vec<_>>(),
-        };
+        match preprocessed {
+            Some(prep) => {
+                let mut values = prep
+                    .par_row_chunks(chunk_rate)
+                    .zip_eq(main.par_row_chunks(chunk_rate))
+                    .flat_map(|(prep_rows_chunk, main_rows_chunk)| {
+                        prep_rows_chunk
+                            .rows()
+                            .zip(main_rows_chunk.rows())
+                            .flat_map(|(prep_row, main_row)| {
+                                compute_permutation_row(
+                                    prep_row,
+                                    main_row,
+                                    sends,
+                                    receives,
+                                    &alphas,
+                                    betas.clone(),
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
 
-        // Compute the permutation trace values for the remainder.
-        let remainder = main.height() % chunk_rate;
-        for i in 0..remainder {
-            let perm_row = compute_permutation_row(
-                main.row_slice(main.height() - remainder + i),
-                &[],
-                sends,
-                receives,
-                &alphas,
-                betas.clone(),
-            );
-            parallel.extend(perm_row);
+                // Compute the permutation trace values for the remainder.
+                let remainder = main.height() % chunk_rate;
+                for i in 0..remainder {
+                    let perm_row = compute_permutation_row(
+                        prep.row_slice(main.height() - remainder + i),
+                        main.row_slice(main.height() - remainder + i),
+                        sends,
+                        receives,
+                        &alphas,
+                        betas.clone(),
+                    );
+                    values.extend(perm_row);
+                }
+
+                values
+            }
+            None => {
+                let mut values = main
+                    .par_row_chunks(chunk_rate)
+                    .flat_map(|main_rows_chunk| {
+                        main_rows_chunk
+                            .rows()
+                            .flat_map(|main_row| {
+                                compute_permutation_row(
+                                    &[],
+                                    main_row,
+                                    sends,
+                                    receives,
+                                    &alphas,
+                                    betas.clone(),
+                                )
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>();
+
+                // Compute the permutation trace values for the remainder.
+                let remainder = main.height() % chunk_rate;
+                for i in 0..remainder {
+                    let perm_row = compute_permutation_row(
+                        &[],
+                        main.row_slice(main.height() - remainder + i),
+                        sends,
+                        receives,
+                        &alphas,
+                        betas.clone(),
+                    );
+                    values.extend(perm_row);
+                }
+
+                values
+            }
         }
-        parallel
     };
 
     // The permutation trace is actually the multiplicative inverse of the RLC's we computed above.
@@ -212,8 +250,8 @@ pub fn eval_permutation_constraints<F, AB>(
 
 /// Computes the permutation fingerprint of a row.
 pub fn compute_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
-    main_row: &[F],
     preprocessed_row: &[F],
+    main_row: &[F],
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
     alphas: &[EF],

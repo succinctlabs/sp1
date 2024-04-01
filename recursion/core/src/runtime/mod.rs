@@ -26,6 +26,7 @@ pub const MEMORY_SIZE: usize = 1 << 28;
 /// The width of the Poseidon2 permutation.
 pub const PERMUTATION_WIDTH: usize = 16;
 pub const POSEIDON2_SBOX_DEGREE: u64 = 7;
+pub const HASH_RATE: usize = 8;
 
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
 pub const DIGEST_SIZE: usize = 8;
@@ -48,9 +49,21 @@ pub struct MemoryEntry<F: PrimeField32> {
 }
 
 pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
-    pub timestamp: u64,
+    pub timestamp: usize,
 
-    pub nb_poseidons: u64,
+    pub nb_poseidons: usize,
+
+    pub nb_bit_decompositions: usize,
+
+    pub nb_ext_ops: usize,
+
+    pub nb_base_ops: usize,
+
+    pub nb_memory_ops: usize,
+
+    pub nb_print_f: usize,
+
+    pub nb_print_e: usize,
 
     /// The current clock.
     pub clk: F,
@@ -94,6 +107,12 @@ where
         Self {
             timestamp: 0,
             nb_poseidons: 0,
+            nb_bit_decompositions: 0,
+            nb_ext_ops: 0,
+            nb_base_ops: 0,
+            nb_memory_ops: 0,
+            nb_print_f: 0,
+            nb_print_e: 0,
             clk: F::zero(),
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
@@ -104,6 +123,20 @@ where
             access: CpuRecord::default(),
             _marker: PhantomData,
         }
+    }
+
+    pub fn print_stats(&self) {
+        println!("Number of cycles: {}", self.timestamp);
+        println!("Number of Poseidon permutes: {}", self.nb_poseidons);
+        println!(
+            "Number of bit decompositions: {}",
+            self.nb_bit_decompositions
+        );
+        println!("Number of base ops: {}", self.nb_base_ops);
+        println!("Number of ext ops: {}", self.nb_ext_ops);
+        println!("Number of memory ops: {}", self.nb_memory_ops);
+        println!("Number of printf ops: {}", self.nb_print_f);
+        println!("Number of printef ops: {}", self.nb_print_e);
     }
 
     fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
@@ -187,25 +220,46 @@ where
     /// Fetch the destination address input operand values for a load instruction (from heap).
     fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
         let a_ptr = self.fp + instruction.op_a;
+
+        let index = if instruction.imm_c {
+            instruction.op_c[0]
+        } else {
+            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
+        };
+
+        let offset = instruction.offset_imm;
+        let size = instruction.size_imm;
+
         let b = if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
         } else if instruction.imm_b {
             instruction.op_b
         } else {
             let address = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            self.mr(address[0], MemoryAccessPosition::A)
+            self.mr(address[0] + index * size + offset, MemoryAccessPosition::A)
         };
+
         (a_ptr, b)
     }
 
     /// Fetch the destination address input operand values for a store instruction (from stack).
     fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
+        let index = if instruction.imm_c {
+            instruction.op_c[0]
+        } else {
+            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
+        };
+
+        let offset = instruction.offset_imm;
+        let size = instruction.size_imm;
+
         let a_ptr = if instruction.imm_b {
             // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
-            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0]
+            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0] + index * size + offset
         };
+
         let b = if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
         } else if instruction.imm_b {
@@ -213,6 +267,7 @@ where
         } else {
             self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         };
+
         (a_ptr, b)
     }
 
@@ -233,18 +288,21 @@ where
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
                 Opcode::PrintF => {
+                    self.nb_print_f += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
                     println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::PrintE => {
+                    self.nb_print_e += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
                     println!("PRINTEF={:?}", a_val);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::ADD => {
+                    self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] + c_val.0[0];
@@ -252,6 +310,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::SUB => {
+                    self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] - c_val.0[0];
@@ -259,6 +318,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::MUL => {
+                    self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] * c_val.0[0];
@@ -266,6 +326,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::DIV => {
+                    self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] / c_val.0[0];
@@ -273,6 +334,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EADD | Opcode::EFADD => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(sum.as_base_slice());
@@ -280,6 +342,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EMUL | Opcode::EFMUL => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(product.as_base_slice());
@@ -287,6 +350,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::ESUB | Opcode::EFSUB | Opcode::FESUB => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(diff.as_base_slice());
@@ -294,6 +358,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EDIV | Opcode::EFDIV | Opcode::FEDIV => {
+                    self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(quotient.as_base_slice());
@@ -301,6 +366,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LW => {
+                    self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.load_rr(&instruction);
                     let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
@@ -308,12 +374,14 @@ where
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
                 Opcode::LE => {
+                    self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.load_rr(&instruction);
                     let a_val = b_val;
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
                 Opcode::SW => {
+                    self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.store_rr(&instruction);
                     let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
@@ -321,6 +389,7 @@ where
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
                 Opcode::SE => {
+                    self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.store_rr(&instruction);
                     let a_val = b_val;
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
@@ -415,6 +484,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {
+                    self.nb_bit_decompositions += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
 

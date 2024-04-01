@@ -1,4 +1,5 @@
 use core::marker::PhantomData;
+use std::collections::BTreeSet;
 
 use super::{AssemblyCode, BasicBlock};
 use alloc::collections::BTreeMap;
@@ -15,6 +16,7 @@ use crate::ir::Builder;
 use crate::ir::Usize;
 use crate::ir::{Config, DslIR, Ext, Felt, Ptr, Var};
 use crate::prelude::Array;
+use crate::prelude::MemIndex;
 
 pub(crate) const STACK_START_OFFSET: i32 = 16;
 
@@ -31,6 +33,14 @@ pub type VmBuilder<F, EF> = Builder<AsmConfig<F, EF>>;
 #[derive(Debug, Clone)]
 pub struct AsmCompiler<F, EF> {
     pub basic_blocks: Vec<BasicBlock<F, EF>>,
+
+    break_label: Option<F>,
+
+    break_label_map: BTreeMap<F, F>,
+
+    break_counter: usize,
+
+    contains_break: BTreeSet<F>,
 
     function_labels: BTreeMap<String, F>,
 }
@@ -82,13 +92,47 @@ impl<F, EF> Ext<F, EF> {
     }
 }
 
+pub enum IndexTriple<F> {
+    Var(i32, F, F),
+    Const(F, F, F),
+}
+
+impl<F: PrimeField32> MemIndex<F> {
+    pub fn fp(&self) -> IndexTriple<F> {
+        match self.index {
+            Usize::Const(index) => IndexTriple::Const(
+                F::from_canonical_usize(index),
+                F::from_canonical_usize(self.offset),
+                F::from_canonical_usize(self.size),
+            ),
+            Usize::Var(index) => IndexTriple::Var(
+                index.fp(),
+                F::from_canonical_usize(self.offset),
+                F::from_canonical_usize(self.size),
+            ),
+        }
+    }
+}
+
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             basic_blocks: vec![BasicBlock::new()],
+            break_label: None,
+            break_label_map: BTreeMap::new(),
+            contains_break: BTreeSet::new(),
             function_labels: BTreeMap::new(),
+            break_counter: 0,
         }
+    }
+
+    pub fn new_break_label(&mut self) -> F {
+        let label = self.break_counter;
+        self.break_counter += 1;
+        let label = F::from_canonical_usize(label);
+        self.break_label = Some(label);
+        label
     }
 
     pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
@@ -328,11 +372,18 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                         );
                     }
                 }
-                DslIR::For(start, end, loop_var, block) => {
+                DslIR::Break => {
+                    let label = self.break_label.expect("No break label set");
+                    let current_block = self.block_label();
+                    self.contains_break.insert(current_block);
+                    self.push(AsmInstruction::Break(label));
+                }
+                DslIR::For(start, end, step_size, loop_var, block) => {
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,
                         end,
+                        step_size,
                         loop_var,
                     };
                     for_compiler.for_each(move |_, builder| builder.build(block));
@@ -385,15 +436,58 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
                     // If lhs == rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::ExtConst(rhs), true)
                 }
-                DslIR::Alloc(ptr, len) => {
-                    self.alloc(ptr, len);
+                DslIR::Alloc(ptr, len, size) => {
+                    self.alloc(ptr, len, size);
                 }
-                DslIR::LoadV(var, ptr) => self.push(AsmInstruction::LW(var.fp(), ptr.fp())),
-                DslIR::LoadF(var, ptr) => self.push(AsmInstruction::LW(var.fp(), ptr.fp())),
-                DslIR::LoadE(var, ptr) => self.push(AsmInstruction::LE(var.fp(), ptr.fp())),
-                DslIR::StoreV(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
-                DslIR::StoreF(ptr, var) => self.push(AsmInstruction::SW(ptr.fp(), var.fp())),
-                DslIR::StoreE(ptr, var) => self.push(AsmInstruction::SE(ptr.fp(), var.fp())),
+                DslIR::LoadV(var, ptr, index) => match index.fp() {
+                    IndexTriple::Const(index, offset, size) => {
+                        self.push(AsmInstruction::LWI(var.fp(), ptr.fp(), index, offset, size))
+                    }
+                    IndexTriple::Var(index, offset, size) => {
+                        self.push(AsmInstruction::LW(var.fp(), ptr.fp(), index, offset, size))
+                    }
+                },
+                DslIR::LoadF(var, ptr, index) => match index.fp() {
+                    IndexTriple::Const(index, offset, size) => {
+                        self.push(AsmInstruction::LWI(var.fp(), ptr.fp(), index, offset, size))
+                    }
+                    IndexTriple::Var(index, offset, size) => {
+                        self.push(AsmInstruction::LW(var.fp(), ptr.fp(), index, offset, size))
+                    }
+                },
+                DslIR::LoadE(var, ptr, index) => match index.fp() {
+                    IndexTriple::Const(index, offset, size) => {
+                        self.push(AsmInstruction::LEI(var.fp(), ptr.fp(), index, offset, size))
+                    }
+                    IndexTriple::Var(index, offset, size) => {
+                        self.push(AsmInstruction::LE(var.fp(), ptr.fp(), index, offset, size))
+                    }
+                },
+                DslIR::StoreV(ptr, var, index) => match index.fp() {
+                    IndexTriple::Const(index, offset, size) => {
+                        self.push(AsmInstruction::SWI(ptr.fp(), var.fp(), index, offset, size))
+                    }
+                    IndexTriple::Var(index, offset, size) => {
+                        self.push(AsmInstruction::SW(ptr.fp(), var.fp(), index, offset, size))
+                    }
+                },
+                DslIR::StoreF(ptr, var, index) => match index.fp() {
+                    IndexTriple::Const(index, offset, size) => {
+                        self.push(AsmInstruction::SWI(ptr.fp(), var.fp(), index, offset, size))
+                    }
+                    IndexTriple::Var(index, offset, size) => {
+                        self.push(AsmInstruction::SW(ptr.fp(), var.fp(), index, offset, size))
+                    }
+                },
+                DslIR::StoreE(ptr, var, index) => match index.fp() {
+                    IndexTriple::Const(index, offset, size) => {
+                        self.push(AsmInstruction::SEI(ptr.fp(), var.fp(), index, offset, size))
+                    }
+                    IndexTriple::Var(index, offset, size) => {
+                        self.push(AsmInstruction::SE(ptr.fp(), var.fp(), index, offset, size))
+                    }
+                },
+
                 DslIR::HintBitsU(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), Usize::Var(src)) => {
                         self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
@@ -439,17 +533,19 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmCompiler<F, EF> {
         }
     }
 
-    pub fn alloc(&mut self, ptr: Ptr<F>, len: Usize<F>) {
+    pub fn alloc(&mut self, ptr: Ptr<F>, len: Usize<F>, size: usize) {
         // Load the current heap ptr address to the stack value and advance the heap ptr.
+        let size = F::from_canonical_usize(size);
         match len {
             Usize::Const(len) => {
                 let len = F::from_canonical_usize(len);
                 self.push(AsmInstruction::ADDI(ptr.fp(), HEAP_PTR, F::zero()));
-                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, len));
+                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, len * size));
             }
             Usize::Var(len) => {
                 self.push(AsmInstruction::ADDI(ptr.fp(), HEAP_PTR, F::zero()));
-                self.push(AsmInstruction::ADD(HEAP_PTR, HEAP_PTR, len.fp()));
+                self.push(AsmInstruction::MULI(A0, len.fp(), size));
+                self.push(AsmInstruction::ADD(HEAP_PTR, HEAP_PTR, A0));
             }
         }
     }
@@ -592,6 +688,7 @@ pub struct ForCompiler<'a, F, EF> {
     compiler: &'a mut AsmCompiler<F, EF>,
     start: Usize<F>,
     end: Usize<F>,
+    step_size: F,
     loop_var: Var<F>,
 }
 
@@ -605,27 +702,52 @@ impl<'a, F: PrimeField32, EF: ExtensionField<F>> ForCompiler<'a, F, EF> {
         self.set_loop_var();
         // Save the label of the for loop call
         let loop_call_label = self.compiler.block_label();
+
+        // Initialize a break label for this loop.
+        let break_label = self.compiler.new_break_label();
+        self.compiler.break_label = Some(break_label);
+
         // A basic block for the loop body
         self.compiler.basic_block();
         // Save the loop body label for the loop condition.
         let loop_label = self.compiler.block_label();
         // The loop body.
         f(self.loop_var, self.compiler);
+        // Increment the loop variable.
         self.compiler.push(AsmInstruction::ADDI(
             self.loop_var.fp(),
             self.loop_var.fp(),
-            F::one(),
+            self.step_size,
         ));
 
-        // loop_var, loop_var + B::F::one());
         // Add a basic block for the loop condition.
         self.compiler.basic_block();
         // Jump to loop body if the loop condition still holds.
         self.jump_to_loop_body(loop_label);
-        // Add a jump instruction to the loop condition in the following block
+        // Add a jump instruction to the loop condition in the loop call block.
         let label = self.compiler.block_label();
         let instr = AsmInstruction::j(label);
         self.compiler.push_to_block(loop_call_label, instr);
+
+        // Initialize the after loop block.
+        self.compiler.basic_block();
+        // resolve the break label
+        let label = self.compiler.block_label();
+        self.compiler.break_label_map.insert(break_label, label);
+        // Replace the break instruction with a jump to the after loop block.
+        for block in self.compiler.contains_break.iter() {
+            for instruction in self.compiler.basic_blocks[block.as_canonical_u32() as usize]
+                .0
+                .iter_mut()
+            {
+                if let AsmInstruction::Break(l) = instruction {
+                    if *l == break_label {
+                        *instruction = AsmInstruction::j(label);
+                    }
+                }
+            }
+        }
+        // self.compiler.contains_break.clear();
     }
 
     fn set_loop_var(&mut self) {

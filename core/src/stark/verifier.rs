@@ -18,6 +18,7 @@ use super::folder::VerifierConstraintFolder;
 use super::types::*;
 use super::StarkGenericConfig;
 use super::Val;
+use super::VerifyingKey;
 
 use core::fmt::Display;
 
@@ -28,6 +29,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     #[cfg(feature = "perf")]
     pub fn verify_shard(
         config: &SC,
+        vk: &VerifyingKey<SC>,
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
@@ -81,6 +83,22 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         challenger.observe(quotient_commit.clone());
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
+
+        let preprocessed_domains_points_and_opens = vk
+            .chip_information
+            .iter()
+            .map(|(name, domain, _)| {
+                let i = proof.chip_ordering[name];
+                let values = proof.opened_values.chips[i].preprocessed.clone();
+                (
+                    *domain,
+                    vec![
+                        (zeta, values.local),
+                        (domain.next_point(zeta).unwrap(), values.next),
+                    ],
+                )
+            })
+            .collect::<Vec<_>>();
 
         let main_domains_points_and_opens = trace_domains
             .iter()
@@ -143,6 +161,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .pcs()
             .verify(
                 vec![
+                    (vk.commit.clone(), preprocessed_domains_points_and_opens),
                     (main_commit.clone(), main_domains_points_and_opens),
                     (permutation_commit.clone(), perm_domains_points_and_opens),
                     (quotient_commit.clone(), quotient_domains_points_and_opens),
@@ -178,6 +197,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     #[cfg(not(feature = "perf"))]
     pub fn verify_shard(
         _config: &SC,
+        _vk: &VerifyingKey<SC>,
         _chips: &[&MachineChip<SC, A>],
         _challenger: &mut SC::Challenger,
         _proof: &ShardProof<SC>,

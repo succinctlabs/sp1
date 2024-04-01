@@ -9,6 +9,7 @@ use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
@@ -112,6 +113,8 @@ impl<E: EllipticCurve + EdwardsParameters> Syscall for EdAddAssignChip<E> {
 
 impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for EdAddAssignChip<E> {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "EdAddAssign".to_string()
