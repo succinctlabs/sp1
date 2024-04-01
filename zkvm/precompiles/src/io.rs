@@ -30,8 +30,11 @@ impl std::io::Write for SyscallWriter {
 
 pub fn read_vec() -> Vec<u8> {
     let len = unsafe { syscall_hint_len() };
+    // Round up to the nearest multiple of 4 so that the memory allocated is in whole words
+    let capacity = (len + 3) / 4 * 4;
+
     // Allocate a buffer of the required length that is 4 byte aligned
-    let layout = Layout::from_size_align(len, 4).expect("vec is too large");
+    let layout = Layout::from_size_align(capacity, 4).expect("vec is too large");
     let ptr = unsafe { std::alloc::alloc(layout) };
     // SAFETY:
     // 1. `ptr` was allocated using alloc
@@ -39,7 +42,7 @@ pub fn read_vec() -> Vec<u8> {
     // 3/6. Size is correct from above
     // 4/5. Length is 0
     // 7. Layout::from_size_align already checks this
-    let mut vec = unsafe { Vec::from_raw_parts(ptr, 0, len) };
+    let mut vec = unsafe { Vec::from_raw_parts(ptr, 0, capacity) };
     // Read the vec into uninitialized memory. The syscall assumes the memory is uninitialized,
     // which should be true because the allocator does not dealloc, so a new alloc should be fresh.
     unsafe {
