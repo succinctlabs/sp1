@@ -1,4 +1,5 @@
 #![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::explicit_counter_loop)]
 #![allow(type_alias_bounds)]

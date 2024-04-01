@@ -587,7 +587,7 @@ impl<C: Config> Builder<C> {
                     .for_each(|_, builder| builder.assign(result, result * result));
             }
             Usize::Const(power_log) => {
-                for i in 0..power_log {
+                for _ in 0..power_log {
                     result = self.eval(result * result);
                 }
             }

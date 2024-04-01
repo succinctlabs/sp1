@@ -324,6 +324,7 @@ mod tests {
                     alpha_val,
                     &permutation_challenges,
                 );
+                println!("{:?}", folded_constraints_val);
 
                 // Compute the folded constraints value in the DSL.
                 let values_var: ChipOpenedValuesVariable<_> =
@@ -352,6 +353,7 @@ mod tests {
                 // Compute the expected quotient value.
                 let quotient_val =
                     Verifier::<SC, A>::recompute_quotient(values_vals, &qc_domains_vals, zeta_val);
+                println!("{:?}", quotient_val);
 
                 let qc_domains = qc_domains_vals
                     .iter()
@@ -370,7 +372,78 @@ mod tests {
                 builder.assert_ext_eq(quotient, quotient_val.cons());
 
                 // Assert that the constraint-quotient relation holds.
+                println!("{:?}", sels_val.inv_zeroifier);
                 builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
+            }
+        }
+
+        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        gnark_ffi::test_circuit(constraints);
+    }
+
+    #[test]
+    fn test_verify_constraints_whole() {
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RiscvAir<F>;
+
+        // Generate a dummy proof.
+        sp1_core::utils::setup_logger();
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+
+        let machine = A::machine(SC::default());
+        let mut challenger = machine.config().challenger();
+        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+            .unwrap()
+            .proof
+            .shard_proofs;
+        println!("Proof generated successfully");
+
+        proofs.iter().for_each(|proof| {
+            challenger.observe(proof.commitment.main_commit);
+        });
+
+        // Run the verify inside the DSL and compare it to the calculated value.
+        let mut builder = Builder::<OuterConfig>::default();
+
+        for proof in proofs.into_iter().take(1) {
+            let (
+                chips,
+                trace_domains_vals,
+                quotient_chunk_domains_vals,
+                permutation_challenges,
+                alpha_val,
+                zeta_val,
+            ) = get_shard_data(&machine, &proof, &mut challenger);
+
+            for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
+                chips.iter(),
+                trace_domains_vals,
+                quotient_chunk_domains_vals,
+                proof.opened_values.chips.iter(),
+            ) {
+                let opening = builder.eval_const(values_vals.clone());
+                let alpha = builder.eval(alpha_val.cons());
+                let zeta = builder.eval(zeta_val.cons());
+                let trace_domain = builder.eval_const(trace_domain_val);
+                let qc_domains = qc_domains_vals
+                    .iter()
+                    .map(|domain| builder.eval_const(*domain))
+                    .collect::<Vec<_>>();
+
+                StarkVerifierCircuit::<_, SC>::verify_constraints::<A>(
+                    &mut builder,
+                    chip,
+                    &opening,
+                    trace_domain,
+                    qc_domains,
+                    zeta,
+                    alpha,
+                    &permutation_challenges,
+                )
             }
         }
 

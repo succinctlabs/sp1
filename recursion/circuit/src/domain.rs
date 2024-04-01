@@ -33,7 +33,6 @@ where
     type Constant = TwoAdicMultiplicativeCoset<C::F>;
 
     fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        let log_d_val = value.log_n as u32;
         let g_val = C::F::two_adic_generator(value.log_n);
         TwoAdicMultiplicativeCosetVariable::<C> {
             log_n: value.log_n,
@@ -51,9 +50,7 @@ where
     type Constant = p3_commit::TwoAdicMultiplicativeCoset<C::F>;
 
     fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self {
-        let log_d_val = constant.log_n as u32;
         let g_val = C::F::two_adic_generator(constant.log_n);
-        // Initialize a domain.
         TwoAdicMultiplicativeCosetVariable::<C> {
             log_n: constant.log_n,
             size: 1 << constant.log_n,
@@ -83,7 +80,6 @@ where
             .exp_power_of_2_v::<Ext<_, _>>(unshifted_point, Usize::Const(self.log_n))
             - C::EF::one();
         let z_h: Ext<_, _> = builder.eval(z_h_expr);
-
         let ginv = self.geninv(builder);
         LagrangeSelectors {
             is_first_row: builder.eval(z_h / (unshifted_point - C::EF::one())),
