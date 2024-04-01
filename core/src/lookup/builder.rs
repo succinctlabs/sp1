@@ -17,6 +17,7 @@ pub struct InteractionBuilder<F: Field> {
 impl<F: Field> InteractionBuilder<F> {
     /// Creates a new `InteractionBuilder` with the given width.
     pub fn new(preprocessed_width: usize, main_width: usize) -> Self {
+        let preprocessed_width = preprocessed_width.max(1);
         let prep_values = [false, true]
             .into_iter()
             .flat_map(|is_next| {
