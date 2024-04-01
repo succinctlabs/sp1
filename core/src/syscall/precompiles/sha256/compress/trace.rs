@@ -5,7 +5,7 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     air::{MachineAir, Word},
-    runtime::ExecutionRecord,
+    runtime::{ExecutionRecord, Program},
     utils::pad_rows,
 };
 
@@ -16,6 +16,8 @@ use super::{
 
 impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "ShaCompress".to_string()

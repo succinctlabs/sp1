@@ -12,7 +12,7 @@ use tracing::instrument;
 
 use crate::air::{SP1AirBuilder, Word};
 
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `LtChip`.
@@ -75,6 +75,8 @@ impl LtCols<u32> {
 
 impl<F: PrimeField> MachineAir<F> for LtChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "Lt".to_string()

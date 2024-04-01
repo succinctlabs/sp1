@@ -5,7 +5,7 @@
 /// cycles.
 ///
 /// Any changes to the VM state will be reset at the end of the block. To provide data to the VM,
-/// use `io::hint` or `io::hint_slice`, and read it using `io::read` or `io::read_slice`.
+/// use `io::hint` or `io::hint_slice`, and read it using `io::read` or `io::read_vec`.
 #[macro_export]
 macro_rules! unconstrained {
     (  $($block:tt)* ) => {

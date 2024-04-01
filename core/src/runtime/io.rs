@@ -14,11 +14,17 @@ impl Runtime {
     pub fn write_stdin<T: Serialize>(&mut self, input: &T) {
         let mut buf = Vec::new();
         bincode::serialize_into(&mut buf, input).expect("serialization failed");
-        self.state.input_stream.extend(buf);
+        self.state.input_stream.push(buf);
     }
 
     pub fn write_stdin_slice(&mut self, input: &[u8]) {
-        self.state.input_stream.extend(input);
+        self.state.input_stream.push(input.to_vec());
+    }
+
+    pub fn write_vecs(&mut self, inputs: &[Vec<u8>]) {
+        for input in inputs {
+            self.state.input_stream.push(input.clone());
+        }
     }
 
     pub fn read_stdout<T: DeserializeOwned>(&mut self) -> T {

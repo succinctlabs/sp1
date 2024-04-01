@@ -19,7 +19,7 @@ pub struct MemoryInitializeFinalizeEvent {
 }
 
 impl MemoryInitializeFinalizeEvent {
-    pub fn intialize(addr: u32, value: u32, used: bool) -> Self {
+    pub fn initialize(addr: u32, value: u32, used: bool) -> Self {
         // All memory initialization happen at shard 0, timestamp 0.
         Self {
             addr,

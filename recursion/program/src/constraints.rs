@@ -156,6 +156,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
+        runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
             ShardMainData, ShardProof, StarkGenericConfig, Verifier,
@@ -283,6 +284,7 @@ mod tests {
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
         let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
@@ -290,6 +292,7 @@ mod tests {
             .shard_proofs;
         println!("Proof generated successfully");
 
+        challenger.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
         });
@@ -392,12 +395,15 @@ mod tests {
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
         let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof
             .shard_proofs;
         println!("Proof generated successfully");
+
+        challenger.observe(vk.commit);
 
         proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);

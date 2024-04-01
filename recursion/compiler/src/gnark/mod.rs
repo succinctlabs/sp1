@@ -496,8 +496,13 @@ impl<C: Config> GnarkBackend<C> {
                         b.id()
                     ))
                 }
-                DslIR::For(a, b, _, d) => {
-                    lines.push(format!("for i := {}; i < {}; i++ {{", a.value(), b.value()));
+                DslIR::For(a, b, step, _, d) => {
+                    lines.push(format!(
+                        "for i := {}; i < {}; i+={} {{",
+                        a.value(),
+                        b.value(),
+                        step
+                    ));
                     lines.extend(indent(self.emit(d)));
                     lines.push("}".to_string());
                 }
