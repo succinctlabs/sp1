@@ -150,6 +150,13 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
+            let preprocessed_width_arms = variants.iter().map(|(variant_name, field)| {
+                let field_ty = &field.ty;
+                quote! {
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::preprocessed_width(x)
+                }
+            });
+
             let generate_preprocessed_trace_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
@@ -187,6 +194,12 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                     fn name(&self) -> String {
                         match self {
                             #(#name_arms,)*
+                        }
+                    }
+
+                    fn preprocessed_width(&self) -> usize {
+                        match self {
+                            #(#preprocessed_width_arms,)*
                         }
                     }
 

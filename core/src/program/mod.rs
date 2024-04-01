@@ -46,6 +46,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         "Program".to_string()
     }
 
+    fn preprocessed_width(&self) -> usize {
+        NUM_PROGRAM_COLS
+    }
+
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let rows = program
             .instructions

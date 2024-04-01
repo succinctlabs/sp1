@@ -31,6 +31,10 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;
 
+    fn preprocessed_width(&self) -> usize {
+        0
+    }
+
     /// Generate the preprocessed trace given a specific program.
     #[allow(unused_variables)]
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {

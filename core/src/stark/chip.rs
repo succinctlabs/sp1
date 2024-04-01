@@ -107,7 +107,7 @@ where
     }
 
     fn preprocessed_trace(&self) -> Option<RowMajorMatrix<F>> {
-        self.air.preprocessed_trace()
+        panic!("Chip should not use the `BaseAir` method, but the `MachineAir` method.")
     }
 }
 
@@ -123,6 +123,11 @@ where
     fn name(&self) -> String {
         self.air.name()
     }
+
+    fn preprocessed_width(&self) -> usize {
+        <A as MachineAir<F>>::preprocessed_width(&self.air)
+    }
+
     fn generate_preprocessed_trace(&self, program: &A::Program) -> Option<RowMajorMatrix<F>> {
         <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
