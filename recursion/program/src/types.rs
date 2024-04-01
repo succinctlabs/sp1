@@ -113,16 +113,16 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let preprocess_dims = chip.preprocessed_dimensions();
-        let preprocessed_width = preprocess_dims.map(|d| d.width).unwrap_or(0);
-        for i in 0..preprocessed_width {
-            preprocessed
-                .local
-                .push(builder.get(&opening.preprocessed.local, i));
-            preprocessed
-                .next
-                .push(builder.get(&opening.preprocessed.next, i));
-        }
+        // let preprocess_dims = chip.preprocessed_dimensions();
+        // let preprocessed_width = preprocess_dims.map(|d| d.width).unwrap_or(0);
+        // for i in 0..preprocessed_width {
+        //     preprocessed
+        //         .local
+        //         .push(builder.get(&opening.preprocessed.local, i));
+        //     preprocessed
+        //         .next
+        //         .push(builder.get(&opening.preprocessed.next, i));
+        // }
 
         let mut main = AirOpenedValues {
             local: vec![],
