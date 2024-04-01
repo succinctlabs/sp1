@@ -197,6 +197,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     #[cfg(not(feature = "perf"))]
     pub fn verify_shard(
         _config: &SC,
+        _vk: &VerifyingKey<SC>,
         _chips: &[&MachineChip<SC, A>],
         _challenger: &mut SC::Challenger,
         _proof: &ShardProof<SC>,

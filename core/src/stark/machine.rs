@@ -265,7 +265,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn debug_constraints(
         &self,
-        _pk: &ProvingKey<SC>,
+        pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
     ) where
@@ -337,9 +337,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
             tracing::info_span!("debug constraints").in_scope(|| {
                 for i in 0..chips.len() {
+                    let permutation_trace = pk
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
                         chips[i],
-                        None,
+                        permutation_trace,
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
