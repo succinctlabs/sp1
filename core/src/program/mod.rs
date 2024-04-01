@@ -25,7 +25,6 @@ pub struct ProgramPreprocessedCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
     pub selectors: OpcodeSelectorCols<T>,
-    pub multiplicity: T,
 }
 
 /// The column layout for the chip.
@@ -152,6 +151,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let preprocessed = builder.preprocessed();
+
         let prep_local: &ProgramPreprocessedCols<AB::Var> = preprocessed.row_slice(0).borrow();
         let mult_local: &ProgramMultiplicityCols<AB::Var> = main.row_slice(0).borrow();
 

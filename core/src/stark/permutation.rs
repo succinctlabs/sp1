@@ -31,7 +31,7 @@ pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>
 pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
-    preprocessed: &Option<RowMajorMatrix<F>>,
+    preprocessed: Option<&RowMajorMatrix<F>>,
     main: &RowMajorMatrix<F>,
     random_elements: &[EF],
 ) -> RowMajorMatrix<EF> {
@@ -50,6 +50,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     // fingerprint for the interaction.
     let chunk_rate = 1 << 8;
     let permutation_trace_width = sends.len() + receives.len() + 1;
+
     let mut permutation_trace_values = {
         // Compute the permutation trace values in parallel.
 

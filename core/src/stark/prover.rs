@@ -267,8 +267,15 @@ where
                 .par_iter()
                 .zip(traces.par_iter())
                 .map(|(chip, main_trace)| {
-                    let perm_trace =
-                        chip.generate_permutation_trace(&None, main_trace, &permutation_challenges);
+                    let preprocessed_trace = pk
+                        .chip_ordering
+                        .get(&chip.name())
+                        .map(|&index| &pk.traces[index]);
+                    let perm_trace = chip.generate_permutation_trace(
+                        preprocessed_trace,
+                        main_trace,
+                        &permutation_challenges,
+                    );
                     let cumulative_sum = perm_trace
                         .row_slice(main_trace.height() - 1)
                         .last()

@@ -2,7 +2,7 @@ use crate::air::{AirInteraction, MessageBuilder};
 use p3_air::{AirBuilder, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
+use p3_uni_stark::{Entry, Row, SymbolicExpression, SymbolicVariable};
 
 use super::Interaction;
 
@@ -18,17 +18,18 @@ impl<F: Field> InteractionBuilder<F> {
     /// Creates a new `InteractionBuilder` with the given width.
     pub fn new(preprocessed_width: usize, main_width: usize) -> Self {
         let preprocessed_width = preprocessed_width.max(1);
-        let prep_values = [false, true]
+        let prep_values = [Row::Local, Row::Next]
             .into_iter()
-            .flat_map(|is_next| {
-                (0..preprocessed_width).map(move |column| SymbolicVariable::new(is_next, column))
+            .flat_map(|row| {
+                (0..preprocessed_width)
+                    .map(move |column| SymbolicVariable::new(Entry::Preprocessed(row), column))
             })
             .collect();
 
-        let main_values = [false, true]
+        let main_values = [Row::Local, Row::Next]
             .into_iter()
-            .flat_map(|is_next| {
-                (0..main_width).map(move |column| SymbolicVariable::new(is_next, column))
+            .flat_map(|row| {
+                (0..main_width).map(move |column| SymbolicVariable::new(Entry::Main(row), column))
             })
             .collect();
         Self {
@@ -125,9 +126,13 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 ) -> (Vec<(PairCol, F)>, F) {
     match expression {
         SymbolicExpression::Constant(c) => (vec![], *c),
-        SymbolicExpression::Variable(v) if !v.is_next => {
-            (vec![(PairCol::Main(v.column), F::one())], F::zero())
-        }
+        SymbolicExpression::Variable(v) => match v.entry {
+            Entry::Preprocessed(Row::Local) => {
+                (vec![(PairCol::Preprocessed(v.index), F::one())], F::zero())
+            }
+            Entry::Main(Row::Local) => (vec![(PairCol::Main(v.index), F::one())], F::zero()),
+            _ => panic!("Not an affine expression in current row elements"),
+        },
         SymbolicExpression::Add { x, y, .. } => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
             let (v_r, c_r) = eval_symbolic_to_virtual_pair(y);
@@ -167,9 +172,6 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
         SymbolicExpression::IsTransition => {
             panic!("Not an affine expression in current row elements")
         }
-        SymbolicExpression::Variable(_) => {
-            panic!("Not an affine expression in current row elements")
-        }
     }
 }
 
@@ -187,9 +189,9 @@ mod tests {
     fn test_symbolic_to_virtual_pair_col() {
         type F = BabyBear;
 
-        let x = SymbolicVariable::<F>::new(false, 0);
+        let x = SymbolicVariable::<F>::new(Entry::Main(Row::Local), 0);
 
-        let y = SymbolicVariable::<F>::new(false, 1);
+        let y = SymbolicVariable::<F>::new(Entry::Main(Row::Local), 1);
 
         let z = x + y;
 
