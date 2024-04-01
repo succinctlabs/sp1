@@ -23,6 +23,12 @@ pub(crate) struct BuildArgs {
         env = "SP1_DOCKER"
     )]
     pub(crate) docker: bool,
+    #[clap(
+        long,
+        action,
+        help = "Ignore Rust version check.",
+    )]
+    pub(crate) ignore_rust_version: bool,
 }
 
 pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
@@ -47,16 +53,22 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             exit(1);
         }
 
+        let workspace_root_path = format!("{}:/root/program", metadata.workspace_root);
+        let mut child_agrs = vec![
+            "run",
+            "--rm",
+            "-v",
+            workspace_root_path.as_str(),
+            image.as_str(),
+            "prove",
+            "check",
+        ];
+        if args.ignore_rust_version {
+            child_agrs.push("--ignore-rust-version");
+        }
+
         let mut child = Command::new("docker")
-            .args([
-                "run",
-                "--rm",
-                "-v",
-                format!("{}:/root/program", metadata.workspace_root).as_str(),
-                image.as_str(),
-                "prove",
-                "build",
-            ])
+            .args(&child_agrs)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
@@ -92,10 +104,15 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             "panic=abort",
         ];
 
+        let mut cargo_args = vec!["build", "--release", "--target", build_target, "--locked"];
+        if args.ignore_rust_version {
+            cargo_args.push("--ignore-rust-version");
+        }
+
         let result = Command::new("cargo")
             .env("RUSTUP_TOOLCHAIN", "succinct")
             .env("CARGO_ENCODED_RUSTFLAGS", rust_flags.join("\x1f"))
-            .args(["build", "--release", "--target", build_target, "--locked"])
+            .args(&cargo_args)
             .status()
             .context("Failed to run cargo command.")?;
 
