@@ -511,9 +511,9 @@ impl CpuChip {
                         - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
                 );
 
-            // Populate `is_lwa`.
-            ecall_cols.is_lwa.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::LWA.syscall_id()),
+            // Populate `is_hint_len`.
+            ecall_cols.is_hint_len.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
             );
 
             // Populate `is_halt`.

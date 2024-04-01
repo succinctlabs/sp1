@@ -1,7 +1,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// A buffer of serializable/deserializable objects.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Buffer {
     pub data: Vec<u8>,
     #[serde(skip)]

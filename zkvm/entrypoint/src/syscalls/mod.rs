@@ -29,9 +29,6 @@ pub use unconstrained::*;
 /// Halts the program.
 pub const HALT: u32 = 0x00_00_00_00;
 
-/// Loads a word supplied from the prover.
-pub const LWA: u32 = 0x00_00_00_01;
-
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 0x00_00_00_02;
 
@@ -76,3 +73,9 @@ pub const BN254_DOUBLE: u32 = 0x00_00_01_0F;
 
 /// Executes the `COMMIT` precompile.
 pub const COMMIT: u32 = 0x00_00_00_10;
+
+/// Executes `HINT_LEN`.
+pub const HINT_LEN: u32 = 0x00_00_00_F0;
+
+/// Executes `HINT_READ`.
+pub const HINT_READ: u32 = 0x00_00_00_F1;

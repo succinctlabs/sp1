@@ -1,7 +1,6 @@
 use std::panic::{self, AssertUnwindSafe};
 use std::process::exit;
 
-use itertools::Itertools;
 use p3_air::{
     Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
     PermutationAirBuilder, TwoRowMatrixView,

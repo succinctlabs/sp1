@@ -71,7 +71,7 @@ impl Syscall for SyscallWrite {
             } else if fd == 3 {
                 rt.state.output_stream.extend_from_slice(slice);
             } else if fd == 4 {
-                rt.state.input_stream.extend_from_slice(slice);
+                rt.state.input_stream.push(slice.to_vec());
             } else if fd == 5 {
                 rt.pi_buffer.extend(slice);
             } else {
