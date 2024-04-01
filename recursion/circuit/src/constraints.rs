@@ -159,12 +159,9 @@ mod tests {
         utils::BabyBearPoseidon2,
         SP1Prover, SP1Stdin,
     };
-    use sp1_recursion_core::runtime::Runtime;
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::PrimeField32;
     use sp1_recursion_compiler::{
-        asm::VmBuilder,
         constraints::{gnark_ffi, ConstraintBackend},
         ir::{Builder, SymbolicExt},
         prelude::ExtConst,
@@ -172,7 +169,6 @@ mod tests {
     };
 
     use p3_commit::{LagrangeSelectors, Pcs, PolynomialSpace};
-    use sp1_recursion_program::commit::PolynomialSpaceVariable;
 
     use crate::{
         domain::TwoAdicMultiplicativeCosetVariable,
@@ -276,7 +272,6 @@ mod tests {
     fn test_verify_constraints_parts() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
         type A = RiscvAir<F>;
 
         // Generate a dummy proof.
@@ -386,7 +381,6 @@ mod tests {
     fn test_verify_constraints_whole() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
         type A = RiscvAir<F>;
 
         // Generate a dummy proof.

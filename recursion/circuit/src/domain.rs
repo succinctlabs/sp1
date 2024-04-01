@@ -32,7 +32,7 @@ where
 {
     type Constant = TwoAdicMultiplicativeCoset<C::F>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn eval_const(value: Self::Constant, _: &mut Builder<C>) -> Self {
         let g_val = C::F::two_adic_generator(value.log_n);
         TwoAdicMultiplicativeCosetVariable::<C> {
             log_n: value.log_n,
@@ -49,7 +49,7 @@ where
 {
     type Constant = p3_commit::TwoAdicMultiplicativeCoset<C::F>;
 
-    fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self {
+    fn from_constant(_: &mut Builder<C>, constant: Self::Constant) -> Self {
         let g_val = C::F::two_adic_generator(constant.log_n);
         TwoAdicMultiplicativeCosetVariable::<C> {
             log_n: constant.log_n,
@@ -102,7 +102,7 @@ where
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L91
-    fn split_domains(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
+    fn split_domains(&self, _: &mut Builder<C>, _: usize) -> Vec<Self> {
         todo!()
         // let num_chunks = 1 << log_num_chunks;
         // let log_n: Var<_> = builder.eval(self.log_n - C::N::from_canonical_usize(log_num_chunks));
@@ -128,11 +128,7 @@ where
         // domains
     }
 
-    fn create_disjoint_domain(
-        &self,
-        builder: &mut Builder<C>,
-        log_degree: Usize<<C as Config>::N>,
-    ) -> Self {
+    fn create_disjoint_domain(&self, _: &mut Builder<C>, _: Usize<<C as Config>::N>) -> Self {
         todo!()
         // let domain = new_coset(builder, log_degree);
         // builder.assign(domain.shift, self.shift * C::F::generator());

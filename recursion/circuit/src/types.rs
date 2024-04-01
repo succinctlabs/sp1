@@ -123,7 +123,7 @@ pub struct ChipOpening<C: Config> {
 
 impl<C: Config> ChipOpening<C> {
     pub fn from_variable<A>(
-        builder: &mut Builder<C>,
+        _: &mut Builder<C>,
         chip: &Chip<C::F, A>,
         opening: &ChipOpenedValuesVariable<C>,
     ) -> Self
