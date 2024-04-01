@@ -2,7 +2,7 @@ use std::hash::Hash;
 
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::{dense::RowMajorMatrix, Dimensions};
 use p3_util::log2_ceil_usize;
 
 use crate::{
@@ -126,8 +126,8 @@ where
         <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
-    fn preprocessed_width(&self) -> usize {
-        self.air.preprocessed_width()
+    fn preprocessed_dimensions(&self) -> Option<Dimensions> {
+        self.air.preprocessed_dimensions()
     }
 
     fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {

@@ -150,10 +150,10 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                 }
             });
 
-            let preprocessed_width_arms = variants.iter().map(|(variant_name, field)| {
+            let preprocessed_dims_arms = variants.iter().map(|(variant_name, field)| {
                 let field_ty = &field.ty;
                 quote! {
-                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::preprocessed_width(x)
+                    #name::#variant_name(x) => <#field_ty as #sp1_core_path::air::MachineAir<F>>::preprocessed_dimensions(x)
                 }
             });
 
@@ -197,9 +197,9 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
                         }
                     }
 
-                    fn preprocessed_width(&self) -> usize {
+                    fn preprocessed_dimensions(&self) -> Option<p3_matrix::Dimensions> {
                         match self {
-                            #(#preprocessed_width_arms,)*
+                            #(#preprocessed_dims_arms,)*
                         }
                     }
 

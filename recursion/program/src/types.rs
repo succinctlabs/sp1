@@ -15,14 +15,6 @@ use crate::fri::TwoAdicPcsProofVariable;
 #[allow(type_alias_bounds)]
 pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
 
-// /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
-// #[derive(DslVariable, Clone)]
-// pub struct FriConfigVariable<C: Config> {
-//     pub log_blowup: Var<C::N>,
-//     pub num_queries: Var<C::N>,
-//     pub proof_of_work_bits: Var<C::N>,
-// }
-
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
 #[derive(Clone)]
 pub struct FriConfigVariable<C: Config> {
@@ -121,8 +113,9 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let preprocess_width = chip.preprocessed_width();
-        for i in 0..preprocess_width {
+        let preprocess_dims = chip.preprocessed_dimensions();
+        let preprocessed_width = preprocess_dims.map(|d| d.width).unwrap_or(0);
+        for i in 0..preprocessed_width {
             preprocessed
                 .local
                 .push(builder.get(&opening.preprocessed.local, i));

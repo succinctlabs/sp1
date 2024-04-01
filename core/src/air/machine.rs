@@ -1,6 +1,6 @@
 use p3_air::BaseAir;
 use p3_field::Field;
-use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::{dense::RowMajorMatrix, Dimensions};
 
 use crate::stark::MachineRecord;
 
@@ -32,8 +32,8 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     fn included(&self, shard: &Self::Record) -> bool;
 
     /// The number of preprocessed columns in the trace.
-    fn preprocessed_width(&self) -> usize {
-        0
+    fn preprocessed_dimensions(&self) -> Option<Dimensions> {
+        None
     }
 
     /// Generate the preprocessed trace given a specific program.
