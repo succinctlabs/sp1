@@ -6,9 +6,8 @@ use serde::Serialize;
 use std::alloc::Layout;
 use std::io::Write;
 
-const FD_IO: u32 = 3;
 const FD_HINT: u32 = 4;
-pub const FD_PUBLIC_INPUT: u32 = 5;
+pub const FD_PUBLIC_VALUES: u32 = 3;
 
 pub struct SyscallWriter {
     fd: u32,
@@ -55,19 +54,16 @@ pub fn read<T: DeserializeOwned>() -> T {
     bincode::deserialize(&vec).expect("deserialization failed")
 }
 
-pub fn write<T: Serialize>(value: &T) {
-    let writer = SyscallWriter { fd: FD_IO };
+pub fn commit<T: Serialize>(value: &T) {
+    let writer = SyscallWriter {
+        fd: FD_PUBLIC_VALUES,
+    };
     bincode::serialize_into(writer, value).expect("serialization failed");
 }
 
-pub fn write_slice(buf: &[u8]) {
-    let mut my_writer = SyscallWriter { fd: FD_IO };
-    my_writer.write_all(buf).unwrap();
-}
-
-pub fn public_input(buf: &[u8]) {
+pub fn commit_slice(buf: &[u8]) {
     let mut my_writer = SyscallWriter {
-        fd: FD_PUBLIC_INPUT,
+        fd: FD_PUBLIC_VALUES,
     };
     my_writer.write_all(buf).unwrap();
 }

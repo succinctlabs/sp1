@@ -67,7 +67,7 @@ async fn main() {
     pi_hasher.update(&serde_cbor::to_vec(&expected_verdict).unwrap());
     let expected_pi_digest: &[u8] = &pi_hasher.finalize();
 
-    let proof_pi_bytes: Vec<u8> = proof.proof.pi_digest.into();
+    let proof_pi_bytes: Vec<u8> = proof.proof.public_values_digest.into();
     assert_eq!(proof_pi_bytes.as_slice(), expected_pi_digest);
 
     // Save proof.

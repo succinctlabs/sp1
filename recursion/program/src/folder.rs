@@ -1,4 +1,7 @@
-use p3_air::{AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView};
+use p3_air::{
+    AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
+    TwoRowMatrixView,
+};
 use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 
 use sp1_recursion_compiler::{
@@ -94,3 +97,9 @@ impl<'a, C: Config> PairBuilder for RecursiveVerifierConstraintFolder<'a, C> {
 }
 
 impl<'a, C: Config> EmptyMessageBuilder for RecursiveVerifierConstraintFolder<'a, C> {}
+
+impl<'a, C: Config> AirBuilderWithPublicValues for RecursiveVerifierConstraintFolder<'a, C> {
+    fn public_values(&self) -> &[Self::F] {
+        todo!()
+    }
+}

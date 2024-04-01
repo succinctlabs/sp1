@@ -29,7 +29,7 @@ macro_rules! entrypoint {
     };
 }
 
-pub const PI_DIGEST_NUM_WORDS: usize = 8;
+pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
@@ -37,7 +37,7 @@ mod libm;
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
-    use crate::PI_DIGEST_NUM_WORDS;
+    use crate::PV_DIGEST_NUM_WORDS;
 
     use getrandom::{register_custom_getrandom, Error};
     use once_cell::sync::Lazy;
@@ -58,7 +58,7 @@ mod zkvm {
         }
 
         let pi_digest_bytes = PI_HASHER.lock().unwrap().to_owned().finalize().to_vec();
-        let pi_digest_words: [u32; PI_DIGEST_NUM_WORDS] = pi_digest_bytes
+        let pi_digest_words: [u32; PV_DIGEST_NUM_WORDS] = pi_digest_bytes
             .chunks_exact(4)
             .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
             .collect::<Vec<_>>()

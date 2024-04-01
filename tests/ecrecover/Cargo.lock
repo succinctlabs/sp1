@@ -481,8 +481,10 @@ dependencies = [
  "getrandom",
  "k256",
  "libm",
+ "once_cell",
  "rand",
  "serde",
+ "sha2",
  "sp1-precompiles",
 ]
 

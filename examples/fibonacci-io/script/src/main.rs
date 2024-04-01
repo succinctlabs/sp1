@@ -18,12 +18,17 @@ fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
+    println!("wrote to stdin");
+
     // Generate the proof for the given program and input.
     let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
+    println!("generated proof");
+
     // Read and verify the output.
-    let a = proof.stdout.read::<u32>();
-    let b = proof.stdout.read::<u32>();
+    let n: u32 = proof.public_values.read::<u32>();
+    let a = proof.public_values.read::<u32>();
+    let b = proof.public_values.read::<u32>();
     assert_eq!(a, expected_a);
     assert_eq!(b, expected_b);
 
@@ -39,7 +44,7 @@ fn main() {
     pi_hasher.update(expected_b.to_le_bytes());
     let expected_pi_digest: &[u8] = &pi_hasher.finalize();
 
-    let proof_pi_bytes: Vec<u8> = proof.proof.pi_digest.into();
+    let proof_pi_bytes: Vec<u8> = proof.proof.public_values_digest.into();
     assert_eq!(proof_pi_bytes.as_slice(), expected_pi_digest);
 
     // Save the proof.

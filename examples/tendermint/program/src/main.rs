@@ -41,8 +41,8 @@ fn main() {
     println!("cycle-tracker-end: header hash");
 
     println!("cycle-tracker-start: public input headers");
-    sp1_zkvm::io::public_input(header_hash_1.as_bytes());
-    sp1_zkvm::io::public_input(header_hash_2.as_bytes());
+    sp1_zkvm::io::commit_slice(header_hash_1.as_bytes());
+    sp1_zkvm::io::commit_slice(header_hash_2.as_bytes());
     println!("cycle-tracker-end: public input headers");
 
     println!("cycle-tracker-start: verify");
@@ -63,7 +63,7 @@ fn main() {
 
     println!("cycle-tracker-start: public inputs verdict");
     let verdict_encoded = serde_cbor::to_vec(&verdict).unwrap();
-    sp1_zkvm::io::public_input(verdict_encoded.as_slice());
+    sp1_zkvm::io::commit_slice(verdict_encoded.as_slice());
     println!("cycle-tracker-end: public inputs verdict");
 
     match verdict {

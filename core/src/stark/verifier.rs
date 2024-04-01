@@ -250,14 +250,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             local: unflatten(&opening.permutation.local),
             next: unflatten(&opening.permutation.next),
         };
-        if pv_digest.is_none() {
-            return SC::Challenge::zero();
-        }
+
         let public_values: Vec<Val<SC>> = if pv_digest.is_none() {
             Vec::new()
         } else {
             pv_digest.unwrap().into()
         };
+
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),

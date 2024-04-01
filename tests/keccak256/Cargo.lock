@@ -411,8 +411,10 @@ dependencies = [
  "getrandom",
  "k256",
  "libm",
+ "once_cell",
  "rand",
  "serde",
+ "sha2",
  "sp1-precompiles",
 ]
 
@@ -452,7 +454,7 @@ checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
 [[package]]
 name = "tiny-keccak"
 version = "2.0.2"
-source = "git+https://github.com/succinctlabs/tiny-keccak-private?branch=chris/test#aa70bacdfece9dc7ea4936f808887c43a09b3b0a"
+source = "git+https://github.com/sp1-patches/tiny-keccak?branch=patch-v2.0.2#aa70bacdfece9dc7ea4936f808887c43a09b3b0a"
 dependencies = [
  "cfg-if",
  "crunchy",
