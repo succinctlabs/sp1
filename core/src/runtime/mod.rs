@@ -210,15 +210,25 @@ impl Runtime {
                 .or_insert(record.copied());
         }
 
-        // If it's the first time accessing this address, initialize previous values as zero.
-        if addr != 0 {
-            if let Entry::Vacant(_) = entry {
-                self.record
-                    .memory_initialize_events
-                    .push(MemoryInitializeFinalizeEvent::initialize(addr, 0, true))
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+                // Do not emit memory initialize events for address 0 as that is done in initialize.
+                if addr != 0 {
+                    self.record
+                        .memory_initialize_events
+                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
+                }
+                entry.insert(MemoryRecord {
+                    value,
+                    shard: 0,
+                    timestamp: 0,
+                })
             }
-        }
-        let record = entry.or_default();
+        };
         let value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
@@ -247,15 +257,25 @@ impl Runtime {
                 .or_insert(record.copied());
         }
 
-        // If it's the first time accessing this address, initialize previous values as zero.
-        if addr != 0 {
-            if let Entry::Vacant(_) = entry {
-                self.record
-                    .memory_initialize_events
-                    .push(MemoryInitializeFinalizeEvent::initialize(addr, 0, true))
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+                // Do not emit memory initialize events for address 0 as that is done in initialize.
+                if addr != 0 {
+                    self.record
+                        .memory_initialize_events
+                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
+                }
+                entry.insert(MemoryRecord {
+                    value,
+                    shard: 0,
+                    timestamp: 0,
+                })
             }
-        }
-        let record = entry.or_default();
+        };
         let prev_value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;

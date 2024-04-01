@@ -1,7 +1,4 @@
-use crate::{
-    memory::MemoryInitializeFinalizeEvent,
-    runtime::{MemoryRecord, Syscall, SyscallContext},
-};
+use crate::runtime::{Syscall, SyscallContext};
 
 pub struct SyscallHintLen;
 
@@ -37,11 +34,16 @@ impl Syscall for SyscallHintRead {
         }
         let vec = &ctx.rt.state.input_stream[ctx.rt.state.input_stream_ptr];
         ctx.rt.state.input_stream_ptr += 1;
+        assert!(
+            !ctx.rt.unconstrained,
+            "hint read should not be used in a unconstrained block"
+        );
         assert_eq!(
             vec.len() as u32,
             len,
             "hint input stream read length mismatch"
         );
+        assert_eq!(ptr % 4, 0, "hint read address not aligned to 4 bytes");
         // Iterate through the vec in 4-byte chunks
         for i in (0..len).step_by(4) {
             // Get each byte in the chunk
@@ -52,25 +54,15 @@ impl Syscall for SyscallHintRead {
             let b3 = vec.get(i as usize + 2).copied().unwrap_or(0);
             let b4 = vec.get(i as usize + 3).copied().unwrap_or(0);
             let word = u32::from_le_bytes([b1, b2, b3, b4]);
-            let record = ctx.rt.state.memory.entry(ptr + i);
 
-            // Insert the word into the memory record.
-            record
-                .and_modify(|_| panic!("hint read address is initialized already"))
-                .or_insert(MemoryRecord {
-                    value: word,
-                    timestamp: 0,
-                    shard: 0,
-                });
-            // Add the memory initialization event with the word we are reading.
+            // Save the data into runtime state so the runtime will use the desired data instead of
+            // 0 when first reading/writing from this address.
             ctx.rt
-                .record
-                .memory_initialize_events
-                .push(MemoryInitializeFinalizeEvent::initialize(
-                    ptr + i,
-                    word,
-                    true,
-                ))
+                .state
+                .uninitialized_memory
+                .entry(ptr + i)
+                .and_modify(|_| panic!("hint read address is initialized already"))
+                .or_insert(word);
         }
         None
     }

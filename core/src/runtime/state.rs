@@ -27,6 +27,10 @@ pub struct ExecutionState {
     /// + timestamp that each memory address was accessed.
     pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 
+    /// Uninitialized memory addresses that have a specific value they should be initialized with.
+    /// SyscallHintRead uses this to write hint data into uninitialized memory.
+    pub uninitialized_memory: HashMap<u32, u32, BuildNoHashHasher<u32>>,
+
     /// A stream of input values (global to the entire program).
     pub input_stream: Vec<Vec<u8>>,
 
@@ -49,6 +53,7 @@ impl ExecutionState {
             clk: 0,
             pc: pc_start,
             memory: HashMap::default(),
+            uninitialized_memory: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
             output_stream: Vec::new(),
