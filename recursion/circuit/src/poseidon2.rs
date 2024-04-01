@@ -7,18 +7,18 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::{Builder, Config, DslIR, Var};
 
 use crate::challenger::reduce_32;
-use crate::mmcs::OuterDigest;
+use crate::types::OuterDigest;
 use crate::DIGEST_SIZE;
 use crate::RATE;
 use crate::SPONGE_SIZE;
 
-pub trait P2CircuitBuilder<C: Config> {
+pub trait Poseidon2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
     fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigest<C>;
     fn p2_compress(&mut self, input: [OuterDigest<C>; 2]) -> OuterDigest<C>;
 }
 
-impl<C: Config> P2CircuitBuilder<C> for Builder<C> {
+impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]) {
         self.push(DslIR::CircuitPoseidon2Permute(state))
     }
@@ -71,8 +71,8 @@ pub mod tests {
     use zkhash::fields::bn256::FpBN256 as ark_FpBN256;
     use zkhash::poseidon2::poseidon2_instance_bn256::RC3;
 
-    use crate::mmcs::OuterDigest;
-    use crate::poseidon2::P2CircuitBuilder;
+    use crate::poseidon2::Poseidon2CircuitBuilder;
+    use crate::types::OuterDigest;
 
     fn bn254_from_ark_ff(input: ark_FpBN256) -> Bn254Fr {
         let bytes = input.into_bigint().to_bytes_le();

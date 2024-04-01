@@ -3,10 +3,7 @@ use p3_matrix::Dimensions;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use std::cmp::Reverse;
 
-use crate::{poseidon2::P2CircuitBuilder, DIGEST_SIZE};
-
-#[allow(type_alias_bounds)]
-pub type OuterDigest<C: Config> = [Var<C::N>; DIGEST_SIZE];
+use crate::{poseidon2::Poseidon2CircuitBuilder, types::OuterDigest};
 
 pub fn verify_batch<C: Config, const D: usize>(
     builder: &mut Builder<C>,

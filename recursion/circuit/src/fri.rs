@@ -1,5 +1,5 @@
 use itertools::{izip, Itertools};
-use p3_commit::{PolynomialSpace, TwoAdicMultiplicativeCoset};
+use p3_commit::PolynomialSpace;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
@@ -9,10 +9,15 @@ use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::stark::config::OuterChallengeMmcs;
 
-use crate::mmcs::{verify_batch, OuterDigest};
+use crate::mmcs::verify_batch;
+use crate::types::FriChallenges;
+use crate::types::FriProofVariable;
+use crate::types::FriQueryProofVariable;
+use crate::types::OuterDigest;
+use crate::types::TwoAdicPcsProofVariable;
+use crate::types::TwoAdicPcsRoundVariable;
 use crate::{challenger::MultiFieldChallengerVariable, DIGEST_SIZE};
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
 pub fn verify_shape_and_sample_challenges<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfig<OuterChallengeMmcs>,
@@ -21,7 +26,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 ) -> FriChallenges<C> {
     let mut betas = vec![];
 
-    #[allow(clippy::never_loop)]
     for i in 0..proof.commit_phase_commits.len() {
         let commitment: [Var<C::N>; DIGEST_SIZE] = proof.commit_phase_commits[i];
         challenger.observe_commitment(builder, commitment);
@@ -42,32 +46,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         query_indices,
         betas,
     }
-}
-
-#[derive(Clone)]
-pub struct BatchOpeningVariable<C: Config> {
-    pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    pub opening_proof: Vec<OuterDigest<C>>,
-}
-
-#[derive(Clone)]
-pub struct TwoAdicPcsProofVariable<C: Config> {
-    pub fri_proof: FriProofVariable<C>,
-    pub query_openings: Vec<Vec<BatchOpeningVariable<C>>>,
-}
-
-#[derive(Clone)]
-pub struct TwoAdicPcsRoundVariable<C: Config> {
-    pub batch_commit: OuterDigest<C>,
-    pub mats: Vec<TwoAdicPcsMatsVariable<C>>,
-}
-
-#[allow(clippy::type_complexity)]
-#[derive(Clone)]
-pub struct TwoAdicPcsMatsVariable<C: Config> {
-    pub domain: TwoAdicMultiplicativeCoset<C::F>,
-    pub points: Vec<Ext<C::F, C::EF>>,
-    pub values: Vec<Vec<Ext<C::F, C::EF>>>,
 }
 
 pub fn verify_two_adic_pcs<C: Config>(
@@ -188,8 +166,6 @@ pub fn verify_challenges<C: Config>(
     }
 }
 
-#[allow(clippy::too_many_arguments)]
-#[allow(clippy::explicit_counter_loop)]
 pub fn verify_query<C: Config>(
     builder: &mut Builder<C>,
     commit_phase_commits: Vec<OuterDigest<C>>,
@@ -208,7 +184,6 @@ pub fn verify_query<C: Config>(
     let mut x = builder.exp_usize_ef_bits(two_adic_generator, rev_reduced_index);
 
     let mut offset = 0;
-    #[allow(clippy::never_loop)]
     for (log_folded_height, commit, step, beta) in izip!(
         (0..log_max_height).rev(),
         commit_phase_commits,
@@ -257,35 +232,6 @@ pub fn verify_query<C: Config>(
     folded_eval
 }
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
-#[derive(Clone)]
-pub struct FriProofVariable<C: Config> {
-    pub commit_phase_commits: Vec<OuterDigest<C>>,
-    pub query_proofs: Vec<FriQueryProofVariable<C>>,
-    pub final_poly: Ext<C::F, C::EF>,
-    pub pow_witness: Felt<C::F>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
-#[derive(Clone)]
-pub struct FriCommitPhaseProofStepVariable<C: Config> {
-    pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Vec<OuterDigest<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
-#[derive(Clone)]
-pub struct FriQueryProofVariable<C: Config> {
-    pub commit_phase_openings: Vec<FriCommitPhaseProofStepVariable<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
-#[derive(Clone)]
-pub struct FriChallenges<C: Config> {
-    pub query_indices: Vec<Var<C::N>>,
-    pub betas: Vec<Ext<C::F, C::EF>>,
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -307,14 +253,14 @@ mod tests {
         OuterCompress, OuterDft, OuterFriProof, OuterHash, OuterPcs, OuterVal, OuterValMmcs,
     };
 
-    use super::{
-        verify_shape_and_sample_challenges, verify_two_adic_pcs, FriCommitPhaseProofStepVariable,
-        FriProofVariable, TwoAdicPcsProofVariable, TwoAdicPcsRoundVariable,
-    };
+    use super::{verify_shape_and_sample_challenges, verify_two_adic_pcs, TwoAdicPcsRoundVariable};
     use crate::{
         challenger::MultiFieldChallengerVariable,
-        fri::{BatchOpeningVariable, FriQueryProofVariable, TwoAdicPcsMatsVariable},
-        mmcs::OuterDigest,
+        fri::FriQueryProofVariable,
+        types::{
+            BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, OuterDigest,
+            TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+        },
         DIGEST_SIZE,
     };
 

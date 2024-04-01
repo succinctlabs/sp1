@@ -5,44 +5,15 @@ use p3_field::Field;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 
-use crate::poseidon2::P2CircuitBuilder;
+use crate::poseidon2::Poseidon2CircuitBuilder;
 use crate::DIGEST_SIZE;
-
-const WIDTH: usize = 3;
+use crate::SPONGE_SIZE;
 
 pub struct MultiFieldChallengerVariable<C: Config> {
     sponge_state: [Var<C::N>; 3],
     input_buffer: Vec<Felt<C::F>>,
     output_buffer: Vec<Felt<C::F>>,
     num_f_elms: usize,
-}
-
-pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Var<C::N> {
-    let mut power = C::N::one();
-    let result: Var<C::N> = builder.eval(C::N::zero());
-    for val in vals.iter() {
-        let bits = builder.num2bits_f_circuit(*val);
-        let val = builder.bits_to_num_var_circuit(&bits);
-        builder.assign(result, result + val * power);
-        power *= C::N::from_canonical_usize(1usize << 32);
-    }
-    result
-}
-
-pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -> Vec<Felt<C::F>> {
-    let bits = builder.num2bits_v_circuit(val, 256);
-    let mut results = Vec::new();
-    for i in 0..n {
-        let result: Felt<C::F> = builder.eval(C::F::zero());
-        for j in 0..32 {
-            let bit = bits[i * 32 + j];
-            let t = builder.eval(result + C::F::from_wrapped_u32(1 << j));
-            let z = builder.select_f(bit, t, result);
-            builder.assign(result, z);
-        }
-        results.push(result);
-    }
-    results
 }
 
 impl<C: Config> MultiFieldChallengerVariable<C> {
@@ -60,7 +31,7 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
     }
 
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
-        assert!(self.input_buffer.len() <= self.num_f_elms * WIDTH);
+        assert!(self.input_buffer.len() <= self.num_f_elms * SPONGE_SIZE);
 
         for (i, f_chunk) in self.input_buffer.chunks(self.num_f_elms).enumerate() {
             self.sponge_state[i] = reduce_32(builder, f_chunk);
@@ -82,7 +53,7 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
         self.output_buffer.clear();
 
         self.input_buffer.push(value);
-        if self.input_buffer.len() == self.num_f_elms * WIDTH {
+        if self.input_buffer.len() == self.num_f_elms * SPONGE_SIZE {
             self.duplexing(builder);
         }
     }
@@ -129,6 +100,34 @@ impl<C: Config> MultiFieldChallengerVariable<C> {
         let element = self.sample_bits(builder, bits);
         builder.assert_var_eq(element, C::N::from_canonical_usize(0));
     }
+}
+
+pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Var<C::N> {
+    let mut power = C::N::one();
+    let result: Var<C::N> = builder.eval(C::N::zero());
+    for val in vals.iter() {
+        let bits = builder.num2bits_f_circuit(*val);
+        let val = builder.bits_to_num_var_circuit(&bits);
+        builder.assign(result, result + val * power);
+        power *= C::N::from_canonical_usize(1usize << 32);
+    }
+    result
+}
+
+pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -> Vec<Felt<C::F>> {
+    let bits = builder.num2bits_v_circuit(val, 256);
+    let mut results = Vec::new();
+    for i in 0..n {
+        let result: Felt<C::F> = builder.eval(C::F::zero());
+        for j in 0..32 {
+            let bit = bits[i * 32 + j];
+            let t = builder.eval(result + C::F::from_wrapped_u32(1 << j));
+            let z = builder.select_f(bit, t, result);
+            builder.assign(result, z);
+        }
+        results.push(result);
+    }
+    results
 }
 
 #[cfg(test)]
