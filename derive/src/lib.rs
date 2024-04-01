@@ -252,7 +252,7 @@ pub fn machine_air_derive(input: TokenStream) -> TokenStream {
             let mut new_generics = generics.clone();
             new_generics
                 .params
-                .push(syn::parse_quote! { AB: #sp1_core_path::air::SP1AirBuilder<F = F> });
+                .push(syn::parse_quote! { AB: p3_air::PairBuilder + #sp1_core_path::air::SP1AirBuilder<F = F> });
 
             let (air_impl_generics, _, _) = new_generics.split_for_impl();
 

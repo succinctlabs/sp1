@@ -624,13 +624,13 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 }
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ExtensionAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
+impl<AB: BaseAirBuilder> ByteAirBuilder for AB {}
+impl<AB: BaseAirBuilder> WordAirBuilder for AB {}
+impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
+impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
+impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
+impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
+impl<AB: BaseAirBuilder> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}

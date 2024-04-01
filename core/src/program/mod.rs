@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
@@ -15,15 +15,23 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
-pub const NUM_PROGRAM_COLS: usize = size_of::<ProgramCols<u8>>();
+pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
+pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
-pub struct ProgramCols<T> {
+pub struct ProgramPreprocessedCols<T> {
     pub pc: T,
     pub instruction: InstructionCols<T>,
     pub selectors: OpcodeSelectorCols<T>,
+    pub multiplicity: T,
+}
+
+/// The column layout for the chip.
+#[derive(AlignedBorrow, Clone, Copy, Default)]
+#[repr(C)]
+pub struct ProgramMultiplicityCols<T> {
     pub multiplicity: T,
 }
 
@@ -47,7 +55,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
     }
 
     fn preprocessed_width(&self) -> usize {
-        NUM_PROGRAM_COLS
+        NUM_PROGRAM_PREPROCESSED_COLS
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
@@ -58,8 +66,8 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             .enumerate()
             .map(|(i, instruction)| {
                 let pc = program.pc_base + (i as u32 * 4);
-                let mut row = [F::zero(); NUM_PROGRAM_COLS];
-                let cols: &mut ProgramCols<F> = row.as_mut_slice().borrow_mut();
+                let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
+                let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
                 cols.instruction.populate(instruction);
                 cols.selectors.populate(instruction);
@@ -71,11 +79,11 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_COLS,
+            NUM_PROGRAM_PREPROCESSED_COLS,
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
 
         Some(trace)
     }
@@ -104,13 +112,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
             .clone()
             .into_iter()
             .enumerate()
-            .map(|(i, instruction)| {
+            .map(|(i, _)| {
                 let pc = input.program.pc_base + (i as u32 * 4);
-                let mut row = [F::zero(); NUM_PROGRAM_COLS];
-                let cols: &mut ProgramCols<F> = row.as_mut_slice().borrow_mut();
-                cols.pc = F::from_canonical_u32(pc);
-                cols.instruction.populate(instruction);
-                cols.selectors.populate(instruction);
+                let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
+                let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity =
                     F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
                 row
@@ -120,11 +125,11 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_COLS,
+            NUM_PROGRAM_MULT_COLS,
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_PROGRAM_MULT_COLS, F>(&mut trace.values);
 
         trace
     }
@@ -136,30 +141,32 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
 
 impl<F> BaseAir<F> for ProgramChip {
     fn width(&self) -> usize {
-        NUM_PROGRAM_COLS
+        NUM_PROGRAM_MULT_COLS
     }
 }
 
 impl<AB> Air<AB> for ProgramChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1AirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ProgramCols<AB::Var> = main.row_slice(0).borrow();
+        let preprocessed = builder.preprocessed();
+        let prep_local: &ProgramPreprocessedCols<AB::Var> = preprocessed.row_slice(0).borrow();
+        let mult_local: &ProgramMultiplicityCols<AB::Var> = main.row_slice(0).borrow();
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
-            local.pc * local.pc * local.pc,
-            local.pc * local.pc * local.pc,
+            prep_local.pc * prep_local.pc * prep_local.pc,
+            prep_local.pc * prep_local.pc * prep_local.pc,
         );
 
         // Contrain the interaction with CPU table
         builder.receive_program(
-            local.pc,
-            local.instruction,
-            local.selectors,
-            local.multiplicity,
+            prep_local.pc,
+            prep_local.instruction,
+            prep_local.selectors,
+            mult_local.multiplicity,
         );
     }
 }
