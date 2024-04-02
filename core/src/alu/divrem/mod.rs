@@ -781,7 +781,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.divrem_events = vec![AluEvent::new(0, Opcode::DIVU, 2, 17, 3)];
+        shard.divrem_events = vec![AluEvent::new(0, 0, Opcode::DIVU, 2, 17, 3)];
         let chip = DivRemChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -834,12 +834,12 @@ mod tests {
             (Opcode::REM, 0, 1 << 31, neg(1)),
         ];
         for t in divrems.iter() {
-            divrem_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            divrem_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - divrems.len()) {
-            divrem_events.push(AluEvent::new(0, Opcode::DIVU, 1, 1, 1));
+            divrem_events.push(AluEvent::new(0, 0, Opcode::DIVU, 1, 1, 1));
         }
 
         let mut shard = ExecutionRecord::default();

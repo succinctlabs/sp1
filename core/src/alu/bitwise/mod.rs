@@ -172,7 +172,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
+        shard.bitwise_events = vec![AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -186,9 +186,9 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = [
-            AluEvent::new(0, Opcode::XOR, 25, 10, 19),
-            AluEvent::new(0, Opcode::OR, 27, 10, 19),
-            AluEvent::new(0, Opcode::AND, 2, 10, 19),
+            AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19),
+            AluEvent::new(0, 0, Opcode::OR, 27, 10, 19),
+            AluEvent::new(0, 0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();

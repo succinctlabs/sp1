@@ -467,6 +467,7 @@ mod tests {
         for _ in 0..10i32.pow(7) {
             mul_events.push(AluEvent::new(
                 0,
+                0,
                 Opcode::MULHSU,
                 0x80004000,
                 0x80000000,
@@ -540,12 +541,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            mul_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(AluEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
         }
 
         shard.mul_events = mul_events;
