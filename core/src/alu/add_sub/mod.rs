@@ -12,7 +12,7 @@ use tracing::instrument;
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::operations::AddOperation;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::stark::MachineRecord;
 use crate::utils::pad_to_power_of_two;
 
@@ -50,6 +50,8 @@ pub struct AddSubCols<T> {
 
 impl<F: PrimeField> MachineAir<F> for AddSubChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "AddSub".to_string()

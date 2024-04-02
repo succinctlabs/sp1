@@ -105,7 +105,9 @@ impl<'a, SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'a, SC> 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
 impl<'a, SC: StarkGenericConfig> AirBuilderWithPublicValues for ProverConstraintFolder<'a, SC> {
-    fn public_values(&self) -> &[Self::F] {
+    type PublicVar = Self::F;
+
+    fn public_values(&self) -> &[Self::PublicVar] {
         self.public_values
     }
 }
@@ -378,7 +380,9 @@ where
         + Mul<Var, Output = Expr>
         + Mul<Expr, Output = Expr>,
 {
-    fn public_values(&self) -> &[Self::F] {
+    type PublicVar = Self::F;
+
+    fn public_values(&self) -> &[Self::PublicVar] {
         self.public_values
     }
 }

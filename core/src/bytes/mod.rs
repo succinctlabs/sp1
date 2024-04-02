@@ -15,7 +15,7 @@ use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use std::marker::PhantomData;
 
-use self::columns::{ByteCols, NUM_BYTE_COLS};
+use self::columns::{BytePreprocessedCols, NUM_BYTE_PREPROCESSED_COLS};
 use self::utils::shr_carry;
 use crate::bytes::trace::NUM_ROWS;
 
@@ -42,8 +42,10 @@ impl<F: Field> ByteChip<F> {
         let mut event_map = BTreeMap::new();
 
         // The trace containing all values, with all multiplicities set to zero.
-        let mut initial_trace =
-            RowMajorMatrix::new(vec![F::zero(); NUM_ROWS * NUM_BYTE_COLS], NUM_BYTE_COLS);
+        let mut initial_trace = RowMajorMatrix::new(
+            vec![F::zero(); NUM_ROWS * NUM_BYTE_PREPROCESSED_COLS],
+            NUM_BYTE_PREPROCESSED_COLS,
+        );
 
         // Record all the necessary operations for each byte lookup.
         let opcodes = ByteOpcode::all();
@@ -52,7 +54,7 @@ impl<F: Field> ByteChip<F> {
         for (row_index, (b, c)) in (0..=u8::MAX).cartesian_product(0..=u8::MAX).enumerate() {
             let b = b as u8;
             let c = c as u8;
-            let col: &mut ByteCols<F> = initial_trace.row_mut(row_index).borrow_mut();
+            let col: &mut BytePreprocessedCols<F> = initial_trace.row_mut(row_index).borrow_mut();
 
             // Set the values of `b` and `c`.
             col.b = F::from_canonical_u8(b);

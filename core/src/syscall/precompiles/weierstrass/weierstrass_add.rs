@@ -7,6 +7,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
@@ -145,6 +146,7 @@ where
     [(); num_weierstrass_add_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
+    type Program = Program;
 
     fn name(&self) -> String {
         match E::CURVE_TYPE {

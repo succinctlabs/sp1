@@ -1,5 +1,6 @@
 use crate::air::BlockBuilder;
 use crate::cpu::CpuChip;
+use crate::runtime::Program;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -32,6 +33,7 @@ pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
+    type Program = Program<F>;
 
     fn name(&self) -> String {
         "CPU".to_string()

@@ -1,3 +1,4 @@
+use crate::challenger::FeltChallenger;
 use p3_field::TwoAdicField;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
@@ -8,7 +9,7 @@ use crate::types::{Commitment, Dimensions, FriConfigVariable, FriProofVariable};
 use crate::commit::PcsVariable;
 
 use super::{
-    new_coset, verify_batch, verify_challenges, verify_shape_and_sample_challenges,
+    verify_batch, verify_challenges, verify_shape_and_sample_challenges,
     TwoAdicMultiplicativeCosetVariable,
 };
 
@@ -52,6 +53,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     proof: TwoAdicPcsProofVariable<C>,
     challenger: &mut DuplexChallengerVariable<C>,
 ) where
+    C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let alpha = challenger.sample_ext(builder);
@@ -72,7 +74,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
             let query_opening = builder.get(&proof.query_openings, i);
-            let index = builder.get(&fri_challenges.query_indices, i);
+            let index_bits = builder.get(&fri_challenges.query_indices, i);
             let mut ro: Array<C, Ext<C::F, C::EF>> = builder.array(32);
             let zero: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::zero()));
             for j in 0..32 {
@@ -108,7 +110,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let log_batch_max_height = builder.get(&batch_heights_log2, 0);
                 let bits_reduced: Var<_> =
                     builder.eval(log_global_max_height - log_batch_max_height);
-                let index_bits = builder.num2bits_v(index);
                 let index_bits_shifted_v1 = index_bits.shift(builder, bits_reduced);
                 verify_batch::<C, 1>(
                     builder,
@@ -133,19 +134,15 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                         let bits_reduced: Var<C::N> =
                             builder.eval(log_global_max_height - log_height);
-                        let index_bits_shifted_v2 = index_bits.shift(builder, bits_reduced);
-                        let index_shifted_v2 = builder.bits_to_num_var(&index_bits_shifted_v2);
-                        // TODO: perf
-                        let rev_reduced_index =
-                            builder.reverse_bits_len(index_shifted_v2, Usize::Var(log_height));
-                        let rev_reduced_index = rev_reduced_index.materialize(builder);
+                        let index_bits_shifted = index_bits.shift(builder, bits_reduced);
 
                         let g = builder.generator();
-                        let two_adic_generator = builder.two_adic_generator(Usize::Var(log_height));
-                        let two_adic_generator_exp =
-                        // TODO: don't duplicate this bit decomposition
-                        // TODO: add break to early terminate
-                            builder.exp_usize_f(two_adic_generator, Usize::Var(rev_reduced_index));
+                        let two_adic_generator = config.get_two_adic_generator(builder, log_height);
+                        let two_adic_generator_exp = builder.exp_reverse_bits_len(
+                            two_adic_generator,
+                            &index_bits_shifted,
+                            log_height,
+                        );
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
@@ -161,10 +158,12 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                                 let ro_at_log_height = builder.get(&ro, log_height);
                                 let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
-                                let new_ro_at_log_height: Ext<C::F, C::EF> = builder
-                                    .eval(ro_at_log_height + alpha_pow_at_log_height * quotient);
 
-                                builder.set(&mut ro, log_height, new_ro_at_log_height);
+                                builder.set(
+                                    &mut ro,
+                                    log_height,
+                                    ro_at_log_height + alpha_pow_at_log_height * quotient,
+                                );
                                 builder.set(
                                     &mut alpha_pow,
                                     log_height,
@@ -263,7 +262,7 @@ where
         builder: &mut Builder<C>,
         log_degree: Usize<C::N>,
     ) -> Self::Domain {
-        new_coset(builder, log_degree)
+        self.config.get_subgroup(builder, log_degree)
     }
 
     // Todo: change TwoAdicPcsRoundVariable to RoundVariable
@@ -283,8 +282,9 @@ pub(crate) mod tests {
 
     use std::cmp::Reverse;
 
+    use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
-    use crate::commit::PolynomialSpaceVariable;
+    use crate::challenger::FeltChallenger;
     use crate::fri::TwoAdicMultiplicativeCosetVariable;
     use crate::fri::TwoAdicPcsRoundVariable;
     use crate::types::Commitment;
@@ -305,6 +305,7 @@ pub(crate) mod tests {
     use p3_field::AbstractField;
     use p3_field::Field;
     use p3_field::PrimeField32;
+    use p3_field::TwoAdicField;
     use p3_fri::FriConfig;
     use p3_fri::FriProof;
     use p3_fri::TwoAdicFriPcs;
@@ -353,10 +354,27 @@ pub(crate) mod tests {
         builder: &mut RecursionBuilder,
         config: FriConfig<ChallengeMmcs>,
     ) -> FriConfigVariable<RecursionConfig> {
+        let two_addicity = Val::TWO_ADICITY;
+        let mut generators = builder.dyn_array(two_addicity);
+        let mut subgroups = builder.dyn_array(two_addicity);
+        for i in 0..two_addicity {
+            let constant_generator = Val::two_adic_generator(i);
+            builder.set(&mut generators, i, constant_generator);
+
+            let constant_domain = TwoAdicMultiplicativeCoset {
+                log_n: i,
+                shift: Val::one(),
+            };
+            let domain_value: TwoAdicMultiplicativeCosetVariable<_> =
+                builder.eval_const(constant_domain);
+            builder.set(&mut subgroups, i, domain_value);
+        }
         FriConfigVariable {
-            log_blowup: builder.eval(Val::from_canonical_usize(config.log_blowup)),
-            num_queries: builder.eval(Val::from_canonical_usize(config.num_queries)),
-            proof_of_work_bits: builder.eval(Val::from_canonical_usize(config.proof_of_work_bits)),
+            log_blowup: Val::from_canonical_usize(config.log_blowup),
+            num_queries: config.num_queries,
+            proof_of_work_bits: config.proof_of_work_bits,
+            subgroups,
+            generators,
         }
     }
 
@@ -556,11 +574,10 @@ pub(crate) mod tests {
                 1 << log_d_val,
             );
 
-            let expected_domain =
-                TwoAdicMultiplicativeCosetVariable::from_constant(&mut builder, domain_val);
+            let expected_domain: TwoAdicMultiplicativeCosetVariable<_> =
+                builder.eval_const(domain_val);
 
-            builder
-                .assert_eq::<TwoAdicMultiplicativeCosetVariable<_>, _, _>(domain, expected_domain);
+            builder.assert_eq::<TwoAdicMultiplicativeCosetVariable<_>>(domain, expected_domain);
         }
 
         // Test proof verification.
@@ -568,7 +585,7 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         let commit = <[Val; DIGEST_SIZE]>::from(commit).to_vec();
         let commit = builder.eval_const::<Array<_, _>>(commit);
-        challenger.observe_commitment(&mut builder, commit);
+        challenger.observe(&mut builder, commit);
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proof, &mut challenger);
 
@@ -684,7 +701,7 @@ pub(crate) mod tests {
         for commit in batches_commits {
             let commit: [Val; DIGEST_SIZE] = commit.into();
             let commit = builder.eval_const::<Array<_, _>>(commit.to_vec());
-            challenger.observe_commitment(&mut builder, commit);
+            challenger.observe(&mut builder, commit);
         }
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proof, &mut challenger);

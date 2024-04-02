@@ -99,7 +99,9 @@ impl<'a, C: Config> PairBuilder for RecursiveVerifierConstraintFolder<'a, C> {
 impl<'a, C: Config> EmptyMessageBuilder for RecursiveVerifierConstraintFolder<'a, C> {}
 
 impl<'a, C: Config> AirBuilderWithPublicValues for RecursiveVerifierConstraintFolder<'a, C> {
-    fn public_values(&self) -> &[Self::F] {
+    type PublicVar = C::F;
+
+    fn public_values(&self) -> &[Self::PublicVar] {
         todo!()
     }
 }

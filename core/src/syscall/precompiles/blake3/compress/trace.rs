@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryRecordEnum;
+use crate::runtime::Program;
 use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
 use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
 use crate::utils::pad_rows;
@@ -19,6 +20,7 @@ use super::{
 
 impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
     type Record = ExecutionRecord;
+    type Program = Program;
 
     fn name(&self) -> String {
         "Blake3CompressInner".to_string()

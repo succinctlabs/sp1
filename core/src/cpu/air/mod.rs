@@ -446,7 +446,9 @@ impl CpuChip {
         // Convert public values into words.
         let mut digest_words = Vec::new();
         for bytes in public_values.chunks_exact(WORD_SIZE) {
-            digest_words.push(Word::<AB::F>(bytes.try_into().unwrap()));
+            let bytes_expr_vec: Vec<AB::Expr> =
+                bytes.iter().map(|byte| (*byte).into()).collect::<Vec<_>>();
+            digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
         }
 
         // Get the ecall specific columns.

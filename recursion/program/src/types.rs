@@ -8,6 +8,7 @@ use sp1_core::{
 
 use sp1_recursion_compiler::prelude::*;
 
+use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::fri::TwoAdicPcsProofVariable;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L54
@@ -15,11 +16,13 @@ use crate::fri::TwoAdicPcsProofVariable;
 pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
-#[derive(DslVariable, Clone)]
+#[derive(Clone)]
 pub struct FriConfigVariable<C: Config> {
-    pub log_blowup: Var<C::N>,
-    pub num_queries: Var<C::N>,
-    pub proof_of_work_bits: Var<C::N>,
+    pub log_blowup: C::N,
+    pub num_queries: usize,
+    pub proof_of_work_bits: usize,
+    pub generators: Array<C, Felt<C::F>>,
+    pub subgroups: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
@@ -47,7 +50,7 @@ pub struct FriCommitPhaseProofStepVariable<C: Config> {
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
 #[derive(DslVariable, Clone)]
 pub struct FriChallenges<C: Config> {
-    pub query_indices: Array<C, Var<C::N>>,
+    pub query_indices: Array<C, Array<C, Var<C::N>>>,
     pub betas: Array<C, Ext<C::F, C::EF>>,
 }
 
@@ -110,8 +113,9 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let preprocess_width = chip.preprocessed_width();
-        for i in 0..preprocess_width {
+
+        let preprocessed_width = chip.preprocessed_width();
+        for i in 0..preprocessed_width {
             preprocessed
                 .local
                 .push(builder.get(&opening.preprocessed.local, i));
@@ -191,5 +195,23 @@ impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
             cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: builder.eval(C::N::from_canonical_usize(value.log_degree)),
         }
+    }
+}
+
+impl<C: Config> FriConfigVariable<C> {
+    pub fn get_subgroup(
+        &self,
+        builder: &mut Builder<C>,
+        log_degree: impl Into<Usize<C::N>>,
+    ) -> TwoAdicMultiplicativeCosetVariable<C> {
+        builder.get(&self.subgroups, log_degree)
+    }
+
+    pub fn get_two_adic_generator(
+        &self,
+        builder: &mut Builder<C>,
+        bits: impl Into<Usize<C::N>>,
+    ) -> Felt<C::F> {
+        builder.get(&self.generators, bits)
     }
 }
