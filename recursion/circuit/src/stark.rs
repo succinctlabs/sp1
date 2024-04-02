@@ -170,23 +170,23 @@ where
         let config = outer_fri_config();
         verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
-        // for (i, chip) in machine.chips().iter().enumerate() {
-        //     let index = sorted_indices[i];
-        //     let values = opened_values.chips[i];
-        //     let trace_domain = trace_domains[i];
-        //     let quotient_domain = quotient_domains[i];
-        //     let qc_domains = quotient_domain.split_domains(builder, chip.log_quotient_degree());
-        //     Self::verify_constraints(
-        //         builder,
-        //         chip,
-        //         &values,
-        //         trace_domain,
-        //         qc_domains,
-        //         zeta,
-        //         alpha,
-        //         permutation_challenges,
-        //     );
-        // }
+        for (i, chip) in machine.chips().iter().enumerate() {
+            let index = sorted_indices[i];
+            let values = &opened_values.chips[index];
+            let trace_domain = &trace_domains[index];
+            let quotient_domain = &quotient_domains[index];
+            let qc_domains = quotient_domain.split_domains(builder, chip.log_quotient_degree());
+            Self::verify_constraints(
+                builder,
+                chip,
+                values,
+                trace_domain.clone(),
+                qc_domains,
+                zeta,
+                alpha,
+                permutation_challenges,
+            );
+        }
     }
 }
 
@@ -276,12 +276,11 @@ pub(crate) mod tests {
             .chips()
             .iter()
             .map(|chip| {
-                let index = proof
+                proof
                     .chip_ordering
                     .get(&chip.name())
-                    .map(|i| Bn254Fr::from_canonical_usize(*i))
-                    .unwrap_or(Bn254Fr::neg_one());
-                builder.eval(index)
+                    .map(|i| *i)
+                    .unwrap_or(usize::MAX)
             })
             .collect();
 

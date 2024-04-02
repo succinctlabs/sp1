@@ -16,7 +16,7 @@ pub struct RecursionShardProofVariable<C: Config> {
     pub commitment: ShardCommitment<OuterDigest<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub sorted_indices: Vec<Var<C::N>>,
+    pub sorted_indices: Vec<usize>,
 }
 
 #[derive(Clone)]
