@@ -4,7 +4,7 @@ use crate::air::Block;
 
 use super::{Opcode, D};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct Instruction<F> {
     /// Which operation to execute.
     pub opcode: Opcode,

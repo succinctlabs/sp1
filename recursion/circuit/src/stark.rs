@@ -291,40 +291,15 @@ pub(crate) mod tests {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         Program::<F> {
-            instructions: vec![
-                Instruction::new(
-                    Opcode::ADD,
-                    F::from_canonical_u32(3),
-                    zero,
-                    one,
-                    false,
-                    true,
-                ),
-                Instruction::new(
-                    Opcode::ADD,
-                    F::from_canonical_u32(3),
-                    zero,
-                    one,
-                    false,
-                    true,
-                ),
-                Instruction::new(
-                    Opcode::ADD,
-                    F::from_canonical_u32(3),
-                    zero,
-                    one,
-                    false,
-                    true,
-                ),
-                Instruction::new(
-                    Opcode::ADD,
-                    F::from_canonical_u32(3),
-                    zero,
-                    one,
-                    false,
-                    true,
-                ),
-            ],
+            instructions: [Instruction::new(
+                Opcode::ADD,
+                F::from_canonical_u32(3),
+                zero,
+                one,
+                false,
+                true,
+            )]
+            .repeat(1 << 18),
         }
     }
 
