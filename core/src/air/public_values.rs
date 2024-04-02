@@ -8,6 +8,8 @@ use std::{
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 
+use crate::air::WORD_SIZE;
+
 use super::Word;
 
 // TODO:  Create a config struct that will store the num_words setting and the hash function
@@ -22,8 +24,6 @@ pub struct PublicValuesDigest<T>([T; PV_DIGEST_NUM_WORDS]);
 /// Conversion from a byte array into a PiDigest<u32>.
 impl From<&[u8]> for PublicValuesDigest<u32> {
     fn from(bytes: &[u8]) -> Self {
-        const WORD_SIZE: usize = 4;
-
         assert!(bytes.len() == PV_DIGEST_NUM_WORDS * WORD_SIZE);
 
         let mut words = [0u32; PV_DIGEST_NUM_WORDS];

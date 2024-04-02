@@ -68,7 +68,8 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
     }
 
-    /// Index an array of expressions using an index bitmap.
+    /// Index an array of expressions using an index bitmap.  This function assumes that the EIndex
+    /// type is a boolean and that index_bitmap's entries sum to 1.
     fn index_array<I: Into<Self::Expr>, EIndex: Into<Self::Expr> + Clone>(
         &mut self,
         array: &[I],
