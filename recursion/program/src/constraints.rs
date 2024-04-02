@@ -164,7 +164,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_sdk::{SP1Prover, SP1Stdin};
+    use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
@@ -398,11 +398,12 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
-            .shard_proofs;
-        println!("Proof generated successfully");
+        let proof =
+            SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone()).unwrap();
+        SP1Verifier::verify_with_config(elf, &proof, machine.config().clone()).unwrap();
+
+        let proofs = proof.proof.shard_proofs;
+        println!("Proof generated and verified successfully");
 
         challenger.observe(vk.commit);
 

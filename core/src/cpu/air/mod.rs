@@ -448,6 +448,7 @@ impl CpuChip {
         for bytes in public_values.chunks_exact(WORD_SIZE) {
             let bytes_expr_vec: Vec<AB::Expr> =
                 bytes.iter().map(|byte| (*byte).into()).collect::<Vec<_>>();
+
             digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
         }
 
