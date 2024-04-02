@@ -283,6 +283,10 @@ mod tests {
     fn test_syscalls_in_default_map() {
         let default_syscall_map = default_syscall_map();
         for code in SyscallCode::iter() {
+            if code == SyscallCode::BLAKE3_COMPRESS_INNER {
+                // Blake3 is currently disabled.
+                continue;
+            }
             default_syscall_map.get(&code).unwrap();
         }
     }
