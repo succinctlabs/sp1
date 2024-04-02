@@ -79,7 +79,7 @@ pub fn run_test_core(
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     #[cfg(feature = "debug")]
-    machine.debug_constraints(&pk, record_clone, &mut challenger);
+    machine.debug_constraints(&runtime.program, &pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
@@ -135,7 +135,7 @@ where
         #[cfg(feature = "debug")]
         {
             let record_clone = runtime.record.clone();
-            machine.debug_constraints(&pk, record_clone, &mut challenger);
+            machine.debug_constraints(&program, &pk, record_clone, &mut challenger);
         }
         let stdout = std::mem::take(&mut runtime.state.output_stream);
         let proof = prove_core(machine.config().clone(), runtime);

@@ -11,7 +11,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     /// The execution record containing events for producing the air trace.
     type Record: MachineRecord;
 
-    type Program;
+    type Program: Send + Sync;
 
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
