@@ -229,6 +229,7 @@ mod tests {
     fn test_memory_lookup_interactions() {
         setup_logger();
         let program = sha_extend_program();
+        let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
         runtime.run();
         let record = runtime.record.clone();
@@ -250,6 +251,7 @@ mod tests {
     fn test_byte_lookup_interactions() {
         setup_logger();
         let program = sha_extend_program();
+        let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
         runtime.run();
         let record = runtime.record.clone();
