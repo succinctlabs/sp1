@@ -441,17 +441,6 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         is_commit: AB::Expr,
     ) {
-        let public_values = builder.public_values();
-
-        // Convert public values into words.
-        let mut digest_words = Vec::new();
-        for bytes in public_values.chunks_exact(WORD_SIZE) {
-            let bytes_expr_vec: Vec<AB::Expr> =
-                bytes.iter().map(|byte| (*byte).into()).collect::<Vec<_>>();
-
-            digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
-        }
-
         // Get the ecall specific columns.
         let ecall_columns = local.opcode_specific_columns.ecall();
 
@@ -463,22 +452,31 @@ impl CpuChip {
         }
         builder.when(is_commit.clone()).assert_one(bitmap_sum);
 
+        // Get the public values and convert them into digest words
+        let public_values = builder.public_values();
+        let mut digest_words = Vec::new();
+        for bytes in public_values.chunks_exact(WORD_SIZE) {
+            let bytes_expr_vec: Vec<AB::Expr> =
+                bytes.iter().map(|byte| (*byte).into()).collect::<Vec<_>>();
+
+            digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
+        }
+
         // Retrieve the public_values_digest_word to check against the one passed into the commit ecall.
         // Note that for the interaction builder, it will not have any digest words, since it's used
-        // during AIR compilation time to parse for all send/receives.  There will be no public values
-        // digests at that compilation time.  Since that interaction builder will ignore the other
+        // during AIR compilation time to parse for all send/receives. There will be no public values
+        // digests at that compilation time. Since that interaction builder will ignore the other
         // constraints of the air, it is safe to assign the public_values_digest_word to the zero word
         // when the digest_words is empty (which is only true for the interaction builder).
-        let public_values_digest_word = if !digest_words.is_empty() {
-            builder.index_word_array(&digest_words, &ecall_columns.index_bitmap)
-        } else {
-            Word::zero::<AB>()
-        };
+        if !builder.is_interaction_builder() {
+            let expected_pv_digest_word =
+                builder.index_word_array(&digest_words, &ecall_columns.index_bitmap);
 
-        // Verify the public_values_digest_word.
-        builder
-            .when(is_commit)
-            .assert_word_eq(public_values_digest_word, ecall_columns.digest_word);
+            // Verify the public_values_digest_word.
+            builder
+                .when(is_commit)
+                .assert_word_eq(expected_pv_digest_word, ecall_columns.digest_word);
+        }
     }
 
     /// Constraint related to the halt and unimpl instruction.

@@ -641,6 +641,13 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
     fn cumulative_sum(&self) -> Self::Sum;
 }
 
+pub trait PublicValuesBuilder: AirBuilderWithPublicValues {
+    /// A method to check if this builder is an interaction builder.  Only the InteractionBuilder
+    /// should have a different implementation.
+    fn is_interaction_builder(&self) -> bool {
+        false
+    }
+}
 /// A trait which contains all helper methods for building an AIR.
 pub trait SP1AirBuilder:
     BaseAirBuilder
@@ -650,7 +657,7 @@ pub trait SP1AirBuilder:
     + MemoryAirBuilder
     + ProgramAirBuilder
     + ExtensionAirBuilder
-    + AirBuilderWithPublicValues
+    + PublicValuesBuilder
 {
 }
 
@@ -672,11 +679,16 @@ impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
 impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
-impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}
+impl<AB: BaseAirBuilder + PublicValuesBuilder> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
+impl<'a, SC: StarkGenericConfig> PublicValuesBuilder for ProverConstraintFolder<'a, SC> {}
+impl<'a, SC: StarkGenericConfig> PublicValuesBuilder for VerifierConstraintFolder<'a, SC> {}
+impl<F: Field> PublicValuesBuilder for SymbolicAirBuilder<F> {}
 
 #[cfg(debug_assertions)]
 impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}
+#[cfg(debug_assertions)]
+impl<'a, F: Field> PublicValuesBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}

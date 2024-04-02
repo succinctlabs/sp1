@@ -9,7 +9,10 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PublicValuesDigest, Word};
+use crate::air::{
+    EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PublicValuesBuilder, PublicValuesDigest,
+    Word,
+};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 
@@ -263,4 +266,9 @@ impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
     fn public_values(&self) -> &[Self::PublicVar] {
         self.public_values
     }
+}
+
+impl<'a, F: Field, EF: ExtensionField<F>> PublicValuesBuilder
+    for DebugConstraintBuilder<'a, F, EF>
+{
 }

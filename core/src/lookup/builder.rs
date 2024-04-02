@@ -1,4 +1,4 @@
-use crate::air::{AirInteraction, MessageBuilder};
+use crate::air::{AirInteraction, MessageBuilder, PublicValuesBuilder};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
@@ -116,6 +116,12 @@ impl<F: Field> AirBuilderWithPublicValues for InteractionBuilder<F> {
 
     fn public_values(&self) -> &[Self::PublicVar] {
         &[]
+    }
+}
+
+impl<F: Field> PublicValuesBuilder for InteractionBuilder<F> {
+    fn is_interaction_builder(&self) -> bool {
+        true
     }
 }
 
