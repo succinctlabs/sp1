@@ -43,12 +43,4 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     fn public_values_digest(&self) -> PublicValuesDigest<u32> {
         todo!()
     }
-
-    fn public_values_digest_mut(&mut self) -> &mut PublicValuesDigest<u32> {
-        todo!()
-    }
-
-    fn set_public_values_digest(&mut self, _digest: PublicValuesDigest<u32>) {
-        todo!()
-    }
 }

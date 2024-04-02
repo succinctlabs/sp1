@@ -1,7 +1,4 @@
-use crate::{
-    runtime::{Syscall, SyscallContext},
-    stark::MachineRecord,
-};
+use crate::runtime::{Syscall, SyscallContext};
 
 pub struct SyscallCommit;
 
@@ -20,8 +17,7 @@ impl Syscall for SyscallCommit {
     ) -> Option<u32> {
         let rt = &mut ctx.rt;
 
-        let public_values_digest = rt.record.public_values_digest_mut();
-        public_values_digest[word_idx as usize] = public_values_digest_word;
+        rt.record.public_values_digest[word_idx as usize] = public_values_digest_word;
 
         None
     }

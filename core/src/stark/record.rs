@@ -16,8 +16,4 @@ pub trait MachineRecord: Default + Sized + Send + Sync {
     fn shard(self, config: &Self::Config) -> Vec<Self>;
 
     fn public_values_digest(&self) -> PublicValuesDigest<u32>;
-
-    fn public_values_digest_mut(&mut self) -> &mut PublicValuesDigest<u32>;
-
-    fn set_public_values_digest(&mut self, digest: PublicValuesDigest<u32>);
 }
