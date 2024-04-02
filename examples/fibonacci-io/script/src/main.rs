@@ -35,17 +35,17 @@ fn main() {
     println!("a: {}", a);
     println!("b: {}", b);
 
-    // Verify proof and public inputs
+    // Verify proof and public values
     SP1Verifier::verify(ELF, &proof).expect("verification failed");
 
-    let mut pi_hasher = Sha256::new();
-    pi_hasher.update(n.to_le_bytes());
-    pi_hasher.update(expected_a.to_le_bytes());
-    pi_hasher.update(expected_b.to_le_bytes());
-    let expected_pi_digest: &[u8] = &pi_hasher.finalize();
+    let mut pv_hasher = Sha256::new();
+    pv_hasher.update(n.to_le_bytes());
+    pv_hasher.update(expected_a.to_le_bytes());
+    pv_hasher.update(expected_b.to_le_bytes());
+    let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pi_bytes: Vec<u8> = proof.proof.public_values_digest.into();
-    assert_eq!(proof_pi_bytes.as_slice(), expected_pi_digest);
+    let proof_pv_bytes: Vec<u8> = proof.proof.public_values_digest.into();
+    assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
 
     // Save the proof.
     proof

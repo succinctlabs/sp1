@@ -29,7 +29,7 @@ pub fn quotient_values<SC, A, Mat>(
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[SC::Challenge],
     alpha: SC::Challenge,
-    pv_digest: PublicValuesDigest<Word<Val<SC>>>,
+    public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
 ) -> Vec<SC::Challenge>
 where
     A: StarkAir<SC>,
@@ -100,7 +100,7 @@ where
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
-            let public_values: Vec<Val<SC>> = pv_digest.into();
+            let public_values: Vec<Val<SC>> = public_values_digest.into();
             let mut folder = ProverConstraintFolder {
                 preprocessed: TwoRowMatrixView {
                     local: &[],

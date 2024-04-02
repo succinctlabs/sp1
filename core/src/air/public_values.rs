@@ -1,6 +1,9 @@
 use core::fmt::Debug;
 
-use std::{array::IntoIter, ops::Index};
+use std::{
+    array::IntoIter,
+    ops::{Index, IndexMut},
+};
 
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
@@ -14,7 +17,7 @@ const PV_DIGEST_NUM_WORDS: usize = 8;
 /// The PublicValuesDigest struct is used to represent the public input digest.  This is the hash of all the
 /// bytes that the guest program has written to public input.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
-pub struct PublicValuesDigest<T>(pub [T; PV_DIGEST_NUM_WORDS]);
+pub struct PublicValuesDigest<T>([T; PV_DIGEST_NUM_WORDS]);
 
 /// Convertion from a byte array into a PiDigest<u32>.
 impl From<&[u8]> for PublicValuesDigest<u32> {
@@ -78,13 +81,20 @@ impl<T: Debug + Copy> From<PublicValuesDigest<Word<T>>> for Vec<T> {
     }
 }
 
+/// Implement the IndexMut trait for PublicValuesDigest to index specific words.
+impl<T> IndexMut<usize> for PublicValuesDigest<T> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::air::public_values;
 
     /// Check that the PI_DIGEST_NUM_WORDS number match the zkVM crate's.
     #[test]
-    fn test_pi_digest_num_words_consistency_zkvm() {
+    fn test_public_values_digest_num_words_consistency_zkvm() {
         assert_eq!(
             public_values::PV_DIGEST_NUM_WORDS,
             sp1_zkvm::PV_DIGEST_NUM_WORDS

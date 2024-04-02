@@ -91,7 +91,7 @@ pub struct ExecutionRecord {
     pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 
     /// The public values digest.
-    pub public_values_digest: Option<PublicValuesDigest<u32>>,
+    pub public_values_digest: PublicValuesDigest<u32>,
 }
 
 pub struct ShardingConfig {
@@ -438,24 +438,28 @@ impl MachineRecord for ExecutionRecord {
             .program_memory_events
             .extend_from_slice(&self.program_memory_events);
 
-        // Set the pv_digest for all shards.  For the vast majority of the time, only the last shard
+        // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
         // will read the public values.  But in some very rare edge cases, the last two shards will
         // read it (e.g. when the halt instruction is the only instruction in the last shard).
-        // It seems overly complex to set the pv_digest for the last two shards, so we just set it
+        // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
         // for all of the shards.
         for shard in shards.iter_mut() {
-            shard.set_public_values_digest(self.public_values_digest.unwrap());
+            shard.set_public_values_digest(self.public_values_digest);
         }
 
         shards
     }
 
-    fn public_values_digest(&self) -> Option<PublicValuesDigest<u32>> {
+    fn public_values_digest_mut(&mut self) -> &mut PublicValuesDigest<u32> {
+        &mut self.public_values_digest
+    }
+
+    fn public_values_digest(&self) -> PublicValuesDigest<u32> {
         self.public_values_digest
     }
 
     fn set_public_values_digest(&mut self, digest: PublicValuesDigest<u32>) {
-        self.public_values_digest = Some(digest);
+        self.public_values_digest = digest;
     }
 }
 

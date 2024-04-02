@@ -1,13 +1,10 @@
-use crate::{
-    syscalls::{syscall_halt, syscall_write},
-    PV_DIGEST_NUM_WORDS,
-};
+use crate::syscalls::{syscall_halt, syscall_write};
 
 #[allow(clippy::missing_safety_doc)]
 #[no_mangle]
 pub unsafe extern "C" fn sys_panic(msg_ptr: *const u8, len: usize) -> ! {
     sys_write(2, msg_ptr, len);
-    syscall_halt(1, &[0u32; PV_DIGEST_NUM_WORDS]);
+    syscall_halt(1);
 }
 
 #[allow(unused_variables)]

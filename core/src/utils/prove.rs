@@ -162,10 +162,7 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            public_values_digest = runtime
-                .record
-                .public_values_digest()
-                .expect("Expected a public input digest");
+            public_values_digest = runtime.record.public_values_digest();
             return std::mem::take(&mut runtime.state.public_values_stream);
         }
     });

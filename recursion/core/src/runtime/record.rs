@@ -40,7 +40,11 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         vec![self]
     }
 
-    fn public_values_digest(&self) -> Option<PublicValuesDigest<u32>> {
+    fn public_values_digest(&self) -> PublicValuesDigest<u32> {
+        todo!()
+    }
+
+    fn public_values_digest_mut(&mut self) -> &mut PublicValuesDigest<u32> {
         todo!()
     }
 

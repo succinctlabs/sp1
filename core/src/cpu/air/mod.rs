@@ -460,16 +460,16 @@ impl CpuChip {
         }
         builder.when(is_commit.clone()).assert_one(bitmap_sum);
 
-        // Verify the pi_digest_word.  Note that for the interaction builder, it will not have
+        // Verify the public_values_digest_word.  Note that for the interaction builder, it will not have
         // any digest_words, since it's public values is empty.  That builder is only concerned
         // with send and receives.
         if !digest_words.is_empty() {
-            let pi_digest_word =
+            let public_values_digest_word =
                 builder.index_word_array(&digest_words, &ecall_columns.index_bitmap);
 
             builder
                 .when(is_commit)
-                .assert_word_eq(pi_digest_word, ecall_columns.digest_word);
+                .assert_word_eq(public_values_digest_word, ecall_columns.digest_word);
         }
     }
 

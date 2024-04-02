@@ -37,15 +37,13 @@ mod libm;
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
-    use crate::PV_DIGEST_NUM_WORDS;
 
     use getrandom::{register_custom_getrandom, Error};
     use once_cell::sync::Lazy;
     use sha2::{Digest, Sha256};
-    use std::borrow::ToOwned;
     use std::sync::Mutex;
 
-    pub static PI_HASHER: Lazy<Mutex<Sha256>> = Lazy::new(|| Mutex::new(Sha256::new()));
+    pub static PUBLIC_VALUES_HASHER: Lazy<Mutex<Sha256>> = Lazy::new(|| Mutex::new(Sha256::new()));
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
@@ -57,15 +55,7 @@ mod zkvm {
             main()
         }
 
-        let pi_digest_bytes = PI_HASHER.lock().unwrap().to_owned().finalize().to_vec();
-        let pi_digest_words: [u32; PV_DIGEST_NUM_WORDS] = pi_digest_bytes
-            .chunks_exact(4)
-            .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-
-        syscall_halt(0, &pi_digest_words);
+        syscall_halt(0);
     }
 
     static STACK_TOP: u32 = 0x0020_0400;

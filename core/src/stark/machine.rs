@@ -283,9 +283,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
-                        PublicValuesDigest::<Word<Val<SC>>>::new(
-                            shard.public_values_digest().unwrap(),
-                        ),
+                        PublicValuesDigest::<Word<Val<SC>>>::new(shard.public_values_digest()),
                     );
                 }
             });

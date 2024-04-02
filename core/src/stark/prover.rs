@@ -89,8 +89,7 @@ where
         let public_values_digest = shards
             .last()
             .expect("at least one shard")
-            .public_values_digest()
-            .expect("expected a public input digest");
+            .public_values_digest();
 
         // Observe the public input digest.
 
@@ -224,8 +223,8 @@ where
             main_data,
             chip_ordering,
             index,
-            pv_digest: PublicValuesDigest::<Word<Val<SC>>>::new(
-                shard.public_values_digest().unwrap(),
+            public_values_digest: PublicValuesDigest::<Word<Val<SC>>>::new(
+                shard.public_values_digest(),
             ),
         }
     }
@@ -362,7 +361,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &permutation_challenges,
                         alpha,
-                        shard_data.pv_digest,
+                        shard_data.public_values_digest,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -476,7 +475,7 @@ where
             },
             opening_proof,
             chip_ordering: shard_data.chip_ordering,
-            pv_digest: shard_data.pv_digest,
+            public_values_digest: shard_data.public_values_digest,
         }
     }
 

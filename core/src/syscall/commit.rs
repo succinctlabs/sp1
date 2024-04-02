@@ -1,4 +1,7 @@
-use crate::runtime::{Syscall, SyscallContext};
+use crate::{
+    runtime::{Syscall, SyscallContext},
+    stark::MachineRecord,
+};
 
 pub struct SyscallCommit;
 
@@ -11,12 +14,14 @@ impl SyscallCommit {
 impl Syscall for SyscallCommit {
     fn execute(
         &self,
-        _ctx: &mut SyscallContext,
-        _pi_digest_word: u32,
-        _word_idx: u32,
+        ctx: &mut SyscallContext,
+        word_idx: u32,
+        public_values_digest_word: u32,
     ) -> Option<u32> {
-        // Do a no-op.  This ecall is used to verify that a word within the public input digest is
-        // correct.
+        let rt = &mut ctx.rt;
+
+        let public_values_digest = rt.record.public_values_digest_mut();
+        public_values_digest[word_idx as usize] = public_values_digest_word;
 
         None
     }

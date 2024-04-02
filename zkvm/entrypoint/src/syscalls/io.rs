@@ -23,10 +23,12 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
                 );
             }
 
-            // Public Inputs writes
+            // For writes to the public values fd, we update a global program hasher with the bytes
+            // being written. At the end of the program, we call the COMMIT ecall with the finalized
+            // version of this hash.
             if fd == FD_PUBLIC_VALUES {
                 let pi_slice: &[u8] = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
-                let hasher = zkvm::PI_HASHER.lock().unwrap().update(pi_slice);
+                let hasher = zkvm::PUBLIC_VALUES_HASHER.lock().unwrap().update(pi_slice);
             }
         } else {
             unreachable!()

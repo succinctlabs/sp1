@@ -60,15 +60,15 @@ async fn main() {
     // Verify proof.
     SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
 
-    // Verify the public inputs
-    let mut pi_hasher = Sha256::new();
-    pi_hasher.update(light_block_1.signed_header.header.hash().as_bytes());
-    pi_hasher.update(light_block_2.signed_header.header.hash().as_bytes());
-    pi_hasher.update(&serde_cbor::to_vec(&expected_verdict).unwrap());
-    let expected_pi_digest: &[u8] = &pi_hasher.finalize();
+    // Verify the public values
+    let mut pv_hasher = Sha256::new();
+    pv_hasher.update(light_block_1.signed_header.header.hash().as_bytes());
+    pv_hasher.update(light_block_2.signed_header.header.hash().as_bytes());
+    pv_hasher.update(&serde_cbor::to_vec(&expected_verdict).unwrap());
+    let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pi_bytes: Vec<u8> = proof.proof.public_values_digest.into();
-    assert_eq!(proof_pi_bytes.as_slice(), expected_pi_digest);
+    let proof_pv_bytes: Vec<u8> = proof.proof.public_values_digest.into();
+    assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
 
     // Save proof.
     proof

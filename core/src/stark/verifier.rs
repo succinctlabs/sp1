@@ -168,7 +168,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
-                proof.pv_digest,
+                proof.public_values_digest,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -196,7 +196,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pv_digest: PublicValuesDigest<Word<Val<SC>>>,
+        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -210,7 +210,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             &sels,
             alpha,
             permutation_challenges,
-            Some(pv_digest),
+            public_values_digest,
         );
 
         // Check that the constraints match the quotient, i.e.
@@ -228,7 +228,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        pv_digest: Option<PublicValuesDigest<Word<Val<SC>>>>,
+        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -251,12 +251,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let public_values: Vec<Val<SC>> = if pv_digest.is_none() {
-            Vec::new()
-        } else {
-            pv_digest.unwrap().into()
-        };
-
+        let public_values: Vec<Val<SC>> = public_values_digest.into();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),

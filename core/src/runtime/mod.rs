@@ -16,14 +16,11 @@ pub use opcode::*;
 pub use program::*;
 pub use record::*;
 pub use register::*;
-use sha2::{Digest, Sha256};
 pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
-use crate::air::PublicValuesDigest;
 use crate::memory::MemoryInitializeFinalizeEvent;
-use crate::stark::MachineRecord;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -993,14 +990,6 @@ impl Runtime {
         program_memory_events.sort_by_key(|event| event.addr);
 
         self.record.program_memory_events = program_memory_events;
-
-        // Calculate and set the public values digest.
-        let mut public_values_hasher = Sha256::new();
-        public_values_hasher.update(&self.state.public_values_stream);
-        let public_values_digest_bytes: &[u8] = &public_values_hasher.finalize();
-
-        let public_values_digest: PublicValuesDigest<u32> = public_values_digest_bytes.into();
-        self.record.set_public_values_digest(public_values_digest);
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {

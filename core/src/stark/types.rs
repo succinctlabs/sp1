@@ -27,7 +27,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub index: usize,
-    pub pv_digest: PublicValuesDigest<Word<Val<SC>>>,
+    pub public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
 }
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
@@ -37,7 +37,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_data: PcsProverData<SC>,
         chip_ordering: HashMap<String, usize>,
         index: usize,
-        pv_digest: PublicValuesDigest<Word<Val<SC>>>,
+        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
     ) -> Self {
         Self {
             traces,
@@ -45,7 +45,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             main_data,
             chip_ordering,
             index,
-            pv_digest,
+            public_values_digest,
         }
     }
 
@@ -130,7 +130,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub pv_digest: PublicValuesDigest<Word<Val<SC>>>,
+    pub public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
 }
 
 impl<T> AirOpenedValues<T> {
