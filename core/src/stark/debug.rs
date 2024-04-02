@@ -2,13 +2,17 @@ use std::panic::{self, AssertUnwindSafe};
 use std::process::exit;
 
 use p3_air::{
-    Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
+    Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
+    PermutationAirBuilder, TwoRowMatrixView,
 };
 use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
+use crate::air::{
+    EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PublicValuesBuilder, PublicValuesDigest,
+    Word,
+};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 
@@ -21,6 +25,7 @@ pub fn debug_constraints<SC, A>(
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
+    public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
 ) where
     SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
@@ -53,6 +58,7 @@ pub fn debug_constraints<SC, A>(
         let perm_local = perm.row_slice(i);
         let perm_next = perm.row_slice(i_next);
 
+        let public_values: Vec<Val<SC>> = public_values_digest.into();
         let mut builder = DebugConstraintBuilder {
             preprocessed: TwoRowMatrixView {
                 local: preprocessed_local,
@@ -71,6 +77,7 @@ pub fn debug_constraints<SC, A>(
             is_first_row: Val::<SC>::zero(),
             is_last_row: Val::<SC>::zero(),
             is_transition: Val::<SC>::one(),
+            public_values: &public_values,
         };
         if i == 0 {
             builder.is_first_row = Val::<SC>::one();
@@ -120,6 +127,7 @@ pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
     pub(crate) is_transition: F,
+    pub(crate) public_values: &'a [F],
 }
 
 impl<'a, F, EF> ExtensionBuilder for DebugConstraintBuilder<'a, F, EF>
@@ -248,4 +256,19 @@ where
 impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
     for DebugConstraintBuilder<'a, F, EF>
 {
+}
+
+impl<'a, F: Field, EF: ExtensionField<F>> PublicValuesBuilder
+    for DebugConstraintBuilder<'a, F, EF>
+{
+}
+
+impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
+    for DebugConstraintBuilder<'a, F, EF>
+{
+    type PublicVar = F;
+
+    fn public_values(&self) -> &[Self::PublicVar] {
+        self.public_values
+    }
 }

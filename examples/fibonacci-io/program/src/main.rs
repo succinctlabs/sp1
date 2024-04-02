@@ -15,9 +15,12 @@ pub fn main() {
     // from the prover.
     let n = sp1_zkvm::io::read::<u32>();
 
+    // Write n to public input
+    sp1_zkvm::io::commit(&n);
+
     // Compute the n'th fibonacci number, using normal Rust code.
-    let mut a = 0;
-    let mut b = 1;
+    let mut a: u32 = 0;
+    let mut b: u32 = 1;
     let mut sum;
     for _ in 1..n {
         sum = a + b;
@@ -29,6 +32,6 @@ pub fn main() {
     //
     // Behind the scenes, this also compiles down to a custom system call which handles writing
     // outputs to the prover.
-    sp1_zkvm::io::write(&a);
-    sp1_zkvm::io::write(&b);
+    sp1_zkvm::io::commit(&a);
+    sp1_zkvm::io::commit(&b);
 }

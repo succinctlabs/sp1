@@ -1,10 +1,11 @@
-use p3_air::PermutationAirBuilder;
+use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder};
+use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
 use super::interaction::AirInteraction;
 use super::word::Word;
-use super::BinomialExtension;
+use super::{BinomialExtension, WORD_SIZE};
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
@@ -65,6 +66,26 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         EB: Into<Self::Expr> + Clone,
     {
         condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
+    }
+
+    /// Index an array of expressions using an index bitmap.  This function assumes that the EIndex
+    /// type is a boolean and that index_bitmap's entries sum to 1.
+    fn index_array<I: Into<Self::Expr>, EIndex: Into<Self::Expr> + Clone>(
+        &mut self,
+        array: &[I],
+        index_bitmap: &[EIndex],
+    ) -> Self::Expr
+    where
+        I: Into<Self::Expr> + Clone,
+        EIndex: Into<Self::Expr> + Clone,
+    {
+        let mut result = Self::Expr::zero();
+
+        for (value, i) in array.iter().zip_eq(index_bitmap) {
+            result += value.clone().into() * i.clone().into();
+        }
+
+        result
     }
 }
 
@@ -173,6 +194,26 @@ pub trait WordAirBuilder: ByteAirBuilder {
         for limb in word.0 {
             self.assert_zero(limb);
         }
+    }
+
+    /// Index an array of words using an index bitmap.
+    fn index_word_array<I: Into<Self::Expr> + Clone, EIndex: Into<Self::Expr> + Clone>(
+        &mut self,
+        array: &[Word<I>],
+        index_bitmap: &[EIndex],
+    ) -> Word<Self::Expr> {
+        let mut result = Word::default();
+        for i in 0..WORD_SIZE {
+            result[i] = self.index_array(
+                array
+                    .iter()
+                    .map(|word| word[i].clone())
+                    .collect_vec()
+                    .as_slice(),
+                index_bitmap,
+            );
+        }
+        result
     }
 
     /// Check that each limb of the given slice is a u8.
@@ -601,6 +642,13 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
     fn cumulative_sum(&self) -> Self::Sum;
 }
 
+pub trait PublicValuesBuilder: AirBuilderWithPublicValues {
+    /// A method to check if this builder is an interaction builder.  Only the InteractionBuilder
+    /// should have a different implementation.
+    fn is_interaction_builder(&self) -> bool {
+        false
+    }
+}
 /// A trait which contains all helper methods for building an AIR.
 pub trait SP1AirBuilder:
     BaseAirBuilder
@@ -610,6 +658,7 @@ pub trait SP1AirBuilder:
     + MemoryAirBuilder
     + ProgramAirBuilder
     + ExtensionAirBuilder
+    + PublicValuesBuilder
 {
 }
 
@@ -630,11 +679,16 @@ impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
 impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
-impl<AB: BaseAirBuilder> SP1AirBuilder for AB {}
+impl<AB: BaseAirBuilder + PublicValuesBuilder> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
+impl<'a, SC: StarkGenericConfig> PublicValuesBuilder for ProverConstraintFolder<'a, SC> {}
+impl<'a, SC: StarkGenericConfig> PublicValuesBuilder for VerifierConstraintFolder<'a, SC> {}
+impl<F: Field> PublicValuesBuilder for SymbolicAirBuilder<F> {}
 
 #[cfg(debug_assertions)]
 impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}
+#[cfg(debug_assertions)]
+impl<'a, F: Field> PublicValuesBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}
