@@ -258,6 +258,11 @@ impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
 {
 }
 
+impl<'a, F: Field, EF: ExtensionField<F>> PublicValuesBuilder
+    for DebugConstraintBuilder<'a, F, EF>
+{
+}
+
 impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
     for DebugConstraintBuilder<'a, F, EF>
 {
@@ -266,9 +271,4 @@ impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
     fn public_values(&self) -> &[Self::PublicVar] {
         self.public_values
     }
-}
-
-impl<'a, F: Field, EF: ExtensionField<F>> PublicValuesBuilder
-    for DebugConstraintBuilder<'a, F, EF>
-{
 }

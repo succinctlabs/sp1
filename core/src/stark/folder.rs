@@ -104,6 +104,8 @@ impl<'a, SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'a, SC> 
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
+impl<'a, SC: StarkGenericConfig> PublicValuesBuilder for ProverConstraintFolder<'a, SC> {}
+
 impl<'a, SC: StarkGenericConfig> AirBuilderWithPublicValues for ProverConstraintFolder<'a, SC> {
     type PublicVar = Self::F;
 
@@ -111,8 +113,6 @@ impl<'a, SC: StarkGenericConfig> AirBuilderWithPublicValues for ProverConstraint
         self.public_values
     }
 }
-
-impl<'a, SC: StarkGenericConfig> PublicValuesBuilder for ProverConstraintFolder<'a, SC> {}
 
 pub type VerifierConstraintFolder<'a, SC> =
     GenericVerifierConstraintFolder<'a, Val<SC>, Challenge<SC>, Challenge<SC>, Challenge<SC>>;
@@ -356,6 +356,34 @@ where
 {
 }
 
+impl<'a, F, EF, Var, Expr> PublicValuesBuilder
+    for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+    Expr: AbstractField<F = EF>
+        + From<F>
+        + Add<Var, Output = Expr>
+        + Add<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<F, Output = Expr>
+        + MulAssign<EF>,
+    Var: Into<Expr>
+        + Copy
+        + Add<F, Output = Expr>
+        + Add<Var, Output = Expr>
+        + Add<Expr, Output = Expr>
+        + Sub<F, Output = Expr>
+        + Sub<Var, Output = Expr>
+        + Sub<Expr, Output = Expr>
+        + Mul<F, Output = Expr>
+        + Mul<Var, Output = Expr>
+        + Mul<Expr, Output = Expr>,
+{
+}
+
 impl<'a, F, EF, Var, Expr> AirBuilderWithPublicValues
     for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
 where
@@ -387,32 +415,4 @@ where
     fn public_values(&self) -> &[Self::PublicVar] {
         self.public_values
     }
-}
-
-impl<'a, F, EF, Var, Expr> PublicValuesBuilder
-    for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
-where
-    F: Field,
-    EF: ExtensionField<F>,
-    Expr: AbstractField<F = EF>
-        + From<F>
-        + Add<Var, Output = Expr>
-        + Add<F, Output = Expr>
-        + Sub<Var, Output = Expr>
-        + Sub<F, Output = Expr>
-        + Mul<Var, Output = Expr>
-        + Mul<F, Output = Expr>
-        + MulAssign<EF>,
-    Var: Into<Expr>
-        + Copy
-        + Add<F, Output = Expr>
-        + Add<Var, Output = Expr>
-        + Add<Expr, Output = Expr>
-        + Sub<F, Output = Expr>
-        + Sub<Var, Output = Expr>
-        + Sub<Expr, Output = Expr>
-        + Mul<F, Output = Expr>
-        + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
-{
 }
