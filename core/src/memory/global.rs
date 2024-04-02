@@ -242,6 +242,7 @@ mod tests {
         assert_eq!(sharded_record.len(), 1);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
+            &program_clone,
             &sharded_record[0],
             vec![InteractionKind::Memory],
         );
@@ -263,6 +264,7 @@ mod tests {
         assert_eq!(sharded_record.len(), 1);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
+            &program_clone,
             &sharded_record[0],
             vec![InteractionKind::Byte],
         );
