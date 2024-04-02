@@ -59,7 +59,7 @@ pub struct ExecutionRecord {
     pub lt_events: Vec<AluEvent>,
 
     /// A trace of the byte lookups needed.
-    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+    pub byte_lookups: BTreeMap<u32, BTreeMap<ByteLookupEvent, usize>>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
@@ -237,11 +237,22 @@ impl MachineRecord for ExecutionRecord {
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
 
-        for (event, mult) in other.byte_lookups.iter_mut() {
-            self.byte_lookups
-                .entry(*event)
-                .and_modify(|i| *i += *mult)
-                .or_insert(*mult);
+        // The structure of `byte_lookups` is `BTreeMap<u32, BTreeMap<ByteLookupEvent, u32>>`
+        for (shard, events_map) in other.byte_lookups.iter() {
+            // If the shard does not exist, simply insert the whole map.
+            if !self.byte_lookups.contains_key(shard) {
+                self.byte_lookups.insert(*shard, events_map.clone());
+            } else {
+                // If the shard exists, update counts for each event.
+                for (event, count) in events_map.iter() {
+                    *self
+                        .byte_lookups
+                        .get_mut(shard)
+                        .unwrap()
+                        .entry(event.clone())
+                        .or_insert(0) += count;
+                }
+            }
         }
 
         self.memory_initialize_events
@@ -266,6 +277,7 @@ impl MachineRecord for ExecutionRecord {
             .collect::<Vec<_>>();
         let mut start_idx = 0;
         let mut current_shard_num = 1;
+
         for (i, cpu_event) in self.cpu_events.iter().enumerate() {
             let at_last_event = i == num_cpu_events - 1;
             if cpu_event.shard != current_shard_num || at_last_event {
@@ -275,6 +287,10 @@ impl MachineRecord for ExecutionRecord {
                 shard.index = current_shard_num;
                 shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
                 shard.program = self.program.clone();
+                shard.byte_lookups.insert(
+                    current_shard_num,
+                    self.byte_lookups[&current_shard_num].clone(),
+                );
 
                 if !(at_last_event) {
                     start_idx = i;
@@ -418,11 +434,6 @@ impl MachineRecord for ExecutionRecord {
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
 
-        // Put all byte lookups in the first shard (as the table size is fixed)
-        // TODO: this needs to change, each shard should get the byte lookups corresponding
-        // to the ByteLookups that happen in that shard.
-        first.byte_lookups = std::mem::take(&mut self.byte_lookups);
-
         // Put the memory records in the last shard.
         let last_shard = shards.last_mut().unwrap();
 
@@ -458,10 +469,12 @@ impl ExecutionRecord {
     }
 
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
-        self.byte_lookups
+        *self
+            .byte_lookups
+            .entry(blu_event.shard)
+            .or_insert_with(BTreeMap::new)
             .entry(blu_event)
-            .and_modify(|i| *i += 1)
-            .or_insert(1);
+            .or_insert(0) += 1
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {

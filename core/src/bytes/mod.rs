@@ -36,7 +36,9 @@ impl<F: Field> ByteChip<F> {
     ///  - `trace` is a matrix containing all possible byte operations.
     /// - `map` is a map map from a byte lookup to the corresponding row it appears in the table and
     /// the index of the result in the array of multiplicities.
-    pub fn trace_and_map() -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
+    pub fn trace_and_map(
+        shard: u32,
+    ) -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
         let mut event_map = BTreeMap::new();
@@ -52,7 +54,6 @@ impl<F: Field> ByteChip<F> {
 
         // Iterate over all options for pairs of bytes `a` and `b`.
         for (row_index, (b, c)) in (0..=u8::MAX).cartesian_product(0..=u8::MAX).enumerate() {
-            let shard = 0; // TODO: fix this.
             let b = b as u8;
             let c = c as u8;
             let col: &mut BytePreprocessedCols<F> = initial_trace.row_mut(row_index).borrow_mut();
