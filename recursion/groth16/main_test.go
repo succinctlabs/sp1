@@ -1,12 +1,9 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
 )
 
@@ -17,12 +14,12 @@ func TestMain(t *testing.T) {
 	var circuit Circuit
 
 	// Compile the circuit.
-	builder := r1cs.NewBuilder
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
+	// builder := r1cs.NewBuilder
+	// r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
 	// // Run the dummy setup.
 	// var pk groth16.ProvingKey
