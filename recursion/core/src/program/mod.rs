@@ -99,7 +99,6 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         let mut instruction_counts = HashMap::new();
         input.cpu_events.iter().for_each(|event| {
             let pc = event.pc;
-            println!("event: {:?}", event);
             instruction_counts
                 .entry(pc.as_canonical_u32())
                 .and_modify(|count| *count += 1)
@@ -118,12 +117,6 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity =
                     F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
-                println!(
-                    "i: {}, pc: {}, multiplicity: {}",
-                    i,
-                    pc,
-                    cols.multiplicity.as_canonical_u32()
-                );
                 row
             })
             .collect::<Vec<_>>();
