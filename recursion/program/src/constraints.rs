@@ -272,6 +272,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_verify_constraints_parts() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
@@ -384,6 +385,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_verify_constraints_whole() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;

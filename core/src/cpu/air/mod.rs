@@ -464,16 +464,18 @@ impl CpuChip {
         builder.when(is_commit.clone()).assert_one(bitmap_sum);
 
         // Verify the public_values_digest_word.  Note that for the interaction builder, it will not have
-        // any digest_words, since it's public values is empty.  That builder is only concerned
-        // with send and receives.
-        if !digest_words.is_empty() {
-            let public_values_digest_word =
-                builder.index_word_array(&digest_words, &ecall_columns.index_bitmap);
+        // any digest_words, since it's public values is empty.  In that case, we just use a zero word.
+        // That will mean the constraint below will fail, but since the interaction builder is only
+        // parsing send/receives, it doesn't matter.
+        let public_values_digest_word = if !digest_words.is_empty() {
+            builder.index_word_array(&digest_words, &ecall_columns.index_bitmap)
+        } else {
+            Word::zero::<AB>()
+        };
 
-            builder
-                .when(is_commit)
-                .assert_word_eq(public_values_digest_word, ecall_columns.digest_word);
-        }
+        builder
+            .when(is_commit)
+            .assert_word_eq(public_values_digest_word, ecall_columns.digest_word);
     }
 
     /// Constraint related to the halt and unimpl instruction.
