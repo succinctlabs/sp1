@@ -11,6 +11,7 @@ use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
@@ -167,6 +168,8 @@ impl Syscall for Bls12381DecompressChip {
 
 impl<F: PrimeField32> MachineAir<F> for Bls12381DecompressChip {
     type Record = ExecutionRecord;
+    type Program = Program;
+
 
     fn name(&self) -> String {
         "BlsDecompress".to_string()

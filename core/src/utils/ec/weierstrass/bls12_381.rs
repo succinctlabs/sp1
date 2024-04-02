@@ -8,7 +8,7 @@ use typenum::{U48, U94};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
-use crate::utils::ec::{AffinePoint, EllipticCurveParameters};
+use crate::utils::ec::{AffinePoint, EllipticCurveParameters, CurveType};
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bls12381 curve parameter
@@ -47,6 +47,7 @@ impl NumLimbs for Bls12381BaseField {
 
 impl EllipticCurveParameters for Bls12381Parameters {
     type BaseField = Bls12381BaseField;
+    const CURVE_TYPE: CurveType = CurveType::Bls12381;
 }
 
 impl WeierstrassParameters for Bls12381Parameters {
