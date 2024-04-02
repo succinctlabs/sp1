@@ -673,7 +673,6 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 }
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
-
 impl<AB: BaseAirBuilder> ByteAirBuilder for AB {}
 impl<AB: BaseAirBuilder> WordAirBuilder for AB {}
 impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
