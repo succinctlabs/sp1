@@ -7,18 +7,17 @@ use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
-use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
+use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
-use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::mem::transmute;
@@ -196,10 +195,6 @@ where
             alu_cols.mul_scratch[0],
         );
 
-        local
-            .selectors
-            .eval::<AB>(builder, local.instruction.opcode.into());
-
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
             local.is_real * local.is_real * local.is_real,
@@ -351,6 +346,13 @@ where
         prog_interaction_vals.extend_from_slice(&local.instruction.op_c.map(|x| x.into()).0);
         prog_interaction_vals.push(local.instruction.imm_b.into());
         prog_interaction_vals.push(local.instruction.imm_c.into());
+        prog_interaction_vals.extend_from_slice(
+            &local
+                .selectors
+                .into_iter()
+                .map(|x| x.into())
+                .collect::<Vec<_>>(),
+        );
         builder.send(AirInteraction::new(
             prog_interaction_vals,
             local.is_real.into(),

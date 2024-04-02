@@ -270,11 +270,9 @@ pub(crate) mod tests {
             ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
         },
     };
-    use p3_baby_bear::BabyBear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
     use sp1_core::{
@@ -604,62 +602,6 @@ pub(crate) mod tests {
         let a_plus_b_ext = builder.eval(a_ext + b_ext);
         builder.print_f(a_plus_b);
         builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
-        let a_ext_val = rng.gen::<EF>();
-        let b_ext_val = rng.gen::<EF>();
-        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
-        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
-        let a_plus_b_ext = builder.eval(a_ext + b_ext);
-        builder.print_f(a_plus_b);
-        builder.print_e(a_plus_b_ext);
 
         let program = builder.compile();
         let elapsed = time.elapsed();
@@ -681,14 +623,6 @@ pub(crate) mod tests {
 
         let record_clone = runtime.record.clone();
         machine.debug_constraints(&program, &pk, record_clone, &mut challenger);
-
-        debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
-            machine.chips(),
-            &runtime.program,
-            &runtime.record,
-            // vec![InteractionKind::Memory],
-            InteractionKind::all_kinds(),
-        );
 
         let start = Instant::now();
         let mut challenger = machine.config().challenger();

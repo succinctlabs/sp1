@@ -99,6 +99,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         let mut instruction_counts = HashMap::new();
         input.cpu_events.iter().for_each(|event| {
             let pc = event.pc;
+            println!("event: {:?}", event);
             instruction_counts
                 .entry(pc.as_canonical_u32())
                 .and_modify(|count| *count += 1)
@@ -112,11 +113,17 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             .into_iter()
             .enumerate()
             .map(|(i, _)| {
-                let pc = i as u32 * 4;
+                let pc = i as u32;
                 let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
                 let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
                 cols.multiplicity =
                     F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
+                println!(
+                    "i: {}, pc: {}, multiplicity: {}",
+                    i,
+                    pc,
+                    cols.multiplicity.as_canonical_u32()
+                );
                 row
             })
             .collect::<Vec<_>>();
@@ -167,6 +174,13 @@ where
         interaction_vals.extend_from_slice(&prep_local.instruction.op_c.map(|x| x.into()).0);
         interaction_vals.push(prep_local.instruction.imm_b.into());
         interaction_vals.push(prep_local.instruction.imm_c.into());
+        interaction_vals.extend_from_slice(
+            &prep_local
+                .selectors
+                .into_iter()
+                .map(|x| x.into())
+                .collect::<Vec<_>>(),
+        );
         builder.receive(AirInteraction::new(
             interaction_vals,
             mult_local.multiplicity.into(),
