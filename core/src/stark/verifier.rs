@@ -76,11 +76,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         challenger.observe(permutation_commit.clone());
 
         let alpha = challenger.sample_ext_element::<SC::Challenge>();
+        println!("alpha = {}", alpha);
 
         // Observe the quotient commitments.
         challenger.observe(quotient_commit.clone());
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
+        println!("zeta = {}", zeta);
 
         let main_domains_points_and_opens = trace_domains
             .iter()
@@ -276,8 +278,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        other_domain.zp_at_point(zeta)
-                            * other_domain.zp_at_point(domain.first_point()).inverse()
+                        let z = other_domain.zp_at_point(domain.first_point());
+                        other_domain.zp_at_point(zeta) * z.inverse()
                     })
                     .product::<SC::Challenge>()
             })

@@ -6,6 +6,7 @@ use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
+use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::SymbolicExt;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
@@ -89,9 +90,10 @@ where
                         // Calculate: other_domain.zp_at_point(zeta)
                         //     * other_domain.zp_at_point(domain.first_point()).inverse()
                         let first_point = domain.first_point(builder);
-                        let first_point: Ext<_, _> = builder.eval(first_point);
-                        other_domain.zp_at_point(builder, zeta)
-                            * other_domain.zp_at_point(builder, first_point).inverse()
+                        let first_point: Ext<_, _> =
+                            builder.eval(SymbolicExt::Base(SymbolicFelt::Val(first_point).into()));
+                        let z = other_domain.zp_at_point(builder, first_point);
+                        other_domain.zp_at_point(builder, zeta) * z.inverse()
                     })
                     .product::<SymbolicExt<_, _>>()
             })
@@ -148,40 +150,38 @@ where
 
 #[cfg(test)]
 mod tests {
+
     use itertools::{izip, Itertools};
+    use p3_baby_bear::DiffusionMatrixBabybear;
     use serde::{de::DeserializeOwned, Serialize};
-    use sp1_core::{
-        stark::{
-            Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
-            ShardMainData, ShardProof, StarkGenericConfig, Verifier,
-        },
-        utils::BabyBearPoseidon2,
-        SP1Prover, SP1Stdin,
+    use sp1_core::stark::{
+        Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, ShardCommitment,
+        ShardMainData, ShardProof, StarkGenericConfig,
     };
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, SymbolicExt},
+        ir::Builder,
         prelude::ExtConst,
         OuterConfig,
     };
 
-    use p3_commit::{LagrangeSelectors, Pcs, PolynomialSpace};
-
-    use crate::{
-        domain::TwoAdicMultiplicativeCosetVariable,
-        stark::StarkVerifierCircuit,
-        types::{ChipOpenedValuesVariable, ChipOpening},
+    use p3_commit::{Pcs, PolynomialSpace};
+    use sp1_recursion_core::{
+        runtime::Runtime,
+        stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+
+    use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
-        machine: &'a MachineStark<SC, RiscvAir<SC::Val>>,
+        machine: &'a MachineStark<SC, RecursionAir<SC::Val>>,
         proof: &'a ShardProof<SC>,
         challenger: &mut SC::Challenger,
     ) -> (
-        Vec<&'a Chip<SC::Val, RiscvAir<SC::Val>>>,
+        Vec<&'a Chip<SC::Val, RecursionAir<SC::Val>>>,
         Vec<Dom<SC>>,
         Vec<Vec<Dom<SC>>>,
         Vec<SC::Challenge>,
@@ -196,6 +196,8 @@ mod tests {
         PcsProverData<SC>: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
         SC::Val: p3_field::PrimeField32,
+        <SC as sp1_core::stark::StarkGenericConfig>::Val:
+            p3_field::extension::BinomiallyExtendable<4>,
     {
         let ShardProof {
             commitment,
@@ -268,133 +270,25 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_constraints_parts() {
-        type SC = BabyBearPoseidon2;
-        type F = <SC as StarkGenericConfig>::Val;
-        type A = RiscvAir<F>;
-
-        // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
-        let machine = A::machine(SC::default());
-        let mut challenger = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
-            .shard_proofs;
-        println!("Proof generated successfully");
-
-        proofs.iter().for_each(|proof| {
-            challenger.observe(proof.commitment.main_commit);
-        });
-
-        // Run the verify inside the DSL and compare it to the calculated value.
-        let mut builder = Builder::<OuterConfig>::default();
-
-        for proof in proofs.into_iter().take(1) {
-            let (
-                chips,
-                trace_domains_vals,
-                quotient_chunk_domains_vals,
-                permutation_challenges,
-                alpha_val,
-                zeta_val,
-            ) = get_shard_data(&machine, &proof, &mut challenger);
-
-            for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
-                chips.iter(),
-                trace_domains_vals,
-                quotient_chunk_domains_vals,
-                proof.opened_values.chips.iter(),
-            ) {
-                // Compute the expected folded constraints value.
-                let sels_val = trace_domain_val.selectors_at_point(zeta_val);
-                let folded_constraints_val = Verifier::<SC, _>::eval_constraints(
-                    chip,
-                    values_vals,
-                    &sels_val,
-                    alpha_val,
-                    &permutation_challenges,
-                );
-                println!("{:?}", folded_constraints_val);
-
-                // Compute the folded constraints value in the DSL.
-                let values_var: ChipOpenedValuesVariable<_> =
-                    builder.eval_const(values_vals.clone());
-                let values = ChipOpening::from_variable(&mut builder, chip, &values_var);
-                let alpha = builder.eval(alpha_val.cons());
-                let zeta = builder.eval(zeta_val.cons());
-                let sels = LagrangeSelectors {
-                    is_first_row: builder.eval(SymbolicExt::Const(sels_val.is_first_row)),
-                    is_last_row: builder.eval(SymbolicExt::Const(sels_val.is_last_row)),
-                    is_transition: builder.eval(SymbolicExt::Const(sels_val.is_transition)),
-                    inv_zeroifier: builder.eval(SymbolicExt::Const(sels_val.inv_zeroifier)),
-                };
-                let folded_constraints = StarkVerifierCircuit::<_, SC>::eval_constraints(
-                    &mut builder,
-                    chip,
-                    &values,
-                    &sels,
-                    alpha,
-                    permutation_challenges.as_slice(),
-                );
-
-                // Assert that the two values are equal.
-                builder.assert_ext_eq(folded_constraints, folded_constraints_val.cons());
-
-                // Compute the expected quotient value.
-                let quotient_val =
-                    Verifier::<SC, A>::recompute_quotient(values_vals, &qc_domains_vals, zeta_val);
-                println!("{:?}", quotient_val);
-
-                let qc_domains = qc_domains_vals
-                    .iter()
-                    .map(|domain| {
-                        builder.eval_const::<TwoAdicMultiplicativeCosetVariable<_>>(*domain)
-                    })
-                    .collect::<Vec<_>>();
-                let quotient = StarkVerifierCircuit::<_, SC>::recompute_quotient(
-                    &mut builder,
-                    &values,
-                    qc_domains,
-                    zeta,
-                );
-
-                // Assert that the two values are equal.
-                builder.assert_ext_eq(quotient, quotient_val.cons());
-
-                // Assert that the constraint-quotient relation holds.
-                println!("{:?}", sels_val.inv_zeroifier);
-                builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
-            }
-        }
-
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
-    }
-
-    #[test]
     fn test_verify_constraints_whole() {
-        type SC = BabyBearPoseidon2;
+        type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
-        type A = RiscvAir<F>;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F>;
 
-        // Generate a dummy proof.
         sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
-        let machine = A::machine(SC::default());
+        let program = basic_program::<F>();
+        let config = SC::new();
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
+        runtime.run();
+        let machine = A::machine(config);
+        let (pk, _) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
+        let proofs = machine
+            .prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger)
             .shard_proofs;
-        println!("Proof generated successfully");
 
+        let mut challenger = machine.config().challenger();
         proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
         });

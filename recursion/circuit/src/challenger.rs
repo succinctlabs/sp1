@@ -7,6 +7,7 @@ use crate::poseidon2::Poseidon2CircuitBuilder;
 use crate::DIGEST_SIZE;
 use crate::SPONGE_SIZE;
 
+#[derive(Clone)]
 pub struct MultiField32ChallengerVariable<C: Config> {
     sponge_state: [Var<C::N>; 3],
     input_buffer: Vec<Felt<C::F>>,

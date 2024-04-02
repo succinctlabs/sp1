@@ -1,4 +1,5 @@
 use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
+use p3_field::AbstractExtensionField;
 use p3_field::Field;
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
@@ -102,13 +103,19 @@ where
         }
     }
 
+    // TODO: something is wrong with this function
     fn zp_at_point(
         &self,
         builder: &mut Builder<C>,
         point: Ext<<C as Config>::F, <C as Config>::EF>,
     ) -> Ext<<C as Config>::F, <C as Config>::EF> {
-        let unshifted_power = builder
-            .exp_power_of_2_v::<Ext<_, _>>(point * self.shift.inverse(), Usize::Const(self.log_n));
+        let unshifted_power = builder.exp_power_of_2_v::<Ext<_, _>>(
+            point
+                * C::EF::from_base_slice(&[self.shift, C::F::zero(), C::F::zero(), C::F::zero()])
+                    .inverse()
+                    .cons(),
+            Usize::Const(self.log_n),
+        );
         builder.eval(unshifted_power - C::EF::one())
     }
 
@@ -117,7 +124,7 @@ where
         let log_n = self.log_n - log_num_chunks;
         let size = 1 << log_n;
 
-        let g = self.g.exp_power_of_2(log_num_chunks);
+        let g = self.g;
 
         let mut domain_power = C::F::one();
         let mut domains = vec![];

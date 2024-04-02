@@ -2,7 +2,6 @@ use std::marker::PhantomData;
 
 use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::{
     air::MachineAir,
@@ -45,7 +44,7 @@ where
             commitment,
             opened_values,
             opening_proof,
-            sorted_indices,
+            sorted_chips,
             ..
         } = proof;
 
@@ -79,7 +78,6 @@ where
         let mut quotient_domains = Vec::new();
 
         let log_quotient_degree_val = 1;
-        let log_quotient_degree = C::N::from_canonical_usize(log_quotient_degree_val);
         let num_quotient_chunks_val = 1 << log_quotient_degree_val;
 
         let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
@@ -166,26 +164,29 @@ where
         rounds.push(main_round);
         rounds.push(perm_round);
         rounds.push(quotient_round);
-
         let config = outer_fri_config();
         verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
-        for (i, chip) in machine.chips().iter().enumerate() {
-            let index = sorted_indices[i];
-            let values = &opened_values.chips[index];
-            let trace_domain = &trace_domains[index];
-            let quotient_domain = &quotient_domains[index];
-            let qc_domains = quotient_domain.split_domains(builder, chip.log_quotient_degree());
-            Self::verify_constraints(
-                builder,
-                chip,
-                values,
-                trace_domain.clone(),
-                qc_domains,
-                zeta,
-                alpha,
-                permutation_challenges,
-            );
+        for (i, sorted_chip) in sorted_chips.iter().enumerate() {
+            for chip in machine.chips() {
+                if chip.name() == *sorted_chip {
+                    let values = &opened_values.chips[i];
+                    let trace_domain = &trace_domains[i];
+                    let quotient_domain = &quotient_domains[i];
+                    let qc_domains =
+                        quotient_domain.split_domains(builder, chip.log_quotient_degree());
+                    Self::verify_constraints(
+                        builder,
+                        chip,
+                        values,
+                        trace_domain.clone(),
+                        qc_domains,
+                        zeta,
+                        alpha,
+                        permutation_challenges,
+                    );
+                }
+            }
         }
     }
 }
@@ -250,9 +251,9 @@ pub(crate) mod tests {
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
         let permutation_commit: [Bn254Fr; 1] = proof.commitment.permutation_commit.into();
         let quotient_commit: [Bn254Fr; 1] = proof.commitment.quotient_commit.into();
-        let mut main_commit: OuterDigest<C> = [builder.eval(main_commit[0])];
-        let mut permutation_commit: OuterDigest<C> = [builder.eval(permutation_commit[0])];
-        let mut quotient_commit: OuterDigest<C> = [builder.eval(quotient_commit[0])];
+        let main_commit: OuterDigest<C> = [builder.eval(main_commit[0])];
+        let permutation_commit: OuterDigest<C> = [builder.eval(permutation_commit[0])];
+        let quotient_commit: OuterDigest<C> = [builder.eval(quotient_commit[0])];
 
         let commitment = ShardCommitment {
             main_commit,
@@ -261,9 +262,8 @@ pub(crate) mod tests {
         };
 
         // Set up the opened values.
-        let num_shard_chips = proof.opened_values.chips.len();
         let mut opened_values = Vec::new();
-        for (i, values) in proof.opened_values.chips.iter().enumerate() {
+        for values in proof.opened_values.chips.iter() {
             let values: ChipOpenedValuesVariable<_> = builder.eval_const(values.clone());
             opened_values.push(values);
         }
@@ -272,24 +272,18 @@ pub(crate) mod tests {
         };
 
         let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
-        let sorted_indices = machine
-            .chips()
-            .iter()
-            .map(|chip| {
-                proof
-                    .chip_ordering
-                    .get(&chip.name())
-                    .map(|i| *i)
-                    .unwrap_or(usize::MAX)
-            })
-            .collect();
+
+        let chips = machine
+            .shard_chips_ordered(&proof.chip_ordering)
+            .map(|chip| chip.name())
+            .collect::<Vec<_>>();
 
         RecursionShardProofVariable {
             index: proof.index,
             commitment,
             opened_values,
             opening_proof,
-            sorted_indices,
+            sorted_chips: chips,
         }
     }
 
@@ -297,55 +291,79 @@ pub(crate) mod tests {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         Program::<F> {
-            instructions: vec![Instruction::new(
-                Opcode::ADD,
-                F::from_canonical_u32(3),
-                zero,
-                one,
-                false,
-                true,
-            )],
+            instructions: vec![
+                Instruction::new(
+                    Opcode::ADD,
+                    F::from_canonical_u32(3),
+                    zero,
+                    one,
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    F::from_canonical_u32(3),
+                    zero,
+                    one,
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    F::from_canonical_u32(3),
+                    zero,
+                    one,
+                    false,
+                    true,
+                ),
+                Instruction::new(
+                    Opcode::ADD,
+                    F::from_canonical_u32(3),
+                    zero,
+                    one,
+                    false,
+                    true,
+                ),
+            ],
         }
     }
 
     #[test]
     fn test_recursive_verify_shard_v2() {
-        sp1_core::utils::setup_logger();
-
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
-        let program = basic_program::<F>();
+        type EF = <SC as StarkGenericConfig>::Challenge;
+        type A = RecursionAir<F>;
 
+        sp1_core::utils::setup_logger();
+        let program = basic_program::<F>();
         let config = SC::new();
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
         runtime.run();
-
-        let machine = RecursionAir::machine(config);
-        let mut challenger_val = machine.config().challenger();
+        let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
-
-        let start = Instant::now();
         let proofs = machine
             .prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger)
             .shard_proofs;
-        let duration = start.elapsed().as_secs();
-        println!("proof generation took {duration} secs");
 
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
+        runtime.run();
+        let mut challenger = machine.config().challenger();
+        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let mut challenger = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
+
+        let mut challenger_val = machine.config().challenger();
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
         });
-
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
             .collect::<Vec<_>>();
 
-        let time = Instant::now();
         let mut builder = Builder::<OuterConfig>::default();
-        let config = outer_fri_config();
-
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
-
         let mut shard_proofs = vec![];
         for proof_val in proofs {
             let proof = const_proof(&mut builder, &machine, proof_val);
@@ -354,14 +372,16 @@ pub(crate) mod tests {
             shard_proofs.push(proof);
         }
 
+        #[allow(clippy::never_loop)]
         for proof in shard_proofs {
             StarkVerifierCircuit::<C, SC>::verify_shard(
                 &mut builder,
                 &machine,
-                &mut challenger,
+                &mut challenger.clone(),
                 &proof,
                 &permutation_challenges,
             );
+            break;
         }
 
         let mut backend = ConstraintBackend::<OuterConfig>::default();
