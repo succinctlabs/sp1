@@ -155,8 +155,8 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
 
             // Range checks.
             {
-                output.add_u8_range_checks(&bit_shift_result);
-                output.add_u8_range_checks(&bit_shift_result_carry);
+                output.add_u8_range_checks(event.shard, &bit_shift_result);
+                output.add_u8_range_checks(event.shard, &bit_shift_result_carry);
             }
 
             // Sanity check.

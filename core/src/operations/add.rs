@@ -20,7 +20,13 @@ pub struct AddOperation<T> {
 }
 
 impl<F: Field> AddOperation<F> {
-    pub fn populate(&mut self, record: &mut ExecutionRecord, a_u32: u32, b_u32: u32) -> u32 {
+    pub fn populate(
+        &mut self,
+        record: &mut ExecutionRecord,
+        shard: u32,
+        a_u32: u32,
+        b_u32: u32,
+    ) -> u32 {
         let expected = a_u32.wrapping_add(b_u32);
         self.value = Word::from(expected);
         let a = a_u32.to_le_bytes();
@@ -48,9 +54,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check
         {
-            record.add_u8_range_checks(&a);
-            record.add_u8_range_checks(&b);
-            record.add_u8_range_checks(&expected.to_le_bytes());
+            record.add_u8_range_checks(shard, &a);
+            record.add_u8_range_checks(shard, &b);
+            record.add_u8_range_checks(shard, &expected.to_le_bytes());
         }
         expected
     }

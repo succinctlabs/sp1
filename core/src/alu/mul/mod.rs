@@ -236,8 +236,8 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
 
                         // Range check.
                         {
-                            record.add_u16_range_checks(&carry);
-                            record.add_u8_range_checks(&product.map(|x| x as u8));
+                            record.add_u16_range_checks(event.shard, &carry);
+                            record.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
                         }
                         row
                     })

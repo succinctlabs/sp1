@@ -40,6 +40,7 @@ impl<F: Field> Add5Operation<F> {
     pub fn populate(
         &mut self,
         record: &mut ExecutionRecord,
+        shard: u32,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,
@@ -80,12 +81,12 @@ impl<F: Field> Add5Operation<F> {
 
         // Range check.
         {
-            record.add_u8_range_checks(&a);
-            record.add_u8_range_checks(&b);
-            record.add_u8_range_checks(&c);
-            record.add_u8_range_checks(&d);
-            record.add_u8_range_checks(&e);
-            record.add_u8_range_checks(&expected.to_le_bytes());
+            record.add_u8_range_checks(shard, &a);
+            record.add_u8_range_checks(shard, &b);
+            record.add_u8_range_checks(shard, &c);
+            record.add_u8_range_checks(shard, &d);
+            record.add_u8_range_checks(shard, &e);
+            record.add_u8_range_checks(shard, &expected.to_le_bytes());
         }
 
         expected

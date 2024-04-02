@@ -94,7 +94,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let operand_2 = event.c;
 
                         cols.add_operation
-                            .populate(&mut record, operand_1, operand_2);
+                            .populate(&mut record, event.shard, operand_1, operand_2);
                         cols.operand_1 = Word::from(operand_1);
                         cols.operand_2 = Word::from(operand_2);
                         row

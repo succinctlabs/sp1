@@ -239,10 +239,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                output.add_u8_range_checks(&byte_shift_result);
-                output.add_u8_range_checks(&bit_shift_result);
-                output.add_u8_range_checks(&shr_carry_output_carry);
-                output.add_u8_range_checks(&shr_carry_output_shifted_byte);
+                output.add_u8_range_checks(event.shard, &byte_shift_result);
+                output.add_u8_range_checks(event.shard, &bit_shift_result);
+                output.add_u8_range_checks(event.shard, &shr_carry_output_carry);
+                output.add_u8_range_checks(event.shard, &shr_carry_output_shifted_byte);
             }
 
             rows.push(row);

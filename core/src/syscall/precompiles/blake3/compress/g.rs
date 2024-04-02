@@ -46,7 +46,12 @@ pub struct GOperation<T> {
 }
 
 impl<F: Field> GOperation<F> {
-    pub fn populate(&mut self, record: &mut ExecutionRecord, input: [u32; 6]) -> [u32; 4] {
+    pub fn populate(
+        &mut self,
+        record: &mut ExecutionRecord,
+        shard: u32,
+        input: [u32; 6],
+    ) -> [u32; 4] {
         let mut a = input[0];
         let mut b = input[1];
         let mut c = input[2];
@@ -57,37 +62,37 @@ impl<F: Field> GOperation<F> {
         // First 4 steps.
         {
             // a = a + b + x.
-            a = self.a_plus_b.populate(record, a, b);
-            a = self.a_plus_b_plus_x.populate(record, a, x);
+            a = self.a_plus_b.populate(record, shard, a, b);
+            a = self.a_plus_b_plus_x.populate(record, shard, a, x);
 
             // d = (d ^ a).rotate_right(16).
-            d = self.d_xor_a.populate(record, d, a);
+            d = self.d_xor_a.populate(record, shard, d, a);
             d = d.rotate_right(16);
 
             // c = c + d.
-            c = self.c_plus_d.populate(record, c, d);
+            c = self.c_plus_d.populate(record, shard, c, d);
 
             // b = (b ^ c).rotate_right(12).
-            b = self.b_xor_c.populate(record, b, c);
-            b = self.b_xor_c_rotate_right_12.populate(record, b, 12);
+            b = self.b_xor_c.populate(record, shard, b, c);
+            b = self.b_xor_c_rotate_right_12.populate(record, shard, b, 12);
         }
 
         // Second 4 steps.
         {
             // a = a + b + y.
-            a = self.a_plus_b_2.populate(record, a, b);
-            a = self.a_plus_b_2_add_y.populate(record, a, y);
+            a = self.a_plus_b_2.populate(record, shard, a, b);
+            a = self.a_plus_b_2_add_y.populate(record, shard, a, y);
 
             // d = (d ^ a).rotate_right(8).
-            d = self.d_xor_a_2.populate(record, d, a);
+            d = self.d_xor_a_2.populate(record, shard, d, a);
             d = d.rotate_right(8);
 
             // c = c + d.
-            c = self.c_plus_d_2.populate(record, c, d);
+            c = self.c_plus_d_2.populate(record, shard, c, d);
 
             // b = (b ^ c).rotate_right(7).
-            b = self.b_xor_c_2.populate(record, b, c);
-            b = self.b_xor_c_2_rotate_right_7.populate(record, b, 7);
+            b = self.b_xor_c_2.populate(record, shard, b, c);
+            b = self.b_xor_c_2_rotate_right_7.populate(record, shard, b, 7);
         }
 
         let result = [a, b, c, d];
