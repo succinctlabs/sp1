@@ -331,6 +331,7 @@ pub(crate) mod tests {
             .prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger)
             .shard_proofs;
         let duration = start.elapsed().as_secs();
+        println!("proof generation took {duration} secs");
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
@@ -368,57 +369,4 @@ pub(crate) mod tests {
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
-
-    // #[test]
-    // fn test_recursive_verify_shard() {
-    //     // Generate a dummy proof.
-    //     sp1_core::utils::setup_logger();
-
-    //     let elf =
-    //         include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
-    //     let machine = A::machine(SC::default());
-    //     let mut challenger_val = machine.config().challenger();
-    //     let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-    //         .unwrap()
-    //         .proof
-    //         .shard_proofs;
-    //     println!("Proof generated successfully");
-
-    //     proofs.iter().for_each(|proof| {
-    //         challenger_val.observe(proof.commitment.main_commit);
-    //     });
-
-    //     let permutation_challenges = (0..2)
-    //         .map(|_| challenger_val.sample_ext_element::<EF>())
-    //         .collect::<Vec<_>>();
-
-    //     let time = Instant::now();
-    //     let mut builder = Builder::<OuterConfig>::default();
-    //     let config = outer_fri_config();
-
-    //     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
-
-    //     let mut shard_proofs = vec![];
-    //     for proof_val in proofs {
-    //         let proof = const_proof(&mut builder, &machine, proof_val);
-    //         let ShardCommitment { main_commit, .. } = &proof.commitment;
-    //         challenger.observe_commitment(&mut builder, main_commit.clone());
-    //         shard_proofs.push(proof);
-    //     }
-
-    //     for proof in shard_proofs {
-    //         StarkVerifierCircuit::<C, SC>::verify_shard(
-    //             &mut builder,
-    //             &machine,
-    //             &mut challenger,
-    //             &proof,
-    //             &permutation_challenges,
-    //         );
-    //     }
-
-    //     let mut backend = ConstraintBackend::<OuterConfig>::default();
-    //     let constraints = backend.emit(builder.operations);
-    //     gnark_ffi::test_circuit(constraints);
-    // }
 }

@@ -346,6 +346,7 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                 _ => panic!("unsupported {:?}", instruction),
             };
         }
+        println!("number of meta constraints: {}", constraints.len());
         constraints
     }
 }
