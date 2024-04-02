@@ -462,7 +462,7 @@ impl CpuChip {
             digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
         }
 
-        // Retrieve the expected public_values_digest_word to check against the one passed into the
+        // Retrieve the expected public values digest word to check against the one passed into the
         // commit ecall. Note that for the interaction builder, it will not have any digest words, since
         // it's used during AIR compilation time to parse for all send/receives. Since that interaction
         // builder will ignore the other constraints of the air, it is safe to not include the

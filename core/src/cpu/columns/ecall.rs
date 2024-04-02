@@ -20,7 +20,7 @@ pub struct EcallCols<T> {
 
     /// Whether the current ecall is a COMMIT.
     pub is_commit: IsZeroOperation<T>,
-    /// The digest word passed into the COMMMIT ecall.  This is the public values digest word calculated
+    /// The digest word passed into the COMMIT ecall. This is the public values digest word calculated
     /// within the program.
     pub digest_word: Word<T>,
     /// Field to store the word index passed into the COMMIT ecall.  index_bitmap[word index] should

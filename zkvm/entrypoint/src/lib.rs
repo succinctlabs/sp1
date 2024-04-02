@@ -29,7 +29,7 @@ macro_rules! entrypoint {
     };
 }
 
-// The number of 32 bit words that the public values digest is composed of.
+/// The number of 32 bit words that the public values digest is composed of.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
@@ -40,7 +40,7 @@ mod zkvm {
     use crate::syscalls::syscall_halt;
 
     use getrandom::{register_custom_getrandom, Error};
-    use sha2::{Digest, Sha256};
+    use sha2_v0_10_8::{Digest, Sha256};
 
     pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
 

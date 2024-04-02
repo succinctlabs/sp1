@@ -21,7 +21,7 @@ const PV_DIGEST_NUM_WORDS: usize = 8;
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct PublicValuesDigest<T>([T; PV_DIGEST_NUM_WORDS]);
 
-/// Conversion from a byte array into a PiDigest<u32>.
+/// Conversion from a byte array into a PublicValuesDigest<u32>.
 impl From<&[u8]> for PublicValuesDigest<u32> {
     fn from(bytes: &[u8]) -> Self {
         assert!(bytes.len() == PV_DIGEST_NUM_WORDS * WORD_SIZE);
@@ -54,7 +54,7 @@ impl<T> Index<usize> for PublicValuesDigest<T> {
     }
 }
 
-/// Implement the IntoIterator trait for PiDigest to iterate over the words.
+/// Implement the IntoIterator trait for PublicValuesDigest to iterate over the words.
 impl<T> IntoIterator for PublicValuesDigest<T> {
     type Item = T;
     type IntoIter = IntoIter<T, PV_DIGEST_NUM_WORDS>;
