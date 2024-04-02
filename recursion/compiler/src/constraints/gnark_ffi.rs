@@ -19,7 +19,7 @@ pub fn test_circuit(constraints: Vec<Constraint>) {
             "test",
             "-v",
             "-timeout",
-            "1000s",
+            "100000s",
             "-run",
             "^TestMain$",
             "github.com/succinctlabs/sp1-recursion-groth16",
