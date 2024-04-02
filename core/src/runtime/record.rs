@@ -21,6 +21,11 @@ use crate::utils::env;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
+pub enum Record {
+    ShardedRecord(ExecutionRecord),
+    RawRecord(ExecutionRecord),
+}
+
 /// A record of the execution of a program. Contains event data for everything that happened during
 /// the execution of the shard.
 #[derive(Default, Clone, Debug, Serialize, Deserialize)]
@@ -469,6 +474,7 @@ impl ExecutionRecord {
     }
 
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
+        println!("Adding byte lookup event: {:?}", blu_event);
         *self
             .byte_lookups
             .entry(blu_event.shard)

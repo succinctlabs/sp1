@@ -172,16 +172,16 @@ where
 #[cfg(test)]
 mod tests {
 
+    use super::*;
     use crate::lookup::{debug_interactions_with_all_chips, InteractionKind};
+    use crate::runtime::tests::simple_program;
     use crate::runtime::Runtime;
+    use crate::stark::MachineRecord;
     use crate::stark::{RiscvAir, StarkGenericConfig};
     use crate::syscall::precompiles::sha256::extend_tests::sha_extend_program;
+    use crate::utils::{setup_logger, BabyBearPoseidon2};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use p3_baby_bear::BabyBear;
-
-    use super::*;
-    use crate::runtime::tests::simple_program;
-    use crate::utils::{setup_logger, BabyBearPoseidon2};
 
     #[test]
     fn test_memory_generate_trace() {
@@ -231,12 +231,17 @@ mod tests {
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-
+        let record = runtime.record.clone();
         let machine: crate::stark::MachineStark<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
+        let sharded_record = machine.shard(
+            record,
+            &<ExecutionRecord as MachineRecord>::Config::default(),
+        );
+        assert_eq!(sharded_record.len(), 1);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
-            &runtime.record,
+            &sharded_record[0],
             vec![InteractionKind::Memory],
         );
     }
@@ -247,11 +252,16 @@ mod tests {
         let program = sha_extend_program();
         let mut runtime = Runtime::new(program);
         runtime.run();
-
+        let record = runtime.record.clone();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
+        let sharded_record = machine.shard(
+            record,
+            &<ExecutionRecord as MachineRecord>::Config::default(),
+        );
+        assert_eq!(sharded_record.len(), 1);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
-            &runtime.record,
+            &sharded_record[0],
             vec![InteractionKind::Byte],
         );
     }

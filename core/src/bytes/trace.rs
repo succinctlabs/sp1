@@ -42,6 +42,9 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
+        println!("input index: {:?}", input.index);
+        println!("input {:?}", input);
+        println!("input byte lookups: {:?}", input.byte_lookups);
         let shard = input.index;
         let (_, event_map) = Self::trace_and_map(shard);
 

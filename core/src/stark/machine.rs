@@ -171,9 +171,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn shard(
         &self,
-        mut record: A::Record,
+        mut record: A::Record, // This is a RuntimeRecord.
         config: &<A::Record as MachineRecord>::Config,
     ) -> Vec<A::Record> {
+        // These are ShardedRecords.
         // Get the local and global chips.
         let chips = self.chips();
 
@@ -202,7 +203,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &ProvingKey<SC>,
-        record: A::Record,
+        record: A::Record, // at this point it's a RuntimeRecord.
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
@@ -254,8 +255,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
-        tracing::info!("success");
+        tracing::info!("verifying individual shard succeeded");
 
+        tracing::info!("verifying cumulative sum is 0");
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         for proof in proof.shard_proofs.iter() {
@@ -476,6 +478,7 @@ pub mod tests {
 
     #[test]
     fn test_lt_prove() {
+        setup_logger();
         let less_than = [Opcode::SLT, Opcode::SLTU];
         for lt_op in less_than.iter() {
             let instructions = vec![
@@ -490,6 +493,7 @@ pub mod tests {
 
     #[test]
     fn test_bitwise_prove() {
+        setup_logger();
         let bitwise_opcodes = [Opcode::XOR, Opcode::OR, Opcode::AND];
 
         for bitwise_op in bitwise_opcodes.iter() {
@@ -505,6 +509,7 @@ pub mod tests {
 
     #[test]
     fn test_divrem_prove() {
+        setup_logger();
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
         let operands = [
             (1, 1),
