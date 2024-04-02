@@ -16,8 +16,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	p2 := poseidon2.NewPoseidon2Chip(api)
 	
 	// Variables.
-	var var0 frontend.Variable
 	var var1 frontend.Variable
+	var var0 frontend.Variable
 	var var2 frontend.Variable
 	
 	// Operations.

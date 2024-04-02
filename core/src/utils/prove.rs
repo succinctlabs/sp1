@@ -35,7 +35,7 @@ pub fn run_test_io(
 ) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&inputs.buffer.data);
+        runtime.write_vecs(&inputs.buffer);
         runtime.run();
         runtime
     });
@@ -67,6 +67,9 @@ pub fn run_test_core(
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
+    #[cfg(feature = "debug")]
+    let record_clone = runtime.record.clone();
+
     let start = Instant::now();
     let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
@@ -74,6 +77,9 @@ pub fn run_test_core(
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    #[cfg(feature = "debug")]
+    machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
@@ -104,7 +110,7 @@ fn reset_seek(file: &mut File) {
 
 pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
-    stdin: &[u8],
+    stdin: SP1Stdin,
     config: SC,
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
@@ -119,14 +125,18 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
-
-    runtime.write_stdin_slice(stdin);
+    runtime.write_vecs(&stdin.buffer);
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
     // If we don't need to batch, we can just run the program normally and prove it.
     if !should_batch {
         runtime.run();
+        #[cfg(feature = "debug")]
+        {
+            let record_clone = runtime.record.clone();
+            machine.debug_constraints(&pk, record_clone, &mut challenger);
+        }
         let stdout = std::mem::take(&mut runtime.state.output_stream);
         let proof = prove_core(machine.config().clone(), runtime);
         return (proof, stdout);

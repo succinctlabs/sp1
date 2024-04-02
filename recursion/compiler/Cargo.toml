@@ -11,6 +11,7 @@ p3-field = { workspace = true }
 p3-commit = { workspace = true }
 p3-fri = { workspace = true }
 p3-matrix = { workspace = true }
+p3-symmetric = { workspace = true }
 p3-util = { workspace = true }
 sp1-recursion-core = { path = "../core" }
 sp1-core = { path = "../../core" }

@@ -1,4 +1,5 @@
 mod blake3_compress;
+mod bn254;
 mod ed25519;
 mod halt;
 mod io;
@@ -11,6 +12,7 @@ mod sys;
 mod unconstrained;
 mod bls12381;
 
+pub use bn254::*;
 pub use ed25519::*;
 pub use halt::*;
 pub use io::*;
@@ -28,9 +30,6 @@ pub use bls12381::*;
 
 /// Halts the program.
 pub const HALT: u32 = 0x01_00_00_00;
-
-/// Loads a word supplied from the prover.
-pub const LWA: u32 = 0x00_00_00_01;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 0x00_00_00_02;
@@ -68,5 +67,17 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
 
+/// Executes `BN254_ADD`.
+pub const BN254_ADD: u32 = 0x00_01_01_0E;
+
+/// Executes `BN254_DOUBLE`.
+pub const BN254_DOUBLE: u32 = 0x00_00_01_0F;
+
+/// Executes `HINT_LEN`.
+pub const HINT_LEN: u32 = 0x00_00_00_F0;
+
+/// Executes `HINT_READ`.
+pub const HINT_READ: u32 = 0x00_00_00_F1;
+
 /// Executes `BLS12381_DECOMPRESS`.
-pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_0E;
+pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_F2;

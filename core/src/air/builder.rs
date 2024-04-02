@@ -158,14 +158,25 @@ pub trait ByteAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to words in an AIR.
 pub trait WordAirBuilder: ByteAirBuilder {
     /// Asserts that the two words are equal.
-    fn assert_word_eq<I: Into<Self::Expr>>(&mut self, left: Word<I>, right: Word<I>) {
+    fn assert_word_eq<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(
+        &mut self,
+        left: Word<I1>,
+        right: Word<I2>,
+    ) {
         for (left, right) in left.0.into_iter().zip(right.0) {
             self.assert_eq(left, right);
         }
     }
 
+    /// Asserts that the word is zero.
+    fn assert_word_zero<I: Into<Self::Expr>>(&mut self, word: Word<I>) {
+        for limb in word.0 {
+            self.assert_zero(limb);
+        }
+    }
+
     /// Check that each limb of the given slice is a u8.
-    fn slice_range_check_u8<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    fn slice_range_check_u8<EWord: Into<Self::Expr> + Clone, EMult: Into<Self::Expr> + Clone>(
         &mut self,
         input: &[EWord],
         mult: EMult,
@@ -175,8 +186,8 @@ pub trait WordAirBuilder: ByteAirBuilder {
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
-                input[index],
-                input[index + 1],
+                input[index].clone(),
+                input[index + 1].clone(),
                 mult.clone(),
             );
             index += 2;
@@ -185,7 +196,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
             self.send_byte(
                 Self::Expr::from_canonical_u8(ByteOpcode::U8Range as u8),
                 Self::Expr::zero(),
-                input[index],
+                input[index].clone(),
                 Self::Expr::zero(),
                 mult.clone(),
             );
@@ -613,13 +624,13 @@ impl<'a, AB: AirBuilder + MessageBuilder<M>, M> MessageBuilder<M> for FilteredAi
 }
 
 impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> BaseAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ByteAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> WordAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> AluAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> MemoryAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ProgramAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> ExtensionAirBuilder for AB {}
-impl<AB: AirBuilder + MessageBuilder<AirInteraction<AB::Expr>>> SP1AirBuilder for AB {}
+impl<AB: BaseAirBuilder> ByteAirBuilder for AB {}
+impl<AB: BaseAirBuilder> WordAirBuilder for AB {}
+impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
+impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
+impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
+impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
+impl<AB: BaseAirBuilder> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolder<'a, SC> {}

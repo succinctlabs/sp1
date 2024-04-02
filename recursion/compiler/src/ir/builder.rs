@@ -1,9 +1,14 @@
-use super::{Config, DslIR, Ext, SymbolicExt, SymbolicFelt, SymbolicUsize, Usize};
+use std::ops::{Add, Mul};
+
+use super::{
+    Array, Config, DslIR, Ext, ExtConst, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
+    Usize,
+};
 use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
-use alloc::vec::Vec;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
+use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, NUM_BITS, PERMUTATION_WIDTH};
 
 #[derive(Debug, Clone)]
 pub struct Builder<C: Config> {
@@ -42,6 +47,10 @@ impl<C: Config> Builder<C> {
         V::uninit(self)
     }
 
+    pub fn eval_const<V: FromConstant<C>>(&mut self, value: V::Constant) -> V {
+        V::eval_const(value, self)
+    }
+
     pub fn assign<V: Variable<C>, E: Into<V::Expression>>(&mut self, dst: V, expr: E) {
         dst.assign(expr.into(), self);
     }
@@ -52,18 +61,18 @@ impl<C: Config> Builder<C> {
         dst
     }
 
-    pub fn assert_eq<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+    pub fn assert_eq<V: Variable<C>>(
         &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
+        lhs: impl Into<V::Expression>,
+        rhs: impl Into<V::Expression>,
     ) {
         V::assert_eq(lhs, rhs, self);
     }
 
-    pub fn assert_ne<V: Variable<C>, LhsExpr: Into<V::Expression>, RhsExpr: Into<V::Expression>>(
+    pub fn assert_ne<V: Variable<C>>(
         &mut self,
-        lhs: LhsExpr,
-        rhs: RhsExpr,
+        lhs: impl Into<V::Expression>,
+        rhs: impl Into<V::Expression>,
     ) {
         V::assert_ne(lhs, rhs, self);
     }
@@ -73,7 +82,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Var<C::N>, _, _>(lhs, rhs);
+        self.assert_eq::<Var<C::N>>(lhs, rhs);
     }
 
     pub fn assert_var_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
@@ -81,7 +90,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Var<C::N>, _, _>(lhs, rhs);
+        self.assert_ne::<Var<C::N>>(lhs, rhs);
     }
 
     pub fn assert_felt_eq<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
@@ -89,7 +98,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Felt<C::F>, _, _>(lhs, rhs);
+        self.assert_eq::<Felt<C::F>>(lhs, rhs);
     }
 
     pub fn assert_felt_ne<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
@@ -97,7 +106,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Felt<C::F>, _, _>(lhs, rhs);
+        self.assert_ne::<Felt<C::F>>(lhs, rhs);
     }
 
     pub fn assert_usize_eq<
@@ -108,11 +117,11 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Usize<C::N>, _, _>(lhs, rhs);
+        self.assert_eq::<Usize<C::N>>(lhs, rhs);
     }
 
     pub fn assert_usize_ne(&mut self, lhs: SymbolicUsize<C::N>, rhs: SymbolicUsize<C::N>) {
-        self.assert_ne::<Usize<C::N>, _, _>(lhs, rhs);
+        self.assert_ne::<Usize<C::N>>(lhs, rhs);
     }
 
     pub fn assert_ext_eq<
@@ -123,7 +132,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_eq::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_eq::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
     pub fn assert_ext_ne<
@@ -134,7 +143,7 @@ impl<C: Config> Builder<C> {
         lhs: LhsExpr,
         rhs: RhsExpr,
     ) {
-        self.assert_ne::<Ext<C::F, C::EF>, _, _>(lhs, rhs);
+        self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
@@ -172,7 +181,12 @@ impl<C: Config> Builder<C> {
             start: start.into(),
             end: end.into(),
             builder: self,
+            step_size: 1,
         }
+    }
+
+    pub fn break_loop(&mut self) {
+        self.operations.push(DslIR::Break);
     }
 
     pub fn print_v(&mut self, dst: Var<C::N>) {
@@ -194,6 +208,364 @@ impl<C: Config> Builder<C> {
             res += arr[i] * SymbolicExt::Const(C::EF::monomial(i));
         }
         self.eval(res)
+    }
+
+    pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
+        let result = self.dyn_array(4);
+        self.operations.push(DslIR::Ext2Felt(result.clone(), value));
+        result
+    }
+
+    /// Throws an error.
+    pub fn error(&mut self) {
+        self.operations.push(DslIR::Error());
+    }
+
+    /// Converts a usize to a fixed length of bits.
+    pub fn num2bits_usize(&mut self, num: impl Into<Usize<C::N>>) -> Array<C, Var<C::N>> {
+        // TODO: A separate function for a circuit backend.
+
+        let num = num.into();
+        // Allocate an array for the output.
+        let output = self.dyn_array::<Var<_>>(NUM_BITS);
+        // Hint the bits of the number to the output array.
+        self.operations.push(DslIR::HintBitsU(output.clone(), num));
+
+        // Assert that the entries are bits, compute the sum, and compare it to the original number.
+        // If the number does not fit in `NUM_BITS`, we will get an error.
+        let sum: Var<_> = self.eval(C::N::zero());
+        for i in 0..NUM_BITS {
+            // Get the bit.
+            let bit = self.get(&output, i);
+            // Assert that the bit is either 0 or 1.
+            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
+            // Add `bit * 2^i` to the sum.
+            self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
+        }
+        // Finally, assert that the sum is equal to the original number.
+        self.assert_eq::<Usize<_>>(sum, num);
+
+        output
+    }
+
+    /// Converts a var to a fixed length of bits.
+    pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
+        // TODO: A separate function for a circuit backend.
+
+        // Allocate an array for the output.
+        let output = self.dyn_array::<Var<_>>(NUM_BITS);
+        // Hint the bits of the number to the output array.
+        self.operations.push(DslIR::HintBitsV(output.clone(), num));
+
+        // Assert that the entries are bits, compute the sum, and compare it to the original number.
+        // If the number does not fit in `NUM_BITS`, we will get an error.
+        let sum: Var<_> = self.eval(C::N::zero());
+        for i in 0..NUM_BITS {
+            // Get the bit.
+            let bit = self.get(&output, i);
+            // Assert that the bit is either 0 or 1.
+            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
+            // Add `bit * 2^i` to the sum.
+            self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
+        }
+        // Finally, assert that the sum is equal to the original number.
+        self.assert_var_eq(sum, num);
+
+        output
+    }
+
+    /// Converts a felt to a fixed length of bits.
+    pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
+        // TODO: A separate function for a circuit backend.
+
+        // Allocate an array for the output.
+        let output = self.dyn_array::<Var<_>>(NUM_BITS);
+        // Hint the bits of the number to the output array.
+        self.operations.push(DslIR::HintBitsF(output.clone(), num));
+
+        // Assert that the entries are bits, compute the sum, and compare it to the original number.
+        // If the number does not fit in `NUM_BITS`, we will get an error.
+        let sum: Felt<_> = self.eval(C::F::zero());
+        for i in 0..NUM_BITS {
+            // Get the bit.
+            let bit = self.get(&output, i);
+            // Assert that the bit is either 0 or 1.
+            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
+            // Add `bit * 2^i` to the sum.
+            self.if_eq(bit, C::N::one()).then(|builder| {
+                builder.assign(sum, sum + C::F::from_canonical_u32(1 << i));
+            });
+        }
+        // // Finally, assert that the sum is equal to the original number.
+        // self.assert_felt_eq(sum, num);
+
+        output
+    }
+
+    pub fn bits_to_num_felt(&mut self, bits: &Array<C, Var<C::N>>) -> Felt<C::F> {
+        let num: Felt<_> = self.eval(C::F::zero());
+        for i in 0..NUM_BITS {
+            let bit = self.get(bits, i);
+            // Add `bit * 2^i` to the sum.
+            self.if_eq(bit, C::N::one()).then(|builder| {
+                builder.assign(num, num + C::F::from_canonical_u32(1 << i));
+            });
+        }
+        num
+    }
+
+    pub fn bits_to_num_var(&mut self, bits: &Array<C, Var<C::N>>) -> Var<C::N> {
+        let num: Var<_> = self.eval(C::N::zero());
+        let power: Var<_> = self.eval(C::N::one());
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(bits, i);
+            builder.assign(num, num + bit * power);
+            builder.assign(power, power * C::N::from_canonical_u32(2));
+        });
+        num
+    }
+
+    pub fn bits_to_num_usize(&mut self, bits: &Array<C, Var<C::N>>) -> Usize<C::N> {
+        self.bits_to_num_var(bits).into()
+    }
+
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_permute(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
+        let output = match array {
+            Array::Fixed(values) => {
+                assert_eq!(values.len(), PERMUTATION_WIDTH);
+                self.array::<Felt<C::F>>(Usize::Const(PERMUTATION_WIDTH))
+            }
+            Array::Dyn(_, len) => self.array::<Felt<C::F>>(*len),
+        };
+        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+            output.clone(),
+            array.clone(),
+        ));
+        output
+    }
+
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
+        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+            array.clone(),
+            array.clone(),
+        ));
+    }
+
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
+        let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
+
+        let break_flag: Var<_> = self.eval(C::N::zero());
+        let last_index: Usize<_> = self.eval(array.len() - 1);
+        self.range(0, array.len())
+            .step_by(HASH_RATE)
+            .for_each(|i, builder| {
+                builder.if_eq(break_flag, C::N::one()).then(|builder| {
+                    builder.break_loop();
+                });
+                // Insert elements of the chunk.
+                builder.range(0, HASH_RATE).for_each(|j, builder| {
+                    let index: Var<_> = builder.eval(i + j);
+                    let element = builder.get(array, index);
+                    builder.set(&mut state, j, element);
+                    builder.if_eq(index, last_index).then(|builder| {
+                        builder.assign(break_flag, C::N::one());
+                        builder.break_loop();
+                    });
+                });
+                builder.poseidon2_permute_mut(&state);
+            });
+
+        let mut result = self.dyn_array(DIGEST_SIZE);
+        for i in 0..DIGEST_SIZE {
+            let el = self.get(&state, i);
+            self.set(&mut result, i, el);
+        }
+
+        result
+    }
+
+    /// Applies the Poseidon2 compression function to the given array.
+    ///
+    /// Assumes we are doing a 2-1 compression function with 8 element chunks.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/symmetric/src/compression.rs#L35
+    pub fn poseidon2_compress(
+        &mut self,
+        left: &Array<C, Felt<C::F>>,
+        right: &Array<C, Felt<C::F>>,
+    ) -> Array<C, Felt<C::F>> {
+        let mut input = self.dyn_array(PERMUTATION_WIDTH);
+        for i in 0..DIGEST_SIZE {
+            let a = self.get(left, i);
+            let b = self.get(right, i);
+            self.set(&mut input, i, a);
+            self.set(&mut input, i + DIGEST_SIZE, b);
+        }
+        self.poseidon2_permute_mut(&input);
+        input
+    }
+
+    /// Materializes a usize into a variable.
+    pub fn materialize(&mut self, num: Usize<C::N>) -> Var<C::N> {
+        match num {
+            Usize::Const(num) => self.eval(C::N::from_canonical_usize(num)),
+            Usize::Var(num) => num,
+        }
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L306
+    pub fn generator(&mut self) -> Felt<C::F> {
+        self.eval(C::F::from_canonical_u32(31))
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
+    ///
+    /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
+    /// behavior.
+    #[allow(dead_code)]
+    fn reverse_bits_len(
+        &mut self,
+        index_bits: &Array<C, Var<C::N>>,
+        bit_len: impl Into<Usize<C::N>>,
+    ) -> Array<C, Var<C::N>> {
+        // Compute the reverse bits.
+        let bit_len = bit_len.into();
+        let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
+        // let bit_len = self.materialize(bit_len);
+        self.range(0, bit_len).for_each(|i, builder| {
+            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
+            let entry = builder.get(index_bits, index);
+            builder.set(&mut result_bits, i, entry);
+        });
+
+        self.range(bit_len, NUM_BITS).for_each(|i, builder| {
+            builder.set(&mut result_bits, i, C::N::zero());
+        });
+
+        result_bits
+    }
+
+    #[allow(unused_variables)]
+    pub fn exp_usize_ef(&mut self, x: Ext<C::F, C::EF>, power: Usize<C::N>) -> Ext<C::F, C::EF> {
+        let result = self.eval(C::F::one());
+        let power_f: Ext<_, _> = self.eval(x);
+        let bits = self.num2bits_usize(power);
+        self.range(0, bits.len()).for_each(|i, builder| {
+            let bit = builder.get(&bits, i);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
+        });
+        result
+    }
+
+    pub fn exp_bits<V: Variable<C>>(&mut self, x: V, power_bits: &Array<C, Var<C::N>>) -> V
+    where
+        V::Expression: AbstractField,
+        V: Copy + Mul<Output = V::Expression>,
+    {
+        let result = self.eval(V::Expression::one());
+        let power_f: V = self.eval(x);
+        self.range(0, power_bits.len()).for_each(|i, builder| {
+            let bit = builder.get(power_bits, i);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
+        });
+        result
+    }
+
+    // Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
+    pub fn exp_reverse_bits_len<V: Variable<C>>(
+        &mut self,
+        x: V,
+        power_bits: &Array<C, Var<C::N>>,
+        bit_len: impl Into<Usize<C::N>>,
+    ) -> V
+    where
+        V::Expression: AbstractField,
+        V: Copy + Mul<Output = V::Expression>,
+    {
+        let result = self.eval(V::Expression::one());
+        let power_f: V = self.eval(x);
+        let bit_len = bit_len.into();
+        self.range(0, bit_len).for_each(|i, builder| {
+            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
+            let bit = builder.get(power_bits, index);
+            builder
+                .if_eq(bit, C::N::one())
+                .then(|builder| builder.assign(result, result * power_f));
+            builder.assign(power_f, power_f * power_f);
+        });
+        result
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
+    #[allow(unused_variables)]
+    pub fn exp<V>(&mut self, x: V, power: impl Into<Usize<C::N>>) -> V
+    where
+        V::Expression: AbstractField,
+        V: Variable<C> + Copy + Mul<Output = V::Expression>,
+    {
+        let power = power.into();
+        let result = self.eval(V::Expression::one());
+        self.range(0, power).for_each(|_, builder| {
+            builder.assign(result, result * x);
+        });
+        result
+    }
+
+    pub fn exp_power_of_2_v<V>(
+        &mut self,
+        base: impl Into<V::Expression>,
+        power_log: impl Into<Usize<C::N>>,
+    ) -> V
+    where
+        V: Variable<C> + Copy + Mul<Output = V::Expression>,
+    {
+        let power_log = power_log.into();
+        let result: V = self.eval(base);
+        self.range(0, power_log)
+            .for_each(|_, builder| builder.assign(result, result * result));
+        result
+    }
+
+    /// Multiplies `base` by `2^{log_power}`.
+    pub fn sll<V>(&mut self, base: impl Into<V::Expression>, shift: Usize<C::N>) -> V
+    where
+        V: Variable<C> + Copy + Add<Output = V::Expression>,
+    {
+        let result: V = self.eval(base);
+        self.range(0, shift)
+            .for_each(|_, builder| builder.assign(result, result + result));
+        result
+    }
+
+    pub fn power_of_two_usize(&mut self, power: Usize<C::N>) -> Usize<C::N> {
+        self.sll(Usize::Const(1), power)
+    }
+
+    pub fn power_of_two_var(&mut self, power: Usize<C::N>) -> Var<C::N> {
+        self.sll(C::N::one(), power)
+    }
+
+    pub fn power_of_two_felt(&mut self, power: Usize<C::N>) -> Felt<C::F> {
+        self.sll(C::F::one(), power)
+    }
+
+    pub fn power_of_two_expr(&mut self, power: Usize<C::N>) -> Ext<C::F, C::EF> {
+        self.sll(C::EF::one().cons(), power)
     }
 }
 
@@ -387,11 +759,18 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 pub struct RangeBuilder<'a, C: Config> {
     start: Usize<C::N>,
     end: Usize<C::N>,
+    step_size: usize,
     builder: &'a mut Builder<C>,
 }
 
 impl<'a, C: Config> RangeBuilder<'a, C> {
+    pub fn step_by(mut self, step_size: usize) -> Self {
+        self.step_size = step_size;
+        self
+    }
+
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
+        let step_size = C::N::from_canonical_usize(self.step_size);
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,
@@ -403,7 +782,122 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
         let loop_instructions = loop_body_builder.operations;
 
-        let op = DslIR::For(self.start, self.end, loop_variable, loop_instructions);
+        let op = DslIR::For(
+            self.start,
+            self.end,
+            step_size,
+            loop_variable,
+            loop_instructions,
+        );
         self.builder.operations.push(op);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_field::PrimeField32;
+    use p3_util::reverse_bits_len;
+    use rand::{thread_rng, Rng};
+    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
+    use sp1_recursion_core::runtime::{Runtime, NUM_BITS};
+
+    use p3_field::AbstractField;
+
+    use crate::{
+        asm::VmBuilder,
+        prelude::{Felt, Usize, Var},
+    };
+
+    #[test]
+    fn test_num2bits() {
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+
+        let mut rng = thread_rng();
+        let config = SC::default();
+
+        // Initialize a builder.
+        let mut builder = VmBuilder::<F, EF>::default();
+
+        // Get a random var with `NUM_BITS` bits.
+        let num_val: F = rng.gen();
+
+        // Materialize the number as a var
+        let num: Var<_> = builder.eval(num_val);
+        // Materialize the number as a felt
+        let num_felt: Felt<_> = builder.eval(num_val);
+        // Materialize the number as a usize
+        let num_usize: Usize<_> = builder.eval(num_val.as_canonical_u32() as usize);
+
+        // Get the bits.
+        let bits = builder.num2bits_v(num);
+        let bits_felt = builder.num2bits_f(num_felt);
+        let bits_usize = builder.num2bits_usize(num_usize);
+
+        // Compare the expected bits with the actual bits.
+        for i in 0..NUM_BITS {
+            // Get the i-th bit of the number.
+            let expected_bit = F::from_canonical_u32((num_val.as_canonical_u32() >> i) & 1);
+            // Compare the expected bit of the var with the actual bit.
+            let bit = builder.get(&bits, i);
+            builder.assert_var_eq(bit, expected_bit);
+            // Compare the expected bit of the felt with the actual bit.
+            let bit_felt = builder.get(&bits_felt, i);
+            builder.assert_var_eq(bit_felt, expected_bit);
+            // Compare the expected bit of the usize with the actual bit.
+            let bit_usize = builder.get(&bits_usize, i);
+            builder.assert_var_eq(bit_usize, expected_bit);
+        }
+
+        // Test the conversion back to a number.
+        let num_back = builder.bits_to_num_var(&bits);
+        builder.assert_var_eq(num_back, num);
+        let num_felt_back = builder.bits_to_num_felt(&bits_felt);
+        builder.assert_felt_eq(num_felt_back, num_felt);
+        let num_usize_back = builder.bits_to_num_usize(&bits_usize);
+        builder.assert_usize_eq(num_usize_back, num_usize);
+
+        let program = builder.compile();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+        runtime.run();
+    }
+
+    #[test]
+    fn test_reverse_bits_len() {
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type EF = <SC as StarkGenericConfig>::Challenge;
+
+        let mut rng = thread_rng();
+        let config = SC::default();
+
+        // Initialize a builder.
+        let mut builder = VmBuilder::<F, EF>::default();
+
+        // Get a random var with `NUM_BITS` bits.
+        let x_val: F = rng.gen();
+
+        // Materialize the number as a var
+        let x: Var<_> = builder.eval(x_val);
+        let x_bits = builder.num2bits_v(x);
+
+        for i in 1..NUM_BITS {
+            // Get the reference value.
+            let expected_value = reverse_bits_len(x_val.as_canonical_u32() as usize, i);
+            let value_bits = builder.reverse_bits_len(&x_bits, i);
+            let value = builder.bits_to_num_var(&value_bits);
+            builder.assert_usize_eq(value, expected_value);
+            let var_i: Var<_> = builder.eval(F::from_canonical_usize(i));
+            let value_var_bits = builder.reverse_bits_len(&x_bits, var_i);
+            let value_var = builder.bits_to_num_var(&value_var_bits);
+            builder.assert_usize_eq(value_var, expected_value);
+        }
+
+        let program = builder.compile();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+        runtime.run();
     }
 }

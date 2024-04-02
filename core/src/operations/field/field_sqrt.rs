@@ -78,6 +78,7 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use crate::utils::ec::field::FieldParameters;
@@ -116,6 +117,8 @@ mod tests {
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
         type Record = ExecutionRecord;
+
+        type Program = Program;
 
         fn name(&self) -> String {
             "EdSqrtChip".to_string()

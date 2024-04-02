@@ -1,5 +1,6 @@
 use crate::air::BlockBuilder;
 use crate::cpu::CpuChip;
+use crate::runtime::Program;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -32,6 +33,7 @@ pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
+    type Program = Program<F>;
 
     fn name(&self) -> String {
         "CPU".to_string()
@@ -45,8 +47,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
         let rows = input
             .cpu_events
             .iter()
-            .enumerate()
-            .map(|(_, event)| {
+            .map(|event| {
                 let mut row = [F::zero(); NUM_CPU_COLS];
                 let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
 
@@ -146,7 +147,7 @@ where
         // Increment clk by 4 every cycle..
         builder
             .when_transition()
-            .when(local.is_real)
+            .when(next.is_real)
             .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
 
         // // Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.

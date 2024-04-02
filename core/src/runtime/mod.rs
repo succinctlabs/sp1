@@ -20,7 +20,7 @@ pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
-use self::state::ExecutionState;
+use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
@@ -211,6 +211,13 @@ impl Runtime {
         }
 
         // If it's the first time accessing this address, initialize previous values as zero.
+        if addr != 0 {
+            if let Entry::Vacant(_) = entry {
+                self.record
+                    .memory_initialize_events
+                    .push(MemoryInitializeFinalizeEvent::initialize(addr, 0, true))
+            }
+        }
         let record = entry.or_default();
         let value = record.value;
         let prev_shard = record.shard;
@@ -241,6 +248,13 @@ impl Runtime {
         }
 
         // If it's the first time accessing this address, initialize previous values as zero.
+        if addr != 0 {
+            if let Entry::Vacant(_) = entry {
+                self.record
+                    .memory_initialize_events
+                    .push(MemoryInitializeFinalizeEvent::initialize(addr, 0, true))
+            }
+        }
         let record = entry.or_default();
         let prev_value = record.value;
         let prev_shard = record.shard;
@@ -318,14 +332,14 @@ impl Runtime {
 
     /// Write to a register.
     pub fn rw(&mut self, register: Register, value: u32) {
-        // We don't write to %x0. See 2.6 Load and Store Instruction on
-        // P.18 of the RISC-V spec.
-        if register == Register::X0 {
-            return;
-        }
-
         // The only time we are writing to a register is when it is in operand A.
-        self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
+        // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
+        // P.18 of the RISC-V spec. We always write 0 to %x0.
+        if register == Register::X0 {
+            self.mw_cpu(register as u32, 0, MemoryAccessPosition::A);
+        } else {
+            self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
+        }
     }
 
     /// Emit a CPU event.
@@ -464,8 +478,8 @@ impl Runtime {
 
     /// Execute the given instruction over the current state of the runtime.
     fn execute_instruction(&mut self, instruction: Instruction) {
-        let pc = self.state.pc;
-        let clk = self.state.clk;
+        let mut pc = self.state.pc;
+        let mut clk = self.state.clk;
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
@@ -685,7 +699,6 @@ impl Runtime {
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
                         // If it returns None, we just keep the syscall_id in t0.
-                        // Only the "LWA" syscall actually writes to t0, most syscalls don't return a value.
                         let res = syscall_impl.execute(&mut precompile_rt, b, c);
                         if let Some(val) = res {
                             a = val;
@@ -697,6 +710,10 @@ impl Runtime {
                     } else {
                         panic!("Unsupported syscall: {:?}", syscall);
                     };
+
+                // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
+                clk = self.state.clk;
+                pc = self.state.pc;
 
                 self.rw(t0, a);
                 next_pc = precompile_next_pc;
@@ -848,6 +865,11 @@ impl Runtime {
             );
         }
 
+        // Create init event for register 0 because it needs to be the first row in MemoryInit.
+        self.record
+            .memory_initialize_events
+            .push(MemoryInitializeFinalizeEvent::initialize(0, 0, true));
+
         tracing::info!("starting execution");
     }
 
@@ -908,71 +930,66 @@ impl Runtime {
             buf.flush().unwrap();
         }
 
-        // Set up all variables needed for memory argument.
-        let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
+        // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
+
+        // Program Memory is the global constants of the program. We need to mark which of these
+        // addresses are used by the program, as some invocations might not touch all addresses.
+        // program_memory_map maps an addr to its value and whether it was touched during the program.
+        let mut program_memory_map = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
+
         for (key, value) in &self.program.memory_image {
-            // By default we assume that the program_memory is used.
-            program_memory_used.insert(*key, (*value, 1));
+            program_memory_map.insert(key, (*value, true));
         }
 
-        let mut first_memory_record = Vec::new();
-        let mut last_memory_record = Vec::new();
+        let memory_finalize_events = &mut self.record.memory_finalize_events;
 
-        let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
-        for addr in memory_keys {
-            let record = *self.state.memory.get(&addr).unwrap();
+        // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
+        // of the memory finalize table so it must be first in the array of events.
+        let addr_0_record = self.state.memory.get(&0u32);
+
+        let addr_0_final_record = match addr_0_record {
+            Some(record) => record,
+            None => &MemoryRecord {
+                value: 0,
+                shard: 0,
+                timestamp: 0,
+            },
+        };
+        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+            0,
+            addr_0_final_record,
+        ));
+
+        for addr in self.state.memory.keys() {
+            if addr == &0 {
+                continue; // We handle addr = 0 separately above.
+            }
+
+            let record = *self.state.memory.get(addr).unwrap();
             if record.shard == 0 && record.timestamp == 0 {
                 // This means that we never accessed this memory location throughout our entire program.
                 // The only way this can happen is if this was in the program memory image.
-                // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert(addr, (record.value, 0));
+                // We mark this (addr, value) as not touched in the `program_memory_map` map.
+                program_memory_map.insert(addr, (record.value, false));
                 continue;
             }
-            // If the memory addr was accessed, we only add it to "first_memory_record" if it was
-            // not in the program_memory_image, otherwise we'll add to the memory argument from
-            // the program_memory_image table.
-            if !self.program.memory_image.contains_key(&addr) {
-                first_memory_record.push((
-                    addr,
-                    MemoryRecord {
-                        value: 0,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    1,
-                ));
-            }
 
-            last_memory_record.push((
-                addr,
-                MemoryRecord {
-                    value: record.value,
-                    shard: record.shard,
-                    timestamp: record.timestamp,
-                },
-                1,
+            memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+                *addr, &record,
             ));
         }
 
-        let mut program_memory_record = program_memory_used
-            .iter()
-            .map(|(&addr, &(value, used))| {
-                (
-                    addr,
-                    MemoryRecord {
-                        value,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    used,
-                )
+        let mut program_memory_events = program_memory_map
+            .into_iter()
+            .map(|(addr, (value, used))| {
+                MemoryInitializeFinalizeEvent::initialize(*addr, value, used)
             })
-            .collect::<Vec<(u32, MemoryRecord, u32)>>();
-        program_memory_record.sort_by_key(|&(addr, _, _)| addr);
+            .collect::<Vec<MemoryInitializeFinalizeEvent>>();
+        // Sort the program_memory_events by addr to create a canonical ordering for the
+        // preprocessed table, as this is part of the vkey.
+        program_memory_events.sort_by_key(|event| event.addr);
 
-        self.record.first_memory_record = first_memory_record;
-        self.record.last_memory_record = last_memory_record;
-        self.record.program_memory_record = program_memory_record;
+        self.record.program_memory_events = program_memory_events;
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
@@ -988,7 +1005,7 @@ pub mod tests {
         utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
-    use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
+    use super::{Instruction, Opcode, Program, Runtime};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -1005,14 +1022,6 @@ pub mod tests {
 
     pub fn ssz_withdrawals_program() -> Program {
         Program::from(SSZ_WITHDRAWALS_ELF)
-    }
-
-    pub fn ecall_lwa_program() -> Program {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::LWA as u32, false, true),
-            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
-        ];
-        Program::new(instructions, 0, 0)
     }
 
     #[test]

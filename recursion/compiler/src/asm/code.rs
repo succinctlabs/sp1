@@ -1,13 +1,13 @@
 use super::AsmInstruction;
+use alloc::collections::BTreeMap;
 use alloc::format;
-use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use core::fmt;
 use core::fmt::Display;
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::runtime::Program;
 
 #[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F, EF>(Vec<AsmInstruction<F, EF>>);
+pub struct BasicBlock<F, EF>(pub(crate) Vec<AsmInstruction<F, EF>>);
 
 #[derive(Debug, Clone)]
 pub struct AssemblyCode<F, EF> {

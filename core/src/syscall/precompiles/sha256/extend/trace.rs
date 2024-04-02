@@ -3,12 +3,17 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::MachineAir, runtime::ExecutionRecord};
+use crate::{
+    air::MachineAir,
+    runtime::{ExecutionRecord, Program},
+};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "ShaExtend".to_string()
@@ -42,7 +47,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
                 cols.w_i_minus_7
                     .populate(event.w_i_minus_7_reads[j], &mut new_byte_lookup_events);
 
-                // Compute `s0`.
+                // `s0 := (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)`.
                 let w_i_minus_15 = event.w_i_minus_15_reads[j].value;
                 let w_i_minus_15_rr_7 = cols.w_i_minus_15_rr_7.populate(output, w_i_minus_15, 7);
                 let w_i_minus_15_rr_18 = cols.w_i_minus_15_rr_18.populate(output, w_i_minus_15, 18);
@@ -52,7 +57,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
                         .populate(output, w_i_minus_15_rr_7, w_i_minus_15_rr_18);
                 let s0 = cols.s0.populate(output, s0_intermediate, w_i_minus_15_rs_3);
 
-                // Compute `s1`.
+                // `s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)`.
                 let w_i_minus_2 = event.w_i_minus_2_reads[j].value;
                 let w_i_minus_2_rr_17 = cols.w_i_minus_2_rr_17.populate(output, w_i_minus_2, 17);
                 let w_i_minus_2_rr_19 = cols.w_i_minus_2_rr_19.populate(output, w_i_minus_2, 19);

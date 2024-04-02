@@ -1,6 +1,10 @@
-use std::marker::PhantomData;
+use itertools::Itertools;
+use p3_matrix::Dimensions;
+use std::cmp::Reverse;
+use std::collections::HashMap;
 
 use super::debug_constraints;
+use super::Dom;
 use crate::air::MachineAir;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
@@ -9,17 +13,22 @@ use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::VerifierConstraintFolder;
+
 use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
+use p3_commit::Pcs;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
 use super::Chip;
+use super::Com;
+use super::PcsProverData;
 use super::Proof;
 use super::Prover;
 use super::StarkGenericConfig;
@@ -43,16 +52,17 @@ impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
-    //TODO
-    marker: std::marker::PhantomData<SC>,
+    pub commit: Com<SC>,
+    pub traces: Vec<RowMajorMatrix<Val<SC>>>,
+    pub data: PcsProverData<SC>,
+    pub chip_ordering: HashMap<String, usize>,
 }
 
-#[derive(Debug, Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
-    // TODO:
-    marker: std::marker::PhantomData<SC>,
+    pub commit: Com<SC>,
+    pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
+    pub chip_ordering: HashMap<String, usize>,
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
@@ -71,17 +81,90 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         self.chips.iter().filter(|chip| chip.included(shard))
     }
 
+    pub fn shard_chips_ordered<'a, 'b>(
+        &'a self,
+        chip_ordering: &'b HashMap<String, usize>,
+    ) -> impl Iterator<Item = &'b MachineChip<SC, A>>
+    where
+        'a: 'b,
+    {
+        self.chips
+            .iter()
+            .filter(|chip| chip_ordering.contains_key(&chip.name()))
+            .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
+    }
+
     /// The setup preprocessing phase.
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    pub fn setup<P>(&self, _program: &P) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+    pub fn setup(&self, program: &A::Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+        let mut named_preprocessed_traces = self
+            .chips()
+            .iter()
+            .map(|chip| {
+                let prep_trace = chip.generate_preprocessed_trace(program);
+                // Assert that the chip width data is correct.
+                let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+                assert_eq!(
+                    expected_width,
+                    chip.preprocessed_width(),
+                    "Incorrect number of preprocessed columns for chip {}",
+                    chip.name()
+                );
+
+                (chip.name(), prep_trace)
+            })
+            .filter(|(_, prep_trace)| prep_trace.is_some())
+            .map(|(name, prep_trace)| {
+                let prep_trace = prep_trace.unwrap();
+                (name, prep_trace)
+            })
+            .collect::<Vec<_>>();
+
+        // Order the chips and traces by trace size (biggest first), and get the ordering map.
+        named_preprocessed_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
+
+        let pcs = self.config.pcs();
+
+        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
+            .iter()
+            .map(|(name, trace)| {
+                let domain = pcs.natural_domain_for_degree(trace.height());
+                (
+                    (name.to_owned(), domain, trace.dimensions()),
+                    (domain, trace.to_owned()),
+                )
+            })
+            .unzip();
+
+        // Commit to the batch of traces.
+        let (commit, data) = pcs.commit(domains_and_traces);
+
+        // Get the chip ordering.
+        let chip_ordering = named_preprocessed_traces
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| (name.to_owned(), i))
+            .collect::<HashMap<_, _>>();
+
+        // Get the preprocessed traces
+        let traces = named_preprocessed_traces
+            .into_iter()
+            .map(|(_, trace)| trace)
+            .collect::<Vec<_>>();
+
         (
             ProvingKey {
-                marker: PhantomData,
+                commit: commit.clone(),
+                traces,
+                data,
+                chip_ordering: chip_ordering.clone(),
             },
             VerifyingKey {
-                marker: PhantomData,
+                commit,
+                chip_information,
+                chip_ordering,
             },
         )
     }
@@ -141,7 +224,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn verify(
         &self,
-        _vk: &VerifyingKey<SC>,
+        vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
@@ -149,6 +232,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
+        // Observe the preprocessed commitment.
+        challenger.observe(vk.commit.clone());
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
         #[cfg(feature = "perf")]
@@ -163,11 +248,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
                 let chips = self
-                    .chips()
-                    .iter()
-                    .filter(|chip| proof.chip_ids.contains(&chip.name()))
+                    .shard_chips_ordered(&proof.chip_ordering)
                     .collect::<Vec<_>>();
-                Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
+                Verifier::verify_shard(&self.config, vk, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
@@ -186,7 +269,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn debug_constraints(
         &self,
-        _pk: &ProvingKey<SC>,
+        pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
     ) where
@@ -225,7 +308,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     .zip(traces.par_iter())
                     .map(|(chip, main_trace)| {
                         let perm_trace = chip.generate_permutation_trace(
-                            &None,
+                            None,
                             main_trace,
                             &permutation_challenges,
                         );
@@ -258,9 +341,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
             tracing::info_span!("debug constraints").in_scope(|| {
                 for i in 0..chips.len() {
+                    let permutation_trace = pk
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
                         chips[i],
-                        None,
+                        permutation_trace,
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
@@ -297,10 +384,10 @@ pub enum ProgramVerificationError {
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
+    use crate::runtime::tests::ssz_withdrawals_program;
     use crate::runtime::Instruction;
     use crate::runtime::Opcode;
     use crate::runtime::Program;
@@ -312,13 +399,6 @@ pub mod tests {
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
-    }
-
-    #[test]
-    fn test_ecall_lwa_prove() {
-        utils::setup_logger();
-        let program = ecall_lwa_program();
         run_test(program).unwrap();
     }
 
@@ -456,6 +536,12 @@ pub mod tests {
     #[test]
     fn test_simple_memory_program_prove() {
         let program = simple_memory_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_ssz_withdrawal() {
+        let program = ssz_withdrawals_program();
         run_test(program).unwrap();
     }
 }
