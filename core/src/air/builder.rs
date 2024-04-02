@@ -259,24 +259,27 @@ pub trait WordAirBuilder: ByteAirBuilder {
 /// A trait which contains methods related to ALU interactions in an AIR.
 pub trait AluAirBuilder: BaseAirBuilder {
     /// Sends an ALU operation to be processed.
-    fn send_alu<EOp, Ea, Eb, Ec, EMult>(
+    fn send_alu<EOp, Ea, Eb, Ec, EShard, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,
         b: Word<Eb>,
         c: Word<Ec>,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
         let values = once(opcode.into())
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
+            .chain(once(shard.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -287,24 +290,27 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Receives an ALU operation to be processed.
-    fn receive_alu<EOp, Ea, Eb, Ec, EMult>(
+    fn receive_alu<EOp, Ea, Eb, Ec, EShard, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,
         b: Word<Eb>,
         c: Word<Ec>,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
         let values = once(opcode.into())
             .chain(a.0.into_iter().map(Into::into))
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
+            .chain(once(shard.into()))
             .collect();
 
         self.receive(AirInteraction::new(
@@ -570,22 +576,25 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 /// A trait which contains methods related to program interactions in an AIR.
 pub trait ProgramAirBuilder: BaseAirBuilder {
     /// Sends an instruction.
-    fn send_program<EPc, EInst, ESel, EMult>(
+    fn send_program<EPc, EInst, ESel, EShard, EMult>(
         &mut self,
         pc: EPc,
         instruction: InstructionCols<EInst>,
         selectors: OpcodeSelectorCols<ESel>,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EPc: Into<Self::Expr>,
         EInst: Into<Self::Expr> + Copy,
         ESel: Into<Self::Expr> + Copy,
+        EShard: Into<Self::Expr> + Copy,
         EMult: Into<Self::Expr>,
     {
         let values = once(pc.into())
             .chain(once(instruction.opcode.into()))
             .chain(instruction.into_iter().map(|x| x.into()))
             .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(once(shard.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -596,22 +605,25 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
     }
 
     /// Receives an instruction.
-    fn receive_program<EPc, EInst, ESel, EMult>(
+    fn receive_program<EPc, EInst, ESel, EShard, EMult>(
         &mut self,
         pc: EPc,
         instruction: InstructionCols<EInst>,
         selectors: OpcodeSelectorCols<ESel>,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EPc: Into<Self::Expr>,
         EInst: Into<Self::Expr> + Copy,
         ESel: Into<Self::Expr> + Copy,
+        EShard: Into<Self::Expr> + Copy,
         EMult: Into<Self::Expr>,
     {
         let values: Vec<<Self as AirBuilder>::Expr> = once(pc.into())
             .chain(once(instruction.opcode.into()))
             .chain(instruction.into_iter().map(|x| x.into()))
             .chain(selectors.into_iter().map(|x| x.into()))
+            .chain(once(shard.into()))
             .collect();
 
         self.receive(AirInteraction::new(

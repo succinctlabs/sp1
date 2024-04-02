@@ -26,6 +26,9 @@ pub struct LtChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
+    /// The shard
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -295,6 +298,7 @@ where
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_slt + local.is_sltu,
         );
     }

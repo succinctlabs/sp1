@@ -335,6 +335,7 @@ where
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_real,
         );
 

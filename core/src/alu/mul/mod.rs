@@ -430,7 +430,14 @@ where
         }
 
         // Receive the arguments.
-        builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
+        builder.receive_alu(
+            opcode,
+            local.a,
+            local.b,
+            local.c,
+            local.shard,
+            local.is_real,
+        );
 
         // A dummy constraint to keep the degree at least 3.
         builder.assert_zero(

@@ -163,6 +163,7 @@ where
             local.add_operation.value,
             local.operand_1,
             local.operand_2,
+            local.shard,
             local.is_add,
         );
 
@@ -172,6 +173,7 @@ where
             local.operand_1,
             local.add_operation.value,
             local.operand_2,
+            local.shard,
             local.is_sub,
         );
 

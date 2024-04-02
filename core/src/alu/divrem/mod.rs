@@ -463,6 +463,7 @@ where
                 Word(lower_half),
                 local.quotient,
                 local.c,
+                local.shard,
                 local.is_real,
             );
 
@@ -486,6 +487,7 @@ where
                 Word(upper_half),
                 local.quotient,
                 local.c,
+                local.shard,
                 local.is_real,
             );
         }
@@ -677,6 +679,7 @@ where
                 Word([one.clone(), zero.clone(), zero.clone(), zero.clone()]),
                 local.abs_remainder,
                 local.max_abs_c_or_1,
+                local.shard,
                 local.is_real,
             );
         }
@@ -749,7 +752,14 @@ where
                     + local.is_rem * rem
             };
 
-            builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
+            builder.receive_alu(
+                opcode,
+                local.a,
+                local.b,
+                local.c,
+                local.shard,
+                local.is_real,
+            );
         }
 
         // A dummy constraint to keep the degree 3.

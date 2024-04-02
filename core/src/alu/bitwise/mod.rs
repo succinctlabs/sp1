@@ -145,6 +145,7 @@ where
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_xor + local.is_or + local.is_and,
         );
 
