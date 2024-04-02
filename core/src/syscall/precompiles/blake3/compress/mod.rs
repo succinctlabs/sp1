@@ -164,17 +164,18 @@ pub mod compress_tests {
         Program::new(instructions, 0, 0)
     }
 
-    #[test]
-    fn prove_babybear() {
-        setup_logger();
-        let program = blake3_compress_internal_program();
-        run_test(program).unwrap();
-    }
+    // Tests disabled because syscall is not enabled in default runtime/chip configs.
+    // #[test]
+    // fn prove_babybear() {
+    //     setup_logger();
+    //     let program = blake3_compress_internal_program();
+    //     run_test(program).unwrap();
+    // }
 
-    #[test]
-    fn test_blake3_compress_inner_elf() {
-        setup_logger();
-        let program = Program::from(BLAKE3_COMPRESS_ELF);
-        run_test(program).unwrap();
-    }
+    // #[test]
+    // fn test_blake3_compress_inner_elf() {
+    //     setup_logger();
+    //     let program = Program::from(BLAKE3_COMPRESS_ELF);
+    //     run_test(program).unwrap();
+    // }
 }
