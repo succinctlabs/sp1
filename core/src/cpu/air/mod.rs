@@ -463,16 +463,19 @@ impl CpuChip {
         }
         builder.when(is_commit.clone()).assert_one(bitmap_sum);
 
-        // Verify the public_values_digest_word.  Note that for the interaction builder, it will not have
-        // any digest_words, since it's public values is empty.  In that case, we just use a zero word.
-        // That will mean the constraint below will fail, but since the interaction builder is only
-        // parsing send/receives, it doesn't matter.
+        // Retrieve the public_values_digest_word to check against the one passed into the commit ecall.
+        // Note that for the interaction builder, it will not have any digest words, since it's used
+        // during AIR compilation time to parse for all send/receives.  There will be no public values
+        // digests at that compilation time.  Since that interaction builder will ignore the other
+        // constraints of the air, it is safe to assign the public_values_digest_word to the zero word
+        // when the digest_words is empty (which is only true for the interaction builder).
         let public_values_digest_word = if !digest_words.is_empty() {
             builder.index_word_array(&digest_words, &ecall_columns.index_bitmap)
         } else {
             Word::zero::<AB>()
         };
 
+        // Verify the public_values_digest_word.
         builder
             .when(is_commit)
             .assert_word_eq(public_values_digest_word, ecall_columns.digest_word);
