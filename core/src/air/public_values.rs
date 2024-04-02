@@ -14,12 +14,12 @@ use super::Word;
 //        and initial entropy used.
 const PV_DIGEST_NUM_WORDS: usize = 8;
 
-/// The PublicValuesDigest struct is used to represent the public input digest.  This is the hash of all the
-/// bytes that the guest program has written to public input.
+/// The PublicValuesDigest struct is used to represent the public values digest.  This is the hash of all the
+/// bytes that the guest program has written to public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct PublicValuesDigest<T>([T; PV_DIGEST_NUM_WORDS]);
 
-/// Convertion from a byte array into a PiDigest<u32>.
+/// Conversion from a byte array into a PiDigest<u32>.
 impl From<&[u8]> for PublicValuesDigest<u32> {
     fn from(bytes: &[u8]) -> Self {
         const WORD_SIZE: usize = 4;
@@ -64,7 +64,7 @@ impl<T> IntoIterator for PublicValuesDigest<T> {
     }
 }
 
-/// Convertion into a byte vec.
+/// Conversion into a byte vec.
 impl From<PublicValuesDigest<u32>> for Vec<u8> {
     fn from(val: PublicValuesDigest<u32>) -> Self {
         val.0
@@ -74,7 +74,7 @@ impl From<PublicValuesDigest<u32>> for Vec<u8> {
     }
 }
 
-/// Convertion into a field vec.
+/// Conversion into a field vec.
 impl<T: Debug + Copy> From<PublicValuesDigest<Word<T>>> for Vec<T> {
     fn from(val: PublicValuesDigest<Word<T>>) -> Self {
         val.0.iter().flat_map(|word| word.0).collect::<Vec<T>>()

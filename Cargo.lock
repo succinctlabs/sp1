@@ -1814,7 +1814,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "once_cell",
- "sha2",
+ "sha2 0.10.8",
  "signature",
 ]
 
@@ -3237,6 +3237,16 @@ dependencies = [
 
 [[package]]
 name = "sha2"
+version = "0.10.6"
+source = "git+https://github.com/succinctbot/RustCrypto-hashes.git#482efd7c1a750c300f3740a2c75dda9eb4eb1ddd"
+dependencies = [
+ "cfg-if",
+ "cpufeatures",
+ "digest",
+]
+
+[[package]]
+name = "sha2"
 version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "793db75ad2bcafc3ffa7c68b215fee268f537982cd901d132f89c6343f3a3dc8"
@@ -3393,7 +3403,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serial_test",
- "sha2",
+ "sha2 0.10.8",
  "size",
  "sp1-derive",
  "sp1-zkvm",
@@ -3592,7 +3602,7 @@ dependencies = [
  "once_cell",
  "rand",
  "serde",
- "sha2",
+ "sha2 0.10.6",
  "sp1-precompiles",
 ]
 
@@ -4563,7 +4573,7 @@ dependencies = [
  "pasta_curves 0.5.1",
  "rand",
  "serde",
- "sha2",
+ "sha2 0.10.8",
  "sha3",
  "subtle",
 ]

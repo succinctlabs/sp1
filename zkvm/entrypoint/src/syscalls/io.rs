@@ -28,7 +28,7 @@ pub extern "C" fn syscall_write(fd: u32, write_buf: *const u8, nbytes: usize) {
             // version of this hash.
             if fd == FD_PUBLIC_VALUES {
                 let pi_slice: &[u8] = unsafe { core::slice::from_raw_parts(write_buf, nbytes) };
-                let hasher = zkvm::PUBLIC_VALUES_HASHER.lock().unwrap().update(pi_slice);
+                unsafe { zkvm::PUBLIC_VALUES_HASHER.as_mut().unwrap().update(pi_slice) };
             }
         } else {
             unreachable!()

@@ -29,6 +29,7 @@ macro_rules! entrypoint {
     };
 }
 
+// The number of 32 bit words that the public values digest is composed of.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
@@ -39,16 +40,16 @@ mod zkvm {
     use crate::syscalls::syscall_halt;
 
     use getrandom::{register_custom_getrandom, Error};
-    use once_cell::sync::Lazy;
     use sha2::{Digest, Sha256};
-    use std::sync::Mutex;
 
-    pub static PUBLIC_VALUES_HASHER: Lazy<Mutex<Sha256>> = Lazy::new(|| Mutex::new(Sha256::new()));
+    pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
+            PUBLIC_VALUES_HASHER = Some(Sha256::new());
+
             extern "C" {
                 fn main();
             }

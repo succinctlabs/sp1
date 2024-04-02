@@ -14,16 +14,14 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
     unsafe {
         // When we halt, we retrieve the public values finalized digest.  This is the hash of all
         // the bytes written to the public values fd.
-        let pv_digest_bytes = zkvm::PUBLIC_VALUES_HASHER
-            .lock()
+        let pv_digest_bytes = core::mem::take(&mut zkvm::PUBLIC_VALUES_HASHER)
             .unwrap()
-            .to_owned()
-            .finalize()
-            .to_vec();
+            .finalize();
 
         // Convert the digest bytes into words, since we will be calling COMMIT ecall with
         // the words as a parameter.
         let pv_digest_words: [u32; PV_DIGEST_NUM_WORDS] = pv_digest_bytes
+            .as_slice()
             .chunks_exact(4)
             .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
             .collect::<Vec<_>>()
