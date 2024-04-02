@@ -71,31 +71,34 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
 /// A trait which contains methods for byte interactions in an AIR.
 pub trait ByteAirBuilder: BaseAirBuilder {
     /// Sends a byte operation to be processed.
-    fn send_byte<EOp, Ea, Eb, Ec, EMult>(
+    fn send_byte<EOp, Ea, Eb, Ec, EShard, EMult>(
         &mut self,
         opcode: EOp,
         a: Ea,
         b: Eb,
         c: Ec,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, multiplicity)
+        self.send_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity)
     }
 
     /// Sends a byte operation with two outputs to be processed.
-    fn send_byte_pair<EOp, Ea1, Ea2, Eb, Ec, EMult>(
+    fn send_byte_pair<EOp, Ea1, Ea2, Eb, Ec, EShard, EMult>(
         &mut self,
         opcode: EOp,
         a1: Ea1,
         a2: Ea2,
         b: Eb,
         c: Ec,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
@@ -103,41 +106,52 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         Ea2: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
         self.send(AirInteraction::new(
-            vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
+            vec![
+                opcode.into(),
+                a1.into(),
+                a2.into(),
+                b.into(),
+                c.into(),
+                shard.into(),
+            ],
             multiplicity.into(),
             InteractionKind::Byte,
         ));
     }
 
     /// Receives a byte operation to be processed.
-    fn receive_byte<EOp, Ea, Eb, Ec, EMult>(
+    fn receive_byte<EOp, Ea, Eb, Ec, EMult, EShard>(
         &mut self,
         opcode: EOp,
         a: Ea,
         b: Eb,
         c: Ec,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
-        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, multiplicity)
+        self.receive_byte_pair(opcode, a, Self::Expr::zero(), b, c, shard, multiplicity)
     }
 
     /// Receives a byte operation with two outputs to be processed.
-    fn receive_byte_pair<EOp, Ea1, Ea2, Eb, Ec, EMult>(
+    fn receive_byte_pair<EOp, Ea1, Ea2, Eb, Ec, EMult, EShard>(
         &mut self,
         opcode: EOp,
         a1: Ea1,
         a2: Ea2,
         b: Eb,
         c: Ec,
+        shard: EShard,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
@@ -145,10 +159,18 @@ pub trait ByteAirBuilder: BaseAirBuilder {
         Ea2: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
         self.receive(AirInteraction::new(
-            vec![opcode.into(), a1.into(), a2.into(), b.into(), c.into()],
+            vec![
+                opcode.into(),
+                a1.into(),
+                a2.into(),
+                b.into(),
+                c.into(),
+                shard.into(),
+            ],
             multiplicity.into(),
             InteractionKind::Byte,
         ));
@@ -176,9 +198,14 @@ pub trait WordAirBuilder: ByteAirBuilder {
     }
 
     /// Check that each limb of the given slice is a u8.
-    fn slice_range_check_u8<EWord: Into<Self::Expr> + Clone, EMult: Into<Self::Expr> + Clone>(
+    fn slice_range_check_u8<
+        EWord: Into<Self::Expr> + Clone,
+        EShard: Into<Self::Expr> + Clone,
+        EMult: Into<Self::Expr> + Clone,
+    >(
         &mut self,
         input: &[EWord],
+        shard: EShard,
         mult: EMult,
     ) {
         let mut index = 0;
@@ -188,6 +215,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 input[index].clone(),
                 input[index + 1].clone(),
+                shard.clone(),
                 mult.clone(),
             );
             index += 2;
@@ -198,15 +226,21 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 Self::Expr::zero(),
                 input[index].clone(),
                 Self::Expr::zero(),
+                shard.clone(),
                 mult.clone(),
             );
         }
     }
 
     /// Check that each limb of the given slice is a u16.
-    fn slice_range_check_u16<EWord: Into<Self::Expr> + Copy, EMult: Into<Self::Expr> + Clone>(
+    fn slice_range_check_u16<
+        EWord: Into<Self::Expr> + Copy,
+        EShard: Into<Self::Expr> + Clone,
+        EMult: Into<Self::Expr> + Clone,
+    >(
         &mut self,
         input: &[EWord],
+        shard: EShard,
         mult: EMult,
     ) {
         input.iter().for_each(|limb| {
@@ -215,6 +249,7 @@ pub trait WordAirBuilder: ByteAirBuilder {
                 *limb,
                 Self::Expr::zero(),
                 Self::Expr::zero(),
+                shard.clone(),
                 mult.clone(),
             );
         });
@@ -454,6 +489,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             diff_minus_one,
             mem_access.diff_16bit_limb.clone(),
             mem_access.diff_8bit_limb.clone(),
+            shard,
             do_check,
         );
     }
@@ -464,15 +500,17 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
     /// since the memory access timestamp check (see [Self::verify_mem_access_ts]) needs to assume
     /// the clk is within 24 bits.
-    fn verify_range_24bits<EValue, ELimb, EVerify>(
+    fn verify_range_24bits<EValue, ELimb, EShard, EVerify>(
         &mut self,
         value: EValue,
         limb_16: ELimb,
         limb_8: ELimb,
+        shard: EShard,
         do_check: EVerify,
     ) where
         EValue: Into<Self::Expr>,
         ELimb: Into<Self::Expr> + Clone,
+        EShard: Into<Self::Expr> + Clone,
         EVerify: Into<Self::Expr> + Clone,
     {
         // Verify that value = limb_16 + limb_8 * 2^16.
@@ -488,6 +526,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             limb_16,
             Self::Expr::zero(),
             Self::Expr::zero(),
+            shard,
             do_check.clone(),
         );
 
@@ -496,6 +535,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::zero(),
             Self::Expr::zero(),
             limb_8,
+            shard,
             do_check,
         )
     }

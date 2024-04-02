@@ -47,4 +47,5 @@ pub struct BytePreprocessedCols<T> {
 #[repr(C)]
 pub struct ByteMultCols<T> {
     pub multiplicities: [T; NUM_BYTE_OPS],
+    pub shard: T,
 }
