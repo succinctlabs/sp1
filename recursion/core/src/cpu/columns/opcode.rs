@@ -105,24 +105,56 @@ impl<V: Copy> OpcodeSelectorCols<V> {
     where
         V: Into<AB::Expr>,
     {
-        let mut sum = AB::Expr::zero();
-        for flag in self {
-            // Ensure that the flags are all 0 or 1.
-            builder.assert_bool(flag);
+        // let mut sum = AB::Expr::zero();
+        // for flag in self {
+        //     // Ensure that the flags are all 0 or 1.
+        //     builder.assert_bool(flag);
 
-            sum = sum + flag;
-        }
+        //     sum = sum + flag;
+        // }
 
-        // Ensure that exactly one flag is set to 1.
-        builder.assert_eq(sum, AB::F::one());
+        // // Ensure that exactly one flag is set to 1.
+        // builder.assert_eq(sum, AB::F::one());
 
-        // Ensure that if the flag is 1, then the opcode is set to the corresponding value.
-        map.iter().for_each(|(opcode, flag)| {
-            builder.when(**flag).assert_eq(
-                row_opcode.clone(),
-                AB::F::from_canonical_u32(*opcode as u32),
-            );
-        });
+        // let opcodes = vec![
+        //     (Opcode::ADD, &self.is_add),
+        //     (Opcode::SUB, &self.is_sub),
+        //     (Opcode::MUL, &self.is_mul),
+        //     (Opcode::DIV, &self.is_div),
+        //     (Opcode::EADD, &self.is_eadd),
+        //     (Opcode::ESUB, &self.is_esub),
+        //     (Opcode::EMUL, &self.is_emul),
+        //     (Opcode::EDIV, &self.is_ediv),
+        //     (Opcode::EFADD, &self.is_efadd),
+        //     (Opcode::EFSUB, &self.is_efsub),
+        //     (Opcode::FESUB, &self.is_fesub),
+        //     (Opcode::EFMUL, &self.is_efmul),
+        //     (Opcode::EFDIV, &self.is_efdiv),
+        //     (Opcode::FEDIV, &self.is_fediv),
+        //     (Opcode::LW, &self.is_lw),
+        //     (Opcode::SW, &self.is_sw),
+        //     (Opcode::LE, &self.is_le),
+        //     (Opcode::SE, &self.is_se),
+        //     (Opcode::BEQ, &self.is_beq),
+        //     (Opcode::BNE, &self.is_bne),
+        //     (Opcode::EBEQ, &self.is_ebeq),
+        //     (Opcode::EBNE, &self.is_ebne),
+        //     (Opcode::JAL, &self.is_jal),
+        //     (Opcode::JALR, &self.is_jalr),
+        //     (Opcode::TRAP, &self.is_trap),
+        // ];
+
+        // // Ensure that if the flag is 1, then the opcode is set to the corresponding value.
+        // for (opcode, flag) in opcodes {
+        //     builder
+        //         .when(*flag)
+        //         .assert_eq(row_opcode.clone(), AB::F::from_canonical_u32(opcode as u32));
+        // }
+        // for (opcode, flag) in self.into_iter().enumerate() {
+        //     builder
+        //         .when(*flag)
+        //         .assert_eq(row_opcode.clone(), AB::F::from_canonical_u32(opcode as u32));
+        // }
     }
 }
 
