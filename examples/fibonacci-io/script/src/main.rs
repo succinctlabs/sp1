@@ -18,8 +18,6 @@ fn main() {
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
 
-    println!("wrote to stdin");
-
     // Generate the proof for the given program and input.
     let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
