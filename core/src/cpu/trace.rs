@@ -580,7 +580,9 @@ mod tests {
         shard.cpu_events = vec![CpuEvent {
             shard: 1,
             clk: 6,
+            next_clk: 10,
             pc: 1,
+            next_pc: 5,
             instruction: Instruction {
                 opcode: Opcode::ADD,
                 op_a: 0,

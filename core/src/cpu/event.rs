@@ -12,8 +12,16 @@ pub struct CpuEvent {
     /// The current clock.
     pub clk: u32,
 
+    /// The value of the next instruction's clk. This value needs to be make public for the last row
+    /// of each shard.
+    pub next_clk: u32,
+
     /// The current program counter.
     pub pc: u32,
+
+    /// The value of the next instruction's program counter. This value needs to be make public for
+    /// the last row of each shard.
+    pub next_pc: u32,
 
     /// The current instruction.
     pub instruction: Instruction,
