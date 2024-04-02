@@ -15,13 +15,27 @@ pub mod tests {
     use p3_baby_bear::BabyBear;
     use p3_field::extension::BinomialExtensionField;
     use p3_field::{AbstractField, PrimeField32};
-    use sp1_core::lookup::{debug_interactions_with_all_chips, InteractionKind};
     use sp1_core::stark::{LocalProver, StarkGenericConfig};
     use sp1_core::utils::BabyBearPoseidon2;
     use std::time::Instant;
 
     type F = BabyBear;
     type EF = BinomialExtensionField<BabyBear, 4>;
+
+    pub fn basic_program<F: PrimeField32>() -> Program<F> {
+        let zero = [F::zero(); 4];
+        let one = [F::one(), F::zero(), F::zero(), F::zero()];
+        Program::<F> {
+            instructions: vec![Instruction::new(
+                Opcode::ADD,
+                F::from_canonical_u32(3),
+                zero,
+                one,
+                false,
+                true,
+            )],
+        }
+    }
 
     pub fn fibonacci_program<F: PrimeField32>() -> Program<F> {
         // .main
@@ -127,6 +141,33 @@ pub mod tests {
         //     &runtime.record,
         //     vec![InteractionKind::Memory],
         // );
+
+        let start = Instant::now();
+        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let duration = start.elapsed().as_secs();
+
+        let mut challenger = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        println!("proving duration = {}", duration);
+    }
+
+    #[test]
+    fn test_basic_prove() {
+        std::env::set_var("RUST_LOG", "debug");
+        sp1_core::utils::setup_logger();
+
+        type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        let program = basic_program::<F>();
+
+        let config = SC::new();
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+        runtime.run();
+
+        let machine = RecursionAir::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let mut challenger = machine.config().challenger();
 
         let start = Instant::now();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);

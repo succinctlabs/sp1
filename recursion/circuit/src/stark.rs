@@ -198,12 +198,15 @@ pub(crate) mod tests {
         challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
         stark::StarkVerifierCircuit,
     };
+    use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::AbstractField;
+    use p3_field::{AbstractField, PrimeField32};
     use sp1_core::{
         air::MachineAir,
-        stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
+        stark::{
+            LocalProver, MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig,
+        },
         utils::{ec::weierstrass::bn254::Bn254, BabyBearPoseidon2},
         SP1Prover, SP1Stdin,
     };
@@ -214,7 +217,8 @@ pub(crate) mod tests {
         OuterConfig,
     };
     use sp1_recursion_core::{
-        runtime::{Runtime, DIGEST_SIZE},
+        cpu::Instruction,
+        runtime::{Opcode, Program, Runtime, DIGEST_SIZE},
         stark::{
             config::{outer_fri_config, BabyBearPoseidon2Outer, OuterVal},
             RecursionAir,
@@ -230,7 +234,7 @@ pub(crate) mod tests {
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
     type C = OuterConfig;
-    type A = RiscvAir<F>;
+    type A = RecursionAir<F>;
 
     pub(crate) fn const_proof(
         builder: &mut Builder<C>,
@@ -290,20 +294,43 @@ pub(crate) mod tests {
         }
     }
 
-    #[test]
-    fn test_recursive_verify_shard() {
-        // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    pub fn basic_program<F: PrimeField32>() -> Program<F> {
+        let zero = [F::zero(); 4];
+        let one = [F::one(), F::zero(), F::zero(), F::zero()];
+        Program::<F> {
+            instructions: vec![Instruction::new(
+                Opcode::ADD,
+                F::from_canonical_u32(3),
+                zero,
+                one,
+                false,
+                true,
+            )],
+        }
+    }
 
-        let machine = A::machine(SC::default());
+    #[test]
+    fn test_recursive_verify_shard_v2() {
+        sp1_core::utils::setup_logger();
+
+        type SC = BabyBearPoseidon2Outer;
+        type F = <SC as StarkGenericConfig>::Val;
+        let program = basic_program::<F>();
+
+        let config = SC::new();
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
+        runtime.run();
+
+        let machine = RecursionAir::machine(config);
         let mut challenger_val = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
+        let (pk, vk) = machine.setup(&program);
+        let mut challenger = machine.config().challenger();
+
+        let start = Instant::now();
+        let proofs = machine
+            .prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger)
             .shard_proofs;
-        println!("Proof generated successfully");
+        let duration = start.elapsed().as_secs();
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
@@ -341,4 +368,57 @@ pub(crate) mod tests {
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
+
+    // #[test]
+    // fn test_recursive_verify_shard() {
+    //     // Generate a dummy proof.
+    //     sp1_core::utils::setup_logger();
+
+    //     let elf =
+    //         include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+
+    //     let machine = A::machine(SC::default());
+    //     let mut challenger_val = machine.config().challenger();
+    //     let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+    //         .unwrap()
+    //         .proof
+    //         .shard_proofs;
+    //     println!("Proof generated successfully");
+
+    //     proofs.iter().for_each(|proof| {
+    //         challenger_val.observe(proof.commitment.main_commit);
+    //     });
+
+    //     let permutation_challenges = (0..2)
+    //         .map(|_| challenger_val.sample_ext_element::<EF>())
+    //         .collect::<Vec<_>>();
+
+    //     let time = Instant::now();
+    //     let mut builder = Builder::<OuterConfig>::default();
+    //     let config = outer_fri_config();
+
+    //     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
+
+    //     let mut shard_proofs = vec![];
+    //     for proof_val in proofs {
+    //         let proof = const_proof(&mut builder, &machine, proof_val);
+    //         let ShardCommitment { main_commit, .. } = &proof.commitment;
+    //         challenger.observe_commitment(&mut builder, main_commit.clone());
+    //         shard_proofs.push(proof);
+    //     }
+
+    //     for proof in shard_proofs {
+    //         StarkVerifierCircuit::<C, SC>::verify_shard(
+    //             &mut builder,
+    //             &machine,
+    //             &mut challenger,
+    //             &proof,
+    //             &permutation_challenges,
+    //         );
+    //     }
+
+    //     let mut backend = ConstraintBackend::<OuterConfig>::default();
+    //     let constraints = backend.emit(builder.operations);
+    //     gnark_ffi::test_circuit(constraints);
+    // }
 }

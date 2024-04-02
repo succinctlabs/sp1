@@ -73,7 +73,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
-    perm: Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>,
+    perm: Option<Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>>,
 
     _marker: PhantomData<EF>,
 }
@@ -100,7 +100,27 @@ where
             pc: F::zero(),
             memory: vec![MemoryEntry::default(); MEMORY_SIZE],
             record,
-            perm,
+            perm: Some(perm),
+            access: CpuRecord::default(),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn new_no_perm(program: &Program<F>) -> Self {
+        let record = ExecutionRecord::<F> {
+            program: Arc::new(program.clone()),
+            ..Default::default()
+        };
+        Self {
+            timestamp: 0,
+            nb_poseidons: 0,
+            clk: F::zero(),
+            program: program.clone(),
+            fp: F::from_canonical_usize(STACK_SIZE),
+            pc: F::zero(),
+            memory: vec![MemoryEntry::default(); MEMORY_SIZE],
+            record,
+            perm: None,
             access: CpuRecord::default(),
             _marker: PhantomData,
         }
@@ -405,7 +425,7 @@ where
                         .unwrap();
 
                     // Perform the permutation.
-                    let result = self.perm.permute(array);
+                    let result = self.perm.as_ref().unwrap().permute(array);
 
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
