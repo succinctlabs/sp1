@@ -505,6 +505,7 @@ impl ExecutionRecord {
     /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the shard.
     pub fn add_u8_range_check(&mut self, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
+            shard: self.index,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -516,6 +517,7 @@ impl ExecutionRecord {
     /// Adds a `ByteLookupEvent` to verify `a` is indeed u16.
     pub fn add_u16_range_check(&mut self, a: u32) {
         self.add_byte_lookup_event(ByteLookupEvent {
+            shard: self.index,
             opcode: ByteOpcode::U16Range,
             a1: a,
             a2: 0,
@@ -545,6 +547,7 @@ impl ExecutionRecord {
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
     pub fn lookup_or(&mut self, b: u8, c: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
+            shard: self.index,
             opcode: ByteOpcode::OR,
             a1: (b | c) as u32,
             a2: 0,

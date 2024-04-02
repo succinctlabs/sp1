@@ -79,6 +79,9 @@ pub struct ShiftRightChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
+    /// The shard.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -164,6 +167,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                 // Insert the MSB lookup event.
                 let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
                 output.add_byte_lookup_events(vec![ByteLookupEvent {
+                    shard: event.shard,
                     opcode: ByteOpcode::MSB,
                     a1: ((most_significant_byte >> 7) & 1) as u32,
                     a2: 0,
@@ -212,6 +216,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                     let (shift, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
 
                     let byte_event = ByteLookupEvent {
+                        shard: event.shard,
                         opcode: ByteOpcode::ShrCarry,
                         a1: shift as u32,
                         a2: carry as u32,
@@ -297,7 +302,7 @@ where
             let byte = local.b[WORD_SIZE - 1];
             let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
             let msb = local.b_msb;
-            builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
+            builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
         }
 
         // Calculate the number of bits and bytes to shift by from c.
@@ -400,6 +405,7 @@ where
                     local.shr_carry_output_carry[i],
                     local.byte_shift_result[i],
                     num_bits_to_shift.clone(),
+                    local.shard,
                     local.is_real,
                 );
             }
@@ -446,7 +452,7 @@ where
             ];
 
             for long_word in long_words.iter() {
-                builder.slice_range_check_u8(long_word, local.is_real);
+                builder.slice_range_check_u8(long_word, local.shard, local.is_real);
             }
         }
 

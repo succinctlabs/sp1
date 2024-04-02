@@ -100,6 +100,9 @@ pub struct DivRemChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DivRemCols<T> {
+    /// The shard, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -255,6 +258,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     for word in words.iter() {
                         let most_significant_byte = word.to_le_bytes()[WORD_SIZE - 1];
                         blu_events.push(ByteLookupEvent {
+                            shard: event.shard,
                             opcode: ByteOpcode::MSB,
                             a1: get_msb(*word) as u32,
                             a2: 0,
@@ -314,6 +318,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     }
 
                     let lower_multiplication = AluEvent {
+                        shard: event.shard,
                         clk: event.clk,
                         opcode: Opcode::MUL,
                         a: lower_word,
@@ -323,6 +328,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                     output.add_mul_event(lower_multiplication);
 
                     let upper_multiplication = AluEvent {
+                        shard: event.shard,
                         clk: event.clk,
                         opcode: {
                             if is_signed_operation(event.opcode) {
@@ -340,6 +346,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
 
                     let lt_event = if is_signed_operation(event.opcode) {
                         AluEvent {
+                            shard: event.shard,
                             opcode: Opcode::SLT,
                             a: 1,
                             b: (remainder as i32).abs() as u32,
@@ -348,6 +355,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                         }
                     } else {
                         AluEvent {
+                            shard: event.shard,
                             opcode: Opcode::SLTU,
                             a: 1,
                             b: remainder,
@@ -684,20 +692,20 @@ where
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
-                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
             }
         }
 
         // Range check all the bytes.
         {
-            builder.slice_range_check_u8(&local.quotient.0, local.is_real);
-            builder.slice_range_check_u8(&local.remainder.0, local.is_real);
+            builder.slice_range_check_u8(&local.quotient.0, local.shard, local.is_real);
+            builder.slice_range_check_u8(&local.remainder.0, local.shard, local.is_real);
 
             local.carry.iter().for_each(|carry| {
                 builder.assert_bool(*carry);
             });
 
-            builder.slice_range_check_u8(&local.c_times_quotient, local.is_real);
+            builder.slice_range_check_u8(&local.c_times_quotient, local.shard, local.is_real);
         }
 
         // Check that the flags are boolean.

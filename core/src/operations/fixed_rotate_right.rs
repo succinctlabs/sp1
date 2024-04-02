@@ -68,6 +68,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
             let (shift, carry) = shr_carry(b, c);
 
             let byte_event = ByteLookupEvent {
+                shard: record.index,
                 opcode: ByteOpcode::ShrCarry,
                 a1: shift as u32,
                 a2: carry as u32,
@@ -102,6 +103,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
         input: Word<AB::Var>,
         rotation: usize,
         cols: FixedRotateRightOperation<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Var,
     ) {
         // Compute some constants with respect to the rotation needed for the rotation.
@@ -128,6 +130,7 @@ impl<F: Field> FixedRotateRightOperation<F> {
                 cols.carry[i],
                 input_bytes_rotated[i],
                 AB::F::from_canonical_usize(nb_bits_to_shift),
+                shard,
                 is_real,
             );
 

@@ -84,16 +84,17 @@ impl<F: Field> Add4Operation<F> {
         b: Word<AB::Var>,
         c: Word<AB::Var>,
         d: Word<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Var,
         cols: Add4Operation<AB::Var>,
     ) {
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, is_real);
-            builder.slice_range_check_u8(&b.0, is_real);
-            builder.slice_range_check_u8(&c.0, is_real);
-            builder.slice_range_check_u8(&d.0, is_real);
-            builder.slice_range_check_u8(&cols.value.0, is_real);
+            builder.slice_range_check_u8(&a.0, shard, is_real);
+            builder.slice_range_check_u8(&b.0, shard, is_real);
+            builder.slice_range_check_u8(&c.0, shard, is_real);
+            builder.slice_range_check_u8(&d.0, shard, is_real);
+            builder.slice_range_check_u8(&cols.value.0, shard, is_real);
         }
 
         builder.assert_bool(is_real);

@@ -137,10 +137,26 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         let diff_8bit_limb = (diff_minus_one >> 16) & 0xff;
         self.diff_8bit_limb = F::from_canonical_u32(diff_8bit_limb);
 
+        let shard = current_record.shard;
+
         // Add a byte table lookup with the 16Range op.
-        new_blu_events.push(ByteLookupEvent::new(U16Range, diff_16bit_limb, 0, 0, 0));
+        new_blu_events.push(ByteLookupEvent::new(
+            shard,
+            U16Range,
+            diff_16bit_limb,
+            0,
+            0,
+            0,
+        ));
 
         // Add a byte table lookup with the U8Range op.
-        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, diff_8bit_limb));
+        new_blu_events.push(ByteLookupEvent::new(
+            shard,
+            U8Range,
+            0,
+            0,
+            0,
+            diff_8bit_limb,
+        ));
     }
 }

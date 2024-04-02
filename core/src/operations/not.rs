@@ -33,10 +33,12 @@ impl<F: Field> NotOperation<F> {
         builder: &mut AB,
         a: Word<AB::Var>,
         cols: NotOperation<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Var,
     ) {
         for i in (0..WORD_SIZE).step_by(2) {
             builder.send_byte_pair(
+                shard,
                 AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
                 AB::F::zero(),
                 AB::F::zero(),

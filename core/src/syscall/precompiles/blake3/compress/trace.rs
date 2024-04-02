@@ -46,7 +46,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
 
                     // Assign basic values to the columns.
                     {
-                        cols.segment = F::from_canonical_u32(event.shard);
+                        cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(clk);
 
                         cols.round_index = F::from_canonical_u32(round as u32);

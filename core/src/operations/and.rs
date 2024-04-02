@@ -27,6 +27,7 @@ impl<F: Field> AndOperation<F> {
             self.value[i] = F::from_canonical_u8(and);
 
             let byte_event = ByteLookupEvent {
+                shard: record.index,
                 opcode: ByteOpcode::AND,
                 a1: and as u32,
                 a2: 0,
@@ -44,10 +45,12 @@ impl<F: Field> AndOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AndOperation<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Var,
     ) {
         for i in 0..WORD_SIZE {
             builder.send_byte(
+                shard,
                 AB::F::from_canonical_u32(ByteOpcode::AND as u32),
                 cols.value[i],
                 a[i],

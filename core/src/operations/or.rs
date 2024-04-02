@@ -35,10 +35,12 @@ impl<F: Field> OrOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: OrOperation<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Var,
     ) {
         for i in 0..WORD_SIZE {
             builder.send_byte(
+                shard,
                 AB::F::from_canonical_u32(ByteOpcode::OR as u32),
                 cols.value[i],
                 a[i],

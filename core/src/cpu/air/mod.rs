@@ -109,7 +109,11 @@ where
             );
 
         // Check that each addr_word element is a byte.
-        builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
+        builder.slice_range_check_u8(
+            &memory_columns.addr_word.0,
+            local.shard,
+            is_memory_instruction.clone(),
+        );
 
         // Send to the ALU table to verify correct calculation of addr_word.
         builder.send_alu(
@@ -363,6 +367,7 @@ impl CpuChip {
             local.shard,
             AB::Expr::zero(),
             AB::Expr::zero(),
+            local.shard,
             local.is_real,
         );
 
@@ -388,6 +393,7 @@ impl CpuChip {
             local.clk,
             local.clk_16bit_limb,
             local.clk_8bit_limb,
+            local.shard,
             local.is_real,
         );
     }

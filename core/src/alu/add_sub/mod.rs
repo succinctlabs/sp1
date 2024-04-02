@@ -32,6 +32,9 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
+    /// Shard
+    pub shard: T,
+
     /// Boolean to indicate whether the row is for an add operation.
     pub is_add: T,
     /// Boolean to indicate whether the row is for a sub operation.
@@ -149,6 +152,7 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
+            local.shard.clone(),
             is_real,
         );
 

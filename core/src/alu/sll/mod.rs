@@ -60,6 +60,9 @@ pub struct ShiftLeft;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftLeftCols<T> {
+    /// The shard
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -308,8 +311,8 @@ where
 
         // Range check.
         {
-            builder.slice_range_check_u8(&local.bit_shift_result, local.is_real);
-            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result, local.shard, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.shard, local.is_real);
         }
 
         for shift in local.shift_by_n_bytes.iter() {

@@ -60,6 +60,7 @@ impl<F: Field> AddOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AddOperation<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Expr,
     ) {
         let one = AB::Expr::one();
@@ -96,9 +97,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, is_real.clone());
-            builder.slice_range_check_u8(&b.0, is_real.clone());
-            builder.slice_range_check_u8(&cols.value.0, is_real);
+            builder.slice_range_check_u8(&a.0, shard.clone(), is_real.clone());
+            builder.slice_range_check_u8(&b.0, shard.clone(), is_real.clone());
+            builder.slice_range_check_u8(&cols.value.0, shard.clone(), is_real);
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

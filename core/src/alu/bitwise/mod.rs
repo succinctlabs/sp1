@@ -23,6 +23,9 @@ pub struct BitwiseChip;
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 pub struct BitwiseCols<T> {
+    /// The shard of the operation.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -78,6 +81,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
+                        shard: event.shard,
                         opcode: ByteOpcode::from(event.opcode),
                         a1: b_a as u32,
                         a2: 0,
@@ -130,7 +134,7 @@ where
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(opcode.clone(), a, b, c, mult.clone());
+            builder.send_byte(opcode.clone(), a, b, c, local.shard, mult.clone());
         }
 
         // Receive the arguments.

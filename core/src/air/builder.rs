@@ -451,12 +451,12 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     ) where
         Eb: Into<Self::Expr> + Clone,
         EVerify: Into<Self::Expr>,
-        EShard: Into<Self::Expr>,
+        EShard: Into<Self::Expr> + Clone,
         EClk: Into<Self::Expr>,
     {
         let do_check: Self::Expr = do_check.into();
         let compare_clk: Self::Expr = mem_access.compare_clk.clone().into();
-        let shard: Self::Expr = shard.into();
+        let shard: Self::Expr = shard.clone().into();
         let prev_shard: Self::Expr = mem_access.prev_shard.clone().into();
 
         // First verify that compare_clk's value is correct.
@@ -472,7 +472,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             mem_access.prev_shard.clone(),
         );
 
-        let current_comp_val = self.if_else(compare_clk.clone(), clk.into(), shard);
+        let current_comp_val = self.if_else(compare_clk.clone(), clk.into(), shard.clone());
 
         // Assert `current_comp_val > prev_comp_val`. We check this by asserting that
         // `0 <= current_comp_val-prev_comp_val-1 < 2^24`.
@@ -489,7 +489,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             diff_minus_one,
             mem_access.diff_16bit_limb.clone(),
             mem_access.diff_8bit_limb.clone(),
-            shard,
+            shard.clone(),
             do_check,
         );
     }
@@ -526,7 +526,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             limb_16,
             Self::Expr::zero(),
             Self::Expr::zero(),
-            shard,
+            shard.clone(),
             do_check.clone(),
         );
 
@@ -535,7 +535,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             Self::Expr::zero(),
             Self::Expr::zero(),
             limb_8,
-            shard,
+            shard.clone(),
             do_check,
         )
     }
