@@ -462,12 +462,11 @@ impl CpuChip {
             digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
         }
 
-        // Retrieve the public_values_digest_word to check against the one passed into the commit ecall.
-        // Note that for the interaction builder, it will not have any digest words, since it's used
-        // during AIR compilation time to parse for all send/receives. There will be no public values
-        // digests at that compilation time. Since that interaction builder will ignore the other
-        // constraints of the air, it is safe to assign the public_values_digest_word to the zero word
-        // when the digest_words is empty (which is only true for the interaction builder).
+        // Retrieve the expected public_values_digest_word to check against the one passed into the
+        // commit ecall. Note that for the interaction builder, it will not have any digest words, since
+        // it's used during AIR compilation time to parse for all send/receives. Since that interaction
+        // builder will ignore the other constraints of the air, it is safe to not include the
+        // verification check of the expected public values digest word.
         if !builder.is_interaction_builder() {
             let expected_pv_digest_word =
                 builder.index_word_array(&digest_words, &ecall_columns.index_bitmap);
