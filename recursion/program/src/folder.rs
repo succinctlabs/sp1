@@ -102,6 +102,6 @@ impl<'a, C: Config> AirBuilderWithPublicValues for RecursiveVerifierConstraintFo
     type PublicVar = C::F;
 
     fn public_values(&self) -> &[Self::PublicVar] {
-        todo!()
+        &[]
     }
 }
