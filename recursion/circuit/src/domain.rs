@@ -43,6 +43,21 @@ where
     }
 }
 
+pub fn new_coset<C: Config>(
+    _: &mut Builder<C>,
+    log_degree: usize,
+) -> TwoAdicMultiplicativeCosetVariable<C>
+where
+    C::F: TwoAdicField,
+{
+    TwoAdicMultiplicativeCosetVariable::<C> {
+        log_n: log_degree,
+        size: 1 << log_degree,
+        shift: C::F::one(),
+        g: C::F::two_adic_generator(log_degree),
+    }
+}
+
 impl<C: Config> PolynomialSpaceVariable<C> for TwoAdicMultiplicativeCosetVariable<C>
 where
     C::F: TwoAdicField,
@@ -59,7 +74,6 @@ where
         }
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L77
     fn next_point(
         &self,
         builder: &mut Builder<C>,
@@ -69,7 +83,6 @@ where
         builder.eval(point * g)
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L112
     fn selectors_at_point(
         &self,
         builder: &mut Builder<C>,
@@ -89,50 +102,48 @@ where
         }
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L87
     fn zp_at_point(
         &self,
         builder: &mut Builder<C>,
         point: Ext<<C as Config>::F, <C as Config>::EF>,
     ) -> Ext<<C as Config>::F, <C as Config>::EF> {
-        // Compute (point * domain.shift.inverse()).exp_power_of_2(domain.log_n) - Ext::one()
         let unshifted_power = builder
             .exp_power_of_2_v::<Ext<_, _>>(point * self.shift.inverse(), Usize::Const(self.log_n));
         builder.eval(unshifted_power - C::EF::one())
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L91
-    fn split_domains(&self, _: &mut Builder<C>, _: usize) -> Vec<Self> {
-        todo!()
-        // let num_chunks = 1 << log_num_chunks;
-        // let log_n: Var<_> = builder.eval(self.log_n - C::N::from_canonical_usize(log_num_chunks));
-        // let size = builder.power_of_two_var(Usize::Var(log_n));
+    fn split_domains(&self, _: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
+        let num_chunks = 1 << log_num_chunks;
+        let log_n = self.log_n - log_num_chunks;
+        let size = 1 << log_n;
 
-        // let g_dom = self.gen(builder);
+        let g = self.g.exp_power_of_2(log_num_chunks);
 
-        // // We can compute a generator for the domain by computing g_dom^{log_num_chunks}
-        // let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks.into());
+        let mut domain_power = C::F::one();
+        let mut domains = vec![];
 
-        // let domain_power: Felt<_> = builder.eval(C::F::one());
-        // let mut domains = vec![];
-
-        // for _ in 0..num_chunks {
-        //     domains.push(TwoAdicMultiplicativeCosetVariable {
-        //         log_n,
-        //         size,
-        //         shift: builder.eval(self.shift * domain_power),
-        //         g,
-        //     });
-        //     builder.assign(domain_power, domain_power * g_dom);
-        // }
-        // domains
+        for _ in 0..num_chunks {
+            domains.push(TwoAdicMultiplicativeCosetVariable {
+                log_n,
+                size,
+                shift: self.shift * domain_power,
+                g,
+            });
+            domain_power *= g;
+        }
+        domains
     }
 
-    fn create_disjoint_domain(&self, _: &mut Builder<C>, _: Usize<<C as Config>::N>) -> Self {
-        todo!()
-        // let domain = new_coset(builder, log_degree);
-        // builder.assign(domain.shift, self.shift * C::F::generator());
-
-        // domain
+    fn create_disjoint_domain(
+        &self,
+        builder: &mut Builder<C>,
+        log_degree: Usize<<C as Config>::N>,
+    ) -> Self {
+        let mut domain = match log_degree {
+            Usize::Const(log_degree) => new_coset(builder, log_degree),
+            _ => unreachable!(),
+        };
+        domain.shift = self.shift * C::F::generator();
+        domain
     }
 }

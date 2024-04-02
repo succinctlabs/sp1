@@ -142,7 +142,6 @@ where
 
         let quotient: Ext<_, _> = Self::recompute_quotient(builder, &opening, qc_domains, zeta);
 
-        // Assert that the quotient times the zerofier is equal to the folded constraints.
         builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
     }
 }

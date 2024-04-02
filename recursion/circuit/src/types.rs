@@ -3,13 +3,26 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractExtensionField;
 use sp1_core::{
     air::MachineAir,
-    stark::{AirOpenedValues, Chip, ChipOpenedValues},
+    stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
 };
 use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
 
 use crate::DIGEST_SIZE;
 
 pub type OuterDigest<C: Config> = [Var<C::N>; DIGEST_SIZE];
+
+pub struct RecursionShardProofVariable<C: Config> {
+    pub index: usize,
+    pub commitment: ShardCommitment<OuterDigest<C>>,
+    pub opened_values: RecursionShardOpenedValuesVariable<C>,
+    pub opening_proof: TwoAdicPcsProofVariable<C>,
+    pub sorted_indices: Vec<Var<C::N>>,
+}
+
+#[derive(Clone)]
+pub struct RecursionShardOpenedValuesVariable<C: Config> {
+    pub chips: Vec<ChipOpenedValuesVariable<C>>,
+}
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(Clone)]
@@ -66,6 +79,7 @@ pub struct TwoAdicPcsMatsVariable<C: Config> {
     pub values: Vec<Vec<Ext<C::F, C::EF>>>,
 }
 
+#[derive(Debug, Clone)]
 pub struct ChipOpenedValuesVariable<C: Config> {
     pub preprocessed: AirOpenedValuesVariable<C>,
     pub main: AirOpenedValuesVariable<C>,

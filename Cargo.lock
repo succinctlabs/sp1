@@ -2960,6 +2960,8 @@ dependencies = [
  "p3-merkle-tree",
  "p3-poseidon2",
  "p3-symmetric",
+ "serde",
+ "serde_with",
  "sp1-core",
  "sp1-derive",
  "tracing",

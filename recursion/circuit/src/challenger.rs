@@ -1,5 +1,3 @@
-//! A duplex challenger for Poseidon2 over BN254.
-
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_recursion_compiler::ir::Ext;
@@ -9,16 +7,16 @@ use crate::poseidon2::Poseidon2CircuitBuilder;
 use crate::DIGEST_SIZE;
 use crate::SPONGE_SIZE;
 
-pub struct MultiFieldChallengerVariable<C: Config> {
+pub struct MultiField32ChallengerVariable<C: Config> {
     sponge_state: [Var<C::N>; 3],
     input_buffer: Vec<Felt<C::F>>,
     output_buffer: Vec<Felt<C::F>>,
     num_f_elms: usize,
 }
 
-impl<C: Config> MultiFieldChallengerVariable<C> {
+impl<C: Config> MultiField32ChallengerVariable<C> {
     pub fn new(builder: &mut Builder<C>) -> Self {
-        MultiFieldChallengerVariable::<C> {
+        MultiField32ChallengerVariable::<C> {
             sponge_state: [
                 builder.eval(C::N::zero()),
                 builder.eval(C::N::zero()),
@@ -151,7 +149,9 @@ mod tests {
     use super::reduce_32;
     use super::split_32;
     use crate::DIGEST_SIZE;
-    use crate::{challenger::MultiFieldChallengerVariable, poseidon2::tests::bn254_poseidon2_rc3};
+    use crate::{
+        challenger::MultiField32ChallengerVariable, poseidon2::tests::bn254_poseidon2_rc3,
+    };
 
     #[test]
     #[serial]
@@ -225,7 +225,7 @@ mod tests {
         let gt2: BabyBear = challenger.sample();
 
         let mut builder = Builder::<OuterConfig>::default();
-        let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
+        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
         let a = builder.eval(a);
         let b = builder.eval(b);
         let c = builder.eval(c);
@@ -265,7 +265,7 @@ mod tests {
         let gt2: BinomialExtensionField<BabyBear, 4> = challenger.sample_ext_element();
 
         let mut builder = Builder::<OuterConfig>::default();
-        let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
+        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
         let a = builder.eval(a);
         let b = builder.eval(b);
         let c = builder.eval(c);

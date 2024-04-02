@@ -8,7 +8,9 @@ use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
 use p3_symmetric::{MultiField32PaddingFreeSponge, PaddingFreeSponge, TruncatedPermutation};
-use sp1_core::utils::poseidon2_instance::RC_16_30;
+use serde::Deserialize;
+use serde::Serialize;
+use sp1_core::{stark::StarkGenericConfig, utils::poseidon2_instance::RC_16_30};
 
 use super::poseidon2::bn254_poseidon2_rc3;
 
@@ -81,5 +83,68 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
         num_queries: 100,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(from = "std::marker::PhantomData<BabyBearPoseidon2Outer>")]
+pub struct BabyBearPoseidon2Outer {
+    pub perm: OuterPerm,
+    pub pcs: OuterPcs,
+}
+
+impl Clone for BabyBearPoseidon2Outer {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl Serialize for BabyBearPoseidon2Outer {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        std::marker::PhantomData::<BabyBearPoseidon2Outer>.serialize(serializer)
+    }
+}
+
+impl From<std::marker::PhantomData<BabyBearPoseidon2Outer>> for BabyBearPoseidon2Outer {
+    fn from(_: std::marker::PhantomData<BabyBearPoseidon2Outer>) -> Self {
+        Self::new()
+    }
+}
+
+impl BabyBearPoseidon2Outer {
+    pub fn new() -> Self {
+        let perm = outer_perm();
+        let hash = OuterHash::new(perm.clone()).unwrap();
+        let compress = OuterCompress::new(perm.clone());
+        let val_mmcs = OuterValMmcs::new(hash, compress);
+        let dft = OuterDft {};
+        let fri_config = outer_fri_config();
+        let pcs = OuterPcs::new(27, dft, val_mmcs, fri_config);
+        Self { pcs, perm }
+    }
+}
+
+impl Default for BabyBearPoseidon2Outer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StarkGenericConfig for BabyBearPoseidon2Outer {
+    type Val = OuterVal;
+    type Domain = <OuterPcs as p3_commit::Pcs<OuterChallenge, OuterChallenger>>::Domain;
+    type Pcs = OuterPcs;
+    type Challenge = OuterChallenge;
+    type Challenger = OuterChallenger;
+
+    fn pcs(&self) -> &Self::Pcs {
+        &self.pcs
+    }
+
+    fn challenger(&self) -> Self::Challenger {
+        OuterChallenger::new(self.perm.clone()).unwrap()
     }
 }

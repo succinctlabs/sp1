@@ -16,13 +16,13 @@ use crate::types::FriQueryProofVariable;
 use crate::types::OuterDigest;
 use crate::types::TwoAdicPcsProofVariable;
 use crate::types::TwoAdicPcsRoundVariable;
-use crate::{challenger::MultiFieldChallengerVariable, DIGEST_SIZE};
+use crate::{challenger::MultiField32ChallengerVariable, DIGEST_SIZE};
 
 pub fn verify_shape_and_sample_challenges<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfig<OuterChallengeMmcs>,
     proof: &FriProofVariable<C>,
-    challenger: &mut MultiFieldChallengerVariable<C>,
+    challenger: &mut MultiField32ChallengerVariable<C>,
 ) -> FriChallenges<C> {
     let mut betas = vec![];
 
@@ -52,7 +52,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfig<OuterChallengeMmcs>,
     proof: &TwoAdicPcsProofVariable<C>,
-    challenger: &mut MultiFieldChallengerVariable<C>,
+    challenger: &mut MultiField32ChallengerVariable<C>,
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
     let alpha = challenger.sample_ext(builder);
@@ -233,7 +233,7 @@ pub fn verify_query<C: Config>(
 }
 
 #[cfg(test)]
-mod tests {
+pub mod tests {
 
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, CanSample, FieldChallenger};
@@ -255,7 +255,7 @@ mod tests {
 
     use super::{verify_shape_and_sample_challenges, verify_two_adic_pcs, TwoAdicPcsRoundVariable};
     use crate::{
-        challenger::MultiFieldChallengerVariable,
+        challenger::MultiField32ChallengerVariable,
         fri::FriQueryProofVariable,
         types::{
             BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, OuterDigest,
@@ -461,7 +461,7 @@ mod tests {
         let config = outer_fri_config();
         let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
-        let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
+        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
         let commit: [Bn254Fr; DIGEST_SIZE] = commit.into();
         let commit: Var<_> = builder.eval(commit[0]);
         challenger.observe_commitment(&mut builder, [commit]);
@@ -552,7 +552,7 @@ mod tests {
         let config = outer_fri_config();
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
-        let mut challenger = MultiFieldChallengerVariable::new(&mut builder);
+        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
         challenger.observe_commitment(&mut builder, commit);
         challenger.sample_ext(&mut builder);
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
