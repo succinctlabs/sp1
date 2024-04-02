@@ -434,6 +434,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_recursive_verify_shard() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();

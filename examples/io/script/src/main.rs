@@ -34,7 +34,7 @@ fn main() {
     let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
     // Read the output.
-    let r = proof.stdout.read::<MyPointUnaligned>();
+    let r = proof.public_values.read::<MyPointUnaligned>();
     println!("r: {:?}", r);
 
     // Verify proof.

@@ -10,6 +10,7 @@ use p3_matrix::MatrixRowSlices;
 
 use crate::air::BaseAirBuilder;
 use crate::air::Word;
+use crate::air::WORD_SIZE;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
@@ -134,7 +135,7 @@ where
         self.auipc_eval(builder, local);
 
         // ECALL instruction.
-        let (num_cycles, is_halt) = self.ecall_eval(builder, local);
+        let (num_cycles, is_halt, is_commit) = self.ecall_eval(builder, local);
 
         builder.send_alu(
             local.instruction.opcode,
@@ -147,6 +148,8 @@ where
         self.shard_clk_eval(builder, local, next, num_cycles);
 
         self.pc_eval(builder, local, next, is_branch_instruction.clone());
+
+        self.commit_eval(builder, local, is_commit);
 
         self.halt_unimpl_eval(builder, local, next, is_halt);
 
@@ -262,7 +265,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-    ) -> (AB::Expr, AB::Expr) {
+    ) -> (AB::Expr, AB::Expr, AB::Expr) {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
         // The syscall code is the read-in value of op_a at the start of the instruction.
@@ -272,7 +275,6 @@ impl CpuChip {
         let syscall_id = syscall_code[0];
         let send_to_table = syscall_code[1]; // Does the syscall have a table that should be sent.
         let num_cycles = syscall_code[2]; // How many extra cycles to increment the clk for the syscall.
-        let is_halt = syscall_code[3]; // Whether or not the syscall is a halt.
 
         // Check that the ecall_mul_send_to_table column is equal to send_to_table * is_ecall_instruction.
         // This is a separate column because it is used as a multiplicity in an interaction which
@@ -302,7 +304,7 @@ impl CpuChip {
         };
 
         // Constrain EcallCols.is_halt.result == syscall_id is HALT.
-        let _is_halt = {
+        let is_halt = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
                 syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
@@ -323,6 +325,17 @@ impl CpuChip {
             ecall_cols.is_hint_len.result
         };
 
+        // Constrain EcallCols.is_commit.result == syscall_id is COMMIT.
+        let is_commit = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
+                ecall_cols.is_commit,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_commit.result
+        };
+
         // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
         let zero_word = Word::<AB::F>::from(0);
         builder
@@ -337,7 +350,8 @@ impl CpuChip {
 
         (
             num_cycles * is_ecall_instruction.clone(),
-            is_halt * is_ecall_instruction,
+            is_halt * is_ecall_instruction.clone(),
+            is_commit * is_ecall_instruction,
         )
     }
 
@@ -418,6 +432,50 @@ impl CpuChip {
             .when_transition()
             .when_not(next.is_real)
             .assert_eq(local.pc, next.pc);
+    }
+
+    /// Constraints related to the commit instruction.
+    pub(crate) fn commit_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        is_commit: AB::Expr,
+    ) {
+        // Get the ecall specific columns.
+        let ecall_columns = local.opcode_specific_columns.ecall();
+
+        // Verify the index bitmap.
+        let mut bitmap_sum = AB::Expr::zero();
+        for bit in ecall_columns.index_bitmap.iter() {
+            builder.when(local.selectors.is_ecall).assert_bool(*bit);
+            bitmap_sum += (*bit).into();
+        }
+        builder.when(is_commit.clone()).assert_one(bitmap_sum);
+
+        // Get the public values and convert them into digest words
+        let public_values = builder.public_values();
+        let mut digest_words = Vec::new();
+        for bytes in public_values.chunks_exact(WORD_SIZE) {
+            let bytes_expr_vec: Vec<AB::Expr> =
+                bytes.iter().map(|byte| (*byte).into()).collect::<Vec<_>>();
+
+            digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
+        }
+
+        // Retrieve the expected public values digest word to check against the one passed into the
+        // commit ecall. Note that for the interaction builder, it will not have any digest words, since
+        // it's used during AIR compilation time to parse for all send/receives. Since that interaction
+        // builder will ignore the other constraints of the air, it is safe to not include the
+        // verification check of the expected public values digest word.
+        if !builder.is_interaction_builder() {
+            let expected_pv_digest_word =
+                builder.index_word_array(&digest_words, &ecall_columns.index_bitmap);
+
+            // Verify the public_values_digest_word.
+            builder
+                .when(is_commit)
+                .assert_word_eq(expected_pv_digest_word, ecall_columns.digest_word);
+        }
     }
 
     /// Constraint related to the halt and unimpl instruction.
