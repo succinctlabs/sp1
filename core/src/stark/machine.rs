@@ -274,6 +274,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn debug_constraints(
         &self,
+        program: &A::Program,
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
@@ -294,7 +295,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             // Generate the main trace for each chip.
             let traces = chips
                 .par_iter()
-                .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+                .map(|chip| {
+                    (
+                        chip.generate_trace(shard, &mut A::Record::default()),
+                        chip.generate_preprocessed_trace(program),
+                    )
+                })
                 .collect::<Vec<_>>();
 
             // Get a permutation challenge.
@@ -311,9 +317,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 chips
                     .par_iter()
                     .zip(traces.par_iter())
-                    .map(|(chip, main_trace)| {
+                    .map(|(chip, (main_trace, pre_trace))| {
                         let perm_trace = chip.generate_permutation_trace(
-                            None,
+                            pre_trace.as_ref(),
                             main_trace,
                             &permutation_challenges,
                         );
@@ -331,15 +337,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
             // Compute some statistics.
             for i in 0..chips.len() {
-                let trace_width = traces[i].width();
+                let trace_width = traces[i].0.width();
                 let permutation_width = permutation_traces[i].width();
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
                 "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
                 chips[i].name(),
                 total_width,
-                traces[i].height(),
-                total_width * traces[i].height(),
+                traces[i].0.height(),
+                total_width * traces[i].0.height(),
                 (100f32 * trace_width as f32) / total_width as f32,
                 (100f32 * permutation_width as f32) / total_width as f32);
             }
@@ -353,7 +359,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     debug_constraints::<SC, A>(
                         chips[i],
                         permutation_trace,
-                        &traces[i],
+                        &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
                         PublicValuesDigest::<Word<Val<SC>>>::new(shard.public_values_digest()),
@@ -371,6 +377,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             }
             debug_interactions_with_all_chips::<SC, A>(
                 self.chips(),
+                program,
                 &record,
                 InteractionKind::all_kinds(),
             );
