@@ -73,6 +73,7 @@ pub fn run_test_core(
         let mut challenger_clone = machine.config().challenger();
         let record_clone = runtime.record.clone();
         machine.debug_constraints(&runtime.program, &pk, record_clone, &mut challenger_clone);
+        log::debug!("debug_constraints done");
     }
     let start = Instant::now();
     let proof = tracing::info_span!("prove")
