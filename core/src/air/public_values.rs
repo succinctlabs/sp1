@@ -15,15 +15,12 @@ const PV_DIGEST_NUM_WORDS: usize = 8;
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct PublicValues<W, T> {
     pub committed_value_digest: [W; PV_DIGEST_NUM_WORDS],
-    shard: T,
-    first_row_clk: T,
-    last_row_clk: T,
-    last_row_next_clk: T,
-    first_row_pc: T,
-    last_row_pc: T,
-    last_row_next_pc: T,
-    last_row_is_halt: T,
-    exit_code: T,
+    pub shard: T,
+    pub first_row_clk: T,
+    pub last_row_next_clk: T,
+    pub first_row_pc: T,
+    pub last_row_next_pc: T,
+    pub exit_code: T,
 }
 
 impl<F: AbstractField> PublicValues<Word<F>, F> {
@@ -32,24 +29,18 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             committed_value_digest,
             shard,
             first_row_clk,
-            last_row_clk,
             last_row_next_clk,
             first_row_pc,
-            last_row_pc,
             last_row_next_pc,
-            last_row_is_halt,
             exit_code,
         } = other;
         Self {
             committed_value_digest: committed_value_digest.map(Word::from),
             shard: F::from_canonical_u32(shard),
             first_row_clk: F::from_canonical_u32(first_row_clk),
-            last_row_clk: F::from_canonical_u32(last_row_clk),
             last_row_next_clk: F::from_canonical_u32(last_row_next_clk),
             first_row_pc: F::from_canonical_u32(first_row_pc),
-            last_row_pc: F::from_canonical_u32(last_row_pc),
             last_row_next_pc: F::from_canonical_u32(last_row_next_pc),
-            last_row_is_halt: F::from_canonical_u32(last_row_is_halt),
             exit_code: F::from_canonical_u32(exit_code),
         }
     }
@@ -60,12 +51,9 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             .flat_map(|w| w.clone().into_iter())
             .chain(once(self.shard.clone()))
             .chain(once(self.first_row_clk.clone()))
-            .chain(once(self.last_row_clk.clone()))
             .chain(once(self.last_row_next_clk.clone()))
             .chain(once(self.first_row_pc.clone()))
-            .chain(once(self.last_row_pc.clone()))
             .chain(once(self.last_row_next_pc.clone()))
-            .chain(once(self.last_row_is_halt.clone()))
             .chain(once(self.exit_code.clone()))
             .collect_vec()
     }
@@ -78,23 +66,17 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         }
         let shard = iter.next().unwrap().clone();
         let first_row_clk = iter.next().unwrap().clone();
-        let last_row_clk = iter.next().unwrap().clone();
         let last_row_next_clk = iter.next().unwrap().clone();
         let first_row_pc = iter.next().unwrap().clone();
-        let last_row_pc = iter.next().unwrap().clone();
         let last_row_next_pc = iter.next().unwrap().clone();
-        let last_row_is_halt = iter.next().unwrap().clone();
         let exit_code = iter.next().unwrap().clone();
         Self {
             committed_value_digest,
             shard,
             first_row_clk,
-            last_row_clk,
             last_row_next_clk,
             first_row_pc,
-            last_row_pc,
             last_row_next_pc,
-            last_row_is_halt,
             exit_code,
         }
     }

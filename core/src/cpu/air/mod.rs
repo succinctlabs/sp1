@@ -8,6 +8,7 @@ use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
+use sp1_zkvm::PV_DIGEST_NUM_WORDS;
 
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
@@ -31,6 +32,14 @@ where
         let main = builder.main();
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+
+        let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::deserialize(
+            &builder
+                .public_values()
+                .iter()
+                .map(|elm| (*elm).into())
+                .collect_vec(),
+        );
 
         // Compute some flags for which type of instruction we are dealing with.
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
@@ -127,10 +136,16 @@ where
         self.eval_memory_store::<AB>(builder, local);
 
         // Branch instructions.
-        self.branch_ops_eval::<AB>(builder, is_branch_instruction.clone(), local, next);
+        self.branch_ops_eval::<AB>(
+            builder,
+            is_branch_instruction.clone(),
+            local,
+            next,
+            public_values.last_row_next_pc.clone(),
+        );
 
         // Jump instructions.
-        self.jump_ops_eval::<AB>(builder, local, next);
+        self.jump_ops_eval::<AB>(builder, local, next, public_values.last_row_next_pc.clone());
 
         // AUIPC instruction.
         self.auipc_eval(builder, local);
@@ -146,11 +161,22 @@ where
             is_alu_instruction,
         );
 
-        self.shard_clk_eval(builder, local, next, num_cycles);
+        self.shard_clk_eval(builder, local, next, num_cycles, public_values.clone());
 
-        self.pc_eval(builder, local, next, is_branch_instruction.clone());
+        self.pc_eval(
+            builder,
+            local,
+            next,
+            is_branch_instruction.clone(),
+            public_values.clone(),
+        );
 
-        self.commit_eval(builder, local, is_commit);
+        self.commit_eval(
+            builder,
+            local,
+            is_commit,
+            public_values.committed_value_digest,
+        );
 
         self.halt_unimpl_eval(builder, local, next, is_halt);
 
@@ -194,6 +220,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        public_values_next_pc: AB::Expr,
     ) {
         // Get the jump specific columns
         let jump_columns = local.opcode_specific_columns.jump();
@@ -221,6 +248,12 @@ impl CpuChip {
             .when(next.is_real)
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
+
+        // Verify that the word form of public_values_next_pc is correct for both jump instructions.
+        builder
+            .when_last_real_row(local.is_real, next.is_real)
+            .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .assert_eq(jump_columns.next_pc.reduce::<AB>(), public_values_next_pc);
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_alu(
@@ -368,9 +401,18 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         num_cycles: AB::Expr,
+        public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
-        // Verify that all shard values are the same.
-        builder.when_transition().assert_eq(local.shard, next.shard);
+        // Verify that shard values are the same for all real rows.
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.shard, next.shard);
+
+        // Verify the public values shard value.
+        builder
+            .when_last_real_row(local.is_real, next.is_real)
+            .assert_eq(public_values.shard, local.shard);
 
         // Verify that the shard value is within 16 bits.
         builder.send_byte(
@@ -383,22 +425,21 @@ impl CpuChip {
 
         // Verify that the first row has a clk value of 0.
         builder.when_first_row().assert_zero(local.clk);
+
         // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
-        let clk_increment = AB::Expr::from_canonical_u32(4) + num_cycles;
+        let expected_next_clk = local.clk + AB::Expr::from_canonical_u32(4) + num_cycles;
+
         builder
             .when_transition()
             .when(next.is_real)
-            .assert_eq(local.clk + clk_increment, next.clk);
+            .assert_eq(expected_next_clk.clone(), next.clk);
 
-        // The clk value is carried down to the last row for non-real rows.
         builder
-            .when_transition()
-            .when_not(next.is_real)
-            .assert_eq(local.clk, next.clk);
+            .when_last_real_row(local.is_real, next.is_real)
+            .assert_eq(public_values.last_row_next_clk, expected_next_clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
-        // First verify that the limb values are correct.
         builder.verify_range_24bits(
             local.clk,
             local.clk_16bit_limb,
@@ -417,22 +458,23 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
+        public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
         // The other case is handled by eval_jump, eval_branch and eval_ecall (for halt).
         // Note that when the instruction is halt, we already contrain that the next new is not real,
         // so the `when(next.is_real)` condition implies that the instruction is not halt.
         builder
-            .when_transition()
             .when(next.is_real)
             .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // The pc value is carried down to the last row for non-real rows.
         builder
-            .when_transition()
-            .when_not(next.is_real)
-            .assert_eq(local.pc, next.pc);
+            .when_last_real_row(local.is_real, next.is_real)
+            .assert_eq(
+                public_values.last_row_next_pc,
+                local.pc + AB::Expr::from_canonical_u8(4),
+            );
     }
 
     /// Constraints related to the commit instruction.
@@ -441,6 +483,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         is_commit: AB::Expr,
+        commit_digest: [Word<AB::Expr>; PV_DIGEST_NUM_WORDS],
     ) {
         // Get the ecall specific columns.
         let ecall_columns = local.opcode_specific_columns.ecall();
@@ -459,19 +502,8 @@ impl CpuChip {
         // builder will ignore the other constraints of the air, it is safe to not include the
         // verification check of the expected public values digest word.
         if !builder.is_interaction_builder() {
-            // Get the public values and convert them into digest words
-            let public_values_elms = builder.public_values();
-            let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::deserialize(
-                &public_values_elms
-                    .iter()
-                    .map(|elm| (*elm).into())
-                    .collect_vec(),
-            );
-
-            let expected_pv_digest_word = builder.index_word_array(
-                &public_values.committed_value_digest,
-                &ecall_columns.index_bitmap,
-            );
+            let expected_pv_digest_word =
+                builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
             // Verify the public_values_digest_word.
             builder

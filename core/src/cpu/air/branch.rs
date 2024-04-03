@@ -33,6 +33,7 @@ impl CpuChip {
         is_branch_instruction: AB::Expr,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        public_values_next_pc: AB::Expr,
     ) {
         // Get the branch specific columns.
         let branch_cols = local.opcode_specific_columns.branch();
@@ -44,13 +45,6 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.pc.reduce::<AB>(), local.pc);
 
-            // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
-            builder
-                .when_transition()
-                .when(next.is_real)
-                .when(local.branching)
-                .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
-
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_alu(
                 Opcode::ADD.as_field::<AB::F>(),
@@ -60,12 +54,23 @@ impl CpuChip {
                 local.branching,
             );
 
-            // When we are not branching, assert that local.pc + 4 <==> next.pc.
+            // When we are branching, the expected next pc is branch_columns.next_pc.  When we are
+            // not branching, the expected next pc is local.pc + 4.
+            let expected_next_pc = local.branching
+                * (local.pc + branch_cols.next_pc.reduce::<AB>())
+                + local.not_branching * (local.pc + AB::Expr::from_canonical_u8(4));
+
+            // Verify that next.pc <==> expected_next_pc if the next row is real and the current
+            // instruction is a branch instruction.
             builder
-                .when_transition()
                 .when(next.is_real)
-                .when(local.not_branching)
-                .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+                .when(is_branch_instruction.clone())
+                .assert_eq(expected_next_pc.clone(), next.pc);
+
+            // Verify that next.pc <==> public_values.next_pc if we are at the last real row.
+            builder
+                .when_last_real_row(local.is_real, next.is_real)
+                .assert_eq(public_values_next_pc, expected_next_pc);
         }
 
         // Evaluate branching value constraints.
