@@ -2,6 +2,7 @@ pub mod branch;
 pub mod memory;
 
 use core::borrow::Borrow;
+use itertools::Itertools;
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
@@ -9,8 +10,8 @@ use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 
 use crate::air::BaseAirBuilder;
+use crate::air::PublicValues;
 use crate::air::Word;
-use crate::air::WORD_SIZE;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
@@ -452,24 +453,25 @@ impl CpuChip {
         }
         builder.when(is_commit.clone()).assert_one(bitmap_sum);
 
-        // Get the public values and convert them into digest words
-        let public_values = builder.public_values();
-        let mut digest_words = Vec::new();
-        for bytes in public_values.chunks_exact(WORD_SIZE) {
-            let bytes_expr_vec: Vec<AB::Expr> =
-                bytes.iter().map(|byte| (*byte).into()).collect::<Vec<_>>();
-
-            digest_words.push(Word::<AB::Expr>(bytes_expr_vec.try_into().unwrap()));
-        }
-
         // Retrieve the expected public values digest word to check against the one passed into the
         // commit ecall. Note that for the interaction builder, it will not have any digest words, since
         // it's used during AIR compilation time to parse for all send/receives. Since that interaction
         // builder will ignore the other constraints of the air, it is safe to not include the
         // verification check of the expected public values digest word.
         if !builder.is_interaction_builder() {
-            let expected_pv_digest_word =
-                builder.index_word_array(&digest_words, &ecall_columns.index_bitmap);
+            // Get the public values and convert them into digest words
+            let public_values_elms = builder.public_values();
+            let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::deserialize(
+                &public_values_elms
+                    .iter()
+                    .map(|elm| (*elm).into())
+                    .collect_vec(),
+            );
+
+            let expected_pv_digest_word = builder.index_word_array(
+                &public_values.committed_value_digest,
+                &ecall_columns.index_bitmap,
+            );
 
             // Verify the public_values_digest_word.
             builder
