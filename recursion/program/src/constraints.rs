@@ -325,7 +325,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
-                    proof.public_values_digest,
+                    proof.public_values,
                 );
 
                 // Compute the folded constraints value in the DSL.

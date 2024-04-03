@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::PrimeField32;
-use sp1_core::air::PublicValuesDigest;
+use sp1_core::air::PublicValues;
 use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
@@ -40,7 +40,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         vec![self]
     }
 
-    fn public_values_digest(&self) -> PublicValuesDigest<u32> {
+    fn public_values(&self) -> PublicValues<u32, u32> {
         todo!()
     }
 }
