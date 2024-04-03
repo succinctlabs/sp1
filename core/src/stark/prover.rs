@@ -93,8 +93,7 @@ where
 
         // Observe the public input digest.
 
-        let public_values_field =
-            PublicValues::<Word<Val<SC>>, Val<SC>>::new(public_values_digest).into();
+        let public_values_field = PublicValues::<Word<Val<SC>>, Val<SC>>::new(public_values_digest);
         challenger.observe_slice(&public_values_field.serialize());
 
         let finished = AtomicU32::new(0);

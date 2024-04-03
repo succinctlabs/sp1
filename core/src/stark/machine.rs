@@ -244,9 +244,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         });
 
         // Observe the public input digest
-        let public_values_field =
-            PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values).into();
-        challenger.observe_slice(&public_values_field.serialize());
+        challenger.observe_slice(&proof.public_values.serialize());
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");

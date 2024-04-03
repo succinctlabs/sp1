@@ -149,7 +149,7 @@ where
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
     let mut public_values: PublicValues<u32, u32> = Default::default();
-    let public_values = tracing::info_span!("runtime.state").in_scope(|| loop {
+    let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
         let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
@@ -239,7 +239,7 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    (proof, public_values)
+    (proof, public_values_stream)
 }
 
 pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>

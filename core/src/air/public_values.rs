@@ -27,25 +27,49 @@ pub struct PublicValues<W, T> {
 }
 
 impl<F: AbstractField> PublicValues<Word<F>, F> {
-    pub fn serialize(&self) -> &[F] {
+    pub fn new(other: PublicValues<u32, u32>) -> Self {
+        let PublicValues {
+            committed_value_digest,
+            shard,
+            first_row_clk,
+            last_row_clk,
+            last_row_next_clk,
+            first_row_pc,
+            last_row_pc,
+            last_row_next_pc,
+            last_row_is_halt,
+            exit_code,
+        } = other;
+        Self {
+            committed_value_digest: committed_value_digest.map(Word::from),
+            shard: F::from_canonical_u32(shard),
+            first_row_clk: F::from_canonical_u32(first_row_clk),
+            last_row_clk: F::from_canonical_u32(last_row_clk),
+            last_row_next_clk: F::from_canonical_u32(last_row_next_clk),
+            first_row_pc: F::from_canonical_u32(first_row_pc),
+            last_row_pc: F::from_canonical_u32(last_row_pc),
+            last_row_next_pc: F::from_canonical_u32(last_row_next_pc),
+            last_row_is_halt: F::from_canonical_u32(last_row_is_halt),
+            exit_code: F::from_canonical_u32(exit_code),
+        }
+    }
+
+    pub fn serialize(&self) -> Vec<F> {
         self.committed_value_digest
             .iter()
-            .flat_map(|w| w.into_iter())
-            .chain(once(self.shard))
-            .chain(once(self.first_row_clk))
-            .chain(once(self.last_row_clk))
-            .chain(once(self.last_row_next_clk))
-            .chain(once(self.first_row_pc))
-            .chain(once(self.last_row_pc))
-            .chain(once(self.last_row_next_pc))
-            .chain(once(self.last_row_is_halt))
-            .chain(once(self.exit_code))
+            .flat_map(|w| w.clone().into_iter())
+            .chain(once(self.shard.clone()))
+            .chain(once(self.first_row_clk.clone()))
+            .chain(once(self.last_row_clk.clone()))
+            .chain(once(self.last_row_next_clk.clone()))
+            .chain(once(self.first_row_pc.clone()))
+            .chain(once(self.last_row_pc.clone()))
+            .chain(once(self.last_row_next_pc.clone()))
+            .chain(once(self.last_row_is_halt.clone()))
+            .chain(once(self.exit_code.clone()))
             .collect_vec()
-            .as_slice()
     }
-}
 
-impl<F: AbstractField> PublicValues<Word<F>, F> {
     pub fn deserialize(data: &[F]) -> Self {
         let mut iter = data.iter().cloned();
         let mut committed_value_digest: [Word<F>; PV_DIGEST_NUM_WORDS] = Default::default();
