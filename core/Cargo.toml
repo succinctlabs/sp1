@@ -71,14 +71,10 @@ num = { version = "0.4.1", features = ["rand"] }
 rand = "0.8.5"
 
 [features]
-debug = ["parallel"]
-debug-proof = ["parallel", "perf"]
-default = ["perf"]
-keccak = []
+debug = []
+default = ["parallel"]
 neon = ["p3-blake3/neon"]
 parallel = ["p3-maybe-rayon/parallel", "p3-blake3/parallel"]
-perf = ["parallel"]
-serial = []
 
 [[bench]]
 harness = false

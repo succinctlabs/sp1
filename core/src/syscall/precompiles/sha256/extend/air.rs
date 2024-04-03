@@ -183,8 +183,8 @@ where
             local.s0.value,
             *local.w_i_minus_7.value(),
             local.s1.value,
-            local.is_real,
             local.shard,
+            local.is_real,
             local.s2,
         );
 

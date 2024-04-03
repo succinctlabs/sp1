@@ -204,3 +204,30 @@ where
 
     !any_nonzero
 }
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        lookup::InteractionKind,
+        runtime::{Program, Runtime, ShardingConfig},
+        stark::RiscvAir,
+        utils::{setup_logger, tests::FIBONACCI_ELF, BabyBearPoseidon2},
+    };
+
+    use super::debug_interactions_with_all_chips;
+
+    #[test]
+    fn test_debug_interactions() {
+        setup_logger();
+        let program = Program::from(FIBONACCI_ELF);
+        let config = BabyBearPoseidon2::new();
+        let machine = RiscvAir::machine(config);
+        let (pk, _) = machine.setup(&program);
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        let shards = machine.shard(runtime.record, &ShardingConfig::default());
+        let ok =
+            debug_interactions_with_all_chips(&machine, &pk, &shards, InteractionKind::all_kinds());
+        assert!(ok);
+    }
+}
