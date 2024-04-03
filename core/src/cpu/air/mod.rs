@@ -33,6 +33,11 @@ where
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
 
+        println!(
+            "is builder interaction: {:?}",
+            builder.is_interaction_builder()
+        );
+
         let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::deserialize(
             &builder
                 .public_values()
@@ -40,6 +45,8 @@ where
                 .map(|elm| (*elm).into())
                 .collect_vec(),
         );
+
+        println!("got public values");
 
         // Compute some flags for which type of instruction we are dealing with.
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
