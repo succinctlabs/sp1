@@ -458,7 +458,7 @@ impl<C: Config> Builder<C> {
     ///
     /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
     /// behavior.
-    fn reverse_bits_len(
+    pub fn reverse_bits_len(
         &mut self,
         index_bits: &Array<C, Var<C::N>>,
         bit_len: impl Into<Usize<C::N>>,

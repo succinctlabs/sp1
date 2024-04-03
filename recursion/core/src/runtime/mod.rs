@@ -314,7 +314,7 @@ where
     pub fn run(&mut self) {
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
-            let instruction = self.program.instructions[idx].clone();
+            let instruction = self.program.instructions[idx];
 
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
@@ -539,7 +539,7 @@ where
                 clk: self.clk,
                 pc: self.pc,
                 fp: self.fp,
-                instruction: instruction.clone(),
+                instruction,
                 a,
                 a_record: self.access.a.clone(),
                 b,

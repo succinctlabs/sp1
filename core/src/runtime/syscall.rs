@@ -18,8 +18,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use strum_macros::EnumIter;
 
-// HALT(index: u32, value: u32)
-
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 /// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
 /// - The first byte is the syscall id.

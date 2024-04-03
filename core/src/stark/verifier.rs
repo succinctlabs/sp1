@@ -308,8 +308,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                     .enumerate()
                     .filter(|(j, _)| *j != i)
                     .map(|(_, other_domain)| {
-                        let z = other_domain.zp_at_point(domain.first_point());
-                        other_domain.zp_at_point(zeta) * z.inverse()
+                        other_domain.zp_at_point(zeta)
+                            * other_domain.zp_at_point(domain.first_point()).inverse()
                     })
                     .product::<SC::Challenge>()
             })

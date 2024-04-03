@@ -54,7 +54,6 @@ where
         let RecursionShardProofVariable {
             commitment,
             opened_values,
-            opening_proof,
             sorted_chips,
             sorted_indices,
             ..
@@ -77,11 +76,11 @@ where
             );
         }
 
-        challenger.observe_commitment(builder, permutation_commit.clone());
+        challenger.observe_commitment(builder, *permutation_commit);
 
         let alpha = challenger.sample_ext(builder);
 
-        challenger.observe_commitment(builder, quotient_commit.clone());
+        challenger.observe_commitment(builder, *quotient_commit);
 
         let zeta = challenger.sample_ext(builder);
 
@@ -90,21 +89,16 @@ where
         let mut quotient_domains = Vec::new();
 
         let log_quotient_degree_val = 1;
-        let num_quotient_chunks_val = 1 << log_quotient_degree_val;
-
-        let num_preprocessed_chips = vk.chip_information.len();
 
         let mut prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut perm_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
 
-        let num_quotient_mats = num_shard_chips * num_quotient_chunks_val;
         let mut quotient_mats = Vec::new();
 
-        let mut qc_points = Vec::new();
-        qc_points.push(zeta);
+        let qc_points = vec![zeta];
 
-        for (i, (name, domain, _)) in vk.chip_information.iter().enumerate() {
+        for (name, domain, _) in vk.chip_information.iter() {
             let chip_idx = machine
                 .chips()
                 .iter()
@@ -121,11 +115,12 @@ where
             trace_points.push(zeta);
             trace_points.push(zeta_next);
 
-            let mut prep_values = Vec::new();
-            prep_values.push(opening.preprocessed.local.clone());
-            prep_values.push(opening.preprocessed.next.clone());
+            let prep_values = vec![
+                opening.preprocessed.local.clone(),
+                opening.preprocessed.next.clone(),
+            ];
             let prep_mat = TwoAdicPcsMatsVariable::<C> {
-                domain: domain.clone(),
+                domain: *domain,
                 points: trace_points.clone(),
                 values: prep_values,
             };
@@ -147,9 +142,7 @@ where
             trace_points.push(zeta);
             trace_points.push(zeta_next);
 
-            let mut main_values = Vec::new();
-            main_values.push(opening.main.local.clone());
-            main_values.push(opening.main.next.clone());
+            let main_values = vec![opening.main.local.clone(), opening.main.next.clone()];
             let main_mat = TwoAdicPcsMatsVariable::<C> {
                 domain: TwoAdicMultiplicativeCoset {
                     log_n: domain.log_n,
@@ -160,9 +153,10 @@ where
             };
             main_mats.push(main_mat);
 
-            let mut perm_values = Vec::new();
-            perm_values.push(opening.permutation.local.clone());
-            perm_values.push(opening.permutation.next.clone());
+            let perm_values = vec![
+                opening.permutation.local.clone(),
+                opening.permutation.next.clone(),
+            ];
             let perm_mat = TwoAdicPcsMatsVariable::<C> {
                 domain: TwoAdicMultiplicativeCoset {
                     log_n: domain.clone().log_n,
@@ -174,11 +168,9 @@ where
             perm_mats.push(perm_mat);
 
             let qc_domains = quotient_domain.split_domains(builder, log_quotient_degree_val);
-            let num_quotient_chunks = 1 << log_quotient_degree_val;
             for (j, qc_dom) in qc_domains.into_iter().enumerate() {
                 let qc_vals_array = opening.quotient[j].clone();
-                let mut qc_values = Vec::new();
-                qc_values.push(qc_vals_array);
+                let qc_values = vec![qc_vals_array];
                 let qc_mat = TwoAdicPcsMatsVariable::<C> {
                     domain: TwoAdicMultiplicativeCoset {
                         log_n: qc_dom.clone().log_n,
@@ -199,15 +191,15 @@ where
             mats: prep_mats,
         };
         let main_round = TwoAdicPcsRoundVariable {
-            batch_commit: main_commit.clone(),
+            batch_commit: *main_commit,
             mats: main_mats,
         };
         let perm_round = TwoAdicPcsRoundVariable {
-            batch_commit: permutation_commit.clone(),
+            batch_commit: *permutation_commit,
             mats: perm_mats,
         };
         let quotient_round = TwoAdicPcsRoundVariable {
-            batch_commit: quotient_commit.clone(),
+            batch_commit: *quotient_commit,
             mats: quotient_mats,
         };
         rounds.push(prep_round);
@@ -244,7 +236,6 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::time::Instant;
 
     use crate::{
         challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
@@ -253,28 +244,21 @@ pub(crate) mod tests {
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::{AbstractField, PrimeField32};
+    use p3_field::PrimeField32;
+    use serial_test::serial;
     use sp1_core::{
         air::{MachineAir, PublicValuesDigest, Word},
-        stark::{
-            LocalProver, MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig,
-        },
-        utils::{ec::weierstrass::bn254::Bn254, BabyBearPoseidon2},
-        SP1Prover, SP1Stdin,
+        stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
-        asm::VmBuilder,
         constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, Config, Felt, Usize},
+        ir::{Builder, Config, Felt},
         OuterConfig,
     };
     use sp1_recursion_core::{
         cpu::Instruction,
-        runtime::{Opcode, Program, Runtime, DIGEST_SIZE},
-        stark::{
-            config::{outer_fri_config, BabyBearPoseidon2Outer, OuterVal},
-            RecursionAir,
-        },
+        runtime::{Opcode, Program, Runtime},
+        stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
 
     use crate::types::{
@@ -296,8 +280,6 @@ pub(crate) mod tests {
     where
         C: Config<F = F, EF = EF>,
     {
-        let index = builder.materialize(Usize::Const(proof.index));
-
         // Set up the public values digest.
         let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
             let word_val = proof.public_values_digest[i];
@@ -342,7 +324,7 @@ pub(crate) mod tests {
                 proof
                     .chip_ordering
                     .get(&chip.name())
-                    .map(|i| *i)
+                    .copied()
                     .unwrap_or(usize::MAX)
             })
             .collect::<Vec<_>>();
@@ -377,6 +359,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_recursive_verify_shard_v2() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
@@ -428,7 +411,7 @@ pub(crate) mod tests {
         for proof_val in proofs {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
-            challenger.observe_commitment(&mut builder, main_commit.clone());
+            challenger.observe_commitment(&mut builder, *main_commit);
             shard_proofs.push(proof);
         }
 
