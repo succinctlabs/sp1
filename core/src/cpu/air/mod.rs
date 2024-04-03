@@ -161,7 +161,14 @@ where
             is_alu_instruction,
         );
 
-        self.shard_clk_eval(builder, local, next, num_cycles, public_values.clone());
+        self.shard_clk_eval(
+            builder,
+            local,
+            next,
+            num_cycles,
+            public_values.clone(),
+            is_halt.clone(),
+        );
 
         self.pc_eval(
             builder,
@@ -402,6 +409,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
         num_cycles: AB::Expr,
         public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
+        is_halt: AB::Expr,
     ) {
         // Verify that shard values are the same for all real rows.
         builder
@@ -428,7 +436,11 @@ impl CpuChip {
 
         // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
-        let expected_next_clk = local.clk + AB::Expr::from_canonical_u32(4) + num_cycles;
+        let expected_next_clk = builder.if_else(
+            is_halt,
+            AB::Expr::zero(),
+            local.clk + AB::Expr::from_canonical_u32(4) + num_cycles,
+        );
 
         builder
             .when_transition()
