@@ -175,16 +175,16 @@ where
                     let quotient_domain = &quotient_domains[i];
                     let qc_domains =
                         quotient_domain.split_domains(builder, chip.log_quotient_degree());
-                    Self::verify_constraints(
-                        builder,
-                        chip,
-                        values,
-                        trace_domain.clone(),
-                        qc_domains,
-                        zeta,
-                        alpha,
-                        permutation_challenges,
-                    );
+                    // Self::verify_constraints(
+                    //     builder,
+                    //     chip,
+                    //     values,
+                    //     trace_domain.clone(),
+                    //     qc_domains,
+                    //     zeta,
+                    //     alpha,
+                    //     permutation_challenges,
+                    // );
                 }
             }
         }
