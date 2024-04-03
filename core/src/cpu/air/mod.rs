@@ -178,13 +178,7 @@ where
             public_values.committed_value_digest.clone(),
         );
 
-        self.halt_unimpl_eval(
-            builder,
-            local,
-            next,
-            is_halt,
-            public_values.last_row_next_pc,
-        );
+        self.halt_unimpl_eval(builder, local, next, is_halt, public_values);
 
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
@@ -525,7 +519,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_halt: AB::Expr,
-        public_values_next_pc: AB::Expr,
+        public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // If we're halting and it's a transition, then the next.is_real should be 0.
         builder
@@ -534,7 +528,14 @@ impl CpuChip {
             .assert_zero(next.is_real);
 
         // If we're halting, the public values next pc should be 0.
-        builder.when(is_halt).assert_zero(public_values_next_pc);
+        builder
+            .when(is_halt.clone())
+            .assert_zero(public_values.last_row_next_pc);
+
+        // Verify the exit code.
+        builder
+            .when(is_halt)
+            .assert_eq(local.op_a_val().reduce::<AB>(), public_values.exit_code);
     }
 }
 
