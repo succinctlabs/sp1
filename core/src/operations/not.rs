@@ -38,12 +38,12 @@ impl<F: Field> NotOperation<F> {
     ) {
         for i in (0..WORD_SIZE).step_by(2) {
             builder.send_byte_pair(
-                shard,
                 AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
                 AB::F::zero(),
                 AB::F::zero(),
                 a[i],
                 a[i + 1],
+                shard,
                 is_real,
             );
         }
