@@ -7,6 +7,15 @@ use crate::types::Commitment;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
+
+    fn observe_slice(&mut self, builder: &mut Builder<C>, values: &[V])
+    where
+        V: Copy,
+    {
+        for value in values {
+            self.observe(builder, *value);
+        }
+    }
 }
 
 pub trait CanSampleVariable<C: Config, V> {
