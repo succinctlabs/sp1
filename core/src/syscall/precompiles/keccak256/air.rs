@@ -178,7 +178,7 @@ mod test {
 
         for i in 0..NUM_TEST_CASES {
             let expected = outputs.get(i).unwrap();
-            let actual = proof.stdout.read::<[u8; 32]>();
+            let actual = proof.public_values.read::<[u8; 32]>();
             assert_eq!(expected, &actual);
         }
     }

@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::MachineAir;
+use crate::air::{MachineAir, PublicValuesDigest, Word};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -242,6 +242,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             });
         });
 
+        // Observe the public input digest
+        let pv_digest_field_elms: Vec<Val<SC>> =
+            PublicValuesDigest::<Word<Val<SC>>>::new(proof.public_values_digest).into();
+        challenger.observe_slice(&pv_digest_field_elms);
+
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
         for (i, proof) in proof.shard_proofs.iter().enumerate() {
@@ -360,6 +365,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
+                        PublicValuesDigest::<Word<Val<SC>>>::new(shard.public_values_digest()),
                     );
                 }
             });

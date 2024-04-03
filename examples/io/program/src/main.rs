@@ -23,5 +23,5 @@ pub fn main() {
         b: p1.b && p2.b,
     };
     println!("Addition of 2 points: {:?}", p3);
-    sp1_zkvm::io::write(&p3);
+    sp1_zkvm::io::commit(&p3);
 }

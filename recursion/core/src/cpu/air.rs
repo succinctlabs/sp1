@@ -1,3 +1,4 @@
+use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
 use crate::cpu::CpuChip;
 use crate::runtime::Program;
@@ -11,10 +12,12 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
+use sp1_core::air::BinomialExtension;
+use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
-use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
+use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::mem::transmute;
@@ -44,7 +47,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let rows = input
+        let mut rows = input
             .cpu_events
             .iter()
             .map(|event| {
@@ -54,6 +57,8 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 cols.clk = event.clk;
                 cols.pc = event.pc;
                 cols.fp = event.fp;
+
+                cols.selectors.populate(&event.instruction);
 
                 cols.instruction.opcode = F::from_canonical_u32(event.instruction.opcode as u32);
                 cols.instruction.op_a = event.instruction.op_a;
@@ -76,18 +81,22 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                     cols.c.value = event.instruction.op_c;
                 }
 
-                // cols.add_scratch = cols.b.value.0[0] + cols.c.value.0[0];
-                // cols.sub_scratch = cols.b.value.0[0] - cols.c.value.0[0];
-                // cols.mul_scratch = cols.b.value.0[0] * cols.c.value.0[0];
-                // cols.add_ext_scratch = (BinomialExtension::from_block(cols.b.value)
-                //     + BinomialExtension::from_block(cols.c.value))
-                // .as_block();
-                // cols.sub_ext_scratch = (BinomialExtension::from_block(cols.b.value)
-                //     - BinomialExtension::from_block(cols.c.value))
-                // .as_block();
-                // cols.mul_ext_scratch = (BinomialExtension::from_block(cols.b.value)
-                //     * BinomialExtension::from_block(cols.c.value))
-                // .as_block();
+                let alu_cols = cols.opcode_specific.alu_mut();
+                if cols.selectors.is_add.is_one() {
+                    alu_cols.add_scratch.0[0] = cols.b.value.0[0] + cols.c.value.0[0];
+                    alu_cols.sub_scratch.0[0] = cols.b.value.0[0] - cols.c.value.0[0];
+                    alu_cols.mul_scratch.0[0] = cols.b.value.0[0] * cols.c.value.0[0];
+                } else if cols.selectors.is_eadd.is_one() || cols.selectors.is_efadd.is_one() {
+                    alu_cols.add_scratch = (BinomialExtension::from_block(cols.b.value)
+                        + BinomialExtension::from_block(cols.c.value))
+                    .as_block();
+                    alu_cols.sub_scratch = (BinomialExtension::from_block(cols.b.value)
+                        - BinomialExtension::from_block(cols.c.value))
+                    .as_block();
+                    alu_cols.mul_scratch = (BinomialExtension::from_block(cols.b.value)
+                        * BinomialExtension::from_block(cols.c.value))
+                    .as_block();
+                }
 
                 // cols.a_eq_b
                 //     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
@@ -101,11 +110,15 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
             })
             .collect::<Vec<_>>();
 
+        pad_rows(&mut rows, || {
+            let mut row = [F::zero(); NUM_CPU_COLS];
+            let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
+            cols.selectors.is_noop = F::one();
+            row
+        });
+
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_CPU_COLS, F>(&mut trace.values);
 
         for i in input.cpu_events.len()..trace.height() {
             trace.values[i * NUM_CPU_COLS + CPU_COL_MAP.clk] =
@@ -148,7 +161,7 @@ where
         builder
             .when_transition()
             .when(next.is_real)
-            .assert_eq(local.clk + AB::F::from_canonical_u32(4), next.clk);
+            .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
         // // Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
         // builder
@@ -168,9 +181,24 @@ where
             .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
 
         // Compute ALU.
-        // builder.assert_eq(local.b.value.0[0] + local.c.value.0[0], local.add_scratch);
-        // builder.assert_eq(local.b.value.0[0] - local.c.value.0[0], local.sub_scratch);
-        // builder.assert_eq(local.b.value.0[0] * local.c.value.0[0], local.mul_scratch);
+        let alu_cols = local.opcode_specific.alu();
+        builder.when(local.selectors.is_add).assert_eq(
+            local.b.value.0[0] + local.c.value.0[0],
+            alu_cols.add_scratch[0],
+        );
+        builder.when(local.selectors.is_add).assert_eq(
+            local.b.value.0[0] - local.c.value.0[0],
+            alu_cols.sub_scratch[0],
+        );
+        builder.when(local.selectors.is_add).assert_eq(
+            local.b.value.0[0] * local.c.value.0[0],
+            alu_cols.mul_scratch[0],
+        );
+
+        builder.assert_eq(
+            local.is_real * local.is_real * local.is_real,
+            local.is_real * local.is_real * local.is_real,
+        );
 
         // // Compute extension ALU.
         // builder.assert_ext_eq(
@@ -318,6 +346,13 @@ where
         prog_interaction_vals.extend_from_slice(&local.instruction.op_c.map(|x| x.into()).0);
         prog_interaction_vals.push(local.instruction.imm_b.into());
         prog_interaction_vals.push(local.instruction.imm_c.into());
+        prog_interaction_vals.extend_from_slice(
+            &local
+                .selectors
+                .into_iter()
+                .map(|x| x.into())
+                .collect::<Vec<_>>(),
+        );
         builder.send(AirInteraction::new(
             prog_interaction_vals,
             local.is_real.into(),

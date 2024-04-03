@@ -8,8 +8,11 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
+use sp1_core::air::PublicValuesDigest;
+use sp1_core::air::Word;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
+use sp1_recursion_compiler::ir::Felt;
 
 use crate::commit::PolynomialSpaceVariable;
 
@@ -30,6 +33,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
+        public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[C::EF],
@@ -56,6 +60,7 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
+        let public_values: Vec<Felt<C::F>> = public_values_digest.into();
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -63,6 +68,7 @@ where
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
             cumulative_sum: opening.cumulative_sum,
+            public_values: &public_values,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
@@ -124,6 +130,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
+        public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -139,6 +146,7 @@ where
             builder,
             chip,
             &opening,
+            public_values_digest,
             &sels,
             alpha,
             permutation_challenges,
@@ -156,6 +164,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
+        air::{PublicValuesDigest, Word},
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -164,7 +173,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_sdk::{SP1Prover, SP1Stdin};
+    use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
@@ -286,21 +295,25 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+        let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
-            .proof
-            .shard_proofs;
+            .proof;
         println!("Proof generated successfully");
 
         challenger.observe(vk.commit);
-        proofs.iter().for_each(|proof| {
+        proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
         });
+
+        // Observe the public input digest
+        let pv_digest_field_elms: Vec<F> =
+            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
+        challenger.observe_slice(&pv_digest_field_elms);
 
         // Run the verify inside the DSL and compare it to the calculated value.
         let mut builder = VmBuilder::<F, EF>::default();
 
-        for proof in proofs.into_iter().take(1) {
+        for proof in proof.shard_proofs.into_iter().take(1) {
             let (
                 chips,
                 trace_domains_vals,
@@ -309,6 +322,12 @@ mod tests {
                 alpha_val,
                 zeta_val,
             ) = get_shard_data(&machine, &proof, &mut challenger);
+
+            // Set up the public values digest.
+            let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
+                let word_val = proof.public_values_digest[i];
+                Word(core::array::from_fn(|j| builder.eval(word_val[j])))
+            }));
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -324,6 +343,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
+                    proof.public_values_digest,
                 );
 
                 // Compute the folded constraints value in the DSL.
@@ -339,6 +359,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &values,
+                    public_values_digest,
                     &sels,
                     alpha,
                     permutation_challenges.as_slice(),
@@ -397,22 +418,28 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
-            .shard_proofs;
-        println!("Proof generated successfully");
+        let proof =
+            SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone()).unwrap();
+        SP1Verifier::verify_with_config(elf, &proof, machine.config().clone()).unwrap();
+
+        let proof = proof.proof;
+        println!("Proof generated and verified successfully");
 
         challenger.observe(vk.commit);
 
-        proofs.iter().for_each(|proof| {
+        proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
         });
+
+        // Observe the public input digest
+        let pv_digest_field_elms: Vec<F> =
+            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
+        challenger.observe_slice(&pv_digest_field_elms);
 
         // Run the verify inside the DSL and compare it to the calculated value.
         let mut builder = VmBuilder::<F, EF>::default();
 
-        for proof in proofs.into_iter().take(1) {
+        for proof in proof.shard_proofs.into_iter().take(1) {
             let (
                 chips,
                 trace_domains_vals,
@@ -437,10 +464,17 @@ mod tests {
                     .map(|domain| builder.eval_const(*domain))
                     .collect::<Vec<_>>();
 
+                // Set up the public values digest.
+                let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
+                    let word_val = proof.public_values_digest[i];
+                    Word(core::array::from_fn(|j| builder.eval(word_val[j])))
+                }));
+
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
                     &mut builder,
                     chip,
                     &opening,
+                    public_values_digest,
                     trace_domain,
                     qc_domains,
                     zeta,

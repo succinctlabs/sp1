@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use super::program::Program;
 use super::Opcode;
+use crate::air::PublicValuesDigest;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
@@ -89,6 +90,9 @@ pub struct ExecutionRecord {
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
     pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
+
+    /// The public values digest.
+    pub public_values_digest: PublicValuesDigest<u32>,
 }
 
 pub struct ShardingConfig {
@@ -451,7 +455,22 @@ impl MachineRecord for ExecutionRecord {
             .program_memory_events
             .extend_from_slice(&self.program_memory_events);
 
+        // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
+        // will read the public values.  But in some very rare edge cases, the last two shards will
+        // read it (e.g. when the halt instruction is the only instruction in the last shard).
+        // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
+        // for all of the shards.
+        for shard in shards.iter_mut() {
+            shard.public_values_digest = self.public_values_digest;
+        }
+
         shards
+    }
+
+    /// Retrieves the public values digest.  This method is needed for the `MachineRecord` trait, since
+    /// the public values digest is used by the prover.
+    fn public_values_digest(&self) -> PublicValuesDigest<u32> {
+        self.public_values_digest
     }
 }
 
