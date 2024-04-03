@@ -1,7 +1,7 @@
 use p3_field::AbstractField;
 
 #[allow(clippy::upper_case_acronyms)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Opcode {
     // Arithmetic field instructions.
     ADD = 0,

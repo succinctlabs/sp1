@@ -229,6 +229,7 @@ mod tests {
     fn test_memory_lookup_interactions() {
         setup_logger();
         let program = sha_extend_program();
+        let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
         runtime.run();
 
@@ -236,6 +237,7 @@ mod tests {
             RiscvAir::machine(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
+            &program_clone,
             &runtime.record,
             vec![InteractionKind::Memory],
         );
@@ -245,12 +247,14 @@ mod tests {
     fn test_byte_lookup_interactions() {
         setup_logger();
         let program = sha_extend_program();
+        let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
         runtime.run();
 
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
             machine.chips(),
+            &program_clone,
             &runtime.record,
             vec![InteractionKind::Byte],
         );

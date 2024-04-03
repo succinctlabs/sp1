@@ -59,7 +59,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
     /// The opcode flag should be set to 1 for the relevant opcode and 0 for the rest. We already
     /// assume that the state of the columns is set to zero at the start of the function, so we only
     /// need to set the relevant opcode column to 1.
-    pub fn populate(&mut self, instruction: Instruction<F>) {
+    pub fn populate(&mut self, instruction: &Instruction<F>) {
         match instruction.opcode {
             Opcode::ADD => self.is_add = F::one(),
             Opcode::SUB => self.is_sub = F::one(),
@@ -86,12 +86,14 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::JAL => self.is_jal = F::one(),
             Opcode::JALR => self.is_jalr = F::one(),
             Opcode::TRAP => self.is_trap = F::one(),
-            _ => unimplemented!(),
+            Opcode::PrintF => self.is_noop = F::one(),
+            Opcode::PrintE => self.is_noop = F::one(),
+            _ => unimplemented!("opcode {:?} not supported", instruction.opcode),
         }
     }
 }
 
-impl<T> IntoIterator for OpcodeSelectorCols<T> {
+impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
     type Item = T;
 
     type IntoIter = std::array::IntoIter<T, OPCODE_COUNT>;

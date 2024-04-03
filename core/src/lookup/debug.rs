@@ -48,6 +48,7 @@ fn field_to_int<F: PrimeField32>(x: F) -> i32 {
 
 pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     chip: &MachineChip<SC, A>,
+    program: &A::Program,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
@@ -58,6 +59,7 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     let mut key_to_count = BTreeMap::new();
 
     let trace = chip.generate_trace(record, &mut A::Record::default());
+    let mut preprocessed_trace = chip.generate_preprocessed_trace(program);
     let mut main = trace.clone();
     let height = trace.clone().height();
 
@@ -72,13 +74,21 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
             if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
+            let mut empty = vec![];
+            let preprocessed_row = preprocessed_trace
+                .as_mut()
+                .map(|t| t.row_mut(row))
+                .or_else(|| Some(&mut empty))
+                .unwrap();
             let is_send = m < nb_send_interactions;
-            let multiplicity_eval: Val<SC> = interaction.multiplicity.apply(&[], main.row_mut(row));
+            let multiplicity_eval: Val<SC> = interaction
+                .multiplicity
+                .apply(preprocessed_row, main.row_mut(row));
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
                 for value in &interaction.values {
-                    let expr: Val<SC> = value.apply(&[], main.row_mut(row));
+                    let expr: Val<SC> = value.apply(preprocessed_row, main.row_mut(row));
                     values.push(expr);
                 }
                 let key = format!(
@@ -114,6 +124,7 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips<SC, A>(
     chips: &[MachineChip<SC, A>],
+    program: &A::Program,
     segment: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool
@@ -127,7 +138,8 @@ where
     let mut total = SC::Val::zero();
 
     for chip in chips.iter() {
-        let (_, count) = debug_interactions::<SC, A>(chip, segment, interaction_kinds.clone());
+        let (_, count) =
+            debug_interactions::<SC, A>(chip, program, segment, interaction_kinds.clone());
 
         tracing::info!("{} chip has {} distinct events", chip.name(), count.len());
         for (key, value) in count.iter() {
