@@ -14,7 +14,7 @@ use super::Word;
 
 // TODO:  Create a config struct that will store the num_words setting and the hash function
 //        and initial entropy used.
-const PV_DIGEST_NUM_WORDS: usize = 8;
+pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The PublicValuesDigest struct is used to represent the public values digest.  This is the hash of all the
 /// bytes that the guest program has written to public values.
@@ -78,6 +78,12 @@ impl From<PublicValuesDigest<u32>> for Vec<u8> {
 impl<T: Debug + Copy> From<PublicValuesDigest<Word<T>>> for Vec<T> {
     fn from(val: PublicValuesDigest<Word<T>>) -> Self {
         val.0.iter().flat_map(|word| word.0).collect::<Vec<T>>()
+    }
+}
+
+impl<T> From<[T; PV_DIGEST_NUM_WORDS]> for PublicValuesDigest<T> {
+    fn from(words: [T; PV_DIGEST_NUM_WORDS]) -> Self {
+        PublicValuesDigest(words)
     }
 }
 

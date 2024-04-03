@@ -5,7 +5,7 @@ use p3_air::{
 use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder, PublicValuesBuilder};
 
 use sp1_recursion_compiler::{
-    ir::{Builder, Config, Ext},
+    ir::{Builder, Config, Ext, Felt},
     prelude::SymbolicExt,
 };
 
@@ -15,6 +15,7 @@ pub struct RecursiveVerifierConstraintFolder<'a, C: Config> {
     pub main: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
     pub perm: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
     pub perm_challenges: &'a [C::EF],
+    pub public_values: &'a [Felt<C::F>],
     pub cumulative_sum: Ext<C::F, C::EF>,
     pub is_first_row: Ext<C::F, C::EF>,
     pub is_last_row: Ext<C::F, C::EF>,
@@ -101,9 +102,9 @@ impl<'a, C: Config> EmptyMessageBuilder for RecursiveVerifierConstraintFolder<'a
 impl<'a, C: Config> PublicValuesBuilder for RecursiveVerifierConstraintFolder<'a, C> {}
 
 impl<'a, C: Config> AirBuilderWithPublicValues for RecursiveVerifierConstraintFolder<'a, C> {
-    type PublicVar = C::F;
+    type PublicVar = Felt<C::F>;
 
     fn public_values(&self) -> &[Self::PublicVar] {
-        &[]
+        self.public_values
     }
 }
