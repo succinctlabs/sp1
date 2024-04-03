@@ -1,5 +1,4 @@
 use crate::runtime::{Register, Runtime};
-use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -264,10 +263,6 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(WeierstrassDoubleAssignChip::<Bn254>::new()),
     );
     syscall_map.insert(
-        SyscallCode::BLAKE3_COMPRESS_INNER,
-        Rc::new(Blake3CompressInnerChip::new()),
-    );
-    syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
         Rc::new(SyscallEnterUnconstrained::new()),
     );
@@ -292,6 +287,10 @@ mod tests {
     fn test_syscalls_in_default_map() {
         let default_syscall_map = default_syscall_map();
         for code in SyscallCode::iter() {
+            if code == SyscallCode::BLAKE3_COMPRESS_INNER {
+                // Blake3 is currently disabled.
+                continue;
+            }
             default_syscall_map.get(&code).unwrap();
         }
     }

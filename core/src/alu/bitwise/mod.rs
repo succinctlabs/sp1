@@ -22,7 +22,11 @@ pub struct BitwiseChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Copy)]
+#[repr(C)]
 pub struct BitwiseCols<T> {
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -68,6 +72,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
+                cols.shard = F::from_canonical_u32(event.shard);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
@@ -78,6 +83,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
+                        shard: event.shard,
                         opcode: ByteOpcode::from(event.opcode),
                         a1: b_a as u32,
                         a2: 0,
@@ -130,7 +136,7 @@ where
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(opcode.clone(), a, b, c, mult.clone());
+            builder.send_byte(opcode.clone(), a, b, c, local.shard, mult.clone());
         }
 
         // Receive the arguments.
@@ -141,6 +147,7 @@ where
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_xor + local.is_or + local.is_and,
         );
 
@@ -168,7 +175,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
+        shard.bitwise_events = vec![AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -182,9 +189,9 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = [
-            AluEvent::new(0, Opcode::XOR, 25, 10, 19),
-            AluEvent::new(0, Opcode::OR, 27, 10, 19),
-            AluEvent::new(0, Opcode::AND, 2, 10, 19),
+            AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19),
+            AluEvent::new(0, 0, Opcode::OR, 27, 10, 19),
+            AluEvent::new(0, 0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();

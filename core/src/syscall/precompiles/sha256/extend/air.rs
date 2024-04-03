@@ -89,6 +89,7 @@ where
             *local.w_i_minus_15.value(),
             7,
             local.w_i_minus_15_rr_7,
+            local.shard,
             local.is_real,
         );
         // w[i-15] rightrotate 18.
@@ -97,6 +98,7 @@ where
             *local.w_i_minus_15.value(),
             18,
             local.w_i_minus_15_rr_18,
+            local.shard,
             local.is_real,
         );
         // w[i-15] rightshift 3.
@@ -105,6 +107,7 @@ where
             *local.w_i_minus_15.value(),
             3,
             local.w_i_minus_15_rs_3,
+            local.shard,
             local.is_real,
         );
         // (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18)
@@ -113,6 +116,7 @@ where
             local.w_i_minus_15_rr_7.value,
             local.w_i_minus_15_rr_18.value,
             local.s0_intermediate,
+            local.shard,
             local.is_real,
         );
         // s0 := (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)
@@ -121,6 +125,7 @@ where
             local.s0_intermediate.value,
             local.w_i_minus_15_rs_3.value,
             local.s0,
+            local.shard,
             local.is_real,
         );
 
@@ -131,6 +136,7 @@ where
             *local.w_i_minus_2.value(),
             17,
             local.w_i_minus_2_rr_17,
+            local.shard,
             local.is_real,
         );
         // w[i-2] rightrotate 19.
@@ -139,6 +145,7 @@ where
             *local.w_i_minus_2.value(),
             19,
             local.w_i_minus_2_rr_19,
+            local.shard,
             local.is_real,
         );
         // w[i-2] rightshift 10.
@@ -147,6 +154,7 @@ where
             *local.w_i_minus_2.value(),
             10,
             local.w_i_minus_2_rs_10,
+            local.shard,
             local.is_real,
         );
         // (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19)
@@ -155,6 +163,7 @@ where
             local.w_i_minus_2_rr_17.value,
             local.w_i_minus_2_rr_19.value,
             local.s1_intermediate,
+            local.shard,
             local.is_real,
         );
         // s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)
@@ -163,6 +172,7 @@ where
             local.s1_intermediate.value,
             local.w_i_minus_2_rs_10.value,
             local.s1,
+            local.shard,
             local.is_real,
         );
 
@@ -173,6 +183,7 @@ where
             local.s0.value,
             *local.w_i_minus_7.value(),
             local.s1.value,
+            local.shard,
             local.is_real,
             local.s2,
         );

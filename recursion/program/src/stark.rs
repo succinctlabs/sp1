@@ -657,7 +657,7 @@ pub(crate) mod tests {
         let mut challenger = machine.config().challenger();
 
         let record_clone = runtime.record.clone();
-        machine.debug_constraints(&program, &pk, record_clone, &mut challenger);
+        machine.debug_constraints(&pk, record_clone, &mut challenger);
 
         let start = Instant::now();
         let mut challenger = machine.config().challenger();

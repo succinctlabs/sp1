@@ -588,24 +588,6 @@ where
                     .unzip()
             });
 
-        #[cfg(not(feature = "perf"))]
-        {
-            let bytes_written = shard_main_data
-                .iter()
-                .map(|data| match data {
-                    ShardMainDataWrapper::InMemory(_) => 0,
-                    ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
-                    ShardMainDataWrapper::Empty() => 0,
-                })
-                .sum::<u64>();
-            if bytes_written > 0 {
-                tracing::debug!(
-                    "total main data written to disk: {}",
-                    size::Size::from_bytes(bytes_written)
-                );
-            }
-        }
-
         (commitments, shard_main_data)
     }
 }

@@ -33,19 +33,22 @@ impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
         for (i, opcode) in ByteOpcode::all().iter().enumerate() {
             let field_op = opcode.as_field::<AB::F>();
             let mult = local_mult.multiplicities[i];
+            let shard = local_mult.shard;
             match opcode {
                 ByteOpcode::AND => {
-                    builder.receive_byte(field_op, local.and, local.b, local.c, mult)
+                    builder.receive_byte(field_op, local.and, local.b, local.c, shard, mult)
                 }
-                ByteOpcode::OR => builder.receive_byte(field_op, local.or, local.b, local.c, mult),
+                ByteOpcode::OR => {
+                    builder.receive_byte(field_op, local.or, local.b, local.c, shard, mult)
+                }
                 ByteOpcode::XOR => {
-                    builder.receive_byte(field_op, local.xor, local.b, local.c, mult)
+                    builder.receive_byte(field_op, local.xor, local.b, local.c, shard, mult)
                 }
                 ByteOpcode::SLL => {
-                    builder.receive_byte(field_op, local.sll, local.b, local.c, mult)
+                    builder.receive_byte(field_op, local.sll, local.b, local.c, shard, mult)
                 }
                 ByteOpcode::U8Range => {
-                    builder.receive_byte(field_op, AB::F::zero(), local.b, local.c, mult)
+                    builder.receive_byte(field_op, AB::F::zero(), local.b, local.c, shard, mult)
                 }
                 ByteOpcode::ShrCarry => builder.receive_byte_pair(
                     field_op,
@@ -53,19 +56,21 @@ impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
                     local.shr_carry,
                     local.b,
                     local.c,
+                    shard,
                     mult,
                 ),
                 ByteOpcode::LTU => {
-                    builder.receive_byte(field_op, local.ltu, local.b, local.c, mult)
+                    builder.receive_byte(field_op, local.ltu, local.b, local.c, shard, mult)
                 }
                 ByteOpcode::MSB => {
-                    builder.receive_byte(field_op, local.msb, local.b, AB::F::zero(), mult)
+                    builder.receive_byte(field_op, local.msb, local.b, AB::F::zero(), shard, mult)
                 }
                 ByteOpcode::U16Range => builder.receive_byte(
                     field_op,
                     local.value_u16,
                     AB::F::zero(),
                     AB::F::zero(),
+                    shard,
                     mult,
                 ),
             }

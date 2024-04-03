@@ -72,6 +72,9 @@ pub struct MulChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -187,6 +190,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                                 for word in words.iter() {
                                     let most_significant_byte = word[WORD_SIZE - 1];
                                     blu_events.push(ByteLookupEvent {
+                                        shard: event.shard,
                                         opcode: ByteOpcode::MSB,
                                         a1: get_msb(*word) as u32,
                                         a2: 0,
@@ -229,11 +233,12 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
                         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
                         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
+                        cols.shard = F::from_canonical_u32(event.shard);
 
                         // Range check.
                         {
-                            record.add_u16_range_checks(&carry);
-                            record.add_u8_range_checks(&product.map(|x| x as u8));
+                            record.add_u16_range_checks(event.shard, &carry);
+                            record.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
                         }
                         row
                     })
@@ -294,7 +299,7 @@ where
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
-                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
             }
             (local.b_msb, local.c_msb)
         };
@@ -420,13 +425,20 @@ where
             // Ensure that the carry is at most 2^16. This ensures that
             // product_before_carry_propagation - carry * base + last_carry never overflows or
             // underflows enough to "wrap" around to create a second solution.
-            builder.slice_range_check_u16(&local.carry, local.is_real);
+            builder.slice_range_check_u16(&local.carry, local.shard, local.is_real);
 
-            builder.slice_range_check_u8(&local.product, local.is_real);
+            builder.slice_range_check_u8(&local.product, local.shard, local.is_real);
         }
 
         // Receive the arguments.
-        builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
+        builder.receive_alu(
+            opcode,
+            local.a,
+            local.b,
+            local.c,
+            local.shard,
+            local.is_real,
+        );
 
         // A dummy constraint to keep the degree at least 3.
         builder.assert_zero(
@@ -462,6 +474,7 @@ mod tests {
         let mut mul_events: Vec<AluEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
             mul_events.push(AluEvent::new(
+                0,
                 0,
                 Opcode::MULHSU,
                 0x80004000,
@@ -536,12 +549,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            mul_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(AluEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
         }
 
         shard.mul_events = mul_events;

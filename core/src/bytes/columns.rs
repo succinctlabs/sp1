@@ -43,8 +43,12 @@ pub struct BytePreprocessedCols<T> {
     pub value_u16: T,
 }
 
+/// For each byte operation in the preprocessed table, a corresponding ByteMultCols row tracks the
+/// number of times the operation is used.
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
 pub struct ByteMultCols<T> {
     pub multiplicities: [T; NUM_BYTE_OPS],
+    /// Shard number is tracked so that the multiplicities do not overflow.
+    pub shard: T,
 }
