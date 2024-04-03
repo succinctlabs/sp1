@@ -243,6 +243,7 @@ where
                     builder,
                     chip,
                     &values,
+                    proof.public_values_digest,
                     trace_domain,
                     qc_domains,
                     zeta,
@@ -262,6 +263,7 @@ pub(crate) mod tests {
     use crate::challenger::FeltChallenger;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
+    use sp1_core::air::PublicValuesDigest;
     use sp1_core::runtime::Program;
     use sp1_core::{
         air::MachineAir,
@@ -269,12 +271,15 @@ pub(crate) mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::ir::Array;
+    use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::{
         asm::{AsmConfig, VmBuilder},
         ir::{Builder, Config, ExtConst, Usize},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_sdk::{SP1Prover, SP1Stdin};
+
+    use sp1_core::air::Word;
 
     use crate::{
         challenger::DuplexChallengerVariable,
@@ -302,6 +307,12 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         let index = builder.materialize(Usize::Const(proof.index));
+
+        // Set up the public values digest.
+        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
+            let word_val = proof.public_values_digest[i];
+            Word(core::array::from_fn(|j| builder.eval(word_val[j])))
+        }));
 
         // Set up the commitments.
         let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
@@ -360,6 +371,7 @@ pub(crate) mod tests {
             opened_values,
             opening_proof,
             sorted_indices,
+            public_values_digest,
         }
     }
 
@@ -427,7 +439,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_recursive_verify_shard() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
@@ -438,16 +449,20 @@ pub(crate) mod tests {
 
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+        let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
-            .proof
-            .shard_proofs;
+            .proof;
         println!("Proof generated successfully");
 
         challenger_val.observe(vk.commit);
-        proofs.iter().for_each(|proof| {
+        proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
         });
+
+        // Observe the public input digest
+        let pv_digest_field_elms: Vec<F> =
+            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
+        challenger_val.observe_slice(&pv_digest_field_elms);
 
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
@@ -465,12 +480,19 @@ pub(crate) mod tests {
         challenger.observe(&mut builder, preprocessed_commit);
 
         let mut shard_proofs = vec![];
-        for proof_val in proofs {
+        for proof_val in proof.shard_proofs {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
         }
+        // Observe the public input digest
+        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
+            .iter()
+            .map(|x| builder.eval(*x))
+            .collect();
+        challenger.observe_slice(&mut builder, &pv_digest_felt);
+        builder.print_f(pv_digest_felt[0]);
 
         for proof in shard_proofs {
             StarkVerifier::<C, SC>::verify_shard(

@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use p3_field::AbstractField;
 
 use sp1_recursion_compiler::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
@@ -7,6 +9,25 @@ use crate::types::Commitment;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
+
+    fn observe_slice(&mut self, builder: &mut Builder<C>, values: &[V])
+    where
+        V: Copy,
+    {
+        for value in values {
+            self.observe(builder, *value);
+        }
+    }
+
+    fn observe_iter<T>(&mut self, builder: &mut Builder<C>, values: impl IntoIterator<Item = T>)
+    where
+        T: Borrow<V>,
+        V: Copy,
+    {
+        for value in values {
+            self.observe(builder, *value.borrow());
+        }
+    }
 }
 
 pub trait CanSampleVariable<C: Config, V> {
