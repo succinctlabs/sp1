@@ -153,5 +153,4 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 #[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
-    pub public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
 }

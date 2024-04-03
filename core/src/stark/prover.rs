@@ -84,17 +84,29 @@ where
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
+            shard_commits
+                .into_iter()
+                .zip(shards.iter())
+                .for_each(|(commitment, shard)| {
+                    challenger.observe(commitment);
+                    let public_values =
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values());
+                    challenger.observe(public_values.shard);
+                    challenger.observe(public_values.first_row_clk);
+                    challenger.observe(public_values.last_row_next_clk);
+                    challenger.observe(public_values.first_row_pc);
+                    challenger.observe(public_values.last_row_next_pc);
+                });
         });
 
-        let public_values_digest = shards.last().expect("at least one shard").public_values();
-
-        // Observe the public input digest.
-
-        let public_values_field = PublicValues::<Word<Val<SC>>, Val<SC>>::new(public_values_digest);
-        challenger.observe_slice(&public_values_field.serialize());
+        let last_public_values = shards.last().expect("at least one shard").public_values();
+        let last_public_values_field =
+            PublicValues::<Word<Val<SC>>, Val<SC>>::new(last_public_values);
+        challenger.observe(last_public_values_field.exit_code);
+        last_public_values_field
+            .committed_value_digest
+            .iter()
+            .for_each(|word| challenger.observe_slice(&word.0));
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -150,10 +162,7 @@ where
                 .collect::<Vec<_>>()
         });
 
-        Proof {
-            shard_proofs,
-            public_values: public_values_field,
-        }
+        Proof { shard_proofs }
     }
 }
 

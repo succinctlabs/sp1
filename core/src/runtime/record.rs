@@ -280,6 +280,21 @@ impl MachineRecord for ExecutionRecord {
                 shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
                 shard.program = self.program.clone();
 
+                // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
+                // will read the public values.  But in some very rare edge cases, the last two shards will
+                // read it (e.g. when the halt instruction is the only instruction in the last shard).
+                // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
+                // for all of the shards.
+                shard.public_values.committed_value_digest =
+                    self.public_values.committed_value_digest;
+
+                shard.public_values.first_row_clk = shard.cpu_events[0].clk;
+                shard.public_values.first_row_pc = shard.cpu_events[0].pc;
+                shard.public_values.last_row_next_clk =
+                    shard.cpu_events[shard.cpu_events.len() - 1].next_clk;
+                shard.public_values.last_row_next_pc =
+                    shard.cpu_events[shard.cpu_events.len() - 1].next_pc;
+
                 if !(at_last_event) {
                     start_idx = i;
                     current_shard_num = cpu_event.shard;
@@ -437,15 +452,6 @@ impl MachineRecord for ExecutionRecord {
         last_shard
             .program_memory_events
             .extend_from_slice(&self.program_memory_events);
-
-        // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
-        // will read the public values.  But in some very rare edge cases, the last two shards will
-        // read it (e.g. when the halt instruction is the only instruction in the last shard).
-        // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
-        // for all of the shards.
-        for shard in shards.iter_mut() {
-            shard.public_values = self.public_values;
-        }
 
         shards
     }

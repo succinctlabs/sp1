@@ -240,11 +240,25 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
+                challenger.observe(proof.public_values.shard);
+                challenger.observe(proof.public_values.first_row_clk);
+                challenger.observe(proof.public_values.last_row_next_clk);
+                challenger.observe(proof.public_values.first_row_pc);
+                challenger.observe(proof.public_values.last_row_next_pc);
             });
         });
 
-        // Observe the public input digest
-        challenger.observe_slice(&proof.public_values.serialize());
+        // Observe the public values exit code and commited_value_digest;
+        let last_shard_proof = proof
+            .shard_proofs
+            .last()
+            .expect("must have at least one shard proof");
+        challenger.observe(last_shard_proof.public_values.exit_code);
+        last_shard_proof
+            .public_values
+            .committed_value_digest
+            .iter()
+            .for_each(|word| challenger.observe_slice(&word.0));
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");

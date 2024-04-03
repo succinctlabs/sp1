@@ -223,10 +223,7 @@ where
         shard_proofs.append(&mut new_proofs);
     }
 
-    let proof = crate::stark::Proof::<SC> {
-        shard_proofs,
-        public_values: public_values_field,
-    };
+    let proof = crate::stark::Proof::<SC> { shard_proofs };
 
     // Prove the program.
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
