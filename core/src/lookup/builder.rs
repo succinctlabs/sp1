@@ -2,7 +2,7 @@ use crate::air::{AirInteraction, MessageBuilder};
 use p3_air::{AirBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_uni_stark::{SymbolicExpression, SymbolicVariable};
+use p3_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
 
 use super::Interaction;
 
@@ -19,7 +19,14 @@ impl<F: Field> InteractionBuilder<F> {
         let values = [false, true]
             .into_iter()
             .flat_map(|is_next| {
-                (0..width).map(move |column| SymbolicVariable::new(is_next, column))
+                (0..width).map(move |column| {
+                    SymbolicVariable::new(
+                        Entry::Main {
+                            offset: is_next as usize,
+                        },
+                        column,
+                    )
+                })
             })
             .collect();
         Self {
@@ -109,9 +116,13 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 ) -> (Vec<(PairCol, F)>, F) {
     match expression {
         SymbolicExpression::Constant(c) => (vec![], *c),
-        SymbolicExpression::Variable(v) if !v.is_next => {
-            (vec![(PairCol::Main(v.column), F::one())], F::zero())
-        }
+        SymbolicExpression::Variable(v) => match v.entry {
+            Entry::Main { offset } => {
+                assert!(offset == 0);
+                (vec![(PairCol::Main(v.index), F::one())], F::zero())
+            }
+            _ => unreachable!(),
+        },
         SymbolicExpression::Add { x, y, .. } => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
             let (v_r, c_r) = eval_symbolic_to_virtual_pair(y);
@@ -159,24 +170,21 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 
 #[cfg(test)]
 mod tests {
-    use p3_air::{Air, BaseAir, VirtualPairCol};
+    use p3_air::{Air, BaseAir};
     use p3_baby_bear::BabyBear;
-    use p3_field::{AbstractField, Field};
+    use p3_field::AbstractField;
     use p3_matrix::MatrixRowSlices;
 
     use super::*;
-    use crate::{
-        air::SP1AirBuilder,
-        lookup::{InteractionBuilder, InteractionKind},
-    };
+    use crate::{air::SP1AirBuilder, lookup::InteractionKind};
 
     #[test]
     fn test_symbolic_to_virtual_pair_col() {
         type F = BabyBear;
 
-        let x = SymbolicVariable::<F>::new(false, 0);
+        let x = SymbolicVariable::<F>::new(Entry::Main { offset: 0 }, 0);
 
-        let y = SymbolicVariable::<F>::new(false, 1);
+        let y = SymbolicVariable::<F>::new(Entry::Main { offset: 0 }, 1);
 
         let z = x + y;
 

@@ -2,9 +2,7 @@ use core::marker::PhantomData;
 
 use super::{AssemblyCode, BasicBlock};
 use alloc::collections::BTreeMap;
-use alloc::string::String;
 use alloc::vec;
-use alloc::vec::Vec;
 
 use p3_field::ExtensionField;
 use p3_field::PrimeField;

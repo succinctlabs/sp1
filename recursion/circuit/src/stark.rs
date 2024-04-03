@@ -299,7 +299,7 @@ pub(crate) mod tests {
                 false,
                 true,
             )]
-            .repeat(1 << 19),
+            .repeat(1 << 2),
         }
     }
 

@@ -45,8 +45,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
         let rows = input
             .cpu_events
             .iter()
-            .enumerate()
-            .map(|(_, event)| {
+            .map(|event| {
                 let mut row = [F::zero(); NUM_CPU_COLS];
                 let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
 

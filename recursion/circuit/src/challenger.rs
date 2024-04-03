@@ -25,7 +25,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
             ],
             input_buffer: vec![],
             output_buffer: vec![],
-            num_f_elms: C::N::bits() / C::F::bits(),
+            num_f_elms: C::N::bits() / 64,
         }
     }
 
@@ -118,9 +118,9 @@ pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -
     let mut results = Vec::new();
     for i in 0..n {
         let result: Felt<C::F> = builder.eval(C::F::zero());
-        for j in 0..32 {
-            let bit = bits[i * 32 + j];
-            let t = builder.eval(result + C::F::from_wrapped_u32(1 << j));
+        for j in 0..64 {
+            let bit = bits[i * 64 + j];
+            let t = builder.eval(result + C::F::from_wrapped_u64(1 << j));
             let z = builder.select_f(bit, t, result);
             builder.assign(result, z);
         }

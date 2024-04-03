@@ -1,7 +1,5 @@
 use std::borrow::BorrowMut;
 
-use alloc::vec::Vec;
-
 use crate::stark::MachineRecord;
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
