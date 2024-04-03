@@ -46,7 +46,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
     fn prove_shards(
         machine: &MachineStark<SC, A>,
         pk: &ProvingKey<SC>,
-        shards: Vec<A::Record>, // these are all ProvingRecords
+        shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where

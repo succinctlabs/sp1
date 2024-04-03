@@ -286,10 +286,15 @@ impl MachineRecord for ExecutionRecord {
                 let shard = &mut shards[current_shard_num as usize - 1];
                 shard.index = current_shard_num;
                 shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
+                // Each shard needs program because we use it in ProgramChip.
                 shard.program = self.program.clone();
+
+                // Byte lookups are already sharded, so copy the lookups for the shard respectively.
                 shard.byte_lookups.insert(
                     current_shard_num,
-                    self.byte_lookups[&current_shard_num].clone(),
+                    self.byte_lookups
+                        .remove(&current_shard_num)
+                        .unwrap_or_default(),
                 );
 
                 if !(at_last_event) {

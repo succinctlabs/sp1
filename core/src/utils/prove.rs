@@ -68,34 +68,32 @@ pub fn run_test_core(
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
-    cfg_if::cfg_if! {
-        if #[cfg(feature = "debug")] {
-            let record_clone = runtime.record.clone();
-            machine.debug_constraints(&runtime.program, &pk, record_clone, &mut challenger);
-            panic!("Debug mode enabled, constraints checked, exiting");
-        } else {
-            let start = Instant::now();
-            let proof = tracing::info_span!("prove")
-                .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
-
-            let cycles = runtime.state.global_clk;
-            let time = start.elapsed().as_millis();
-            let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-            let mut challenger = machine.config().challenger();
-            machine.verify(&vk, &proof, &mut challenger)?;
-
-            tracing::info!(
-                "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-                cycles,
-                time,
-                (cycles as f64 / time as f64),
-                Size::from_bytes(nb_bytes),
-            );
-
-            Ok(proof)
-        }
+    #[cfg(feature = "debug")]
+    {
+        let mut challenger_clone = machine.config().challenger();
+        let record_clone = runtime.record.clone();
+        machine.debug_constraints(&runtime.program, &pk, record_clone, &mut challenger_clone);
     }
+    let start = Instant::now();
+    let proof = tracing::info_span!("prove")
+        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+
+    let cycles = runtime.state.global_clk;
+    let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    let mut challenger = machine.config().challenger();
+    machine.verify(&vk, &proof, &mut challenger)?;
+
+    tracing::info!(
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        time,
+        (cycles as f64 / time as f64),
+        Size::from_bytes(nb_bytes),
+    );
+
+    Ok(proof)
 }
 
 fn trace_checkpoint(program: Program, file: &File) -> ExecutionRecord {

@@ -202,7 +202,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &ProvingKey<SC>,
-        record: A::Record, // at this point it's a RuntimeRecord.
+        record: A::Record,
         challenger: &mut SC::Challenger,
     ) -> Proof<SC>
     where
@@ -253,7 +253,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
-        tracing::info!("verifying individual shard succeeded");
+        tracing::info!("verifying individual shards succeeded");
 
         tracing::info!("verifying cumulative sum is 0");
         // Verify the cumulative sum is 0.

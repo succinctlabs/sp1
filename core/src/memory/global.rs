@@ -232,12 +232,11 @@ mod tests {
         let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let record = runtime.record.clone();
         let machine: crate::stark::MachineStark<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let shards = machine.shard(
-            record,
+            runtime.record,
             &<ExecutionRecord as MachineRecord>::Config::default(),
         );
         assert_eq!(shards.len(), 1);
@@ -256,11 +255,10 @@ mod tests {
         let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let record = runtime.record.clone();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let shards = machine.shard(
-            record,
+            runtime.record,
             &<ExecutionRecord as MachineRecord>::Config::default(),
         );
         assert_eq!(shards.len(), 1);
