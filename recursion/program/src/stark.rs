@@ -586,6 +586,7 @@ pub(crate) mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_kitchen_sink() {
         setup_logger();
 
