@@ -175,10 +175,16 @@ where
             builder,
             local,
             is_commit,
-            public_values.committed_value_digest,
+            public_values.committed_value_digest.clone(),
         );
 
-        self.halt_unimpl_eval(builder, local, next, is_halt);
+        self.halt_unimpl_eval(
+            builder,
+            local,
+            next,
+            is_halt,
+            public_values.last_row_next_pc,
+        );
 
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
@@ -519,12 +525,16 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_halt: AB::Expr,
+        public_values_next_pc: AB::Expr,
     ) {
         // If we're halting and it's a transition, then the next.is_real should be 0.
         builder
             .when_transition()
-            .when(is_halt + local.selectors.is_unimpl)
+            .when(is_halt.clone() + local.selectors.is_unimpl)
             .assert_zero(next.is_real);
+
+        // If we're halting, the public values next pc should be 0.
+        builder.when(is_halt).assert_zero(public_values_next_pc);
     }
 }
 
