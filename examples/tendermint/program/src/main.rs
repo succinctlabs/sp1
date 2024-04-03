@@ -17,6 +17,8 @@ fn main() {
     let encoded_1 = sp1_zkvm::io::read_vec();
     let encoded_2 = sp1_zkvm::io::read_vec();
     println!("cycle-tracker-end: reading bytes");
+    println!("first 10 bytes: {:?}", &encoded_1[..10]);
+    println!("first 10 bytes: {:?}", &encoded_2[..10]);
 
     println!("cycle-tracker-start: serde");
     let light_block_1: LightBlock = serde_cbor::from_slice(&encoded_1).unwrap();

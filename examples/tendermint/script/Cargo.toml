@@ -5,14 +5,8 @@ name = "tendermint-script"
 edition = "2021"
 
 [dependencies]
-<<<<<<< HEAD
-sp1-sdk = { path = "../../../sdk", features = ["neon"]  }
-||||||| fe8df5e2
-sp1-core = { path = "../../../core", features = ["neon"]  }
-=======
 sp1-core = { path = "../../../core", features = ["neon"]  }
 sp1-sdk = { path = "../../../sdk" }
->>>>>>> origin/main
 reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1", features = ["full"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
