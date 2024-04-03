@@ -79,6 +79,7 @@ impl<F: Field> Add4Operation<F> {
         expected
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,

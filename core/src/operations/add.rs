@@ -103,9 +103,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, shard.clone(), is_real.clone());
-            builder.slice_range_check_u8(&b.0, shard.clone(), is_real.clone());
-            builder.slice_range_check_u8(&cols.value.0, shard.clone(), is_real);
+            builder.slice_range_check_u8(&a.0, shard, is_real.clone());
+            builder.slice_range_check_u8(&b.0, shard, is_real.clone());
+            builder.slice_range_check_u8(&cols.value.0, shard, is_real);
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

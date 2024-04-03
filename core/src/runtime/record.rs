@@ -495,7 +495,7 @@ impl ExecutionRecord {
         *self
             .byte_lookups
             .entry(blu_event.shard)
-            .or_insert_with(BTreeMap::new)
+            .or_default()
             .entry(blu_event)
             .or_insert(0) += 1
     }

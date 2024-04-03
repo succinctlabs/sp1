@@ -37,6 +37,7 @@ pub struct Add5Operation<T> {
 }
 
 impl<F: Field> Add5Operation<F> {
+    #[allow(clippy::too_many_arguments)]
     pub fn populate(
         &mut self,
         record: &mut ExecutionRecord,

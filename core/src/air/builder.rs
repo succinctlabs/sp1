@@ -112,6 +112,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 
     /// Sends a byte operation with two outputs to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn send_byte_pair<EOp, Ea1, Ea2, Eb, Ec, EShard, EMult>(
         &mut self,
         opcode: EOp,
@@ -165,6 +166,7 @@ pub trait ByteAirBuilder: BaseAirBuilder {
     }
 
     /// Receives a byte operation with two outputs to be processed.
+    #[allow(clippy::too_many_arguments)]
     fn receive_byte_pair<EOp, Ea1, Ea2, Eb, Ec, EMult, EShard>(
         &mut self,
         opcode: EOp,
