@@ -293,11 +293,12 @@ mod tests {
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
         runtime.run();
         let machine = A::machine(config);
-        let (pk, _) = machine.setup(&program);
+        let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
 
         let mut challenger = machine.config().challenger();
+        challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
         });

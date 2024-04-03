@@ -1,20 +1,24 @@
 use std::marker::PhantomData;
 
+use crate::types::OuterDigest;
 use p3_air::Air;
+use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
+use sp1_core::stark::Com;
 use sp1_core::{
     air::MachineAir,
-    stark::{MachineStark, ShardCommitment, StarkGenericConfig},
+    stark::{MachineStark, ShardCommitment, StarkGenericConfig, VerifyingKey},
 };
 use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::stark::config::outer_fri_config;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
 
-use crate::domain::new_coset;
+use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
 use crate::fri::verify_two_adic_pcs;
 use crate::types::TwoAdicPcsMatsVariable;
 use crate::types::TwoAdicPcsRoundVariable;
@@ -27,10 +31,15 @@ pub struct StarkVerifierCircuit<C: Config, SC: StarkGenericConfig> {
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifierCircuit<C, SC>
 where
-    SC: StarkGenericConfig<Val = C::F, Challenge = C::EF>,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
+        vk: &VerifyingKey<SC>,
         machine: &MachineStark<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
         proof: &RecursionShardProofVariable<C>,
@@ -39,12 +48,15 @@ where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
         C::EF: TwoAdicField,
+        Com<SC>: Into<[Bn254Fr; 1]>,
+        SymbolicVar<<C as Config>::N>: From<Bn254Fr>,
     {
         let RecursionShardProofVariable {
             commitment,
             opened_values,
             opening_proof,
             sorted_chips,
+            sorted_indices,
             ..
         } = proof;
 
@@ -80,6 +92,9 @@ where
         let log_quotient_degree_val = 1;
         let num_quotient_chunks_val = 1 << log_quotient_degree_val;
 
+        let num_preprocessed_chips = vk.chip_information.len();
+
+        let mut prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut perm_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
 
@@ -88,6 +103,34 @@ where
 
         let mut qc_points = Vec::new();
         qc_points.push(zeta);
+
+        for (i, (name, domain, _)) in vk.chip_information.iter().enumerate() {
+            let chip_idx = machine
+                .chips()
+                .iter()
+                .rposition(|chip| &chip.name() == name)
+                .unwrap();
+            let index = sorted_indices[chip_idx];
+            let opening = &opened_values.chips[index];
+
+            let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(*domain);
+
+            let mut trace_points = Vec::new();
+            let zeta_next = domain_var.next_point(builder, zeta);
+
+            trace_points.push(zeta);
+            trace_points.push(zeta_next);
+
+            let mut prep_values = Vec::new();
+            prep_values.push(opening.preprocessed.local.clone());
+            prep_values.push(opening.preprocessed.next.clone());
+            let prep_mat = TwoAdicPcsMatsVariable::<C> {
+                domain: domain.clone(),
+                points: trace_points.clone(),
+                values: prep_values,
+            };
+            prep_mats.push(prep_mat);
+        }
 
         for i in 0..num_shard_chips {
             let opening = &opened_values.chips[i];
@@ -149,6 +192,12 @@ where
         }
 
         let mut rounds = Vec::new();
+        let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
+        let prep_commit: OuterDigest<C> = [builder.eval(prep_commit_val[0])];
+        let prep_round = TwoAdicPcsRoundVariable {
+            batch_commit: prep_commit,
+            mats: prep_mats,
+        };
         let main_round = TwoAdicPcsRoundVariable {
             batch_commit: main_commit.clone(),
             mats: main_mats,
@@ -161,6 +210,7 @@ where
             batch_commit: quotient_commit.clone(),
             mats: quotient_mats,
         };
+        rounds.push(prep_round);
         rounds.push(main_round);
         rounds.push(perm_round);
         rounds.push(quotient_round);
@@ -175,16 +225,17 @@ where
                     let quotient_domain = &quotient_domains[i];
                     let qc_domains =
                         quotient_domain.split_domains(builder, chip.log_quotient_degree());
-                    // Self::verify_constraints(
-                    //     builder,
-                    //     chip,
-                    //     values,
-                    //     trace_domain.clone(),
-                    //     qc_domains,
-                    //     zeta,
-                    //     alpha,
-                    //     permutation_challenges,
-                    // );
+                    Self::verify_constraints(
+                        builder,
+                        chip,
+                        values,
+                        proof.public_values_digest,
+                        trace_domain.clone(),
+                        qc_domains,
+                        zeta,
+                        alpha,
+                        permutation_challenges,
+                    );
                 }
             }
         }
@@ -204,7 +255,7 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::{AbstractField, PrimeField32};
     use sp1_core::{
-        air::MachineAir,
+        air::{MachineAir, PublicValuesDigest, Word},
         stark::{
             LocalProver, MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig,
         },
@@ -214,7 +265,7 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::{
         asm::VmBuilder,
         constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, Config, Usize},
+        ir::{Builder, Config, Felt, Usize},
         OuterConfig,
     };
     use sp1_recursion_core::{
@@ -247,6 +298,12 @@ pub(crate) mod tests {
     {
         let index = builder.materialize(Usize::Const(proof.index));
 
+        // Set up the public values digest.
+        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
+            let word_val = proof.public_values_digest[i];
+            Word::<Felt<_>>(core::array::from_fn(|j| builder.eval(word_val[j])))
+        }));
+
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
         let permutation_commit: [Bn254Fr; 1] = proof.commitment.permutation_commit.into();
@@ -278,12 +335,26 @@ pub(crate) mod tests {
             .map(|chip| chip.name())
             .collect::<Vec<_>>();
 
+        let sorted_indices = machine
+            .chips()
+            .iter()
+            .map(|chip| {
+                proof
+                    .chip_ordering
+                    .get(&chip.name())
+                    .map(|i| *i)
+                    .unwrap_or(usize::MAX)
+            })
+            .collect::<Vec<_>>();
+
         RecursionShardProofVariable {
             index: proof.index,
             commitment,
             opened_values,
             opening_proof,
             sorted_chips: chips,
+            public_values_digest,
+            sorted_indices,
         }
     }
 
@@ -332,15 +403,27 @@ pub(crate) mod tests {
         machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         let mut challenger_val = machine.config().challenger();
+        challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
         });
+
+        // Observe the public input digest
+        let pv_digest_field_elms: Vec<F> =
+            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
+        challenger_val.observe_slice(&pv_digest_field_elms);
+
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
             .collect::<Vec<_>>();
 
         let mut builder = Builder::<OuterConfig>::default();
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
+
+        let preprocessed_commit_val: [Bn254Fr; 1] = vk.commit.into();
+        let preprocessed_commit: OuterDigest<C> = [builder.eval(preprocessed_commit_val[0])];
+        challenger.observe_commitment(&mut builder, preprocessed_commit);
+
         let mut shard_proofs = vec![];
         for proof_val in proofs {
             let proof = const_proof(&mut builder, &machine, proof_val);
@@ -349,10 +432,20 @@ pub(crate) mod tests {
             shard_proofs.push(proof);
         }
 
+        // Observe the public input digest
+        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
+            .iter()
+            .map(|x| builder.eval(*x))
+            .collect();
+        pv_digest_felt
+            .iter()
+            .for_each(|x| challenger.observe(&mut builder, *x));
+
         #[allow(clippy::never_loop)]
         for proof in shard_proofs {
             StarkVerifierCircuit::<C, SC>::verify_shard(
                 &mut builder,
+                &vk,
                 &machine,
                 &mut challenger.clone(),
                 &proof,

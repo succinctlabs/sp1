@@ -160,6 +160,13 @@ impl<C: Config + Debug> ConstraintBackend<C> {
                     opcode: ConstraintOpcode::AddEF,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIR::AddEFI(a, b, c) => {
+                    let tmp = self.alloc_f(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::AddEF,
+                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
                 DslIR::AddEI(a, b, c) => {
                     let tmp = self.alloc_e(&mut constraints, c);
                     constraints.push(Constraint {

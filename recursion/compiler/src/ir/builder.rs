@@ -495,6 +495,38 @@ impl<C: Config> Builder<C> {
         result
     }
 
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
+    #[allow(unused_variables)]
+    pub fn exp_usize_f_bits(&mut self, x: Felt<C::F>, power_bits: Vec<Var<C::N>>) -> Felt<C::F> {
+        let mut result = self.eval(C::F::one());
+        let mut power_f: Felt<_> = self.eval(x);
+        for i in 0..power_bits.len() {
+            let bit = power_bits[i];
+            let tmp = self.eval(result * power_f);
+            result = self.select_f(bit, tmp, result);
+            power_f = self.eval(power_f * power_f);
+        }
+        result
+    }
+
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
+    #[allow(unused_variables)]
+    pub fn exp_usize_ef_bits(
+        &mut self,
+        x: Ext<C::F, C::EF>,
+        power_bits: Vec<Var<C::N>>,
+    ) -> Ext<C::F, C::EF> {
+        let mut result = self.eval(SymbolicExt::Const(C::EF::one()));
+        let mut power_f: Ext<_, _> = self.eval(x);
+        for i in 0..power_bits.len() {
+            let bit = power_bits[i];
+            let tmp = self.eval(result * power_f);
+            result = self.select_ef(bit, tmp, result);
+            power_f = self.eval(power_f * power_f);
+        }
+        result
+    }
+
     pub fn exp_bits<V: Variable<C>>(&mut self, x: V, power_bits: &Array<C, Var<C::N>>) -> V
     where
         V::Expression: AbstractField,

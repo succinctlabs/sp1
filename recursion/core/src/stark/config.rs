@@ -41,7 +41,7 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
     FriConfig {
         log_blowup: 3,
-        num_queries: 25,
+        num_queries: 1,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }

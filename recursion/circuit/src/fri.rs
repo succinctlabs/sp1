@@ -112,7 +112,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let two_adic_generator: Felt<_> =
                         builder.eval(C::F::two_adic_generator(log_height));
                     let two_adic_generator_exp =
-                        builder.exp_bits(two_adic_generator, &Array::Fixed(rev_reduced_index));
+                        builder.exp_usize_f_bits(two_adic_generator, rev_reduced_index);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
@@ -181,7 +181,7 @@ pub fn verify_query<C: Config>(
     )));
     let index_bits = builder.num2bits_v_circuit(index, 256);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
-    let mut x = builder.exp_bits(two_adic_generator, &Array::Fixed(rev_reduced_index));
+    let mut x = builder.exp_usize_ef_bits(two_adic_generator, rev_reduced_index);
 
     let mut offset = 0;
     for (log_folded_height, commit, step, beta) in izip!(

@@ -1,6 +1,8 @@
 use p3_air::BaseAir;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractExtensionField;
+use sp1_core::air::PublicValuesDigest;
+use sp1_core::air::Word;
 use sp1_core::{
     air::MachineAir,
     stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
@@ -16,7 +18,9 @@ pub struct RecursionShardProofVariable<C: Config> {
     pub commitment: ShardCommitment<OuterDigest<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
+    pub public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
     pub sorted_chips: Vec<String>,
+    pub sorted_indices: Vec<usize>,
 }
 
 #[derive(Clone)]
