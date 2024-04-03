@@ -66,16 +66,6 @@ where
 {
     type Constant = p3_commit::TwoAdicMultiplicativeCoset<C::F>;
 
-    // fn from_constant(_: &mut Builder<C>, constant: Self::Constant) -> Self {
-    //     let g_val = C::F::two_adic_generator(constant.log_n);
-    //     TwoAdicMultiplicativeCosetVariable::<C> {
-    //         log_n: constant.log_n,
-    //         size: 1 << constant.log_n,
-    //         shift: constant.shift,
-    //         g: g_val,
-    //     }
-    // }
-
     fn next_point(
         &self,
         builder: &mut Builder<C>,
