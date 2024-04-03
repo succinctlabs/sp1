@@ -146,15 +146,6 @@ where
 
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
-            builder.print_v(opening.log_degree);
-            let prep_width = builder.materialize(opening.preprocessed.local.len());
-            let main_width = builder.materialize(opening.main.local.len());
-            let perm_width = builder.materialize(opening.permutation.local.len());
-            let quotient_width = builder.materialize(opening.quotient.len());
-            builder.print_v(prep_width);
-            builder.print_v(main_width);
-            builder.print_v(perm_width);
-            builder.print_v(quotient_width);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
             builder.set(&mut trace_domains, i, domain.clone());
 
@@ -461,6 +452,8 @@ pub(crate) mod tests {
         let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof;
+        let mut challenger_ver = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         println!("Proof generated successfully");
 
         challenger_val.observe(vk.commit);
