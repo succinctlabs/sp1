@@ -1,44 +1,38 @@
 use core::borrow::Borrow;
-use core::mem::transmute;
+use p3_air::PairBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::MatrixRowSlices;
-use p3_util::indices_arr;
 
-use super::columns::ByteCols;
-use super::columns::NUM_BYTE_COLS;
-use super::NUM_BYTE_OPS;
+use super::columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS};
 use super::{ByteChip, ByteOpcode};
 use crate::air::SP1AirBuilder;
 
-/// Makes the column map for the byte chip.
-const fn make_col_map() -> ByteCols<usize> {
-    let indices_arr = indices_arr::<NUM_BYTE_COLS>();
-    unsafe { transmute::<[usize; NUM_BYTE_COLS], ByteCols<usize>>(indices_arr) }
-}
-
 /// The column map for the byte chip.
-pub(crate) const BYTE_COL_MAP: ByteCols<usize> = make_col_map();
+// pub(crate) const BYTE_COL_MAP: ByteCols<usize> = make_col_map();
 
 /// The multiplicity indices for each byte operation.
-pub(crate) const BYTE_MULT_INDICES: [usize; NUM_BYTE_OPS] = BYTE_COL_MAP.multiplicities;
+// pub(crate) const BYTE_MULT_INDICES: [usize; NUM_BYTE_OPS] = BYTE_COL_MAP.multiplicities;
 
 impl<F: Field> BaseAir<F> for ByteChip<F> {
     fn width(&self) -> usize {
-        NUM_BYTE_COLS
+        NUM_BYTE_MULT_COLS
     }
 }
 
-impl<AB: SP1AirBuilder> Air<AB> for ByteChip<AB::F> {
+impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ByteCols<AB::Var> = main.row_slice(0).borrow();
+        let local_mult: &ByteMultCols<AB::Var> = main.row_slice(0).borrow();
+
+        let prep = builder.preprocessed();
+        let local: &BytePreprocessedCols<AB::Var> = prep.row_slice(0).borrow();
 
         // Send all the lookups for each operation.
         for (i, opcode) in ByteOpcode::all().iter().enumerate() {
             let field_op = opcode.as_field::<AB::F>();
-            let mult = local.multiplicities[i];
+            let mult = local_mult.multiplicities[i];
             match opcode {
                 ByteOpcode::AND => {
                     builder.receive_byte(field_op, local.and, local.b, local.c, mult)

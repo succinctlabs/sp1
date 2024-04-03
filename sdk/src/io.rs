@@ -11,7 +11,7 @@ pub struct SP1Stdin {
 
 /// Standard output for the prover.
 #[derive(Serialize, Deserialize)]
-pub struct SP1Stdout {
+pub struct SP1PublicValues {
     pub buffer: Buffer,
 }
 
@@ -69,21 +69,21 @@ impl SP1Stdin {
     }
 }
 
-impl Default for SP1Stdout {
+impl Default for SP1PublicValues {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl SP1Stdout {
-    /// Create a new `SP1Stdout`.
+impl SP1PublicValues {
+    /// Create a new `SP1PublicValues`.
     pub fn new() -> Self {
         Self {
             buffer: Buffer::new(),
         }
     }
 
-    /// Create a `SP1Stdout` from a slice of bytes.
+    /// Create a `SP1PublicValues` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
         Self {
             buffer: Buffer::from(data),

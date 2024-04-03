@@ -80,7 +80,7 @@ use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
 use crate::operations::{IsEqualWordOperation, IsZeroWordOperation};
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `DivRemChip`.
@@ -183,6 +183,8 @@ pub struct DivRemCols<T> {
 
 impl<F: PrimeField> MachineAir<F> for DivRemChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "DivRem".to_string()

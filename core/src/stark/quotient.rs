@@ -1,9 +1,10 @@
+use crate::air::{PublicValuesDigest, Word};
+
 use super::folder::ProverConstraintFolder;
 use super::Chip;
 use super::Domain;
 use super::PackedChallenge;
 use super::PackedVal;
-use super::StarkAir;
 use super::Val;
 use p3_air::Air;
 use p3_air::TwoRowMatrixView;
@@ -23,17 +24,20 @@ pub fn quotient_values<SC, A, Mat>(
     cumulative_sum: SC::Challenge,
     trace_domain: Domain<SC>,
     quotient_domain: Domain<SC>,
+    preprocessed_trace_on_quotient_domain: Mat,
     main_trace_on_quotient_domain: Mat,
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[SC::Challenge],
     alpha: SC::Challenge,
+    public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
 ) -> Vec<SC::Challenge>
 where
-    A: StarkAir<SC>,
+    A: for<'a> Air<ProverConstraintFolder<'a, SC>>,
     SC: StarkGenericConfig,
     Mat: MatrixGet<Val<SC>> + Sync,
 {
     let quotient_size = quotient_domain.size();
+    let prep_width = preprocessed_trace_on_quotient_domain.width();
     let main_width = main_trace_on_quotient_domain.width();
     let perm_width = permutation_trace_on_quotient_domain.width();
     let sels = trace_domain.selectors_on_coset(quotient_domain);
@@ -56,6 +60,22 @@ where
             let is_last_row = *PackedVal::<SC>::from_slice(&sels.is_last_row[i_range.clone()]);
             let is_transition = *PackedVal::<SC>::from_slice(&sels.is_transition[i_range.clone()]);
             let inv_zeroifier = *PackedVal::<SC>::from_slice(&sels.inv_zeroifier[i_range.clone()]);
+
+            let prep_local: Vec<_> = (0..prep_width)
+                .map(|col| {
+                    PackedVal::<SC>::from_fn(|offset| {
+                        preprocessed_trace_on_quotient_domain.get(wrap(i_start + offset), col)
+                    })
+                })
+                .collect();
+            let prep_next: Vec<_> = (0..prep_width)
+                .map(|col| {
+                    PackedVal::<SC>::from_fn(|offset| {
+                        preprocessed_trace_on_quotient_domain
+                            .get(wrap(i_start + next_step + offset), col)
+                    })
+                })
+                .collect();
 
             let local: Vec<_> = (0..main_width)
                 .map(|col| {
@@ -97,10 +117,11 @@ where
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
+            let public_values: Vec<Val<SC>> = public_values_digest.into();
             let mut folder = ProverConstraintFolder {
                 preprocessed: TwoRowMatrixView {
-                    local: &[],
-                    next: &[],
+                    local: &prep_local,
+                    next: &prep_next,
                 },
                 main: TwoRowMatrixView {
                     local: &local,
@@ -117,6 +138,7 @@ where
                 is_transition,
                 alpha,
                 accumulator,
+                public_values: &public_values,
             };
             chip.eval(&mut folder);
 

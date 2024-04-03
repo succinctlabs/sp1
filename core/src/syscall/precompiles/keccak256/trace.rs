@@ -1,6 +1,6 @@
 use std::borrow::BorrowMut;
 
-use crate::stark::MachineRecord;
+use crate::{runtime::Program, stark::MachineRecord};
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
@@ -16,6 +16,7 @@ use super::{
 
 impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
     type Record = ExecutionRecord;
+    type Program = Program;
 
     fn name(&self) -> String {
         "KeccakPermute".to_string()

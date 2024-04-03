@@ -7,7 +7,7 @@ use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};
 use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
 use p3_field::{PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
@@ -20,6 +20,8 @@ use tracing::instrument;
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "CPU".to_string()
@@ -520,6 +522,18 @@ impl CpuChip {
             ecall_cols.is_halt.populate_from_field_element(
                 syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
             );
+
+            // Populate `is_commit`.
+            ecall_cols.is_commit.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
+            );
+
+            // If the syscall is a `COMMIT`, set the index bitmap and digest word.
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()) {
+                let digest_idx = cols.op_b_access.value().to_u32() as usize;
+                ecall_cols.index_bitmap[digest_idx] = F::one();
+                ecall_cols.digest_word = *cols.op_c_access.value();
+            }
         }
     }
 
@@ -557,12 +571,8 @@ mod tests {
 
     use super::*;
 
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{
-        runtime::{tests::simple_program, Instruction, Runtime},
-        utils::BabyBearPoseidon2,
-    };
+    use crate::runtime::{tests::simple_program, Instruction, Runtime};
+    use crate::utils::run_test;
 
     #[test]
     fn generate_trace() {
@@ -610,20 +620,7 @@ mod tests {
 
     #[test]
     fn prove_trace() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-        let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        trace.rows().for_each(|row| println!("{:?}", row));
-
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
-
-        let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        run_test(program).unwrap();
     }
 }

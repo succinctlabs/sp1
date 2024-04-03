@@ -1,5 +1,5 @@
 use super::Domain;
-use crate::air::MachineAir;
+use crate::air::{MachineAir, PublicValuesDigest, Word};
 use crate::stark::MachineChip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -18,6 +18,7 @@ use super::folder::VerifierConstraintFolder;
 use super::types::*;
 use super::StarkGenericConfig;
 use super::Val;
+use super::VerifyingKey;
 
 use core::fmt::Display;
 
@@ -28,6 +29,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     #[cfg(feature = "perf")]
     pub fn verify_shard(
         config: &SC,
+        vk: &VerifyingKey<SC>,
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
@@ -81,6 +83,22 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         challenger.observe(quotient_commit.clone());
 
         let zeta = challenger.sample_ext_element::<SC::Challenge>();
+
+        let preprocessed_domains_points_and_opens = vk
+            .chip_information
+            .iter()
+            .map(|(name, domain, _)| {
+                let i = proof.chip_ordering[name];
+                let values = proof.opened_values.chips[i].preprocessed.clone();
+                (
+                    *domain,
+                    vec![
+                        (zeta, values.local),
+                        (domain.next_point(zeta).unwrap(), values.next),
+                    ],
+                )
+            })
+            .collect::<Vec<_>>();
 
         let main_domains_points_and_opens = trace_domains
             .iter()
@@ -143,6 +161,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .pcs()
             .verify(
                 vec![
+                    (vk.commit.clone(), preprocessed_domains_points_and_opens),
                     (main_commit.clone(), main_domains_points_and_opens),
                     (permutation_commit.clone(), perm_domains_points_and_opens),
                     (quotient_commit.clone(), quotient_domains_points_and_opens),
@@ -168,6 +187,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
+                proof.public_values_digest,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -178,6 +198,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     #[cfg(not(feature = "perf"))]
     pub fn verify_shard(
         _config: &SC,
+        _vk: &VerifyingKey<SC>,
         _chips: &[&MachineChip<SC, A>],
         _challenger: &mut SC::Challenger,
         _proof: &ShardProof<SC>,
@@ -185,6 +206,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     #[cfg(feature = "perf")]
     fn verify_constraints(
         chip: &MachineChip<SC, A>,
@@ -194,6 +216,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
+        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -201,8 +224,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         let sels = trace_domain.selectors_at_point(zeta);
 
         let quotient = Self::recompute_quotient(&opening, &qc_domains, zeta);
-        let folded_constraints =
-            Self::eval_constraints(chip, &opening, &sels, alpha, permutation_challenges);
+        let folded_constraints = Self::eval_constraints(
+            chip,
+            &opening,
+            &sels,
+            alpha,
+            permutation_challenges,
+            public_values_digest,
+        );
 
         // Check that the constraints match the quotient, i.e.
         //     folded_constraints(zeta) / Z_H(zeta) = quotient(zeta)
@@ -219,6 +248,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
+        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -241,6 +271,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
+        let public_values: Vec<Val<SC>> = public_values_digest.into();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
@@ -252,6 +283,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
+            public_values: &public_values,
             _marker: PhantomData,
         };
         chip.eval(&mut folder);

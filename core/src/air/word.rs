@@ -4,6 +4,7 @@ use std::ops::{Index, IndexMut};
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
+use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 
 use super::SP1AirBuilder;
@@ -12,7 +13,9 @@ use super::SP1AirBuilder;
 pub const WORD_SIZE: usize = 4;
 
 /// A word is a 32-bit value represented in an AIR.
-#[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(
+    AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize,
+)]
 #[repr(C)]
 pub struct Word<T>(pub [T; WORD_SIZE]);
 
@@ -41,6 +44,16 @@ impl<T: AbstractField> Word<T> {
     pub fn extend_expr<AB: SP1AirBuilder<Expr = T>>(expr: T) -> Word<AB::Expr> {
         Word([
             AB::Expr::zero() + expr,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+        ])
+    }
+
+    /// Returns a word with all zero expressions.
+    pub fn zero<AB: SP1AirBuilder<Expr = T>>() -> Word<T> {
+        Word([
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),

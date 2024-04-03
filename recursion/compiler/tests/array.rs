@@ -6,6 +6,13 @@ use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::Runtime;
 
+#[derive(DslVariable, Clone, Debug)]
+pub struct Point<C: Config> {
+    x: Var<C::N>,
+    y: Felt<C::F>,
+    z: Ext<C::F, C::EF>,
+}
+
 #[test]
 fn test_compiler_array() {
     type SC = BabyBearPoseidon2;
@@ -67,6 +74,35 @@ fn test_compiler_array() {
         builder.assert_felt_eq(felt_value, F::from_canonical_u32(3));
         let ext_value = builder.get(&ext_array, i);
         builder.assert_ext_eq(ext_value, EF::from_canonical_u32(4).cons());
+    });
+
+    // Test the derived macro and mixed size allocations.
+    let mut point_array = builder.dyn_array::<Point<_>>(len);
+
+    builder.range(0, dyn_len).for_each(|i, builder| {
+        let x: Var<_> = builder.eval(F::two());
+        let y: Felt<_> = builder.eval(F::one());
+        let z: Ext<_, _> = builder.eval(EF::one().cons());
+        let point = Point { x, y, z };
+        builder.set(&mut point_array, i, point);
+    });
+
+    builder.range(0, dyn_len).for_each(|i, builder| {
+        let point = builder.get(&point_array, i);
+        builder.assert_var_eq(point.x, F::two());
+        builder.assert_felt_eq(point.y, F::one());
+        builder.assert_ext_eq(point.z, EF::one().cons());
+    });
+
+    let mut array = builder.dyn_array::<Array<_, Var<_>>>(len);
+
+    builder.range(0, array.len()).for_each(|i, builder| {
+        builder.set(&mut array, i, var_array.clone());
+    });
+
+    builder.range(0, array.len()).for_each(|i, builder| {
+        let point_array_back = builder.get(&array, i);
+        builder.assert_eq::<Array<_, _>>(point_array_back, var_array.clone());
     });
 
     let code = builder.compile_to_asm();

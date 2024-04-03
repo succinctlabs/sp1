@@ -48,10 +48,10 @@ fn main() {
     let mut proof = SP1Prover::prove(JSON_ELF, stdin).expect("proving failed");
 
     // Read output.
-    let val = proof.stdout.read::<String>();
+    let val = proof.public_values.read::<String>();
     println!("Value of {} is {}", key, val);
 
-    let account_state = proof.stdout.read::<Account>();
+    let account_state = proof.public_values.read::<Account>();
     println!(
         "Final account state: {}",
         serde_json::to_string(&account_state).unwrap()
