@@ -115,3 +115,14 @@ impl<T> IntoIterator for Word<T> {
         self.0.into_iter()
     }
 }
+
+impl<F: AbstractField> FromIterator<F> for Word<F> {
+    fn from_iter<I: IntoIterator<Item = F>>(iter: I) -> Self {
+        let mut iter = iter.into_iter();
+        let mut inner = [F::zero(), F::zero(), F::zero(), F::zero()];
+        for i in 0..WORD_SIZE {
+            inner[i] = iter.next().unwrap().clone();
+        }
+        Word(inner)
+    }
+}

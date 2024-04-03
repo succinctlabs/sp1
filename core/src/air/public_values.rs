@@ -1,5 +1,6 @@
 use core::fmt::Debug;
 use itertools::Itertools;
+use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 use std::iter::once;
 
@@ -25,8 +26,8 @@ pub struct PublicValues<W, T> {
     exit_code: T,
 }
 
-impl<T> PublicValues<Word<T>, T> {
-    pub fn serialize(&self) -> &[T] {
+impl<F: AbstractField> PublicValues<Word<F>, F> {
+    pub fn serialize(&self) -> &[F] {
         self.committed_value_digest
             .iter()
             .flat_map(|w| w.into_iter())
@@ -41,6 +42,37 @@ impl<T> PublicValues<Word<T>, T> {
             .chain(once(self.exit_code))
             .collect_vec()
             .as_slice()
+    }
+}
+
+impl<F: AbstractField> PublicValues<Word<F>, F> {
+    pub fn deserialize(data: &[F]) -> Self {
+        let mut iter = data.iter().cloned();
+        let mut committed_value_digest: [Word<F>; PV_DIGEST_NUM_WORDS] = Default::default();
+        for w in committed_value_digest.iter_mut() {
+            *w = Word::from_iter(&mut iter);
+        }
+        let shard = iter.next().unwrap().clone();
+        let first_row_clk = iter.next().unwrap().clone();
+        let last_row_clk = iter.next().unwrap().clone();
+        let last_row_next_clk = iter.next().unwrap().clone();
+        let first_row_pc = iter.next().unwrap().clone();
+        let last_row_pc = iter.next().unwrap().clone();
+        let last_row_next_pc = iter.next().unwrap().clone();
+        let last_row_is_halt = iter.next().unwrap().clone();
+        let exit_code = iter.next().unwrap().clone();
+        Self {
+            committed_value_digest,
+            shard,
+            first_row_clk,
+            last_row_clk,
+            last_row_next_clk,
+            first_row_pc,
+            last_row_pc,
+            last_row_next_pc,
+            last_row_is_halt,
+            exit_code,
+        }
     }
 }
 
