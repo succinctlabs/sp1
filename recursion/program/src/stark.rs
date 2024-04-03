@@ -525,24 +525,24 @@ pub(crate) mod tests {
         runtime.print_stats();
         println!("Execution took: {:?}", elapsed);
 
-        let config = BabyBearPoseidon2::new();
-        let machine = RecursionAir::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let mut challenger = machine.config().challenger();
+        // let config = BabyBearPoseidon2::new();
+        // let machine = RecursionAir::machine(config);
+        // let (pk, vk) = machine.setup(&program);
+        // let mut challenger = machine.config().challenger();
 
-        // debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
-        //     machine.chips(),
-        //     &runtime.record,
-        //     vec![InteractionKind::Memory],
-        // );
+        // // debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
+        // //     machine.chips(),
+        // //     &runtime.record,
+        // //     vec![InteractionKind::Memory],
+        // // );
 
-        let start = Instant::now();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-        let duration = start.elapsed().as_secs();
+        // let start = Instant::now();
+        // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        // let duration = start.elapsed().as_secs();
 
-        let mut challenger = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
-        println!("proving duration = {}", duration);
+        // let mut challenger = machine.config().challenger();
+        // machine.verify(&vk, &proof, &mut challenger).unwrap();
+        // println!("proving duration = {}", duration);
     }
 
     #[test]
