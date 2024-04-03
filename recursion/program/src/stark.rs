@@ -561,6 +561,8 @@ pub(crate) mod tests {
 
         let mut shard_proofs = vec![];
         for proof_val in proof.shard_proofs {
+            let mut proof_val = proof_val;
+            proof_val.commitment.main_commit = [F::zero(); DIGEST_SIZE].into();
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
