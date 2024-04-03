@@ -28,16 +28,16 @@ pub struct ExecutionState {
     pub memory: HashMap<u32, MemoryRecord, BuildNoHashHasher<u32>>,
 
     /// A stream of input values (global to the entire program).
-    pub input_stream: Vec<u8>,
+    pub input_stream: Vec<Vec<u8>>,
 
-    /// A ptr to the current position in the input stream incremented by LWA opcode.
+    /// A ptr to the current position in the input stream incremented by HINT_READ opcode.
     pub input_stream_ptr: usize,
 
-    /// A stream of output values from the program (global to entire program).
-    pub output_stream: Vec<u8>,
+    /// A stream of public values from the program (global to entire program).
+    pub public_values_stream: Vec<u8>,
 
-    /// A ptr to the current position in the output stream, incremented when reading from output_stream.
-    pub output_stream_ptr: usize,
+    /// A ptr to the current position in the public values stream, incremented when reading from public_values_stream.
+    pub public_values_stream_ptr: usize,
 }
 
 impl ExecutionState {
@@ -51,8 +51,8 @@ impl ExecutionState {
             memory: HashMap::default(),
             input_stream: Vec::new(),
             input_stream_ptr: 0,
-            output_stream: Vec::new(),
-            output_stream_ptr: 0,
+            public_values_stream: Vec::new(),
+            public_values_stream_ptr: 0,
         }
     }
 }

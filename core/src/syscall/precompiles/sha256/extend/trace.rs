@@ -3,12 +3,17 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{air::MachineAir, runtime::ExecutionRecord};
+use crate::{
+    air::MachineAir,
+    runtime::{ExecutionRecord, Program},
+};
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 
 impl<F: PrimeField32> MachineAir<F> for ShaExtendChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "ShaExtend".to_string()

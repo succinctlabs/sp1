@@ -3,7 +3,7 @@ use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 
-use crate::commit::PolynomialSpaceVariable;
+use crate::{commit::PolynomialSpaceVariable, types::FriConfigVariable};
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
 #[derive(DslVariable, Clone, Copy)]
@@ -29,26 +29,6 @@ impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
     }
 }
 
-// impl<C: Config> Builder<C> {
-//     pub fn const_domain(
-//         &mut self,
-//         domain: &TwoAdicMultiplicativeCoset<C::F>,
-//     ) -> TwoAdicMultiplicativeCosetVariable<C>
-//     where
-//         C::F: TwoAdicField,
-//     {
-//         let log_d_val = domain.log_n as u32;
-//         let g_val = C::F::two_adic_generator(domain.log_n);
-//         // Initialize a domain.
-//         TwoAdicMultiplicativeCosetVariable::<C> {
-//             log_n: self.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
-//             size: self.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
-//             shift: self.eval(domain.shift),
-//             g: self.eval(g_val),
-//         }
-//     }
-// }
-
 impl<C: Config> FromConstant<C> for TwoAdicMultiplicativeCosetVariable<C>
 where
     C::F: TwoAdicField,
@@ -68,52 +48,40 @@ where
     }
 }
 
-pub fn new_coset<C: Config>(
-    builder: &mut Builder<C>,
-    log_degree: Usize<C::N>,
-) -> TwoAdicMultiplicativeCosetVariable<C>
-where
-    C::F: TwoAdicField,
-{
-    let two_addicity = C::F::TWO_ADICITY;
+// pub fn new_coset<C: Config>(
+//     builder: &mut Builder<C>,
+//     log_degree: Usize<C::N>,
+// ) -> TwoAdicMultiplicativeCosetVariable<C>
+// where
+//     C::F: TwoAdicField,
+// {
+//     let two_addicity = C::F::TWO_ADICITY;
 
-    let is_valid: Var<_> = builder.eval(C::N::zero());
-    let domain: TwoAdicMultiplicativeCosetVariable<C> = builder.uninit();
-    for i in 1..=two_addicity {
-        let i_f = C::N::from_canonical_usize(i);
-        builder.if_eq(log_degree, i_f).then(|builder| {
-            let constant = TwoAdicMultiplicativeCoset {
-                log_n: i,
-                shift: C::F::one(),
-            };
-            let domain_value = TwoAdicMultiplicativeCosetVariable::from_constant(builder, constant);
-            builder.assign(domain.clone(), domain_value);
-            builder.assign(is_valid, C::N::one());
-        });
-    }
+//     let is_valid: Var<_> = builder.eval(C::N::zero());
+//     let domain: TwoAdicMultiplicativeCosetVariable<C> = builder.uninit();
+//     for i in 1..=two_addicity {
+//         let i_f = C::N::from_canonical_usize(i);
+//         builder.if_eq(log_degree, i_f).then(|builder| {
+//             let constant = TwoAdicMultiplicativeCoset {
+//                 log_n: i,
+//                 shift: C::F::one(),
+//             };
+//             let domain_value: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(constant);
+//             builder.assign(domain.clone(), domain_value);
+//             builder.assign(is_valid, C::N::one());
+//         });
+//     }
 
-    builder.assert_var_eq(is_valid, C::N::one());
+//     builder.assert_var_eq(is_valid, C::N::one());
 
-    domain
-}
+//     domain
+// }
 
 impl<C: Config> PolynomialSpaceVariable<C> for TwoAdicMultiplicativeCosetVariable<C>
 where
     C::F: TwoAdicField,
 {
     type Constant = p3_commit::TwoAdicMultiplicativeCoset<C::F>;
-
-    fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self {
-        let log_d_val = constant.log_n as u32;
-        let g_val = C::F::two_adic_generator(constant.log_n);
-        // Initialize a domain.
-        TwoAdicMultiplicativeCosetVariable::<C> {
-            log_n: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
-            size: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
-            shift: builder.eval(constant.shift),
-            g: builder.eval(g_val),
-        }
-    }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L77
     fn next_point(
@@ -165,7 +133,7 @@ where
         let g_dom = self.gen();
 
         // We can compute a generator for the domain by computing g_dom^{log_num_chunks}
-        let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks.into());
+        let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks);
 
         let domain_power: Felt<_> = builder.eval(C::F::one());
         let mut domains = vec![];
@@ -186,8 +154,10 @@ where
         &self,
         builder: &mut Builder<C>,
         log_degree: Usize<<C as Config>::N>,
+        config: Option<FriConfigVariable<C>>,
     ) -> Self {
-        let domain = new_coset(builder, log_degree);
+        // let domain = new_coset(builder, log_degree);
+        let domain = config.unwrap().get_subgroup(builder, log_degree);
         builder.assign(domain.shift, self.shift * C::F::generator());
 
         domain
@@ -199,6 +169,8 @@ pub(crate) mod tests {
 
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
+
+    use crate::fri::{const_fri_config, default_fri_config};
 
     use super::*;
     use p3_commit::{Pcs, PolynomialSpace};
@@ -249,6 +221,8 @@ pub(crate) mod tests {
 
         // Initialize a builder.
         let mut builder = VmBuilder::<F, EF>::default();
+
+        let config_var = const_fri_config(&mut builder, default_fri_config());
         for i in 0..5 {
             let log_d_val = 10 + i;
 
@@ -273,7 +247,8 @@ pub(crate) mod tests {
             );
 
             let log_degree: Usize<_> = builder.eval(Usize::Const(log_d_val) + log_quotient_degree);
-            let disjoint_domain_gen = domain.create_disjoint_domain(&mut builder, log_degree);
+            let disjoint_domain_gen =
+                domain.create_disjoint_domain(&mut builder, log_degree, Some(config_var.clone()));
             domain_assertions(
                 &mut builder,
                 &disjoint_domain_gen,

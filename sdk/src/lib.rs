@@ -44,17 +44,17 @@ pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned>
     #[serde(with = "proof_serde")]
     pub proof: Proof<SC>,
     pub stdin: SP1Stdin,
-    pub stdout: SP1Stdout,
+    pub public_values: SP1PublicValues,
 }
 
 impl SP1Prover {
     /// Executes the elf with the given inputs and returns the output.
-    pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1Stdout> {
+    pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&stdin.buffer.data);
+        runtime.write_vecs(&stdin.buffer);
         runtime.run();
-        Ok(SP1Stdout::from(&runtime.state.output_stream))
+        Ok(SP1PublicValues::from(&runtime.state.public_values_stream))
     }
 
     /// Generate a proof for the execution of the ELF with the given public inputs.
@@ -77,7 +77,7 @@ impl SP1Prover {
     {
         let access_token = std::env::var("PROVER_NETWORK_ACCESS_TOKEN").unwrap();
         let client = SP1ProverServiceClient::with_token(access_token);
-        let id = client.create_proof(elf, &stdin.buffer.data).await?;
+        let id = client.create_proof(elf, stdin).await?;
 
         let mut pb = StageProgressBar::new();
         loop {
@@ -139,12 +139,20 @@ impl SP1Prover {
             }
         } else {
             let program = Program::from(elf);
-            let (proof, stdout_vec) = run_and_prove(program, &stdin.buffer.data, config);
-            let stdout = SP1Stdout::from(&stdout_vec);
+            let (proof, public_values_vec) = run_and_prove(
+                program,
+                #[allow(deprecated)]
+                sp1_core::SP1Stdin {
+                    buffer: stdin.buffer.clone(),
+                    ptr: 0,
+                },
+                config,
+            );
+            let public_values = SP1PublicValues::from(&public_values_vec);
             Ok(SP1ProofWithIO {
                 proof,
                 stdin,
-                stdout,
+                public_values,
             })
         }
     }

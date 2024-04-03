@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
+use crate::air::{PublicValuesDigest, Word};
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -12,7 +13,8 @@ use crate::{
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
-use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
+
+use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 
@@ -35,16 +37,16 @@ pub fn run_test_io(
 ) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&inputs.buffer.data);
+        runtime.write_vecs(&inputs.buffer);
         runtime.run();
         runtime
     });
-    let stdout = SP1Stdout::from(&runtime.state.output_stream);
+    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
     let proof = run_test_core(runtime)?;
     Ok(SP1ProofWithIO {
         proof,
         stdin: inputs,
-        stdout,
+        public_values,
     })
 }
 
@@ -110,7 +112,7 @@ fn reset_seek(file: &mut File) {
 
 pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
-    stdin: &[u8],
+    stdin: SP1Stdin,
     config: SC,
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
@@ -125,24 +127,29 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
-
-    runtime.write_stdin_slice(stdin);
+    runtime.write_vecs(&stdin.buffer);
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
     // If we don't need to batch, we can just run the program normally and prove it.
     if !should_batch {
         runtime.run();
-        let stdout = std::mem::take(&mut runtime.state.output_stream);
+        #[cfg(feature = "debug")]
+        {
+            let record_clone = runtime.record.clone();
+            machine.debug_constraints(&pk, record_clone, &mut challenger);
+        }
+        let public_values = std::mem::take(&mut runtime.state.public_values_stream);
         let proof = prove_core(machine.config().clone(), runtime);
-        return (proof, stdout);
+        return (proof, public_values);
     }
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
+    let mut public_values_digest: PublicValuesDigest<u32> = Default::default();
+    let public_values = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
         let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
@@ -155,7 +162,8 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            return std::mem::take(&mut runtime.state.output_stream);
+            public_values_digest = runtime.record.public_values_digest();
+            return std::mem::take(&mut runtime.state.public_values_stream);
         }
     });
 
@@ -187,6 +195,10 @@ where
         }
     }
 
+    let pv_digest_field_elms: Vec<SC::Val> =
+        PublicValuesDigest::<Word<SC::Val>>::new(public_values_digest).into();
+    challenger.observe_slice(&pv_digest_field_elms);
+
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
     for mut file in checkpoints.into_iter() {
@@ -212,7 +224,10 @@ where
         shard_proofs.append(&mut new_proofs);
     }
 
-    let proof = crate::stark::Proof::<SC> { shard_proofs };
+    let proof = crate::stark::Proof::<SC> {
+        shard_proofs,
+        public_values_digest,
+    };
 
     // Prove the program.
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -225,7 +240,7 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    (proof, stdout)
+    (proof, public_values)
 }
 
 pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>

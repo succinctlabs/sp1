@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");

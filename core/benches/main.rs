@@ -20,7 +20,16 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         };
         group.bench_function(
             format!("main:{}:{}", p.split('/').last().unwrap(), cycles),
-            |b| b.iter(|| run_and_prove(black_box(program.clone()), &[], BabyBearPoseidon2::new())),
+            |b| {
+                b.iter(|| {
+                    run_and_prove(
+                        black_box(program.clone()),
+                        #[allow(deprecated)]
+                        sp1_core::SP1Stdin::new(),
+                        BabyBearPoseidon2::new(),
+                    )
+                })
+            },
         );
     }
     group.finish();

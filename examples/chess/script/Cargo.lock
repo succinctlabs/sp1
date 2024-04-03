@@ -2758,6 +2758,7 @@ dependencies = [
  "serde_json",
  "serde_with",
  "serial_test",
+ "sha2",
  "size",
  "sp1-derive",
  "sp1-zkvm",
@@ -2838,8 +2839,10 @@ dependencies = [
  "getrandom",
  "k256",
  "libm",
+ "once_cell",
  "rand",
  "serde",
+ "sha2",
  "sp1-precompiles",
 ]
 

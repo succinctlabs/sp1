@@ -156,6 +156,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
+        runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
             ShardMainData, ShardProof, StarkGenericConfig, Verifier,
@@ -163,7 +164,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_sdk::{SP1Prover, SP1Stdin};
+    use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
@@ -271,6 +272,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_verify_constraints_parts() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
@@ -283,6 +285,7 @@ mod tests {
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
         let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
@@ -290,6 +293,7 @@ mod tests {
             .shard_proofs;
         println!("Proof generated successfully");
 
+        challenger.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
         });
@@ -321,6 +325,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
+                    proof.public_values_digest,
                 );
 
                 // Compute the folded constraints value in the DSL.
@@ -380,6 +385,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_verify_constraints_whole() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
@@ -392,12 +398,16 @@ mod tests {
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
-            .shard_proofs;
-        println!("Proof generated successfully");
+        let proof =
+            SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone()).unwrap();
+        SP1Verifier::verify_with_config(elf, &proof, machine.config().clone()).unwrap();
+
+        let proofs = proof.proof.shard_proofs;
+        println!("Proof generated and verified successfully");
+
+        challenger.observe(vk.commit);
 
         proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);

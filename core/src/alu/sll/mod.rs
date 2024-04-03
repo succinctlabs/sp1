@@ -43,7 +43,7 @@ use tracing::instrument;
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `ShiftLeft`.
@@ -92,6 +92,8 @@ pub struct ShiftLeftCols<T> {
 
 impl<F: PrimeField> MachineAir<F> for ShiftLeft {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "ShiftLeft".to_string()

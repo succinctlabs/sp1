@@ -96,7 +96,7 @@ where
 
             let log_quotient_size = opening.log_degree + log_quotient_degree_val;
             let quotient_domain =
-                domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size));
+                domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size), None);
             quotient_domains.push(quotient_domain.clone());
 
             let mut trace_points = Vec::new();
@@ -296,6 +296,8 @@ pub(crate) mod tests {
                 F::from_canonical_u32(3),
                 zero,
                 one,
+                F::zero(),
+                F::zero(),
                 false,
                 true,
             )]

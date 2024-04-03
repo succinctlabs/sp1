@@ -4,6 +4,7 @@ use p3_field::Field;
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
+use sp1_recursion_program::types::FriConfigVariable;
 
 #[derive(Clone, Copy)]
 pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
@@ -65,15 +66,15 @@ where
 {
     type Constant = p3_commit::TwoAdicMultiplicativeCoset<C::F>;
 
-    fn from_constant(_: &mut Builder<C>, constant: Self::Constant) -> Self {
-        let g_val = C::F::two_adic_generator(constant.log_n);
-        TwoAdicMultiplicativeCosetVariable::<C> {
-            log_n: constant.log_n,
-            size: 1 << constant.log_n,
-            shift: constant.shift,
-            g: g_val,
-        }
-    }
+    // fn from_constant(_: &mut Builder<C>, constant: Self::Constant) -> Self {
+    //     let g_val = C::F::two_adic_generator(constant.log_n);
+    //     TwoAdicMultiplicativeCosetVariable::<C> {
+    //         log_n: constant.log_n,
+    //         size: 1 << constant.log_n,
+    //         shift: constant.shift,
+    //         g: g_val,
+    //     }
+    // }
 
     fn next_point(
         &self,
@@ -145,6 +146,7 @@ where
         &self,
         builder: &mut Builder<C>,
         log_degree: Usize<<C as Config>::N>,
+        _: Option<FriConfigVariable<C>>,
     ) -> Self {
         let mut domain = match log_degree {
             Usize::Const(log_degree) => new_coset(builder, log_degree),
