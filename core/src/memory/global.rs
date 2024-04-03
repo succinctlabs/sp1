@@ -235,15 +235,16 @@ mod tests {
         let record = runtime.record.clone();
         let machine: crate::stark::MachineStark<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
-        let sharded_record = machine.shard(
+        let (pkey, _) = machine.setup(&program_clone);
+        let shards = machine.shard(
             record,
             &<ExecutionRecord as MachineRecord>::Config::default(),
         );
-        assert_eq!(sharded_record.len(), 1);
+        assert_eq!(shards.len(), 1);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
-            machine.chips(),
-            &program_clone,
-            &sharded_record[0],
+            &machine,
+            &pkey,
+            &shards,
             vec![InteractionKind::Memory],
         );
     }
@@ -257,15 +258,16 @@ mod tests {
         runtime.run();
         let record = runtime.record.clone();
         let machine = RiscvAir::machine(BabyBearPoseidon2::new());
-        let sharded_record = machine.shard(
+        let (pkey, _) = machine.setup(&program_clone);
+        let shards = machine.shard(
             record,
             &<ExecutionRecord as MachineRecord>::Config::default(),
         );
-        assert_eq!(sharded_record.len(), 1);
+        assert_eq!(shards.len(), 1);
         debug_interactions_with_all_chips::<BabyBearPoseidon2, RiscvAir<BabyBear>>(
-            machine.chips(),
-            &program_clone,
-            &sharded_record[0],
+            &machine,
+            &pkey,
+            &shards,
             vec![InteractionKind::Byte],
         );
     }

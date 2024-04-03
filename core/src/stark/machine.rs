@@ -366,15 +366,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         // If the cumulative sum is not zero, debug the interactions.
         if !cumulative_sum.is_zero() {
-            // Get the total record
-            let mut record = A::Record::default();
-            for shard in shards.iter_mut() {
-                record.append(shard);
-            }
             debug_interactions_with_all_chips::<SC, A>(
-                self.chips(),
-                program,
-                &record,
+                &self,
+                &pk,
+                &shards,
                 InteractionKind::all_kinds(),
             );
         }
