@@ -418,12 +418,21 @@ pub mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
-            let internal_constants = RC_16_30.map(|x| x[0]).to_vec();
+            const ROUNDS_F: usize = 8;
+            const ROUNDS_P: usize = 22;
+            let mut round_constants = RC_16_30.to_vec();
+            let internal_start = ROUNDS_F / 2;
+            let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+            let internal_round_constants = round_constants
+                .drain(internal_start..internal_end)
+                .map(|vec| vec[0])
+                .collect::<Vec<_>>();
+            let external_round_constants = round_constants;
             let perm = Perm::new(
-                8,
-                RC_16_30.to_vec(),
-                22,
-                internal_constants,
+                ROUNDS_F,
+                external_round_constants,
+                ROUNDS_P,
+                internal_round_constants,
                 DiffusionMatrixBabybear,
             );
 

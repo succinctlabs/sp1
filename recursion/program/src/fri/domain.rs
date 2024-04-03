@@ -169,8 +169,9 @@ pub(crate) mod tests {
 
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
+    use sp1_recursion_core::stark::config::inner_fri_config;
 
-    use crate::fri::{const_fri_config, default_fri_config};
+    use crate::fri::const_fri_config;
 
     use super::*;
     use p3_commit::{Pcs, PolynomialSpace};
@@ -222,7 +223,7 @@ pub(crate) mod tests {
         // Initialize a builder.
         let mut builder = VmBuilder::<F, EF>::default();
 
-        let config_var = const_fri_config(&mut builder, default_fri_config());
+        let config_var = const_fri_config(&mut builder, inner_fri_config());
         for i in 0..5 {
             let log_d_val = 10 + i;
 
