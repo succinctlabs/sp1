@@ -492,7 +492,6 @@ pub(crate) mod tests {
             .map(|x| builder.eval(*x))
             .collect();
         challenger.observe_slice(&mut builder, &pv_digest_felt);
-        builder.print_f(pv_digest_felt[0]);
 
         for proof in shard_proofs {
             StarkVerifier::<C, SC>::verify_shard(
