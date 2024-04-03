@@ -474,7 +474,6 @@ impl ExecutionRecord {
     }
 
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
-        println!("Adding byte lookup event: {:?}", blu_event);
         *self
             .byte_lookups
             .entry(blu_event.shard)

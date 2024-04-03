@@ -87,6 +87,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let mut row = [F::zero(); NUM_ADD_SUB_COLS];
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let is_add = event.opcode == Opcode::ADD;
+                        cols.shard = F::from_canonical_u32(event.shard);
                         cols.is_add = F::from_bool(is_add);
                         cols.is_sub = F::from_bool(!is_add);
 

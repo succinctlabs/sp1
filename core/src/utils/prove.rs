@@ -68,7 +68,12 @@ pub fn run_test_core(
     let mut challenger = machine.config().challenger();
 
     #[cfg(feature = "debug")]
-    let record_clone = runtime.record.clone();
+    {
+        let record_clone = runtime.record.clone();
+        let mut challenger_clone = challenger.clone();
+        machine.debug_constraints(&runtime.program, &pk, record_clone, &mut challenger_clone);
+        panic!("Debug mode enabled, constraints checked, exiting");
+    }
 
     let start = Instant::now();
     let proof = tracing::info_span!("prove")
@@ -77,9 +82,6 @@ pub fn run_test_core(
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    #[cfg(feature = "debug")]
-    machine.debug_constraints(&runtime.program, &pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;

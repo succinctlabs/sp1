@@ -149,6 +149,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
             let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
             // Initialize cols with basic operands and flags derived from the current event.
             {
+                cols.shard = F::from_canonical_u32(event.shard);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);

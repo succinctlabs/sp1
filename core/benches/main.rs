@@ -4,9 +4,6 @@ use sp1_core::utils::{run_and_prove, BabyBearPoseidon2};
 
 #[allow(unreachable_code)]
 pub fn criterion_benchmark(c: &mut Criterion) {
-    #[cfg(not(feature = "perf"))]
-    unreachable!("--features=perf must be enabled to run this benchmark");
-
     let mut group = c.benchmark_group("prove");
     group.sample_size(10);
     let programs = ["fibonacci"];

@@ -22,6 +22,7 @@ pub struct BitwiseChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Copy)]
+#[repr(C)]
 pub struct BitwiseCols<T> {
     /// The shard of the operation.
     pub shard: T,
@@ -71,6 +72,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
+                cols.shard = F::from_canonical_u32(event.shard);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);

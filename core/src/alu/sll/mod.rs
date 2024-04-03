@@ -117,6 +117,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             let a = event.a.to_le_bytes();
             let b = event.b.to_le_bytes();
             let c = event.c.to_le_bytes();
+            cols.shard = F::from_canonical_u32(event.shard);
             cols.a = Word(a.map(F::from_canonical_u8));
             cols.b = Word(b.map(F::from_canonical_u8));
             cols.c = Word(c.map(F::from_canonical_u8));

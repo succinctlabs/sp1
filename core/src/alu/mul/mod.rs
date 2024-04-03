@@ -233,6 +233,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
                         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
                         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
+                        cols.shard = F::from_canonical_u32(event.shard);
 
                         // Range check.
                         {

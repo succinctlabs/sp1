@@ -171,10 +171,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn shard(
         &self,
-        mut record: A::Record, // This is a RuntimeRecord.
+        mut record: A::Record,
         config: &<A::Record as MachineRecord>::Config,
     ) -> Vec<A::Record> {
-        // These are ShardedRecords.
         // Get the local and global chips.
         let chips = self.chips();
 
@@ -237,7 +236,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         challenger.observe(vk.commit.clone());
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
-        #[cfg(feature = "perf")]
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
@@ -280,7 +278,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         tracing::debug!("sharding the execution record");
-        let mut shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
+        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
         tracing::debug!("checking constraints for each shard");
 
