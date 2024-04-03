@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::{MachineAir, PublicValuesDigest, Word};
+use crate::air::{MachineAir, PublicValues, Word};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
