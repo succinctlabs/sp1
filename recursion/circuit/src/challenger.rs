@@ -132,7 +132,7 @@ pub fn split_32<C: Config>(builder: &mut Builder<C>, val: Var<C::N>, n: usize) -
 #[cfg(test)]
 mod tests {
     use p3_baby_bear::BabyBear;
-    use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
+    use p3_bn254_fr::Bn254Fr;
     use p3_challenger::FieldChallenger;
     use p3_challenger::{CanObserve, CanSample};
     use p3_field::extension::BinomialExtensionField;
@@ -145,14 +145,12 @@ mod tests {
     use sp1_recursion_compiler::ir::Builder;
     use sp1_recursion_compiler::ir::SymbolicExt;
     use sp1_recursion_compiler::OuterConfig;
-    use sp1_recursion_core::stark::config::{OuterChallenger, OuterPerm};
+    use sp1_recursion_core::stark::config::{outer_perm, OuterChallenger};
 
     use super::reduce_32;
     use super::split_32;
+    use crate::challenger::MultiField32ChallengerVariable;
     use crate::DIGEST_SIZE;
-    use crate::{
-        challenger::MultiField32ChallengerVariable, poseidon2::tests::bn254_poseidon2_rc3,
-    };
 
     #[test]
     #[serial]
@@ -211,7 +209,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_challenger() {
-        let perm = OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
+        let perm = outer_perm();
         let mut challenger = OuterChallenger::new(perm).unwrap();
         let a = BabyBear::from_canonical_usize(1);
         let b = BabyBear::from_canonical_usize(2);
@@ -249,7 +247,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_challenger_sample_ext() {
-        let perm = OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254);
+        let perm = outer_perm();
         let mut challenger = OuterChallenger::new(perm).unwrap();
         let a = BabyBear::from_canonical_usize(1);
         let b = BabyBear::from_canonical_usize(2);

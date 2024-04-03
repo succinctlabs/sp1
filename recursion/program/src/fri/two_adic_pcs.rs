@@ -486,7 +486,13 @@ pub(crate) mod tests {
     }
 
     pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
-        let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+        let perm = Perm::new(
+            8,
+            RC_16_30.to_vec(),
+            22,
+            RC_16_30.iter().map(|x| x[0]).collect(),
+            DiffusionMatrixBabybear,
+        );
         let hash = Hash::new(perm.clone());
         let compress = Compress::new(perm.clone());
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
@@ -503,7 +509,13 @@ pub(crate) mod tests {
     fn test_two_adic_fri_pcs_single_batch() {
         let mut rng = &mut OsRng;
         let log_degrees = &[10, 16];
-        let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+        let perm = Perm::new(
+            8,
+            RC_16_30.to_vec(),
+            22,
+            RC_16_30.iter().map(|x| x[0]).collect(),
+            DiffusionMatrixBabybear,
+        );
         let fri_config = default_fri_config();
         let hash = Hash::new(perm.clone());
         let compress = Compress::new(perm.clone());
@@ -603,7 +615,13 @@ pub(crate) mod tests {
     fn test_two_adic_fri_pcs_multi_batches() {
         let mut rng = &mut OsRng;
         let log_degrees = &[10, 16];
-        let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+        let perm = Perm::new(
+            8,
+            RC_16_30.to_vec(),
+            22,
+            RC_16_30.iter().map(|x| x[0]).collect(),
+            DiffusionMatrixBabybear,
+        );
         let fri_config = default_fri_config();
         let hash = Hash::new(perm.clone());
         let compress = Compress::new(perm.clone());

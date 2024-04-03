@@ -30,7 +30,23 @@ pub type OuterPcsProof = TwoAdicFriPcsProof<OuterVal, OuterDft, OuterValMmcs, Ou
 
 /// The permutation for outer recursion.
 pub fn outer_perm() -> OuterPerm {
-    OuterPerm::new(8, 56, bn254_poseidon2_rc3(), DiffusionMatrixBN254)
+    const ROUNDS_F: usize = 8;
+    const ROUNDS_P: usize = 56;
+    let mut round_constants = bn254_poseidon2_rc3();
+    let internal_start = ROUNDS_F / 2;
+    let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+    let internal_round_constants = round_constants
+        .drain(internal_start..internal_end)
+        .map(|vec| vec[0])
+        .collect::<Vec<_>>();
+    let external_round_constants = round_constants;
+    OuterPerm::new(
+        ROUNDS_F,
+        external_round_constants,
+        ROUNDS_P,
+        internal_round_constants,
+        DiffusionMatrixBN254,
+    )
 }
 
 /// The FRI config for outer recursion.
@@ -69,7 +85,13 @@ pub type InnerPcsProof = TwoAdicFriPcsProof<InnerVal, InnerDft, InnerValMmcs, In
 
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {
-    InnerPerm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear)
+    InnerPerm::new(
+        8,
+        RC_16_30.to_vec(),
+        22,
+        RC_16_30.iter().map(|x| x[0]).collect(),
+        DiffusionMatrixBabybear,
+    )
 }
 
 /// The FRI config for inner recursion.

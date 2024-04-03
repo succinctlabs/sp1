@@ -418,7 +418,14 @@ pub mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            let internal_constants = RC_16_30.map(|x| x[0]).to_vec();
+            let perm = Perm::new(
+                8,
+                RC_16_30.to_vec(),
+                22,
+                internal_constants,
+                DiffusionMatrixBabybear,
+            );
 
             let hash = MyHash::new(perm.clone());
 

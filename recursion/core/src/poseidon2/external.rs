@@ -366,8 +366,13 @@ mod tests {
             &mut ExecutionRecord::<BabyBear>::default(),
         );
 
-        let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> =
-            Poseidon2::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+        let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> = Poseidon2::new(
+            8,
+            RC_16_30.to_vec(),
+            22,
+            RC_16_30.map(|x| x[0]).to_vec(),
+            DiffusionMatrixBabybear,
+        );
         let input = [BabyBear::one(); WIDTH];
         let output = gt.permute(input);
 
