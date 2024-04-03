@@ -58,8 +58,8 @@ pub struct ExecutionRecord {
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
 
-    /// All byte lookups that are needed. The outer map is keyed by shard, and the inner map
-    /// tracks the number of times each byte lookup is needed.
+    /// All byte lookups that are needed. The layout is shard -> (event -> count). Byte lookups are
+    /// sharded to prevent the multiplicities from overflowing.
     pub byte_lookups: BTreeMap<u32, BTreeMap<ByteLookupEvent, usize>>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
@@ -238,20 +238,18 @@ impl MachineRecord for ExecutionRecord {
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
 
-        // The structure of `byte_lookups` is `BTreeMap<u32, BTreeMap<ByteLookupEvent, u32>>`
-        for (shard, events_map) in other.byte_lookups.iter() {
-            // If the shard does not exist, simply insert the whole map.
-            if !self.byte_lookups.contains_key(shard) {
-                self.byte_lookups.insert(*shard, events_map.clone());
-            } else {
-                // If the shard exists, update counts for each event.
-                for (event, count) in events_map.iter() {
-                    *self
-                        .byte_lookups
-                        .get_mut(shard)
-                        .unwrap()
-                        .entry(*event)
-                        .or_insert(0) += count;
+        // Merge the byte lookups.
+        for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
+            match self.byte_lookups.get_mut(&shard) {
+                Some(existing) => {
+                    // If there's already a map for this shard, update counts for each event.
+                    for (event, count) in events_map.iter() {
+                        *existing.entry(*event).or_insert(0) += count;
+                    }
+                }
+                None => {
+                    // If there isn't a map for this shard, insert the whole map.
+                    self.byte_lookups.insert(shard, events_map);
                 }
             }
         }
