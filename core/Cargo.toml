@@ -14,7 +14,7 @@ nohash-hasher = "0.2.0"
 num = { version = "0.4.1" }
 p3-air = { workspace = true }
 p3-baby-bear = { workspace = true }
-p3-blake3 = { workspace = true }
+p3-blake3 = { workspace = true, features = ["parallel"] }
 p3-challenger = { workspace = true }
 p3-commit = { workspace = true }
 p3-dft = { workspace = true }
@@ -24,7 +24,7 @@ p3-goldilocks = { workspace = true }
 p3-keccak = { workspace = true }
 p3-keccak-air = { workspace = true }
 p3-matrix = { workspace = true }
-p3-maybe-rayon = { workspace = true }
+p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 p3-mds = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
@@ -72,9 +72,7 @@ rand = "0.8.5"
 
 [features]
 debug = []
-default = ["parallel"]
 neon = ["p3-blake3/neon"]
-parallel = ["p3-maybe-rayon/parallel", "p3-blake3/parallel"]
 
 [[bench]]
 harness = false
