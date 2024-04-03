@@ -60,7 +60,7 @@ pub struct ShiftLeft;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftLeftCols<T> {
-    /// The shard
+    /// The shard number, used for byte lookup table.
     pub shard: T,
 
     /// The output operand.

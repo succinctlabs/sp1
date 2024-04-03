@@ -26,7 +26,7 @@ pub struct LtChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
-    /// The shard
+    /// The shard number, used for byte lookup table.
     pub shard: T,
 
     /// The output operand.

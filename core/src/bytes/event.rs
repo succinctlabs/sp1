@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 /// A byte lookup event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ByteLookupEvent {
-    /// The shard (needed for lookup multiplicity not overflowing).
+    /// The shard number, used for byte lookup table.
     pub shard: u32,
 
     /// The opcode of the operation.
