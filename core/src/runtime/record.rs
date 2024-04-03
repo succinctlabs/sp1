@@ -58,7 +58,8 @@ pub struct ExecutionRecord {
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
 
-    /// A trace of the byte lookups needed.
+    /// All byte lookups that are needed. The outer map is keyed by shard, and the inner map
+    /// tracks the number of times each byte lookup is needed.
     pub byte_lookups: BTreeMap<u32, BTreeMap<ByteLookupEvent, usize>>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
@@ -249,7 +250,7 @@ impl MachineRecord for ExecutionRecord {
                         .byte_lookups
                         .get_mut(shard)
                         .unwrap()
-                        .entry(event.clone())
+                        .entry(*event)
                         .or_insert(0) += count;
                 }
             }
@@ -289,7 +290,7 @@ impl MachineRecord for ExecutionRecord {
                 // Each shard needs program because we use it in ProgramChip.
                 shard.program = self.program.clone();
 
-                // Byte lookups are already sharded, so copy the lookups for the shard respectively.
+                // Byte lookups are already sharded, so put this shard's lookups in.
                 shard.byte_lookups.insert(
                     current_shard_num,
                     self.byte_lookups

@@ -269,7 +269,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn debug_constraints(
         &self,
-        program: &A::Program,
         pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
@@ -288,14 +287,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
             // Generate the main trace for each chip.
+            let pre_traces = chips
+                .iter()
+                .map(|chip| {
+                    pk.chip_ordering
+                        .get(&chip.name())
+                        .map(|index| &pk.traces[*index])
+                })
+                .collect::<Vec<_>>();
             let traces = chips
                 .par_iter()
-                .map(|chip| {
-                    (
-                        chip.generate_trace(shard, &mut A::Record::default()),
-                        chip.generate_preprocessed_trace(program),
-                    )
-                })
+                .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+                .zip(pre_traces)
                 .collect::<Vec<_>>();
 
             // Get a permutation challenge.
@@ -314,7 +317,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     .zip(traces.par_iter())
                     .map(|(chip, (main_trace, pre_trace))| {
                         let perm_trace = chip.generate_permutation_trace(
-                            pre_trace.as_ref(),
+                            *pre_trace,
                             main_trace,
                             &permutation_challenges,
                         );
@@ -365,8 +368,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         // If the cumulative sum is not zero, debug the interactions.
         if !cumulative_sum.is_zero() {
             debug_interactions_with_all_chips::<SC, A>(
-                &self,
-                &pk,
+                self,
+                pk,
                 &shards,
                 InteractionKind::all_kinds(),
             );
