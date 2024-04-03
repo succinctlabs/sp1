@@ -372,8 +372,8 @@ impl ShaCompressChip {
                 local.k,
                 local.mem.access.value,
             ],
-            local.is_compression,
             local.shard,
+            local.is_compression,
             local.temp1,
         );
 

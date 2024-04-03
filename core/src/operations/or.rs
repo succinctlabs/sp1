@@ -40,11 +40,11 @@ impl<F: Field> OrOperation<F> {
     ) {
         for i in 0..WORD_SIZE {
             builder.send_byte(
-                shard,
                 AB::F::from_canonical_u32(ByteOpcode::OR as u32),
                 cols.value[i],
                 a[i],
                 b[i],
+                shard,
                 is_real,
             );
         }
