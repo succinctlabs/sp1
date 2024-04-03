@@ -179,7 +179,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             quotient_chunk_domains,
             opened_values.chips.iter(),
         ) {
-            println!("Verifying chip {}", chip.name());
             Self::verify_constraints(
                 chip,
                 values.clone(),
