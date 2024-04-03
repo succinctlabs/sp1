@@ -79,7 +79,7 @@ pub struct ShiftRightChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
-    /// The shard.
+    /// The shard number, used for byte lookup table.
     pub shard: T,
 
     /// The output operand.

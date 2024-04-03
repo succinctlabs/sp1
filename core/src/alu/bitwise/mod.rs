@@ -24,7 +24,7 @@ pub struct BitwiseChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct BitwiseCols<T> {
-    /// The shard of the operation.
+    /// The shard number, used for byte lookup table.
     pub shard: T,
 
     /// The output operand.

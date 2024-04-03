@@ -21,7 +21,7 @@ use crate::runtime::Opcode;
 /// A standard format for describing ALU operations that need to be proven.
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AluEvent {
-    /// The shard of the operation.
+    /// The shard number, used for byte lookup table.
     pub shard: u32,
 
     /// The clock cycle that the operation occurs on.

@@ -1,8 +1,10 @@
+use std::borrow::BorrowMut;
+
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use super::{
-    columns::{NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
+    columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
     ByteChip,
 };
 use crate::{
@@ -52,12 +54,13 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
 
         for (lookup, mult) in input.byte_lookups[&shard].iter() {
             let (row, index) = event_map[lookup];
+            let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
 
             // Update the trace multiplicity
-            trace.row_mut(row)[index] += F::from_canonical_usize(*mult);
+            cols.multiplicities[index] += F::from_canonical_usize(*mult);
 
             // Set the shard column as the current shard.
-            trace.row_mut(row)[NUM_BYTE_MULT_COLS - 1] = F::from_canonical_u32(shard);
+            cols.shard = F::from_canonical_u32(shard);
         }
 
         trace

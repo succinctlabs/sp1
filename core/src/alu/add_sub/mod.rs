@@ -32,7 +32,7 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
-    /// Shard
+    /// The shard number, used for byte lookup table.
     pub shard: T,
 
     /// Boolean to indicate whether the row is for an add operation.
@@ -153,7 +153,7 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            local.shard.clone(),
+            local.shard,
             is_real,
         );
 

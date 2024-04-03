@@ -72,7 +72,7 @@ pub struct MulChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
-    /// The shard, used for byte lookup table.
+    /// The shard number, used for byte lookup table.
     pub shard: T,
 
     /// The output operand.
