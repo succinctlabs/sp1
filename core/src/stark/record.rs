@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::air::PublicValuesDigest;
+use crate::air::PublicValues;
 
 pub trait MachineRecord: Default + Sized + Send + Sync {
     type Config: Default;
@@ -15,5 +15,5 @@ pub trait MachineRecord: Default + Sized + Send + Sync {
 
     fn shard(self, config: &Self::Config) -> Vec<Self>;
 
-    fn public_values_digest(&self) -> PublicValuesDigest<u32>;
+    fn public_values(&self) -> PublicValues<u32, u32>;
 }

@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
-use crate::air::{PublicValuesDigest, Word};
+use crate::air::{PublicValues, Word};
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -148,7 +148,7 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut public_values_digest: PublicValuesDigest<u32> = Default::default();
+    let mut public_values: PublicValues<u32, u32> = Default::default();
     let public_values = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
@@ -162,7 +162,7 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            public_values_digest = runtime.record.public_values_digest();
+            public_values = runtime.record.public_values();
             return std::mem::take(&mut runtime.state.public_values_stream);
         }
     });
@@ -195,9 +195,8 @@ where
         }
     }
 
-    let pv_digest_field_elms: Vec<SC::Val> =
-        PublicValuesDigest::<Word<SC::Val>>::new(public_values_digest).into();
-    challenger.observe_slice(&pv_digest_field_elms);
+    let public_values_field = PublicValues::<Word<SC::Val>, SC::Val>::new(public_values);
+    challenger.observe_slice(&public_values_field.serialize());
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
@@ -226,7 +225,7 @@ where
 
     let proof = crate::stark::Proof::<SC> {
         shard_proofs,
-        public_values_digest,
+        public_values: public_values_field,
     };
 
     // Prove the program.

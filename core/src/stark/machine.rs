@@ -244,9 +244,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         });
 
         // Observe the public input digest
-        let pv_digest_field_elms: Vec<Val<SC>> =
-            PublicValuesDigest::<Word<Val<SC>>>::new(proof.public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
+        let public_values_field =
+            PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values).into();
+        challenger.observe_slice(&public_values_field.serialize());
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
@@ -356,7 +356,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i],
                         &permutation_traces[i],
                         &permutation_challenges,
-                        PublicValuesDigest::<Word<Val<SC>>>::new(shard.public_values_digest()),
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
                     );
                 }
             });

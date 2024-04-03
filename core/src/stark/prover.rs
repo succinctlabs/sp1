@@ -29,7 +29,7 @@ use crate::stark::record::MachineRecord;
 use crate::stark::MachineChip;
 use crate::stark::ProverConstraintFolder;
 
-use crate::air::{MachineAir, PublicValuesDigest, Word};
+use crate::air::{MachineAir, PublicValues, Word};
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -89,16 +89,13 @@ where
             });
         });
 
-        let public_values_digest = shards
-            .last()
-            .expect("at least one shard")
-            .public_values_digest();
+        let public_values_digest = shards.last().expect("at least one shard").public_values();
 
         // Observe the public input digest.
 
-        let pv_digest_field_elms: Vec<Val<SC>> =
-            PublicValuesDigest::<Word<Val<SC>>>::new(public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
+        let public_values_field =
+            PublicValues::<Word<Val<SC>>, Val<SC>>::new(public_values_digest).into();
+        challenger.observe_slice(&public_values_field.serialize());
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -156,7 +153,7 @@ where
 
         Proof {
             shard_proofs,
-            public_values_digest,
+            public_values: public_values_field,
         }
     }
 }
@@ -226,9 +223,7 @@ where
             main_data,
             chip_ordering,
             index,
-            public_values_digest: PublicValuesDigest::<Word<Val<SC>>>::new(
-                shard.public_values_digest(),
-            ),
+            public_values: PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
         }
     }
 
@@ -380,7 +375,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &permutation_challenges,
                         alpha,
-                        shard_data.public_values_digest,
+                        shard_data.public_values,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -520,7 +515,7 @@ where
             },
             opening_proof,
             chip_ordering: shard_data.chip_ordering,
-            public_values_digest: shard_data.public_values_digest,
+            public_values: shard_data.public_values,
         }
     }
 

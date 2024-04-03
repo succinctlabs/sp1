@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use super::program::Program;
 use super::Opcode;
-use crate::air::PublicValuesDigest;
+use crate::air::PublicValues;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
@@ -90,8 +90,8 @@ pub struct ExecutionRecord {
 
     pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 
-    /// The public values digest.
-    pub public_values_digest: PublicValuesDigest<u32>,
+    /// The public values.
+    pub public_values: PublicValues<u32, u32>,
 }
 
 pub struct ShardingConfig {
@@ -444,16 +444,16 @@ impl MachineRecord for ExecutionRecord {
         // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
         // for all of the shards.
         for shard in shards.iter_mut() {
-            shard.public_values_digest = self.public_values_digest;
+            shard.public_values = self.public_values;
         }
 
         shards
     }
 
-    /// Retrieves the public values digest.  This method is needed for the `MachineRecord` trait, since
+    /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
     /// the public values digest is used by the prover.
-    fn public_values_digest(&self) -> PublicValuesDigest<u32> {
-        self.public_values_digest
+    fn public_values(&self) -> PublicValues<u32, u32> {
+        self.public_values
     }
 }
 
