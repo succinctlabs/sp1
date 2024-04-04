@@ -524,6 +524,19 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
+                DslIR::HintLen(dst) => self.push(AsmInstruction::HintLen(dst.fp())),
+                DslIR::HintVars(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
+                DslIR::HintFelts(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
+                DslIR::HintExts(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
                 _ => unimplemented!(),
             }
         }

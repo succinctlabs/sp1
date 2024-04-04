@@ -649,6 +649,33 @@ impl<C: Config> Builder<C> {
     pub fn power_of_two_expr(&mut self, power: Usize<C::N>) -> Ext<C::F, C::EF> {
         self.sll(C::EF::one().cons(), power)
     }
+
+    pub fn hint_len(&mut self) -> Var<C::N> {
+        let len = self.uninit();
+        self.operations.push(DslIR::HintLen(len));
+        len
+    }
+
+    pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintVars(arr.clone()));
+        arr
+    }
+
+    pub fn hint_felts(&mut self) -> Array<C, Felt<C::F>> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintFelts(arr.clone()));
+        arr
+    }
+
+    pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintExts(arr.clone()));
+        arr
+    }
 }
 
 pub struct IfBuilder<'a, C: Config> {

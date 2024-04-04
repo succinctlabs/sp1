@@ -86,7 +86,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
-    pub block_stream: Vec<Block<F>>,
+    pub witness_stream: Vec<Vec<Block<F>>>,
 
     // pub witness_stream: Vec<Witness<F, EF>>,
     perm: Option<Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>>,
@@ -124,7 +124,7 @@ where
             record,
             perm: Some(perm),
             access: CpuRecord::default(),
-            block_stream: vec![],
+            witness_stream: vec![],
             _marker: PhantomData,
         }
     }
@@ -151,7 +151,7 @@ where
             record,
             perm: None,
             access: CpuRecord::default(),
-            block_stream: vec![],
+            witness_stream: vec![],
             _marker: PhantomData,
         }
     }
@@ -538,11 +538,22 @@ where
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::LWF => {
+                Opcode::HintLen => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     self.mr(a_ptr, MemoryAccessPosition::A);
-                    let a_val = self.block_stream.remove(0);
+                    let a_val: Block<F> =
+                        F::from_canonical_usize(self.witness_stream[0].len()).into();
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::Hint => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    let blocks = self.witness_stream.remove(0);
+                    for (i, block) in blocks.into_iter().enumerate() {
+                        self.memory[dst + i].value = block;
+                    }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
             };
@@ -599,13 +610,13 @@ mod tests {
     type A = RiscvAir<F>;
 
     #[test]
-    fn test_lwv() {
+    fn test_witness() {
         let zero = F::zero();
         let zero_block = [F::zero(); 4];
         let program = Program {
             instructions: vec![
                 Instruction::new(
-                    Opcode::LWF,
+                    Opcode::HintLen,
                     zero,
                     zero_block,
                     zero_block,
@@ -628,7 +639,7 @@ mod tests {
         };
         let machine = A::machine(SC::default());
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.block_stream = vec![F::two().into()];
+        runtime.witness_stream = vec![vec![F::two().into(), F::two().into(), F::two().into()]];
         runtime.run();
     }
 }
