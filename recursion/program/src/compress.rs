@@ -34,8 +34,10 @@ use p3_symmetric::TruncatedPermutation;
 use sp1_core::air::MachineAir;
 use sp1_core::air::Word;
 use sp1_core::stark::MachineStark;
+use sp1_core::stark::Proof;
 use sp1_core::stark::ShardCommitment;
 use sp1_core::stark::ShardProof;
+use sp1_core::stark::VerifyingKey;
 use sp1_core::{
     air::PublicValuesDigest,
     runtime::Program,
@@ -276,20 +278,14 @@ pub(crate) fn const_proof(
     }
 }
 
-pub fn build_compress() -> RecursionProgram<Val> {
-    let elf = include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
+// TODO: proof is only necessary now because it's a constant, it should be I/O soon
+pub fn build_compress(
+    proof: Proof<BabyBearPoseidon2>,
+    vk: VerifyingKey<SC>,
+) -> RecursionProgram<Val> {
     let machine = RiscvAir::machine(SC::default());
 
-    let (_, vk) = machine.setup(&Program::from(elf));
     let mut challenger_val = machine.config().challenger();
-    let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-        .unwrap()
-        .proof;
-    let mut challenger_ver = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
-    println!("Proof generated successfully");
-
     challenger_val.observe(vk.commit);
     proof.shard_proofs.iter().for_each(|proof| {
         challenger_val.observe(proof.commitment.main_commit);
