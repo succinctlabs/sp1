@@ -25,7 +25,7 @@ lazy_static! {
             BabyBear::from_wrapped_u32(1969905919),
             BabyBear::from_wrapped_u32(4109944726),
             BabyBear::from_wrapped_u32(3925048366),
-        ], 
+        ],
         [
             BabyBear::from_wrapped_u32(3706859504),
             BabyBear::from_wrapped_u32(759122502),
