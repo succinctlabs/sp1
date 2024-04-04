@@ -76,14 +76,12 @@ pub fn verify_two_adic_pcs<C: Config>(
             let query_opening = builder.get(&proof.query_openings, i);
             let index_bits = builder.get(&fri_challenges.query_indices, i);
             let mut ro: Array<C, Ext<C::F, C::EF>> = builder.array(32);
-            let zero: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::zero()));
             for j in 0..32 {
-                builder.set(&mut ro, j, zero);
+                builder.set(&mut ro, j, C::EF::zero().cons());
             }
             let mut alpha_pow: Array<C, Ext<C::F, C::EF>> = builder.array(32);
-            let one: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::one()));
             for j in 0..32 {
-                builder.set(&mut alpha_pow, j, one);
+                builder.set(&mut alpha_pow, j, C::EF::one().cons());
             }
 
             builder.range(0, rounds.len()).for_each(|j, builder| {
@@ -149,20 +147,13 @@ pub fn verify_two_adic_pcs<C: Config>(
                             let z: Ext<C::F, C::EF> = builder.get(&mat_points, l);
                             let ps_at_z = builder.get(&mat_values, l);
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
-                                let p_at_x: SymbolicExt<C::F, C::EF> =
-                                    builder.get(&mat_opening, m).into();
-                                let p_at_z: SymbolicExt<C::F, C::EF> =
-                                    builder.get(&ps_at_z, m).into();
+                                let p_at_x = builder.get(&mat_opening, m);
+                                let p_at_z = builder.get(&ps_at_z, m);
 
-                                let quotient: SymbolicExt<C::F, C::EF> =
-                                    (-p_at_z + p_at_x) / (-z + x);
-                                // let quotient = builder.eval(quotient);
-                                // builder.print_e(quotient);
+                                let quotient = (-p_at_z + p_at_x) / (-z + x);
 
                                 let ro_at_log_height = builder.get(&ro, log_height);
-                                // builder.print_e(ro_at_log_height);
                                 let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
-                                // builder.print_e(alpha_pow_at_log_height);
 
                                 builder.set(
                                     &mut ro,

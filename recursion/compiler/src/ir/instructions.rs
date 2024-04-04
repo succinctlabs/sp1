@@ -109,6 +109,13 @@ pub enum DslIR<C: Config> {
     ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
     Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
 
+    // FRI specific instructions.
+    FriFold(
+        Var<C::N>,
+        Array<C, Ext<C::F, C::EF>>,
+        Array<C, Ext<C::F, C::EF>>,
+    ),
+
     // Circuit-specific instructions.
     CircuitPoseidon2Permute([Var<C::N>; 3]),
     CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),

@@ -1,7 +1,10 @@
 mod domain;
+mod fold;
 mod two_adic_pcs;
 
 pub use domain::*;
+pub use fold::*;
+
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Config;
