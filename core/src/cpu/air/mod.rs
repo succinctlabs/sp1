@@ -338,16 +338,16 @@ impl CpuChip {
             ecall_cols.is_enter_unconstrained.result
         };
 
-        // Constrain EcallCols.is_halt.result == syscall_id is HALT.
-        let is_halt = {
-            IsZeroOperation::<AB::F>::eval(
-                builder,
-                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
-                ecall_cols.is_halt,
-                is_ecall_instruction.clone(),
-            );
-            ecall_cols.is_halt.result
-        };
+        // Verify the is_halt column.
+        builder
+            .when(local.is_real)
+            .when(local.is_halt)
+            .assert_zero(syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()));
+
+        builder
+            .when(local.is_real)
+            .when(local.is_halt)
+            .assert_one(is_ecall_instruction.clone());
 
         // Constrain EcallCols.is_hint_len.result == syscall_id is HINT_LEN.
         let is_hint_len = {
@@ -380,12 +380,12 @@ impl CpuChip {
         // When the syscall is not one of ENTER_UNCONSTRAINED, HINT_LEN, or HALT, op_a shouldn't change.
         builder
             .when(is_ecall_instruction.clone())
-            .when_not(is_enter_unconstrained + is_hint_len + is_halt)
+            .when_not(is_enter_unconstrained + is_hint_len + local.is_halt)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
         (
             num_cycles * is_ecall_instruction.clone(),
-            is_halt * is_ecall_instruction.clone(),
+            local.is_halt.into(),
             is_commit * is_ecall_instruction.clone(),
         )
     }
@@ -473,8 +473,9 @@ impl CpuChip {
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         builder
-            .when_last_real_row(local.is_real, next.is_real)
-            .when(
+            .when_transition()
+            .when(local.is_real - next.is_real)
+            .when_not(
                 is_halt_instruction
                     + is_branch_instruction
                     + local.selectors.is_jal

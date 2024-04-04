@@ -16,6 +16,7 @@ use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use std::borrow::BorrowMut;
 use std::collections::HashMap;
+use std::mem::transmute;
 use tracing::instrument;
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
@@ -513,14 +514,14 @@ impl CpuChip {
                         - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
                 );
 
+            // Populate `is_halt`.
+            if syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id()) {
+                cols.is_halt = F::one();
+            }
+
             // Populate `is_hint_len`.
             ecall_cols.is_hint_len.populate_from_field_element(
                 syscall_id - F::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
-            );
-
-            // Populate `is_halt`.
-            ecall_cols.is_halt.populate_from_field_element(
-                syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
             );
 
             // Populate `is_commit`.
@@ -537,7 +538,7 @@ impl CpuChip {
         }
     }
 
-    fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
+    fn pad_to_power_of_two<F: PrimeField32>(values: &mut Vec<F>) {
         let len: usize = values.len();
         let n_real_rows = values.len() / NUM_CPU_COLS;
         let last_row = &values[len - NUM_CPU_COLS..];

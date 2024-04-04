@@ -15,9 +15,6 @@ pub struct EcallCols<T> {
     /// Whether the current ecall is HINT_LEN.
     pub is_hint_len: IsZeroOperation<T>,
 
-    /// Whether the current ecall is HALT.
-    pub is_halt: IsZeroOperation<T>,
-
     /// Whether the current ecall is a COMMIT.
     pub is_commit: IsZeroOperation<T>,
     /// The digest word passed into the COMMIT ecall. This is the public values digest word calculated

@@ -89,6 +89,11 @@ pub struct CpuCols<T: Copy> {
 
     /// The result of selectors.is_ecall * the send_to_table column for the ECALL opcode.
     pub ecall_mul_send_to_table: T,
+
+    /// The is_halt column is equal to:
+    ///
+    /// > is_ecall & (op_a_val.syscall_id() == HALT)
+    pub is_halt: T,
 }
 
 impl<T: Copy> CpuCols<T> {

@@ -66,11 +66,21 @@ impl CpuChip {
                 .when(is_branch_instruction.clone())
                 .assert_eq(expected_next_pc.clone(), next.pc);
 
-            // Verify that next.pc <==> public_values.next_pc if we are at the last real row.
             builder
                 .when_last_real_row(local.is_real, next.is_real)
-                .when(is_branch_instruction.clone())
-                .assert_eq(public_values_next_pc, expected_next_pc);
+                .when(local.branching)
+                .assert_eq(
+                    public_values_next_pc.clone(),
+                    branch_cols.next_pc.reduce::<AB>(),
+                );
+
+            builder
+                .when_last_real_row(local.is_real, next.is_real)
+                .when(local.not_branching)
+                .assert_eq(
+                    public_values_next_pc,
+                    local.pc + AB::Expr::from_canonical_u8(4),
+                );
         }
 
         // Evaluate branching value constraints.
