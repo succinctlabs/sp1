@@ -26,6 +26,13 @@ jobs:
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
 
+      - name: Install Go 1.22
+        uses: actions/checkout@v4
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+        run: go version
+
       - name: rust-cache
         uses: actions/cache@v3
         with:
@@ -101,6 +108,13 @@ jobs:
         run: |
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
+
+      - name: Install Go 1.22
+        uses: actions/checkout@v4
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+        run: go version
 
       - name: rust-cache
         uses: actions/cache@v3
