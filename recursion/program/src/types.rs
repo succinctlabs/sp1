@@ -1,13 +1,10 @@
 use p3_air::BaseAir;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use sp1_core::air::PublicValuesDigest;
-use sp1_core::air::Word;
+use p3_field::{AbstractExtensionField, AbstractField};
+use sp1_core::air::{PublicValuesDigest, Word};
 use sp1_core::{
     air::MachineAir,
     stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
 };
-
 use sp1_recursion_compiler::prelude::*;
 
 use crate::fri::TwoAdicMultiplicativeCosetVariable;

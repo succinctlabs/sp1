@@ -43,7 +43,7 @@ pub struct CpuRecord<F> {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct MemoryEntry<F: PrimeField32> {
+pub struct MemoryEntry<F> {
     pub value: Block<F>,
     pub timestamp: F,
 }
@@ -86,6 +86,9 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
+    pub block_stream: Vec<Block<F>>,
+
+    // pub witness_stream: Vec<Witness<F, EF>>,
     perm: Option<Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>>,
 
     _marker: PhantomData<EF>,
@@ -121,6 +124,7 @@ where
             record,
             perm: Some(perm),
             access: CpuRecord::default(),
+            block_stream: vec![],
             _marker: PhantomData,
         }
     }
@@ -147,6 +151,7 @@ where
             record,
             perm: None,
             access: CpuRecord::default(),
+            block_stream: vec![],
             _marker: PhantomData,
         }
     }
@@ -533,6 +538,13 @@ where
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::LWF => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.block_stream.remove(0);
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
             };
 
             let event = CpuEvent {
@@ -568,5 +580,55 @@ where
                 ))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_field::AbstractField;
+    use sp1_core::{
+        stark::{RiscvAir, StarkGenericConfig},
+        utils::BabyBearPoseidon2,
+    };
+
+    use super::{Instruction, Opcode, Program, Runtime};
+
+    type SC = BabyBearPoseidon2;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    type A = RiscvAir<F>;
+
+    #[test]
+    fn test_lwv() {
+        let zero = F::zero();
+        let zero_block = [F::zero(); 4];
+        let program = Program {
+            instructions: vec![
+                Instruction::new(
+                    Opcode::LWF,
+                    zero,
+                    zero_block,
+                    zero_block,
+                    zero,
+                    zero,
+                    false,
+                    false,
+                ),
+                Instruction::new(
+                    Opcode::PrintF,
+                    zero,
+                    zero_block,
+                    zero_block,
+                    zero,
+                    zero,
+                    false,
+                    false,
+                ),
+            ],
+        };
+        let machine = A::machine(SC::default());
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.block_stream = vec![F::two().into()];
+        runtime.run();
     }
 }
