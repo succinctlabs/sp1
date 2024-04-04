@@ -1814,7 +1814,7 @@ dependencies = [
  "ecdsa",
  "elliptic-curve",
  "once_cell",
- "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sha2",
  "signature",
 ]
 
@@ -3247,16 +3247,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "sha2"
-version = "0.10.8"
-source = "git+https://github.com/sp1-patches/RustCrypto-hashes.git?branch=patch-v0.10.8#3d692aa90b91513886d757d01f8fc2d51c0ec0d7"
-dependencies = [
- "cfg-if",
- "cpufeatures",
- "digest",
-]
-
-[[package]]
 name = "sha3"
 version = "0.10.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3462,6 +3452,7 @@ dependencies = [
 name = "sp1-prover"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "sp1-core",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -3626,7 +3617,7 @@ dependencies = [
  "once_cell",
  "rand",
  "serde",
- "sha2 0.10.8 (git+https://github.com/sp1-patches/RustCrypto-hashes.git?branch=patch-v0.10.8)",
+ "sha2",
  "sp1-precompiles",
 ]
 
@@ -4597,7 +4588,7 @@ dependencies = [
  "pasta_curves 0.5.1",
  "rand",
  "serde",
- "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sha2",
  "sha3",
  "subtle",
 ]

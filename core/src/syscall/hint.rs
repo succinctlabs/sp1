@@ -104,6 +104,6 @@ mod tests {
         let program = Program::from(HINT_IO_ELF);
 
         let config = BabyBearPoseidon2::new();
-        run_and_prove(program, stdin, config);
+        run_and_prove(program, &stdin.buffer, config);
     }
 }

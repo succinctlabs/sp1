@@ -40,7 +40,6 @@ use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::{
     air::PublicValuesDigest,
-    runtime::Program,
     stark::{RiscvAir, StarkGenericConfig},
 };
 use sp1_recursion_compiler::asm::AsmConfig;
@@ -56,7 +55,7 @@ use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_core::runtime::Program as RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
-use sp1_sdk::{utils::BabyBearPoseidon2, SP1Prover, SP1Stdin};
+use sp1_sdk::utils::BabyBearPoseidon2;
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
