@@ -54,7 +54,7 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
         }
 
         let workspace_root_path = format!("{}:/root/program", metadata.workspace_root);
-        let mut child_agrs = vec![
+        let mut child_args = vec![
             "run",
             "--rm",
             "-v",
@@ -64,11 +64,11 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             "build",
         ];
         if args.ignore_rust_version {
-            child_agrs.push("--ignore-rust-version");
+            child_args.push("--ignore-rust-version");
         }
 
         let mut child = Command::new("docker")
-            .args(&child_agrs)
+            .args(&child_args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
