@@ -42,7 +42,9 @@ fn main() {
     pv_hasher.update(expected_b.to_le_bytes());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pv_bytes: Vec<u8> = proof.proof.public_values_digest.into();
+    let proof_pv_bytes: Vec<u8> = proof.proof.shard_proofs[0]
+        .public_values
+        .committed_value_digest;
     assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
 
     // Save the proof.

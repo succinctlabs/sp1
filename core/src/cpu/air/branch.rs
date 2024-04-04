@@ -67,13 +67,10 @@ impl CpuChip {
                 .when(is_branch_instruction.clone())
                 .assert_eq(expected_next_pc.clone(), next.pc);
 
-            builder
-                .when_last_real_row(local.is_real, next.is_real)
-                .when(local.branching)
-                .assert_eq(
-                    public_values_next_pc.clone(),
-                    branch_cols.next_pc.reduce::<AB>(),
-                );
+            builder.when_last_row().when(local.branching).assert_eq(
+                public_values_next_pc.clone(),
+                branch_cols.next_pc.reduce::<AB>(),
+            );
 
             builder
                 .when_last_real_row(local.is_real, next.is_real)

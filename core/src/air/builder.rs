@@ -95,6 +95,10 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
 
         result
     }
+
+    fn not<I: Into<Self::Expr>>(&self, value: I) -> Self::Expr {
+        Self::Expr::one() - value.into()
+    }
 }
 
 /// A trait which contains methods for byte interactions in an AIR.

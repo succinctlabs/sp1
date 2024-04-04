@@ -9,6 +9,7 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use sp1_zkvm::PV_DIGEST_NUM_WORDS;
+use std::mem::transmute;
 
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
@@ -22,6 +23,8 @@ use crate::memory::MemoryCols;
 use crate::operations::IsZeroOperation;
 use crate::runtime::SyscallCode;
 use crate::runtime::{MemoryAccessPosition, Opcode};
+
+use super::columns::CPU_COL_MAP;
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -57,9 +60,11 @@ where
 
         // Load immediates into b and c, if the immediate flags are on.
         builder
+            .when(local.is_real)
             .when(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), local.instruction.op_b);
         builder
+            .when(local.is_real)
             .when(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), local.instruction.op_c);
 
@@ -207,6 +212,8 @@ where
             local.pc * local.pc * local.pc,
             local.pc * local.pc * local.pc,
         );
+
+        self.padding_rows_eval(builder, local, next);
     }
 }
 
@@ -264,7 +271,7 @@ impl CpuChip {
 
         // Verify that the word form of public_values_next_pc is correct for both jump instructions.
         builder
-            .when_last_real_row(local.is_real, next.is_real)
+            .when_last_row()
             .when(local.selectors.is_jal + local.selectors.is_jalr)
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), public_values_next_pc);
 
@@ -451,8 +458,8 @@ impl CpuChip {
             .assert_eq(expected_next_clk.clone(), next.clk);
 
         builder
-            .when_last_real_row(local.is_real, next.is_real)
-            .assert_eq(public_values.last_row_next_clk, expected_next_clk);
+            .when_last_row()
+            .assert_eq(expected_next_clk, public_values.last_row_next_clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
         builder.verify_range_24bits(
@@ -489,19 +496,17 @@ impl CpuChip {
             )
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        builder
-            .when_transition()
-            .when(local.is_real - next.is_real)
-            .when_not(
-                is_halt_instruction
-                    + is_branch_instruction
-                    + local.selectors.is_jal
-                    + local.selectors.is_jalr,
-            )
-            .assert_eq(
-                public_values.last_row_next_pc,
-                local.pc + AB::Expr::from_canonical_u8(4),
-            );
+        let is_reg_instr = builder.not(
+            is_branch_instruction
+                + local.selectors.is_jal
+                + local.selectors.is_jalr
+                + is_halt_instruction,
+        );
+
+        builder.when_last_row().when(is_reg_instr).assert_eq(
+            public_values.last_row_next_pc,
+            local.pc + AB::Expr::from_canonical_u8(4),
+        );
     }
 
     /// Constraints related to the commit instruction.
@@ -561,6 +566,38 @@ impl CpuChip {
         builder
             .when(is_halt)
             .assert_eq(local.op_a_val().reduce::<AB>(), public_values.exit_code);
+    }
+
+    pub(crate) fn padding_rows_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) {
+        // Verify that the padded rows were correctly added.  All those rows should be equal to
+        // the last real row which is_real set to 0.
+
+        let raw_local_cols =
+            unsafe { transmute::<&CpuCols<AB::Var>, &[AB::Var; NUM_CPU_COLS]>(local) };
+        let raw_next_cols =
+            unsafe { transmute::<&CpuCols<AB::Var>, &[AB::Var; NUM_CPU_COLS]>(next) };
+
+        for i in 0..NUM_CPU_COLS {
+            if i != CPU_COL_MAP.is_real
+                && i != CPU_COL_MAP.selectors.imm_b
+                && i != CPU_COL_MAP.selectors.imm_c
+            {
+                builder
+                    .when_transition()
+                    .when(local.is_real - next.is_real)
+                    .assert_eq(raw_local_cols[i], raw_next_cols[i]);
+            }
+
+            builder
+                .when_transition()
+                .when_not(local.is_real)
+                .assert_eq(raw_local_cols[i], raw_next_cols[i]);
+        }
     }
 }
 
