@@ -61,7 +61,7 @@ pub fn build_program(args: &BuildArgs) -> Result<Utf8PathBuf> {
             workspace_root_path.as_str(),
             image.as_str(),
             "prove",
-            "check",
+            "build",
         ];
         if args.ignore_rust_version {
             child_agrs.push("--ignore-rust-version");
