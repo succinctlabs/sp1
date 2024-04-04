@@ -160,9 +160,9 @@ pub fn verify_two_adic_pcs<C: Config>(
                                 // builder.print_e(quotient);
 
                                 let ro_at_log_height = builder.get(&ro, log_height);
-                                builder.print_e(ro_at_log_height);
+                                // builder.print_e(ro_at_log_height);
                                 let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
-                                builder.print_e(alpha_pow_at_log_height);
+                                // builder.print_e(alpha_pow_at_log_height);
 
                                 builder.set(
                                     &mut ro,
