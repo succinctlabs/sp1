@@ -3509,6 +3509,7 @@ dependencies = [
  "rand",
  "serde",
  "serde_json",
+ "serial_test",
  "sp1-core",
  "sp1-recursion-core",
  "sp1-recursion-derive",

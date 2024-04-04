@@ -364,6 +364,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::{extension::BinomialExtensionField, AbstractField};
+    use serial_test::serial;
 
     use super::*;
     use crate::{
@@ -373,6 +374,7 @@ mod tests {
     };
 
     #[test]
+    #[serial]
     fn test_imm() {
         let program = vec![
             DslIR::Imm(Var::new(0), Bn254Fr::zero()),
@@ -388,6 +390,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_basic_program() {
         let mut builder = Builder::<OuterConfig>::default();
         let a: Var<_> = builder.eval(Bn254Fr::two());
@@ -401,6 +404,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_num2bits_v() {
         let mut builder = Builder::<OuterConfig>::default();
         let value_u32 = 100;

@@ -21,6 +21,7 @@ sp1-recursion-derive = { path = "../derive" }
 serde_json = "1.0.115"
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
+serial_test = "3.0.0"
 
 [dev-dependencies]
 p3-challenger = { workspace = true }

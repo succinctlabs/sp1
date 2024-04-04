@@ -11,8 +11,6 @@ pub fn test_circuit(constraints: Vec<Constraint>) {
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let dir = format!("{}/../groth16", manifest_dir);
     let path = format!("{}/constraints.json", dir);
-    println!("{:?}", path);
-    println!("{:?}", serialized);
     let mut file = File::create(path).unwrap();
     file.write_all(serialized.as_bytes()).unwrap();
 

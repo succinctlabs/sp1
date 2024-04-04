@@ -60,15 +60,15 @@ jobs:
           toolchain: nightly-2024-01-25
           override: true
 
-      # - name: Run cargo test on sp1-core
-      #   uses: actions-rs/cargo@v1
-      #   with:
-      #     command: test
-      #     args: -p sp1-core --release
-      #   env:
-      #     RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-      #     RUST_LOG: 1
-      #     RUST_BACKTRACE: 1
+      - name: Run cargo test on sp1-core
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-core --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
 
       - name: Run cargo test on sp1-recursion-compiler
         uses: actions-rs/cargo@v1
@@ -124,11 +124,6 @@ jobs:
         run: |
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-
-      - name: Install Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version: '1.22'
 
       - name: rust-cache
         uses: actions/cache@v3
