@@ -45,6 +45,19 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.pc.reduce::<AB>(), local.pc);
 
+            // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
+            builder
+                .when_transition()
+                .when(next.is_real)
+                .when(local.branching)
+                .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
+
+            // When we are branching, assert that public_values.next_pc <==> branch_columns.next_pc as Word.
+            builder.when_last_row().when(local.branching).assert_eq(
+                branch_cols.next_pc.reduce::<AB>(),
+                public_values_next_pc.clone(),
+            );
+
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_alu(
                 Opcode::ADD.as_field::<AB::F>(),
@@ -55,23 +68,14 @@ impl CpuChip {
                 local.branching,
             );
 
-            // When we are branching, the expected next pc is branch_columns.next_pc.  When we are
-            // not branching, the expected next pc is local.pc + 4.
-            let expected_next_pc = local.branching * (branch_cols.next_pc.reduce::<AB>())
-                + local.not_branching * (local.pc + AB::Expr::from_canonical_u8(4));
-
-            // Verify that next.pc <==> expected_next_pc if the next row is real and the current
-            // instruction is a branch instruction.
+            // When we are not branching, assert that local.pc + 4 <==> next.pc.
             builder
                 .when_transition()
-                .when(is_branch_instruction.clone())
-                .assert_eq(expected_next_pc.clone(), next.pc);
+                .when(next.is_real)
+                .when(local.not_branching)
+                .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-            builder.when_last_row().when(local.branching).assert_eq(
-                public_values_next_pc.clone(),
-                branch_cols.next_pc.reduce::<AB>(),
-            );
-
+            // When we are not branching, assert that local.pc + 4 <==> public_values.next_pc
             builder.when_last_row().when(local.not_branching).assert_eq(
                 public_values_next_pc,
                 local.pc + AB::Expr::from_canonical_u8(4),

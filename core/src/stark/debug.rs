@@ -57,7 +57,7 @@ pub fn debug_constraints<SC, A>(
         let perm_local = perm.row_slice(i);
         let perm_next = perm.row_slice(i_next);
 
-        let public_values = public_values.serialize();
+        let public_values = public_values.to_vec();
         let mut builder = DebugConstraintBuilder {
             preprocessed: TwoRowMatrixView {
                 local: preprocessed_local,

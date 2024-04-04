@@ -36,7 +36,7 @@ impl<F: Field> InteractionBuilder<F> {
             })
             .collect();
 
-        let public_values = PublicValues::<Word<F>, F>::default().serialize();
+        let public_values = PublicValues::<Word<F>, F>::default().to_vec();
 
         Self {
             preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),

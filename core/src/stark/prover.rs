@@ -91,22 +91,9 @@ where
                     challenger.observe(commitment);
                     let public_values =
                         PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values());
-                    challenger.observe(public_values.shard);
-                    challenger.observe(public_values.first_row_clk);
-                    challenger.observe(public_values.last_row_next_clk);
-                    challenger.observe(public_values.first_row_pc);
-                    challenger.observe(public_values.last_row_next_pc);
+                    challenger.observe_slice(&public_values.to_vec());
                 });
         });
-
-        let last_public_values = shards.last().expect("at least one shard").public_values();
-        let last_public_values_field =
-            PublicValues::<Word<Val<SC>>, Val<SC>>::new(last_public_values);
-        challenger.observe(last_public_values_field.exit_code);
-        last_public_values_field
-            .committed_value_digest
-            .iter()
-            .for_each(|word| challenger.observe_slice(&word.0));
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -231,7 +218,7 @@ where
             main_data,
             chip_ordering,
             index,
-            public_values: PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
+            public_values: shard.public_values(),
         }
     }
 
@@ -383,7 +370,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &permutation_challenges,
                         alpha,
-                        shard_data.public_values,
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard_data.public_values),
                     )
                 })
                 .collect::<Vec<_>>()

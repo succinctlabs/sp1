@@ -6,8 +6,6 @@ use std::iter::once;
 
 use super::Word;
 
-// TODO:  Create a config struct that will store the num_words setting and the hash function
-//        and initial entropy used.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The PublicValues struct is used to represent the public values digest.  This is the hash of all the
@@ -45,7 +43,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         }
     }
 
-    pub fn serialize(&self) -> Vec<F> {
+    pub fn to_vec(&self) -> Vec<F> {
         self.committed_value_digest
             .iter()
             .flat_map(|w| w.clone().into_iter())
@@ -58,26 +56,29 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             .collect_vec()
     }
 
-    pub fn deserialize(data: &[F]) -> Self {
+    pub fn from_vec(data: Vec<F>) -> Self {
         let mut iter = data.iter().cloned();
+
         let mut committed_value_digest: [Word<F>; PV_DIGEST_NUM_WORDS] = Default::default();
         for w in committed_value_digest.iter_mut() {
             *w = Word::from_iter(&mut iter);
         }
-        let shard = iter.next().unwrap().clone();
-        let first_row_clk = iter.next().unwrap().clone();
-        let last_row_next_clk = iter.next().unwrap().clone();
-        let first_row_pc = iter.next().unwrap().clone();
-        let last_row_next_pc = iter.next().unwrap().clone();
-        let exit_code = iter.next().unwrap().clone();
-        Self {
-            committed_value_digest,
-            shard,
-            first_row_clk,
-            last_row_next_clk,
-            first_row_pc,
-            last_row_next_pc,
-            exit_code,
+
+        // Collecting the remaining items into a tuple.
+        if let [shard, first_row_clk, last_row_next_clk, first_row_pc, last_row_next_pc, exit_code] =
+            iter.collect::<Vec<_>>().as_slice()
+        {
+            Self {
+                committed_value_digest,
+                shard: shard.to_owned(),
+                first_row_clk: first_row_clk.to_owned(),
+                last_row_next_clk: last_row_next_clk.to_owned(),
+                first_row_pc: first_row_pc.to_owned(),
+                last_row_next_pc: last_row_next_pc.to_owned(),
+                exit_code: exit_code.to_owned(),
+            }
+        } else {
+            panic!("Invalid number of items in the serialized vector.");
         }
     }
 }

@@ -762,6 +762,7 @@ checksum = "e825f6987101665dea6ec934c09ec6d721de7bc1bf92248e1d5810c8cd636b77"
 name = "fibonacci-io-script"
 version = "0.1.0"
 dependencies = [
+ "itertools 0.12.1",
  "sha2 0.10.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "sp1-helper",
  "sp1-sdk",

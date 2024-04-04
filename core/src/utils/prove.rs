@@ -190,15 +190,15 @@ where
         shard_main_datas.push(commit_data);
 
         if reuse_shards {
-            all_shards = Some(shards);
+            all_shards = Some(shards.clone());
         }
-        for commitment in commitments {
+
+        for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
+            let public_values = PublicValues::<Word<SC::Val>, SC::Val>::new(shard.public_values());
+            challenger.observe_slice(&public_values.to_vec());
         }
     }
-
-    let public_values_field = PublicValues::<Word<SC::Val>, SC::Val>::new(public_values);
-    challenger.observe_slice(&public_values_field.serialize());
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();

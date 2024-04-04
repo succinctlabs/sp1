@@ -117,7 +117,7 @@ where
                 .collect();
 
             let accumulator = PackedChallenge::<SC>::zero();
-            let public_values = public_values.serialize();
+            let public_values = public_values.to_vec();
             let mut folder = ProverConstraintFolder {
                 preprocessed: TwoRowMatrixView {
                     local: &prep_local,

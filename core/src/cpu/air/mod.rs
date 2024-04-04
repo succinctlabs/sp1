@@ -36,8 +36,8 @@ where
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
 
-        let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::deserialize(
-            &builder
+        let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::from_vec(
+            builder
                 .public_values()
                 .iter()
                 .map(|elm| (*elm).into())
