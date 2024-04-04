@@ -161,7 +161,10 @@ mod tests {
 
     use itertools::{izip, Itertools};
     use p3_baby_bear::DiffusionMatrixBabybear;
+    use p3_challenger::{CanObserve, FieldChallenger};
+    use p3_commit::{Pcs, PolynomialSpace};
     use serde::{de::DeserializeOwned, Serialize};
+    use serial_test::serial;
     use sp1_core::{
         air::{PublicValuesDigest, Word},
         stark::{
@@ -169,16 +172,12 @@ mod tests {
             ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
         },
     };
-
-    use p3_challenger::{CanObserve, FieldChallenger};
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
         ir::{Builder, Felt},
         prelude::ExtConst,
         OuterConfig,
     };
-
-    use p3_commit::{Pcs, PolynomialSpace};
     use sp1_recursion_core::{
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
@@ -281,6 +280,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_verify_constraints_whole() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
