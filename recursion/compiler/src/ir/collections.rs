@@ -54,6 +54,7 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
                 todo!()
             }
             Self::Dyn(ptr, len) => {
+                assert!(V::size_of() == 1, "only support variables of size 1");
                 let new_address = builder.eval(ptr.address + shift);
                 let new_ptr = Ptr::<C::N> {
                     address: new_address,

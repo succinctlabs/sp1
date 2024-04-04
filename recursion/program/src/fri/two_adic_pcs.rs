@@ -75,11 +75,12 @@ pub fn verify_two_adic_pcs<C: Config>(
         .for_each(|i, builder| {
             let query_opening = builder.get(&proof.query_openings, i);
             let index_bits = builder.get(&fri_challenges.query_indices, i);
+
             let mut ro: Array<C, Ext<C::F, C::EF>> = builder.array(32);
+            let mut alpha_pow: Array<C, Ext<C::F, C::EF>> = builder.array(32);
             for j in 0..32 {
                 builder.set(&mut ro, j, C::EF::zero().cons());
             }
-            let mut alpha_pow: Array<C, Ext<C::F, C::EF>> = builder.array(32);
             for j in 0..32 {
                 builder.set(&mut alpha_pow, j, C::EF::one().cons());
             }
