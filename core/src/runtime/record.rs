@@ -288,6 +288,7 @@ impl MachineRecord for ExecutionRecord {
                 shard.public_values.committed_value_digest =
                     self.public_values.committed_value_digest;
 
+                shard.public_values.shard = shard.cpu_events[0].shard;
                 shard.public_values.first_row_clk = shard.cpu_events[0].clk;
                 shard.public_values.first_row_pc = shard.cpu_events[0].pc;
                 shard.public_values.last_row_next_clk =

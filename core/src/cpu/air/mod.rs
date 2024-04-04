@@ -33,11 +33,6 @@ where
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
 
-        println!(
-            "is builder interaction: {:?}",
-            builder.is_interaction_builder()
-        );
-
         let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::deserialize(
             &builder
                 .public_values()
@@ -45,8 +40,6 @@ where
                 .map(|elm| (*elm).into())
                 .collect_vec(),
         );
-
-        println!("got public values");
 
         // Compute some flags for which type of instruction we are dealing with.
         let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
@@ -175,6 +168,7 @@ where
             local,
             next,
             is_branch_instruction.clone(),
+            is_halt.clone(),
             public_values.clone(),
         );
 
@@ -392,7 +386,7 @@ impl CpuChip {
         (
             num_cycles * is_ecall_instruction.clone(),
             is_halt * is_ecall_instruction.clone(),
-            is_commit * is_ecall_instruction,
+            is_commit * is_ecall_instruction.clone(),
         )
     }
 
@@ -417,9 +411,7 @@ impl CpuChip {
             .assert_eq(local.shard, next.shard);
 
         // Verify the public values shard value.
-        builder
-            .when_last_real_row(local.is_real, next.is_real)
-            .assert_eq(public_values.shard, local.shard);
+        builder.assert_eq(public_values.shard, local.shard);
 
         // Verify that the shard value is within 16 bits.
         builder.send_byte(
@@ -435,7 +427,7 @@ impl CpuChip {
 
         // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
-        let expected_next_clk = local.clk + AB::Expr::from_canonical_u32(4) + num_cycles;
+        let expected_next_clk = local.clk + AB::Expr::from_canonical_u32(4) + num_cycles.clone();
 
         builder
             .when_transition()
@@ -465,6 +457,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
+        is_halt_instruction: AB::Expr,
         public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
@@ -472,12 +465,21 @@ impl CpuChip {
         // Note that when the instruction is halt, we already contrain that the next new is not real,
         // so the `when(next.is_real)` condition implies that the instruction is not halt.
         builder
+            .when_transition()
             .when(next.is_real)
-            .when_not(is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr)
+            .when_not(
+                is_branch_instruction.clone() + local.selectors.is_jal + local.selectors.is_jalr,
+            )
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         builder
             .when_last_real_row(local.is_real, next.is_real)
+            .when(
+                is_halt_instruction
+                    + is_branch_instruction
+                    + local.selectors.is_jal
+                    + local.selectors.is_jalr,
+            )
             .assert_eq(
                 public_values.last_row_next_pc,
                 local.pc + AB::Expr::from_canonical_u8(4),
@@ -508,15 +510,13 @@ impl CpuChip {
         // it's used during AIR compilation time to parse for all send/receives. Since that interaction
         // builder will ignore the other constraints of the air, it is safe to not include the
         // verification check of the expected public values digest word.
-        if !builder.is_interaction_builder() {
-            let expected_pv_digest_word =
-                builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
+        let expected_pv_digest_word =
+            builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
-            // Verify the public_values_digest_word.
-            builder
-                .when(is_commit)
-                .assert_word_eq(expected_pv_digest_word, ecall_columns.digest_word);
-        }
+        // Verify the public_values_digest_word.
+        builder
+            .when(is_commit)
+            .assert_word_eq(expected_pv_digest_word, ecall_columns.digest_word);
     }
 
     /// Constraint related to the halt and unimpl instruction.
@@ -534,12 +534,12 @@ impl CpuChip {
             .when(is_halt.clone() + local.selectors.is_unimpl)
             .assert_zero(next.is_real);
 
-        // If we're halting, the public values next pc should be 0.
+        // // If we're halting, the public values next pc should be 0.
         builder
             .when(is_halt.clone())
             .assert_zero(public_values.last_row_next_pc);
 
-        // Verify the exit code.
+        // // Verify the exit code.
         builder
             .when(is_halt)
             .assert_eq(local.op_a_val().reduce::<AB>(), public_values.exit_code);

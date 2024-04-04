@@ -56,20 +56,20 @@ impl CpuChip {
 
             // When we are branching, the expected next pc is branch_columns.next_pc.  When we are
             // not branching, the expected next pc is local.pc + 4.
-            let expected_next_pc = local.branching
-                * (local.pc + branch_cols.next_pc.reduce::<AB>())
+            let expected_next_pc = local.branching * (branch_cols.next_pc.reduce::<AB>())
                 + local.not_branching * (local.pc + AB::Expr::from_canonical_u8(4));
 
             // Verify that next.pc <==> expected_next_pc if the next row is real and the current
             // instruction is a branch instruction.
             builder
-                .when(next.is_real)
+                .when_transition()
                 .when(is_branch_instruction.clone())
                 .assert_eq(expected_next_pc.clone(), next.pc);
 
             // Verify that next.pc <==> public_values.next_pc if we are at the last real row.
             builder
                 .when_last_real_row(local.is_real, next.is_real)
+                .when(is_branch_instruction.clone())
                 .assert_eq(public_values_next_pc, expected_next_pc);
         }
 

@@ -45,9 +45,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         local_is_real: I,
         next_is_real: I,
     ) -> FilteredAirBuilder<Self> {
-        let at_last_real_row: Self::Expr = self.is_last_row() * local_is_real.clone().into()
-            + self.is_transition() * (next_is_real.into() - local_is_real.into());
-        self.when(at_last_real_row)
+        self.when(local_is_real.into() - next_is_real.into())
     }
 
     /// Asserts that an iterator of expressions are all equal.
