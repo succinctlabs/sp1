@@ -261,6 +261,7 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
+    use crate::compress::build_compress;
     use crate::stark::Ext;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
@@ -448,13 +449,24 @@ pub(crate) mod tests {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
 
-        // let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
-        // let time = Instant::now();
-        // runtime.run();
-        // let elapsed = time.elapsed();
-        // runtime.print_stats();
-        // println!("Execution took: {:?}", elapsed);
+        let machine = A::machine(SC::default());
+
+        let (_, vk) = machine.setup(&Program::from(elf));
+        let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+            .unwrap()
+            .proof;
+        let program = build_compress(proof, vk);
+
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+
+        let time = Instant::now();
+        runtime.run();
+        let elapsed = time.elapsed();
+        runtime.print_stats();
+        println!("Execution took: {:?}", elapsed);
 
         // let config = BabyBearPoseidon2::new();
         // let machine = RecursionAir::machine(config);

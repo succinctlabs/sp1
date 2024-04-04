@@ -71,10 +71,6 @@ type Compress = TruncatedPermutation<Perm, 2, 8, 16>;
 type ValMmcs =
     FieldMerkleTreeMmcs<<Val as Field>::Packing, <Val as Field>::Packing, Hash, Compress, 8>;
 type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-// type Challenger = DuplexChallenger<Val, Perm, 16>;
-// type Dft = Radix2DitParallel;
-// type CustomPcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
-// type CustomFriProof = FriProof<Challenge, ChallengeMmcs, Val>;
 type RecursionConfig = AsmConfig<Val, Challenge>;
 type RecursionBuilder = Builder<RecursionConfig>;
 type CustomFriProof = FriProof<Challenge, ChallengeMmcs, Val>;
