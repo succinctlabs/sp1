@@ -5,12 +5,13 @@ members = [
     "derive",
     "eval",
     "helper",
-    "recursion/core",
-    "recursion/compiler",
+    "prover",
     "recursion/circuit",
+    "recursion/compiler",
+    "recursion/core",
     "recursion/program",
     "sdk",
-    "zkvm/*", "prover",
+    "zkvm/*",
 ]
 exclude = ["examples/target"]
 resolver = "2"
