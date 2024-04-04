@@ -85,6 +85,16 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
 
+      - name: Run cargo test on sp1-recursion-circuit
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-recursion-circuit --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
         with:
