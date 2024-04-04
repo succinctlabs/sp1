@@ -3459,6 +3459,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "sp1-prover"
+version = "0.1.0"
+dependencies = [
+ "sp1-recursion-program",
+]
+
+[[package]]
 name = "sp1-recursion-circuit"
 version = "0.1.0"
 dependencies = [

@@ -4,8 +4,11 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 
 use sp1_core::air::MachineAir;
+use sp1_core::air::PublicValuesDigest;
+use sp1_core::air::Word;
 use sp1_core::stark::Com;
 use sp1_core::stark::MachineStark;
+use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{ShardCommitment, StarkGenericConfig};
 
@@ -23,6 +26,9 @@ use crate::folder::RecursiveVerifierConstraintFolder;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::fri::TwoAdicPcsMatsVariable;
 use crate::fri::TwoAdicPcsRoundVariable;
+use crate::types::ChipOpenedValuesVariable;
+use crate::types::Commitment;
+use crate::types::ShardOpenedValuesVariable;
 
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
@@ -255,6 +261,83 @@ where
     }
 }
 
+pub(crate) fn const_proof<SC: StarkGenericConfig, A: MachineAir<SC::Val>, C>(
+    builder: &mut Builder<C>,
+    machine: &MachineStark<SC, A>,
+    proof: ShardProof<SC>,
+) -> ShardProofVariable<C>
+where
+    C: Config<F = SC::Val, EF = SC::Challenge>,
+{
+    let index = builder.materialize(Usize::Const(proof.index));
+
+    // Set up the public values digest.
+    let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
+        let word_val = proof.public_values_digest[i];
+        Word(core::array::from_fn(|j| builder.eval(word_val[j])))
+    }));
+
+    // Set up the commitments.
+    let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
+    let mut permutation_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
+    let mut quotient_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
+
+    let main_commit_val: [_; DIGEST_SIZE] = proof.commitment.main_commit.into();
+    let perm_commit_val: [_; DIGEST_SIZE] = proof.commitment.permutation_commit.into();
+    let quotient_commit_val: [_; DIGEST_SIZE] = proof.commitment.quotient_commit.into();
+    for (i, ((main_val, perm_val), quotient_val)) in main_commit_val
+        .into_iter()
+        .zip(perm_commit_val)
+        .zip(quotient_commit_val)
+        .enumerate()
+    {
+        builder.set(&mut main_commit, i, main_val);
+        builder.set(&mut permutation_commit, i, perm_val);
+        builder.set(&mut quotient_commit, i, quotient_val);
+    }
+
+    let commitment = ShardCommitment {
+        main_commit,
+        permutation_commit,
+        quotient_commit,
+    };
+
+    // Set up the opened values.
+    let num_shard_chips = proof.opened_values.chips.len();
+    let mut opened_values = builder.dyn_array(num_shard_chips);
+    for (i, values) in proof.opened_values.chips.iter().enumerate() {
+        let values: ChipOpenedValuesVariable<_> = builder.eval_const(values.clone());
+        builder.set(&mut opened_values, i, values);
+    }
+    let opened_values = ShardOpenedValuesVariable {
+        chips: opened_values,
+    };
+
+    let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
+
+    let sorted_indices = machine
+        .chips()
+        .iter()
+        .map(|chip| {
+            let index = proof
+                .chip_ordering
+                .get(&chip.name())
+                .map(|i| C::N::from_canonical_usize(*i))
+                .unwrap_or(C::N::neg_one());
+            builder.eval(index)
+        })
+        .collect();
+
+    ShardProofVariable {
+        index: Usize::Var(index),
+        commitment,
+        opened_values,
+        opening_proof,
+        sorted_indices,
+        public_values_digest,
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use std::time::Instant;
@@ -303,83 +386,6 @@ pub(crate) mod tests {
     type EF = <SC as StarkGenericConfig>::Challenge;
     type C = AsmConfig<F, EF>;
     type A = RiscvAir<F>;
-
-    pub(crate) fn const_proof<C>(
-        builder: &mut Builder<C>,
-        machine: &MachineStark<SC, A>,
-        proof: ShardProof<SC>,
-    ) -> ShardProofVariable<C>
-    where
-        C: Config<F = F, EF = EF>,
-    {
-        let index = builder.materialize(Usize::Const(proof.index));
-
-        // Set up the public values digest.
-        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-            let word_val = proof.public_values_digest[i];
-            Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-        }));
-
-        // Set up the commitments.
-        let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-        let mut permutation_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-        let mut quotient_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-
-        let main_commit_val: [_; DIGEST_SIZE] = proof.commitment.main_commit.into();
-        let perm_commit_val: [_; DIGEST_SIZE] = proof.commitment.permutation_commit.into();
-        let quotient_commit_val: [_; DIGEST_SIZE] = proof.commitment.quotient_commit.into();
-        for (i, ((main_val, perm_val), quotient_val)) in main_commit_val
-            .into_iter()
-            .zip(perm_commit_val)
-            .zip(quotient_commit_val)
-            .enumerate()
-        {
-            builder.set(&mut main_commit, i, main_val);
-            builder.set(&mut permutation_commit, i, perm_val);
-            builder.set(&mut quotient_commit, i, quotient_val);
-        }
-
-        let commitment = ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        };
-
-        // Set up the opened values.
-        let num_shard_chips = proof.opened_values.chips.len();
-        let mut opened_values = builder.dyn_array(num_shard_chips);
-        for (i, values) in proof.opened_values.chips.iter().enumerate() {
-            let values: ChipOpenedValuesVariable<_> = builder.eval_const(values.clone());
-            builder.set(&mut opened_values, i, values);
-        }
-        let opened_values = ShardOpenedValuesVariable {
-            chips: opened_values,
-        };
-
-        let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
-
-        let sorted_indices = machine
-            .chips()
-            .iter()
-            .map(|chip| {
-                let index = proof
-                    .chip_ordering
-                    .get(&chip.name())
-                    .map(|i| C::N::from_canonical_usize(*i))
-                    .unwrap_or(C::N::neg_one());
-                builder.eval(index)
-            })
-            .collect();
-
-        ShardProofVariable {
-            index: Usize::Var(index),
-            commitment,
-            opened_values,
-            opening_proof,
-            sorted_indices,
-            public_values_digest,
-        }
-    }
 
     #[test]
     fn test_permutation_challenges() {
