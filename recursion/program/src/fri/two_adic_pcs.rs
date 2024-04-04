@@ -153,11 +153,16 @@ pub fn verify_two_adic_pcs<C: Config>(
                                     builder.get(&mat_opening, m).into();
                                 let p_at_z: SymbolicExt<C::F, C::EF> =
                                     builder.get(&ps_at_z, m).into();
+
                                 let quotient: SymbolicExt<C::F, C::EF> =
                                     (-p_at_z + p_at_x) / (-z + x);
+                                // let quotient = builder.eval(quotient);
+                                // builder.print_e(quotient);
 
                                 let ro_at_log_height = builder.get(&ro, log_height);
+                                builder.print_e(ro_at_log_height);
                                 let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
+                                builder.print_e(alpha_pow_at_log_height);
 
                                 builder.set(
                                     &mut ro,
@@ -173,6 +178,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                         });
                     });
             });
+
             builder.set(&mut reduced_openings, i, ro);
         });
 
@@ -315,7 +321,6 @@ pub(crate) mod tests {
     use p3_poseidon2::Poseidon2;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use rand::rngs::OsRng;
-    use sp1_core::utils::poseidon2_instance::RC_16_30;
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;
@@ -328,6 +333,8 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::ir::Var;
     use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
+    use sp1_recursion_core::stark::config::inner_fri_config;
+    use sp1_recursion_core::stark::config::inner_perm;
 
     use crate::commit::PcsVariable;
     use crate::fri::TwoAdicFriPcsVariable;
@@ -485,26 +492,13 @@ pub(crate) mod tests {
         proof_var
     }
 
-    pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
-        let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-        let hash = Hash::new(perm.clone());
-        let compress = Compress::new(perm.clone());
-        let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
-        FriConfig {
-            log_blowup: 1,
-            num_queries: 100,
-            proof_of_work_bits: 8,
-            mmcs: challenge_mmcs,
-        }
-    }
-
     #[allow(clippy::type_complexity)]
     #[test]
     fn test_two_adic_fri_pcs_single_batch() {
         let mut rng = &mut OsRng;
         let log_degrees = &[10, 16];
-        let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-        let fri_config = default_fri_config();
+        let perm = inner_perm();
+        let fri_config = inner_fri_config();
         let hash = Hash::new(perm.clone());
         let compress = Compress::new(perm.clone());
         let val_mmcs = ValMmcs::new(hash, compress);
@@ -559,7 +553,7 @@ pub(crate) mod tests {
 
         // Test the recursive Pcs.
         let mut builder = RecursionBuilder::default();
-        let config = const_fri_config(&mut builder, default_fri_config());
+        let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds =
             builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(vec![(commit, os.clone())]);
@@ -603,8 +597,8 @@ pub(crate) mod tests {
     fn test_two_adic_fri_pcs_multi_batches() {
         let mut rng = &mut OsRng;
         let log_degrees = &[10, 16];
-        let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
-        let fri_config = default_fri_config();
+        let perm = inner_perm();
+        let fri_config = inner_fri_config();
         let hash = Hash::new(perm.clone());
         let compress = Compress::new(perm.clone());
         let val_mmcs = ValMmcs::new(hash, compress);
@@ -691,7 +685,7 @@ pub(crate) mod tests {
 
         // Test the recursive Pcs.
         let mut builder = RecursionBuilder::default();
-        let config = const_fri_config(&mut builder, default_fri_config());
+        let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds = builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(rounds_val);
 

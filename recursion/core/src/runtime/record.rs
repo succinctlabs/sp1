@@ -47,6 +47,6 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn public_values_digest(&self) -> PublicValuesDigest<u32> {
-        todo!()
+        PublicValuesDigest::default()
     }
 }

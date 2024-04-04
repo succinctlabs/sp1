@@ -2,6 +2,13 @@ use super::{Builder, Config, FromConstant, MemIndex, MemVariable, Ptr, Usize, Va
 use itertools::Itertools;
 use p3_field::AbstractField;
 
+use super::Ext;
+use super::{DslIR, Felt};
+
+/// An array that is either of static or dynamic size.
+///
+/// If the target is a circuit-based system, then the arrays must be static. Other targets can
+/// theoretically support both types of arrays..
 #[derive(Debug, Clone)]
 pub enum Array<C: Config, T> {
     Fixed(Vec<T>),
@@ -9,10 +16,35 @@ pub enum Array<C: Config, T> {
 }
 
 impl<C: Config, V: MemVariable<C>> Array<C, V> {
+    /// Gets a fixed version of the array.
+    pub fn vec(&self) -> Vec<V> {
+        match self {
+            Self::Fixed(vec) => vec.clone(),
+            _ => panic!("array is dynamic, not fixed"),
+        }
+    }
+
+    /// Gets the length of the array as a variable inside the DSL.
     pub fn len(&self) -> Usize<C::N> {
         match self {
             Self::Fixed(vec) => Usize::from(vec.len()),
             Self::Dyn(_, len) => *len,
+        }
+    }
+
+    /// Gets the fixed length of the fixed-size array.
+    pub fn static_len(&self) -> usize {
+        match self {
+            Self::Fixed(vec) => vec.len(),
+            _ => panic!("cannot get the static length of a dynamic array"),
+        }
+    }
+
+    /// Gets the n'th elment.
+    pub fn static_get(&self, index: usize) -> V {
+        match self {
+            Self::Fixed(vec) => vec[index].clone(),
+            _ => panic!("cannot get the n'th element of a dynamic array"),
         }
     }
 
@@ -49,6 +81,33 @@ impl<C: Config> Builder<C> {
     /// Initialize an array of fixed length `len`. The entries will be uninitialized.
     pub fn array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
         self.dyn_array(len)
+    }
+
+    pub fn vec<V: MemVariable<C>>(&mut self, v: Vec<V>) -> Array<C, V> {
+        Array::Fixed(v)
+    }
+
+    pub fn select_v(&mut self, cond: Var<C::N>, a: Var<C::N>, b: Var<C::N>) -> Var<C::N> {
+        let c = self.uninit();
+        self.operations.push(DslIR::CircuitSelectV(cond, a, b, c));
+        c
+    }
+
+    pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
+        let c = self.uninit();
+        self.operations.push(DslIR::CircuitSelectF(cond, a, b, c));
+        c
+    }
+
+    pub fn select_ef(
+        &mut self,
+        cond: Var<C::N>,
+        a: Ext<C::F, C::EF>,
+        b: Ext<C::F, C::EF>,
+    ) -> Ext<C::F, C::EF> {
+        let c = self.uninit();
+        self.operations.push(DslIR::CircuitSelectE(cond, a, b, c));
+        c
     }
 
     pub fn dyn_array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {

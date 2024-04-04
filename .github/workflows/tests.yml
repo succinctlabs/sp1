@@ -26,6 +26,19 @@ jobs:
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
 
+      - name: Install Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Print go version
+        run: go version
+
+      - name: Setup GCC
+        uses: Dup4/actions-setup-gcc@v1
+        with:
+          version: latest
+
       - name: rust-cache
         uses: actions/cache@v3
         with:
@@ -77,6 +90,16 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
 
+      - name: Run cargo test on sp1-recursion-circuit
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-recursion-circuit --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
         with:
@@ -101,6 +124,19 @@ jobs:
         run: |
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
+        
+      - name: Install Go 1.22
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Print go version
+        run: go version
+
+      - name: Setup GCC
+        uses: Dup4/actions-setup-gcc@v1
+        with:
+          version: latest
 
       - name: rust-cache
         uses: actions/cache@v3
