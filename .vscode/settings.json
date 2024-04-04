@@ -3,6 +3,7 @@
     "[rust]": {
         "editor.defaultFormatter": "rust-lang.rust-analyzer",
         "editor.formatOnSave": true,
+        "editor.hover.enabled": true
     },
     "editor.rulers": [
         100

@@ -16,3 +16,13 @@ tracing = "0.1.40"
 sp1-core = { path = "../../core" }
 hashbrown = "0.14.3"
 itertools = "0.12.1"
+p3-bn254-fr = { workspace = true }
+p3-merkle-tree = { workspace = true }
+p3-commit = { workspace = true }
+p3-dft = { workspace = true }
+p3-challenger = { workspace = true }
+p3-fri = { workspace = true }
+zkhash = { git = "https://github.com/HorizenLabs/poseidon2" }
+ff = { version = "0.13", features = ["derive", "derive_bits"] }
+serde = { version = "1.0", features = ["derive", "rc"] }
+serde_with = "3.6.1"

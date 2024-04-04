@@ -1,3 +1,6 @@
+pub mod config;
+pub mod poseidon2;
+
 use crate::{
     cpu::CpuChip,
     memory::{MemoryChipKind, MemoryGlobalChip},

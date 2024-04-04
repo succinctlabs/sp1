@@ -2,7 +2,8 @@ use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
     TwoRowMatrixView,
 };
-use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder, PublicValuesBuilder};
+use sp1_core::air::PublicValuesBuilder;
+use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 
 use sp1_recursion_compiler::{
     ir::{Builder, Config, Ext, Felt},

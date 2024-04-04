@@ -152,7 +152,7 @@ where
             let log_quotient_size: Usize<_> =
                 builder.eval(opening.log_degree + log_quotient_degree);
             let quotient_domain =
-                domain.create_disjoint_domain(builder, log_quotient_size, &pcs.config);
+                domain.create_disjoint_domain(builder, log_quotient_size, Some(pcs.config.clone()));
             builder.set(&mut quotient_domains, i, quotient_domain.clone());
 
             // let trace_opening_points
@@ -279,15 +279,14 @@ pub(crate) mod tests {
         ir::{Builder, Config, ExtConst, Usize},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
+    use sp1_recursion_core::stark::config::inner_fri_config;
     use sp1_sdk::{SP1Prover, SP1Stdin};
 
     use sp1_core::air::Word;
 
     use crate::{
         challenger::DuplexChallengerVariable,
-        fri::{
-            const_fri_config, const_two_adic_pcs_proof, default_fri_config, TwoAdicFriPcsVariable,
-        },
+        fri::{const_fri_config, const_two_adic_pcs_proof, TwoAdicFriPcsVariable},
         stark::StarkVerifier,
         types::{
             ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
@@ -478,7 +477,7 @@ pub(crate) mod tests {
 
         let time = Instant::now();
         let mut builder = VmBuilder::<F, EF>::default();
-        let config = const_fri_config(&mut builder, default_fri_config());
+        let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
@@ -575,7 +574,7 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
 
         let mut builder = VmBuilder::<F, EF>::default();
-        let config = const_fri_config(&mut builder, default_fri_config());
+        let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);

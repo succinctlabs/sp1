@@ -33,7 +33,7 @@ pub trait MemVariable<C: Config>: Variable<C> {
     fn store(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>);
 }
 
-pub trait FromConstant<C: Config>: Variable<C> {
+pub trait FromConstant<C: Config> {
     type Constant;
 
     fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self;
