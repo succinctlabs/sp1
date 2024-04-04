@@ -855,7 +855,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
             ),
             AsmInstruction::Hint(dst) => Instruction::new(
-                Opcode::HintBits,
+                Opcode::Hint,
                 i32_f(dst),
                 i32_f_arr(dst),
                 f_u32(F::zero()),
