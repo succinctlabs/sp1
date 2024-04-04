@@ -72,13 +72,10 @@ impl CpuChip {
                 branch_cols.next_pc.reduce::<AB>(),
             );
 
-            builder
-                .when_last_real_row(local.is_real, next.is_real)
-                .when(local.not_branching)
-                .assert_eq(
-                    public_values_next_pc,
-                    local.pc + AB::Expr::from_canonical_u8(4),
-                );
+            builder.when_last_row().when(local.not_branching).assert_eq(
+                public_values_next_pc,
+                local.pc + AB::Expr::from_canonical_u8(4),
+            );
         }
 
         // Evaluate branching value constraints.

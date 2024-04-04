@@ -245,12 +245,14 @@ impl CpuChip {
         // Get the jump specific columns
         let jump_columns = local.opcode_specific_columns.jump();
 
+        let is_jump_instruction = local.selectors.is_jal + local.selectors.is_jalr;
+
         // Verify that the local.pc + 4 is saved in op_a for both jump instructions.
         // When op_a is set to register X0, the RISC-V spec states that the jump instruction will
         // not have a return destination address (it is effectively a GOTO command).  In this case,
         // we shouldn't verify the return address.
         builder
-            .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .when(is_jump_instruction.clone())
             .when_not(local.instruction.op_a_0)
             .assert_eq(
                 local.op_a_val().reduce::<AB>(),
@@ -266,13 +268,13 @@ impl CpuChip {
         builder
             .when_transition()
             .when(next.is_real)
-            .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
         // Verify that the word form of public_values_next_pc is correct for both jump instructions.
         builder
             .when_last_row()
-            .when(local.selectors.is_jal + local.selectors.is_jalr)
+            .when(is_jump_instruction)
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), public_values_next_pc);
 
         // Verify that the new pc is calculated correctly for JAL instructions.
@@ -459,7 +461,7 @@ impl CpuChip {
 
         builder
             .when_last_row()
-            .assert_eq(expected_next_clk, public_values.last_row_next_clk);
+            .assert_eq(expected_next_clk.clone(), public_values.last_row_next_clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
         builder.verify_range_24bits(

@@ -40,14 +40,6 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         self.when_ne(condition, Self::F::one())
     }
 
-    fn when_last_real_row<I: Into<Self::Expr> + Clone>(
-        &mut self,
-        local_is_real: I,
-        next_is_real: I,
-    ) -> FilteredAirBuilder<Self> {
-        self.when(local_is_real.into() - next_is_real.into())
-    }
-
     /// Asserts that an iterator of expressions are all equal.
     fn assert_all_eq<
         I1: Into<Self::Expr>,
