@@ -47,7 +47,13 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Program constraints.
-        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+        builder.send_program(
+            local.pc,
+            local.instruction,
+            local.selectors,
+            local.shard,
+            local.is_real,
+        );
 
         // Load immediates into b and c, if the immediate flags are on.
         builder
@@ -120,7 +126,11 @@ where
             );
 
         // Check that each addr_word element is a byte.
-        builder.slice_range_check_u8(&memory_columns.addr_word.0, is_memory_instruction.clone());
+        builder.slice_range_check_u8(
+            &memory_columns.addr_word.0,
+            local.shard,
+            is_memory_instruction.clone(),
+        );
 
         // Send to the ALU table to verify correct calculation of addr_word.
         builder.send_alu(
@@ -128,6 +138,7 @@ where
             memory_columns.addr_word,
             local.op_b_val(),
             local.op_c_val(),
+            local.shard,
             is_memory_instruction.clone(),
         );
 
@@ -158,6 +169,7 @@ where
             local.op_a_val(),
             local.op_b_val(),
             local.op_c_val(),
+            local.shard,
             is_alu_instruction,
         );
 
@@ -262,6 +274,7 @@ impl CpuChip {
             jump_columns.next_pc,
             jump_columns.pc,
             local.op_b_val(),
+            local.shard,
             local.selectors.is_jal,
         );
 
@@ -271,6 +284,7 @@ impl CpuChip {
             jump_columns.next_pc,
             local.op_b_val(),
             local.op_c_val(),
+            local.shard,
             local.selectors.is_jalr,
         );
     }
@@ -291,6 +305,7 @@ impl CpuChip {
             local.op_a_val(),
             auipc_columns.pc,
             local.op_b_val(),
+            local.shard,
             local.selectors.is_auipc,
         );
     }
@@ -419,6 +434,7 @@ impl CpuChip {
             local.shard,
             AB::Expr::zero(),
             AB::Expr::zero(),
+            local.shard,
             local.is_real,
         );
 
@@ -443,6 +459,7 @@ impl CpuChip {
             local.clk,
             local.clk_16bit_limb,
             local.clk_8bit_limb,
+            local.shard,
             local.is_real,
         );
     }

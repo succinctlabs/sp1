@@ -152,7 +152,7 @@ where
             let log_quotient_size: Usize<_> =
                 builder.eval(opening.log_degree + log_quotient_degree);
             let quotient_domain =
-                domain.create_disjoint_domain(builder, log_quotient_size, &pcs.config);
+                domain.create_disjoint_domain(builder, log_quotient_size, Some(pcs.config.clone()));
             builder.set(&mut quotient_domains, i, quotient_domain.clone());
 
             // let trace_opening_points
@@ -243,6 +243,7 @@ where
                     builder,
                     chip,
                     &values,
+                    proof.public_values_digest,
                     trace_domain,
                     qc_domains,
                     zeta,
@@ -260,8 +261,11 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
+    use crate::stark::Ext;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
+    use rand::Rng;
+    use sp1_core::air::PublicValuesDigest;
     use sp1_core::runtime::Program;
     use sp1_core::{
         air::MachineAir,
@@ -269,23 +273,29 @@ pub(crate) mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::ir::Array;
+    use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::{
         asm::{AsmConfig, VmBuilder},
         ir::{Builder, Config, ExtConst, Usize},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
+    use sp1_recursion_core::stark::config::inner_fri_config;
     use sp1_sdk::{SP1Prover, SP1Stdin};
+
+    use sp1_core::air::Word;
 
     use crate::{
         challenger::DuplexChallengerVariable,
-        fri::{
-            const_fri_config, const_two_adic_pcs_proof, default_fri_config, TwoAdicFriPcsVariable,
-        },
+        fri::{const_fri_config, const_two_adic_pcs_proof, TwoAdicFriPcsVariable},
         stark::StarkVerifier,
         types::{
             ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
         },
     };
+
+    use sp1_core::stark::LocalProver;
+    use sp1_recursion_core::stark::RecursionAir;
+    use sp1_sdk::utils::setup_logger;
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -302,6 +312,12 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         let index = builder.materialize(Usize::Const(proof.index));
+
+        // Set up the public values digest.
+        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
+            let word_val = proof.public_values_digest[i];
+            Word(core::array::from_fn(|j| builder.eval(word_val[j])))
+        }));
 
         // Set up the commitments.
         let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
@@ -360,6 +376,7 @@ pub(crate) mod tests {
             opened_values,
             opening_proof,
             sorted_indices,
+            public_values_digest,
         }
     }
 
@@ -427,7 +444,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_recursive_verify_shard() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
@@ -438,16 +454,22 @@ pub(crate) mod tests {
 
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+        let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
-            .proof
-            .shard_proofs;
+            .proof;
+        let mut challenger_ver = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         println!("Proof generated successfully");
 
         challenger_val.observe(vk.commit);
-        proofs.iter().for_each(|proof| {
+        proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
         });
+
+        // Observe the public input digest
+        let pv_digest_field_elms: Vec<F> =
+            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
+        challenger_val.observe_slice(&pv_digest_field_elms);
 
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
@@ -455,7 +477,7 @@ pub(crate) mod tests {
 
         let time = Instant::now();
         let mut builder = VmBuilder::<F, EF>::default();
-        let config = const_fri_config(&mut builder, default_fri_config());
+        let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
@@ -465,12 +487,18 @@ pub(crate) mod tests {
         challenger.observe(&mut builder, preprocessed_commit);
 
         let mut shard_proofs = vec![];
-        for proof_val in proofs {
+        for proof_val in proof.shard_proofs {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
         }
+        // Observe the public input digest
+        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
+            .iter()
+            .map(|x| builder.eval(*x))
+            .collect();
+        challenger.observe_slice(&mut builder, &pv_digest_felt);
 
         for proof in shard_proofs {
             StarkVerifier::<C, SC>::verify_shard(
@@ -495,6 +523,25 @@ pub(crate) mod tests {
         let elapsed = time.elapsed();
         runtime.print_stats();
         println!("Execution took: {:?}", elapsed);
+
+        // let config = BabyBearPoseidon2::new();
+        // let machine = RecursionAir::machine(config);
+        // let (pk, vk) = machine.setup(&program);
+        // let mut challenger = machine.config().challenger();
+
+        // // debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
+        // //     machine.chips(),
+        // //     &runtime.record,
+        // //     vec![InteractionKind::Memory],
+        // // );
+
+        // let start = Instant::now();
+        // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        // let duration = start.elapsed().as_secs();
+
+        // let mut challenger = machine.config().challenger();
+        // machine.verify(&vk, &proof, &mut challenger).unwrap();
+        // println!("proving duration = {}", duration);
     }
 
     #[test]
@@ -508,30 +555,36 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+        let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
-            .proof
-            .shard_proofs;
+            .proof;
         println!("Proof generated successfully");
-
-        proofs.iter().for_each(|proof| {
+        challenger_val.observe(vk.commit);
+        proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
         });
+
+        // Observe the public input digest
+        let pv_digest_field_elms: Vec<F> =
+            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
+        challenger_val.observe_slice(&pv_digest_field_elms);
 
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
             .collect::<Vec<_>>();
 
-        // Observe all the commitments.
         let mut builder = VmBuilder::<F, EF>::default();
-        let config = const_fri_config(&mut builder, default_fri_config());
+        let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
+        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
+        challenger.observe(&mut builder, preprocessed_commit);
+
         let mut shard_proofs = vec![];
-        for proof_val in proofs {
-            // Change a commitment to be incorrect.
+        for proof_val in proof.shard_proofs {
             let mut proof_val = proof_val;
             proof_val.commitment.main_commit = [F::zero(); DIGEST_SIZE].into();
             let proof = const_proof(&mut builder, &machine, proof_val);
@@ -539,7 +592,12 @@ pub(crate) mod tests {
             challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
         }
-
+        // Observe the public input digest
+        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
+            .iter()
+            .map(|x| builder.eval(*x))
+            .collect();
+        challenger.observe_slice(&mut builder, &pv_digest_felt);
         for proof in shard_proofs {
             StarkVerifier::<C, SC>::verify_shard(
                 &mut builder,
@@ -557,5 +615,56 @@ pub(crate) mod tests {
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
 
         runtime.run();
+    }
+
+    #[test]
+    #[ignore]
+    fn test_kitchen_sink() {
+        setup_logger();
+
+        let time = Instant::now();
+        let mut builder = VmBuilder::<F, EF>::default();
+
+        let a: Felt<_> = builder.eval(F::from_canonical_u32(23));
+        let b: Felt<_> = builder.eval(F::from_canonical_u32(17));
+        let a_plus_b = builder.eval(a + b);
+        let mut rng = rand::thread_rng();
+        let a_ext_val = rng.gen::<EF>();
+        let b_ext_val = rng.gen::<EF>();
+        let a_ext: Ext<_, _> = builder.eval(a_ext_val.cons());
+        let b_ext: Ext<_, _> = builder.eval(b_ext_val.cons());
+        let a_plus_b_ext = builder.eval(a_ext + b_ext);
+        builder.print_f(a_plus_b);
+        builder.print_e(a_plus_b_ext);
+
+        let program = builder.compile();
+        let elapsed = time.elapsed();
+        println!("Building took: {:?}", elapsed);
+
+        let machine = A::machine(SC::default());
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+
+        let time = Instant::now();
+        runtime.run();
+        let elapsed = time.elapsed();
+        runtime.print_stats();
+        println!("Execution took: {:?}", elapsed);
+
+        let config = BabyBearPoseidon2::new();
+        let machine = RecursionAir::machine(config);
+        let (pk, vk) = machine.setup(&program);
+        let mut challenger = machine.config().challenger();
+
+        let record_clone = runtime.record.clone();
+        machine.debug_constraints(&pk, record_clone, &mut challenger);
+
+        let start = Instant::now();
+        let mut challenger = machine.config().challenger();
+        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let duration = start.elapsed().as_secs();
+
+        let mut challenger = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        println!("proving duration = {}", duration);
     }
 }

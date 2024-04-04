@@ -8,7 +8,7 @@ use super::Word;
 
 // TODO:  Create a config struct that will store the num_words setting and the hash function
 //        and initial entropy used.
-const PV_DIGEST_NUM_WORDS: usize = 8;
+pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The PublicValues struct is used to represent the public values digest.  This is the hash of all the
 /// bytes that the guest program has written to public values.

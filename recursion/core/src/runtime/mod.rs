@@ -86,7 +86,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
-    perm: Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>,
+    perm: Option<Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>>,
 
     _marker: PhantomData<EF>,
 }
@@ -119,7 +119,33 @@ where
             pc: F::zero(),
             memory: vec![MemoryEntry::default(); MEMORY_SIZE],
             record,
-            perm,
+            perm: Some(perm),
+            access: CpuRecord::default(),
+            _marker: PhantomData,
+        }
+    }
+
+    pub fn new_no_perm(program: &Program<F>) -> Self {
+        let record = ExecutionRecord::<F> {
+            program: Arc::new(program.clone()),
+            ..Default::default()
+        };
+        Self {
+            timestamp: 0,
+            nb_poseidons: 0,
+            nb_bit_decompositions: 0,
+            nb_ext_ops: 0,
+            nb_base_ops: 0,
+            nb_memory_ops: 0,
+            nb_print_f: 0,
+            nb_print_e: 0,
+            clk: F::zero(),
+            program: program.clone(),
+            fp: F::from_canonical_usize(STACK_SIZE),
+            pc: F::zero(),
+            memory: vec![MemoryEntry::default(); MEMORY_SIZE],
+            record,
+            perm: None,
             access: CpuRecord::default(),
             _marker: PhantomData,
         }
@@ -182,6 +208,10 @@ where
             MemoryAccessPosition::C => self.access.c = Some(record),
             _ => unreachable!(),
         };
+    }
+
+    fn get_memory_entry(&self, addr: F) -> &MemoryEntry<F> {
+        &self.memory[addr.as_canonical_u32() as usize]
     }
 
     fn timestamp(&self, position: &MemoryAccessPosition) -> F {
@@ -257,7 +287,8 @@ where
             // If b is an immediate, then we store the value at the address in a.
             self.fp + instruction.op_a
         } else {
-            self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)[0] + index * size + offset
+            // Load without touching access. This assumes that the caller will call mw on a_ptr.
+            self.get_memory_entry(self.fp + instruction.op_a).value[0] + index * size + offset
         };
 
         let b = if instruction.imm_b_base() {
@@ -283,7 +314,8 @@ where
     pub fn run(&mut self) {
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
-            let instruction = self.program.instructions[idx].clone();
+            let instruction = self.program.instructions[idx];
+
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
@@ -368,7 +400,7 @@ where
                 Opcode::LW => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let prev_a = self.get_memory_entry(a_ptr).value;
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
@@ -383,7 +415,7 @@ where
                 Opcode::SW => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let prev_a = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let prev_a = self.get_memory_entry(a_ptr).value;
                     let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
@@ -474,7 +506,7 @@ where
                         .unwrap();
 
                     // Perform the permutation.
-                    let result = self.perm.permute(array);
+                    let result = self.perm.as_ref().unwrap().permute(array);
 
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
@@ -507,7 +539,7 @@ where
                 clk: self.clk,
                 pc: self.pc,
                 fp: self.fp,
-                instruction: instruction.clone(),
+                instruction,
                 a,
                 a_record: self.access.a.clone(),
                 b,

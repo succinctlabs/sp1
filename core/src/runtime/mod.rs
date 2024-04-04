@@ -380,6 +380,7 @@ impl Runtime {
     /// Emit an ALU event.
     fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
         let event = AluEvent {
+            shard: self.shard(),
             clk,
             opcode,
             a,

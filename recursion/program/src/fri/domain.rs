@@ -154,10 +154,10 @@ where
         &self,
         builder: &mut Builder<C>,
         log_degree: Usize<<C as Config>::N>,
-        config: &FriConfigVariable<C>,
+        config: Option<FriConfigVariable<C>>,
     ) -> Self {
         // let domain = new_coset(builder, log_degree);
-        let domain = config.get_subgroup(builder, log_degree);
+        let domain = config.unwrap().get_subgroup(builder, log_degree);
         builder.assign(domain.shift, self.shift * C::F::generator());
 
         domain
@@ -169,8 +169,9 @@ pub(crate) mod tests {
 
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
+    use sp1_recursion_core::stark::config::inner_fri_config;
 
-    use crate::fri::{const_fri_config, default_fri_config};
+    use crate::fri::const_fri_config;
 
     use super::*;
     use p3_commit::{Pcs, PolynomialSpace};
@@ -222,7 +223,7 @@ pub(crate) mod tests {
         // Initialize a builder.
         let mut builder = VmBuilder::<F, EF>::default();
 
-        let config_var = const_fri_config(&mut builder, default_fri_config());
+        let config_var = const_fri_config(&mut builder, inner_fri_config());
         for i in 0..5 {
             let log_d_val = 10 + i;
 
@@ -248,7 +249,7 @@ pub(crate) mod tests {
 
             let log_degree: Usize<_> = builder.eval(Usize::Const(log_d_val) + log_quotient_degree);
             let disjoint_domain_gen =
-                domain.create_disjoint_domain(&mut builder, log_degree, &config_var);
+                domain.create_disjoint_domain(&mut builder, log_degree, Some(config_var.clone()));
             domain_assertions(
                 &mut builder,
                 &disjoint_domain_gen,

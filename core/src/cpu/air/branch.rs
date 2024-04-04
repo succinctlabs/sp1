@@ -51,6 +51,7 @@ impl CpuChip {
                 branch_cols.next_pc,
                 branch_cols.pc,
                 local.op_c_val(),
+                local.shard,
                 local.branching,
             );
 
@@ -153,6 +154,7 @@ impl CpuChip {
             Word::extend_var::<AB>(branch_cols.a_lt_b),
             local.op_a_val(),
             local.op_b_val(),
+            local.shard,
             is_branch_instruction.clone(),
         );
 
@@ -163,6 +165,7 @@ impl CpuChip {
             Word::extend_var::<AB>(branch_cols.a_gt_b),
             local.op_b_val(),
             local.op_a_val(),
+            local.shard,
             is_branch_instruction.clone(),
         );
     }

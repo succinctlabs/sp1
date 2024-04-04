@@ -24,7 +24,7 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
         &self,
         builder: &mut Builder<C>,
         log_degree: Usize<C::N>,
-        config: &FriConfigVariable<C>,
+        config: Option<FriConfigVariable<C>>,
     ) -> Self;
 }
 

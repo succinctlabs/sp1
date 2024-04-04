@@ -61,6 +61,7 @@ pub fn run_test(
     run_test_core(runtime)
 }
 
+#[allow(unused_variables)]
 pub fn run_test_core(
     runtime: Runtime,
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
@@ -70,8 +71,12 @@ pub fn run_test_core(
     let mut challenger = machine.config().challenger();
 
     #[cfg(feature = "debug")]
-    let record_clone = runtime.record.clone();
-
+    {
+        let mut challenger_clone = machine.config().challenger();
+        let record_clone = runtime.record.clone();
+        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
+        log::debug!("debug_constraints done");
+    }
     let start = Instant::now();
     let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
@@ -79,9 +84,6 @@ pub fn run_test_core(
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    #[cfg(feature = "debug")]
-    machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
@@ -414,7 +416,23 @@ pub mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            const ROUNDS_F: usize = 8;
+            const ROUNDS_P: usize = 22;
+            let mut round_constants = RC_16_30.to_vec();
+            let internal_start = ROUNDS_F / 2;
+            let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+            let internal_round_constants = round_constants
+                .drain(internal_start..internal_end)
+                .map(|vec| vec[0])
+                .collect::<Vec<_>>();
+            let external_round_constants = round_constants;
+            let perm = Perm::new(
+                ROUNDS_F,
+                external_round_constants,
+                ROUNDS_P,
+                internal_round_constants,
+                DiffusionMatrixBabybear,
+            );
 
             let hash = MyHash::new(perm.clone());
 

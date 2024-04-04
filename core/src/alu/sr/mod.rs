@@ -79,6 +79,9 @@ pub struct ShiftRightChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -146,6 +149,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
             let cols: &mut ShiftRightCols<F> = row.as_mut_slice().borrow_mut();
             // Initialize cols with basic operands and flags derived from the current event.
             {
+                cols.shard = F::from_canonical_u32(event.shard);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
@@ -164,6 +168,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                 // Insert the MSB lookup event.
                 let most_significant_byte = event.b.to_le_bytes()[WORD_SIZE - 1];
                 output.add_byte_lookup_events(vec![ByteLookupEvent {
+                    shard: event.shard,
                     opcode: ByteOpcode::MSB,
                     a1: ((most_significant_byte >> 7) & 1) as u32,
                     a2: 0,
@@ -212,6 +217,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                     let (shift, carry) = shr_carry(byte_shift_result[i], num_bits_to_shift as u8);
 
                     let byte_event = ByteLookupEvent {
+                        shard: event.shard,
                         opcode: ByteOpcode::ShrCarry,
                         a1: shift as u32,
                         a2: carry as u32,
@@ -234,10 +240,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
                     debug_assert_eq!(cols.a[i], cols.bit_shift_result[i].clone());
                 }
                 // Range checks.
-                output.add_u8_range_checks(&byte_shift_result);
-                output.add_u8_range_checks(&bit_shift_result);
-                output.add_u8_range_checks(&shr_carry_output_carry);
-                output.add_u8_range_checks(&shr_carry_output_shifted_byte);
+                output.add_u8_range_checks(event.shard, &byte_shift_result);
+                output.add_u8_range_checks(event.shard, &bit_shift_result);
+                output.add_u8_range_checks(event.shard, &shr_carry_output_carry);
+                output.add_u8_range_checks(event.shard, &shr_carry_output_shifted_byte);
             }
 
             rows.push(row);
@@ -297,7 +303,7 @@ where
             let byte = local.b[WORD_SIZE - 1];
             let opcode = AB::F::from_canonical_u32(ByteOpcode::MSB as u32);
             let msb = local.b_msb;
-            builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
+            builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
         }
 
         // Calculate the number of bits and bytes to shift by from c.
@@ -400,6 +406,7 @@ where
                     local.shr_carry_output_carry[i],
                     local.byte_shift_result[i],
                     num_bits_to_shift.clone(),
+                    local.shard,
                     local.is_real,
                 );
             }
@@ -446,7 +453,7 @@ where
             ];
 
             for long_word in long_words.iter() {
-                builder.slice_range_check_u8(long_word, local.is_real);
+                builder.slice_range_check_u8(long_word, local.shard, local.is_real);
             }
         }
 
@@ -461,6 +468,7 @@ where
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_real,
         );
     }
@@ -487,7 +495,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_right_events = vec![AluEvent::new(0, Opcode::SRL, 6, 12, 1)];
+        shard.shift_right_events = vec![AluEvent::new(0, 0, Opcode::SRL, 6, 12, 1)];
         let chip = ShiftRightChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -538,7 +546,7 @@ mod tests {
         ];
         let mut shift_events: Vec<AluEvent> = Vec::new();
         for t in shifts.iter() {
-            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
         let mut shard = ExecutionRecord::default();
         shard.shift_right_events = shift_events;

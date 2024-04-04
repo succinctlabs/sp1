@@ -31,6 +31,7 @@ pub struct ProgramPreprocessedCols<T> {
 #[derive(AlignedBorrow, Clone, Copy, Default)]
 #[repr(C)]
 pub struct ProgramMultiplicityCols<T> {
+    pub shard: T,
     pub multiplicity: T,
 }
 
@@ -87,6 +88,10 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
         Some(trace)
     }
 
+    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+        // Do nothing since this chip has no dependencies.
+    }
+
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -115,6 +120,7 @@ impl<F: PrimeField> MachineAir<F> for ProgramChip {
                 let pc = input.program.pc_base + (i as u32 * 4);
                 let mut row = [F::zero(); NUM_PROGRAM_MULT_COLS];
                 let cols: &mut ProgramMultiplicityCols<F> = row.as_mut_slice().borrow_mut();
+                cols.shard = F::from_canonical_u32(input.index);
                 cols.multiplicity =
                     F::from_canonical_usize(*instruction_counts.get(&pc).unwrap_or(&0));
                 row
@@ -166,6 +172,7 @@ where
             prep_local.pc,
             prep_local.instruction,
             prep_local.selectors,
+            mult_local.shard,
             mult_local.multiplicity,
         );
     }

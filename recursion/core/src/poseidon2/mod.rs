@@ -35,7 +35,6 @@ pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
     }
 }
 
-// TODO: Make this public inside Plonky3 and import directly.
 pub const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
     0x0a632d94, 0x6db657b7, 0x56fbdc9e, 0x052b3d8a, 0x33745201, 0x5c03108c, 0x0beba37b, 0x258c2e8b,
     0x12029f39, 0x694909ce, 0x6d231724, 0x21c3b222, 0x3c0904a5, 0x01d6acda, 0x27705c83, 0x5231c802,

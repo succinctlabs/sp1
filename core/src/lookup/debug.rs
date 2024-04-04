@@ -6,7 +6,7 @@ use p3_field::{Field, PrimeField64};
 use p3_matrix::Matrix;
 
 use crate::air::MachineAir;
-use crate::stark::{MachineChip, StarkGenericConfig, Val};
+use crate::stark::{MachineChip, MachineStark, ProvingKey, StarkGenericConfig, Val};
 
 use super::InteractionKind;
 
@@ -48,6 +48,7 @@ fn field_to_int<F: PrimeField32>(x: F) -> i32 {
 
 pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     chip: &MachineChip<SC, A>,
+    pkey: &ProvingKey<SC>,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
@@ -58,6 +59,11 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     let mut key_to_count = BTreeMap::new();
 
     let trace = chip.generate_trace(record, &mut A::Record::default());
+    let mut pre_traces = pkey.traces.clone();
+    let mut preprocessed_trace = pkey
+        .chip_ordering
+        .get(&chip.name())
+        .map(|&index| pre_traces.get_mut(index).unwrap());
     let mut main = trace.clone();
     let height = trace.clone().height();
 
@@ -72,13 +78,21 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
             if !interaction_kinds.contains(&interaction.kind) {
                 continue;
             }
+            let mut empty = vec![];
+            let preprocessed_row = preprocessed_trace
+                .as_mut()
+                .map(|t| t.row_mut(row))
+                .or_else(|| Some(&mut empty))
+                .unwrap();
             let is_send = m < nb_send_interactions;
-            let multiplicity_eval: Val<SC> = interaction.multiplicity.apply(&[], main.row_mut(row));
+            let multiplicity_eval: Val<SC> = interaction
+                .multiplicity
+                .apply(preprocessed_row, main.row_mut(row));
 
             if !multiplicity_eval.is_zero() {
                 let mut values = vec![];
                 for value in &interaction.values {
-                    let expr: Val<SC> = value.apply(&[], main.row_mut(row));
+                    let expr: Val<SC> = value.apply(preprocessed_row, main.row_mut(row));
                     values.push(expr);
                 }
                 let key = format!(
@@ -113,8 +127,9 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 /// Calculate the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips<SC, A>(
-    chips: &[MachineChip<SC, A>],
-    segment: &A::Record,
+    machine: &MachineStark<SC, A>,
+    pkey: &ProvingKey<SC>,
+    shards: &[A::Record],
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool
 where
@@ -123,21 +138,25 @@ where
     A: MachineAir<SC::Val>,
 {
     let mut final_map = BTreeMap::new();
-
     let mut total = SC::Val::zero();
 
+    let chips = machine.chips();
     for chip in chips.iter() {
-        let (_, count) = debug_interactions::<SC, A>(chip, segment, interaction_kinds.clone());
-
-        tracing::info!("{} chip has {} distinct events", chip.name(), count.len());
-        for (key, value) in count.iter() {
-            let entry = final_map
-                .entry(key.clone())
-                .or_insert((SC::Val::zero(), BTreeMap::new()));
-            entry.0 += *value;
-            total += *value;
-            *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;
+        let mut total_events = 0;
+        for shard in shards {
+            let (_, count) =
+                debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone());
+            total_events += count.len();
+            for (key, value) in count.iter() {
+                let entry = final_map
+                    .entry(key.clone())
+                    .or_insert((SC::Val::zero(), BTreeMap::new()));
+                entry.0 += *value;
+                total += *value;
+                *entry.1.entry(chip.name()).or_insert(SC::Val::zero()) += *value;
+            }
         }
+        tracing::info!("{} chip has {} distinct events", chip.name(), total_events);
     }
 
     tracing::info!("Final counts below.");
@@ -184,4 +203,31 @@ where
     }
 
     !any_nonzero
+}
+
+#[cfg(test)]
+mod test {
+    use crate::{
+        lookup::InteractionKind,
+        runtime::{Program, Runtime, ShardingConfig},
+        stark::RiscvAir,
+        utils::{setup_logger, tests::FIBONACCI_ELF, BabyBearPoseidon2},
+    };
+
+    use super::debug_interactions_with_all_chips;
+
+    #[test]
+    fn test_debug_interactions() {
+        setup_logger();
+        let program = Program::from(FIBONACCI_ELF);
+        let config = BabyBearPoseidon2::new();
+        let machine = RiscvAir::machine(config);
+        let (pk, _) = machine.setup(&program);
+        let mut runtime = Runtime::new(program);
+        runtime.run();
+        let shards = machine.shard(runtime.record, &ShardingConfig::default());
+        let ok =
+            debug_interactions_with_all_chips(&machine, &pk, &shards, InteractionKind::all_kinds());
+        assert!(ok);
+    }
 }

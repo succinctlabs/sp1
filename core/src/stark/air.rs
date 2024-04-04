@@ -86,7 +86,7 @@ pub enum RiscvAir<F: PrimeField32> {
     Secp256k1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for the Keccak permutation.
     KeccakP(KeccakPermuteChip),
-    /// A precompile for the Blake3 compression function.
+    /// A precompile for the Blake3 compression function. (Disabled by default.)
     Blake3Compress(Blake3CompressInnerChip),
     /// A precompile for addition on the Elliptic curve bn254.
     Bn254Add(WeierstrassAddAssignChip<SwCurve<Bn254Parameters>>),
@@ -129,8 +129,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Secp256k1Double(secp256k1_double_assign));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
-        let blake3_compress_inner = Blake3CompressInnerChip::new();
-        chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
         let bn254_add_assign = WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new();
         chips.push(RiscvAir::Bn254Add(bn254_add_assign));
         let bn254_double_assign = WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new();
