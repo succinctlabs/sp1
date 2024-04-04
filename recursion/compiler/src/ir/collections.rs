@@ -130,7 +130,7 @@ impl<C: Config> Builder<C> {
                 }
                 dyn_array
             }
-            Array::Dyn(ptr, len) => Array::Dyn(ptr, len),
+            Array::Dyn(_, _) => array,
         }
     }
 

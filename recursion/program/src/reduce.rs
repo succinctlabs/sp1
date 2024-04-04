@@ -17,6 +17,7 @@ use crate::types::ShardOpenedValuesVariable;
 use crate::types::ShardProofVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
+use p3_challenger::DuplexChallenger;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::ExtensionMmcs;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -26,6 +27,7 @@ use p3_field::Field;
 use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
 use p3_fri::FriProof;
+use p3_fri::TwoAdicFriPcs;
 use p3_fri::TwoAdicFriPcsProof;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
@@ -33,10 +35,12 @@ use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
 use sp1_core::air::MachineAir;
 use sp1_core::air::Word;
+use sp1_core::stark::Challenger;
 use sp1_core::stark::MachineStark;
 use sp1_core::stark::Proof;
 use sp1_core::stark::ShardCommitment;
 use sp1_core::stark::ShardProof;
+use sp1_core::stark::Verifier;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::{
     air::PublicValuesDigest,
@@ -52,9 +56,11 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::SymbolicExt;
 use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::Usize;
+use sp1_recursion_compiler::prelude::DslVariable;
 use sp1_recursion_core::runtime::Program as RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
+use sp1_recursion_core::stark::RecursionAir;
 use sp1_sdk::utils::BabyBearPoseidon2;
 
 type SC = BabyBearPoseidon2;
@@ -273,67 +279,166 @@ pub(crate) fn const_proof(
     }
 }
 
+// #[derive(DslVariable)]
+pub struct ReduceProof {
+    proof: ShardProof<BabyBearPoseidon2>,
+    recursive: bool,
+}
+
+// fn const_challenger(&mut builder: &mut Builder<C>, nb_bits: Usize<C::N>) -> Array<C, Var<C::N>> {
+//     builder.dyn_array(nb_bits)
+// }
+
 // TODO: proof is only necessary now because it's a constant, it should be I/O soon
-pub fn build_compress(
-    proof: Proof<BabyBearPoseidon2>,
-    vk: VerifyingKey<SC>,
-) -> RecursionProgram<Val> {
+pub fn build_reduce(proof: Vec<ReduceProof>, vk: VerifyingKey<SC>) -> RecursionProgram<Val> {
     let machine = RiscvAir::machine(SC::default());
+    todo!()
 
-    let mut challenger_val = machine.config().challenger();
-    challenger_val.observe(vk.commit);
-    proof.shard_proofs.iter().for_each(|proof| {
-        challenger_val.observe(proof.commitment.main_commit);
-    });
+    // let mut challenger_val = machine.config().challenger();
+    // challenger_val.observe(vk.commit);
+    // proof.proof.iter().for_each(|proof| {
+    //     challenger_val.observe(proof.commitment.main_commit);
+    // });
 
-    // Observe the public input digest
-    let pv_digest_field_elms: Vec<F> =
-        PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-    challenger_val.observe_slice(&pv_digest_field_elms);
+    // // Observe the public input digest
+    // let pv_digest_field_elms: Vec<F> =
+    //     PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
+    // challenger_val.observe_slice(&pv_digest_field_elms);
 
-    let permutation_challenges = (0..2)
-        .map(|_| challenger_val.sample_ext_element::<EF>())
-        .collect::<Vec<_>>();
+    // let permutation_challenges = (0..2)
+    //     .map(|_| challenger_val.sample_ext_element::<EF>())
+    //     .collect::<Vec<_>>();
 
-    let time = Instant::now();
-    let mut builder = VmBuilder::<F, EF>::default();
-    let config = const_fri_config(&mut builder, inner_fri_config());
-    let pcs = TwoAdicFriPcsVariable { config };
+    // let time = Instant::now();
+    // let mut builder = VmBuilder::<F, EF>::default();
+    // let config = const_fri_config(&mut builder, inner_fri_config());
+    // let pcs = TwoAdicFriPcsVariable { config };
 
-    let mut challenger = DuplexChallengerVariable::new(&mut builder);
+    // let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
-    let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-    let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
-    challenger.observe(&mut builder, preprocessed_commit);
+    // let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+    // let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
+    // challenger.observe(&mut builder, preprocessed_commit);
 
-    let mut shard_proofs = vec![];
-    for proof_val in proof.shard_proofs {
-        let proof = const_proof(&mut builder, &machine, proof_val);
-        let ShardCommitment { main_commit, .. } = &proof.commitment;
-        challenger.observe(&mut builder, main_commit.clone());
-        shard_proofs.push(proof);
+    // let mut shard_proofs = vec![];
+    // for proof_val in proof.shard_proofs {
+    //     let proof = const_proof(&mut builder, &machine, proof_val);
+    //     let ShardCommitment { main_commit, .. } = &proof.commitment;
+    //     challenger.observe(&mut builder, main_commit.clone());
+    //     shard_proofs.push(proof);
+    // }
+    // let proofs = builder.dyn_array(0);
+    // // Observe the public input digest
+    // let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
+    //     .iter()
+    //     .map(|x| builder.eval(*x))
+    //     .collect();
+    // challenger.observe_slice(&mut builder, &pv_digest_felt);
+
+    // for proof in shard_proofs {
+    //     StarkVerifier::<C, SC>::verify_shard(
+    //         &mut builder,
+    //         &vk,
+    //         &pcs,
+    //         &machine,
+    //         &mut challenger.clone(),
+    //         &proof,
+    //         &permutation_challenges,
+    //     );
+    // }
+
+    // let program = builder.compile();
+    // let elapsed = time.elapsed();
+    // println!("Building took: {:?}", elapsed);
+    // program
+}
+
+/// Given a list of proofs (which can be shard proof or recursive proof), verify them and output
+/// end challenger state.
+///
+/// When verifying sp1 shard proofs, the start challenger state is witnessed since it depends on all
+/// shards. Thus when reducing, we will pass up "verifying start" challenger state and rebuild it as
+/// we reduce shards. The start of this reconstructed state is witnessed except for the first shard,
+/// and it will be checked against end of previous shard in reduce step.
+fn rust_reduce(
+    proofs: &[ReduceProof],
+    vk: &VerifyingKey<SC>,
+    recursion_vk: &VerifyingKey<SC>,
+    challenger: &mut Challenger<SC>, // Current challenger state used in verifying
+    reconstruct_challenger: &mut Challenger<SC>, // Current reconstructed challenger state
+    verify_start_challenger: &Challenger<SC>,
+) {
+    let pre_challenger = challenger.clone();
+    let pre_reconstruct_challenger = reconstruct_challenger.clone();
+    for proof in proofs {
+        if !proof.recursive {
+            let config = BabyBearPoseidon2::new();
+            let machine = RiscvAir::machine(config.clone());
+            if proof.proof.index == 0 {
+                // Ensure that current challenger state is one being passed up.
+                // assert_eq!(challenger, verify_start_challenger);
+
+                // Initialize reconstruct_challenger with vk.commit.
+                *reconstruct_challenger = config.challenger();
+                reconstruct_challenger.observe(vk.commit);
+            }
+            reconstruct_challenger.observe(proof.proof.commitment.main_commit);
+
+            // Verify shard
+            let chips = machine
+                .shard_chips_ordered(&vk.chip_ordering)
+                .collect::<Vec<_>>();
+            Verifier::verify_shard(&config, vk, &chips, &mut challenger.clone(), &proof.proof)
+                .unwrap();
+        } else {
+            // Assert that the inner proof starts with current reconstruct_challenger.
+            // assert_eq!(reconstruct_challenger, proof.public_values.pre_reconstruct_challenger);
+
+            // Set current reconstruct_challenger to the end state of the inner proof.
+            // *reconstruct_challenger = proof.public_values.reconstruct_challenger;
+
+            // Assert that the inner proof starts with current challenger.
+            // assert_eq!(challenger, proof.public_values.pre_challenger);
+
+            // Set current challenger to the end state of the inner proof.
+            // *challenger = proof.public_values.challenger;
+
+            // Assert that the inner proof passes same verify_start_challenger value.
+            // assert_eq!(verify_start_challenger, proof.public_values.verify_start_challenger);
+
+            // Assert that the inner proof passes same vk value.
+            // assert_eq!(vk, proof.public_values.vk);
+
+            // Assert that the inner proof passes same recursion_vk value.
+            // assert_eq!(vk, proof.public_values.recursion_vk);
+
+            // Verify recursive proof
+            let config = BabyBearPoseidon2::new();
+            let machine = RecursionAir::machine(config.clone());
+            let chips = machine
+                .shard_chips_ordered(&vk.chip_ordering)
+                .collect::<Vec<_>>();
+            let mut recursion_challenger = machine.config().challenger();
+            Verifier::verify_shard(
+                &config,
+                recursion_vk,
+                &chips,
+                &mut recursion_challenger,
+                &proof.proof,
+            )
+            .unwrap();
+        }
     }
-    // Observe the public input digest
-    let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-        .iter()
-        .map(|x| builder.eval(*x))
-        .collect();
-    challenger.observe_slice(&mut builder, &pv_digest_felt);
-
-    for proof in shard_proofs {
-        StarkVerifier::<C, SC>::verify_shard(
-            &mut builder,
-            &vk,
-            &pcs,
-            &machine,
-            &mut challenger.clone(),
-            &proof,
-            &permutation_challenges,
-        );
-    }
-
-    let program = builder.compile();
-    let elapsed = time.elapsed();
-    println!("Building took: {:?}", elapsed);
-    program
+    // Public values:
+    // (
+    //     challenger,
+    //     reconstruct_challenger,
+    //     pre_challenger,
+    //     pre_reconstruct_challenger,
+    //     verify_start_challenger,
+    //     vk,
+    //     recursion_vk,
+    // )
+    // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
+    // after observing pv_digest at the end.
 }
