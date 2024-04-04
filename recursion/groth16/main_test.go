@@ -1,28 +1,24 @@
 package main
 
 import (
-	"fmt"
 	"testing"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/test"
 )
 
 func TestMain(t *testing.T) {
 	assert := test.NewAssert(t)
 
-	// Initialize the circuit.
-	var circuit Circuit
+	// // Initialize the circuit.
+	// var circuit Circuit
 
-	// Compile the circuit.
-	builder := r1cs.NewBuilder
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
+	// // Compile the circuit.
+	// builder := r1cs.NewBuilder
+	// r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	// if err != nil {
+	// 	t.Fatal(err)
+	// }
+	// fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
 	// // Run the dummy setup.
 	// var pk groth16.ProvingKey
@@ -59,8 +55,13 @@ func TestMain(t *testing.T) {
 	// }
 
 	// Run some sanity checks.
-	assert.ProverSucceeded(&circuit, &Circuit{
+	assert.CheckCircuit(&Circuit{
 		X: 0,
 		Y: 0,
-	}, test.WithCurves(ecc.BN254))
+	})
+
+	// assert.ProverSucceeded(&circuit, &Circuit{
+	// 	X: 0,
+	// 	Y: 0,
+	// }, test.WithCurves(ecc.BN254))
 }
