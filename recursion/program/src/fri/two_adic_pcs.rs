@@ -153,11 +153,16 @@ pub fn verify_two_adic_pcs<C: Config>(
                                     builder.get(&mat_opening, m).into();
                                 let p_at_z: SymbolicExt<C::F, C::EF> =
                                     builder.get(&ps_at_z, m).into();
+
                                 let quotient: SymbolicExt<C::F, C::EF> =
                                     (-p_at_z + p_at_x) / (-z + x);
+                                // let quotient = builder.eval(quotient);
+                                // builder.print_e(quotient);
 
                                 let ro_at_log_height = builder.get(&ro, log_height);
+                                builder.print_e(ro_at_log_height);
                                 let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
+                                builder.print_e(alpha_pow_at_log_height);
 
                                 builder.set(
                                     &mut ro,
@@ -173,6 +178,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                         });
                     });
             });
+
             builder.set(&mut reduced_openings, i, ro);
         });
 
@@ -315,7 +321,6 @@ pub(crate) mod tests {
     use p3_poseidon2::Poseidon2;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use rand::rngs::OsRng;
-    use sp1_core::utils::poseidon2_instance::RC_16_30;
     use sp1_recursion_compiler::asm::AsmConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;

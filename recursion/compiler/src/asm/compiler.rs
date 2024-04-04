@@ -281,7 +281,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::ESUBI(dst.fp(), lhs.fp(), rhs));
                 }
                 DslIR::NegE(dst, src) => {
-                    self.push(AsmInstruction::ESUBIN(dst.fp(), EF::one(), src.fp()));
+                    self.push(AsmInstruction::ESUBIN(dst.fp(), EF::zero(), src.fp()));
                 }
                 DslIR::MulV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MUL(dst.fp(), lhs.fp(), rhs.fp()));
