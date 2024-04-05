@@ -18,9 +18,6 @@ pub use two_adic_pcs::*;
 #[cfg(test)]
 pub(crate) use two_adic_pcs::tests::*;
 
-// #[cfg(test)]
-// pub(crate) use domain::tests::*;
-
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
@@ -85,7 +82,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 ///
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L67
 #[allow(clippy::type_complexity)]
-#[allow(unused_variables)]
 pub fn verify_challenges<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfigVariable<C>,
