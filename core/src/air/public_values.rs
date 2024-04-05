@@ -14,10 +14,9 @@ pub const PV_DIGEST_NUM_WORDS: usize = 8;
 pub struct PublicValues<W, T> {
     pub committed_value_digest: [W; PV_DIGEST_NUM_WORDS],
     pub shard: T,
-    pub first_row_clk: T,
-    pub last_row_next_clk: T,
     pub first_row_pc: T,
     pub last_row_next_pc: T,
+    pub last_instr_is_halt: T,
     pub exit_code: T,
 }
 
@@ -26,19 +25,17 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         let PublicValues {
             committed_value_digest,
             shard,
-            first_row_clk,
-            last_row_next_clk,
             first_row_pc,
             last_row_next_pc,
+            last_instr_is_halt,
             exit_code,
         } = other;
         Self {
             committed_value_digest: committed_value_digest.map(Word::from),
             shard: F::from_canonical_u32(shard),
-            first_row_clk: F::from_canonical_u32(first_row_clk),
-            last_row_next_clk: F::from_canonical_u32(last_row_next_clk),
             first_row_pc: F::from_canonical_u32(first_row_pc),
             last_row_next_pc: F::from_canonical_u32(last_row_next_pc),
+            last_instr_is_halt: F::from_canonical_u32(last_instr_is_halt),
             exit_code: F::from_canonical_u32(exit_code),
         }
     }
@@ -48,10 +45,9 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             .iter()
             .flat_map(|w| w.clone().into_iter())
             .chain(once(self.shard.clone()))
-            .chain(once(self.first_row_clk.clone()))
-            .chain(once(self.last_row_next_clk.clone()))
             .chain(once(self.first_row_pc.clone()))
             .chain(once(self.last_row_next_pc.clone()))
+            .chain(once(self.last_instr_is_halt.clone()))
             .chain(once(self.exit_code.clone()))
             .collect_vec()
     }
@@ -59,22 +55,21 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
     pub fn from_vec(data: Vec<F>) -> Self {
         let mut iter = data.iter().cloned();
 
-        let mut committed_value_digest: [Word<F>; PV_DIGEST_NUM_WORDS] = Default::default();
-        for w in committed_value_digest.iter_mut() {
-            *w = Word::from_iter(&mut iter);
+        let mut committed_value_digest = Vec::new();
+        for _ in 0..PV_DIGEST_NUM_WORDS {
+            committed_value_digest.push(Word::from_iter(&mut iter));
         }
 
         // Collecting the remaining items into a tuple.
-        if let [shard, first_row_clk, last_row_next_clk, first_row_pc, last_row_next_pc, exit_code] =
+        if let [shard, first_row_pc, last_row_next_pc, last_instr_is_halt, exit_code] =
             iter.collect::<Vec<_>>().as_slice()
         {
             Self {
-                committed_value_digest,
+                committed_value_digest: committed_value_digest.try_into().unwrap(),
                 shard: shard.to_owned(),
-                first_row_clk: first_row_clk.to_owned(),
-                last_row_next_clk: last_row_next_clk.to_owned(),
                 first_row_pc: first_row_pc.to_owned(),
                 last_row_next_pc: last_row_next_pc.to_owned(),
+                last_instr_is_halt: last_instr_is_halt.to_owned(),
                 exit_code: exit_code.to_owned(),
             }
         } else {

@@ -12,10 +12,6 @@ pub struct CpuEvent {
     /// The current clock.
     pub clk: u32,
 
-    /// The value of the next instruction's clk. This value needs to be make public for the last row
-    /// of each shard.
-    pub next_clk: u32,
-
     /// The current program counter.
     pub pc: u32,
 
@@ -49,4 +45,10 @@ pub struct CpuEvent {
 
     /// The memory access record for the memory value.
     pub memory_record: Option<MemoryRecordEnum>,
+
+    /// Flag indicating if the instruction is a halt instruction.
+    pub instr_is_halt: bool,
+
+    /// Flag indicating the exit code.  This is only valid if instr_is_halt == true.
+    pub exit_code: u32,
 }

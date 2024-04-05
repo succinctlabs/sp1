@@ -178,7 +178,7 @@ where
             public_values.committed_value_digest.clone(),
         );
 
-        self.halt_unimpl_eval(builder, local, next, is_halt, public_values.clone());
+        self.halt_unimpl_eval(builder, local, next, is_halt.clone());
 
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
@@ -197,7 +197,22 @@ where
         builder
             .when_last_row()
             .when(local.is_real)
-            .assert_eq(public_values.last_row_next_pc, local.next_pc);
+            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
+
+        builder.when_first_row().assert_zero(local.clk);
+
+        builder
+            .when(is_halt.clone())
+            .assert_one(public_values.last_instr_is_halt.clone());
+
+        // If we're halting, the public values next pc should be 0.
+        builder
+            .when(is_halt.clone())
+            .assert_zero(public_values.last_row_next_pc);
+
+        builder
+            .when(is_halt)
+            .assert_eq(public_values.exit_code, local.op_b_val().reduce::<AB>());
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
@@ -418,7 +433,10 @@ impl CpuChip {
         public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // Verify that all shard values are the same.
-        builder.when_transition().assert_eq(local.shard, next.shard);
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.shard, next.shard);
 
         // Verify the public values shard value.
         builder.assert_eq(public_values.shard, local.shard);
@@ -444,10 +462,6 @@ impl CpuChip {
             .when_transition()
             .when(next.is_real)
             .assert_eq(expected_next_clk.clone(), next.clk);
-
-        builder
-            .when_last_row()
-            .assert_eq(expected_next_clk.clone(), public_values.last_row_next_clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
         builder.verify_range_24bits(
@@ -531,7 +545,6 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_halt: AB::Expr,
-        public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // If we're halting and it's a transition, then the next.is_real should be 0.
         builder
@@ -540,16 +553,6 @@ impl CpuChip {
             .assert_zero(next.is_real);
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
-
-        // // If we're halting, the public values next pc should be 0.
-        builder
-            .when(is_halt.clone())
-            .assert_zero(public_values.last_row_next_pc);
-
-        // // Verify the exit code.
-        builder
-            .when(is_halt)
-            .assert_eq(local.op_a_val().reduce::<AB>(), public_values.exit_code);
     }
 }
 

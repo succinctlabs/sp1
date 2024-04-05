@@ -1,6 +1,7 @@
 use std::array::IntoIter;
 use std::ops::{Index, IndexMut};
 
+use itertools::Itertools;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -118,11 +119,13 @@ impl<T> IntoIterator for Word<T> {
 
 impl<F: AbstractField> FromIterator<F> for Word<F> {
     fn from_iter<I: IntoIterator<Item = F>>(iter: I) -> Self {
-        let mut iter = iter.into_iter();
-        let mut inner = [F::zero(), F::zero(), F::zero(), F::zero()];
-        for i in 0..WORD_SIZE {
-            inner[i] = iter.next().unwrap().clone();
-        }
-        Word(inner)
+        let elements: [F; WORD_SIZE] = iter
+            .into_iter()
+            .take(WORD_SIZE)
+            .collect_vec()
+            .try_into()
+            .unwrap();
+
+        Word(elements)
     }
 }

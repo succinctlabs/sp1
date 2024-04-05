@@ -348,7 +348,6 @@ impl Runtime {
         &mut self,
         shard: u32,
         clk: u32,
-        next_clk: u32,
         pc: u32,
         next_pc: u32,
         instruction: Instruction,
@@ -357,11 +356,12 @@ impl Runtime {
         c: u32,
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
+        instr_is_halt: bool,
+        exit_code: u32,
     ) {
         let cpu_event = CpuEvent {
             shard,
             clk,
-            next_clk,
             pc,
             next_pc,
             instruction,
@@ -373,7 +373,10 @@ impl Runtime {
             c_record: record.c,
             memory: memory_store_value,
             memory_record: record.memory,
+            instr_is_halt,
+            exit_code,
         };
+
         self.record.cpu_events.push(cpu_event);
     }
 
@@ -485,6 +488,9 @@ impl Runtime {
     fn execute_instruction(&mut self, instruction: Instruction) {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
+        let mut instr_is_halt = false;
+        let mut exit_code = 0u32;
+
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
@@ -700,7 +706,7 @@ impl Runtime {
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                let (precompile_next_pc, precompile_cycles) =
+                let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
                         // If it returns None, we just keep the syscall_id in t0.
@@ -711,18 +717,28 @@ impl Runtime {
                             // Default to syscall_id if no value is returned from syscall execution.
                             a = syscall_id;
                         }
-                        (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
+                        (
+                            precompile_rt.next_pc,
+                            syscall_impl.num_extra_cycles(),
+                            precompile_rt.exit_code,
+                        )
                     } else {
                         panic!("Unsupported syscall: {:?}", syscall);
                     };
 
                 // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
                 clk = self.state.clk;
+                if clk == 0 {
+                    println!("setting clk to 0 and instruction is {:?}", instruction);
+                    panic!("clk is 0, this should never happen.");
+                }
                 pc = self.state.pc;
 
                 self.rw(t0, a);
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
+                instr_is_halt = syscall == SyscallCode::HALT;
+                exit_code = returned_exit_code;
             }
 
             Opcode::EBREAK => {
@@ -803,7 +819,6 @@ impl Runtime {
             self.emit_cpu(
                 self.shard(),
                 clk,
-                self.state.clk,
                 pc,
                 next_pc,
                 instruction,
@@ -812,6 +827,8 @@ impl Runtime {
                 c,
                 memory_store_value,
                 self.memory_accesses,
+                instr_is_halt,
+                exit_code,
             );
         }
     }

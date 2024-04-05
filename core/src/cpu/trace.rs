@@ -574,7 +574,6 @@ impl CpuChip {
         let last_row = &values[len - NUM_CPU_COLS..];
         let pc = last_row[CPU_COL_MAP.pc];
         let shard = last_row[CPU_COL_MAP.shard];
-        let clk = last_row[CPU_COL_MAP.clk];
 
         values.resize(n_real_rows.next_power_of_two() * NUM_CPU_COLS, F::zero());
 
@@ -589,7 +588,6 @@ impl CpuChip {
         rows[n_real_rows..].iter_mut().for_each(|padded_row| {
             padded_row[CPU_COL_MAP.pc] = pc;
             padded_row[CPU_COL_MAP.shard] = shard;
-            padded_row[CPU_COL_MAP.clk] = clk;
             padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
             padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
         });
@@ -611,7 +609,6 @@ mod tests {
         shard.cpu_events = vec![CpuEvent {
             shard: 1,
             clk: 6,
-            next_clk: 10,
             pc: 1,
             next_pc: 5,
             instruction: Instruction {
@@ -630,6 +627,8 @@ mod tests {
             c_record: None,
             memory: None,
             memory_record: None,
+            instr_is_halt: false,
+            exit_code: 0,
         }];
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =

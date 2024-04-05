@@ -145,6 +145,8 @@ pub struct SyscallContext<'a> {
     pub clk: u32,
 
     pub(crate) next_pc: u32,
+    /// This is the exit_code used for the HALT syscall
+    pub(crate) exit_code: u32,
     pub(crate) rt: &'a mut Runtime,
 }
 
@@ -156,6 +158,7 @@ impl<'a> SyscallContext<'a> {
             current_shard,
             clk,
             next_pc: runtime.state.pc.wrapping_add(4),
+            exit_code: 0,
             rt: runtime,
         }
     }
@@ -221,6 +224,10 @@ impl<'a> SyscallContext<'a> {
 
     pub fn set_next_pc(&mut self, next_pc: u32) {
         self.next_pc = next_pc;
+    }
+
+    pub fn set_exit_code(&mut self, exit_code: u32) {
+        self.exit_code = exit_code;
     }
 }
 
