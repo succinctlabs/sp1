@@ -38,10 +38,7 @@ use sp1_core::stark::Proof;
 use sp1_core::stark::ShardCommitment;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
-use sp1_core::{
-    air::PublicValues,
-    stark::{RiscvAir, StarkGenericConfig},
-};
+use sp1_core::stark::{RiscvAir, StarkGenericConfig};
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
@@ -312,14 +309,9 @@ pub fn build_compress(
         let proof = const_proof(&mut builder, &machine, proof_val);
         let ShardCommitment { main_commit, .. } = &proof.commitment;
         challenger.observe(&mut builder, main_commit.clone());
+        challenger.observe_slice(&mut builder, proof.public_values.to_vec());
         shard_proofs.push(proof);
     }
-    // Observe the public input digest
-    let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-        .iter()
-        .map(|x| builder.eval(*x))
-        .collect();
-    challenger.observe_slice(&mut builder, &pv_digest_felt);
 
     for proof in shard_proofs {
         StarkVerifier::<C, SC>::verify_shard(

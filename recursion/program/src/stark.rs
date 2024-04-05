@@ -266,7 +266,6 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::PublicValues;
     use sp1_core::runtime::Program;
     use sp1_core::{
         air::MachineAir,
@@ -539,12 +538,7 @@ pub(crate) mod tests {
             challenger.observe_slice(&mut builder, proof.public_values.to_vec());
             shard_proofs.push(proof);
         }
-        // Observe the public input digest
-        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect();
-        challenger.observe_slice(&mut builder, &pv_digest_felt);
+
         for proof in shard_proofs {
             StarkVerifier::<C, SC>::verify_shard(
                 &mut builder,
