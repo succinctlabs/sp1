@@ -169,7 +169,13 @@ where
 
         self.shard_clk_eval(builder, local, next, num_cycles);
 
-        self.pc_eval(builder, local, next, is_branch_instruction.clone());
+        self.pc_eval(
+            builder,
+            local,
+            next,
+            is_branch_instruction.clone(),
+            is_halt.clone(),
+        );
 
         self.commit_eval(
             builder,
@@ -456,25 +462,34 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
+        is_halt: AB::Expr,
     ) {
+        // Verify that local.is_sequential_instr is true if the instruction it not a branch, jump, or halt.
+
+        // First verify that is_sequential_instr is not true for all non real rows.
+        builder
+            .when_not(local.is_real)
+            .assert_zero(local.is_sequential_instr);
+
+        // Now verify that is_sequential_instr is true for all real rows (which we know is true from
+        // the previous constraint) that are not branch, jump, or halt.
+        builder.when(local.is_sequential_instr).assert_zero(
+            is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
+        );
+
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
         // The other case is handled by eval_jump, eval_branch and eval_ecall (for halt).
-        // Note that when the instruction is halt, we already contrain that the next new is not real,
-        // so the `when(next.is_real)` condition implies that the instruction is not halt.
         builder
             .when_transition()
             .when(next.is_real)
-            .when_not(
-                is_branch_instruction.clone() + local.selectors.is_jal + local.selectors.is_jalr,
-            )
+            .when(local.is_sequential_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
+        // For the last row, if it is a real row and it is a sequential instruction, verify the next pc.
         builder
             .when_transition()
-            .when(next.is_real)
-            .when_not(
-                is_branch_instruction.clone() + local.selectors.is_jal + local.selectors.is_jalr,
-            )
+            .when(local.is_real)
+            .when(local.is_sequential_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
     }
 

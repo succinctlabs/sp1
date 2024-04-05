@@ -170,7 +170,15 @@ impl CpuChip {
         self.populate_branch(cols, event, &mut new_alu_events);
         self.populate_jump(cols, event, &mut new_alu_events);
         self.populate_auipc(cols, event, &mut new_alu_events);
-        self.populate_ecall(cols, event);
+        let is_halt = self.populate_ecall(cols, event);
+
+        if !event.instruction.is_branch_instruction()
+            && !event.instruction.is_jump_instruction()
+            && !event.instruction.is_ecall_instruction()
+            && !is_halt
+        {
+            cols.is_sequential_instr = F::one();
+        }
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -523,7 +531,9 @@ impl CpuChip {
     }
 
     /// Populate columns related to ECALL.
-    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) {
+    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) -> bool {
+        let mut is_halt = false;
+
         if cols.selectors.is_ecall == F::one() {
             // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
             // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
@@ -565,7 +575,11 @@ impl CpuChip {
                 ecall_cols.index_bitmap[digest_idx] = F::one();
                 ecall_cols.digest_word = *cols.op_c_access.value();
             }
+
+            is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
         }
+
+        is_halt
     }
 
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
