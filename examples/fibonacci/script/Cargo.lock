@@ -2838,6 +2838,7 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "bincode",
  "futures",
  "hex",
  "indicatif",

@@ -151,7 +151,7 @@ pub mod proof_serde {
 
     #[cfg(test)]
     mod tests {
-        use crate::{SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier};
+        use crate::{utils::BabyBearPoseidon2, SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier};
 
         pub const FIBONACCI_IO_ELF: &[u8] =
             include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
@@ -164,6 +164,18 @@ pub mod proof_serde {
             let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
             let json = serde_json::to_string(&proof).unwrap();
             let output = serde_json::from_str::<SP1ProofWithIO<_>>(&json).unwrap();
+            SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
+        }
+
+        /// Tests serialization with bincode encoding
+        #[test]
+        fn test_bincode_roundtrip() {
+            let mut stdin = SP1Stdin::new();
+            stdin.write(&3u32);
+            let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
+            let serialized = bincode::serialize(&proof).unwrap();
+            let output =
+                bincode::deserialize::<SP1ProofWithIO<BabyBearPoseidon2>>(&serialized).unwrap();
             SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
 
