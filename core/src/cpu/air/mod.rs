@@ -201,10 +201,6 @@ where
 
         builder.when_first_row().assert_zero(local.clk);
 
-        // builder
-        //     .when(is_halt.clone())
-        //     .assert_one(public_values.last_instr_is_halt.clone());
-
         // If we're halting, the public values next pc should be 0.
         builder
             .when(is_halt.clone())

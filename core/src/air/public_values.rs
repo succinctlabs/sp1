@@ -16,7 +16,6 @@ pub struct PublicValues<W, T> {
     pub shard: T,
     pub first_row_pc: T,
     pub last_row_next_pc: T,
-    pub last_instr_is_halt: T,
     pub exit_code: T,
 }
 
@@ -27,7 +26,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             shard,
             first_row_pc,
             last_row_next_pc,
-            last_instr_is_halt,
             exit_code,
         } = other;
         Self {
@@ -35,7 +33,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             shard: F::from_canonical_u32(shard),
             first_row_pc: F::from_canonical_u32(first_row_pc),
             last_row_next_pc: F::from_canonical_u32(last_row_next_pc),
-            last_instr_is_halt: F::from_canonical_u32(last_instr_is_halt),
             exit_code: F::from_canonical_u32(exit_code),
         }
     }
@@ -47,7 +44,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             .chain(once(self.shard.clone()))
             .chain(once(self.first_row_pc.clone()))
             .chain(once(self.last_row_next_pc.clone()))
-            .chain(once(self.last_instr_is_halt.clone()))
             .chain(once(self.exit_code.clone()))
             .collect_vec()
     }
@@ -61,7 +57,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         }
 
         // Collecting the remaining items into a tuple.
-        if let [shard, first_row_pc, last_row_next_pc, last_instr_is_halt, exit_code] =
+        if let [shard, first_row_pc, last_row_next_pc, exit_code] =
             iter.collect::<Vec<_>>().as_slice()
         {
             Self {
@@ -69,7 +65,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
                 shard: shard.to_owned(),
                 first_row_pc: first_row_pc.to_owned(),
                 last_row_next_pc: last_row_next_pc.to_owned(),
-                last_instr_is_halt: last_instr_is_halt.to_owned(),
                 exit_code: exit_code.to_owned(),
             }
         } else {
