@@ -9,6 +9,8 @@ on:
     paths:
       - "core/**"
       - "recursion/**"
+      - "sdk/**"
+      - "examples/fibonacci-io/**"
 
 jobs:
   test:
