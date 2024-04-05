@@ -60,6 +60,16 @@ jobs:
           toolchain: nightly-2024-01-25
           override: true
 
+      - name: Run fibonacci-io example
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --manifest-path examples/fibonacci-io/Cargo.toml
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
       - name: Run cargo test on sp1-core
         uses: actions-rs/cargo@v1
         with:
@@ -105,16 +115,6 @@ jobs:
         with:
           command: test
           args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-
-      - name: Run fibonacci-io example
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --manifest-path examples/fibonacci-io/Cargo.toml
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_LOG: 1
