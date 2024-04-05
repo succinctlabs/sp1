@@ -12,14 +12,13 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
 pub type PublicValuesDigestVariable<C: Config> = Array<C, Felt<C::F>>;
 
-#[derive(Clone)]
+#[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {
     pub index: Var<C::N>,
     pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
     pub public_values_digest: PublicValuesDigestVariable<C>,
-    pub sorted_indices: Vec<Var<C::N>>,
 }
 
 #[derive(DslVariable, Clone)]

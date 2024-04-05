@@ -19,7 +19,7 @@ pub const PV_DIGEST_NUM_WORDS: usize = 8;
 /// The PublicValuesDigest struct is used to represent the public values digest.  This is the hash of all the
 /// bytes that the guest program has written to public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
-pub struct PublicValuesDigest<T>([T; PV_DIGEST_NUM_WORDS]);
+pub struct PublicValuesDigest<T>(pub [T; PV_DIGEST_NUM_WORDS]);
 
 /// Conversion from a byte array into a PublicValuesDigest<u32>.
 impl From<&[u8]> for PublicValuesDigest<u32> {

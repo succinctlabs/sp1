@@ -10,6 +10,7 @@ use p3_fri::QueryProof;
 use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
+use p3_symmetric::Hash;
 use p3_symmetric::{MultiField32PaddingFreeSponge, PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
@@ -73,6 +74,7 @@ pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
 pub type InnerPerm = Poseidon2<InnerVal, DiffusionMatrixBabybear, 16, 7>;
 pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
+pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
 pub type InnerDigest = [InnerVal; DIGEST_SIZE];
 pub type InnerCompress = TruncatedPermutation<InnerPerm, 2, 8, 16>;
 pub type InnerValMmcs = FieldMerkleTreeMmcs<

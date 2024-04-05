@@ -2,6 +2,7 @@
 #![feature(generic_const_exprs)]
 #![allow(type_alias_bounds)]
 #![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 pub mod challenger;
 pub mod commit;
 pub mod constraints;

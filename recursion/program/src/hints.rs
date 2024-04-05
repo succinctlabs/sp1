@@ -1,15 +1,21 @@
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::stark::{AirOpenedValues, ChipOpenedValues};
+use sp1_core::stark::{
+    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
+};
 use sp1_recursion_compiler::{
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
     InnerConfig,
 };
 use sp1_recursion_core::{
     air::Block,
-    stark::config::{InnerChallenge, InnerVal},
+    stark::config::{InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerVal},
 };
+use sp1_sdk::utils::BabyBearPoseidon2;
 
-use crate::types::{AirOpenedValuesVariable, ChipOpenedValuesVariable};
+use crate::types::{
+    AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
+    ShardOpenedValuesVariable, ShardProofVariable,
+};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;
@@ -130,6 +136,83 @@ impl Hintable<C> for ChipOpenedValues<InnerChallenge> {
         stream.extend(self.quotient.write());
         stream.extend(self.cumulative_sum.write());
         stream.extend(self.log_degree.write());
+        stream
+    }
+}
+
+impl Hintable<C> for ShardOpenedValues<InnerChallenge> {
+    type HintVariable = ShardOpenedValuesVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let chips = Vec::<ChipOpenedValues<InnerChallenge>>::read(builder);
+        ShardOpenedValuesVariable { chips }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+        stream.extend(self.chips.write());
+        stream
+    }
+}
+
+impl Hintable<C> for ShardCommitment<InnerDigestHash> {
+    type HintVariable = ShardCommitmentVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let main_commit = InnerDigest::read(builder);
+        let permutation_commit = InnerDigest::read(builder);
+        let quotient_commit = InnerDigest::read(builder);
+        ShardCommitmentVariable {
+            main_commit,
+            permutation_commit,
+            quotient_commit,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+        let h: InnerDigest = self.main_commit.into();
+        stream.extend(h.write());
+        let h: InnerDigest = self.permutation_commit.into();
+        stream.extend(h.write());
+        let h: InnerDigest = self.quotient_commit.into();
+        stream.extend(h.write());
+        stream
+    }
+}
+
+impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
+    type HintVariable = ShardProofVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let index = builder.hint_var();
+        let commitment = ShardCommitment::read(builder);
+        let opened_values = ShardOpenedValues::read(builder);
+        let opening_proof = InnerPcsProof::read(builder);
+        let public_values_digest = Vec::<InnerVal>::read(builder);
+        ShardProofVariable {
+            index,
+            commitment,
+            opened_values,
+            opening_proof,
+            public_values_digest,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+        stream.extend(self.index.write());
+        stream.extend(self.commitment.write());
+        stream.extend(self.opened_values.write());
+        stream.extend(self.opening_proof.write());
+        stream.extend(
+            self.public_values_digest
+                .0
+                .into_iter()
+                .flat_map(|x| x.0)
+                .collect::<Vec<_>>()
+                .write(),
+        );
         stream
     }
 }
