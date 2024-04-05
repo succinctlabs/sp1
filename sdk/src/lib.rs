@@ -17,7 +17,7 @@ pub use crate::io::*;
 use proto::network::{ProofStatus, TransactionStatus};
 use utils::*;
 
-use crate::client::{NetworkClient, SP1_VERIFIER_ADDRESS};
+use crate::client::NetworkClient;
 use anyhow::{Context, Ok, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -125,7 +125,7 @@ impl SP1Prover {
         callback_datas: Vec<&str>,
     ) -> Result<Vec<String>> {
         let client = NetworkClient::with_token(access_token);
-        let verifier = SP1_VERIFIER_ADDRESS;
+        let verifier = &NetworkClient::get_sp1_verifier_address();
 
         let mut tx_details = Vec::new();
         for ((i, &callback), &callback_data) in

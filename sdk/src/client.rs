@@ -22,7 +22,7 @@ use crate::{
 };
 
 const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
-pub const SP1_VERIFIER_ADDRESS: &str = "0x9a39f368676f7a5cbbfe8ea33c258c4536b5398f";
+const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0x9a39f368676f7a5cbbfe8ea33c258c4536b5398f";
 
 pub struct NetworkClient {
     pub rpc: TwirpClient,
@@ -61,6 +61,11 @@ impl NetworkClient {
             rpc,
             http: http_client.into(),
         }
+    }
+
+    pub fn get_sp1_verifier_address() -> String {
+        env::var("SP1_VERIFIER_ADDRESS")
+            .unwrap_or_else(|_| DEFAULT_SP1_VERIFIER_ADDRESS.to_string())
     }
 
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
