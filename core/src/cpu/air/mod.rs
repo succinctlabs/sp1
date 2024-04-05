@@ -556,10 +556,15 @@ impl CpuChip {
         public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
         is_halt: AB::Expr,
     ) {
-        // Verify the public values shard value.
+        // Verify the public value's shard.
         builder
             .when(local.is_real)
             .assert_eq(public_values.shard.clone(), local.shard);
+
+        // Verify the public value's first row pc.
+        builder
+            .when_first_row()
+            .assert_eq(public_values.first_row_pc.clone(), local.pc);
 
         // If the last real row is not the last row, verify the public value's next pc.
         builder
