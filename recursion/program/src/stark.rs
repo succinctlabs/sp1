@@ -261,6 +261,7 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
+    use crate::compress::build_compress;
     use crate::stark::Ext;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
@@ -447,74 +448,17 @@ pub(crate) mod tests {
     fn test_recursive_verify_shard() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
+
         let elf =
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
 
         let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger_val = machine.config().challenger();
         let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof;
-        let mut challenger_ver = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
-        println!("Proof generated successfully");
-
-        challenger_val.observe(vk.commit);
-        proof.shard_proofs.iter().for_each(|proof| {
-            challenger_val.observe(proof.commitment.main_commit);
-        });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger_val.observe_slice(&pv_digest_field_elms);
-
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
-
-        let time = Instant::now();
-        let mut builder = VmBuilder::<F, EF>::default();
-        let config = const_fri_config(&mut builder, inner_fri_config());
-        let pcs = TwoAdicFriPcsVariable { config };
-
-        let mut challenger = DuplexChallengerVariable::new(&mut builder);
-
-        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
-        challenger.observe(&mut builder, preprocessed_commit);
-
-        let mut shard_proofs = vec![];
-        for proof_val in proof.shard_proofs {
-            let proof = const_proof(&mut builder, &machine, proof_val);
-            let ShardCommitment { main_commit, .. } = &proof.commitment;
-            challenger.observe(&mut builder, main_commit.clone());
-            shard_proofs.push(proof);
-        }
-        // Observe the public input digest
-        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect();
-        challenger.observe_slice(&mut builder, &pv_digest_felt);
-
-        for proof in shard_proofs {
-            StarkVerifier::<C, SC>::verify_shard(
-                &mut builder,
-                &vk,
-                &pcs,
-                &machine,
-                &mut challenger.clone(),
-                &proof,
-                &permutation_challenges,
-            );
-        }
-
-        let program = builder.compile();
-        let elapsed = time.elapsed();
-        println!("Building took: {:?}", elapsed);
+        let program = build_compress(proof, vk);
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
 
