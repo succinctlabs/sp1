@@ -167,7 +167,7 @@ where
             is_alu_instruction,
         );
 
-        self.shard_clk_eval(builder, local, next, num_cycles, public_values.clone());
+        self.shard_clk_eval(builder, local, next, num_cycles);
 
         self.pc_eval(builder, local, next, is_branch_instruction.clone());
 
@@ -180,6 +180,8 @@ where
 
         self.halt_unimpl_eval(builder, local, next, is_halt.clone());
 
+        self.public_values_eval(builder, local, next, &public_values, is_halt);
+
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
         builder.assert_bool(local.is_real);
@@ -188,27 +190,6 @@ where
             .when_transition()
             .when_not(local.is_real)
             .assert_zero(next.is_real);
-
-        builder
-            .when_transition()
-            .when(local.is_real - next.is_real)
-            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
-
-        builder
-            .when_last_row()
-            .when(local.is_real)
-            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
-
-        builder.when_first_row().assert_zero(local.clk);
-
-        // If we're halting, the public values next pc should be 0.
-        builder
-            .when(is_halt.clone())
-            .assert_zero(public_values.last_row_next_pc);
-
-        builder
-            .when(is_halt)
-            .assert_eq(public_values.exit_code, local.op_b_val().reduce::<AB>());
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
@@ -410,7 +391,7 @@ impl CpuChip {
         (
             num_cycles * is_ecall_instruction.clone(),
             is_halt * is_ecall_instruction.clone(),
-            is_commit * is_ecall_instruction.clone(),
+            is_commit * is_ecall_instruction,
         )
     }
 
@@ -426,16 +407,12 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         num_cycles: AB::Expr,
-        public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // Verify that all shard values are the same.
         builder
             .when_transition()
             .when(next.is_real)
             .assert_eq(local.shard, next.shard);
-
-        // Verify the public values shard value.
-        builder.assert_eq(public_values.shard, local.shard);
 
         // Verify that the shard value is within 16 bits.
         builder.send_byte(
@@ -549,6 +526,44 @@ impl CpuChip {
             .assert_zero(next.is_real);
 
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
+    }
+
+    /// Constraint related to the public values.
+    pub(crate) fn public_values_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+        public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
+        is_halt: AB::Expr,
+    ) {
+        // Verify the public values shard value.
+        builder
+            .when(local.is_real)
+            .assert_eq(public_values.shard.clone(), local.shard);
+
+        // If the last real row is not the last row, verify the public value's next pc.
+        builder
+            .when_transition()
+            .when(local.is_real - next.is_real)
+            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
+
+        // If the last real row is the last row, verify the public value's next pc.
+        builder
+            .when_last_row()
+            .when(local.is_real)
+            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
+
+        // If we're halting, verify that the public value's next pc == 0.
+        builder
+            .when(is_halt.clone())
+            .assert_zero(public_values.last_row_next_pc.clone());
+
+        // If we're halting, verify the public values's exit code.
+        builder.when(is_halt).assert_eq(
+            public_values.exit_code.clone(),
+            local.op_b_val().reduce::<AB>(),
+        );
     }
 }
 
