@@ -303,12 +303,8 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
+            challenger.observe_slice(proof.public_values.to_vec());
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
 
         // Run the verify inside the DSL and compare it to the calculated value.
         let mut builder = VmBuilder::<F, EF>::default();
@@ -323,11 +319,16 @@ mod tests {
                 zeta_val,
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
-            // Set up the public values digest.
-            let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-                let word_val = proof.public_values_digest[i];
+            // Set up the public values.
+            let mut public_values = Default::default();
+            public_values.shard = builder.eval(proof.public_values.shard);
+            public_values.first_row_pc = builder.eval(proof.public_values.first_row_pc);
+            public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
+            public_values.exit_code = builder.eval(proof.public_values.exit_code);
+            public_values.committed_value_digest = core::array::from_fn(|i| {
+                let word_val = proof.public_values.committed_value_digest[i];
                 Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-            }));
+            });
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -359,7 +360,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &values,
-                    public_values_digest,
+                    public_values,
                     &sels,
                     alpha,
                     permutation_challenges.as_slice(),
@@ -460,17 +461,22 @@ mod tests {
                     .map(|domain| builder.eval_const(*domain))
                     .collect::<Vec<_>>();
 
-                // Set up the public values digest.
-                let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-                    let word_val = proof.public_values_digest[i];
+                // Set up the public values.
+                let mut public_values = Default::default();
+                public_values.shard = builder.eval(proof.public_values.shard);
+                public_values.first_row_pc = builder.eval(proof.public_values.first_row_pc);
+                public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
+                public_values.exit_code = builder.eval(proof.public_values.exit_code);
+                public_values.committed_value_digest = core::array::from_fn(|i| {
+                    let word_val = proof.public_values.committed_value_digest[i];
                     Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-                }));
+                });
 
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
                     &mut builder,
                     chip,
                     &opening,
-                    public_values_digest,
+                    public_values,
                     trace_domain,
                     qc_domains,
                     zeta,

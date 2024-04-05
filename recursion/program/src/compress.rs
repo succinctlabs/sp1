@@ -39,7 +39,7 @@ use sp1_core::stark::ShardCommitment;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::{
-    air::PublicValuesDigest,
+    air::PublicValues,
     stark::{RiscvAir, StarkGenericConfig},
 };
 use sp1_recursion_compiler::asm::AsmConfig;
@@ -206,11 +206,16 @@ pub(crate) fn const_proof(
 ) -> ShardProofVariable<C> {
     let index = builder.materialize(Usize::Const(proof.index));
 
-    // Set up the public values digest.
-    let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-        let word_val = proof.public_values_digest[i];
+    // Set up the public values.
+    let mut public_values = Default::default();
+    public_values.shard = builder.eval(proof.public_values.shard);
+    public_values.first_row_pc = builder.eval(proof.public_values.first_row_pc);
+    public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
+    public_values.exit_code = builder.eval(proof.public_values.exit_code);
+    public_values.committed_value_digest = core::array::from_fn(|i| {
+        let word_val = proof.public_values.committed_value_digest[i];
         Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-    }));
+    });
 
     // Set up the commitments.
     let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
@@ -269,7 +274,7 @@ pub(crate) fn const_proof(
         opened_values,
         opening_proof,
         sorted_indices,
-        public_values_digest,
+        public_values,
     }
 }
 
@@ -284,12 +289,8 @@ pub fn build_compress(
     challenger_val.observe(vk.commit);
     proof.shard_proofs.iter().for_each(|proof| {
         challenger_val.observe(proof.commitment.main_commit);
+        challenger_val.observe_slice(proof.public_values.to_vec());
     });
-
-    // Observe the public input digest
-    let pv_digest_field_elms: Vec<F> =
-        PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-    challenger_val.observe_slice(&pv_digest_field_elms);
 
     let permutation_challenges = (0..2)
         .map(|_| challenger_val.sample_ext_element::<EF>())

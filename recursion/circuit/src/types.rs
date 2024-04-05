@@ -18,7 +18,7 @@ pub struct RecursionShardProofVariable<C: Config> {
     pub commitment: ShardCommitment<OuterDigest<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
+    pub public_values: PublicValues<Word<Felt<C::F>>, Felt<C::F>>,
     pub sorted_chips: Vec<String>,
     pub sorted_indices: Vec<usize>,
 }

@@ -29,7 +29,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
+        public_values: PublicValues<Word<Felt<C::F>>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[C::EF],
@@ -58,7 +58,7 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-        let public_values: Vec<Felt<C::F>> = public_values_digest.into();
+        let public_values: Vec<Felt<C::F>> = public_values.to_vec();
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -128,7 +128,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
+        public_values: PublicValues<Word<Felt<C::F>>>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -144,7 +144,7 @@ where
             builder,
             chip,
             &opening,
-            public_values_digest,
+            public_values,
             &sels,
             alpha,
             permutation_challenges,
@@ -301,12 +301,8 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
+            challenger.observe_slice(proof.public_values.to_vec());
         });
-
-        // Observe the public input digest.
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
 
         // Run the verify inside the DSL and compare it to the calculated value.
         let mut builder = Builder::<OuterConfig>::default();
@@ -321,11 +317,16 @@ mod tests {
                 zeta_val,
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
-            // Set up the public values digest.
-            let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-                let word_val = proof.public_values_digest[i];
-                Word::<Felt<_>>(core::array::from_fn(|j| builder.eval(word_val[j])))
-            }));
+            // Set up the public values.
+            let mut public_values = Default::default();
+            public_values.shard = builder.eval(proof.public_values.shard);
+            public_values.first_row_pc = builder.eval(proof.public_values.first_row_pc);
+            public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
+            public_values.exit_code = builder.eval(proof.public_values.exit_code);
+            public_values.committed_value_digest = core::array::from_fn(|i| {
+                let word_val = proof.public_values.committed_value_digest[i];
+                Word(core::array::from_fn(|j| builder.eval(word_val[j])))
+            });
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -346,7 +347,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &opening,
-                    public_values_digest,
+                    public_values,
                     trace_domain,
                     qc_domains,
                     zeta,

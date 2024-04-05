@@ -243,7 +243,7 @@ where
                     builder,
                     chip,
                     &values,
-                    proof.public_values_digest,
+                    proof.public_values,
                     trace_domain,
                     qc_domains,
                     zeta,
@@ -321,7 +321,7 @@ pub(crate) mod tests {
         public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
         public_values.exit_code = builder.eval(proof.public_values.exit_code);
         public_values.committed_value_digest = core::array::from_fn(|i| {
-            let word_val = proof.public_values_digest[i];
+            let word_val = proof.public_values.committed_value_digest[i];
             Word(core::array::from_fn(|j| builder.eval(word_val[j])))
         });
 

@@ -221,7 +221,7 @@ where
                         builder,
                         chip,
                         values,
-                        proof.public_values_digest,
+                        proof.public_values,
                         trace_domain.clone(),
                         qc_domains,
                         zeta,
@@ -280,11 +280,16 @@ pub(crate) mod tests {
     where
         C: Config<F = F, EF = EF>,
     {
-        // Set up the public values digest.
-        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-            let word_val = proof.public_values_digest[i];
-            Word::<Felt<_>>(core::array::from_fn(|j| builder.eval(word_val[j])))
-        }));
+        // Set up the public values.
+        let mut public_values = Default::default();
+        public_values.shard = builder.eval(proof.public_values.shard);
+        public_values.first_row_pc = builder.eval(proof.public_values.first_row_pc);
+        public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
+        public_values.exit_code = builder.eval(proof.public_values.exit_code);
+        public_values.committed_value_digest = core::array::from_fn(|i| {
+            let word_val = proof.public_values.committed_value_digest[i];
+            Word(core::array::from_fn(|j| builder.eval(word_val[j])))
+        });
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
@@ -335,7 +340,7 @@ pub(crate) mod tests {
             opened_values,
             opening_proof,
             sorted_chips: chips,
-            public_values_digest,
+            public_values,
             sorted_indices,
         }
     }
@@ -389,12 +394,8 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
+            challenger_val.observe_slice(proof.public_values.to_vec());
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger_val.observe_slice(&pv_digest_field_elms);
 
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
