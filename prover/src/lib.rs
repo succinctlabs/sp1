@@ -9,7 +9,7 @@ use sp1_core::{
     utils::{run_and_prove, BabyBearPoseidon2},
 };
 use sp1_recursion_core::runtime::Runtime;
-use sp1_recursion_program::compress::build_compress;
+use sp1_recursion_program::reduce::build_reduce;
 
 type InnerSC = BabyBearPoseidon2;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
@@ -33,7 +33,7 @@ pub fn prove_sp1() -> (Proof<InnerSC>, VerifyingKey<InnerSC>) {
 }
 
 pub fn prove_compress(sp1_proof: Proof<InnerSC>, vk: VerifyingKey<InnerSC>) {
-    let program = build_compress(sp1_proof, vk);
+    let program = build_reduce(sp1_proof, vk);
 
     let config = InnerSC::default();
     let machine = InnerA::machine(config);

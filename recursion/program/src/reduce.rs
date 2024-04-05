@@ -1,3 +1,4 @@
+use std::cmp;
 use std::time::Instant;
 
 use crate::challenger::CanObserveVariable;
@@ -353,6 +354,60 @@ pub fn build_reduce(proof: Vec<ReduceProof>, vk: VerifyingKey<SC>) -> RecursionP
     // program
 }
 
+fn assert_challenger_eq(challenger: &Challenger<SC>, expected: &Challenger<SC>) {
+    assert_eq!(challenger.sponge_state, expected.sponge_state);
+    assert_eq!(challenger.input_buffer, expected.input_buffer);
+    assert_eq!(challenger.output_buffer, expected.output_buffer);
+}
+
+/// Recursively reduce proof shards down to a single proof using an N-ary tree.
+fn rust_prove_reduce(
+    proof: Proof<SC>,
+    vk: VerifyingKey<SC>,
+    recursion_vk: VerifyingKey<SC>,
+    challenger: &Challenger<SC>,
+) {
+    let n = 2;
+    let mut reconstruct_challenger = challenger.clone();
+    let mut challenger = challenger.clone();
+    let mut verify_start_challenger = challenger.clone();
+    verify_start_challenger.observe(vk.commit);
+    for proof in &proof.shard_proofs {
+        verify_start_challenger.observe(proof.commitment.main_commit);
+    }
+    let pv_digest_field_elms: Vec<Val> =
+        PublicValuesDigest::<Word<Val>>::new(proof.public_values_digest).into();
+    verify_start_challenger.observe_slice(&pv_digest_field_elms);
+
+    let mut current_proofs = Vec::new();
+    for proof in proof.shard_proofs {
+        current_proofs.push(ReduceProof {
+            proof,
+            recursive: false,
+        });
+    }
+
+    while current_proofs.len() > 1 {
+        let mut next_proofs = Vec::new();
+        for i in (0..current_proofs.len()).step_by(n) {
+            rust_reduce(
+                &current_proofs[i..cmp::min(i + n, current_proofs.len())],
+                &vk,
+                &recursion_vk,
+                &mut challenger,
+                &mut reconstruct_challenger,
+                &verify_start_challenger,
+            );
+            next_proofs.push(ReduceProof {
+                // TODO: real proof here
+                proof: current_proofs[0].proof.clone(),
+                recursive: true,
+            })
+        }
+        current_proofs = next_proofs;
+    }
+}
+
 /// Given a list of proofs (which can be shard proof or recursive proof), verify them and output
 /// end challenger state.
 ///
@@ -376,7 +431,7 @@ fn rust_reduce(
             let machine = RiscvAir::machine(config.clone());
             if proof.proof.index == 0 {
                 // Ensure that current challenger state is one being passed up.
-                // assert_eq!(challenger, verify_start_challenger);
+                assert_challenger_eq(challenger, verify_start_challenger);
 
                 // Initialize reconstruct_challenger with vk.commit.
                 *reconstruct_challenger = config.challenger();
@@ -392,13 +447,16 @@ fn rust_reduce(
                 .unwrap();
         } else {
             // Assert that the inner proof starts with current reconstruct_challenger.
-            // assert_eq!(reconstruct_challenger, proof.public_values.pre_reconstruct_challenger);
+            // assert_challenger_eq(
+            //     reconstruct_challenger,
+            //     &proof.public_values.pre_reconstruct_challenger,
+            // );
 
             // Set current reconstruct_challenger to the end state of the inner proof.
             // *reconstruct_challenger = proof.public_values.reconstruct_challenger;
 
             // Assert that the inner proof starts with current challenger.
-            // assert_eq!(challenger, proof.public_values.pre_challenger);
+            // assert_challenger_eq(challenger, proof.public_values.pre_challenger);
 
             // Set current challenger to the end state of the inner proof.
             // *challenger = proof.public_values.challenger;
