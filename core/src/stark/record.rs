@@ -13,7 +13,7 @@ pub trait MachineRecord: Default + Sized + Send + Sync {
 
     fn append(&mut self, other: &mut Self);
 
-    fn shard(&mut self, config: &Self::Config) -> Vec<Self>;
+    fn shard(self, config: &Self::Config) -> Vec<Self>;
 
     fn public_values(&self) -> PublicValues<u32, u32>;
 }
