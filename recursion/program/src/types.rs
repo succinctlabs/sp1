@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
     air::MachineAir,
-    stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
+    stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
 use sp1_recursion_compiler::prelude::*;
 
@@ -10,13 +10,23 @@ use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
+pub type PublicValuesDigestVariable<C: Config> = Array<C, Felt<C::F>>;
+
+#[derive(Clone)]
 pub struct ShardProofVariable<C: Config> {
     pub index: Var<C::N>,
-    pub commitment: ShardCommitment<DigestVariable<C>>,
+    pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values_digest: Array<C, Felt<C::F>>,
+    pub public_values_digest: PublicValuesDigestVariable<C>,
     pub sorted_indices: Vec<Var<C::N>>,
+}
+
+#[derive(DslVariable, Clone)]
+pub struct ShardCommitmentVariable<C: Config> {
+    pub main_commit: DigestVariable<C>,
+    pub permutation_commit: DigestVariable<C>,
+    pub quotient_commit: DigestVariable<C>,
 }
 
 #[derive(DslVariable, Debug, Clone)]

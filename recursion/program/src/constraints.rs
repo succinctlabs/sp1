@@ -8,7 +8,6 @@ use sp1_core::air::PV_DIGEST_NUM_WORDS;
 use sp1_core::air::WORD_SIZE;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
-use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::prelude::Config;
 use sp1_recursion_compiler::prelude::ExtConst;
@@ -20,6 +19,7 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifier;
 use crate::types::ChipOpenedValuesVariable;
 use crate::types::ChipOpening;
+use crate::types::PublicValuesDigestVariable;
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -30,7 +30,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values_digest: Array<C, Felt<C::F>>,
+        public_values_digest: PublicValuesDigestVariable<C>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[C::EF],
@@ -133,7 +133,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values_digest: Array<C, Felt<C::F>>,
+        public_values_digest: PublicValuesDigestVariable<C>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -349,7 +349,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
-                    proof.public_values_digest.clone(),
+                    proof.public_values_digest,
                 );
 
                 // Compute the folded constraints value in the DSL.

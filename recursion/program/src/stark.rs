@@ -5,8 +5,8 @@ use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
 use sp1_core::stark::MachineStark;
+use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::VerifyingKey;
-use sp1_core::stark::{ShardCommitment, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
@@ -21,6 +21,7 @@ use crate::folder::RecursiveVerifierConstraintFolder;
 use crate::fri::types::TwoAdicPcsMatsVariable;
 use crate::fri::types::TwoAdicPcsRoundVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::types::ShardCommitmentVariable;
 
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
@@ -62,7 +63,7 @@ where
             ..
         } = proof;
 
-        let ShardCommitment {
+        let ShardCommitmentVariable {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -262,6 +263,7 @@ pub(crate) mod tests {
     use crate::fri::types::DigestVariable;
     use crate::hints::Hintable;
     use crate::stark::Ext;
+    use crate::types::ShardCommitmentVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
@@ -271,7 +273,7 @@ pub(crate) mod tests {
     use sp1_core::runtime::Program;
     use sp1_core::{
         air::MachineAir,
-        stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
+        stark::{MachineStark, RiscvAir, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::ir::Array;
@@ -345,7 +347,7 @@ pub(crate) mod tests {
             builder.set(&mut quotient_commit, i, quotient_val);
         }
 
-        let commitment = ShardCommitment {
+        let commitment = ShardCommitmentVariable {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -425,7 +427,7 @@ pub(crate) mod tests {
 
         for proof in proofs {
             let proof = const_proof(&mut builder, &machine, proof);
-            let ShardCommitment { main_commit, .. } = proof.commitment;
+            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
         }
 
@@ -499,7 +501,7 @@ pub(crate) mod tests {
         for proof_val in proof.shard_proofs {
             witness_stream.extend(proof_val.opening_proof.write());
             let proof = const_proof(&mut builder, &machine, proof_val);
-            let ShardCommitment { main_commit, .. } = &proof.commitment;
+            let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
         }
@@ -598,7 +600,7 @@ pub(crate) mod tests {
             let mut proof_val = proof_val;
             proof_val.commitment.main_commit = [F::zero(); DIGEST_SIZE].into();
             let proof = const_proof(&mut builder, &machine, proof_val);
-            let ShardCommitment { main_commit, .. } = &proof.commitment;
+            let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
         }
