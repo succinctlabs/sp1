@@ -138,6 +138,7 @@ impl CpuChip {
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
+        cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
         *cols.op_a_access.value_mut() = event.a.into();
@@ -543,14 +544,14 @@ impl CpuChip {
                         - F::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
                 );
 
-            // Populate `is_halt`.
-            if syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id()) {
-                cols.is_halt = F::one();
-            }
-
             // Populate `is_hint_len`.
             ecall_cols.is_hint_len.populate_from_field_element(
                 syscall_id - F::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
+            );
+
+            // Populate `is_halt`.
+            ecall_cols.is_halt.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
             );
 
             // Populate `is_commit`.
@@ -567,19 +568,31 @@ impl CpuChip {
         }
     }
 
-    fn pad_to_power_of_two<F: PrimeField32>(values: &mut Vec<F>) {
+    fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
         let len: usize = values.len();
         let n_real_rows = values.len() / NUM_CPU_COLS;
         let last_row = &values[len - NUM_CPU_COLS..];
+        let pc = last_row[CPU_COL_MAP.pc];
+        let shard = last_row[CPU_COL_MAP.shard];
+        let clk = last_row[CPU_COL_MAP.clk];
 
-        let num_padded_rows = n_real_rows.next_power_of_two() - n_real_rows;
-        let mut last_row_not_real = last_row.to_vec();
-        last_row_not_real[CPU_COL_MAP.is_real] = F::zero();
-        last_row_not_real[CPU_COL_MAP.selectors.imm_b] = F::one();
-        last_row_not_real[CPU_COL_MAP.selectors.imm_c] = F::one();
-        for _ in 0..num_padded_rows {
-            values.extend_from_slice(last_row_not_real.as_slice());
-        }
+        values.resize(n_real_rows.next_power_of_two() * NUM_CPU_COLS, F::zero());
+
+        // Interpret values as a slice of arrays of length `NUM_CPU_COLS`
+        let rows = unsafe {
+            core::slice::from_raw_parts_mut(
+                values.as_mut_ptr() as *mut [F; NUM_CPU_COLS],
+                values.len() / NUM_CPU_COLS,
+            )
+        };
+
+        rows[n_real_rows..].iter_mut().for_each(|padded_row| {
+            padded_row[CPU_COL_MAP.pc] = pc;
+            padded_row[CPU_COL_MAP.shard] = shard;
+            padded_row[CPU_COL_MAP.clk] = clk;
+            padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
+            padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
+        });
     }
 }
 

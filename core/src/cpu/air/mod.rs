@@ -9,7 +9,6 @@ use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
 use sp1_zkvm::PV_DIGEST_NUM_WORDS;
-use std::mem::transmute;
 
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
@@ -23,8 +22,6 @@ use crate::memory::MemoryCols;
 use crate::operations::IsZeroOperation;
 use crate::runtime::SyscallCode;
 use crate::runtime::{MemoryAccessPosition, Opcode};
-
-use super::columns::CPU_COL_MAP;
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -60,11 +57,9 @@ where
 
         // Load immediates into b and c, if the immediate flags are on.
         builder
-            .when(local.is_real)
             .when(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), local.instruction.op_b);
         builder
-            .when(local.is_real)
             .when(local.selectors.imm_c)
             .assert_word_eq(local.op_c_val(), local.instruction.op_c);
 
@@ -152,16 +147,10 @@ where
         self.eval_memory_store::<AB>(builder, local);
 
         // Branch instructions.
-        self.branch_ops_eval::<AB>(
-            builder,
-            is_branch_instruction.clone(),
-            local,
-            next,
-            public_values.last_row_next_pc.clone(),
-        );
+        self.branch_ops_eval::<AB>(builder, is_branch_instruction.clone(), local, next);
 
         // Jump instructions.
-        self.jump_ops_eval::<AB>(builder, local, next, public_values.last_row_next_pc.clone());
+        self.jump_ops_eval::<AB>(builder, local, next);
 
         // AUIPC instruction.
         self.auipc_eval(builder, local);
@@ -180,14 +169,7 @@ where
 
         self.shard_clk_eval(builder, local, next, num_cycles, public_values.clone());
 
-        self.pc_eval(
-            builder,
-            local,
-            next,
-            is_branch_instruction.clone(),
-            is_halt.clone(),
-            public_values.clone(),
-        );
+        self.pc_eval(builder, local, next, is_branch_instruction.clone());
 
         self.commit_eval(
             builder,
@@ -196,7 +178,7 @@ where
             public_values.committed_value_digest.clone(),
         );
 
-        self.halt_unimpl_eval(builder, local, next, is_halt, public_values);
+        self.halt_unimpl_eval(builder, local, next, is_halt, public_values.clone());
 
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
@@ -207,13 +189,21 @@ where
             .when_not(local.is_real)
             .assert_zero(next.is_real);
 
+        builder
+            .when_transition()
+            .when(local.is_real - next.is_real)
+            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
+
+        builder
+            .when_last_row()
+            .when(local.is_real)
+            .assert_eq(public_values.last_row_next_pc, local.next_pc);
+
         // Dummy constraint of degree 3.
         builder.assert_eq(
             local.pc * local.pc * local.pc,
             local.pc * local.pc * local.pc,
         );
-
-        self.padding_rows_eval(builder, local, next);
     }
 }
 
@@ -240,7 +230,6 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        public_values_next_pc: AB::Expr,
     ) {
         // Get the jump specific columns
         let jump_columns = local.opcode_specific_columns.jump();
@@ -271,11 +260,11 @@ impl CpuChip {
             .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
-        // Verify that the word form of public_values_next_pc is correct for both jump instructions.
         builder
-            .when_last_row()
-            .when(is_jump_instruction)
-            .assert_eq(jump_columns.next_pc.reduce::<AB>(), public_values_next_pc);
+            .when_transition()
+            .when(next.is_real)
+            .when(is_jump_instruction.clone())
+            .assert_eq(jump_columns.next_pc.reduce::<AB>(), local.next_pc);
 
         // Verify that the new pc is calculated correctly for JAL instructions.
         builder.send_alu(
@@ -362,16 +351,16 @@ impl CpuChip {
             ecall_cols.is_enter_unconstrained.result
         };
 
-        // Verify the is_halt column.
-        builder
-            .when(local.is_real)
-            .when(local.is_halt)
-            .assert_zero(syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()));
-
-        builder
-            .when(local.is_real)
-            .when(local.is_halt)
-            .assert_one(is_ecall_instruction.clone());
+        // Constrain EcallCols.is_halt.result == syscall_id is HALT.
+        let is_halt = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
+                ecall_cols.is_halt,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_halt.result
+        };
 
         // Constrain EcallCols.is_hint_len.result == syscall_id is HINT_LEN.
         let is_hint_len = {
@@ -404,12 +393,12 @@ impl CpuChip {
         // When the syscall is not one of ENTER_UNCONSTRAINED, HINT_LEN, or HALT, op_a shouldn't change.
         builder
             .when(is_ecall_instruction.clone())
-            .when_not(is_enter_unconstrained + is_hint_len + local.is_halt)
+            .when_not(is_enter_unconstrained + is_hint_len + is_halt)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
         (
             num_cycles * is_ecall_instruction.clone(),
-            local.is_halt.into(),
+            is_halt * is_ecall_instruction.clone(),
             is_commit * is_ecall_instruction.clone(),
         )
     }
@@ -428,11 +417,8 @@ impl CpuChip {
         num_cycles: AB::Expr,
         public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
-        // Verify that shard values are the same for all real rows.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.shard, next.shard);
+        // Verify that all shard values are the same.
+        builder.when_transition().assert_eq(local.shard, next.shard);
 
         // Verify the public values shard value.
         builder.assert_eq(public_values.shard, local.shard);
@@ -483,8 +469,6 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
-        is_halt_instruction: AB::Expr,
-        public_values: PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
         // Verify that the pc increments by 4 for all instructions except branch, jump and halt instructions.
         // The other case is handled by eval_jump, eval_branch and eval_ecall (for halt).
@@ -498,17 +482,13 @@ impl CpuChip {
             )
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        let is_reg_instr = builder.not(
-            is_branch_instruction
-                + local.selectors.is_jal
-                + local.selectors.is_jalr
-                + is_halt_instruction,
-        );
-
-        builder.when_last_row().when(is_reg_instr).assert_eq(
-            public_values.last_row_next_pc,
-            local.pc + AB::Expr::from_canonical_u8(4),
-        );
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .when_not(
+                is_branch_instruction.clone() + local.selectors.is_jal + local.selectors.is_jalr,
+            )
+            .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
     }
 
     /// Constraints related to the commit instruction.
@@ -559,6 +539,8 @@ impl CpuChip {
             .when(is_halt.clone() + local.selectors.is_unimpl)
             .assert_zero(next.is_real);
 
+        builder.when(is_halt.clone()).assert_zero(local.next_pc);
+
         // // If we're halting, the public values next pc should be 0.
         builder
             .when(is_halt.clone())
@@ -568,38 +550,6 @@ impl CpuChip {
         builder
             .when(is_halt)
             .assert_eq(local.op_a_val().reduce::<AB>(), public_values.exit_code);
-    }
-
-    pub(crate) fn padding_rows_eval<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        next: &CpuCols<AB::Var>,
-    ) {
-        // Verify that the padded rows were correctly added.  All those rows should be equal to
-        // the last real row which is_real set to 0.
-
-        let raw_local_cols =
-            unsafe { transmute::<&CpuCols<AB::Var>, &[AB::Var; NUM_CPU_COLS]>(local) };
-        let raw_next_cols =
-            unsafe { transmute::<&CpuCols<AB::Var>, &[AB::Var; NUM_CPU_COLS]>(next) };
-
-        for i in 0..NUM_CPU_COLS {
-            if i != CPU_COL_MAP.is_real
-                && i != CPU_COL_MAP.selectors.imm_b
-                && i != CPU_COL_MAP.selectors.imm_c
-            {
-                builder
-                    .when_transition()
-                    .when(local.is_real - next.is_real)
-                    .assert_eq(raw_local_cols[i], raw_next_cols[i]);
-            }
-
-            builder
-                .when_transition()
-                .when_not(local.is_real)
-                .assert_eq(raw_local_cols[i], raw_next_cols[i]);
-        }
     }
 }
 

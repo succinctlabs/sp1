@@ -33,7 +33,6 @@ impl CpuChip {
         is_branch_instruction: AB::Expr,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        public_values_next_pc: AB::Expr,
     ) {
         // Get the branch specific columns.
         let branch_cols = local.opcode_specific_columns.branch();
@@ -52,11 +51,11 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
-            // When we are branching, assert that public_values.next_pc <==> branch_columns.next_pc as Word.
-            builder.when_last_row().when(local.branching).assert_eq(
-                branch_cols.next_pc.reduce::<AB>(),
-                public_values_next_pc.clone(),
-            );
+            builder
+                .when_transition()
+                .when(next.is_real)
+                .when(local.branching)
+                .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_alu(
@@ -75,11 +74,11 @@ impl CpuChip {
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-            // When we are not branching, assert that local.pc + 4 <==> public_values.next_pc
-            builder.when_last_row().when(local.not_branching).assert_eq(
-                public_values_next_pc,
-                local.pc + AB::Expr::from_canonical_u8(4),
-            );
+            builder
+                .when_transition()
+                .when(next.is_real)
+                .when(local.not_branching)
+                .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
         }
 
         // Evaluate branching value constraints.
