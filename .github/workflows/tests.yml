@@ -26,6 +26,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
 
       - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
@@ -99,6 +101,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
 
       - name: Run cargo test on sp1-recursion-circuit
         uses: actions-rs/cargo@v1
@@ -122,6 +126,8 @@ jobs:
 
       - name: Setup CI
         uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
