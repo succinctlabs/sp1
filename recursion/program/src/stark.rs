@@ -314,11 +314,16 @@ pub(crate) mod tests {
     {
         let index = builder.materialize(Usize::Const(proof.index));
 
-        // Set up the public values digest.
-        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
+        // Set up the public values.
+        let mut public_values = Default::default();
+        public_values.shard = builder.eval(proof.public_values.shard);
+        public_values.first_row_pc = builder.eval(proof.public_values.first_row_pc);
+        public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
+        public_values.exit_code = builder.eval(proof.public_values.exit_code);
+        public_values.committed_value_digest = core::array::from_fn(|i| {
             let word_val = proof.public_values_digest[i];
             Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-        }));
+        });
 
         // Set up the commitments.
         let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
@@ -377,7 +382,7 @@ pub(crate) mod tests {
             opened_values,
             opening_proof,
             sorted_indices,
-            public_values_digest,
+            public_values,
         }
     }
 
@@ -401,6 +406,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
+            challenger_val.observe_slice(proof.public_values.to_vec());
         });
 
         let permutation_challenges = (0..2)
@@ -506,12 +512,8 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
+            challenger_val.observe_slice(proof.public_values.to_vec());
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger_val.observe_slice(&pv_digest_field_elms);
 
         let permutation_challenges = (0..2)
             .map(|_| challenger_val.sample_ext_element::<EF>())
@@ -534,6 +536,7 @@ pub(crate) mod tests {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
+            challenger.observe_slice(&mut builder, proof.public_values.to_vec());
             shard_proofs.push(proof);
         }
         // Observe the public input digest

@@ -67,7 +67,7 @@ pub struct ShardProofVariable<C: Config> {
     pub commitment: ShardCommitment<Commitment<C>>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
+    pub public_values: PublicValuesDigest<Word<Felt<C::F>>, Felt<C::F>>,
     pub sorted_indices: Vec<Var<C::N>>,
 }
 
