@@ -144,31 +144,26 @@ pub fn verify_two_adic_pcs<C: Config>(
                         );
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
-                        // Needed input: m, z, x, mat_openning, ps_at_z, alpha_pow, ro, log_height
-
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
                             let z: Ext<C::F, C::EF> = builder.get(&mat_points, l);
                             let ps_at_z = builder.get(&mat_values, l);
+
+                            let input = FriFoldInput {
+                                z,
+                                alpha,
+                                x,
+                                log_height,
+                                mat_opening: mat_opening.clone(),
+                                ps_at_z: ps_at_z.clone(),
+                                alpha_pow: alpha_pow.clone(),
+                                ro: ro.clone(),
+                            };
+
+                            let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
+                            builder.set(&mut input_ptr, 0, input);
+
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
-                                builder.print_v(k);
-                                let p_at_x = builder.get(&mat_opening, m);
-                                let p_at_z = builder.get(&ps_at_z, m);
-
-                                let quotient = (-p_at_z + p_at_x) / (-z + x);
-
-                                let ro_at_log_height = builder.get(&ro, log_height);
-                                let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
-
-                                builder.set(
-                                    &mut ro,
-                                    log_height,
-                                    ro_at_log_height + alpha_pow_at_log_height * quotient,
-                                );
-                                builder.set(
-                                    &mut alpha_pow,
-                                    log_height,
-                                    alpha_pow_at_log_height * alpha,
-                                );
+                                builder.push(DslIR::FriFold(m, input_ptr.clone()));
                             });
                         });
                     });

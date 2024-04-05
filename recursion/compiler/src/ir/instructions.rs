@@ -110,7 +110,7 @@ pub enum DslIR<C: Config> {
     Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
 
     // FRI specific instructions.
-    FriFold(FriFoldInput<C>),
+    FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
 
     // Circuit-specific instructions.
     CircuitPoseidon2Permute([Var<C::N>; 3]),
