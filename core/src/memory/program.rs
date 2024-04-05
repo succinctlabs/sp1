@@ -97,8 +97,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         let mut addr_used_map = input
             .program
             .memory_image
-            .iter()
-            .map(|(addr, _)| (*addr, false))
+            .keys()
+            .map(|addr| (*addr, false))
             .collect::<BTreeMap<_, _>>();
         for event in &input.program_memory_events {
             if event.used == 1 {
@@ -110,8 +110,8 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
 
         // Generate the trace rows for each event.
         let rows = addr_used_map
-            .iter()
-            .map(|(_, used)| {
+            .values()
+            .map(|used| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.used = F::from_bool(*used);
