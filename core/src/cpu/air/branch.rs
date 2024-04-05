@@ -44,16 +44,20 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.pc.reduce::<AB>(), local.pc);
 
-            // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
+            // When we are branching, assert that next.pc <==> branch_columns.next_pc as Word.
             builder
                 .when_transition()
                 .when(next.is_real)
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
+            // When local.branching is true, assert that local.is_real is true.
+            builder.when(local.branching).assert_one(local.is_real);
+
+            // When the last row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
+            // Note that the `when(local.is_real)` condition is implied from the previous constraint.
             builder
-                .when_transition()
-                .when(next.is_real)
+                .when_last_row()
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
@@ -74,9 +78,13 @@ impl CpuChip {
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
+            // When local.not_branching is true, assert that local.is_real is true.
+            builder.when(local.not_branching).assert_one(local.is_real);
+
+            // When the last row is real and local.not_branching, assert that local.pc + 4 <==> local.next_pc.
+            // Note that the `when(local.is_real)` condition is implied from the previous constraint.
             builder
-                .when_transition()
-                .when(next.is_real)
+                .when_last_row()
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
         }

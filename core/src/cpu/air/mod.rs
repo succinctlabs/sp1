@@ -258,9 +258,15 @@ impl CpuChip {
             .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
+        // When is_jump_instruction is true, assert that local.is_real is true.
         builder
-            .when_transition()
-            .when(next.is_real)
+            .when(is_jump_instruction.clone())
+            .assert_one(local.is_real);
+
+        // When the last row is real and it's a jump instruction, assert that local.next_pc <==> jump_column.next_pc
+        // Note that the `when(local.is_real)` condition is implied from the previous constraint.
+        builder
+            .when_last_row()
             .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), local.next_pc);
 
@@ -464,7 +470,7 @@ impl CpuChip {
         is_branch_instruction: AB::Expr,
         is_halt: AB::Expr,
     ) {
-        // Verify that if is_sequential_instr is true, then the row is real.
+        // Verify that if is_sequential_instr is true, assert that local.is_real is true.
         builder
             .when(local.is_sequential_instr)
             .assert_one(local.is_real);
@@ -483,7 +489,7 @@ impl CpuChip {
             .when(local.is_sequential_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
-        // For the last row, if it is a real row and it is a sequential instruction, verify the next pc.
+        // When the last row is real and it's a sequential instruction, assert that local.next_pc <==> local.pc + 4
         // Note that the `when(local.is_real)` condition is implied from the prior constraint.
         builder
             .when_last_row()
