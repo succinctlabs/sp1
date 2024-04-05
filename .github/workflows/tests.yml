@@ -11,56 +11,18 @@ on:
       - "recursion/**"
       - "sdk/**"
       - "examples/fibonacci-io/**"
+      - ".github/workflows/**"
 
 jobs:
   test:
-    name: CI Test Suite
+    name: Test fibonacci, core, recursion-compiler, recursion-program
     runs-on: warp-ubuntu-latest-arm64-16x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Set up git private repo access
-        run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-
-      - name: Install Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Print go version
-        run: go version
-
-      - name: Setup GCC
-        uses: Dup4/actions-setup-gcc@v1
-        with:
-          version: latest
-
-      - name: rust-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: test-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-nightly-2024-01-25-
-
-      - name: Install nightly toolchain
-        id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly-2024-01-25
-          override: true
+      - name: Setup CI
+        uses: ./.github/actions/setup
 
       - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
@@ -102,6 +64,16 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
 
+      - name: Run cargo test with no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
       - name: Run cargo test on sp1-recursion-circuit
         uses: actions-rs/cargo@v1
         with:
@@ -112,11 +84,21 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
 
-      - name: Run cargo test with no default features
+  test-recursion-circuit:
+    name: Test recursion-circuit
+    runs-on: warp-ubuntu-latest-arm64-16x
+    if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Run cargo test on sp1-recursion-circuit
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
+          args: -p sp1-recursion-circuit --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_LOG: 1
@@ -129,48 +111,8 @@ jobs:
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Set up git private repo access
-        run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-
-      - name: Install Go 1.22
-        uses: actions/setup-go@v5
-        with:
-          go-version: "1.22"
-
-      - name: Print go version
-        run: go version
-
-      - name: Setup GCC
-        uses: Dup4/actions-setup-gcc@v1
-        with:
-          version: latest
-
-      - name: rust-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: clippy-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-nightly-2024-01-25-
-
-      - name: Install nightly toolchain
-        id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly-2024-01-25
-          override: true
-          components: rustfmt, clippy
+      - name: Setup CI
+        uses: ./.github/actions/setup
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1
