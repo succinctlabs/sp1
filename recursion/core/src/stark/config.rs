@@ -4,12 +4,12 @@ use p3_challenger::{DuplexChallenger, MultiField32Challenger};
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::{extension::BinomialExtensionField, Field};
+use p3_fri::BatchOpening;
 use p3_fri::CommitPhaseProofStep;
 use p3_fri::QueryProof;
 use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
-use p3_symmetric::Hash;
 use p3_symmetric::{MultiField32PaddingFreeSponge, PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
@@ -89,7 +89,9 @@ pub type InnerPcs = TwoAdicFriPcs<InnerVal, InnerDft, InnerValMmcs, InnerChallen
 pub type InnerQueryProof = QueryProof<InnerChallenge, InnerChallengeMmcs>;
 pub type InnerCommitPhaseStep = CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs>;
 pub type InnerFriProof = FriProof<InnerChallenge, InnerChallengeMmcs, InnerVal>;
-pub type InnerPcsProof = TwoAdicFriPcsProof<InnerVal, InnerDft, InnerValMmcs, InnerChallengeMmcs>;
+pub type InnerBatchOpening = BatchOpening<InnerVal, InnerValMmcs>;
+pub type InnerPcsProof =
+    TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>;
 
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {
