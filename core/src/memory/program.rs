@@ -59,8 +59,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         let program_memory = program.memory_image.clone();
         let rows = program_memory
             .into_iter()
-            .enumerate()
-            .map(|(i, (addr, word))| {
+            .map(|(addr, word)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut MemoryProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.addr = F::from_canonical_u32(addr);
@@ -96,8 +95,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         let rows = input
             .program_memory_events
             .iter()
-            .enumerate()
-            .map(|(i, event)| {
+            .map(|event| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
                 cols.used = F::from_canonical_u32(event.used);
@@ -140,7 +138,7 @@ where
             preprocessed.row_slice(0).borrow();
         let mult_local: &MemoryProgramMultCols<AB::Var> = main.row_slice(0).borrow();
 
-        builder.assert_bool(mult_local.used.clone());
+        builder.assert_bool(mult_local.used);
 
         let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), prep_local.addr.into()];
         values.extend(prep_local.value.map(Into::into));
