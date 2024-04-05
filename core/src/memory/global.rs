@@ -20,7 +20,6 @@ use super::MemoryInitializeFinalizeEvent;
 pub enum MemoryChipKind {
     Initialize,
     Finalize,
-    Program,
 }
 
 pub struct MemoryGlobalChip {
@@ -48,7 +47,6 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         match self.kind {
             MemoryChipKind::Initialize => "MemoryInit".to_string(),
             MemoryChipKind::Finalize => "MemoryFinalize".to_string(),
-            MemoryChipKind::Program => "MemoryProgram".to_string(),
         }
     }
 
@@ -60,7 +58,6 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         let memory_events = match self.kind {
             MemoryChipKind::Initialize => &input.memory_initialize_events,
             MemoryChipKind::Finalize => &input.memory_finalize_events,
-            MemoryChipKind::Program => &input.program_memory_events,
         };
         let rows: Vec<[F; 8]> = (0..memory_events.len()) // TODO: change this back to par_iter
             .map(|i| {
@@ -97,7 +94,6 @@ impl<F: PrimeField> MachineAir<F> for MemoryGlobalChip {
         match self.kind {
             MemoryChipKind::Initialize => !shard.memory_initialize_events.is_empty(),
             MemoryChipKind::Finalize => !shard.memory_finalize_events.is_empty(),
-            MemoryChipKind::Program => !shard.program_memory_events.is_empty(),
         }
     }
 }
@@ -135,7 +131,7 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        if self.kind == MemoryChipKind::Initialize || self.kind == MemoryChipKind::Program {
+        if self.kind == MemoryChipKind::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(local.value.map(Into::into));
             builder.receive(AirInteraction::new(
