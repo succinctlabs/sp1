@@ -58,10 +58,10 @@ pub struct RelayProofRequest {
     pub proof_id: ::prost::alloc::string::String,
     #[prost(uint32, tag = "2")]
     pub chain_id: u32,
-    #[prost(string, tag = "3")]
-    pub verifier: ::prost::alloc::string::String,
-    #[prost(string, tag = "4")]
-    pub callback: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "3")]
+    pub verifier: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", tag = "4")]
+    pub callback: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "5")]
     pub callback_data: ::prost::alloc::vec::Vec<u8>,
 }
@@ -85,8 +85,8 @@ pub struct GetRelayStatusRequest {
 pub struct GetRelayStatusResponse {
     #[prost(enumeration = "TransactionStatus", tag = "1")]
     pub status: i32,
-    #[prost(string, tag = "2")]
-    pub tx_hash: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "2")]
+    pub tx_hash: ::prost::alloc::vec::Vec<u8>,
     #[prost(string, tag = "3")]
     pub simulation_url: ::prost::alloc::string::String,
 }

@@ -127,12 +127,19 @@ impl NetworkClient {
         callback: &str,
         callback_data: &str,
     ) -> Result<String> {
+        let verifier_bytes = hex::decode(verifier.trim_start_matches("0x"))
+            .map_err(|e| anyhow::anyhow!("Failed to decode verifier: {}", e))?;
+        let callback_bytes = hex::decode(callback.trim_start_matches("0x"))
+            .map_err(|e| anyhow::anyhow!("Failed to decode callback: {}", e))?;
+        let callback_data_bytes = hex::decode(callback_data.trim_start_matches("0x"))
+            .map_err(|e| anyhow::anyhow!("Failed to decode callback_data: {}", e))?;
+
         let req = RelayProofRequest {
             proof_id: proof_id.to_string(),
             chain_id,
-            verifier: verifier.to_string(),
-            callback: callback.to_string(),
-            callback_data: callback_data.into(),
+            verifier: verifier_bytes,
+            callback: callback_bytes,
+            callback_data: callback_data_bytes,
         };
         let result = self.rpc.relay_proof(req).await?;
         Ok(result.id)
@@ -151,7 +158,7 @@ impl NetworkClient {
 
         let tx_hash = match res.status() {
             TransactionStatus::TransactionScheduled => None,
-            _ => Some(res.tx_hash.clone()),
+            _ => Some(format!("0x{}", hex::encode(res.tx_hash.clone()))),
         };
 
         let simulation_url = match res.status() {
