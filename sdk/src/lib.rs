@@ -54,7 +54,7 @@ impl SP1Prover {
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&stdin.buffer.data);
+        runtime.write_vecs(&stdin.buffer);
         runtime.run();
         Ok(SP1PublicValues::from(&runtime.state.public_values_stream))
     }
@@ -79,7 +79,13 @@ impl SP1Prover {
     {
         let access_token = std::env::var("PROVER_NETWORK_ACCESS_TOKEN").unwrap();
         let client = NetworkClient::with_token(access_token);
-        let id = client.create_proof(elf, &stdin.buffer.data).await?;
+        let flat_stdin = stdin
+            .buffer
+            .iter()
+            .flat_map(|v| v.iter())
+            .copied()
+            .collect::<Vec<u8>>();
+        let id = client.create_proof(elf, &flat_stdin).await?;
 
         let mut pb = StageProgressBar::new();
         loop {

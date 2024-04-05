@@ -1,4 +1,7 @@
+use rmp_serde::{decode as rmp_decode, encode as rmp_encode};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserializer, Serializer};
+use sp1_core::stark::{Proof, StarkGenericConfig};
 use sp1_core::utils::Buffer;
 
 /// Standard input for the prover.
@@ -40,8 +43,7 @@ impl SP1Stdin {
 
     /// Read a value from the buffer.
     pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
-        let result: T =
-            bincode::deserialize(&self.buffer[self.ptr]).expect("failed to deserialize");
+        let result: T = rmp_decode::from_read(&self.buffer[self.ptr][..]).unwrap();
         self.ptr += 1;
         result
     }
@@ -55,7 +57,7 @@ impl SP1Stdin {
     /// Write a value to the buffer.
     pub fn write<T: Serialize>(&mut self, data: &T) {
         let mut tmp = Vec::new();
-        bincode::serialize_into(&mut tmp, data).expect("serialization failed");
+        rmp_encode::write_named(&mut tmp, data).unwrap();
         self.buffer.push(tmp);
     }
 
@@ -113,8 +115,6 @@ impl SP1PublicValues {
 
 pub mod proof_serde {
     use super::*;
-    use rmp_serde::{decode as rmp_decode, encode as rmp_encode};
-    use serde::{Deserializer, Serializer};
 
     pub fn serialize<S, SC: StarkGenericConfig + Serialize>(
         proof: &Proof<SC>,
