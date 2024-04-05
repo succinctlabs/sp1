@@ -1,4 +1,4 @@
-use super::{Array, MemIndex, Ptr};
+use super::{Array, FriFoldInput, MemIndex, Ptr};
 
 use super::{Config, Ext, Felt, Usize, Var};
 
@@ -110,11 +110,7 @@ pub enum DslIR<C: Config> {
     Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
 
     // FRI specific instructions.
-    FriFold(
-        Var<C::N>,
-        Array<C, Ext<C::F, C::EF>>,
-        Array<C, Ext<C::F, C::EF>>,
-    ),
+    FriFold(FriFoldInput<C>),
 
     // Circuit-specific instructions.
     CircuitPoseidon2Permute([Var<C::N>; 3]),

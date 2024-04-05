@@ -144,10 +144,13 @@ pub fn verify_two_adic_pcs<C: Config>(
                         );
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
+                        // Needed input: m, z, x, mat_openning, ps_at_z, alpha_pow, ro, log_height
+
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
                             let z: Ext<C::F, C::EF> = builder.get(&mat_points, l);
                             let ps_at_z = builder.get(&mat_values, l);
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
+                                builder.print_v(k);
                                 let p_at_x = builder.get(&mat_opening, m);
                                 let p_at_z = builder.get(&ps_at_z, m);
 

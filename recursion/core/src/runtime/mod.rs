@@ -533,6 +533,9 @@ where
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::FRIFold => {
+                    unimplemented!()
+                }
             };
 
             let event = CpuEvent {

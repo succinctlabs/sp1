@@ -143,6 +143,9 @@ pub enum AsmInstruction<F, EF> {
     PrintF(i32),
     PrintE(i32),
     Ext2Felt(i32, i32),
+
+    // FRI specific instructions.
+    FriFold(i32, i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -841,6 +844,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 true,
             ),
+            AsmInstruction::FriFold(_, _, _) => unimplemented!(),
         }
     }
 
@@ -1123,6 +1127,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 write!(f, "print_e ({})fp", dst)
             }
             AsmInstruction::Ext2Felt(dst, src) => write!(f, "ext2felt ({})fp, {})fp", dst, src),
+            AsmInstruction::FriFold(_, _, _) => unimplemented!(),
         }
     }
 }
