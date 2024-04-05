@@ -62,8 +62,8 @@ pub struct RelayProofRequest {
     pub verifier: ::prost::alloc::string::String,
     #[prost(string, tag = "4")]
     pub callback: ::prost::alloc::string::String,
-    #[prost(string, tag = "5")]
-    pub callback_data: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "5")]
+    pub callback_data: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]

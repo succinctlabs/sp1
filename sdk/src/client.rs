@@ -132,7 +132,7 @@ impl NetworkClient {
             chain_id,
             verifier: verifier.to_string(),
             callback: callback.to_string(),
-            callback_data: callback_data.to_string(),
+            callback_data: callback_data.into(),
         };
         let result = self.rpc.relay_proof(req).await?;
         Ok(result.id)
