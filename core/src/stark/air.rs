@@ -1,6 +1,6 @@
 use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
-use crate::memory::MemoryChipKind;
+use crate::memory::{MemoryChipKind, MemoryProgramChip};
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
@@ -69,7 +69,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A table for finalizing the memory state.
     MemoryFinal(MemoryGlobalChip),
     /// A table for initializing the program memory.
-    ProgramMemory(MemoryGlobalChip),
+    ProgramMemory(MemoryProgramChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -151,7 +151,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::MemoryInit(memory_init));
         let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        let program_memory_init = MemoryProgramChip::new();
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
