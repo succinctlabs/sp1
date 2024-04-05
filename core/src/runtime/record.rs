@@ -310,11 +310,7 @@ impl MachineRecord for ExecutionRecord {
                     self.public_values.committed_value_digest;
                 shard.public_values.shard = current_shard_num;
                 shard.public_values.first_row_pc = shard.cpu_events[0].pc;
-                shard.public_values.last_row_next_pc = if at_last_event {
-                    0
-                } else {
-                    last_shard_cpu_event.next_pc
-                };
+                shard.public_values.last_row_next_pc = last_shard_cpu_event.next_pc;
                 shard.public_values.exit_code = last_shard_cpu_event.exit_code;
 
                 if !(at_last_event) {
