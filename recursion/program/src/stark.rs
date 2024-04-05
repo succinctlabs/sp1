@@ -232,27 +232,30 @@ where
         // Verify the pcs proof
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
-        // for (i, chip) in machine.chips().iter().enumerate() {
-        //     let index = builder.get(&sorted_indices, i);
-        //     builder.if_ne(index, C::N::neg_one()).then(|builder| {
-        //         let values = builder.get(&opened_values.chips, index);
-        //         let trace_domain = builder.get(&trace_domains, index);
-        //         let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
-        //             builder.get(&quotient_domains, index);
-        //         let qc_domains = quotient_domain.split_domains(builder, chip.log_quotient_degree());
-        //         Self::verify_constraints(
-        //             builder,
-        //             chip,
-        //             &values,
-        //             proof.public_values_digest.clone(),
-        //             trace_domain,
-        //             qc_domains,
-        //             zeta,
-        //             alpha,
-        //             permutation_challenges,
-        //         );
-        //     });
-        // }
+        for (i, chip) in machine.chips().iter().enumerate() {
+            let index = builder.get(&sorted_indices, i);
+            builder
+                .if_ne(index, C::N::from_canonical_usize(9999))
+                .then(|builder| {
+                    let values = builder.get(&opened_values.chips, index);
+                    let trace_domain = builder.get(&trace_domains, index);
+                    let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
+                        builder.get(&quotient_domains, index);
+                    let qc_domains =
+                        quotient_domain.split_domains(builder, chip.log_quotient_degree());
+                    Self::verify_constraints(
+                        builder,
+                        chip,
+                        &values,
+                        proof.public_values_digest.clone(),
+                        trace_domain,
+                        qc_domains,
+                        zeta,
+                        alpha,
+                        permutation_challenges,
+                    );
+                });
+        }
     }
 }
 
@@ -505,7 +508,13 @@ pub(crate) mod tests {
             let sorted_indices_raw = machine.chips_sorted_indices(&proof_val);
             witness_stream.extend(sorted_indices_raw.write());
             let proof = ShardProof::<_>::read(&mut builder);
-            let sorted_indices_arr = builder.hint_vars();
+            let sorted_indices_arr = Vec::<usize>::read(&mut builder);
+            builder
+                .range(0, sorted_indices_arr.len())
+                .for_each(|i, builder| {
+                    let el = builder.get(&sorted_indices_arr, i);
+                    builder.print_v(el);
+                });
             let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);

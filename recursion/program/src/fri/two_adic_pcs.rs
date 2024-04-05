@@ -130,13 +130,9 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                                 let quotient: SymbolicExt<C::F, C::EF> =
                                     (-p_at_z + p_at_x) / (-z + x);
-                                // let quotient = builder.eval(quotient);
-                                // builder.print_e(quotient);
 
                                 let ro_at_log_height = builder.get(&ro, log_height);
-                                builder.print_e(ro_at_log_height);
                                 let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
-                                builder.print_e(alpha_pow_at_log_height);
 
                                 builder.set(
                                     &mut ro,

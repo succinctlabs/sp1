@@ -679,6 +679,7 @@ impl<C: Config> Builder<C> {
 
     pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
         let len = self.hint_len();
+        self.print_v(len);
         let arr = self.dyn_array(len);
         self.operations.push(DslIR::HintVars(arr.clone()));
         arr
