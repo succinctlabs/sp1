@@ -656,6 +656,27 @@ impl<C: Config> Builder<C> {
         len
     }
 
+    pub fn hint_var(&mut self) -> Var<C::N> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintVars(arr.clone()));
+        self.get(&arr, 0)
+    }
+
+    pub fn hint_felt(&mut self) -> Felt<C::F> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintFelts(arr.clone()));
+        self.get(&arr, 0)
+    }
+
+    pub fn hint_ext(&mut self) -> Ext<C::F, C::EF> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintExts(arr.clone()));
+        self.get(&arr, 0)
+    }
+
     pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);

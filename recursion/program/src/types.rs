@@ -11,7 +11,6 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::fri::TwoAdicPcsProofVariable;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L54
-#[allow(type_alias_bounds)]
 pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1

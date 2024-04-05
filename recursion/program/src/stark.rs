@@ -264,6 +264,7 @@ pub(crate) mod tests {
     use crate::stark::Ext;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
+    use p3_symmetric::Hash;
     use rand::Rng;
     use sp1_core::air::PublicValuesDigest;
     use sp1_core::runtime::Program;
