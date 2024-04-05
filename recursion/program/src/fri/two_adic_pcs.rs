@@ -5,7 +5,6 @@ use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::commit::PcsVariable;
-use crate::hints::Hintable;
 use crate::types::{Commitment, Dimensions, FriConfigVariable, FriProofVariable};
 
 use super::{
@@ -293,11 +292,7 @@ pub(crate) mod tests {
     use crate::fri::TwoAdicMultiplicativeCosetVariable;
     use crate::fri::TwoAdicPcsRoundVariable;
     use crate::hints::Hintable;
-    use crate::types::Commitment;
-    use crate::types::FriCommitPhaseProofStepVariable;
     use crate::types::FriConfigVariable;
-    use crate::types::FriProofVariable;
-    use crate::types::FriQueryProofVariable;
     use itertools::Itertools;
     use p3_challenger::CanObserve;
     use p3_challenger::FieldChallenger;
@@ -307,16 +302,10 @@ pub(crate) mod tests {
     use p3_field::PrimeField32;
     use p3_field::TwoAdicField;
     use p3_fri::FriConfig;
-    use p3_fri::TwoAdicFriPcsProof;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;
-    use sp1_recursion_compiler::ir::Config;
-    use sp1_recursion_compiler::ir::Ext;
-    use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::ir::SymbolicExt;
-    use sp1_recursion_compiler::ir::SymbolicFelt;
     use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
     use sp1_recursion_compiler::InnerConfig;
@@ -329,7 +318,6 @@ pub(crate) mod tests {
     use sp1_recursion_core::stark::config::InnerChallenger;
     use sp1_recursion_core::stark::config::InnerCompress;
     use sp1_recursion_core::stark::config::InnerDft;
-    use sp1_recursion_core::stark::config::InnerFriProof;
     use sp1_recursion_core::stark::config::InnerHash;
     use sp1_recursion_core::stark::config::InnerPcs;
     use sp1_recursion_core::stark::config::InnerPcsProof;
@@ -338,9 +326,6 @@ pub(crate) mod tests {
 
     use crate::commit::PcsVariable;
     use crate::fri::TwoAdicFriPcsVariable;
-
-    use super::BatchOpeningVariable;
-    use super::TwoAdicPcsProofVariable;
 
     pub fn const_fri_config(
         builder: &mut Builder<InnerConfig>,
@@ -368,188 +353,6 @@ pub(crate) mod tests {
             subgroups,
             generators,
         }
-    }
-
-    #[allow(clippy::needless_range_loop)]
-    pub fn const_fri_proof<C>(
-        builder: &mut Builder<C>,
-        fri_proof: InnerFriProof,
-    ) -> FriProofVariable<C>
-    where
-        C: Config<F = InnerVal, EF = InnerChallenge>,
-    {
-        // Initialize the FRI proof variable.
-        let mut fri_proof_var = FriProofVariable {
-            commit_phase_commits: builder.dyn_array(fri_proof.commit_phase_commits.len()),
-            query_proofs: builder.dyn_array(fri_proof.query_proofs.len()),
-            final_poly: builder.eval(SymbolicExt::Const(fri_proof.final_poly)),
-            pow_witness: builder.eval(fri_proof.pow_witness),
-        };
-
-        // Set the commit phase commits.
-        for i in 0..fri_proof.commit_phase_commits.len() {
-            let mut commitment: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-            let h: [InnerVal; DIGEST_SIZE] = fri_proof.commit_phase_commits[i].into();
-            for j in 0..DIGEST_SIZE {
-                builder.set(&mut commitment, j, h[j]);
-            }
-            builder.set(&mut fri_proof_var.commit_phase_commits, i, commitment);
-        }
-
-        // Set the query proofs.
-        for (i, query_proof) in fri_proof.query_proofs.iter().enumerate() {
-            let mut commit_phase_openings_var: Array<_, FriCommitPhaseProofStepVariable<_>> =
-                builder.dyn_array(query_proof.commit_phase_openings.len());
-
-            for (j, commit_phase_opening) in query_proof.commit_phase_openings.iter().enumerate() {
-                let mut commit_phase_opening_var = FriCommitPhaseProofStepVariable {
-                    sibling_value: builder
-                        .eval(SymbolicExt::Const(commit_phase_opening.sibling_value)),
-                    opening_proof: builder.dyn_array(commit_phase_opening.opening_proof.len()),
-                };
-                for (k, proof) in commit_phase_opening.opening_proof.iter().enumerate() {
-                    let mut proof_var = builder.dyn_array(DIGEST_SIZE);
-                    for l in 0..DIGEST_SIZE {
-                        builder.set(&mut proof_var, l, proof[l]);
-                    }
-                    builder.set(&mut commit_phase_opening_var.opening_proof, k, proof_var);
-                }
-                builder.set(&mut commit_phase_openings_var, j, commit_phase_opening_var);
-            }
-            let query_proof = FriQueryProofVariable {
-                commit_phase_openings: commit_phase_openings_var,
-            };
-            builder.set(&mut fri_proof_var.query_proofs, i, query_proof);
-        }
-
-        fri_proof_var
-    }
-
-    #[allow(clippy::needless_range_loop)]
-    pub fn const_two_adic_pcs_proof<C>(
-        builder: &mut Builder<C>,
-        proof: TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>,
-    ) -> TwoAdicPcsProofVariable<C>
-    where
-        C: Config<F = InnerVal, EF = InnerChallenge>,
-    {
-        let fri_proof_var = const_fri_proof(builder, proof.fri_proof);
-        let mut proof_var = TwoAdicPcsProofVariable {
-            fri_proof: fri_proof_var,
-            query_openings: builder.dyn_array(proof.query_openings.len()),
-        };
-
-        for (i, openings) in proof.query_openings.iter().enumerate() {
-            let mut openings_var: Array<_, BatchOpeningVariable<_>> =
-                builder.dyn_array(openings.len());
-            for (j, opening) in openings.iter().enumerate() {
-                let mut opened_values_var = builder.dyn_array(opening.opened_values.len());
-                for (k, opened_value) in opening.opened_values.iter().enumerate() {
-                    let mut opened_value_var: Array<_, Ext<_, _>> =
-                        builder.dyn_array(opened_value.len());
-                    for (l, ext) in opened_value.iter().enumerate() {
-                        let el: Ext<_, _> =
-                            builder.eval(SymbolicExt::Base(SymbolicFelt::Const(*ext).into()));
-                        builder.set(&mut opened_value_var, l, el);
-                    }
-                    builder.set(&mut opened_values_var, k, opened_value_var);
-                }
-
-                let mut opening_proof_var = builder.dyn_array(opening.opening_proof.len());
-                for (k, sibling) in opening.opening_proof.iter().enumerate() {
-                    let mut sibling_var = builder.dyn_array(DIGEST_SIZE);
-                    for l in 0..DIGEST_SIZE {
-                        let el: Felt<_> = builder.eval(sibling[l]);
-                        builder.set(&mut sibling_var, l, el);
-                    }
-                    builder.set(&mut opening_proof_var, k, sibling_var);
-                }
-                let batch_opening_var = BatchOpeningVariable {
-                    opened_values: opened_values_var,
-                    opening_proof: opening_proof_var,
-                };
-                builder.set(&mut openings_var, j, batch_opening_var);
-            }
-
-            builder.set(&mut proof_var.query_openings, i, openings_var);
-        }
-
-        proof_var
-    }
-
-    #[test]
-    fn test_fri_proof_hint() {
-        let mut rng = &mut OsRng;
-        let log_degrees = &[10, 16];
-        let perm = inner_perm();
-        let fri_config = inner_fri_config();
-        let hash = InnerHash::new(perm.clone());
-        let compress = InnerCompress::new(perm.clone());
-        let val_mmcs = InnerValMmcs::new(hash, compress);
-        let dft = InnerDft {};
-        let pcs_val: InnerPcs = InnerPcs::new(
-            log_degrees.iter().copied().max().unwrap(),
-            dft,
-            val_mmcs,
-            fri_config,
-        );
-
-        // Generate proof.
-        let domains_and_polys = log_degrees
-            .iter()
-            .map(|&d| {
-                (
-                    <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::natural_domain_for_degree(
-                        &pcs_val,
-                        1 << d,
-                    ),
-                    RowMajorMatrix::<InnerVal>::rand(&mut rng, 1 << d, 10 + d),
-                )
-            })
-            .sorted_by_key(|(dom, _)| Reverse(dom.log_n))
-            .collect::<Vec<_>>();
-        let (commit, data) = <InnerPcs as Pcs<InnerChallenge, InnerChallenger>>::commit(
-            &pcs_val,
-            domains_and_polys.clone(),
-        );
-        let mut challenger = InnerChallenger::new(perm.clone());
-        challenger.observe(commit);
-        let zeta = challenger.sample_ext_element::<InnerChallenge>();
-        let points = domains_and_polys
-            .iter()
-            .map(|_| vec![zeta])
-            .collect::<Vec<_>>();
-        let (opening, proof) = pcs_val.open(vec![(&data, points)], &mut challenger);
-
-        // Verify proof.
-        let mut challenger = InnerChallenger::new(perm.clone());
-        challenger.observe(commit);
-        challenger.sample_ext_element::<InnerChallenge>();
-        let os: Vec<(
-            TwoAdicMultiplicativeCoset<InnerVal>,
-            Vec<(InnerChallenge, Vec<InnerChallenge>)>,
-        )> = domains_and_polys
-            .iter()
-            .zip(&opening[0])
-            .map(|((domain, _), mat_openings)| (*domain, vec![(zeta, mat_openings[0].clone())]))
-            .collect();
-        pcs_val
-            .verify(vec![(commit, os.clone())], &proof, &mut challenger)
-            .unwrap();
-
-        let mut builder = Builder::<InnerConfig>::default();
-        let proofvar = InnerPcsProof::hint(&mut builder);
-        builder.print_e(proofvar.fri_proof.final_poly);
-        builder.print_f(proofvar.fri_proof.pow_witness);
-
-        let program = builder.compile();
-        let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
-        println!("{}", proof.fri_proof.final_poly);
-        println!("{}", proof.fri_proof.pow_witness);
-        runtime
-            .witness_stream
-            .extend(InnerPcsProof::serialize(&proof));
-        runtime.run();
     }
 
     #[allow(clippy::type_complexity)]
@@ -638,16 +441,17 @@ pub(crate) mod tests {
         }
 
         // Test proof verification.
-        let proof = const_two_adic_pcs_proof(&mut builder, proof);
+        let proofvar = InnerPcsProof::hint(&mut builder);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         let commit = <[InnerVal; DIGEST_SIZE]>::from(commit).to_vec();
         let commit = builder.eval_const::<Array<_, _>>(commit);
         challenger.observe(&mut builder, commit);
         challenger.sample_ext(&mut builder);
-        pcs.verify(&mut builder, rounds, proof, &mut challenger);
+        pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
 
         let program = builder.compile();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
+        runtime.witness_stream.extend(proof.hint_serialize());
         runtime.run();
         println!(
             "The program executed successfully, number of cycles: {}",
@@ -753,7 +557,7 @@ pub(crate) mod tests {
         let rounds = builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(rounds_val);
 
         // // Test proof verification.
-        let proof = const_two_adic_pcs_proof(&mut builder, proof);
+        let proofvar = InnerPcsProof::hint(&mut builder);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         for commit in batches_commits {
             let commit: [InnerVal; DIGEST_SIZE] = commit.into();
@@ -761,10 +565,11 @@ pub(crate) mod tests {
             challenger.observe(&mut builder, commit);
         }
         challenger.sample_ext(&mut builder);
-        pcs.verify(&mut builder, rounds, proof, &mut challenger);
+        pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
 
         let program = builder.compile();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
+        runtime.witness_stream.extend(proof.hint_serialize());
         runtime.run();
         println!(
             "The program executed successfully, number of cycles: {}",

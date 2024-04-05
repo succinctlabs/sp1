@@ -261,6 +261,7 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
+    use crate::hints::Hintable;
     use crate::stark::Ext;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
@@ -274,19 +275,23 @@ pub(crate) mod tests {
     };
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Felt;
+    use sp1_recursion_compiler::InnerConfig;
     use sp1_recursion_compiler::{
-        asm::{AsmConfig, VmBuilder},
+        asm::VmBuilder,
         ir::{Builder, Config, ExtConst, Usize},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_recursion_core::stark::config::inner_fri_config;
+    use sp1_recursion_core::stark::config::InnerChallenge;
+    use sp1_recursion_core::stark::config::InnerPcsProof;
+    use sp1_recursion_core::stark::config::InnerVal;
     use sp1_sdk::{SP1Prover, SP1Stdin};
 
     use sp1_core::air::Word;
 
     use crate::{
         challenger::DuplexChallengerVariable,
-        fri::{const_fri_config, const_two_adic_pcs_proof, TwoAdicFriPcsVariable},
+        fri::{const_fri_config, TwoAdicFriPcsVariable},
         stark::StarkVerifier,
         types::{
             ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
@@ -298,12 +303,12 @@ pub(crate) mod tests {
     use sp1_sdk::utils::setup_logger;
 
     type SC = BabyBearPoseidon2;
-    type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
-    type C = AsmConfig<F, EF>;
+    type F = InnerVal;
+    type EF = InnerChallenge;
+    type C = InnerConfig;
     type A = RiscvAir<F>;
 
-    pub(crate) fn const_proof<C>(
+    pub(crate) fn const_proof(
         builder: &mut Builder<C>,
         machine: &MachineStark<SC, A>,
         proof: ShardProof<SC>,
@@ -355,7 +360,8 @@ pub(crate) mod tests {
             chips: opened_values,
         };
 
-        let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
+        let opening_proof = InnerPcsProof::hint(builder);
+        // let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
 
         let sorted_indices = machine
             .chips()
@@ -364,8 +370,8 @@ pub(crate) mod tests {
                 let index = proof
                     .chip_ordering
                     .get(&chip.name())
-                    .map(|i| C::N::from_canonical_usize(*i))
-                    .unwrap_or(C::N::neg_one());
+                    .map(|i| InnerVal::from_canonical_usize(*i))
+                    .unwrap_or(InnerVal::neg_one());
                 builder.eval(index)
             })
             .collect();
@@ -407,7 +413,7 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
 
         // Observe all the commitments.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = Builder::<InnerConfig>::default();
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
@@ -476,7 +482,7 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
 
         let time = Instant::now();
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = Builder::<InnerConfig>::default();
         let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
 
@@ -486,8 +492,10 @@ pub(crate) mod tests {
         let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
         challenger.observe(&mut builder, preprocessed_commit);
 
+        let mut witness_stream = Vec::new();
         let mut shard_proofs = vec![];
         for proof_val in proof.shard_proofs {
+            witness_stream.extend(proof_val.opening_proof.hint_serialize());
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
@@ -516,9 +524,9 @@ pub(crate) mod tests {
         let elapsed = time.elapsed();
         println!("Building took: {:?}", elapsed);
 
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-
         let time = Instant::now();
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.witness_stream = witness_stream;
         runtime.run();
         let elapsed = time.elapsed();
         runtime.print_stats();
