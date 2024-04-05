@@ -9,6 +9,8 @@ on:
     paths:
       - "core/**"
       - "recursion/**"
+      - "sdk/**"
+      - "examples/fibonacci-io/**"
 
 jobs:
   test:
@@ -29,7 +31,7 @@ jobs:
       - name: Install Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.22"
 
       - name: Print go version
         run: go version
@@ -59,6 +61,16 @@ jobs:
           profile: minimal
           toolchain: nightly-2024-01-25
           override: true
+
+      - name: Run fibonacci-io example
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
 
       - name: Run cargo test on sp1-core
         uses: actions-rs/cargo@v1
@@ -124,11 +136,11 @@ jobs:
         run: |
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-        
+
       - name: Install Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.22"
 
       - name: Print go version
         run: go version
