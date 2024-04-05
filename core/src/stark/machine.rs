@@ -279,13 +279,47 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
-        for (i, proof) in proof.shard_proofs.iter().enumerate() {
+        for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
+                // If it's the first shard, index should be 1.
+                if i == 0 && shard_proof.index != 1 {
+                    return Err(ProgramVerificationError::InvalidTransition);
+                }
+
+                if i > 0 {
+                    let prev_shard_proof = &proof.shard_proofs[i - 1];
+                    // TODO: some of these checks will need to only apply to shards with cpu chip.
+                    // For non-first shards, the index should be the previous index + 1.
+                    if shard_proof.index != prev_shard_proof.index - 1 {
+                        return Err(ProgramVerificationError::InvalidTransition);
+                    }
+                    // Next pc should be what the next pc declared in the previous shard was.
+                    if shard_proof.public_values.first_row_pc
+                        != prev_shard_proof.public_values.last_row_next_pc
+                    {
+                        return Err(ProgramVerificationError::InvalidTransition);
+                    }
+                    // Digest and exit code should be the same in all shards.
+                    if shard_proof.public_values.committed_value_digest
+                        != prev_shard_proof.public_values.committed_value_digest
+                        || shard_proof.public_values.exit_code
+                            != prev_shard_proof.public_values.exit_code
+                    {
+                        return Err(ProgramVerificationError::InvalidTransition);
+                    }
+                }
+
                 let chips = self
-                    .shard_chips_ordered(&proof.chip_ordering)
+                    .shard_chips_ordered(&shard_proof.chip_ordering)
                     .collect::<Vec<_>>();
-                Verifier::verify_shard(&self.config, vk, &chips, &mut challenger.clone(), proof)
-                    .map_err(ProgramVerificationError::InvalidSegmentProof)
+                Verifier::verify_shard(
+                    &self.config,
+                    vk,
+                    &chips,
+                    &mut challenger.clone(),
+                    shard_proof,
+                )
+                .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
         tracing::info!("verifying individual shards succeeded");
@@ -418,6 +452,7 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
+    InvalidTransition,
     DebugInteractionsFailed,
 }
 
