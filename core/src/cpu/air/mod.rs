@@ -475,7 +475,7 @@ impl CpuChip {
             .when(local.is_sequential_instr)
             .assert_one(local.is_real);
 
-        // Now verify that is_sequential_instr is true for instructions that are not branch, jump, or halt.
+        // When is_sequential_instr is true, assert that instruction is not branch, jump, or halt.
         // Note that the `when(local.is_real)` condition is implied from the previous constraint.
         builder.when(local.is_sequential_instr).assert_zero(
             is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
