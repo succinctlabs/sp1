@@ -5,6 +5,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::MatrixRowSlices;
+use std::collections::BTreeMap;
 
 use sp1_derive::AlignedBorrow;
 
@@ -90,15 +91,30 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-
-        let rows = input
-            .program_memory_events
+        // Build a map of each address in program memory image to whether it was used.
+        // We have to do it from program because only the last shard has all the events, but every
+        // preprocessed row needs a corresponding mult row even if it's not used.
+        let mut addr_used_map = input
+            .program
+            .memory_image
             .iter()
-            .map(|event| {
+            .map(|(addr, _)| (*addr, false))
+            .collect::<BTreeMap<_, _>>();
+        for event in &input.program_memory_events {
+            if event.used == 1 {
+                if let Some(used) = addr_used_map.get_mut(&event.addr) {
+                    *used = true;
+                }
+            }
+        }
+
+        // Generate the trace rows for each event.
+        let rows = addr_used_map
+            .iter()
+            .map(|(_, used)| {
                 let mut row = [F::zero(); NUM_MEMORY_PROGRAM_MULT_COLS];
                 let cols: &mut MemoryProgramMultCols<F> = row.as_mut_slice().borrow_mut();
-                cols.used = F::from_canonical_u32(event.used);
+                cols.used = F::from_bool(*used);
                 row
             })
             .collect::<Vec<_>>();
