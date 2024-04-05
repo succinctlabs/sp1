@@ -121,19 +121,19 @@ impl SP1Prover {
         access_token: String,
         proof_id: &str,
         chain_ids: Vec<u32>,
-        callbacks: Vec<&str>,
-        callback_datas: Vec<&str>,
+        callbacks: Vec<[u8; 20]>,
+        callback_datas: Vec<Vec<u8>>,
     ) -> Result<Vec<String>> {
         let client = NetworkClient::with_token(access_token);
-        let verifier = &NetworkClient::get_sp1_verifier_address();
+        let verifier = NetworkClient::get_sp1_verifier_address();
 
         let mut tx_details = Vec::new();
-        for ((i, &callback), &callback_data) in
+        for ((i, callback), callback_data) in
             callbacks.iter().enumerate().zip(callback_datas.iter())
         {
             if let Some(&chain_id) = chain_ids.get(i) {
                 let tx_id = client
-                    .relay_proof(proof_id, chain_id, verifier, callback, callback_data)
+                    .relay_proof(proof_id, chain_id, verifier, *callback, callback_data)
                     .await
                     .with_context(|| format!("Failed to relay proof to chain {}", chain_id))?;
                 tx_details.push((tx_id, chain_id));
@@ -180,24 +180,20 @@ impl SP1Prover {
                 let access_token = env::var("PROVER_NETWORK_ACCESS_TOKEN")?;
 
                 let chain_ids: Vec<u32> = Self::parse_env_var_array("CHAINS")?;
-                let callbacks: Vec<String> = Self::parse_env_var_array("CALLBACKS")?;
-                let callback_datas: Vec<String> = Self::parse_env_var_array("CALLBACK_DATAS")?;
+                let callbacks: Vec<[u8; 20]> = Self::parse_env_var_hex_array_20("CALLBACKS")?;
+                let callback_datas: Vec<Vec<u8>> = Self::parse_env_var_hex_vec("CALLBACK_DATAS")?;
 
                 if !(chain_ids.len() == callbacks.len() && callbacks.len() == callback_datas.len())
                 {
                     anyhow::bail!("CHAINS, CALLBACKS, and CALLBACK_DATAS must be of the same size");
                 }
 
-                let callbacks_refs: Vec<&str> = callbacks.iter().map(AsRef::as_ref).collect();
-                let callback_datas_refs: Vec<&str> =
-                    callback_datas.iter().map(AsRef::as_ref).collect();
-
                 SP1Prover::relay_remote(
                     access_token,
                     &proof_id,
                     chain_ids,
-                    callbacks_refs,
-                    callback_datas_refs,
+                    callbacks,
+                    callback_datas,
                 )
                 .await?;
                 log::info!("Proofs relayed successfully");
@@ -273,6 +269,48 @@ impl SP1Prover {
             .map(|s| s.parse::<T>())
             .collect::<Result<Vec<T>, T::Err>>()
             .map_err(|_| anyhow::anyhow!("Failed to parse one or more values in {}", env_var))
+    }
+
+    /// Parses environment variables containing comma-separated hex values into a Vec<[u8; 20]>
+    fn parse_env_var_hex_array_20(env_var: &str) -> Result<Vec<[u8; 20]>> {
+        env::var(env_var)
+            .with_context(|| format!("{} environment variable not set", env_var))?
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                let s = s.trim_start_matches("0x");
+                hex::decode(s)
+                    .map_err(|_| anyhow::anyhow!("Failed to parse hex in {}", env_var))
+                    .and_then(|bytes| {
+                        if bytes.len() == 20 {
+                            let mut arr = [0u8; 20];
+                            arr.copy_from_slice(&bytes);
+                            Ok(arr)
+                        } else {
+                            Err(anyhow::anyhow!(
+                                "Hex string does not match expected length in {}",
+                                env_var
+                            ))
+                        }
+                    })
+            })
+            .collect()
+    }
+
+    /// Parses environment variables containing comma-separated hex values into a Vec<Vec<u8>>
+    fn parse_env_var_hex_vec(env_var: &str) -> Result<Vec<Vec<u8>>> {
+        env::var(env_var)
+            .with_context(|| format!("{} environment variable not set", env_var))?
+            .split(',')
+            .map(|s| s.trim())
+            .filter(|s| !s.is_empty())
+            .map(|s| {
+                let s = s.trim_start_matches("0x");
+                hex::decode(s)
+                    .map_err(|e| anyhow::anyhow!("Failed to parse hex in {}: {}", env_var, e))
+            })
+            .collect()
     }
 }
 

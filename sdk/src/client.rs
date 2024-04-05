@@ -63,9 +63,15 @@ impl NetworkClient {
         }
     }
 
-    pub fn get_sp1_verifier_address() -> String {
-        env::var("SP1_VERIFIER_ADDRESS")
-            .unwrap_or_else(|_| DEFAULT_SP1_VERIFIER_ADDRESS.to_string())
+    pub fn get_sp1_verifier_address() -> [u8; 20] {
+        let verifier_hex = env::var("SP1_VERIFIER_ADDRESS")
+            .unwrap_or_else(|_| DEFAULT_SP1_VERIFIER_ADDRESS.to_string());
+        let verifier_bytes = hex::decode(verifier_hex.trim_start_matches("0x"))
+            .expect("Invalid SP1_VERIFIER_ADDRESS format");
+
+        verifier_bytes
+            .try_into()
+            .expect("Verifier address must be 20 bytes")
     }
 
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
@@ -128,23 +134,16 @@ impl NetworkClient {
         &self,
         proof_id: &str,
         chain_id: u32,
-        verifier: &str,
-        callback: &str,
-        callback_data: &str,
+        verifier: [u8; 20],
+        callback: [u8; 20],
+        callback_data: &[u8],
     ) -> Result<String> {
-        let verifier_bytes = hex::decode(verifier.trim_start_matches("0x"))
-            .map_err(|e| anyhow::anyhow!("Failed to decode verifier: {}", e))?;
-        let callback_bytes = hex::decode(callback.trim_start_matches("0x"))
-            .map_err(|e| anyhow::anyhow!("Failed to decode callback: {}", e))?;
-        let callback_data_bytes = hex::decode(callback_data.trim_start_matches("0x"))
-            .map_err(|e| anyhow::anyhow!("Failed to decode callback_data: {}", e))?;
-
         let req = RelayProofRequest {
             proof_id: proof_id.to_string(),
             chain_id,
-            verifier: verifier_bytes,
-            callback: callback_bytes,
-            callback_data: callback_data_bytes,
+            verifier: verifier.to_vec(),
+            callback: callback.to_vec(),
+            callback_data: callback_data.to_vec(),
         };
         let result = self.rpc.relay_proof(req).await?;
         Ok(result.id)
