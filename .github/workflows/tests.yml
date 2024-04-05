@@ -15,7 +15,7 @@ on:
 
 jobs:
   test:
-    name: Test fibonacci, core, recursion-compiler, recursion-program
+    name: Test core, recursion-compiler, recursion-program
     runs-on: warp-ubuntu-latest-arm64-16x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
