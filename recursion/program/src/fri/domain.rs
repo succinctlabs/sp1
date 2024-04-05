@@ -3,7 +3,9 @@ use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 
-use crate::{commit::PolynomialSpaceVariable, types::FriConfigVariable};
+use crate::commit::PolynomialSpaceVariable;
+
+use super::types::FriConfigVariable;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
 #[derive(DslVariable, Clone, Copy)]
@@ -47,35 +49,6 @@ where
         }
     }
 }
-
-// pub fn new_coset<C: Config>(
-//     builder: &mut Builder<C>,
-//     log_degree: Usize<C::N>,
-// ) -> TwoAdicMultiplicativeCosetVariable<C>
-// where
-//     C::F: TwoAdicField,
-// {
-//     let two_addicity = C::F::TWO_ADICITY;
-
-//     let is_valid: Var<_> = builder.eval(C::N::zero());
-//     let domain: TwoAdicMultiplicativeCosetVariable<C> = builder.uninit();
-//     for i in 1..=two_addicity {
-//         let i_f = C::N::from_canonical_usize(i);
-//         builder.if_eq(log_degree, i_f).then(|builder| {
-//             let constant = TwoAdicMultiplicativeCoset {
-//                 log_n: i,
-//                 shift: C::F::one(),
-//             };
-//             let domain_value: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(constant);
-//             builder.assign(domain.clone(), domain_value);
-//             builder.assign(is_valid, C::N::one());
-//         });
-//     }
-
-//     builder.assert_var_eq(is_valid, C::N::one());
-
-//     domain
-// }
 
 impl<C: Config> PolynomialSpaceVariable<C> for TwoAdicMultiplicativeCosetVariable<C>
 where

@@ -2,13 +2,11 @@ use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
 use sp1_core::stark::MachineStark;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{ShardCommitment, StarkGenericConfig};
-
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
@@ -20,9 +18,9 @@ use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
 use crate::commit::PolynomialSpaceVariable;
 use crate::folder::RecursiveVerifierConstraintFolder;
+use crate::fri::types::TwoAdicPcsMatsVariable;
+use crate::fri::types::TwoAdicPcsRoundVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::fri::TwoAdicPcsMatsVariable;
-use crate::fri::TwoAdicPcsRoundVariable;
 
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
@@ -243,7 +241,7 @@ where
                     builder,
                     chip,
                     &values,
-                    proof.public_values_digest,
+                    proof.public_values_digest.clone(),
                     trace_domain,
                     qc_domains,
                     zeta,
@@ -261,12 +259,15 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
+    use crate::fri::types::DigestVariable;
     use crate::hints::Hintable;
     use crate::stark::Ext;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
     use sp1_core::air::PublicValuesDigest;
+    use sp1_core::air::PV_DIGEST_NUM_WORDS;
+    use sp1_core::air::WORD_SIZE;
     use sp1_core::runtime::Program;
     use sp1_core::{
         air::MachineAir,
@@ -293,9 +294,7 @@ pub(crate) mod tests {
         challenger::DuplexChallengerVariable,
         fri::{const_fri_config, TwoAdicFriPcsVariable},
         stark::StarkVerifier,
-        types::{
-            ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
-        },
+        types::{ChipOpenedValuesVariable, ShardOpenedValuesVariable, ShardProofVariable},
     };
 
     use sp1_core::stark::LocalProver;
@@ -319,15 +318,18 @@ pub(crate) mod tests {
         let index = builder.materialize(Usize::Const(proof.index));
 
         // Set up the public values digest.
-        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-            let word_val = proof.public_values_digest[i];
-            Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-        }));
+        let mut public_values_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            for j in 0..WORD_SIZE {
+                let word_val: Felt<_> = builder.eval(proof.public_values_digest[i][j]);
+                builder.set(&mut public_values_digest, i * WORD_SIZE + j, word_val);
+            }
+        }
 
         // Set up the commitments.
-        let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-        let mut permutation_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-        let mut quotient_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
+        let mut main_commit: DigestVariable<_> = builder.dyn_array(DIGEST_SIZE);
+        let mut permutation_commit: DigestVariable<_> = builder.dyn_array(DIGEST_SIZE);
+        let mut quotient_commit: DigestVariable<_> = builder.dyn_array(DIGEST_SIZE);
 
         let main_commit_val: [_; DIGEST_SIZE] = proof.commitment.main_commit.into();
         let perm_commit_val: [_; DIGEST_SIZE] = proof.commitment.permutation_commit.into();
@@ -360,7 +362,7 @@ pub(crate) mod tests {
             chips: opened_values,
         };
 
-        let opening_proof = InnerPcsProof::hint(builder);
+        let opening_proof = InnerPcsProof::read(builder);
         // let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
 
         let sorted_indices = machine
@@ -377,7 +379,7 @@ pub(crate) mod tests {
             .collect();
 
         ShardProofVariable {
-            index: Usize::Var(index),
+            index,
             commitment,
             opened_values,
             opening_proof,
@@ -495,7 +497,7 @@ pub(crate) mod tests {
         let mut witness_stream = Vec::new();
         let mut shard_proofs = vec![];
         for proof_val in proof.shard_proofs {
-            witness_stream.extend(proof_val.opening_proof.hint_serialize());
+            witness_stream.extend(proof_val.opening_proof.write());
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());

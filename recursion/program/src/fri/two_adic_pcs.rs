@@ -1,47 +1,23 @@
-use crate::challenger::FeltChallenger;
+use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_field::AbstractField;
 use p3_field::TwoAdicField;
+use p3_symmetric::Hash;
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
-use crate::challenger::DuplexChallengerVariable;
-use crate::commit::PcsVariable;
-use crate::types::{Commitment, Dimensions, FriConfigVariable, FriProofVariable};
-
+use super::types::DigestVariable;
+use super::types::DimensionsVariable;
+use super::types::FriConfigVariable;
+use super::types::TwoAdicPcsMatsVariable;
+use super::types::TwoAdicPcsProofVariable;
+use super::types::TwoAdicPcsRoundVariable;
 use super::{
     verify_batch, verify_challenges, verify_shape_and_sample_challenges,
     TwoAdicMultiplicativeCosetVariable,
 };
-
-use p3_field::AbstractField;
-use p3_symmetric::Hash;
-
-use p3_commit::TwoAdicMultiplicativeCoset;
-
-#[derive(DslVariable, Clone)]
-pub struct BatchOpeningVariable<C: Config> {
-    pub opened_values: Array<C, Array<C, Ext<C::F, C::EF>>>,
-    pub opening_proof: Array<C, Array<C, Felt<C::F>>>,
-}
-
-#[derive(DslVariable, Clone)]
-pub struct TwoAdicPcsProofVariable<C: Config> {
-    pub fri_proof: FriProofVariable<C>,
-    pub query_openings: Array<C, Array<C, BatchOpeningVariable<C>>>,
-}
-
-#[derive(DslVariable, Clone)]
-pub struct TwoAdicPcsRoundVariable<C: Config> {
-    pub batch_commit: Commitment<C>,
-    pub mats: Array<C, TwoAdicPcsMatsVariable<C>>,
-}
-
-#[allow(clippy::type_complexity)]
-#[derive(DslVariable, Clone)]
-pub struct TwoAdicPcsMatsVariable<C: Config> {
-    pub domain: TwoAdicMultiplicativeCosetVariable<C>,
-    pub points: Array<C, Ext<C::F, C::EF>>,
-    pub values: Array<C, Array<C, Ext<C::F, C::EF>>>,
-}
+use crate::challenger::DuplexChallengerVariable;
+use crate::challenger::FeltChallenger;
+use crate::commit::PcsVariable;
 
 #[allow(clippy::type_complexity)]
 pub fn verify_two_adic_pcs<C: Config>(
@@ -96,10 +72,10 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let height_log2: Var<_> = builder.eval(mat.domain.log_n + config.log_blowup);
                     builder.set(&mut batch_heights_log2, k, height_log2);
                 });
-                let mut batch_dims: Array<C, Dimensions<C>> = builder.array(mats.len());
+                let mut batch_dims: Array<C, DimensionsVariable<C>> = builder.array(mats.len());
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
-                    let dim = Dimensions::<C> {
+                    let dim = DimensionsVariable::<C> {
                         height: builder.eval(mat.domain.size() * C::N::two()), // TODO: fix this to use blowup
                     };
                     builder.set(&mut batch_dims, k, dim);
@@ -257,7 +233,7 @@ where
 {
     type Domain = TwoAdicMultiplicativeCosetVariable<C>;
 
-    type Commitment = Commitment<C>;
+    type Commitment = DigestVariable<C>;
 
     type Proof = TwoAdicPcsProofVariable<C>;
 
@@ -289,10 +265,10 @@ pub(crate) mod tests {
     use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
     use crate::challenger::FeltChallenger;
+    use crate::fri::types::FriConfigVariable;
+    use crate::fri::types::TwoAdicPcsRoundVariable;
     use crate::fri::TwoAdicMultiplicativeCosetVariable;
-    use crate::fri::TwoAdicPcsRoundVariable;
     use crate::hints::Hintable;
-    use crate::types::FriConfigVariable;
     use itertools::Itertools;
     use p3_challenger::CanObserve;
     use p3_challenger::FieldChallenger;
@@ -441,7 +417,7 @@ pub(crate) mod tests {
         }
 
         // Test proof verification.
-        let proofvar = InnerPcsProof::hint(&mut builder);
+        let proofvar = InnerPcsProof::read(&mut builder);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         let commit = <[InnerVal; DIGEST_SIZE]>::from(commit).to_vec();
         let commit = builder.eval_const::<Array<_, _>>(commit);
@@ -451,7 +427,7 @@ pub(crate) mod tests {
 
         let program = builder.compile();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
-        runtime.witness_stream.extend(proof.hint_serialize());
+        runtime.witness_stream.extend(proof.write());
         runtime.run();
         println!(
             "The program executed successfully, number of cycles: {}",
@@ -557,7 +533,7 @@ pub(crate) mod tests {
         let rounds = builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(rounds_val);
 
         // // Test proof verification.
-        let proofvar = InnerPcsProof::hint(&mut builder);
+        let proofvar = InnerPcsProof::read(&mut builder);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         for commit in batches_commits {
             let commit: [InnerVal; DIGEST_SIZE] = commit.into();
@@ -569,7 +545,7 @@ pub(crate) mod tests {
 
         let program = builder.compile();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
-        runtime.witness_stream.extend(proof.hint_serialize());
+        runtime.witness_stream.extend(proof.write());
         runtime.run();
         println!(
             "The program executed successfully, number of cycles: {}",

@@ -4,7 +4,7 @@ use p3_field::Field;
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::types::FriConfigVariable;
+use sp1_recursion_program::fri::types::FriConfigVariable;
 
 #[derive(Clone, Copy)]
 pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {

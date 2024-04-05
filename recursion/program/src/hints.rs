@@ -1,42 +1,46 @@
-use crate::fri::{BatchOpeningVariable, TwoAdicPcsProofVariable};
-use crate::types::{
-    Commitment, FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable,
-};
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_recursion_compiler::ir::{Ext, Felt};
-use sp1_recursion_compiler::InnerConfig;
+use sp1_core::stark::{AirOpenedValues, ChipOpenedValues};
 use sp1_recursion_compiler::{
-    asm::AsmConfig,
-    ir::{Array, Builder, Config, MemVariable},
-};
-use sp1_recursion_core::stark::config::{
-    InnerBatchOpening, InnerCommitPhaseStep, InnerDigest, InnerFriProof, InnerPcsProof,
-    InnerQueryProof,
+    ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
+    InnerConfig,
 };
 use sp1_recursion_core::{
     air::Block,
-    runtime::DIGEST_SIZE,
     stark::config::{InnerChallenge, InnerVal},
 };
+
+use crate::types::{AirOpenedValuesVariable, ChipOpenedValuesVariable};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;
 
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable;
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable;
 
-    fn hint_serialize(&self) -> Vec<Vec<Block<C::F>>>;
+    fn write(&self) -> Vec<Vec<Block<C::F>>>;
 }
 
 type C = InnerConfig;
 
+impl Hintable<C> for usize {
+    type HintVariable = Var<InnerVal>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        builder.hint_var()
+    }
+
+    fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
+        vec![vec![Block::from(InnerVal::from_canonical_usize(*self))]]
+    }
+}
+
 impl Hintable<C> for InnerVal {
     type HintVariable = Felt<InnerVal>;
 
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         builder.hint_felt()
     }
 
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         vec![vec![Block::from(*self)]]
     }
 }
@@ -44,11 +48,11 @@ impl Hintable<C> for InnerVal {
 impl Hintable<C> for InnerChallenge {
     type HintVariable = Ext<InnerVal, InnerChallenge>;
 
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         builder.hint_ext()
     }
 
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         vec![vec![Block::from((*self).as_base_slice())]]
     }
 }
@@ -56,24 +60,24 @@ impl Hintable<C> for InnerChallenge {
 impl<T: Hintable<C>> Hintable<C> for Vec<T> {
     type HintVariable = Array<C, T::HintVariable>;
 
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let len = builder.hint_var();
         let mut arr = builder.dyn_array(len);
         builder.range(0, len).for_each(|i, builder| {
-            let hint = T::hint(builder);
+            let hint = T::read(builder);
             builder.set(&mut arr, i, hint);
         });
         arr
     }
 
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
 
         let len = InnerVal::from_canonical_usize(self.len());
         stream.push(vec![len.into()]);
 
         self.iter().for_each(|arr| {
-            let comm = T::hint_serialize(arr);
+            let comm = T::write(arr);
             stream.extend(comm);
         });
 
@@ -81,144 +85,51 @@ impl<T: Hintable<C>> Hintable<C> for Vec<T> {
     }
 }
 
-impl Hintable<C> for InnerDigest {
-    type HintVariable = Commitment<C>;
+impl Hintable<C> for AirOpenedValues<InnerChallenge> {
+    type HintVariable = AirOpenedValuesVariable<C>;
 
-    fn hint(builder: &mut Builder<AsmConfig<InnerVal, InnerChallenge>>) -> Self::HintVariable {
-        builder.hint_felts()
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let local = Vec::<InnerChallenge>::read(builder);
+        let next = Vec::<InnerChallenge>::read(builder);
+        AirOpenedValuesVariable { local, next }
     }
 
-    fn hint_serialize(&self) -> Vec<Vec<Block<InnerVal>>> {
-        let h: [InnerVal; DIGEST_SIZE] = (*self).into();
-        vec![h.iter().map(|x| Block::from(*x)).collect()]
-    }
-}
-
-impl Hintable<C> for InnerCommitPhaseStep {
-    type HintVariable = FriCommitPhaseProofStepVariable<C>;
-
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
-        let sibling_value = builder.hint_ext();
-        let opening_proof = Vec::<InnerDigest>::hint(builder);
-        Self::HintVariable {
-            sibling_value,
-            opening_proof,
-        }
-    }
-
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-
-        let sibling_value: &[InnerVal] = self.sibling_value.as_base_slice();
-        let sibling_value = Block::from(sibling_value);
-        stream.push(vec![sibling_value]);
-
-        stream.extend(Vec::<InnerDigest>::hint_serialize(&self.opening_proof));
-
+        stream.extend(self.local.write());
+        stream.extend(self.next.write());
         stream
     }
 }
 
-impl Hintable<C> for InnerQueryProof {
-    type HintVariable = FriQueryProofVariable<C>;
+impl Hintable<C> for ChipOpenedValues<InnerChallenge> {
+    type HintVariable = ChipOpenedValuesVariable<C>;
 
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
-        let commit_phase_openings = Vec::<InnerCommitPhaseStep>::hint(builder);
-        Self::HintVariable {
-            commit_phase_openings,
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let preprocessed = AirOpenedValues::<InnerChallenge>::read(builder);
+        let main = AirOpenedValues::<InnerChallenge>::read(builder);
+        let permutation = AirOpenedValues::<InnerChallenge>::read(builder);
+        let quotient = Vec::<Vec<InnerChallenge>>::read(builder);
+        let cumulative_sum = InnerChallenge::read(builder);
+        let log_degree = builder.hint_var();
+        ChipOpenedValuesVariable {
+            preprocessed,
+            main,
+            permutation,
+            quotient,
+            cumulative_sum,
+            log_degree,
         }
     }
 
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-
-        stream.extend(Vec::<InnerCommitPhaseStep>::hint_serialize(
-            &self.commit_phase_openings,
-        ));
-
-        stream
-    }
-}
-
-impl Hintable<C> for InnerFriProof {
-    type HintVariable = FriProofVariable<C>;
-
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
-        let commit_phase_commits = Vec::<InnerDigest>::hint(builder);
-        let query_proofs = Vec::<InnerQueryProof>::hint(builder);
-        let final_poly = builder.hint_ext();
-        let pow_witness = builder.hint_felt();
-        Self::HintVariable {
-            commit_phase_commits,
-            query_proofs,
-            final_poly,
-            pow_witness,
-        }
-    }
-
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        let mut stream = Vec::new();
-
-        stream.extend(Vec::<InnerDigest>::hint_serialize(
-            &self
-                .commit_phase_commits
-                .iter()
-                .map(|x| (*x).into())
-                .collect(),
-        ));
-        stream.extend(Vec::<InnerQueryProof>::hint_serialize(&self.query_proofs));
-        let final_poly: &[InnerVal] = self.final_poly.as_base_slice();
-        let final_poly = Block::from(final_poly);
-        stream.push(vec![final_poly]);
-        let pow_witness = Block::from(self.pow_witness);
-        stream.push(vec![pow_witness]);
-
-        stream
-    }
-}
-
-impl Hintable<C> for InnerBatchOpening {
-    type HintVariable = BatchOpeningVariable<C>;
-
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
-        let opened_values = Vec::<Vec<InnerChallenge>>::hint(builder);
-        let opening_proof = Vec::<InnerDigest>::hint(builder);
-        Self::HintVariable {
-            opened_values,
-            opening_proof,
-        }
-    }
-
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        let mut stream = Vec::new();
-        stream.extend(Vec::<Vec<InnerChallenge>>::hint_serialize(
-            &self
-                .opened_values
-                .iter()
-                .map(|v| v.iter().map(|x| InnerChallenge::from_base(*x)).collect())
-                .collect(),
-        ));
-        stream.extend(Vec::<InnerDigest>::hint_serialize(&self.opening_proof));
-        stream
-    }
-}
-
-impl Hintable<C> for InnerPcsProof {
-    type HintVariable = TwoAdicPcsProofVariable<C>;
-
-    fn hint(builder: &mut Builder<C>) -> Self::HintVariable {
-        let fri_proof = InnerFriProof::hint(builder);
-        let query_openings = Vec::<Vec<InnerBatchOpening>>::hint(builder);
-        Self::HintVariable {
-            fri_proof,
-            query_openings,
-        }
-    }
-
-    fn hint_serialize(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        let mut stream = Vec::new();
-        stream.extend(self.fri_proof.hint_serialize());
-        stream.extend(self.query_openings.hint_serialize());
+        stream.extend(self.preprocessed.write());
+        stream.extend(self.main.write());
+        stream.extend(self.permutation.write());
+        stream.extend(self.quotient.write());
+        stream.extend(self.cumulative_sum.write());
+        stream.extend(self.log_degree.write());
         stream
     }
 }
