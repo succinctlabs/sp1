@@ -4,7 +4,7 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
-use sp1_core::air::PublicValuesDigest;
+use sp1_core::air::PublicValues;
 use sp1_core::air::Word;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
@@ -166,7 +166,7 @@ mod tests {
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
     use sp1_core::{
-        air::{PublicValuesDigest, Word},
+        air::{PublicValues, Word},
         stark::{
             Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
             ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,

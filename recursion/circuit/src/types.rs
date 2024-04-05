@@ -1,7 +1,7 @@
 use p3_air::BaseAir;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractExtensionField;
-use sp1_core::air::PublicValuesDigest;
+use sp1_core::air::PublicValues;
 use sp1_core::air::Word;
 use sp1_core::{
     air::MachineAir,

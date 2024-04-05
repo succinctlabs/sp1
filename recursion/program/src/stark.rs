@@ -266,7 +266,7 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::PublicValuesDigest;
+    use sp1_core::air::PublicValues;
     use sp1_core::runtime::Program;
     use sp1_core::{
         air::MachineAir,

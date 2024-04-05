@@ -247,7 +247,7 @@ pub(crate) mod tests {
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::{
-        air::{MachineAir, PublicValuesDigest, Word},
+        air::{MachineAir, PublicValues, Word},
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
