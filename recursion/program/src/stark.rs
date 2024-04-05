@@ -308,90 +308,6 @@ pub(crate) mod tests {
     type C = InnerConfig;
     type A = RiscvAir<F>;
 
-    // pub(crate) fn const_proof(
-    //     builder: &mut Builder<C>,
-    //     machine: &MachineStark<SC, A>,
-    //     proof: ShardProof<SC>,
-    // ) -> ShardProofVariable<C>
-    // where
-    //     C: Config<F = F, EF = EF>,
-    // {
-    //     let index = builder.materialize(Usize::Const(proof.index));
-
-    //     // Set up the public values digest.
-    //     let mut public_values_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
-    //     for i in 0..PV_DIGEST_NUM_WORDS {
-    //         for j in 0..WORD_SIZE {
-    //             let word_val: Felt<_> = builder.eval(proof.public_values_digest[i][j]);
-    //             builder.set(&mut public_values_digest, i * WORD_SIZE + j, word_val);
-    //         }
-    //     }
-
-    //     // Set up the commitments.
-    //     let mut main_commit: DigestVariable<_> = builder.dyn_array(DIGEST_SIZE);
-    //     let mut permutation_commit: DigestVariable<_> = builder.dyn_array(DIGEST_SIZE);
-    //     let mut quotient_commit: DigestVariable<_> = builder.dyn_array(DIGEST_SIZE);
-
-    //     let main_commit_val: [_; DIGEST_SIZE] = proof.commitment.main_commit.into();
-    //     let perm_commit_val: [_; DIGEST_SIZE] = proof.commitment.permutation_commit.into();
-    //     let quotient_commit_val: [_; DIGEST_SIZE] = proof.commitment.quotient_commit.into();
-    //     for (i, ((main_val, perm_val), quotient_val)) in main_commit_val
-    //         .into_iter()
-    //         .zip(perm_commit_val)
-    //         .zip(quotient_commit_val)
-    //         .enumerate()
-    //     {
-    //         builder.set(&mut main_commit, i, main_val);
-    //         builder.set(&mut permutation_commit, i, perm_val);
-    //         builder.set(&mut quotient_commit, i, quotient_val);
-    //     }
-
-    //     let commitment = ShardCommitmentVariable {
-    //         main_commit,
-    //         permutation_commit,
-    //         quotient_commit,
-    //     };
-
-    //     // Set up the opened values.
-    //     let num_shard_chips = proof.opened_values.chips.len();
-    //     let mut opened_values = builder.dyn_array(num_shard_chips);
-    //     for (i, values) in proof.opened_values.chips.iter().enumerate() {
-    //         let values: ChipOpenedValuesVariable<_> = builder.eval_const(values.clone());
-    //         builder.set(&mut opened_values, i, values);
-    //     }
-    //     let opened_values = ShardOpenedValuesVariable {
-    //         chips: opened_values,
-    //     };
-
-    //     let opening_proof = InnerPcsProof::read(builder);
-
-    //     let sorted_indices_vec: Vec<Var<_>> = machine
-    //         .chips()
-    //         .iter()
-    //         .map(|chip| {
-    //             let index = proof
-    //                 .chip_ordering
-    //                 .get(&chip.name())
-    //                 .map(|i| InnerVal::from_canonical_usize(*i))
-    //                 .unwrap_or(InnerVal::neg_one());
-    //             builder.eval(index)
-    //         })
-    //         .collect();
-    //     let mut sorted_indices = builder.dyn_array(sorted_indices_vec.len());
-    //     for (i, index) in sorted_indices_vec.iter().enumerate() {
-    //         builder.set(&mut sorted_indices, i, *index);
-    //     }
-
-    //     ShardProofVariable {
-    //         index,
-    //         commitment,
-    //         opened_values,
-    //         opening_proof,
-    //         sorted_indices,
-    //         public_values_digest,
-    //     }
-    // }
-
     #[test]
     fn test_permutation_challenges() {
         // Generate a dummy proof.
@@ -450,6 +366,7 @@ pub(crate) mod tests {
         let program = builder.compile();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.witness_stream = witness_stream;
         runtime.run();
         println!(
             "The program executed successfully, number of cycles: {}",
@@ -571,79 +488,6 @@ pub(crate) mod tests {
         // machine.verify(&vk, &proof, &mut challenger).unwrap();
         // println!("proving duration = {}", duration);
     }
-
-    // #[test]
-    // #[should_panic]
-    // fn test_recursive_verify_bad_proof() {
-    //     // Generate a dummy proof.
-    //     sp1_core::utils::setup_logger();
-    //     let elf =
-    //         include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
-    //     let machine = A::machine(SC::default());
-    //     let (_, vk) = machine.setup(&Program::from(elf));
-    //     let mut challenger_val = machine.config().challenger();
-    //     let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-    //         .unwrap()
-    //         .proof;
-    //     println!("Proof generated successfully");
-    //     challenger_val.observe(vk.commit);
-    //     proof.shard_proofs.iter().for_each(|proof| {
-    //         challenger_val.observe(proof.commitment.main_commit);
-    //     });
-
-    //     // Observe the public input digest
-    //     let pv_digest_field_elms: Vec<F> =
-    //         PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-    //     challenger_val.observe_slice(&pv_digest_field_elms);
-
-    //     let permutation_challenges = (0..2)
-    //         .map(|_| challenger_val.sample_ext_element::<EF>())
-    //         .collect::<Vec<_>>();
-
-    //     let mut builder = VmBuilder::<F, EF>::default();
-    //     let config = const_fri_config(&mut builder, inner_fri_config());
-    //     let pcs = TwoAdicFriPcsVariable { config };
-
-    //     let mut challenger = DuplexChallengerVariable::new(&mut builder);
-
-    //     let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-    //     let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
-    //     challenger.observe(&mut builder, preprocessed_commit);
-
-    //     let mut shard_proofs = vec![];
-    //     for proof_val in proof.shard_proofs {
-    //         let mut proof_val = proof_val;
-    //         proof_val.commitment.main_commit = [F::zero(); DIGEST_SIZE].into();
-    //         let proof = const_proof(&mut builder, &machine, proof_val);
-    //         let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
-    //         challenger.observe(&mut builder, main_commit.clone());
-    //         shard_proofs.push(proof);
-    //     }
-    //     // Observe the public input digest
-    //     let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-    //         .iter()
-    //         .map(|x| builder.eval(*x))
-    //         .collect();
-    //     challenger.observe_slice(&mut builder, &pv_digest_felt);
-    //     for proof in shard_proofs {
-    //         StarkVerifier::<C, SC>::verify_shard(
-    //             &mut builder,
-    //             &vk,
-    //             &pcs,
-    //             &machine,
-    //             &mut challenger.clone(),
-    //             &proof,
-    //             &permutation_challenges,
-    //         );
-    //     }
-
-    //     let program = builder.compile();
-
-    //     let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-
-    //     runtime.run();
-    // }
 
     #[test]
     #[ignore]

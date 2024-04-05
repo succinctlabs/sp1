@@ -1,11 +1,9 @@
 use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
-
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 
-use crate::commit::PolynomialSpaceVariable;
-
 use super::types::FriConfigVariable;
+use crate::commit::PolynomialSpaceVariable;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
 #[derive(DslVariable, Clone, Copy)]
