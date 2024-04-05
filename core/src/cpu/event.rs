@@ -46,9 +46,6 @@ pub struct CpuEvent {
     /// The memory access record for the memory value.
     pub memory_record: Option<MemoryRecordEnum>,
 
-    /// Flag indicating if the instruction is a halt instruction.
-    pub instr_is_halt: bool,
-
     /// Flag indicating the exit code.  This is only valid if instr_is_halt == true.
     pub exit_code: u32,
 }

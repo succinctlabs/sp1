@@ -301,6 +301,11 @@ impl MachineRecord for ExecutionRecord {
                 );
 
                 let last_shard_cpu_event = shard.cpu_events.last().unwrap();
+                // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
+                // will read the public values.  But in some very rare edge cases, the last two shards will
+                // read it (e.g. when the halt instruction is the only instruction in the last shard).
+                // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
+                // for all of the shards.
                 shard.public_values.committed_value_digest =
                     self.public_values.committed_value_digest;
                 shard.public_values.shard = current_shard_num;

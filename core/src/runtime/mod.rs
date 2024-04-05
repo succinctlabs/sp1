@@ -356,7 +356,6 @@ impl Runtime {
         c: u32,
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
-        instr_is_halt: bool,
         exit_code: u32,
     ) {
         let cpu_event = CpuEvent {
@@ -373,7 +372,6 @@ impl Runtime {
             c_record: record.c,
             memory: memory_store_value,
             memory_record: record.memory,
-            instr_is_halt,
             exit_code,
         };
 
@@ -488,7 +486,6 @@ impl Runtime {
     fn execute_instruction(&mut self, instruction: Instruction) {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
-        let mut instr_is_halt = false;
         let mut exit_code = 0u32;
 
         let mut next_pc = self.state.pc.wrapping_add(4);
@@ -728,16 +725,11 @@ impl Runtime {
 
                 // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
                 clk = self.state.clk;
-                if clk == 0 {
-                    println!("setting clk to 0 and instruction is {:?}", instruction);
-                    panic!("clk is 0, this should never happen.");
-                }
                 pc = self.state.pc;
 
                 self.rw(t0, a);
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
-                instr_is_halt = syscall == SyscallCode::HALT;
                 exit_code = returned_exit_code;
             }
 
@@ -827,7 +819,6 @@ impl Runtime {
                 c,
                 memory_store_value,
                 self.memory_accesses,
-                instr_is_halt,
                 exit_code,
             );
         }
