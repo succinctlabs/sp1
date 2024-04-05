@@ -258,13 +258,7 @@ impl CpuChip {
             .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), next.pc);
 
-        // When is_jump_instruction is true, assert that local.is_real is true.
-        builder
-            .when(is_jump_instruction.clone())
-            .assert_one(local.is_real);
-
         // When the last row is real and it's a jump instruction, assert that local.next_pc <==> jump_column.next_pc
-        // Note that the `when(local.is_real)` condition is implied from the previous constraint.
         builder
             .when_last_row()
             .when(is_jump_instruction.clone())
@@ -471,12 +465,13 @@ impl CpuChip {
         is_halt: AB::Expr,
     ) {
         // Verify that if is_sequential_instr is true, assert that local.is_real is true.
+        // This is needed for the following constraint, which is already degree 3.
         builder
             .when(local.is_sequential_instr)
             .assert_one(local.is_real);
 
         // When is_sequential_instr is true, assert that instruction is not branch, jump, or halt.
-        // Note that the `when(local.is_real)` condition is implied from the previous constraint.
+        // Note that the condition `when(local_is_real)` is implied from the previous constraint.
         builder.when(local.is_sequential_instr).assert_zero(
             is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
         );
@@ -490,7 +485,6 @@ impl CpuChip {
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         // When the last row is real and it's a sequential instruction, assert that local.next_pc <==> local.pc + 4
-        // Note that the `when(local.is_real)` condition is implied from the prior constraint.
         builder
             .when_last_row()
             .when(local.is_sequential_instr)
@@ -564,19 +558,19 @@ impl CpuChip {
         // Verify the public value's first row pc.
         builder
             .when_first_row()
-            .assert_eq(public_values.first_row_pc.clone(), local.pc);
+            .assert_eq(public_values.start_pc.clone(), local.pc);
 
         // If the last real row is a transition row, verify the public value's next pc.
         builder
             .when_transition()
             .when(local.is_real - next.is_real)
-            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
+            .assert_eq(public_values.next_pc.clone(), local.next_pc);
 
         // If the last real row is the last row, verify the public value's next pc.
         builder
             .when_last_row()
             .when(local.is_real)
-            .assert_eq(public_values.last_row_next_pc.clone(), local.next_pc);
+            .assert_eq(public_values.next_pc.clone(), local.next_pc);
 
         // If we're halting, verify that the public value's next pc == 0.
         builder

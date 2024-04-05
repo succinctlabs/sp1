@@ -206,8 +206,8 @@ pub(crate) fn const_proof(
     // Set up the public values.
     let mut public_values = Default::default();
     public_values.shard = builder.eval(proof.public_values.shard);
-    public_values.first_row_pc = builder.eval(proof.public_values.first_row_pc);
-    public_values.last_row_next_pc = builder.eval(proof.public_values.last_row_next_pc);
+    public_values.first_row_pc = builder.eval(proof.public_values.start_pc);
+    public_values.last_row_next_pc = builder.eval(proof.public_values.next_pc);
     public_values.exit_code = builder.eval(proof.public_values.exit_code);
     public_values.committed_value_digest = core::array::from_fn(|i| {
         let word_val = proof.public_values.committed_value_digest[i];

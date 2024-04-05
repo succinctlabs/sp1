@@ -17,11 +17,11 @@ pub struct PublicValues<W, T> {
     /// The shard number.
     pub shard: T,
 
-    /// The first row's program counter.
-    pub first_row_pc: T,
+    /// The shard's start program counter.
+    pub start_pc: T,
 
-    /// The last row's expected next program counter.
-    pub last_row_next_pc: T,
+    /// The expected start program counter for the next shard.
+    pub next_pc: T,
 
     /// Flag indicating whether the last instruction was a halt.
     pub last_instr_halt: T,
@@ -35,16 +35,16 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         let PublicValues {
             committed_value_digest,
             shard,
-            first_row_pc,
-            last_row_next_pc,
+            start_pc: first_row_pc,
+            next_pc: last_row_next_pc,
             last_instr_halt,
             exit_code,
         } = other;
         Self {
             committed_value_digest: committed_value_digest.map(Word::from),
             shard: F::from_canonical_u32(shard),
-            first_row_pc: F::from_canonical_u32(first_row_pc),
-            last_row_next_pc: F::from_canonical_u32(last_row_next_pc),
+            start_pc: F::from_canonical_u32(first_row_pc),
+            next_pc: F::from_canonical_u32(last_row_next_pc),
             last_instr_halt: F::from_canonical_u32(last_instr_halt),
             exit_code: F::from_canonical_u32(exit_code),
         }
@@ -55,8 +55,8 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             .iter()
             .flat_map(|w| w.clone().into_iter())
             .chain(once(self.shard.clone()))
-            .chain(once(self.first_row_pc.clone()))
-            .chain(once(self.last_row_next_pc.clone()))
+            .chain(once(self.start_pc.clone()))
+            .chain(once(self.next_pc.clone()))
             .chain(once(self.last_instr_halt.clone()))
             .chain(once(self.exit_code.clone()))
             .collect_vec()
@@ -77,8 +77,8 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             Self {
                 committed_value_digest: committed_value_digest.try_into().unwrap(),
                 shard: shard.to_owned(),
-                first_row_pc: first_row_pc.to_owned(),
-                last_row_next_pc: last_row_next_pc.to_owned(),
+                start_pc: first_row_pc.to_owned(),
+                next_pc: last_row_next_pc.to_owned(),
                 last_instr_halt: last_instr_halt.to_owned(),
                 exit_code: exit_code.to_owned(),
             }

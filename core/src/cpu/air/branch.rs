@@ -51,11 +51,7 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
-            // When local.branching is true, assert that local.is_real is true.
-            builder.when(local.branching).assert_one(local.is_real);
-
             // When the last row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
-            // Note that the `when(local.is_real)` condition is implied from the previous constraint.
             builder
                 .when_last_row()
                 .when(local.branching)
@@ -82,7 +78,6 @@ impl CpuChip {
             builder.when(local.not_branching).assert_one(local.is_real);
 
             // When the last row is real and local.not_branching, assert that local.pc + 4 <==> local.next_pc.
-            // Note that the `when(local.is_real)` condition is implied from the previous constraint.
             builder
                 .when_last_row()
                 .when(local.not_branching)
