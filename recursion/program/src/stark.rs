@@ -115,6 +115,8 @@ where
         let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
         builder.set(&mut qc_points, 0, zeta);
 
+        // TODO FIX: There is something weird going on here because the number of chips may not match
+        // the number of chips in a shard.
         for (i, (name, domain, _)) in vk.chip_information.iter().enumerate() {
             let chip_idx = machine
                 .chips()
