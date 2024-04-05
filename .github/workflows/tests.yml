@@ -66,7 +66,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --release --manifest-path examples/fibonacci-io/Cargo.toml
+          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_LOG: 1
