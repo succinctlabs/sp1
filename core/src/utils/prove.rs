@@ -129,6 +129,7 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
+    println!("inputs: {:?}", stdin);
     runtime.write_vecs(stdin);
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;

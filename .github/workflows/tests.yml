@@ -29,7 +29,7 @@ jobs:
       - name: Install Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.22"
 
       - name: Print go version
         run: go version
@@ -110,6 +110,16 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
 
+      - name: Run fibonacci-io example
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --manifest-path examples/fibonacci-io/Cargo.toml
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+
   lints:
     name: Formatting & Clippy
     runs-on: warp-ubuntu-latest-arm64-16x
@@ -124,11 +134,11 @@ jobs:
         run: |
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-        
+
       - name: Install Go 1.22
         uses: actions/setup-go@v5
         with:
-          go-version: '1.22'
+          go-version: "1.22"
 
       - name: Print go version
         run: go version
