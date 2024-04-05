@@ -67,7 +67,8 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    let log_max_height: Var<_> =
+        builder.eval(num_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
     let mut query_indices = builder.array(config.num_queries);
     builder.range(0, config.num_queries).for_each(|i, builder| {
         let index_bits = challenger.sample_bits(builder, Usize::Var(log_max_height));
@@ -96,7 +97,8 @@ pub fn verify_challenges<C: Config>(
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height = builder.eval(nb_commit_phase_commits + config.log_blowup);
+    let log_max_height =
+        builder.eval(nb_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {

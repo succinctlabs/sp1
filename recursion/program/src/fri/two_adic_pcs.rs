@@ -56,6 +56,8 @@ pub fn verify_two_adic_pcs<C: Config>(
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
+    let log_blowup = C::N::from_canonical_usize(config.log_blowup);
+    let blowup = C::N::from_canonical_usize(1 << config.log_blowup);
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges =
@@ -66,10 +68,11 @@ pub fn verify_two_adic_pcs<C: Config>(
         .commit_phase_commits
         .len()
         .materialize(builder);
-    let log_global_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
+    let log_global_max_height: Var<_> = builder.eval(commit_phase_commits_len + log_blowup);
 
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
+
     builder
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
@@ -94,14 +97,14 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let mut batch_heights_log2: Array<C, Var<C::N>> = builder.array(mats.len());
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
-                    let height_log2: Var<_> = builder.eval(mat.domain.log_n + config.log_blowup);
+                    let height_log2: Var<_> = builder.eval(mat.domain.log_n + log_blowup);
                     builder.set(&mut batch_heights_log2, k, height_log2);
                 });
                 let mut batch_dims: Array<C, Dimensions<C>> = builder.array(mats.len());
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
                     let dim = Dimensions::<C> {
-                        height: builder.eval(mat.domain.size() * C::N::two()), // TODO: fix this to use blowup
+                        height: builder.eval(mat.domain.size() * blowup), // TODO: fix this to use blowup
                     };
                     builder.set(&mut batch_dims, k, dim);
                 });
@@ -128,8 +131,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let mat_values = mat.values;
 
                         let log2_domain_size = mat.domain.log_n;
-                        let log_height: Var<C::N> =
-                            builder.eval(log2_domain_size + config.log_blowup);
+                        let log_height: Var<C::N> = builder.eval(log2_domain_size + log_blowup);
 
                         let bits_reduced: Var<C::N> =
                             builder.eval(log_global_max_height - log_height);
@@ -367,7 +369,7 @@ pub(crate) mod tests {
             builder.set(&mut subgroups, i, domain_value);
         }
         FriConfigVariable {
-            log_blowup: Val::from_canonical_usize(config.log_blowup),
+            log_blowup: config.log_blowup,
             num_queries: config.num_queries,
             proof_of_work_bits: config.proof_of_work_bits,
             subgroups,
