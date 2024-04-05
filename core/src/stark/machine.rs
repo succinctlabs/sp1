@@ -281,9 +281,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         tracing::info!("verifying shard proofs");
         for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
-                // If it's the first shard, index should be 1.
-                if i == 0 && shard_proof.index != 1 {
-                    return Err(ProgramVerificationError::InvalidTransition);
+                if i == 0 {
+                    // If it's the first shard, index should be 1.
+                    if shard_proof.index != 1 {
+                        return Err(ProgramVerificationError::InvalidTransition);
+                    }
+                    // TODO: `shard_proof.public_values.first_row_pc` should be the pc_base.
                 }
 
                 if i > 0 {
