@@ -464,15 +464,13 @@ impl CpuChip {
         is_branch_instruction: AB::Expr,
         is_halt: AB::Expr,
     ) {
-        // Verify that local.is_sequential_instr is true if the instruction it not a branch, jump, or halt.
-
-        // First verify that is_sequential_instr is not true for all non real rows.
+        // Verify that if is_sequential_instr is true, then the row is real.
         builder
-            .when_not(local.is_real)
-            .assert_zero(local.is_sequential_instr);
+            .when(local.is_sequential_instr)
+            .assert_one(local.is_real);
 
-        // Now verify that is_sequential_instr is true for all real rows (which we know is true from
-        // the previous constraint) that are not branch, jump, or halt.
+        // Now verify that is_sequential_instr is true for instructions that are not branch, jump, or halt.
+        // Note that the `when(local.is_real)` condition is implied from the previous constraint.
         builder.when(local.is_sequential_instr).assert_zero(
             is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
         );
@@ -486,9 +484,9 @@ impl CpuChip {
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
 
         // For the last row, if it is a real row and it is a sequential instruction, verify the next pc.
+        // Note that the `when(local.is_real)` condition is implied from the prior constraint.
         builder
-            .when_transition()
-            .when(local.is_real)
+            .when_last_row()
             .when(local.is_sequential_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
     }
