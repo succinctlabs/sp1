@@ -412,9 +412,8 @@ fn rust_prove_reduce(
 /// end challenger state.
 ///
 /// When verifying sp1 shard proofs, the start challenger state is witnessed since it depends on all
-/// shards. Thus when reducing, we will pass up "verifying start" challenger state and rebuild it as
-/// we reduce shards. The start of this reconstructed state is witnessed except for the first shard,
-/// and it will be checked against end of previous shard in reduce step.
+/// shards. Thus when reducing, we will pass up "verifying start" challenger state and also rebuild
+/// it as we reduce so we can verify that they match at the end.
 fn rust_reduce(
     proofs: &[ReduceProof],
     vk: &VerifyingKey<SC>,
