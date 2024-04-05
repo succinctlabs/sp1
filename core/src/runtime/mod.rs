@@ -356,6 +356,7 @@ impl Runtime {
         c: u32,
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
+        is_halt: bool,
         exit_code: u32,
     ) {
         let cpu_event = CpuEvent {
@@ -372,6 +373,7 @@ impl Runtime {
             c_record: record.c,
             memory: memory_store_value,
             memory_record: record.memory,
+            is_halt,
             exit_code,
         };
 
@@ -487,6 +489,7 @@ impl Runtime {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
+        let mut is_halt = false;
 
         let mut next_pc = self.state.pc.wrapping_add(4);
 
@@ -730,6 +733,7 @@ impl Runtime {
                 self.rw(t0, a);
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
+                is_halt = syscall == SyscallCode::HALT;
                 exit_code = returned_exit_code;
             }
 
@@ -819,6 +823,7 @@ impl Runtime {
                 c,
                 memory_store_value,
                 self.memory_accesses,
+                is_halt,
                 exit_code,
             );
         }

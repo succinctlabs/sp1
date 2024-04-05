@@ -635,6 +635,7 @@ mod tests {
             c_record: None,
             memory: None,
             memory_record: None,
+            is_halt: false,
             exit_code: 0,
         }];
         let chip = CpuChip::default();

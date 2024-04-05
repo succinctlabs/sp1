@@ -566,7 +566,7 @@ impl CpuChip {
             .when_first_row()
             .assert_eq(public_values.first_row_pc.clone(), local.pc);
 
-        // If the last real row is not the last row, verify the public value's next pc.
+        // If the last real row is a transition row, verify the public value's next pc.
         builder
             .when_transition()
             .when(local.is_real - next.is_real)
@@ -581,7 +581,7 @@ impl CpuChip {
         // If we're halting, verify that the public value's next pc == 0.
         builder
             .when(is_halt.clone())
-            .assert_zero(public_values.last_row_next_pc.clone());
+            .assert_one(public_values.last_instr_halt.clone());
 
         // If we're halting, verify the public values's exit code.
         builder.when(is_halt).assert_eq(
