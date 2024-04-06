@@ -2,6 +2,7 @@ mod domain;
 mod two_adic_pcs;
 
 pub use domain::*;
+
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Config;
@@ -16,9 +17,6 @@ pub use two_adic_pcs::*;
 
 #[cfg(test)]
 pub(crate) use two_adic_pcs::tests::*;
-
-// #[cfg(test)]
-// pub(crate) use domain::tests::*;
 
 use p3_field::AbstractField;
 use p3_field::Field;
@@ -66,7 +64,8 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    let log_max_height: Var<_> =
+        builder.eval(num_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
     let mut query_indices = builder.array(config.num_queries);
     builder.range(0, config.num_queries).for_each(|i, builder| {
         let index_bits = challenger.sample_bits(builder, Usize::Var(log_max_height));
@@ -83,7 +82,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 ///
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L67
 #[allow(clippy::type_complexity)]
-#[allow(unused_variables)]
 pub fn verify_challenges<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfigVariable<C>,
@@ -95,7 +93,8 @@ pub fn verify_challenges<C: Config>(
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height = builder.eval(nb_commit_phase_commits + config.log_blowup);
+    let log_max_height =
+        builder.eval(nb_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {

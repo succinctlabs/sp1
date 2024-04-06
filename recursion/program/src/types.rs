@@ -20,7 +20,7 @@ pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
 #[derive(Clone)]
 pub struct FriConfigVariable<C: Config> {
-    pub log_blowup: C::N,
+    pub log_blowup: usize,
     pub num_queries: usize,
     pub proof_of_work_bits: usize,
     pub generators: Array<C, Felt<C::F>>,

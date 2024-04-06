@@ -524,6 +524,13 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
+                DslIR::FriFold(m, input_ptr) => {
+                    if let Array::Dyn(ptr, _) = input_ptr {
+                        self.push(AsmInstruction::FriFold(m.fp(), ptr.fp()));
+                    } else {
+                        unimplemented!();
+                    }
+                }
                 _ => unimplemented!(),
             }
         }

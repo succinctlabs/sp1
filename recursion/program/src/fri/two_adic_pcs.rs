@@ -56,6 +56,8 @@ pub fn verify_two_adic_pcs<C: Config>(
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
+    let log_blowup = C::N::from_canonical_usize(config.log_blowup);
+    let blowup = C::N::from_canonical_usize(1 << config.log_blowup);
     let alpha = challenger.sample_ext(builder);
 
     let fri_challenges =
@@ -66,24 +68,24 @@ pub fn verify_two_adic_pcs<C: Config>(
         .commit_phase_commits
         .len()
         .materialize(builder);
-    let log_global_max_height: Var<_> = builder.eval(commit_phase_commits_len + config.log_blowup);
+    let log_global_max_height: Var<_> = builder.eval(commit_phase_commits_len + log_blowup);
 
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
+
     builder
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
             let query_opening = builder.get(&proof.query_openings, i);
             let index_bits = builder.get(&fri_challenges.query_indices, i);
+
             let mut ro: Array<C, Ext<C::F, C::EF>> = builder.array(32);
-            let zero: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::zero()));
-            for j in 0..32 {
-                builder.set(&mut ro, j, zero);
-            }
             let mut alpha_pow: Array<C, Ext<C::F, C::EF>> = builder.array(32);
-            let one: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::one()));
             for j in 0..32 {
-                builder.set(&mut alpha_pow, j, one);
+                builder.set(&mut ro, j, C::EF::zero().cons());
+            }
+            for j in 0..32 {
+                builder.set(&mut alpha_pow, j, C::EF::one().cons());
             }
 
             builder.range(0, rounds.len()).for_each(|j, builder| {
@@ -95,14 +97,14 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let mut batch_heights_log2: Array<C, Var<C::N>> = builder.array(mats.len());
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
-                    let height_log2: Var<_> = builder.eval(mat.domain.log_n + config.log_blowup);
+                    let height_log2: Var<_> = builder.eval(mat.domain.log_n + log_blowup);
                     builder.set(&mut batch_heights_log2, k, height_log2);
                 });
                 let mut batch_dims: Array<C, Dimensions<C>> = builder.array(mats.len());
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
                     let dim = Dimensions::<C> {
-                        height: builder.eval(mat.domain.size() * C::N::two()), // TODO: fix this to use blowup
+                        height: builder.eval(mat.domain.size() * blowup), // TODO: fix this to use blowup
                     };
                     builder.set(&mut batch_dims, k, dim);
                 });
@@ -129,8 +131,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                         let mat_values = mat.values;
 
                         let log2_domain_size = mat.domain.log_n;
-                        let log_height: Var<C::N> =
-                            builder.eval(log2_domain_size + config.log_blowup);
+                        let log_height: Var<C::N> = builder.eval(log2_domain_size + log_blowup);
 
                         let bits_reduced: Var<C::N> =
                             builder.eval(log_global_max_height - log_height);
@@ -148,32 +149,23 @@ pub fn verify_two_adic_pcs<C: Config>(
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
                             let z: Ext<C::F, C::EF> = builder.get(&mat_points, l);
                             let ps_at_z = builder.get(&mat_values, l);
+
+                            let input = FriFoldInput {
+                                z,
+                                alpha,
+                                x,
+                                log_height,
+                                mat_opening: mat_opening.clone(),
+                                ps_at_z: ps_at_z.clone(),
+                                alpha_pow: alpha_pow.clone(),
+                                ro: ro.clone(),
+                            };
+
+                            let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
+                            builder.set(&mut input_ptr, 0, input);
+
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
-                                let p_at_x: SymbolicExt<C::F, C::EF> =
-                                    builder.get(&mat_opening, m).into();
-                                let p_at_z: SymbolicExt<C::F, C::EF> =
-                                    builder.get(&ps_at_z, m).into();
-
-                                let quotient: SymbolicExt<C::F, C::EF> =
-                                    (-p_at_z + p_at_x) / (-z + x);
-                                // let quotient = builder.eval(quotient);
-                                // builder.print_e(quotient);
-
-                                let ro_at_log_height = builder.get(&ro, log_height);
-                                // builder.print_e(ro_at_log_height);
-                                let alpha_pow_at_log_height = builder.get(&alpha_pow, log_height);
-                                // builder.print_e(alpha_pow_at_log_height);
-
-                                builder.set(
-                                    &mut ro,
-                                    log_height,
-                                    ro_at_log_height + alpha_pow_at_log_height * quotient,
-                                );
-                                builder.set(
-                                    &mut alpha_pow,
-                                    log_height,
-                                    alpha_pow_at_log_height * alpha,
-                                );
+                                builder.push(DslIR::FriFold(m, input_ptr.clone()));
                             });
                         });
                     });
@@ -377,7 +369,7 @@ pub(crate) mod tests {
             builder.set(&mut subgroups, i, domain_value);
         }
         FriConfigVariable {
-            log_blowup: Val::from_canonical_usize(config.log_blowup),
+            log_blowup: config.log_blowup,
             num_queries: config.num_queries,
             proof_of_work_bits: config.proof_of_work_bits,
             subgroups,

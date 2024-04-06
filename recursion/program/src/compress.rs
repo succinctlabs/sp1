@@ -95,7 +95,7 @@ pub fn const_fri_config(
         builder.set(&mut subgroups, i, domain_value);
     }
     FriConfigVariable {
-        log_blowup: Val::from_canonical_usize(config.log_blowup),
+        log_blowup: config.log_blowup,
         num_queries: config.num_queries,
         proof_of_work_bits: config.proof_of_work_bits,
         subgroups,

@@ -2,6 +2,7 @@ use p3_field::{ExtensionField, PrimeField, TwoAdicField};
 
 mod builder;
 mod collections;
+mod fold;
 mod instructions;
 mod ptr;
 mod symbolic;
@@ -11,6 +12,7 @@ mod var;
 
 pub use builder::*;
 pub use collections::*;
+pub use fold::*;
 pub use instructions::*;
 pub use ptr::*;
 pub use symbolic::*;
