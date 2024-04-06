@@ -378,13 +378,13 @@ pub(crate) mod tests {
     fn test_recursive_verify_shard() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
+
         let elf =
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
 
         let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger_val = machine.config().challenger();
         let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof;
@@ -392,6 +392,7 @@ pub(crate) mod tests {
         machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         println!("Proof generated successfully");
 
+        let mut challenger_val = machine.config().challenger();
         challenger_val.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);

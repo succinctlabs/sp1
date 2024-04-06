@@ -22,7 +22,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                     run_and_prove(
                         black_box(program.clone()),
                         #[allow(deprecated)]
-                        sp1_core::SP1Stdin::new(),
+                        &[],
                         BabyBearPoseidon2::new(),
                     )
                 })

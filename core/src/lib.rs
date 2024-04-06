@@ -77,7 +77,7 @@ impl SP1Prover {
         let config = BabyBearPoseidon2::new();
 
         let program = Program::from(elf);
-        let (proof, public_values) = run_and_prove(program, stdin.clone(), config);
+        let (proof, public_values) = run_and_prove(program, &stdin.buffer, config);
         let public_values = SP1PublicValues::from(&public_values);
         Ok(SP1ProofWithIO {
             proof,

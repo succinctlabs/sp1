@@ -5,6 +5,7 @@
 #![allow(clippy::too_many_arguments)]
 pub mod challenger;
 pub mod commit;
+pub mod compress;
 pub mod constraints;
 pub mod folder;
 pub mod fri;

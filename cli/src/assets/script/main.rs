@@ -12,8 +12,8 @@ fn main() {
     let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
 
     // Read output.
-    let a = proof.stdout.read::<u128>();
-    let b = proof.stdout.read::<u128>();
+    let a = proof.public_values.read::<u128>();
+    let b = proof.public_values.read::<u128>();
     println!("a: {}", a);
     println!("b: {}", b);
 
