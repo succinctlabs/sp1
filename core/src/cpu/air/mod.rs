@@ -186,7 +186,7 @@ where
 
         self.halt_unimpl_eval(builder, local, next, is_halt.clone());
 
-        self.public_values_eval(builder, local, next, &public_values, is_halt);
+        self.public_values_eval(builder, local, next, &public_values);
 
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
@@ -260,7 +260,7 @@ impl CpuChip {
 
         // When the last row is real and it's a jump instruction, assert that local.next_pc <==> jump_column.next_pc
         builder
-            .when_last_row()
+            .when(local.is_real)
             .when(is_jump_instruction.clone())
             .assert_eq(jump_columns.next_pc.reduce::<AB>(), local.next_pc);
 
@@ -486,7 +486,7 @@ impl CpuChip {
 
         // When the last row is real and it's a sequential instruction, assert that local.next_pc <==> local.pc + 4
         builder
-            .when_last_row()
+            .when(local.is_real)
             .when(local.is_sequential_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
     }
@@ -548,17 +548,20 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
-        is_halt: AB::Expr,
     ) {
         // Verify the public value's shard.
         builder
             .when(local.is_real)
             .assert_eq(public_values.shard.clone(), local.shard);
 
-        // Verify the public value's first row pc.
+        // Verify the public value's start pc.
         builder
             .when_first_row()
             .assert_eq(public_values.start_pc.clone(), local.pc);
+
+        // Verify the public value's next pc.  We need to handle two cases:
+        // 1. The last real row is a transition row.
+        // 2. The last real row is the last row.
 
         // If the last real row is a transition row, verify the public value's next pc.
         builder
@@ -571,17 +574,6 @@ impl CpuChip {
             .when_last_row()
             .when(local.is_real)
             .assert_eq(public_values.next_pc.clone(), local.next_pc);
-
-        // If we're halting, verify that the public value's next pc == 0.
-        builder
-            .when(is_halt.clone())
-            .assert_one(public_values.last_instr_halt.clone());
-
-        // If we're halting, verify the public values's exit code.
-        builder.when(is_halt).assert_eq(
-            public_values.exit_code.clone(),
-            local.op_b_val().reduce::<AB>(),
-        );
     }
 }
 

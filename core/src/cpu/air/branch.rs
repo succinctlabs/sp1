@@ -53,7 +53,7 @@ impl CpuChip {
 
             // When the last row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
             builder
-                .when_last_row()
+                .when(local.is_real)
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
@@ -79,7 +79,7 @@ impl CpuChip {
 
             // When the last row is real and local.not_branching, assert that local.pc + 4 <==> local.next_pc.
             builder
-                .when_last_row()
+                .when(local.is_real)
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
         }

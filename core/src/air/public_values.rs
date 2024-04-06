@@ -23,9 +23,6 @@ pub struct PublicValues<W, T> {
     /// The expected start program counter for the next shard.
     pub next_pc: T,
 
-    /// Flag indicating whether the last instruction was a halt.
-    pub last_instr_halt: T,
-
     /// The exit code of the program.  Only valid if halt has been executed.
     pub exit_code: T,
 }
@@ -37,7 +34,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             shard,
             start_pc: first_row_pc,
             next_pc: last_row_next_pc,
-            last_instr_halt,
             exit_code,
         } = other;
         Self {
@@ -45,7 +41,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             shard: F::from_canonical_u32(shard),
             start_pc: F::from_canonical_u32(first_row_pc),
             next_pc: F::from_canonical_u32(last_row_next_pc),
-            last_instr_halt: F::from_canonical_u32(last_instr_halt),
             exit_code: F::from_canonical_u32(exit_code),
         }
     }
@@ -57,7 +52,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             .chain(once(self.shard.clone()))
             .chain(once(self.start_pc.clone()))
             .chain(once(self.next_pc.clone()))
-            .chain(once(self.last_instr_halt.clone()))
             .chain(once(self.exit_code.clone()))
             .collect_vec()
     }
@@ -71,7 +65,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         }
 
         // Collecting the remaining items into a tuple.
-        if let [shard, first_row_pc, last_row_next_pc, last_instr_halt, exit_code] =
+        if let [shard, first_row_pc, last_row_next_pc, exit_code] =
             iter.collect::<Vec<_>>().as_slice()
         {
             Self {
@@ -79,7 +73,6 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
                 shard: shard.to_owned(),
                 start_pc: first_row_pc.to_owned(),
                 next_pc: last_row_next_pc.to_owned(),
-                last_instr_halt: last_instr_halt.to_owned(),
                 exit_code: exit_code.to_owned(),
             }
         } else {
