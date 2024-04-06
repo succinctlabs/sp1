@@ -315,16 +315,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     if shard_proof.public_values.committed_value_digest != *claimed_digest {
                         return Err(ProgramVerificationError::InvalidPublicValuesDigest);
                     }
-                    // The last shard should be halted.
-                    if i == proof.shard_proofs.len() - 1
-                        && shard_proof.public_values.last_instr_halt == 0
-                    {
+                    // The last shard should be halted. Halt is signaled with next_pc == 0.
+                    if i == proof.shard_proofs.len() - 1 && shard_proof.public_values.next_pc != 0 {
                         return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                     // All non-last shards should not be halted.
-                    if i != proof.shard_proofs.len() - 1
-                        && shard_proof.public_values.last_instr_halt != 0
-                    {
+                    if i != proof.shard_proofs.len() - 1 && shard_proof.public_values.next_pc == 0 {
                         return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                 }
