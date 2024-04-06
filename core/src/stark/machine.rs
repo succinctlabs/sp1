@@ -288,7 +288,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 if i == 0 {
                     // If it's the first shard, index should be 1.
                     if shard_proof.public_values.shard != 1 {
-                        return Err(ProgramVerificationError::InvalidTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                     // TODO: `shard_proof.public_values.first_row_pc` should be the pc_base.
                 } else {
@@ -296,13 +296,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     // TODO: some of these checks will need to only apply to shards with cpu chip.
                     // For non-first shards, the index should be the previous index + 1.
                     if shard_proof.public_values.shard != prev_shard_proof.public_values.shard - 1 {
-                        return Err(ProgramVerificationError::InvalidTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                     // Next pc should be what the next pc declared in the previous shard was.
-                    if shard_proof.public_values.first_row_pc
-                        != prev_shard_proof.public_values.last_row_next_pc
+                    if shard_proof.public_values.start_pc != prev_shard_proof.public_values.next_pc
                     {
-                        return Err(ProgramVerificationError::InvalidTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                     // Digest and exit code should be the same in all shards.
                     if shard_proof.public_values.committed_value_digest
@@ -310,19 +309,23 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         || shard_proof.public_values.exit_code
                             != prev_shard_proof.public_values.exit_code
                     {
-                        return Err(ProgramVerificationError::InvalidTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition);
                     }
-                    // If the previous shard was halted, then this shard should also be halted.
-                    // if prev_shard_proof.public_values.last_instr_halt == 1
-                    //     && shard_proof.public_values.last_instr_halt != 1
-                    // {
-                    //     return Err(ProgramVerificationError::InvalidTransition);
-                    // }
-                    if i == proof.shard_proofs.len() - 1 {
-                        // If it's the last shard, then the program should have halted.
-                        // if shard_proof.public_values.last_instr_halt != 1 {
-                        //     return Err(ProgramVerificationError::InvalidTransition);
-                        // }
+                    // Digest should be the same as the claimed digest.
+                    if shard_proof.public_values.committed_value_digest != *claimed_digest {
+                        return Err(ProgramVerificationError::InvalidPublicValuesDigest);
+                    }
+                    // The last shard should be halted.
+                    if i == proof.shard_proofs.len() - 1
+                        && shard_proof.public_values.last_instr_halt == 0
+                    {
+                        return Err(ProgramVerificationError::InvalidShardTransition);
+                    }
+                    // All non-last shards should not be halted.
+                    if i != proof.shard_proofs.len() - 1
+                        && shard_proof.public_values.last_instr_halt != 0
+                    {
+                        return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                 }
 
@@ -469,7 +472,8 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
-    InvalidTransition,
+    InvalidShardTransition,
+    InvalidPublicValuesDigest,
     DebugInteractionsFailed,
 }
 

@@ -84,7 +84,7 @@ pub fn run_test_core(
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
     let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger)?;
+    machine.verify(&vk, &[0u32; 8], &proof, &mut challenger)?;
 
     tracing::info!(
         "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
