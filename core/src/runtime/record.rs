@@ -581,18 +581,6 @@ impl ExecutionRecord {
     pub fn add_u16_range_checks(&mut self, shard: u32, ls: &[u32]) {
         ls.iter().for_each(|x| self.add_u16_range_check(shard, *x));
     }
-
-    /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
-    pub fn lookup_or(&mut self, shard: u32, b: u8, c: u8) {
-        self.add_byte_lookup_event(ByteLookupEvent {
-            shard,
-            opcode: ByteOpcode::OR,
-            a1: (b | c) as u32,
-            a2: 0,
-            b: b as u32,
-            c: c as u32,
-        });
-    }
 }
 
 #[derive(Debug, Copy, Clone, Default)]

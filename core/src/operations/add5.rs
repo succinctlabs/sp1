@@ -9,8 +9,9 @@ use crate::runtime::ExecutionRecord;
 use p3_field::AbstractField;
 
 /// A set of columns needed to compute the sum of five words.
-///
-/// TODO: This is currently not in use, and thus not tested thoroughly yet.
+/// OPT: We can have a similar optimization to the Add4Operation optimization here. Instead of
+/// 5 degree 2 constraints to check that the carry is in [0..4], we can have 3 degree 3 constraints
+/// to check the carry is in the same range
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Add5Operation<T> {

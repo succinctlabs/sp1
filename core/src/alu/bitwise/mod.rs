@@ -13,6 +13,8 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
+use super::mul;
+
 /// The number of main trace columns for `BitwiseChip`.
 pub const NUM_BITWISE_COLS: usize = size_of::<BitwiseCols<u8>>();
 
@@ -128,28 +130,31 @@ where
         let main = builder.main();
         let local: &BitwiseCols<AB::Var> = main.row_slice(0).borrow();
 
-        // Get the opcode for the operation.
+        // Check that all the selector flags for the opcode are 0/1 and that at most 1 is turned on.
+        builder.assert_bool(local.is_xor);
+        builder.assert_bool(local.is_or);
+        builder.assert_bool(local.is_and);
+        let mult = local.is_xor + local.is_or + local.is_and;
+        builder.assert_bool(mult);
+
+        // Get the ByteOpcode for the operation to send to the byte lookup table.
         let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>()
             + local.is_or * ByteOpcode::OR.as_field::<AB::F>()
             + local.is_and * ByteOpcode::AND.as_field::<AB::F>();
 
-        // Get a multiplicity of `1` only for a true row.
-        let mult = local.is_xor + local.is_or + local.is_and;
+        // Send the row with each individual world element to the byte lookup table to constraint
+        // the operation.
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
             builder.send_byte(opcode.clone(), a, b, c, local.shard, mult.clone());
         }
 
+        // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.
+        let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>()
+            + local.is_or * Opcode::OR.as_field::<AB::F>()
+            + local.is_and * Opcode::AND.as_field::<AB::F>();
+
         // Receive the arguments.
-        builder.receive_alu(
-            local.is_xor * Opcode::XOR.as_field::<AB::F>()
-                + local.is_or * Opcode::OR.as_field::<AB::F>()
-                + local.is_and * Opcode::AND.as_field::<AB::F>(),
-            local.a,
-            local.b,
-            local.c,
-            local.shard,
-            local.is_xor + local.is_or + local.is_and,
-        );
+        builder.receive_alu(cpu_opcode, local.a, local.b, local.c, local.shard, mult);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(

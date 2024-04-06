@@ -39,7 +39,8 @@ impl<F: Field> AndOperation<F> {
         expected
     }
 
-    #[allow(unused_variables)]
+    /// Evaluate the AndOperation with operands `a` and `b`. Assume that `is_real` has
+    /// already been checked to be a boolean.
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,

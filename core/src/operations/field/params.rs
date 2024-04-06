@@ -86,7 +86,7 @@ mod tests {
         // Get the modulus from the function
         let func_modulus = Ed25519BaseField::modulus();
 
-        // println!("array_modulus: {:?}", func_modulus.to_bytes_le());
+        println!("array_modulus: {:?}", func_modulus.to_bytes_le());
 
         // Assert equality
         assert_eq!(

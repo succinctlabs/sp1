@@ -24,11 +24,13 @@ impl<F: Field> NotOperation<F> {
         for i in 0..WORD_SIZE {
             self.value[i] = F::from_canonical_u8(!x_bytes[i]);
         }
+        // TODO: fix this trace generation.
         record.add_u8_range_checks(shard, &x_bytes);
         expected
     }
 
-    #[allow(unused_variables)]
+    /// Evaluate NotOperation with operand `a` assuming that is_real has been checked
+    /// to be a boolean and that `a` has also been range-checked.
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
@@ -36,13 +38,16 @@ impl<F: Field> NotOperation<F> {
         shard: AB::Var,
         is_real: AB::Var,
     ) {
+        // We need to range check the cols.value. If `a` and `cols.value` are both range-checked,
+        // then we can ensure if `cols.value + a = [u8::MAX, u8::MAX, ...]` that cols.value = !a.
+        // If we don't range check cols.value, then it could overflow leading to an incorrect answer.
         for i in (0..WORD_SIZE).step_by(2) {
             builder.send_byte_pair(
                 AB::F::from_canonical_u32(ByteOpcode::U8Range as u32),
                 AB::F::zero(),
                 AB::F::zero(),
-                a[i],
-                a[i + 1],
+                cols.value[i],
+                cols.value[i + 1],
                 shard,
                 is_real,
             );
@@ -54,8 +59,5 @@ impl<F: Field> NotOperation<F> {
                 .when(is_real)
                 .assert_eq(cols.value[i] + a[i], AB::F::from_canonical_u8(u8::MAX));
         }
-
-        // A dummy constraint to keep the degree 3.
-        builder.assert_zero(a[0] * a[0] * a[0] - a[0] * a[0] * a[0]);
     }
 }

@@ -40,17 +40,18 @@ impl<F: Field> IsZeroOperation<F> {
         (a == F::zero()) as u32
     }
 
+    /// Evaluate IsZeroOperation with operand `a` assuming that is_real has been checked
+    /// to be a boolean.
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: AB::Expr,
         cols: IsZeroOperation<AB::Var>,
         is_real: AB::Expr,
     ) {
-        builder.assert_bool(is_real.clone());
         let one: AB::Expr = AB::F::one().into();
 
-        // 1. Input == 0 => is_zero = 1 regardless of the inverse.
-        // 2. Input != 0
+        // 1. a == 0 => is_zero = 1 regardless of the inverse.
+        // 2. a != 0
         //   2.1. inverse is correctly set => is_zero = 0.
         //   2.2. inverse is incorrect
         //     2.2.1 inverse is nonzero => is_zero isn't bool, it fails.

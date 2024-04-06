@@ -68,6 +68,25 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
         condition.clone().into() * a.into() + (Self::Expr::one() - condition.into()) * b.into()
     }
 
+    /// Same as `if_else` above, but arguments are `Word` instead of individual expressions.
+    fn if_else_word<ECond, EA, EB>(
+        &mut self,
+        condition: ECond,
+        a: Word<EA>,
+        b: Word<EB>,
+    ) -> Word<Self::Expr>
+    where
+        ECond: Into<Self::Expr> + Clone,
+        EA: Into<Self::Expr> + Clone,
+        EB: Into<Self::Expr> + Clone,
+    {
+        let mut res = vec![];
+        for i in 0..WORD_SIZE {
+            res.push(self.if_else(condition, a[i], b[i]));
+        }
+        Word(res.try_into().unwrap())
+    }
+
     /// Index an array of expressions using an index bitmap.  This function assumes that the EIndex
     /// type is a boolean and that index_bitmap's entries sum to 1.
     fn index_array<I: Into<Self::Expr>, EIndex: Into<Self::Expr> + Clone>(
@@ -91,7 +110,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
 
 /// A trait which contains methods for byte interactions in an AIR.
 pub trait ByteAirBuilder: BaseAirBuilder {
-    /// Sends a byte operation to be processed.
+    /// Sends a byte operation to be processed. Note that EOp should be `ByteOpcode`.
     fn send_byte<EOp, Ea, Eb, Ec, EShard, EMult>(
         &mut self,
         opcode: EOp,

@@ -9,6 +9,10 @@ use crate::air::WORD_SIZE;
 use crate::runtime::ExecutionRecord;
 
 /// A set of columns needed to compute the add of four words.
+/// OPT: There is an optimization here where instead of having 4 selectors per carry digit,
+/// we can have 2 selectors to indicate whether the carry is in the range [0,1] or [2,3] and use
+/// 2 degree 3 constraints to check that the carry is in range [0..3] instead of using 4 degree 2
+/// constraints to check that the carry is in that range. This would save 4 * 2 = 8 columns total.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Add4Operation<T> {
@@ -134,6 +138,11 @@ impl<F: Field> Add4Operation<F> {
                 );
             }
         }
+
+        builder
+            .when(cols.carry_range_selector[i])
+            .assert_zero(cols.carry[i] * (cols.carry[i] - 1));
+        builder.when(cols.carry_range_selector[i]).assert_zero(cols.carry[])
 
         // Compare the sum and summands by looking at carry.
         {

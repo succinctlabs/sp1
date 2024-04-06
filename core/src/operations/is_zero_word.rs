@@ -19,17 +19,9 @@ pub struct IsZeroWordOperation<T> {
     /// `IsZeroOperation` to check if each byte in the input word is zero.
     pub is_zero_byte: [IsZeroOperation<T>; WORD_SIZE],
 
-    /// A boolean flag indicating whether the lower word (the bottom 16 bits of the input) is 0.
-    /// This equals `is_zero_byte[0] * is_zero_byte[1]`.
-    pub is_lower_half_zero: T,
-
-    /// A boolean flag indicating whether the upper word (the top 16 bits of the input) is 0. This
-    /// equals `is_zero_byte[2] * is_zero_byte[3]`.
-    pub is_upper_half_zero: T,
-
-    /// A boolean flag indicating whether the word is zero. This equals `is_zero_byte[0] * ... *
-    /// is_zero_byte[WORD_SIZE - 1]`.
-    pub result: T,
+    // `IsZeroOperation` to check whether the sum of is_zero_byte[i].result is 0 or not.
+    // The result of whether a word is 0 is sum_is_zero.result.
+    pub sum_is_zero: IsZeroOperation<T>,
 }
 
 impl<F: Field> IsZeroWordOperation<F> {
@@ -42,12 +34,13 @@ impl<F: Field> IsZeroWordOperation<F> {
         for i in 0..WORD_SIZE {
             is_zero &= self.is_zero_byte[i].populate_from_field_element(a[i]) == 1;
         }
-        self.is_lower_half_zero = self.is_zero_byte[0].result * self.is_zero_byte[1].result;
-        self.is_upper_half_zero = self.is_zero_byte[2].result * self.is_zero_byte[3].result;
+        // TODO: fix this?
         self.result = F::from_bool(is_zero);
         is_zero as u32
     }
 
+    /// Evaluate IsZeroWordOperation with operand `a`, assuming that is_real has been checked
+    /// to be a boolean.
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Expr>,
@@ -64,25 +57,15 @@ impl<F: Field> IsZeroWordOperation<F> {
             );
         }
 
-        // From here, we only assert when is_real is true.
-        builder.assert_bool(is_real.clone());
-        let mut builder_is_real = builder.when(is_real.clone());
+        let sum = cols.is_zero_byte[0].result
+            + cols.is_zero_byte[1].result
+            + cols.is_zero_byte[2].result
+            + cols.is_zero_byte[3].result;
 
-        // Calculate is_upper_half_zero and is_lower_half_zero and finally the result.
-        builder_is_real.assert_bool(cols.is_lower_half_zero);
-        builder_is_real.assert_bool(cols.is_upper_half_zero);
-        builder_is_real.assert_bool(cols.result);
-        builder_is_real.assert_eq(
-            cols.is_lower_half_zero,
-            cols.is_zero_byte[0].result * cols.is_zero_byte[1].result,
-        );
-        builder_is_real.assert_eq(
-            cols.is_upper_half_zero,
-            cols.is_zero_byte[2].result * cols.is_zero_byte[3].result,
-        );
-        builder_is_real.assert_eq(
-            cols.result,
-            cols.is_lower_half_zero * cols.is_upper_half_zero,
-        );
+        IsZeroOperation::<AB::F>::eval(builder, sum, cols.sum_is_zero, is_real.clone());
+    }
+
+    pub fn result(&self) -> T {
+        self.sum_is_zero.result
     }
 }

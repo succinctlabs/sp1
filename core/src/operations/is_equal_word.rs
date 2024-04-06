@@ -30,6 +30,8 @@ impl<F: Field> IsEqualWordOperation<F> {
         (a_u32 == b_u32) as u32
     }
 
+    /// Evaluate the IsEqualWordOperation with 2 word operands `a` and `b`. Assumes that
+    ///  is_real has already been checked to be a boolean.
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Expr>,
@@ -37,8 +39,6 @@ impl<F: Field> IsEqualWordOperation<F> {
         cols: IsEqualWordOperation<AB::Var>,
         is_real: AB::Expr,
     ) {
-        builder.assert_bool(is_real.clone());
-
         // Calculate differences in limbs.
         let diff = Word([
             a[0].clone() - b.0[0].clone(),
@@ -49,11 +49,9 @@ impl<F: Field> IsEqualWordOperation<F> {
 
         // Check if the difference is 0.
         IsZeroWordOperation::<AB::F>::eval(builder, diff, cols.is_diff_zero, is_real.clone());
+    }
 
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            is_real.clone() * is_real.clone() * is_real.clone()
-                - is_real.clone() * is_real.clone() * is_real.clone(),
-        );
+    pub fn result() -> T {
+        todo!();
     }
 }

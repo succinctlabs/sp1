@@ -15,7 +15,7 @@ pub struct AddOperation<T> {
     /// The result of `a + b`.
     pub value: Word<T>,
 
-    /// Trace.
+    /// Bool columns to keep track of whether a carry is present or not.
     pub carry: [T; 3],
 }
 
@@ -61,6 +61,8 @@ impl<F: Field> AddOperation<F> {
         expected
     }
 
+    /// Evaluate the constraints for the add operation.
+    /// We assume that `is_real` is already range-checked to be boolean.
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
@@ -99,6 +101,8 @@ impl<F: Field> AddOperation<F> {
         builder_is_real.assert_bool(cols.carry[0]);
         builder_is_real.assert_bool(cols.carry[1]);
         builder_is_real.assert_bool(cols.carry[2]);
+
+        // OPT: we can likely remove this as we assume that is_real is already range-checked.
         builder_is_real.assert_bool(is_real.clone());
 
         // Range check each byte.

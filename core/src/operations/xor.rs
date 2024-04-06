@@ -39,7 +39,8 @@ impl<F: Field> XorOperation<F> {
         expected
     }
 
-    #[allow(unused_variables)]
+    /// Evaluate XorOperation with operands `a` and `b` assuming that is_real has been checked
+    /// to be a boolean.
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
