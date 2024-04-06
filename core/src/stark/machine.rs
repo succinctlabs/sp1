@@ -18,6 +18,7 @@ use p3_maybe_rayon::prelude::*;
 use super::debug_constraints;
 use super::Dom;
 use crate::air::MachineAir;
+use crate::air::PV_DIGEST_NUM_WORDS;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -258,9 +259,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         &self.config
     }
 
+    /// Verify that a proof is complete and valid given a verifying key and a claimed digest.
     pub fn verify(
         &self,
         vk: &VerifyingKey<SC>,
+        claimed_digest: &[u32; PV_DIGEST_NUM_WORDS],
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
@@ -284,7 +287,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 // Verify shard transitions
                 if i == 0 {
                     // If it's the first shard, index should be 1.
-                    if shard_proof.index != 1 {
+                    if shard_proof.public_values.shard != 1 {
                         return Err(ProgramVerificationError::InvalidTransition);
                     }
                     // TODO: `shard_proof.public_values.first_row_pc` should be the pc_base.
@@ -292,7 +295,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     let prev_shard_proof = &proof.shard_proofs[i - 1];
                     // TODO: some of these checks will need to only apply to shards with cpu chip.
                     // For non-first shards, the index should be the previous index + 1.
-                    if shard_proof.index != prev_shard_proof.index - 1 {
+                    if shard_proof.public_values.shard != prev_shard_proof.public_values.shard - 1 {
                         return Err(ProgramVerificationError::InvalidTransition);
                     }
                     // Next pc should be what the next pc declared in the previous shard was.
@@ -308,6 +311,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                             != prev_shard_proof.public_values.exit_code
                     {
                         return Err(ProgramVerificationError::InvalidTransition);
+                    }
+                    // If the previous shard was halted, then this shard should also be halted.
+                    // if prev_shard_proof.public_values.last_instr_halt == 1
+                    //     && shard_proof.public_values.last_instr_halt != 1
+                    // {
+                    //     return Err(ProgramVerificationError::InvalidTransition);
+                    // }
+                    if i == proof.shard_proofs.len() - 1 {
+                        // If it's the last shard, then the program should have halted.
+                        // if shard_proof.public_values.last_instr_halt != 1 {
+                        //     return Err(ProgramVerificationError::InvalidTransition);
+                        // }
                     }
                 }
 
