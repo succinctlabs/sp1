@@ -35,6 +35,7 @@ use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
+use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::Program as RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
@@ -88,7 +89,7 @@ pub fn const_fri_config(
 pub fn build_compress(
     proof: Proof<BabyBearPoseidon2>,
     vk: VerifyingKey<SC>,
-) -> RecursionProgram<Val> {
+) -> (RecursionProgram<Val>, Vec<Vec<Block<Val>>>) {
     let machine = RiscvAir::machine(SC::default());
 
     let mut challenger_val = machine.config().challenger();
@@ -160,5 +161,5 @@ pub fn build_compress(
     let program = builder.compile();
     let elapsed = time.elapsed();
     println!("Building took: {:?}", elapsed);
-    program
+    (program, witness_stream)
 }
