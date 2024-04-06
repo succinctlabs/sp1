@@ -18,7 +18,6 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
-use p3_fri::FriProof;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
 use p3_symmetric::PaddingFreeSponge;
@@ -45,7 +44,6 @@ type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
 type EF = <SC as StarkGenericConfig>::Challenge;
 type C = AsmConfig<F, EF>;
-type A = RiscvAir<F>;
 
 type Val = BabyBear;
 type Challenge = BinomialExtensionField<Val, 4>;
@@ -57,7 +55,6 @@ type ValMmcs =
 type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
 type RecursionConfig = AsmConfig<Val, Challenge>;
 type RecursionBuilder = Builder<RecursionConfig>;
-type CustomFriProof = FriProof<Challenge, ChallengeMmcs, Val>;
 
 pub fn const_fri_config(
     builder: &mut RecursionBuilder,
