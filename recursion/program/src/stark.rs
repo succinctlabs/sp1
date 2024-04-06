@@ -12,6 +12,7 @@ use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::ir::{Builder, Config, Usize};
+use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
@@ -22,10 +23,9 @@ use crate::fri::types::TwoAdicPcsMatsVariable;
 use crate::fri::types::TwoAdicPcsRoundVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::ShardCommitmentVariable;
-
-use sp1_recursion_core::runtime::DIGEST_SIZE;
-
 use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
+
+pub const EMPTY: usize = 0x_1111_1111;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StarkVerifier<C: Config, SC: StarkGenericConfig> {
@@ -235,7 +235,7 @@ where
         for (i, chip) in machine.chips().iter().enumerate() {
             let index = builder.get(&sorted_indices, i);
             builder
-                .if_ne(index, C::N::from_canonical_usize(9999))
+                .if_ne(index, C::N::from_canonical_usize(EMPTY))
                 .then(|builder| {
                     let values = builder.get(&opened_values.chips, index);
                     let trace_domain = builder.get(&trace_domains, index);
@@ -267,6 +267,7 @@ pub(crate) mod tests {
     use crate::challenger::FeltChallenger;
     use crate::hints::Hintable;
     use crate::stark::Ext;
+    use crate::stark::EMPTY;
     use crate::types::ShardCommitmentVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
@@ -423,7 +424,14 @@ pub(crate) mod tests {
         let mut sorted_indices = vec![];
         for proof_val in proof.shard_proofs {
             witness_stream.extend(proof_val.write());
-            let sorted_indices_raw = machine.chips_sorted_indices(&proof_val);
+            let sorted_indices_raw: Vec<usize> = machine
+                .chips_sorted_indices(&proof_val)
+                .into_iter()
+                .map(|x| match x {
+                    Some(x) => x,
+                    None => EMPTY,
+                })
+                .collect();
             witness_stream.extend(sorted_indices_raw.write());
             let proof = ShardProof::<_>::read(&mut builder);
             let sorted_indices_arr = Vec::<usize>::read(&mut builder);

@@ -95,10 +95,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
     }
 
-    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<usize> {
+    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
         self.chips()
             .iter()
-            .map(|chip| *proof.chip_ordering.get(&chip.name()).unwrap_or(&9999))
+            .map(|chip| proof.chip_ordering.get(&chip.name()).cloned())
             .collect()
     }
 
