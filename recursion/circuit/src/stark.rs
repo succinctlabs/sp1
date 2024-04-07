@@ -10,7 +10,6 @@ use sp1_core::{
     air::MachineAir,
     stark::{MachineStark, ShardCommitment, StarkGenericConfig, VerifyingKey},
 };
-use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::{Builder, Config};
 use sp1_recursion_compiler::prelude::SymbolicVar;
@@ -43,7 +42,6 @@ where
         machine: &MachineStark<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
         proof: &RecursionShardProofVariable<C>,
-        permutation_challenges: &[C::EF],
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -65,16 +63,9 @@ where
             quotient_commit,
         } = commitment;
 
-        let permutation_challenges_var = (0..2)
+        let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
-
-        for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
-            );
-        }
 
         challenger.observe_commitment(builder, *permutation_commit);
 
@@ -226,7 +217,7 @@ where
                         qc_domains,
                         zeta,
                         alpha,
-                        permutation_challenges,
+                        &permutation_challenges,
                     );
                 }
             }
@@ -243,7 +234,7 @@ pub(crate) mod tests {
     };
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
-    use p3_challenger::{CanObserve, FieldChallenger};
+    use p3_challenger::CanObserve;
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::{
@@ -396,10 +387,6 @@ pub(crate) mod tests {
             PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
         challenger_val.observe_slice(&pv_digest_field_elms);
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
-
         let mut builder = Builder::<OuterConfig>::default();
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
@@ -432,7 +419,6 @@ pub(crate) mod tests {
                 &machine,
                 &mut challenger.clone(),
                 &proof,
-                &permutation_challenges,
             );
             break;
         }

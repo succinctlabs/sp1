@@ -9,7 +9,6 @@ use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::VerifyingKey;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::ir::{Builder, Config, Usize};
 use sp1_recursion_core::runtime::DIGEST_SIZE;
@@ -48,7 +47,6 @@ where
         machine: &MachineStark<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
-        permutation_challenges: &[C::EF],
         sorted_indices: Array<C, Var<C::N>>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
@@ -69,16 +67,9 @@ where
             quotient_commit,
         } = commitment;
 
-        let permutation_challenges_var = (0..2)
+        let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
-
-        for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
-            );
-        }
 
         challenger.observe(builder, permutation_commit.clone());
 
@@ -252,7 +243,7 @@ where
                         qc_domains,
                         zeta,
                         alpha,
-                        permutation_challenges,
+                        &permutation_challenges,
                     );
                 });
         }
@@ -404,10 +395,6 @@ pub(crate) mod tests {
             PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
         challenger_val.observe_slice(&pv_digest_field_elms);
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
-
         let time = Instant::now();
         let mut builder = Builder::<InnerConfig>::default();
         let config = const_fri_config(&mut builder, inner_fri_config());
@@ -463,7 +450,6 @@ pub(crate) mod tests {
                 &machine,
                 &mut challenger.clone(),
                 proof,
-                &permutation_challenges,
                 sorted_indices,
             );
         }
