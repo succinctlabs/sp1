@@ -186,11 +186,11 @@ where
             local.b.value.0[0] + local.c.value.0[0],
             alu_cols.add_scratch[0],
         );
-        builder.when(local.selectors.is_add).assert_eq(
+        builder.when(local.selectors.is_sub).assert_eq(
             local.b.value.0[0] - local.c.value.0[0],
             alu_cols.sub_scratch[0],
         );
-        builder.when(local.selectors.is_add).assert_eq(
+        builder.when(local.selectors.is_mul).assert_eq(
             local.b.value.0[0] * local.c.value.0[0],
             alu_cols.mul_scratch[0],
         );
