@@ -146,6 +146,8 @@ pub enum AsmInstruction<F, EF> {
 
     HintLen(i32),
     Hint(i32),
+    // FRIFold(m, input) specific instructions.
+    FriFold(i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -864,6 +866,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 true,
             ),
+            AsmInstruction::FriFold(m, ptr) => Instruction::new(
+                Opcode::FRIFold,
+                i32_f(m),
+                i32_f_arr(ptr),
+                f_u32(F::zero()),
+                F::zero(),
+                F::zero(),
+                false,
+                true,
+            ),
         }
     }
 
@@ -1148,6 +1160,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::Ext2Felt(dst, src) => write!(f, "ext2felt ({})fp, {})fp", dst, src),
             AsmInstruction::HintLen(dst) => write!(f, "hint_len ({})fp", dst),
             AsmInstruction::Hint(dst) => write!(f, "hint ({})fp", dst),
+            AsmInstruction::FriFold(m, input_ptr) => {
+                write!(f, "fri_fold ({})fp, ({})fp", m, input_ptr)
+            }
         }
     }
 }

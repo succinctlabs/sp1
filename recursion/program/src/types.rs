@@ -12,6 +12,7 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
 pub type PublicValuesDigestVariable<C: Config> = Array<C, Felt<C::F>>;
 
+/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {
     pub index: Var<C::N>,

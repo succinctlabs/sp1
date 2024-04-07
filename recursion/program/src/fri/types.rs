@@ -6,7 +6,7 @@ pub type DigestVariable<C: Config> = Array<C, Felt<C::F>>;
 
 #[derive(Clone)]
 pub struct FriConfigVariable<C: Config> {
-    pub log_blowup: C::N,
+    pub log_blowup: usize,
     pub num_queries: usize,
     pub proof_of_work_bits: usize,
     pub generators: Array<C, Felt<C::F>>,

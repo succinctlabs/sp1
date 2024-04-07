@@ -54,6 +54,7 @@ pub enum Opcode {
 
     HintLen = 37,
     Hint = 38,
+    FRIFold = 36,
 }
 
 impl Opcode {
