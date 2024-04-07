@@ -8,7 +8,6 @@ use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use p3_field::Field;
 use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, NUM_BITS, PERMUTATION_WIDTH};
 
 #[derive(Debug, Clone)]
@@ -914,7 +913,6 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
         let step_size = C::N::from_canonical_usize(self.step_size);
-        println!("step_size = {}", step_size);
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,

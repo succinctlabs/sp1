@@ -47,8 +47,6 @@ pub fn verify_two_adic_pcs<C: Config>(
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
 
-    let code = builder.eval(C::N::from_canonical_u32(999));
-    builder.print_v(code);
     builder
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
@@ -149,8 +147,6 @@ pub fn verify_two_adic_pcs<C: Config>(
 
             builder.set(&mut reduced_openings, i, ro);
         });
-    let code = builder.eval(C::N::from_canonical_u32(999));
-    builder.print_v(code);
 
     verify_challenges(
         builder,
