@@ -10,10 +10,7 @@ use crate::{
     lookup::{Interaction, InteractionBuilder},
 };
 
-use super::{
-    eval_permutation_constraints, eval_permutation_constraints_batch,
-    generate_batch_permutation_trace, generate_permutation_trace,
-};
+use super::{eval_permutation_constraints, generate_permutation_trace};
 
 /// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
@@ -91,7 +88,7 @@ where
         F: PrimeField,
     {
         let batch_size = self.logup_batch_size();
-        generate_batch_permutation_trace(
+        generate_permutation_trace(
             &self.sends,
             &self.receives,
             preprocessed,
@@ -167,7 +164,7 @@ where
         self.air.eval(builder);
         // Evaluate permutation constraints.
         let batch_size = self.logup_batch_size();
-        eval_permutation_constraints_batch(&self.sends, &self.receives, batch_size, builder);
+        eval_permutation_constraints(&self.sends, &self.receives, batch_size, builder);
     }
 }
 
