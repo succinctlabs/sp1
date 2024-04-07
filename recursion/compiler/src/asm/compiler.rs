@@ -524,11 +524,35 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
+                DslIR::HintLen(dst) => self.push(AsmInstruction::HintLen(dst.fp())),
+                DslIR::HintVars(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
+                DslIR::HintFelts(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
+                DslIR::HintExts(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
                 DslIR::FriFold(m, input_ptr) => {
                     if let Array::Dyn(ptr, _) = input_ptr {
                         self.push(AsmInstruction::FriFold(m.fp(), ptr.fp()));
                     } else {
                         unimplemented!();
+                    }
+                }
+                DslIR::Poseidon2CompressBabyBear(result, left, right) => {
+                    match (result, left, right) {
+                        (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
+                            .push(AsmInstruction::Poseidon2Compress(
+                                result.fp(),
+                                left.fp(),
+                                right.fp(),
+                            )),
+                        _ => unimplemented!(),
                     }
                 }
                 _ => unimplemented!(),

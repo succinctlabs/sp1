@@ -370,6 +370,22 @@ impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_compress_x(
+        &mut self,
+        result: &mut Array<C, Felt<C::F>>,
+        left: &Array<C, Felt<C::F>>,
+        right: &Array<C, Felt<C::F>>,
+    ) {
+        self.operations.push(DslIR::Poseidon2CompressBabyBear(
+            result.clone(),
+            left.clone(),
+            right.clone(),
+        ));
+    }
+
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
     pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
@@ -394,13 +410,8 @@ impl<C: Config> Builder<C> {
                 builder.poseidon2_permute_mut(&state);
             });
 
-        let mut result = self.dyn_array(DIGEST_SIZE);
-        for i in 0..DIGEST_SIZE {
-            let el = self.get(&state, i);
-            self.set(&mut result, i, el);
-        }
-
-        result
+        state.truncate(self, Usize::Const(DIGEST_SIZE));
+        state
     }
 
     /// Applies the Poseidon2 compression function to the given array.
@@ -648,6 +659,55 @@ impl<C: Config> Builder<C> {
 
     pub fn power_of_two_expr(&mut self, power: Usize<C::N>) -> Ext<C::F, C::EF> {
         self.sll(C::EF::one().cons(), power)
+    }
+
+    pub fn hint_len(&mut self) -> Var<C::N> {
+        let len = self.uninit();
+        self.operations.push(DslIR::HintLen(len));
+        len
+    }
+
+    pub fn hint_var(&mut self) -> Var<C::N> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintVars(arr.clone()));
+        self.get(&arr, 0)
+    }
+
+    pub fn hint_felt(&mut self) -> Felt<C::F> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintFelts(arr.clone()));
+        self.get(&arr, 0)
+    }
+
+    pub fn hint_ext(&mut self) -> Ext<C::F, C::EF> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintExts(arr.clone()));
+        self.get(&arr, 0)
+    }
+
+    pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
+        let len = self.hint_len();
+        self.print_v(len);
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintVars(arr.clone()));
+        arr
+    }
+
+    pub fn hint_felts(&mut self) -> Array<C, Felt<C::F>> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintFelts(arr.clone()));
+        arr
+    }
+
+    pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintExts(arr.clone()));
+        arr
     }
 }
 

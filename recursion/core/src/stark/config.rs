@@ -4,13 +4,19 @@ use p3_challenger::{DuplexChallenger, MultiField32Challenger};
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
 use p3_field::{extension::BinomialExtensionField, Field};
+use p3_fri::BatchOpening;
+use p3_fri::CommitPhaseProofStep;
+use p3_fri::QueryProof;
 use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
+use p3_symmetric::Hash;
 use p3_symmetric::{MultiField32PaddingFreeSponge, PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
 use sp1_core::{stark::StarkGenericConfig, utils::poseidon2_instance::RC_16_30};
+
+use crate::runtime::DIGEST_SIZE;
 
 use super::poseidon2::bn254_poseidon2_rc3;
 
@@ -68,6 +74,8 @@ pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
 pub type InnerPerm = Poseidon2<InnerVal, DiffusionMatrixBabybear, 16, 7>;
 pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
+pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
+pub type InnerDigest = [InnerVal; DIGEST_SIZE];
 pub type InnerCompress = TruncatedPermutation<InnerPerm, 2, 8, 16>;
 pub type InnerValMmcs = FieldMerkleTreeMmcs<
     <InnerVal as Field>::Packing,
@@ -80,8 +88,12 @@ pub type InnerChallengeMmcs = ExtensionMmcs<InnerVal, InnerChallenge, InnerValMm
 pub type InnerChallenger = DuplexChallenger<InnerVal, InnerPerm, 16>;
 pub type InnerDft = Radix2DitParallel;
 pub type InnerPcs = TwoAdicFriPcs<InnerVal, InnerDft, InnerValMmcs, InnerChallengeMmcs>;
+pub type InnerQueryProof = QueryProof<InnerChallenge, InnerChallengeMmcs>;
+pub type InnerCommitPhaseStep = CommitPhaseProofStep<InnerChallenge, InnerChallengeMmcs>;
 pub type InnerFriProof = FriProof<InnerChallenge, InnerChallengeMmcs, InnerVal>;
-pub type InnerPcsProof = TwoAdicFriPcsProof<InnerVal, InnerDft, InnerValMmcs, InnerChallengeMmcs>;
+pub type InnerBatchOpening = BatchOpening<InnerVal, InnerValMmcs>;
+pub type InnerPcsProof =
+    TwoAdicFriPcsProof<InnerVal, InnerChallenge, InnerValMmcs, InnerChallengeMmcs>;
 
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {

@@ -2,31 +2,30 @@ use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
 use sp1_core::stark::MachineStark;
+use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::VerifyingKey;
-use sp1_core::stark::{ShardCommitment, StarkGenericConfig};
-
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::ExtConst;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::ir::{Builder, Config, Usize};
+use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
 use crate::commit::PolynomialSpaceVariable;
 use crate::folder::RecursiveVerifierConstraintFolder;
+use crate::fri::types::TwoAdicPcsMatsVariable;
+use crate::fri::types::TwoAdicPcsRoundVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::fri::TwoAdicPcsMatsVariable;
-use crate::fri::TwoAdicPcsRoundVariable;
-
-use sp1_recursion_core::runtime::DIGEST_SIZE;
-
+use crate::types::ShardCommitmentVariable;
 use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
+
+pub const EMPTY: usize = 0x_1111_1111;
 
 #[derive(Debug, Clone, Copy)]
 pub struct StarkVerifier<C: Config, SC: StarkGenericConfig> {
@@ -50,6 +49,7 @@ where
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
         permutation_challenges: &[C::EF],
+        sorted_indices: Array<C, Var<C::N>>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -60,11 +60,10 @@ where
             commitment,
             opened_values,
             opening_proof,
-            sorted_indices,
             ..
         } = proof;
 
-        let ShardCommitment {
+        let ShardCommitmentVariable {
             main_commit,
             permutation_commit,
             quotient_commit,
@@ -116,13 +115,15 @@ where
         let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
         builder.set(&mut qc_points, 0, zeta);
 
+        // TODO FIX: There is something weird going on here because the number of chips may not match
+        // the number of chips in a shard.
         for (i, (name, domain, _)) in vk.chip_information.iter().enumerate() {
             let chip_idx = machine
                 .chips()
                 .iter()
                 .rposition(|chip| &chip.name() == name)
                 .unwrap();
-            let index = sorted_indices[chip_idx];
+            let index = builder.get(&sorted_indices, chip_idx);
             let opening = builder.get(&opened_values.chips, index);
 
             let domain: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(*domain);
@@ -232,25 +233,28 @@ where
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
         for (i, chip) in machine.chips().iter().enumerate() {
-            let index = sorted_indices[i];
-            builder.if_ne(index, C::N::neg_one()).then(|builder| {
-                let values = builder.get(&opened_values.chips, index);
-                let trace_domain = builder.get(&trace_domains, index);
-                let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
-                    builder.get(&quotient_domains, index);
-                let qc_domains = quotient_domain.split_domains(builder, chip.log_quotient_degree());
-                Self::verify_constraints(
-                    builder,
-                    chip,
-                    &values,
-                    proof.public_values_digest,
-                    trace_domain,
-                    qc_domains,
-                    zeta,
-                    alpha,
-                    permutation_challenges,
-                );
-            });
+            let index = builder.get(&sorted_indices, i);
+            builder
+                .if_ne(index, C::N::from_canonical_usize(EMPTY))
+                .then(|builder| {
+                    let values = builder.get(&opened_values.chips, index);
+                    let trace_domain = builder.get(&trace_domains, index);
+                    let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
+                        builder.get(&quotient_domains, index);
+                    let qc_domains =
+                        quotient_domain.split_domains(builder, chip.log_quotient_degree());
+                    Self::verify_constraints(
+                        builder,
+                        chip,
+                        &values,
+                        proof.public_values_digest.clone(),
+                        trace_domain,
+                        qc_domains,
+                        zeta,
+                        alpha,
+                        permutation_challenges,
+                    );
+                });
         }
     }
 }
@@ -261,37 +265,38 @@ pub(crate) mod tests {
 
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
-    use crate::compress::build_compress;
+    use crate::hints::Hintable;
     use crate::stark::Ext;
+    use crate::stark::EMPTY;
+    use crate::types::ShardCommitmentVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
     use sp1_core::air::PublicValuesDigest;
     use sp1_core::runtime::Program;
     use sp1_core::{
-        air::MachineAir,
-        stark::{MachineStark, RiscvAir, ShardCommitment, ShardProof, StarkGenericConfig},
+        stark::{RiscvAir, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Felt;
+    use sp1_recursion_compiler::InnerConfig;
     use sp1_recursion_compiler::{
-        asm::{AsmConfig, VmBuilder},
-        ir::{Builder, Config, ExtConst, Usize},
+        asm::VmBuilder,
+        ir::{Builder, ExtConst},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_recursion_core::stark::config::inner_fri_config;
+    use sp1_recursion_core::stark::config::InnerChallenge;
+    use sp1_recursion_core::stark::config::InnerVal;
     use sp1_sdk::{SP1Prover, SP1Stdin};
 
     use sp1_core::air::Word;
 
     use crate::{
         challenger::DuplexChallengerVariable,
-        fri::{const_fri_config, const_two_adic_pcs_proof, TwoAdicFriPcsVariable},
+        fri::{const_fri_config, TwoAdicFriPcsVariable},
         stark::StarkVerifier,
-        types::{
-            ChipOpenedValuesVariable, Commitment, ShardOpenedValuesVariable, ShardProofVariable,
-        },
     };
 
     use sp1_core::stark::LocalProver;
@@ -299,87 +304,10 @@ pub(crate) mod tests {
     use sp1_sdk::utils::setup_logger;
 
     type SC = BabyBearPoseidon2;
-    type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
-    type C = AsmConfig<F, EF>;
+    type F = InnerVal;
+    type EF = InnerChallenge;
+    type C = InnerConfig;
     type A = RiscvAir<F>;
-
-    pub(crate) fn const_proof<C>(
-        builder: &mut Builder<C>,
-        machine: &MachineStark<SC, A>,
-        proof: ShardProof<SC>,
-    ) -> ShardProofVariable<C>
-    where
-        C: Config<F = F, EF = EF>,
-    {
-        let index = builder.materialize(Usize::Const(proof.index));
-
-        // Set up the public values digest.
-        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-            let word_val = proof.public_values_digest[i];
-            Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-        }));
-
-        // Set up the commitments.
-        let mut main_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-        let mut permutation_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-        let mut quotient_commit: Commitment<_> = builder.dyn_array(DIGEST_SIZE);
-
-        let main_commit_val: [_; DIGEST_SIZE] = proof.commitment.main_commit.into();
-        let perm_commit_val: [_; DIGEST_SIZE] = proof.commitment.permutation_commit.into();
-        let quotient_commit_val: [_; DIGEST_SIZE] = proof.commitment.quotient_commit.into();
-        for (i, ((main_val, perm_val), quotient_val)) in main_commit_val
-            .into_iter()
-            .zip(perm_commit_val)
-            .zip(quotient_commit_val)
-            .enumerate()
-        {
-            builder.set(&mut main_commit, i, main_val);
-            builder.set(&mut permutation_commit, i, perm_val);
-            builder.set(&mut quotient_commit, i, quotient_val);
-        }
-
-        let commitment = ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        };
-
-        // Set up the opened values.
-        let num_shard_chips = proof.opened_values.chips.len();
-        let mut opened_values = builder.dyn_array(num_shard_chips);
-        for (i, values) in proof.opened_values.chips.iter().enumerate() {
-            let values: ChipOpenedValuesVariable<_> = builder.eval_const(values.clone());
-            builder.set(&mut opened_values, i, values);
-        }
-        let opened_values = ShardOpenedValuesVariable {
-            chips: opened_values,
-        };
-
-        let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
-
-        let sorted_indices = machine
-            .chips()
-            .iter()
-            .map(|chip| {
-                let index = proof
-                    .chip_ordering
-                    .get(&chip.name())
-                    .map(|i| C::N::from_canonical_usize(*i))
-                    .unwrap_or(C::N::neg_one());
-                builder.eval(index)
-            })
-            .collect();
-
-        ShardProofVariable {
-            index: Usize::Var(index),
-            commitment,
-            opened_values,
-            opening_proof,
-            sorted_indices,
-            public_values_digest,
-        }
-    }
 
     #[test]
     fn test_permutation_challenges() {
@@ -408,7 +336,7 @@ pub(crate) mod tests {
             .collect::<Vec<_>>();
 
         // Observe all the commitments.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = Builder::<InnerConfig>::default();
 
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
@@ -416,9 +344,11 @@ pub(crate) mod tests {
         let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
         challenger.observe(&mut builder, preprocessed_commit);
 
+        let mut witness_stream = Vec::new();
         for proof in proofs {
-            let proof = const_proof(&mut builder, &machine, proof);
-            let ShardCommitment { main_commit, .. } = proof.commitment;
+            witness_stream.extend(proof.write());
+            let proof = ShardProof::<_>::read(&mut builder);
+            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
         }
 
@@ -437,6 +367,7 @@ pub(crate) mod tests {
         let program = builder.compile();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.witness_stream = witness_stream;
         runtime.run();
         println!(
             "The program executed successfully, number of cycles: {}",
@@ -458,51 +389,11 @@ pub(crate) mod tests {
         let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof;
-        let program = build_compress(proof, vk);
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-
-        let time = Instant::now();
-        runtime.run();
-        let elapsed = time.elapsed();
-        runtime.print_stats();
-        println!("Execution took: {:?}", elapsed);
-
-        // let config = BabyBearPoseidon2::new();
-        // let machine = RecursionAir::machine(config);
-        // let (pk, vk) = machine.setup(&program);
-        // let mut challenger = machine.config().challenger();
-
-        // // debug_interactions_with_all_chips::<BabyBearPoseidon2, RecursionAir<BabyBear>>(
-        // //     machine.chips(),
-        // //     &runtime.record,
-        // //     vec![InteractionKind::Memory],
-        // // );
-
-        // let start = Instant::now();
-        // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-        // let duration = start.elapsed().as_secs();
-
-        // let mut challenger = machine.config().challenger();
-        // machine.verify(&vk, &proof, &mut challenger).unwrap();
-        // println!("proving duration = {}", duration);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_recursive_verify_bad_proof() {
-        // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
-        let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger_val = machine.config().challenger();
-        let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof;
+        let mut challenger_ver = machine.config().challenger();
+        machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         println!("Proof generated successfully");
+
+        let mut challenger_val = machine.config().challenger();
         challenger_val.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
@@ -517,7 +408,8 @@ pub(crate) mod tests {
             .map(|_| challenger_val.sample_ext_element::<EF>())
             .collect::<Vec<_>>();
 
-        let mut builder = VmBuilder::<F, EF>::default();
+        let time = Instant::now();
+        let mut builder = Builder::<InnerConfig>::default();
         let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
 
@@ -527,14 +419,32 @@ pub(crate) mod tests {
         let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
         challenger.observe(&mut builder, preprocessed_commit);
 
+        let mut witness_stream = Vec::new();
         let mut shard_proofs = vec![];
+        let mut sorted_indices = vec![];
         for proof_val in proof.shard_proofs {
-            let mut proof_val = proof_val;
-            proof_val.commitment.main_commit = [F::zero(); DIGEST_SIZE].into();
-            let proof = const_proof(&mut builder, &machine, proof_val);
-            let ShardCommitment { main_commit, .. } = &proof.commitment;
+            witness_stream.extend(proof_val.write());
+            let sorted_indices_raw: Vec<usize> = machine
+                .chips_sorted_indices(&proof_val)
+                .into_iter()
+                .map(|x| match x {
+                    Some(x) => x,
+                    None => EMPTY,
+                })
+                .collect();
+            witness_stream.extend(sorted_indices_raw.write());
+            let proof = ShardProof::<_>::read(&mut builder);
+            let sorted_indices_arr = Vec::<usize>::read(&mut builder);
+            builder
+                .range(0, sorted_indices_arr.len())
+                .for_each(|i, builder| {
+                    let el = builder.get(&sorted_indices_arr, i);
+                    builder.print_v(el);
+                });
+            let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
             shard_proofs.push(proof);
+            sorted_indices.push(sorted_indices_arr);
         }
         // Observe the public input digest
         let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
@@ -542,23 +452,33 @@ pub(crate) mod tests {
             .map(|x| builder.eval(*x))
             .collect();
         challenger.observe_slice(&mut builder, &pv_digest_felt);
-        for proof in shard_proofs {
+
+        let code = builder.eval(InnerVal::two());
+        builder.print_v(code);
+        for (proof, sorted_indices) in shard_proofs.iter().zip(sorted_indices) {
             StarkVerifier::<C, SC>::verify_shard(
                 &mut builder,
                 &vk,
                 &pcs,
                 &machine,
                 &mut challenger.clone(),
-                &proof,
+                proof,
                 &permutation_challenges,
+                sorted_indices,
             );
         }
 
         let program = builder.compile();
+        let elapsed = time.elapsed();
+        println!("Building took: {:?}", elapsed);
 
+        let time = Instant::now();
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-
+        runtime.witness_stream = witness_stream;
         runtime.run();
+        let elapsed = time.elapsed();
+        runtime.print_stats();
+        println!("Execution took: {:?}", elapsed);
     }
 
     #[test]

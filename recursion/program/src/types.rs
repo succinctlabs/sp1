@@ -1,74 +1,32 @@
 use p3_air::BaseAir;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use sp1_core::air::PublicValuesDigest;
-use sp1_core::air::Word;
+use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
     air::MachineAir,
-    stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
+    stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
-
 use sp1_recursion_compiler::prelude::*;
 
+use crate::fri::types::TwoAdicPcsProofVariable;
+use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::fri::TwoAdicPcsProofVariable;
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L54
-#[allow(type_alias_bounds)]
-pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
-#[derive(Clone)]
-pub struct FriConfigVariable<C: Config> {
-    pub log_blowup: usize,
-    pub num_queries: usize,
-    pub proof_of_work_bits: usize,
-    pub generators: Array<C, Felt<C::F>>,
-    pub subgroups: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
-}
+pub type PublicValuesDigestVariable<C: Config> = Array<C, Felt<C::F>>;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(DslVariable, Clone)]
-pub struct FriProofVariable<C: Config> {
-    pub commit_phase_commits: Array<C, Commitment<C>>,
-    pub query_proofs: Array<C, FriQueryProofVariable<C>>,
-    pub final_poly: Ext<C::F, C::EF>,
-    pub pow_witness: Felt<C::F>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
-#[derive(DslVariable, Clone)]
-pub struct FriQueryProofVariable<C: Config> {
-    pub commit_phase_openings: Array<C, FriCommitPhaseProofStepVariable<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
-#[derive(DslVariable, Clone)]
-pub struct FriCommitPhaseProofStepVariable<C: Config> {
-    pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Array<C, Commitment<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
-#[derive(DslVariable, Clone)]
-pub struct FriChallenges<C: Config> {
-    pub query_indices: Array<C, Array<C, Var<C::N>>>,
-    pub betas: Array<C, Ext<C::F, C::EF>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/matrix/src/lib.rs#L38
-#[derive(DslVariable, Clone)]
-pub struct Dimensions<C: Config> {
-    pub height: Var<C::N>,
-}
-
 pub struct ShardProofVariable<C: Config> {
-    pub index: Usize<C::N>,
-    pub commitment: ShardCommitment<Commitment<C>>,
+    pub index: Var<C::N>,
+    pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
-    pub sorted_indices: Vec<Var<C::N>>,
+    pub public_values_digest: PublicValuesDigestVariable<C>,
+}
+
+#[derive(DslVariable, Clone)]
+pub struct ShardCommitmentVariable<C: Config> {
+    pub main_commit: DigestVariable<C>,
+    pub permutation_commit: DigestVariable<C>,
+    pub quotient_commit: DigestVariable<C>,
 }
 
 #[derive(DslVariable, Debug, Clone)]
@@ -83,11 +41,10 @@ pub struct ChipOpening<C: Config> {
     pub permutation: AirOpenedValues<Ext<C::F, C::EF>>,
     pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
     pub cumulative_sum: Ext<C::F, C::EF>,
-    pub log_degree: Usize<C::N>,
+    pub log_degree: Var<C::N>,
 }
 
 #[derive(DslVariable, Debug, Clone)]
-#[allow(clippy::type_complexity)]
 pub struct ChipOpenedValuesVariable<C: Config> {
     pub preprocessed: AirOpenedValuesVariable<C>,
     pub main: AirOpenedValuesVariable<C>,
@@ -170,7 +127,7 @@ impl<C: Config> ChipOpening<C> {
             permutation,
             quotient,
             cumulative_sum: opening.cumulative_sum,
-            log_degree: Usize::Var(opening.log_degree),
+            log_degree: opening.log_degree,
         }
     }
 }

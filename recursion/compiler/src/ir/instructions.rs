@@ -103,12 +103,21 @@ pub enum DslIR<C: Config> {
     HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
     Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    Poseidon2CompressBabyBear(
+        Array<C, Felt<C::F>>,
+        Array<C, Felt<C::F>>,
+        Array<C, Felt<C::F>>,
+    ),
     TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
     ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
     ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
     ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
     Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
 
+    HintLen(Var<C::N>),
+    HintVars(Array<C, Var<C::N>>),
+    HintFelts(Array<C, Felt<C::F>>),
+    HintExts(Array<C, Ext<C::F, C::EF>>),
     // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
 

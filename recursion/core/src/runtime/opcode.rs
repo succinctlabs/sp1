@@ -53,6 +53,9 @@ pub enum Opcode {
     Ext2Felt = 35,
 
     FRIFold = 36,
+    HintLen = 37,
+    Hint = 38,
+    Poseidon2Compress = 39,
 }
 
 impl Opcode {

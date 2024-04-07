@@ -1,28 +1,25 @@
-use crate::folder::RecursiveVerifierConstraintFolder;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::types::ChipOpenedValuesVariable;
-use crate::types::ChipOpening;
 use p3_air::Air;
 use p3_commit::LagrangeSelectors;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
-use sp1_core::air::PublicValuesDigest;
-use sp1_core::air::Word;
+use sp1_core::air::PV_DIGEST_NUM_WORDS;
+use sp1_core::air::WORD_SIZE;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Felt;
-
-use crate::commit::PolynomialSpaceVariable;
-
 use sp1_recursion_compiler::prelude::Config;
 use sp1_recursion_compiler::prelude::ExtConst;
 use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
 
+use crate::commit::PolynomialSpaceVariable;
+use crate::folder::RecursiveVerifierConstraintFolder;
+use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifier;
-
-// pub struct TwoAdicCose
+use crate::types::ChipOpenedValuesVariable;
+use crate::types::ChipOpening;
+use crate::types::PublicValuesDigestVariable;
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -33,7 +30,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
+        public_values_digest: PublicValuesDigestVariable<C>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[C::EF],
@@ -60,7 +57,13 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-        let public_values: Vec<Felt<C::F>> = public_values_digest.into();
+        let mut public_values: Vec<Felt<C::F>> = Vec::new();
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            for j in 0..WORD_SIZE {
+                let el = builder.get(&public_values_digest, i * WORD_SIZE + j);
+                public_values.push(el);
+            }
+        }
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -130,7 +133,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
+        public_values_digest: PublicValuesDigestVariable<C>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -164,7 +167,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::{PublicValuesDigest, Word},
+        air::{PublicValuesDigest, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -177,7 +180,7 @@ mod tests {
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
-    use sp1_recursion_compiler::{asm::VmBuilder, prelude::ExtConst};
+    use sp1_recursion_compiler::{asm::VmBuilder, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
 
@@ -324,10 +327,13 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values digest.
-            let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-                let word_val = proof.public_values_digest[i];
-                Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-            }));
+            let mut public_values_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+            for i in 0..PV_DIGEST_NUM_WORDS {
+                for j in 0..WORD_SIZE {
+                    let word_val: Felt<_> = builder.eval(proof.public_values_digest[i][j]);
+                    builder.set(&mut public_values_digest, i * WORD_SIZE + j, word_val);
+                }
+            }
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -359,7 +365,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &values,
-                    public_values_digest,
+                    public_values_digest.clone(),
                     &sels,
                     alpha,
                     permutation_challenges.as_slice(),
@@ -465,10 +471,13 @@ mod tests {
                     .collect::<Vec<_>>();
 
                 // Set up the public values digest.
-                let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-                    let word_val = proof.public_values_digest[i];
-                    Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-                }));
+                let mut public_values_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+                for i in 0..PV_DIGEST_NUM_WORDS {
+                    for j in 0..WORD_SIZE {
+                        let word_val: Felt<_> = builder.eval(proof.public_values_digest[i][j]);
+                        builder.set(&mut public_values_digest, i * WORD_SIZE + j, word_val);
+                    }
+                }
 
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
                     &mut builder,
