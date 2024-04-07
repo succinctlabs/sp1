@@ -52,9 +52,9 @@ pub enum Opcode {
     PrintE = 34,
     Ext2Felt = 35,
 
+    FRIFold = 36,
     HintLen = 37,
     Hint = 38,
-    FRIFold = 36,
 }
 
 impl Opcode {

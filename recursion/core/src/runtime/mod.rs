@@ -567,9 +567,9 @@ where
                     // Read the input values.
                     let mut ptr = input_ptr;
                     let z = self.memory[ptr].value.ext::<EF>();
-                    ptr += 4;
+                    ptr += 1;
                     let alpha = self.memory[ptr].value.ext::<EF>();
-                    ptr += 4;
+                    ptr += 1;
                     let x = self.memory[ptr].value[0];
                     ptr += 1;
                     let log_height = self.memory[ptr].value[0].as_canonical_u32() as usize;
@@ -583,23 +583,21 @@ where
                     let ro_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
 
                     // Get the opening values.
-                    let p_at_x = self.memory[mat_opening_ptr + m * EF::D].value.ext::<EF>();
-                    let p_at_z = self.memory[ps_at_z_ptr + m * EF::D].value.ext::<EF>();
+                    let p_at_x = self.memory[mat_opening_ptr + m].value.ext::<EF>();
+                    let p_at_z = self.memory[ps_at_z_ptr + m].value.ext::<EF>();
 
                     // Calculate the quotient and update the values
                     let quotient = (-p_at_z + p_at_x) / (-z + x);
 
                     // Modify the ro and alpha pow values.
-                    let alpha_pow_at_log_height = self.memory[alpha_pow_ptr + log_height * EF::D]
-                        .value
-                        .ext::<EF>();
-                    let ro_at_log_height =
-                        self.memory[ro_ptr + log_height * EF::D].value.ext::<EF>();
+                    let alpha_pow_at_log_height =
+                        self.memory[alpha_pow_ptr + log_height].value.ext::<EF>();
+                    let ro_at_log_height = self.memory[ro_ptr + log_height].value.ext::<EF>();
 
-                    self.memory[ro_ptr + log_height * EF::D].value = Block::from(
+                    self.memory[ro_ptr + log_height].value = Block::from(
                         (ro_at_log_height + alpha_pow_at_log_height * quotient).as_base_slice(),
                     );
-                    self.memory[alpha_pow_ptr + log_height * EF::D].value =
+                    self.memory[alpha_pow_ptr + log_height].value =
                         Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
 
                     (a, b, c) = (a_val, b_val, c_val);

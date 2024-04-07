@@ -849,7 +849,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::HintLen(dst) => Instruction::new(
                 Opcode::HintLen,
                 i32_f(dst),
-                f_u32(F::zero()),
+                i32_f_arr(dst),
                 f_u32(F::zero()),
                 F::zero(),
                 F::zero(),
