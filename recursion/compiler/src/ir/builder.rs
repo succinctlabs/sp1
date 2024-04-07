@@ -8,6 +8,7 @@ use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
+use p3_field::Field;
 use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, NUM_BITS, PERMUTATION_WIDTH};
 
 #[derive(Debug, Clone)]
@@ -370,6 +371,22 @@ impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
+    pub fn poseidon2_compress_x(
+        &mut self,
+        result: &mut Array<C, Felt<C::F>>,
+        left: &Array<C, Felt<C::F>>,
+        right: &Array<C, Felt<C::F>>,
+    ) {
+        self.operations.push(DslIR::Poseidon2CompressBabyBear(
+            result.clone(),
+            left.clone(),
+            right.clone(),
+        ));
+    }
+
+    /// Applies the Poseidon2 permutation to the given array.
+    ///
+    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
     pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
@@ -394,13 +411,8 @@ impl<C: Config> Builder<C> {
                 builder.poseidon2_permute_mut(&state);
             });
 
-        let mut result = self.dyn_array(DIGEST_SIZE);
-        for i in 0..DIGEST_SIZE {
-            let el = self.get(&state, i);
-            self.set(&mut result, i, el);
-        }
-
-        result
+        state.truncate(self, Usize::Const(DIGEST_SIZE));
+        state
     }
 
     /// Applies the Poseidon2 compression function to the given array.
@@ -902,6 +914,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
     pub fn for_each(self, mut f: impl FnMut(Var<C::N>, &mut Builder<C>)) {
         let step_size = C::N::from_canonical_usize(self.step_size);
+        println!("step_size = {}", step_size);
         let loop_variable: Var<C::N> = self.builder.uninit();
         let mut loop_body_builder = Builder::<C>::new(
             self.builder.var_count,

@@ -544,6 +544,17 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         unimplemented!();
                     }
                 }
+                DslIR::Poseidon2CompressBabyBear(result, left, right) => {
+                    match (result, left, right) {
+                        (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
+                            .push(AsmInstruction::Poseidon2Compress(
+                                result.fp(),
+                                left.fp(),
+                                right.fp(),
+                            )),
+                        _ => unimplemented!(),
+                    }
+                }
                 _ => unimplemented!(),
             }
         }

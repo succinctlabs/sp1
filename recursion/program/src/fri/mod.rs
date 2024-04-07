@@ -233,16 +233,16 @@ pub fn verify_batch<C: Config, const D: usize>(
     let current_height = builder.get(&dimensions, index).height;
 
     // Reduce all the tables that have the same height to a single root.
-    let root = reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+    let mut root = reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
 
     // For each sibling in the proof, reconstruct the root.
     let one: Var<_> = builder.eval(C::N::one());
+    let left: Array<C, Felt<C::F>> = builder.uninit();
+    let right: Array<C, Felt<C::F>> = builder.uninit();
     builder.range(0, proof.len()).for_each(|i, builder| {
         let sibling = builder.get(proof, i);
-
         let bit = builder.get(&index_bits, i);
-        let left: Array<C, Felt<C::F>> = builder.uninit();
-        let right: Array<C, Felt<C::F>> = builder.uninit();
+
         builder.if_eq(bit, C::N::one()).then_or_else(
             |builder| {
                 builder.assign(left.clone(), sibling.clone());
@@ -254,17 +254,19 @@ pub fn verify_batch<C: Config, const D: usize>(
             },
         );
 
-        let new_root = builder.poseidon2_compress(&left, &right);
-        builder.assign(root.clone(), new_root);
+        builder.poseidon2_compress_x(&mut root, &left, &right);
         builder.assign(current_height, current_height * (C::N::two().inverse()));
 
-        let next_height = builder.get(&dimensions, index).height;
         builder.if_ne(index, dimensions.len()).then(|builder| {
+            let next_height = builder.get(&dimensions, index).height;
             builder.if_eq(next_height, current_height).then(|builder| {
                 let next_height_openings_digest =
                     reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
-                let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
-                builder.assign(root.clone(), new_root);
+                builder.poseidon2_compress_x(
+                    &mut root.clone(),
+                    &root.clone(),
+                    &next_height_openings_digest,
+                );
             });
         })
     });

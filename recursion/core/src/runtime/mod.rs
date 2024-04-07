@@ -520,6 +520,45 @@ where
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::Poseidon2Compress => {
+                    self.nb_poseidons += 1;
+
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+
+                    // Get the dst array ptr.
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    // Get the src array ptr.
+                    let left = b_val[0].as_canonical_u32() as usize;
+                    let right = c_val[0].as_canonical_u32() as usize;
+
+                    let left_array: [_; PERMUTATION_WIDTH / 2] = self.memory
+                        [left..left + PERMUTATION_WIDTH / 2]
+                        .iter()
+                        .map(|entry| entry.value[0])
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    let right_array: [_; PERMUTATION_WIDTH / 2] = self.memory
+                        [right..right + PERMUTATION_WIDTH / 2]
+                        .iter()
+                        .map(|entry| entry.value[0])
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    let array: [_; PERMUTATION_WIDTH] =
+                        [left_array, right_array].concat().try_into().unwrap();
+
+                    // Perform the permutation.
+                    let result = self.perm.as_ref().unwrap().permute(array);
+
+                    // Write the value back to the array at ptr.
+                    // TODO: fix the timestamp as part of integrating the precompile if needed.
+                    for (i, value) in result.iter().enumerate() {
+                        self.memory[dst + i].value[0] = *value;
+                    }
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::HintBits => {
                     self.nb_bit_decompositions += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);

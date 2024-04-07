@@ -103,6 +103,11 @@ pub enum DslIR<C: Config> {
     HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
     Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    Poseidon2CompressBabyBear(
+        Array<C, Felt<C::F>>,
+        Array<C, Felt<C::F>>,
+        Array<C, Felt<C::F>>,
+    ),
     TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
     ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
     ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
