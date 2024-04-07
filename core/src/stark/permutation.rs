@@ -477,9 +477,25 @@ pub fn eval_permutation_constraints_batch<F, AB>(
     let alphas = generate_interaction_rlc_elements(sends, receives, alpha);
     let betas = beta.powers();
 
-    // let lhs: AB::ExprEF = phi_next.into() - phi_local.into();
-    // let mut rhs = AB::ExprEF::zero();
+    let lhs: AB::ExprEF = phi_next.into() - phi_local.into();
+    let mut rhs = AB::ExprEF::zero();
     // let mut phi_0 = AB::ExprEF::zero();
+
+    // Ensure that each batch sum m_i/f_i is computed correctly.
+    let interaction_chunks = &sends
+        .iter()
+        .map(|int| (int, true))
+        .chain(receives.iter().map(|int| (int, false)))
+        .chunks(batch_size);
+    for (entry, chunk) in perm_local.iter().zip(interaction_chunks) {
+        // Assert that the i-eth entry is equal to the sum_i m_i/f_i by constraints:
+        // entry * \prod_i f_i = \sum_i m_i * \prod_{j!=i} f_j.
+        let mut numerator_local = AB::ExprEF::zero();
+        let mut denominator_local = AB::ExprEF::one();
+        let mut numerator_next = AB::ExprEF::zero();
+        let mut denominator_next = AB::ExprEF::one();
+        for (interaction, is_send) in chunk {}
+    }
 
     // let nb_sends = sends.len();
     // for (m, interaction) in sends.iter().chain(receives.iter()).enumerate() {
