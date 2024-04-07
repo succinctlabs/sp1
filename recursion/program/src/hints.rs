@@ -63,31 +63,45 @@ impl Hintable<C> for InnerChallenge {
     }
 }
 
-impl<T: Hintable<C>> Hintable<C> for Vec<T> {
-    type HintVariable = Array<C, T::HintVariable>;
+impl Hintable<C> for Vec<usize> {
+    type HintVariable = Array<C, Var<InnerVal>>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let len = builder.hint_var();
-        let mut arr = builder.dyn_array(len);
-        builder.range(0, len).for_each(|i, builder| {
-            let hint = T::read(builder);
-            builder.set(&mut arr, i, hint);
-        });
-        arr
+        builder.hint_vars()
+    }
+
+    fn write(&self) -> Vec<Vec<Block<InnerVal>>> {
+        vec![self
+            .iter()
+            .map(|x| Block::from(InnerVal::from_canonical_usize(*x)))
+            .collect()]
+    }
+}
+
+impl Hintable<C> for Vec<InnerVal> {
+    type HintVariable = Array<C, Felt<InnerVal>>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        builder.hint_felts()
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        let mut stream = Vec::new();
+        vec![self.iter().map(|x| Block::from(*x)).collect()]
+    }
+}
 
-        let len = InnerVal::from_canonical_usize(self.len());
-        stream.push(vec![len.into()]);
+impl Hintable<C> for Vec<InnerChallenge> {
+    type HintVariable = Array<C, Ext<InnerVal, InnerChallenge>>;
 
-        self.iter().for_each(|arr| {
-            let comm = T::write(arr);
-            stream.extend(comm);
-        });
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        builder.hint_exts()
+    }
 
-        stream
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        vec![self
+            .iter()
+            .map(|x| Block::from((*x).as_base_slice()))
+            .collect()]
     }
 }
 
@@ -104,6 +118,34 @@ impl Hintable<C> for AirOpenedValues<InnerChallenge> {
         let mut stream = Vec::new();
         stream.extend(self.local.write());
         stream.extend(self.next.write());
+        stream
+    }
+}
+
+impl Hintable<C> for Vec<Vec<InnerChallenge>> {
+    type HintVariable = Array<C, Array<C, Ext<InnerVal, InnerChallenge>>>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let len = builder.hint_var();
+        let mut arr = builder.dyn_array(len);
+        builder.range(0, len).for_each(|i, builder| {
+            let hint = Vec::<InnerChallenge>::read(builder);
+            builder.set(&mut arr, i, hint);
+        });
+        arr
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let len = InnerVal::from_canonical_usize(self.len());
+        stream.push(vec![len.into()]);
+
+        self.iter().for_each(|arr| {
+            let comm = Vec::<InnerChallenge>::write(arr);
+            stream.extend(comm);
+        });
+
         stream
     }
 }
@@ -136,6 +178,34 @@ impl Hintable<C> for ChipOpenedValues<InnerChallenge> {
         stream.extend(self.quotient.write());
         stream.extend(self.cumulative_sum.write());
         stream.extend(self.log_degree.write());
+        stream
+    }
+}
+
+impl Hintable<C> for Vec<ChipOpenedValues<InnerChallenge>> {
+    type HintVariable = Array<C, ChipOpenedValuesVariable<C>>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let len = builder.hint_var();
+        let mut arr = builder.dyn_array(len);
+        builder.range(0, len).for_each(|i, builder| {
+            let hint = ChipOpenedValues::<InnerChallenge>::read(builder);
+            builder.set(&mut arr, i, hint);
+        });
+        arr
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let len = InnerVal::from_canonical_usize(self.len());
+        stream.push(vec![len.into()]);
+
+        self.iter().for_each(|arr| {
+            let comm = ChipOpenedValues::<InnerChallenge>::write(arr);
+            stream.extend(comm);
+        });
+
         stream
     }
 }

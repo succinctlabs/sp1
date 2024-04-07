@@ -453,6 +453,8 @@ pub(crate) mod tests {
             .collect();
         challenger.observe_slice(&mut builder, &pv_digest_felt);
 
+        let code = builder.eval(InnerVal::two());
+        builder.print_v(code);
         for (proof, sorted_indices) in shard_proofs.iter().zip(sorted_indices) {
             StarkVerifier::<C, SC>::verify_shard(
                 &mut builder,
