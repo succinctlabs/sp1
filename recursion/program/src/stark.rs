@@ -238,7 +238,7 @@ where
                         builder,
                         chip,
                         &values,
-                        proof.public_values_digest.clone(),
+                        proof.public_values.clone(),
                         trace_domain,
                         qc_domains,
                         zeta,
@@ -263,7 +263,7 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::PublicValuesDigest;
+    use sp1_core::air::PublicValues;
     use sp1_core::runtime::Program;
     use sp1_core::{
         stark::{RiscvAir, ShardProof, StarkGenericConfig},
@@ -320,6 +320,8 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger_val.observe_slice(&public_values_field.to_vec());
         });
 
         let permutation_challenges = (0..2)
@@ -341,6 +343,9 @@ pub(crate) mod tests {
             let proof = ShardProof::<_>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
+
+            let public_values_elements = proof.public_values.to_vec(&mut builder);
+            challenger.observe_slice(&mut builder, &public_values_elements);
         }
 
         // Sample the permutation challenges.
@@ -388,12 +393,9 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger_val.observe_slice(&public_values_field.to_vec());
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger_val.observe_slice(&pv_digest_field_elms);
 
         let time = Instant::now();
         let mut builder = Builder::<InnerConfig>::default();
@@ -430,15 +432,16 @@ pub(crate) mod tests {
                 });
             let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof_val.public_values);
+            let public_values_felt: Vec<Felt<F>> = public_values_field
+                .to_vec()
+                .iter()
+                .map(|x| builder.eval(*x))
+                .collect();
+            challenger.observe_slice(&mut builder, &public_values_felt);
             shard_proofs.push(proof);
             sorted_indices.push(sorted_indices_arr);
         }
-        // Observe the public input digest
-        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect();
-        challenger.observe_slice(&mut builder, &pv_digest_felt);
 
         let code = builder.eval(InnerVal::two());
         builder.print_v(code);

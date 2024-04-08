@@ -1,5 +1,5 @@
 use super::Domain;
-use crate::air::{MachineAir, PublicValuesDigest, Word};
+use crate::air::{MachineAir, PublicValues, Word};
 use crate::stark::MachineChip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -185,7 +185,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
-                proof.public_values_digest,
+                PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values),
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -201,7 +201,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+        public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -215,7 +215,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             &sels,
             alpha,
             permutation_challenges,
-            public_values_digest,
+            public_values,
         );
 
         // Check that the constraints match the quotient, i.e.
@@ -232,7 +232,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+        public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -255,7 +255,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let public_values: Vec<Val<SC>> = public_values_digest.into();
+        let public_values = public_values.to_vec();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),

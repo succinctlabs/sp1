@@ -212,7 +212,7 @@ where
                         builder,
                         chip,
                         values,
-                        proof.public_values_digest,
+                        proof.public_values.clone(),
                         trace_domain.clone(),
                         qc_domains,
                         zeta,
@@ -238,12 +238,12 @@ pub(crate) mod tests {
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::{
-        air::{MachineAir, PublicValuesDigest, Word},
+        air::{MachineAir, PublicValues, Word},
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, Config, Felt},
+        ir::{Builder, Config},
         OuterConfig,
     };
     use sp1_recursion_core::{
@@ -251,6 +251,7 @@ pub(crate) mod tests {
         runtime::{Opcode, Program, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+    use sp1_recursion_program::types::PublicValuesVariable;
 
     use crate::types::{
         ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
@@ -271,11 +272,9 @@ pub(crate) mod tests {
     where
         C: Config<F = F, EF = EF>,
     {
-        // Set up the public values digest.
-        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-            let word_val = proof.public_values_digest[i];
-            Word::<Felt<_>>(core::array::from_fn(|j| builder.eval(word_val[j])))
-        }));
+        // Set up the public values.
+        let public_values: PublicValuesVariable<OuterConfig> =
+            builder.eval_const(proof.public_values);
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
@@ -326,7 +325,7 @@ pub(crate) mod tests {
             opened_values,
             opening_proof,
             sorted_chips: chips,
-            public_values_digest,
+            public_values,
             sorted_indices,
         }
     }
@@ -380,12 +379,9 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger_val.observe_slice(&public_values_field.to_vec());
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger_val.observe_slice(&pv_digest_field_elms);
 
         let mut builder = Builder::<OuterConfig>::default();
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
@@ -399,17 +395,10 @@ pub(crate) mod tests {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe_commitment(&mut builder, *main_commit);
+            let public_values_elms = proof.public_values.to_vec(&mut builder);
+            challenger.observe_slice(&mut builder, &public_values_elms);
             shard_proofs.push(proof);
         }
-
-        // Observe the public input digest
-        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect();
-        pv_digest_felt
-            .iter()
-            .for_each(|x| challenger.observe(&mut builder, *x));
 
         #[allow(clippy::never_loop)]
         for proof in shard_proofs {

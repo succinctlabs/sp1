@@ -9,10 +9,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::air::{
-    EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PublicValuesBuilder, PublicValuesDigest,
-    Word,
-};
+use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PublicValues, Word};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 
@@ -25,7 +22,7 @@ pub fn debug_constraints<SC, A>(
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
-    public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+    public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
 ) where
     SC: StarkGenericConfig,
     Val<SC>: PrimeField32,
@@ -58,7 +55,7 @@ pub fn debug_constraints<SC, A>(
         let perm_local = perm.row_slice(i);
         let perm_next = perm.row_slice(i_next);
 
-        let public_values: Vec<Val<SC>> = public_values_digest.into();
+        let public_values = public_values.to_vec();
         let mut builder = DebugConstraintBuilder {
             preprocessed: TwoRowMatrixView {
                 local: preprocessed_local,
@@ -256,11 +253,6 @@ where
 }
 
 impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
-    for DebugConstraintBuilder<'a, F, EF>
-{
-}
-
-impl<'a, F: Field, EF: ExtensionField<F>> PublicValuesBuilder
     for DebugConstraintBuilder<'a, F, EF>
 {
 }

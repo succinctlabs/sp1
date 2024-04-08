@@ -1,96 +1,85 @@
 use core::fmt::Debug;
-
-use std::{
-    array::IntoIter,
-    ops::{Index, IndexMut},
-};
-
-use p3_field::Field;
+use itertools::Itertools;
+use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
-
-use crate::air::WORD_SIZE;
+use std::iter::once;
 
 use super::Word;
 
-// TODO:  Create a config struct that will store the num_words setting and the hash function
-//        and initial entropy used.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
-/// The PublicValuesDigest struct is used to represent the public values digest.  This is the hash of all the
-/// bytes that the guest program has written to public values.
+/// The PublicValues struct is used to store all of a shard proof's public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
-pub struct PublicValuesDigest<T>(pub [T; PV_DIGEST_NUM_WORDS]);
+pub struct PublicValues<W, T> {
+    /// The hash of all the bytes that the guest program has written to public values.
+    pub committed_value_digest: [W; PV_DIGEST_NUM_WORDS],
 
-/// Conversion from a byte array into a PublicValuesDigest<u32>.
-impl From<&[u8]> for PublicValuesDigest<u32> {
-    fn from(bytes: &[u8]) -> Self {
-        assert!(bytes.len() == PV_DIGEST_NUM_WORDS * WORD_SIZE);
+    /// The shard number.
+    pub shard: T,
 
-        let mut words = [0u32; PV_DIGEST_NUM_WORDS];
-        for i in 0..PV_DIGEST_NUM_WORDS {
-            words[i] = u32::from_le_bytes(
-                bytes[i * WORD_SIZE..(i + 1) * WORD_SIZE]
-                    .try_into()
-                    .unwrap(),
-            );
+    /// The shard's start program counter.
+    pub start_pc: T,
+
+    /// The expected start program counter for the next shard.
+    pub next_pc: T,
+
+    /// The exit code of the program.  Only valid if halt has been executed.
+    pub exit_code: T,
+}
+
+impl<F: AbstractField> PublicValues<Word<F>, F> {
+    pub fn new(other: PublicValues<u32, u32>) -> Self {
+        let PublicValues {
+            committed_value_digest,
+            shard,
+            start_pc: first_row_pc,
+            next_pc: last_row_next_pc,
+            exit_code,
+        } = other;
+        Self {
+            committed_value_digest: committed_value_digest.map(Word::from),
+            shard: F::from_canonical_u32(shard),
+            start_pc: F::from_canonical_u32(first_row_pc),
+            next_pc: F::from_canonical_u32(last_row_next_pc),
+            exit_code: F::from_canonical_u32(exit_code),
         }
-        Self(words)
     }
 }
 
-/// Create a PublicValuesDigest with u32 words to one with Word<T> words.
-impl<T: Field> PublicValuesDigest<Word<T>> {
-    pub fn new(orig: PublicValuesDigest<u32>) -> Self {
-        PublicValuesDigest(orig.0.map(|x| x.into()))
-    }
-}
-
-/// Implement the Index trait for PublicValuesDigest to index specific words.
-impl<T> Index<usize> for PublicValuesDigest<T> {
-    type Output = T;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-/// Implement the IntoIterator trait for PublicValuesDigest to iterate over the words.
-impl<T> IntoIterator for PublicValuesDigest<T> {
-    type Item = T;
-    type IntoIter = IntoIter<T, PV_DIGEST_NUM_WORDS>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.into_iter()
-    }
-}
-
-/// Conversion into a byte vec.
-impl From<PublicValuesDigest<u32>> for Vec<u8> {
-    fn from(val: PublicValuesDigest<u32>) -> Self {
-        val.0
+impl<T: Clone + Debug> PublicValues<Word<T>, T> {
+    pub fn to_vec(&self) -> Vec<T> {
+        self.committed_value_digest
             .iter()
-            .flat_map(|word| word.to_le_bytes().to_vec())
-            .collect::<Vec<u8>>()
+            .flat_map(|w| w.clone().into_iter())
+            .chain(once(self.shard.clone()))
+            .chain(once(self.start_pc.clone()))
+            .chain(once(self.next_pc.clone()))
+            .chain(once(self.exit_code.clone()))
+            .collect_vec()
     }
-}
 
-/// Conversion into a field vec.
-impl<T: Debug + Copy> From<PublicValuesDigest<Word<T>>> for Vec<T> {
-    fn from(val: PublicValuesDigest<Word<T>>) -> Self {
-        val.0.iter().flat_map(|word| word.0).collect::<Vec<T>>()
-    }
-}
+    pub fn from_vec(data: Vec<T>) -> Self {
+        let mut iter = data.iter().cloned();
 
-impl<T> From<[T; PV_DIGEST_NUM_WORDS]> for PublicValuesDigest<T> {
-    fn from(words: [T; PV_DIGEST_NUM_WORDS]) -> Self {
-        PublicValuesDigest(words)
-    }
-}
+        let mut committed_value_digest = Vec::new();
+        for _ in 0..PV_DIGEST_NUM_WORDS {
+            committed_value_digest.push(Word::from_iter(&mut iter));
+        }
 
-/// Implement the IndexMut trait for PublicValuesDigest to index specific words.
-impl<T> IndexMut<usize> for PublicValuesDigest<T> {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
+        // Collecting the remaining items into a tuple.
+        if let [shard, first_row_pc, last_row_next_pc, exit_code] =
+            iter.collect::<Vec<_>>().as_slice()
+        {
+            Self {
+                committed_value_digest: committed_value_digest.try_into().unwrap(),
+                shard: shard.to_owned(),
+                start_pc: first_row_pc.to_owned(),
+                next_pc: last_row_next_pc.to_owned(),
+                exit_code: exit_code.to_owned(),
+            }
+        } else {
+            panic!("Invalid number of items in the serialized vector.");
+        }
     }
 }
 

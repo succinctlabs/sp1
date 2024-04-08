@@ -1,6 +1,7 @@
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
+use sp1_core::{
+    air::{PublicValues, Word},
+    stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
 };
 use sp1_recursion_compiler::{
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
@@ -13,8 +14,8 @@ use sp1_recursion_core::{
 use sp1_sdk::utils::BabyBearPoseidon2;
 
 use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
-    ShardOpenedValuesVariable, ShardProofVariable,
+    AirOpenedValuesVariable, ChipOpenedValuesVariable, PublicValuesVariable,
+    ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable,
 };
 
 pub trait Hintable<C: Config> {
@@ -251,6 +252,43 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     }
 }
 
+impl Hintable<C> for PublicValues<u32, u32> {
+    type HintVariable = PublicValuesVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let committed_values_digest = Vec::<InnerVal>::read(builder);
+        let shard = builder.hint_felt();
+        let start_pc = builder.hint_felt();
+        let next_pc = builder.hint_felt();
+        let exit_code = builder.hint_felt();
+        PublicValuesVariable {
+            committed_values_digest,
+            shard,
+            start_pc,
+            next_pc,
+            exit_code,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        type F = <C as Config>::F;
+
+        let mut stream = Vec::new();
+        stream.extend(
+            self.committed_value_digest
+                .into_iter()
+                .flat_map(|x| Word::from(x).0)
+                .collect::<Vec<F>>()
+                .write(),
+        );
+        stream.extend(F::from_canonical_u32(self.shard).write());
+        stream.extend(F::from_canonical_u32(self.start_pc).write());
+        stream.extend(F::from_canonical_u32(self.next_pc).write());
+        stream.extend(F::from_canonical_u32(self.exit_code).write());
+        stream
+    }
+}
+
 impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
     type HintVariable = ShardProofVariable<C>;
 
@@ -259,13 +297,13 @@ impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
         let commitment = ShardCommitment::read(builder);
         let opened_values = ShardOpenedValues::read(builder);
         let opening_proof = InnerPcsProof::read(builder);
-        let public_values_digest = Vec::<InnerVal>::read(builder);
+        let public_values = PublicValues::read(builder);
         ShardProofVariable {
             index,
             commitment,
             opened_values,
             opening_proof,
-            public_values_digest,
+            public_values,
         }
     }
 
@@ -275,14 +313,8 @@ impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
         stream.extend(self.commitment.write());
         stream.extend(self.opened_values.write());
         stream.extend(self.opening_proof.write());
-        stream.extend(
-            self.public_values_digest
-                .0
-                .into_iter()
-                .flat_map(|x| x.0)
-                .collect::<Vec<_>>()
-                .write(),
-        );
+        stream.extend(self.public_values.write());
+
         stream
     }
 }

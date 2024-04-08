@@ -4,11 +4,8 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
-use sp1_core::air::PV_DIGEST_NUM_WORDS;
-use sp1_core::air::WORD_SIZE;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
-use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::prelude::Config;
 use sp1_recursion_compiler::prelude::ExtConst;
 use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
@@ -19,7 +16,7 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifier;
 use crate::types::ChipOpenedValuesVariable;
 use crate::types::ChipOpening;
-use crate::types::PublicValuesDigestVariable;
+use crate::types::PublicValuesVariable;
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -30,7 +27,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values_digest: PublicValuesDigestVariable<C>,
+        public_values: PublicValuesVariable<C>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
@@ -57,13 +54,7 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-        let mut public_values: Vec<Felt<C::F>> = Vec::new();
-        for i in 0..PV_DIGEST_NUM_WORDS {
-            for j in 0..WORD_SIZE {
-                let el = builder.get(&public_values_digest, i * WORD_SIZE + j);
-                public_values.push(el);
-            }
-        }
+        let public_values_felt = public_values.to_vec(builder);
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -71,7 +62,7 @@ where
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
             cumulative_sum: opening.cumulative_sum,
-            public_values: &public_values,
+            public_values: &public_values_felt,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
@@ -133,7 +124,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values_digest: PublicValuesDigestVariable<C>,
+        public_values: PublicValuesVariable<C>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -149,7 +140,7 @@ where
             builder,
             chip,
             &opening,
-            public_values_digest,
+            public_values,
             &sels,
             alpha,
             permutation_challenges,
@@ -167,7 +158,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::{PublicValuesDigest, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+        air::{PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -179,7 +170,7 @@ mod tests {
     use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::PrimeField32;
+    use p3_field::{AbstractField, PrimeField32};
     use sp1_recursion_compiler::{asm::VmBuilder, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
@@ -188,7 +179,7 @@ mod tests {
         commit::PolynomialSpaceVariable,
         fri::TwoAdicMultiplicativeCosetVariable,
         stark::StarkVerifier,
-        types::{ChipOpenedValuesVariable, ChipOpening},
+        types::{ChipOpenedValuesVariable, ChipOpening, PublicValuesVariable},
     };
 
     #[allow(clippy::type_complexity)]
@@ -306,12 +297,9 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger.observe_slice(&public_values_field.to_vec());
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
 
         // Run the verify inside the DSL and compare it to the calculated value.
         let mut builder = VmBuilder::<F, EF>::default();
@@ -326,14 +314,26 @@ mod tests {
                 zeta_val,
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
-            // Set up the public values digest.
-            let mut public_values_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+            // Set up the public values.
+            let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
+            let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+            let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+            let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
+            let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
             for i in 0..PV_DIGEST_NUM_WORDS {
+                let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
                 for j in 0..WORD_SIZE {
-                    let word_val: Felt<_> = builder.eval(proof.public_values_digest[i][j]);
-                    builder.set(&mut public_values_digest, i * WORD_SIZE + j, word_val);
+                    let word_val: Felt<_> = builder.eval(word_val[j]);
+                    builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
                 }
             }
+            let public_values = PublicValuesVariable {
+                committed_values_digest: pv_committed_value_digest,
+                shard: pv_shard,
+                start_pc: pv_start_pc,
+                next_pc: pv_next_pc,
+                exit_code: pv_exit_code,
+            };
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -349,7 +349,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
-                    proof.public_values_digest,
+                    PublicValues::<Word<F>, F>::new(proof.public_values),
                 );
 
                 // Compute the folded constraints value in the DSL.
@@ -358,6 +358,7 @@ mod tests {
                 let values = ChipOpening::from_variable(&mut builder, chip, &values_var);
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
+
                 let trace_domain: TwoAdicMultiplicativeCosetVariable<_> =
                     builder.eval_const(trace_domain_val);
                 let sels = trace_domain.selectors_at_point(&mut builder, zeta);
@@ -370,7 +371,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &values,
-                    public_values_digest.clone(),
+                    public_values.clone(),
                     &sels,
                     alpha,
                     permutation_challenges.as_slice(),
@@ -440,12 +441,9 @@ mod tests {
 
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger.observe_slice(&public_values_field.to_vec());
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
 
         // Run the verify inside the DSL and compare it to the calculated value.
         let mut builder = VmBuilder::<F, EF>::default();
@@ -470,19 +468,12 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
+                let public_values = builder.eval_const(proof.public_values);
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))
                     .collect::<Vec<_>>();
 
-                // Set up the public values digest.
-                let mut public_values_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
-                for i in 0..PV_DIGEST_NUM_WORDS {
-                    for j in 0..WORD_SIZE {
-                        let word_val: Felt<_> = builder.eval(proof.public_values_digest[i][j]);
-                        builder.set(&mut public_values_digest, i * WORD_SIZE + j, word_val);
-                    }
-                }
                 let permutation_challenges = permutation_challenges
                     .iter()
                     .map(|c| builder.eval(c.cons()))
@@ -492,7 +483,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &opening,
-                    public_values_digest,
+                    public_values,
                     trace_domain,
                     qc_domains,
                     zeta,

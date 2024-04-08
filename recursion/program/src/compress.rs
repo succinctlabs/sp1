@@ -24,14 +24,12 @@ use p3_poseidon2::Poseidon2;
 use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
+use sp1_core::air::PublicValues;
 use sp1_core::air::Word;
 use sp1_core::stark::Proof;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
-use sp1_core::{
-    air::PublicValuesDigest,
-    stark::{RiscvAir, StarkGenericConfig},
-};
+use sp1_core::stark::{RiscvAir, StarkGenericConfig};
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
@@ -98,12 +96,9 @@ pub fn build_compress(
     challenger_val.observe(vk.commit);
     proof.shard_proofs.iter().for_each(|proof| {
         challenger_val.observe(proof.commitment.main_commit);
+        let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+        challenger_val.observe_slice(&public_values_field.to_vec());
     });
-
-    // Observe the public input digest
-    let pv_digest_field_elms: Vec<F> =
-        PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-    challenger_val.observe_slice(&pv_digest_field_elms);
 
     let time = Instant::now();
     let mut builder = VmBuilder::<F, EF>::default();
@@ -140,15 +135,16 @@ pub fn build_compress(
             });
         let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
         challenger.observe(&mut builder, main_commit.clone());
+        let public_values_field = PublicValues::<Word<F>, F>::new(proof_val.public_values);
+        let public_values_felt: Vec<Felt<F>> = public_values_field
+            .to_vec()
+            .iter()
+            .map(|x| builder.eval(*x))
+            .collect();
+        challenger.observe_slice(&mut builder, &public_values_felt);
         shard_proofs.push(proof);
         sorted_indices.push(sorted_indices_arr);
     }
-    // Observe the public input digest
-    let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-        .iter()
-        .map(|x| builder.eval(*x))
-        .collect();
-    challenger.observe_slice(&mut builder, &pv_digest_felt);
 
     for (proof, sorted_indices) in shard_proofs.iter().zip(sorted_indices) {
         StarkVerifier::<C, SC>::verify_shard(
