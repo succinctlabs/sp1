@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use std::{path::PathBuf, process::Command};
 
@@ -71,7 +71,9 @@ impl BuildToolchainCmd {
         } else {
             include_str!("config.toml")
         };
-        std::fs::write(rust_dir.join("config.toml"), config_toml)?;
+        let config_file = rust_dir.join("config.toml");
+        std::fs::write(&config_file, config_toml)
+            .with_context(|| format!("while writing configuration to {:?}", config_file))?;
 
         // Build the toolchain (stage 1).
         Command::new("python3")
