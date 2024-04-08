@@ -324,16 +324,17 @@ mod tests {
             let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
             let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
             let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-            let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+            let mut pv_committed_value_digest = Vec::new();
             for i in 0..PV_DIGEST_NUM_WORDS {
                 let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
                 for j in 0..WORD_SIZE {
                     let word_val: Felt<_> = builder.eval(word_val[j]);
-                    builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
+                    pv_committed_value_digest.push(word_val);
                 }
             }
+
             let public_values = PublicValuesVariable {
-                committed_values_digest: pv_committed_value_digest,
+                committed_values_digest: builder.vec(pv_committed_value_digest),
                 shard: pv_shard,
                 start_pc: pv_start_pc,
                 next_pc: pv_next_pc,

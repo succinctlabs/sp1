@@ -51,7 +51,7 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
 
-            // When the last row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
+            // When the current row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
             builder
                 .when(local.is_real)
                 .when(local.branching)
