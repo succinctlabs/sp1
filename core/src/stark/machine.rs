@@ -282,6 +282,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             );
         }
 
+        // Verify the public values of the last shard.
+        let last = &proof.shard_proofs[proof.shard_proofs.len() - 1];
+        assert_eq!(last.public_values.exit_code, 0);
+
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         for proof in proof.shard_proofs.iter() {
