@@ -33,7 +33,7 @@ where
         public_values_digest: PublicValuesDigestVariable<C>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
-        permutation_challenges: &[C::EF],
+        permutation_challenges: &[Ext<C::F, C::EF>],
     ) -> Ext<C::F, C::EF>
     where
         A: for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
@@ -138,7 +138,7 @@ where
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
         alpha: Ext<C::F, C::EF>,
-        permutation_challenges: &[C::EF],
+        permutation_challenges: &[Ext<C::F, C::EF>],
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
@@ -361,6 +361,11 @@ mod tests {
                 let trace_domain: TwoAdicMultiplicativeCosetVariable<_> =
                     builder.eval_const(trace_domain_val);
                 let sels = trace_domain.selectors_at_point(&mut builder, zeta);
+
+                let permutation_challenges = permutation_challenges
+                    .iter()
+                    .map(|c| builder.eval(c.cons()))
+                    .collect::<Vec<_>>();
                 let folded_constraints = StarkVerifier::<_, SC>::eval_constrains(
                     &mut builder,
                     chip,
@@ -478,6 +483,10 @@ mod tests {
                         builder.set(&mut public_values_digest, i * WORD_SIZE + j, word_val);
                     }
                 }
+                let permutation_challenges = permutation_challenges
+                    .iter()
+                    .map(|c| builder.eval(c.cons()))
+                    .collect::<Vec<_>>();
 
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
                     &mut builder,

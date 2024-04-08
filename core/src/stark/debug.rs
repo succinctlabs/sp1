@@ -154,6 +154,8 @@ where
 {
     type MP = TwoRowMatrixView<'a, EF>;
 
+    type RandomVar = EF;
+
     fn permutation(&self) -> Self::MP {
         self.perm
     }
