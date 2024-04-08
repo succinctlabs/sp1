@@ -11,7 +11,7 @@ use crate::stark::EMPTY;
 use crate::types::ShardCommitmentVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
-use p3_challenger::{CanObserve, FieldChallenger};
+use p3_challenger::CanObserve;
 use p3_commit::ExtensionMmcs;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::extension::BinomialExtensionField;
@@ -21,6 +21,7 @@ use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
+use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
 use sp1_core::air::Word;
@@ -49,7 +50,7 @@ type C = AsmConfig<F, EF>;
 
 type Val = BabyBear;
 type Challenge = BinomialExtensionField<Val, 4>;
-type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
 type Hash = PaddingFreeSponge<Perm, 16, 8, 8>;
 type Compress = TruncatedPermutation<Perm, 2, 8, 16>;
 type ValMmcs =
@@ -104,10 +105,6 @@ pub fn build_compress(
         PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
     challenger_val.observe_slice(&pv_digest_field_elms);
 
-    let permutation_challenges = (0..2)
-        .map(|_| challenger_val.sample_ext_element::<EF>())
-        .collect::<Vec<_>>();
-
     let time = Instant::now();
     let mut builder = VmBuilder::<F, EF>::default();
     let config = const_fri_config(&mut builder, inner_fri_config());
@@ -161,7 +158,6 @@ pub fn build_compress(
             &machine,
             &mut challenger.clone(),
             proof,
-            &permutation_challenges,
             sorted_indices,
         );
     }
