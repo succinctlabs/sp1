@@ -9,7 +9,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
 use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
 
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PublicValues, Word};
+use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder, PublicValues};
 
 use super::{MachineChip, StarkGenericConfig, Val};
 
@@ -22,7 +22,7 @@ pub fn debug_constraints<SC, A>(
     main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
-    public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
+    public_values: PublicValues<Val<SC>>,
 ) where
     SC: StarkGenericConfig,
     Val<SC>: PrimeField32,

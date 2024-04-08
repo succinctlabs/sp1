@@ -33,7 +33,7 @@ where
         let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
         let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
 
-        let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::from_vec(
+        let public_values = PublicValues::<AB::Expr>::from_vec(
             builder
                 .public_values()
                 .iter()
@@ -547,7 +547,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
+        public_values: &PublicValues<AB::Expr>,
     ) {
         // Verify the public value's shard.
         builder

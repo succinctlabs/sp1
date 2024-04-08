@@ -46,7 +46,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         vec![self]
     }
 
-    fn public_values(&self) -> PublicValues<u32, u32> {
+    fn public_values(&self) -> PublicValues<u32> {
         PublicValues::default()
     }
 }

@@ -164,12 +164,9 @@ mod tests {
     use p3_commit::{Pcs, PolynomialSpace};
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
-    use sp1_core::{
-        air::{PublicValues, Word},
-        stark::{
-            Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
-            ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
-        },
+    use sp1_core::stark::{
+        Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, ShardCommitment,
+        ShardMainData, ShardProof, StarkGenericConfig,
     };
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
@@ -300,7 +297,7 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            let public_value_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            let public_value_field = proof.public_values;
             challenger.observe_slice(&public_value_field.to_vec());
         });
 

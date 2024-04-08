@@ -10,9 +10,9 @@ pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The PublicValues struct is used to store all of a shard proof's public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
-pub struct PublicValues<W, T> {
+pub struct PublicValues<T> {
     /// The hash of all the bytes that the guest program has written to public values.
-    pub committed_value_digest: [W; PV_DIGEST_NUM_WORDS],
+    pub committed_value_digest: [Word<T>; PV_DIGEST_NUM_WORDS],
 
     /// The shard number.
     pub shard: T,
@@ -27,8 +27,8 @@ pub struct PublicValues<W, T> {
     pub exit_code: T,
 }
 
-impl<F: AbstractField> PublicValues<Word<F>, F> {
-    pub fn new(other: PublicValues<u32, u32>) -> Self {
+impl<F: AbstractField> PublicValues<F> {
+    pub fn from_u32(other: PublicValues<u32>) -> Self {
         let PublicValues {
             committed_value_digest,
             shard,
@@ -37,7 +37,14 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             exit_code,
         } = other;
         Self {
-            committed_value_digest: committed_value_digest.map(Word::from),
+            committed_value_digest: committed_value_digest.map(|w| {
+                Word([
+                    F::from_canonical_u32(w.0[0]),
+                    F::from_canonical_u32(w.0[1]),
+                    F::from_canonical_u32(w.0[2]),
+                    F::from_canonical_u32(w.0[3]),
+                ])
+            }),
             shard: F::from_canonical_u32(shard),
             start_pc: F::from_canonical_u32(first_row_pc),
             next_pc: F::from_canonical_u32(last_row_next_pc),
@@ -46,7 +53,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
     }
 }
 
-impl<T: Clone + Debug> PublicValues<Word<T>, T> {
+impl<T: Clone + Debug> PublicValues<T> {
     pub fn to_vec(&self) -> Vec<T> {
         self.committed_value_digest
             .iter()

@@ -92,7 +92,7 @@ pub struct ExecutionRecord {
     pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 
     /// The public values.
-    pub public_values: PublicValues<u32, u32>,
+    pub public_values: PublicValues<u32>,
 }
 
 pub struct ShardingConfig {
@@ -473,7 +473,7 @@ impl MachineRecord for ExecutionRecord {
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
     /// the public values digest is used by the prover.
-    fn public_values(&self) -> PublicValues<u32, u32> {
+    fn public_values(&self) -> PublicValues<u32> {
         self.public_values
     }
 }

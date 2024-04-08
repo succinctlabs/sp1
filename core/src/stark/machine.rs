@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::{MachineAir, PublicValues, Word};
+use crate::air::{MachineAir, PublicValues};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -246,8 +246,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         // Observe the challenges.
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit.clone());
-            let public_values = PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values);
-            challenger.observe_slice(&public_values.to_vec());
+            challenger.observe_slice(&proof.public_values.to_vec());
         });
 
         // Verify the shards.
@@ -264,7 +263,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             let curr = &proof.shard_proofs[i];
 
             // Assert that the shard number is correct.
-            assert_eq!(curr.public_values.shard, (i + 1) as u32);
+            assert_eq!(
+                curr.public_values.shard,
+                Val::<SC>::from_canonical_usize(i + 1)
+            );
         }
 
         // Verify the public values between shards.
@@ -284,7 +286,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         // Verify the public values of the last shard.
         let last = &proof.shard_proofs[proof.shard_proofs.len() - 1];
-        assert_eq!(last.public_values.exit_code, 0);
+        assert_eq!(last.public_values.exit_code, Val::<SC>::zero());
 
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
@@ -390,7 +392,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
-                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
+                        PublicValues::<Val<SC>>::from_u32(shard.public_values()),
                     );
                 }
             });
