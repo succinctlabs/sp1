@@ -425,6 +425,8 @@ pub(crate) mod tests {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe_commitment(&mut builder, *main_commit);
+            let public_values_elms = proof.public_values.to_vec(&mut builder);
+            challenger.observe_slice(&mut builder, &public_values_elms);
             shard_proofs.push(proof);
         }
 

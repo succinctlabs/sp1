@@ -20,7 +20,7 @@ use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Vari
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var<N>(pub u32, pub PhantomData<N>);
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

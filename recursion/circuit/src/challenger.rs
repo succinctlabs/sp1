@@ -57,6 +57,12 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         }
     }
 
+    pub fn observe_slice(&mut self, builder: &mut Builder<C>, values: &[Felt<C::F>]) {
+        for value in values {
+            self.observe(builder, *value);
+        }
+    }
+
     pub fn observe_commitment(
         &mut self,
         builder: &mut Builder<C>,
