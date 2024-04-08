@@ -10,6 +10,7 @@ use p3_fri::QueryProof;
 use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
+use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::Hash;
 use p3_symmetric::{MultiField32PaddingFreeSponge, PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
@@ -23,7 +24,7 @@ use super::poseidon2::bn254_poseidon2_rc3;
 /// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
 pub type OuterChallenge = BinomialExtensionField<OuterVal, 4>;
-pub type OuterPerm = Poseidon2<Bn254Fr, DiffusionMatrixBN254, 3, 5>;
+pub type OuterPerm = Poseidon2<Bn254Fr, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBN254, 3, 5>;
 pub type OuterHash = MultiField32PaddingFreeSponge<OuterVal, Bn254Fr, OuterPerm, 3, 8, 1>;
 pub type OuterCompress = TruncatedPermutation<OuterPerm, 2, 1, 3>;
 pub type OuterValMmcs = FieldMerkleTreeMmcs<BabyBear, Bn254Fr, OuterHash, OuterCompress, 1>;
@@ -49,6 +50,7 @@ pub fn outer_perm() -> OuterPerm {
     OuterPerm::new(
         ROUNDS_F,
         external_round_constants,
+        Poseidon2ExternalMatrixGeneral,
         ROUNDS_P,
         internal_round_constants,
         DiffusionMatrixBN254,
@@ -72,7 +74,8 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
 /// A configuration for inner recursion.
 pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
-pub type InnerPerm = Poseidon2<InnerVal, DiffusionMatrixBabybear, 16, 7>;
+pub type InnerPerm =
+    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
 pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
 pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
 pub type InnerDigest = [InnerVal; DIGEST_SIZE];
@@ -110,6 +113,7 @@ pub fn inner_perm() -> InnerPerm {
     InnerPerm::new(
         ROUNDS_F,
         external_round_constants,
+        Poseidon2ExternalMatrixGeneral,
         ROUNDS_P,
         internal_round_constants,
         DiffusionMatrixBabybear,

@@ -21,6 +21,7 @@ use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
+use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
 use sp1_core::air::Word;
@@ -49,7 +50,7 @@ type C = AsmConfig<F, EF>;
 
 type Val = BabyBear;
 type Challenge = BinomialExtensionField<Val, 4>;
-type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
 type Hash = PaddingFreeSponge<Perm, 16, 8, 8>;
 type Compress = TruncatedPermutation<Perm, 2, 8, 16>;
 type ValMmcs =
