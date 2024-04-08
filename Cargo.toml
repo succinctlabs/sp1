@@ -32,7 +32,9 @@ p3-air = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-field = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-commit = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-matrix = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1", features = [
+    "nightly-features",
+] }
 p3-util = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-challenger = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-dft = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
