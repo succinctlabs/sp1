@@ -242,31 +242,46 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     {
         // Observe the preprocessed commitment.
         challenger.observe(vk.commit.clone());
-        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
-        // in a map-reduce recursion setting.
-        tracing::debug_span!("observe challenges for all shards").in_scope(|| {
-            proof.shard_proofs.iter().for_each(|proof| {
-                challenger.observe(proof.commitment.main_commit.clone());
-                let public_values =
-                    PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values);
-                challenger.observe_slice(&public_values.to_vec());
-            });
+
+        // Observe the challenges.
+        proof.shard_proofs.iter().for_each(|proof| {
+            challenger.observe(proof.commitment.main_commit.clone());
+            let public_values = PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values);
+            challenger.observe_slice(&public_values.to_vec());
         });
 
-        // Verify the segment proofs.
-        tracing::info!("verifying shard proofs");
-        for (i, proof) in proof.shard_proofs.iter().enumerate() {
-            tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
-                let chips = self
-                    .shard_chips_ordered(&proof.chip_ordering)
-                    .collect::<Vec<_>>();
-                Verifier::verify_shard(&self.config, vk, &chips, &mut challenger.clone(), proof)
-                    .map_err(ProgramVerificationError::InvalidSegmentProof)
-            })?;
+        // Verify the shards.
+        for proof in proof.shard_proofs.iter() {
+            let chips = self
+                .shard_chips_ordered(&proof.chip_ordering)
+                .collect::<Vec<_>>();
+            Verifier::verify_shard(&self.config, vk, &chips, &mut challenger.clone(), proof)
+                .map_err(ProgramVerificationError::InvalidSegmentProof)?;
         }
-        tracing::info!("verifying individual shards succeeded");
 
-        tracing::info!("verifying cumulative sum is 0");
+        // Verify the public values for each shard.
+        for i in 0..proof.shard_proofs.len() {
+            let curr = &proof.shard_proofs[i];
+
+            // Assert that the shard number is correct.
+            assert_eq!(curr.public_values.shard, (i + 1) as u32);
+        }
+
+        // Verify the public values between shards.
+        for i in 1..proof.shard_proofs.len() {
+            let curr = &proof.shard_proofs[i];
+            let prev = &proof.shard_proofs[i - 1];
+
+            // Assert that the program counter is carried over correctly.
+            assert_eq!(prev.public_values.next_pc, curr.public_values.start_pc);
+
+            // Assert that the public values digest is the same.
+            assert_eq!(
+                prev.public_values.committed_value_digest,
+                curr.public_values.committed_value_digest
+            );
+        }
+
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         for proof in proof.shard_proofs.iter() {

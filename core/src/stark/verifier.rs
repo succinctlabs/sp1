@@ -169,8 +169,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             )
             .map_err(|_| VerificationError::InvalidopeningArgument)?;
 
-        // Verify the constrtaint evaluations.
-
         for (chip, trace_domain, qc_domains, values) in izip!(
             chips.iter(),
             trace_domains,
