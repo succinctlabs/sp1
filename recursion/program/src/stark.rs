@@ -352,6 +352,9 @@ pub(crate) mod tests {
             let proof = ShardProof::<_>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
+
+            let public_values_elements = proof.public_values.to_vec(&mut builder);
+            challenger.observe_slice(&mut builder, &public_values_elements);
         }
 
         // Sample the permutation challenges.
