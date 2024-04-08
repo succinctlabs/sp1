@@ -244,7 +244,7 @@ pub(crate) mod tests {
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::PrimeField32;
+    use p3_field::{AbstractField, PrimeField32};
     use serial_test::serial;
     use sp1_core::{
         air::{MachineAir, PublicValues, Word},
@@ -281,13 +281,14 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let mut public_values = Default::default();
-        public_values.shard = builder.eval(proof.public_values.shard);
-        public_values.first_row_pc = builder.eval(proof.public_values.start_pc);
-        public_values.last_row_next_pc = builder.eval(proof.public_values.next_pc);
-        public_values.exit_code = builder.eval(proof.public_values.exit_code);
+        let mut public_values: PublicValues<Word<Felt<F>>, Felt<F>> = Default::default();
+        public_values.shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
+        public_values.start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+        public_values.next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+        public_values.exit_code =
+            builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
         public_values.committed_value_digest = core::array::from_fn(|i| {
-            let word_val = proof.public_values.committed_value_digest[i];
+            let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
             Word(core::array::from_fn(|j| builder.eval(word_val[j])))
         });
 
@@ -394,7 +395,8 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(proof.public_values.to_vec());
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger_val.observe_slice(&public_values_field.to_vec());
         });
 
         let permutation_challenges = (0..2)
@@ -415,15 +417,6 @@ pub(crate) mod tests {
             challenger.observe_commitment(&mut builder, *main_commit);
             shard_proofs.push(proof);
         }
-
-        // Observe the public input digest
-        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect();
-        pv_digest_felt
-            .iter()
-            .for_each(|x| challenger.observe(&mut builder, *x));
 
         #[allow(clippy::never_loop)]
         for proof in shard_proofs {

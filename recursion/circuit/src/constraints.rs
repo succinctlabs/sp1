@@ -29,7 +29,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values: PublicValues<Word<Felt<C::F>>>,
+        public_values: PublicValues<Word<Felt<C::F>>, Felt<C::F>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[C::EF],
@@ -128,7 +128,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values: PublicValues<Word<Felt<C::F>>>,
+        public_values: PublicValues<Word<Felt<C::F>>, Felt<C::F>>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -163,6 +163,7 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
+    use p3_field::AbstractField;
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
     use sp1_core::{
@@ -301,7 +302,8 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(proof.public_values.to_vec());
+            let public_value_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger.observe_slice(&public_value_field.to_vec());
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
@@ -318,13 +320,16 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values.
-            let mut public_values = Default::default();
-            public_values.shard = builder.eval(proof.public_values.shard);
-            public_values.first_row_pc = builder.eval(proof.public_values.start_pc);
-            public_values.last_row_next_pc = builder.eval(proof.public_values.next_pc);
-            public_values.exit_code = builder.eval(proof.public_values.exit_code);
+            let mut public_values: PublicValues<Word<Felt<F>>, Felt<F>> = Default::default();
+            public_values.shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
+            public_values.start_pc =
+                builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+            public_values.next_pc =
+                builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+            public_values.exit_code =
+                builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
             public_values.committed_value_digest = core::array::from_fn(|i| {
-                let word_val = proof.public_values.committed_value_digest[i];
+                let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
                 Word(core::array::from_fn(|j| builder.eval(word_val[j])))
             });
 

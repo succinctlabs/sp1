@@ -44,8 +44,10 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             exit_code: F::from_canonical_u32(exit_code),
         }
     }
+}
 
-    pub fn to_vec(&self) -> Vec<F> {
+impl<T: Clone + Debug> PublicValues<Word<T>, T> {
+    pub fn to_vec(&self) -> Vec<T> {
         self.committed_value_digest
             .iter()
             .flat_map(|w| w.clone().into_iter())
@@ -56,7 +58,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             .collect_vec()
     }
 
-    pub fn from_vec(data: Vec<F>) -> Self {
+    pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
         let mut committed_value_digest = Vec::new();

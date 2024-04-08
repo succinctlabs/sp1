@@ -164,7 +164,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::Word,
+        air::{PublicValues, Word},
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -176,8 +176,8 @@ mod tests {
     use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::PrimeField32;
-    use sp1_recursion_compiler::{asm::VmBuilder, prelude::ExtConst};
+    use p3_field::{AbstractField, PrimeField32};
+    use sp1_recursion_compiler::{asm::VmBuilder, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
 
@@ -303,7 +303,8 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(proof.public_values.to_vec());
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger.observe_slice(&public_values_field.to_vec());
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
@@ -320,13 +321,16 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values.
-            let mut public_values = Default::default();
-            public_values.shard = builder.eval(proof.public_values.shard);
-            public_values.first_row_pc = builder.eval(proof.public_values.start_pc);
-            public_values.last_row_next_pc = builder.eval(proof.public_values.next_pc);
-            public_values.exit_code = builder.eval(proof.public_values.exit_code);
+            let mut public_values: PublicValues<Word<Felt<F>>, Felt<F>> = Default::default();
+            public_values.shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
+            public_values.start_pc =
+                builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+            public_values.next_pc =
+                builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+            public_values.exit_code =
+                builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
             public_values.committed_value_digest = core::array::from_fn(|i| {
-                let word_val = proof.public_values.committed_value_digest[i];
+                let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
                 Word(core::array::from_fn(|j| builder.eval(word_val[j])))
             });
 
@@ -344,7 +348,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
-                    proof.public_values,
+                    PublicValues::<Word<F>, F>::new(proof.public_values),
                 );
 
                 // Compute the folded constraints value in the DSL.
@@ -430,7 +434,8 @@ mod tests {
 
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(proof.public_values.to_vec());
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger.observe_slice(&public_values_field.to_vec());
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
@@ -462,13 +467,18 @@ mod tests {
                     .collect::<Vec<_>>();
 
                 // Set up the public values.
-                let mut public_values = Default::default();
-                public_values.shard = builder.eval(proof.public_values.shard);
-                public_values.first_row_pc = builder.eval(proof.public_values.start_pc);
-                public_values.last_row_next_pc = builder.eval(proof.public_values.next_pc);
-                public_values.exit_code = builder.eval(proof.public_values.exit_code);
+                let mut public_values: PublicValues<Word<Felt<F>>, Felt<F>> = Default::default();
+                public_values.shard =
+                    builder.eval(F::from_canonical_u32(proof.public_values.shard));
+                public_values.start_pc =
+                    builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+                public_values.next_pc =
+                    builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+                public_values.exit_code =
+                    builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
                 public_values.committed_value_digest = core::array::from_fn(|i| {
-                    let word_val = proof.public_values.committed_value_digest[i];
+                    let word_val: Word<F> =
+                        Word::from(proof.public_values.committed_value_digest[i]);
                     Word(core::array::from_fn(|j| builder.eval(word_val[j])))
                 });
 

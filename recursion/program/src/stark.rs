@@ -266,6 +266,7 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
+    use sp1_core::air::PublicValues;
     use sp1_core::runtime::Program;
     use sp1_core::{
         air::MachineAir,
@@ -314,13 +315,14 @@ pub(crate) mod tests {
         let index = builder.materialize(Usize::Const(proof.index));
 
         // Set up the public values.
-        let mut public_values = Default::default();
-        public_values.shard = builder.eval(proof.public_values.shard);
-        public_values.first_row_pc = builder.eval(proof.public_values.start_pc);
-        public_values.last_row_next_pc = builder.eval(proof.public_values.next_pc);
-        public_values.exit_code = builder.eval(proof.public_values.exit_code);
+        let mut public_values: PublicValues<Word<Felt<F>>, Felt<F>> = Default::default();
+        public_values.shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
+        public_values.start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+        public_values.next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+        public_values.exit_code =
+            builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
         public_values.committed_value_digest = core::array::from_fn(|i| {
-            let word_val = proof.public_values.committed_value_digest[i];
+            let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
             Word(core::array::from_fn(|j| builder.eval(word_val[j])))
         });
 
@@ -405,7 +407,8 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(proof.public_values.to_vec());
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger_val.observe_slice(&public_values_field.to_vec());
         });
 
         let permutation_challenges = (0..2)
@@ -511,7 +514,8 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(proof.public_values.to_vec());
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+            challenger_val.observe_slice(&public_values_field.to_vec());
         });
 
         let permutation_challenges = (0..2)
@@ -535,7 +539,7 @@ pub(crate) mod tests {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
-            challenger.observe_slice(&mut builder, proof.public_values.to_vec());
+            challenger.observe_slice(&mut builder, &proof.public_values.to_vec());
             shard_proofs.push(proof);
         }
 

@@ -8,6 +8,8 @@ use p3_field::Field;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 
+use core::fmt::Debug;
+
 use super::SP1AirBuilder;
 
 /// The size of a word in bytes.
@@ -117,9 +119,9 @@ impl<T> IntoIterator for Word<T> {
     }
 }
 
-impl<F: AbstractField> FromIterator<F> for Word<F> {
-    fn from_iter<I: IntoIterator<Item = F>>(iter: I) -> Self {
-        let elements: [F; WORD_SIZE] = iter
+impl<T: Debug> FromIterator<T> for Word<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let elements: [T; WORD_SIZE] = iter
             .into_iter()
             .take(WORD_SIZE)
             .collect_vec()
