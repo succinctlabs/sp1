@@ -162,11 +162,10 @@ mod tests {
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
-    use p3_field::AbstractField;
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
     use sp1_core::{
-        air::{PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+        air::{PublicValues, Word},
         stark::{
             Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
             ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
@@ -174,7 +173,7 @@ mod tests {
     };
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, Felt},
+        ir::Builder,
         prelude::ExtConst,
         OuterConfig,
     };
@@ -182,7 +181,6 @@ mod tests {
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
-    use sp1_recursion_program::types::PublicValuesVariable;
 
     use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 
@@ -319,28 +317,6 @@ mod tests {
                 zeta_val,
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
-            // Set up the public values.
-            let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
-            let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
-            let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
-            let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-            let mut pv_committed_value_digest = Vec::new();
-            for i in 0..PV_DIGEST_NUM_WORDS {
-                let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
-                for j in 0..WORD_SIZE {
-                    let word_val: Felt<_> = builder.eval(word_val[j]);
-                    pv_committed_value_digest.push(word_val);
-                }
-            }
-
-            let public_values = PublicValuesVariable {
-                committed_values_digest: builder.vec(pv_committed_value_digest),
-                shard: pv_shard,
-                start_pc: pv_start_pc,
-                next_pc: pv_next_pc,
-                exit_code: pv_exit_code,
-            };
-
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
                 trace_domains_vals,
@@ -351,6 +327,7 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
+                let public_values = builder.eval_const(proof.public_values);
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))
@@ -360,7 +337,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &opening,
-                    public_values.clone(),
+                    public_values,
                     trace_domain,
                     qc_domains,
                     zeta,

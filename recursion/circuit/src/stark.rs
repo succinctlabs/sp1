@@ -244,15 +244,15 @@ pub(crate) mod tests {
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::{AbstractField, PrimeField32};
+    use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::{
-        air::{MachineAir, PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+        air::{MachineAir, PublicValues, Word},
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, Config, Felt},
+        ir::{Builder, Config},
         OuterConfig,
     };
     use sp1_recursion_core::{
@@ -282,25 +282,8 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
-        let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
-        let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
-        let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-        let mut pv_committed_value_digest = Vec::new();
-        for i in 0..PV_DIGEST_NUM_WORDS {
-            let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
-            for j in 0..WORD_SIZE {
-                let word_val: Felt<_> = builder.eval(word_val[j]);
-                pv_committed_value_digest.push(word_val);
-            }
-        }
-        let public_values = PublicValuesVariable {
-            committed_values_digest: builder.vec(pv_committed_value_digest),
-            shard: pv_shard,
-            start_pc: pv_start_pc,
-            next_pc: pv_next_pc,
-            exit_code: pv_exit_code,
-        };
+        let public_values: PublicValuesVariable<OuterConfig> =
+            builder.eval_const(proof.public_values);
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
