@@ -6,6 +6,7 @@ use std::{
 
 use bincode::{deserialize_from, Error};
 use p3_air::TwoRowMatrixView;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
@@ -153,4 +154,15 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 #[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
+}
+
+impl<SC: StarkGenericConfig> Proof<SC> {
+    pub fn commited_values_digest(&self) -> Vec<u8> {
+        self.shard_proofs[0]
+            .public_values
+            .committed_value_digest
+            .iter()
+            .flat_map(|w| w.0.map(|x| x.as_canonical_u32() as u8))
+            .collect()
+    }
 }

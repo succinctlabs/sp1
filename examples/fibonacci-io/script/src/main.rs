@@ -1,4 +1,3 @@
-use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
@@ -43,12 +42,7 @@ fn main() {
     pv_hasher.update(expected_b.to_le_bytes());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pv_bytes: Vec<u8> = proof.proof.shard_proofs[0]
-        .public_values
-        .committed_value_digest
-        .iter()
-        .flat_map(|w| w.to_le_bytes())
-        .collect_vec();
+    let proof_pv_bytes = proof.proof.commited_values_digest();
     assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
 
     // Save the proof.
