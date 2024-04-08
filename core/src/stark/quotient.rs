@@ -27,7 +27,7 @@ pub fn quotient_values<SC, A, Mat>(
     preprocessed_trace_on_quotient_domain: Mat,
     main_trace_on_quotient_domain: Mat,
     permutation_trace_on_quotient_domain: Mat,
-    perm_challenges: &[SC::Challenge],
+    perm_challenges: &[PackedChallenge<SC>],
     alpha: SC::Challenge,
     public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
 ) -> Vec<SC::Challenge>

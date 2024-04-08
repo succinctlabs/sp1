@@ -30,7 +30,7 @@ where
         public_values: PublicValuesVariable<C>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
-        permutation_challenges: &[C::EF],
+        permutation_challenges: &[Ext<C::F, C::EF>],
     ) -> Ext<C::F, C::EF>
     where
         A: for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
@@ -129,7 +129,7 @@ where
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
         alpha: Ext<C::F, C::EF>,
-        permutation_challenges: &[C::EF],
+        permutation_challenges: &[Ext<C::F, C::EF>],
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
@@ -362,6 +362,11 @@ mod tests {
                 let trace_domain: TwoAdicMultiplicativeCosetVariable<_> =
                     builder.eval_const(trace_domain_val);
                 let sels = trace_domain.selectors_at_point(&mut builder, zeta);
+
+                let permutation_challenges = permutation_challenges
+                    .iter()
+                    .map(|c| builder.eval(c.cons()))
+                    .collect::<Vec<_>>();
                 let folded_constraints = StarkVerifier::<_, SC>::eval_constrains(
                     &mut builder,
                     chip,
@@ -463,34 +468,16 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
+                let public_values = builder.eval_const(proof.public_values);
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))
                     .collect::<Vec<_>>();
 
-                // Set up the public values.
-                let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
-                let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
-                let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
-                let pv_exit_code =
-                    builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-                let mut pv_committed_value_digest =
-                    builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
-                for i in 0..PV_DIGEST_NUM_WORDS {
-                    let word_val: Word<F> =
-                        Word::from(proof.public_values.committed_value_digest[i]);
-                    for j in 0..WORD_SIZE {
-                        let word_val: Felt<_> = builder.eval(word_val[j]);
-                        builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
-                    }
-                }
-                let public_values = PublicValuesVariable {
-                    committed_values_digest: pv_committed_value_digest,
-                    shard: pv_shard,
-                    start_pc: pv_start_pc,
-                    next_pc: pv_next_pc,
-                    exit_code: pv_exit_code,
-                };
+                let permutation_challenges = permutation_challenges
+                    .iter()
+                    .map(|c| builder.eval(c.cons()))
+                    .collect::<Vec<_>>();
 
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
                     &mut builder,

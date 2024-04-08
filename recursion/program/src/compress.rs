@@ -11,7 +11,7 @@ use crate::stark::EMPTY;
 use crate::types::ShardCommitmentVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
-use p3_challenger::{CanObserve, FieldChallenger};
+use p3_challenger::CanObserve;
 use p3_commit::ExtensionMmcs;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::extension::BinomialExtensionField;
@@ -99,10 +99,6 @@ pub fn build_compress(
         challenger_val.observe_slice(&public_values_field.to_vec());
     });
 
-    let permutation_challenges = (0..2)
-        .map(|_| challenger_val.sample_ext_element::<EF>())
-        .collect::<Vec<_>>();
-
     let time = Instant::now();
     let mut builder = VmBuilder::<F, EF>::default();
     let config = const_fri_config(&mut builder, inner_fri_config());
@@ -157,7 +153,6 @@ pub fn build_compress(
             &machine,
             &mut challenger.clone(),
             proof,
-            &permutation_challenges,
             sorted_indices,
         );
     }

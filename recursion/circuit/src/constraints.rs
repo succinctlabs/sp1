@@ -31,7 +31,7 @@ where
         public_values: PublicValuesVariable<C>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
-        permutation_challenges: &[C::EF],
+        permutation_challenges: &[Ext<C::F, C::EF>],
     ) -> Ext<C::F, C::EF>
     where
         A: for<'b> Air<RecursiveVerifierConstraintFolder<'b, C>>,
@@ -132,7 +132,7 @@ where
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
         alpha: Ext<C::F, C::EF>,
-        permutation_challenges: &[C::EF],
+        permutation_challenges: &[Ext<C::F, C::EF>],
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     {
@@ -331,6 +331,11 @@ mod tests {
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))
+                    .collect::<Vec<_>>();
+
+                let permutation_challenges = permutation_challenges
+                    .iter()
+                    .map(|c| builder.eval(c.cons()))
                     .collect::<Vec<_>>();
 
                 StarkVerifierCircuit::<_, SC>::verify_constraints::<A>(

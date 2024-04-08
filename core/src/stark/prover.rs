@@ -27,6 +27,7 @@ use super::{ProvingKey, VerifierConstraintFolder};
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::MachineChip;
+use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 
 use crate::air::{MachineAir, PublicValues, Word};
@@ -267,6 +268,10 @@ where
         for _ in 0..2 {
             permutation_challenges.push(challenger.sample_ext_element());
         }
+        let packed_perm_challenges = permutation_challenges
+            .iter()
+            .map(|c| PackedChallenge::<SC>::from_f(*c))
+            .collect::<Vec<_>>();
 
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
@@ -368,7 +373,7 @@ where
                         preprocessed_trace_on_quotient_domains,
                         main_trace_on_quotient_domains,
                         permutation_trace_on_quotient_domains,
-                        &permutation_challenges,
+                        &packed_perm_challenges,
                         alpha,
                         PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard_data.public_values),
                     )
