@@ -1,3 +1,4 @@
+use p3_challenger::DuplexChallenger;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
     air::{PublicValues, Word},
@@ -9,7 +10,9 @@ use sp1_recursion_compiler::{
 };
 use sp1_recursion_core::{
     air::Block,
-    stark::config::{InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerVal},
+    stark::config::{
+        InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm, InnerVal,
+    },
 };
 use sp1_sdk::utils::BabyBearPoseidon2;
 
@@ -285,6 +288,35 @@ impl Hintable<C> for PublicValues<u32, u32> {
         stream.extend(F::from_canonical_u32(self.start_pc).write());
         stream.extend(F::from_canonical_u32(self.next_pc).write());
         stream.extend(F::from_canonical_u32(self.exit_code).write());
+        stream
+    }
+}
+
+impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
+    type HintVariable = DuplexChallengerVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let sponge_state = builder.hint_felts();
+        let nb_inputs = builder.hint_var();
+        let input_buffer = builder.hint_felts();
+        let nb_outputs = builder.hint_var();
+        let output_buffer = builder.hint_felts();
+        DuplexChallengerVariable {
+            sponge_state,
+            nb_inputs,
+            input_buffer,
+            nb_outputs,
+            output_buffer,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+        stream.extend(self.sponge_state.to_vec().write());
+        stream.extend(self.input_buffer.len().write());
+        stream.extend(self.input_buffer.write());
+        stream.extend(self.output_buffer.len().write());
+        stream.extend(self.output_buffer.write());
         stream
     }
 }

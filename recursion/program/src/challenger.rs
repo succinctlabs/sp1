@@ -1,6 +1,10 @@
 use p3_field::AbstractField;
 
-use sp1_recursion_compiler::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
+use sp1_recursion_compiler::prelude::MemIndex;
+use sp1_recursion_compiler::prelude::MemVariable;
+use sp1_recursion_compiler::prelude::Ptr;
+use sp1_recursion_compiler::prelude::Variable;
+use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, Felt, Usize, Var};
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use crate::fri::types::DigestVariable;
@@ -37,7 +41,7 @@ pub trait CanSampleBitsVariable<C: Config> {
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
-#[derive(Clone)]
+#[derive(Clone, DslVariable)]
 pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: Array<C, Felt<C::F>>,
     pub nb_inputs: Var<C::N>,

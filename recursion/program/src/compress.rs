@@ -11,7 +11,14 @@ use crate::stark::EMPTY;
 use crate::types::ShardCommitmentVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
+<<<<<<< HEAD
 use p3_challenger::CanObserve;
+||||||| parent of e820b13d (wip)
+use p3_challenger::{CanObserve, FieldChallenger};
+=======
+use p3_challenger::DuplexChallenger;
+use p3_challenger::{CanObserve, FieldChallenger};
+>>>>>>> e820b13d (wip)
 use p3_commit::ExtensionMmcs;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::extension::BinomialExtensionField;
@@ -35,6 +42,8 @@ use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
+use sp1_recursion_compiler::ir::Usize;
+use sp1_recursion_compiler::ir::Variable;
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::Program as RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
@@ -114,6 +123,28 @@ pub fn build_compress(
     let mut witness_stream = Vec::new();
     let mut shard_proofs = vec![];
     let mut sorted_indices = vec![];
+
+    let num_proofs = usize::read(&mut builder);
+    let current_challenger = DuplexChallenger::read(&mut builder);
+    // let
+    builder
+        .range(Usize::Const(0), num_proofs)
+        .for_each(|_, mut builder| {
+            let proof = ShardProof::<_>::read(&mut builder);
+            let sorted_indices_arr = Vec::<usize>::read(&mut builder);
+            builder
+                .range(0, sorted_indices_arr.len())
+                .for_each(|i, builder| {
+                    let el = builder.get(&sorted_indices_arr, i);
+                    builder.print_v(el);
+                });
+            let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
+            challenger.observe(&mut builder, main_commit.clone());
+            // challenger.observe_slice(&mut builder, &proof.public_values.to_vec());
+            shard_proofs.push(proof);
+            sorted_indices.push(sorted_indices_arr);
+        });
+
     for proof_val in proof.shard_proofs {
         witness_stream.extend(proof_val.write());
         let sorted_indices_raw: Vec<usize> = machine
