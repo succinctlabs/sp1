@@ -1,7 +1,17 @@
-mod domain;
-mod two_adic_pcs;
+pub mod domain;
+pub mod hints;
+pub mod two_adic_pcs;
+pub mod types;
 
 pub use domain::*;
+#[cfg(test)]
+pub(crate) use two_adic_pcs::tests::*;
+pub use two_adic_pcs::*;
+
+use p3_field::AbstractField;
+use p3_field::Field;
+use p3_field::TwoAdicField;
+
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Config;
@@ -12,28 +22,18 @@ use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
-pub use two_adic_pcs::*;
-
-#[cfg(test)]
-pub(crate) use two_adic_pcs::tests::*;
-
-// #[cfg(test)]
-// pub(crate) use domain::tests::*;
-
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::TwoAdicField;
 
 use crate::challenger::CanObserveVariable;
 use crate::challenger::CanSampleBitsVariable;
 use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
-use crate::types::Commitment;
-use crate::types::Dimensions;
-use crate::types::FriChallenges;
-use crate::types::FriConfigVariable;
-use crate::types::FriProofVariable;
-use crate::types::FriQueryProofVariable;
+
+use self::types::DigestVariable;
+use self::types::DimensionsVariable;
+use self::types::FriChallengesVariable;
+use self::types::FriConfigVariable;
+use self::types::FriProofVariable;
+use self::types::FriQueryProofVariable;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
 pub fn verify_shape_and_sample_challenges<C: Config>(
@@ -41,7 +41,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     config: &FriConfigVariable<C>,
     proof: &FriProofVariable<C>,
     challenger: &mut DuplexChallengerVariable<C>,
-) -> FriChallenges<C> {
+) -> FriChallengesVariable<C> {
     let mut betas: Array<C, Ext<C::F, C::EF>> = builder.dyn_array(proof.commit_phase_commits.len());
 
     builder
@@ -66,14 +66,15 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
+    let log_max_height: Var<_> =
+        builder.eval(num_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
     let mut query_indices = builder.array(config.num_queries);
     builder.range(0, config.num_queries).for_each(|i, builder| {
         let index_bits = challenger.sample_bits(builder, Usize::Var(log_max_height));
         builder.set(&mut query_indices, i, index_bits);
     });
 
-    FriChallenges {
+    FriChallengesVariable {
         query_indices,
         betas,
     }
@@ -83,19 +84,19 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 ///
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L67
 #[allow(clippy::type_complexity)]
-#[allow(unused_variables)]
 pub fn verify_challenges<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfigVariable<C>,
     proof: &FriProofVariable<C>,
-    challenges: &FriChallenges<C>,
+    challenges: &FriChallengesVariable<C>,
     reduced_openings: &Array<C, Array<C, Ext<C::F, C::EF>>>,
 ) where
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height = builder.eval(nb_commit_phase_commits + config.log_blowup);
+    let log_max_height =
+        builder.eval(nb_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {
@@ -128,7 +129,7 @@ pub fn verify_challenges<C: Config>(
 pub fn verify_query<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfigVariable<C>,
-    commit_phase_commits: &Array<C, Commitment<C>>,
+    commit_phase_commits: &Array<C, DigestVariable<C>>,
     index_bits: &Array<C, Var<C::N>>,
     proof: &FriQueryProofVariable<C>,
     betas: &Array<C, Ext<C::F, C::EF>>,
@@ -172,10 +173,10 @@ where
             builder.set(&mut evals, index_sibling_mod_2, step.sibling_value);
 
             let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
-            let dims = Dimensions::<C> {
+            let dims = DimensionsVariable::<C> {
                 height: builder.exp(two, log_folded_height),
             };
-            let mut dims_slice: Array<C, Dimensions<C>> = builder.array(1);
+            let mut dims_slice: Array<C, DimensionsVariable<C>> = builder.array(1);
             builder.set(&mut dims_slice, 0, dims);
 
             let mut opened_values = builder.array(1);
@@ -219,11 +220,11 @@ where
 #[allow(unused_variables)]
 pub fn verify_batch<C: Config, const D: usize>(
     builder: &mut Builder<C>,
-    commit: &Commitment<C>,
-    dimensions: Array<C, Dimensions<C>>,
+    commit: &DigestVariable<C>,
+    dimensions: Array<C, DimensionsVariable<C>>,
     index_bits: Array<C, Var<C::N>>,
     opened_values: Array<C, Array<C, Ext<C::F, C::EF>>>,
-    proof: &Array<C, Commitment<C>>,
+    proof: &Array<C, DigestVariable<C>>,
 ) {
     // The index of which table to process next.
     let index: Var<C::N> = builder.eval(C::N::zero());
@@ -232,16 +233,16 @@ pub fn verify_batch<C: Config, const D: usize>(
     let current_height = builder.get(&dimensions, index).height;
 
     // Reduce all the tables that have the same height to a single root.
-    let root = reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+    let mut root = reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
 
     // For each sibling in the proof, reconstruct the root.
     let one: Var<_> = builder.eval(C::N::one());
+    let left: Array<C, Felt<C::F>> = builder.uninit();
+    let right: Array<C, Felt<C::F>> = builder.uninit();
     builder.range(0, proof.len()).for_each(|i, builder| {
         let sibling = builder.get(proof, i);
-
         let bit = builder.get(&index_bits, i);
-        let left: Array<C, Felt<C::F>> = builder.uninit();
-        let right: Array<C, Felt<C::F>> = builder.uninit();
+
         builder.if_eq(bit, C::N::one()).then_or_else(
             |builder| {
                 builder.assign(left.clone(), sibling.clone());
@@ -253,17 +254,19 @@ pub fn verify_batch<C: Config, const D: usize>(
             },
         );
 
-        let new_root = builder.poseidon2_compress(&left, &right);
-        builder.assign(root.clone(), new_root);
+        builder.poseidon2_compress_x(&mut root, &left, &right);
         builder.assign(current_height, current_height * (C::N::two().inverse()));
 
-        let next_height = builder.get(&dimensions, index).height;
         builder.if_ne(index, dimensions.len()).then(|builder| {
+            let next_height = builder.get(&dimensions, index).height;
             builder.if_eq(next_height, current_height).then(|builder| {
                 let next_height_openings_digest =
                     reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
-                let new_root = builder.poseidon2_compress(&root, &next_height_openings_digest);
-                builder.assign(root.clone(), new_root);
+                builder.poseidon2_compress_x(
+                    &mut root.clone(),
+                    &root.clone(),
+                    &next_height_openings_digest,
+                );
             });
         })
     });
@@ -283,7 +286,7 @@ pub fn verify_batch<C: Config, const D: usize>(
 pub fn reduce<C: Config, const D: usize>(
     builder: &mut Builder<C>,
     dim_idx: Var<C::N>,
-    dims: &Array<C, Dimensions<C>>,
+    dims: &Array<C, DimensionsVariable<C>>,
     curr_height_padded: Var<C::N>,
     opened_values: &Array<C, Array<C, Ext<C::F, C::EF>>>,
 ) -> Array<C, Felt<C::F>> {

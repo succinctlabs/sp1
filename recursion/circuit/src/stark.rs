@@ -221,7 +221,7 @@ where
                         builder,
                         chip,
                         values,
-                        proof.public_values,
+                        proof.public_values.clone(),
                         trace_domain.clone(),
                         qc_domains,
                         zeta,
@@ -247,7 +247,7 @@ pub(crate) mod tests {
     use p3_field::{AbstractField, PrimeField32};
     use serial_test::serial;
     use sp1_core::{
-        air::{MachineAir, PublicValues, Word},
+        air::{MachineAir, PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
@@ -260,6 +260,7 @@ pub(crate) mod tests {
         runtime::{Opcode, Program, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+    use sp1_recursion_program::types::PublicValuesVariable;
 
     use crate::types::{
         ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
@@ -281,16 +282,25 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let mut public_values: PublicValues<Word<Felt<F>>, Felt<F>> = Default::default();
-        public_values.shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
-        public_values.start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
-        public_values.next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
-        public_values.exit_code =
-            builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-        public_values.committed_value_digest = core::array::from_fn(|i| {
+        let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
+        let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+        let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+        let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
+        let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+        for i in 0..PV_DIGEST_NUM_WORDS {
             let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
-            Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-        });
+            for j in 0..WORD_SIZE {
+                let word_val: Felt<_> = builder.eval(word_val[j]);
+                builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
+            }
+        }
+        let public_values = PublicValuesVariable {
+            committed_values_digest: pv_committed_value_digest,
+            shard: pv_shard,
+            start_pc: pv_start_pc,
+            next_pc: pv_next_pc,
+            exit_code: pv_exit_code,
+        };
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();

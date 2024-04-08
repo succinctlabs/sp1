@@ -3,7 +3,7 @@ use p3_field::AbstractField;
 use sp1_recursion_compiler::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
-use crate::types::Commitment;
+use crate::fri::types::DigestVariable;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
@@ -94,7 +94,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L78
-    fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
+    fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         for i in 0..DIGEST_SIZE {
             let element = builder.get(&commitment, i);
             self.observe(builder, element);
@@ -177,8 +177,8 @@ impl<C: Config> CanSampleBitsVariable<C> for DuplexChallengerVariable<C> {
     }
 }
 
-impl<C: Config> CanObserveVariable<C, Commitment<C>> for DuplexChallengerVariable<C> {
-    fn observe(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
+impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVariable<C> {
+    fn observe(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         DuplexChallengerVariable::observe_commitment(self, builder, commitment);
     }
 }

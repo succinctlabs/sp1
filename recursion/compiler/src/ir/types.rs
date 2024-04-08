@@ -1207,7 +1207,7 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
 
 impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
     fn size_of() -> usize {
-        4
+        1
     }
 
     fn load(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {

@@ -43,7 +43,7 @@ pub struct CpuRecord<F> {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct MemoryEntry<F: PrimeField32> {
+pub struct MemoryEntry<F> {
     pub value: Block<F>,
     pub timestamp: F,
 }
@@ -86,6 +86,9 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
+    pub witness_stream: Vec<Vec<Block<F>>>,
+
+    // pub witness_stream: Vec<Witness<F, EF>>,
     perm: Option<Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>>,
 
     _marker: PhantomData<EF>,
@@ -121,6 +124,7 @@ where
             record,
             perm: Some(perm),
             access: CpuRecord::default(),
+            witness_stream: vec![],
             _marker: PhantomData,
         }
     }
@@ -147,6 +151,7 @@ where
             record,
             perm: None,
             access: CpuRecord::default(),
+            witness_stream: vec![],
             _marker: PhantomData,
         }
     }
@@ -515,6 +520,45 @@ where
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::Poseidon2Compress => {
+                    self.nb_poseidons += 1;
+
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+
+                    // Get the dst array ptr.
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    // Get the src array ptr.
+                    let left = b_val[0].as_canonical_u32() as usize;
+                    let right = c_val[0].as_canonical_u32() as usize;
+
+                    let left_array: [_; PERMUTATION_WIDTH / 2] = self.memory
+                        [left..left + PERMUTATION_WIDTH / 2]
+                        .iter()
+                        .map(|entry| entry.value[0])
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    let right_array: [_; PERMUTATION_WIDTH / 2] = self.memory
+                        [right..right + PERMUTATION_WIDTH / 2]
+                        .iter()
+                        .map(|entry| entry.value[0])
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    let array: [_; PERMUTATION_WIDTH] =
+                        [left_array, right_array].concat().try_into().unwrap();
+
+                    // Perform the permutation.
+                    let result = self.perm.as_ref().unwrap().permute(array);
+
+                    // Write the value back to the array at ptr.
+                    // TODO: fix the timestamp as part of integrating the precompile if needed.
+                    for (i, value) in result.iter().enumerate() {
+                        self.memory[dst + i].value[0] = *value;
+                    }
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::HintBits => {
                     self.nb_bit_decompositions += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
@@ -531,6 +575,70 @@ where
                     for (i, bit) in bits.iter().enumerate() {
                         self.memory[dst + i].value[0] = F::from_canonical_u32(*bit);
                     }
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::HintLen => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val: Block<F> =
+                        F::from_canonical_usize(self.witness_stream[0].len()).into();
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::Hint => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let dst = a_val[0].as_canonical_u32() as usize;
+                    let blocks = self.witness_stream.remove(0);
+                    for (i, block) in blocks.into_iter().enumerate() {
+                        self.memory[dst + i].value = block;
+                    }
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::FRIFold => {
+                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+                    let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
+                    let c_val = Block::<F>::default();
+
+                    let m = a_val[0].as_canonical_u32() as usize;
+                    let input_ptr = b_val[0].as_canonical_u32() as usize;
+
+                    // Read the input values.
+                    let mut ptr = input_ptr;
+                    let z = self.memory[ptr].value.ext::<EF>();
+                    ptr += 1;
+                    let alpha = self.memory[ptr].value.ext::<EF>();
+                    ptr += 1;
+                    let x = self.memory[ptr].value[0];
+                    ptr += 1;
+                    let log_height = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    ptr += 1;
+                    let mat_opening_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    ptr += 2;
+                    let ps_at_z_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    ptr += 2;
+                    let alpha_pow_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    ptr += 2;
+                    let ro_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+
+                    // Get the opening values.
+                    let p_at_x = self.memory[mat_opening_ptr + m].value.ext::<EF>();
+                    let p_at_z = self.memory[ps_at_z_ptr + m].value.ext::<EF>();
+
+                    // Calculate the quotient and update the values
+                    let quotient = (-p_at_z + p_at_x) / (-z + x);
+
+                    // Modify the ro and alpha pow values.
+                    let alpha_pow_at_log_height =
+                        self.memory[alpha_pow_ptr + log_height].value.ext::<EF>();
+                    let ro_at_log_height = self.memory[ro_ptr + log_height].value.ext::<EF>();
+
+                    self.memory[ro_ptr + log_height].value = Block::from(
+                        (ro_at_log_height + alpha_pow_at_log_height * quotient).as_base_slice(),
+                    );
+                    self.memory[alpha_pow_ptr + log_height].value =
+                        Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
             };
@@ -568,5 +676,55 @@ where
                 ))
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_field::AbstractField;
+    use sp1_core::{
+        stark::{RiscvAir, StarkGenericConfig},
+        utils::BabyBearPoseidon2,
+    };
+
+    use super::{Instruction, Opcode, Program, Runtime};
+
+    type SC = BabyBearPoseidon2;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    type A = RiscvAir<F>;
+
+    #[test]
+    fn test_witness() {
+        let zero = F::zero();
+        let zero_block = [F::zero(); 4];
+        let program = Program {
+            instructions: vec![
+                Instruction::new(
+                    Opcode::HintLen,
+                    zero,
+                    zero_block,
+                    zero_block,
+                    zero,
+                    zero,
+                    false,
+                    false,
+                ),
+                Instruction::new(
+                    Opcode::PrintF,
+                    zero,
+                    zero_block,
+                    zero_block,
+                    zero,
+                    zero,
+                    false,
+                    false,
+                ),
+            ],
+        };
+        let machine = A::machine(SC::default());
+        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+        runtime.witness_stream = vec![vec![F::two().into(), F::two().into(), F::two().into()]];
+        runtime.run();
     }
 }

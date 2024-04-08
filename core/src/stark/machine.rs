@@ -12,6 +12,7 @@ use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
+use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
 
 use p3_air::Air;
@@ -92,6 +93,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .iter()
             .filter(|chip| chip_ordering.contains_key(&chip.name()))
             .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
+    }
+
+    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
+        self.chips()
+            .iter()
+            .map(|chip| proof.chip_ordering.get(&chip.name()).cloned())
+            .collect()
     }
 
     /// The setup preprocessing phase.

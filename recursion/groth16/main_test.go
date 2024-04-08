@@ -3,6 +3,7 @@ package main
 import (
 	"testing"
 
+	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/test"
 )
 
@@ -58,7 +59,7 @@ func TestMain(t *testing.T) {
 	assert.CheckCircuit(&Circuit{
 		X: 0,
 		Y: 0,
-	})
+	}, test.WithCurves(ecc.BN254))
 
 	// assert.ProverSucceeded(&circuit, &Circuit{
 	// 	X: 0,

@@ -4,8 +4,6 @@ use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
-use sp1_core::air::PublicValues;
-use sp1_core::air::Word;
 use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Felt;
@@ -14,6 +12,7 @@ use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::SymbolicExt;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
+use sp1_recursion_program::types::PublicValuesVariable;
 
 use crate::domain::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifierCircuit;
@@ -29,7 +28,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values: PublicValues<Word<Felt<C::F>>, Felt<C::F>>,
+        public_values: PublicValuesVariable<C>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[C::EF],
@@ -58,7 +57,7 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-        let public_values: Vec<Felt<C::F>> = public_values.to_vec();
+        let public_values: Vec<Felt<C::F>> = public_values.to_vec(builder);
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -128,7 +127,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values: PublicValues<Word<Felt<C::F>>, Felt<C::F>>,
+        public_values: PublicValuesVariable<C>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -167,7 +166,7 @@ mod tests {
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
     use sp1_core::{
-        air::{PublicValues, Word},
+        air::{PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
         stark::{
             Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
             ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
@@ -183,6 +182,7 @@ mod tests {
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+    use sp1_recursion_program::types::PublicValuesVariable;
 
     use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 
@@ -320,18 +320,25 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values.
-            let mut public_values: PublicValues<Word<Felt<F>>, Felt<F>> = Default::default();
-            public_values.shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
-            public_values.start_pc =
-                builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
-            public_values.next_pc =
-                builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
-            public_values.exit_code =
-                builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-            public_values.committed_value_digest = core::array::from_fn(|i| {
+            let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
+            let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
+            let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
+            let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
+            let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+            for i in 0..PV_DIGEST_NUM_WORDS {
                 let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
-                Word(core::array::from_fn(|j| builder.eval(word_val[j])))
-            });
+                for j in 0..WORD_SIZE {
+                    let word_val: Felt<_> = builder.eval(word_val[j]);
+                    builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
+                }
+            }
+            let public_values = PublicValuesVariable {
+                committed_values_digest: pv_committed_value_digest,
+                shard: pv_shard,
+                start_pc: pv_start_pc,
+                next_pc: pv_next_pc,
+                exit_code: pv_exit_code,
+            };
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -352,7 +359,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &opening,
-                    public_values,
+                    public_values.clone(),
                     trace_domain,
                     qc_domains,
                     zeta,
