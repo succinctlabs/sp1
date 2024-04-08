@@ -358,6 +358,7 @@ pub mod baby_bear_poseidon2 {
     use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
 
@@ -369,7 +370,7 @@ pub mod baby_bear_poseidon2 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
@@ -433,6 +434,7 @@ pub mod baby_bear_poseidon2 {
             let perm = Perm::new(
                 ROUNDS_F,
                 external_round_constants,
+                Poseidon2ExternalMatrixGeneral,
                 ROUNDS_P,
                 internal_round_constants,
                 DiffusionMatrixBabybear,
