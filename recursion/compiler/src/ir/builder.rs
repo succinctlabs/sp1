@@ -18,43 +18,33 @@ pub struct Builder<C: Config> {
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
     pub operations: Vec<DslIR<C>>,
-    pub nb_public_values: Var<C::N>,
-    pub public_values_buffer: Array<C, Felt<C::F>>,
+    pub nb_public_values: Option<Var<C::N>>,
+    pub public_values_buffer: Option<Array<C, Felt<C::F>>>,
 }
 
 impl<C: Config> Default for Builder<C> {
     fn default() -> Self {
-        let mut ret = Self {
+        Self {
             felt_count: 0,
             ext_count: 0,
             var_count: 0,
             operations: Vec::new(),
-            nb_public_values: Default::default(),
-            public_values_buffer: Default::default(),
-        };
-
-        ret.nb_public_values = ret.eval(C::N::zero());
-        ret.public_values_buffer = ret.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE);
-
-        ret
+            nb_public_values: None,
+            public_values_buffer: None,
+        }
     }
 }
 
 impl<C: Config> Builder<C> {
     pub fn new(var_count: u32, felt_count: u32, ext_count: u32) -> Self {
-        let mut ret = Self {
+        Self {
             felt_count,
             ext_count,
             var_count,
             operations: Vec::new(),
-            nb_public_values: Default::default(),
-            public_values_buffer: Default::default(),
-        };
-
-        ret.nb_public_values = ret.eval(C::N::zero());
-        ret.public_values_buffer = ret.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE);
-
-        ret
+            nb_public_values: None,
+            public_values_buffer: None,
+        }
     }
 
     pub fn push(&mut self, op: DslIR<C>) {
@@ -729,11 +719,16 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn write_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
+        if self.nb_public_values.is_none() {
+            self.nb_public_values = Some(self.eval(C::N::zero()));
+            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
+        }
+
         let len = vals.len();
 
         // TODO:  Is there a way to avoid cloning the public_value_buffer?
-        let nb_public_values = self.nb_public_values;
-        let mut public_values_buffer = self.public_values_buffer.clone();
+        let nb_public_values = self.nb_public_values.unwrap();
+        let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
 
         self.range(0, len).for_each(|i, builder| {
             let val = builder.get(vals, i);
@@ -741,13 +736,18 @@ impl<C: Config> Builder<C> {
             builder.assign(nb_public_values, nb_public_values + C::N::one());
         });
 
-        self.nb_public_values = nb_public_values;
-        self.public_values_buffer = public_values_buffer;
+        self.nb_public_values = Some(nb_public_values);
+        self.public_values_buffer = Some(public_values_buffer);
     }
 
     pub fn commit_public_values(&mut self) {
-        let pv_buffer = self.public_values_buffer.clone();
-        pv_buffer.truncate(self, self.nb_public_values.into());
+        if self.nb_public_values.is_none() {
+            self.nb_public_values = Some(self.eval(C::N::zero()));
+            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
+        }
+
+        let pv_buffer = self.public_values_buffer.clone().unwrap();
+        pv_buffer.truncate(self, self.nb_public_values.unwrap().into());
 
         let pv_hash = self.poseidon2_hash(&pv_buffer);
         self.operations.push(DslIR::Commit(pv_hash.clone()));

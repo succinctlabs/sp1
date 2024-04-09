@@ -536,11 +536,6 @@ where
                     // Perform the permutation.
                     let result = self.perm.as_ref().unwrap().permute(array);
 
-                    println!(
-                        "called permute on array: {:?} with result: {:?}",
-                        array, result
-                    );
-
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
                     for (i, value) in result.iter().enumerate() {
