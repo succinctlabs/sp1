@@ -404,16 +404,12 @@ impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
-    pub fn poseidon2_hash(
-        &mut self,
-        array: &Array<C, Felt<C::F>>,
-        array_len: Usize<C::N>,
-    ) -> Array<C, Felt<C::F>> {
+    pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
         let break_flag: Var<_> = self.eval(C::N::zero());
-        let last_index: Usize<_> = self.eval(array_len - 1);
-        self.range(0, array_len)
+        let last_index: Usize<_> = self.eval(array.len() - 1);
+        self.range(0, array.len())
             .step_by(HASH_RATE)
             .for_each(|i, builder| {
                 builder.if_eq(break_flag, C::N::one()).then(|builder| {
@@ -751,12 +747,9 @@ impl<C: Config> Builder<C> {
 
     pub fn commit_public_values(&mut self) {
         let pv_buffer = self.public_values_buffer.clone();
+        pv_buffer.truncate(self, self.nb_public_values.into());
 
-        if let Usize::Var(len) = pv_buffer.len() {
-            self.print_v(len);
-        }
-
-        let pv_hash = self.poseidon2_hash(&pv_buffer, self.nb_public_values.into());
+        let pv_hash = self.poseidon2_hash(&pv_buffer);
         self.operations.push(DslIR::Commit(pv_hash.clone()));
     }
 }

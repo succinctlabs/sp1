@@ -314,5 +314,5 @@ pub fn reduce<C: Config, const D: usize>(
             });
         });
     flattened_opened_values.truncate(builder, Usize::Var(nb_opened_values));
-    builder.poseidon2_hash(&flattened_opened_values, flattened_opened_values.len())
+    builder.poseidon2_hash(&flattened_opened_values)
 }
