@@ -76,6 +76,12 @@ pub struct ShardProofVariable<C: Config> {
     pub public_values: PublicValuesVariable<C>,
 }
 
+/// Reference: https://github.com/succinctlabs/sp1/blob/b5d5473c010ab0630102652146e16c014a1eddf6/core/src/stark/machine.rs#L63
+#[derive(DslVariable, Clone)]
+pub struct VerifyingKeyVariable<C: Config> {
+    pub commitment: DigestVariable<C>,
+}
+
 #[derive(DslVariable, Clone)]
 pub struct ShardCommitmentVariable<C: Config> {
     pub main_commit: DigestVariable<C>,
