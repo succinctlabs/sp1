@@ -172,9 +172,8 @@ where
             builder.set_value(&mut evals, 1, folded_eval);
             builder.set_value(&mut evals, index_sibling_mod_2, step.sibling_value);
 
-            let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
             let dims = DimensionsVariable::<C> {
-                height: builder.exp(two, log_folded_height),
+                height: builder.sll(C::N::one(), Usize::Var(log_folded_height)),
             };
             let mut dims_slice: Array<C, DimensionsVariable<C>> = builder.array(1);
             builder.set_value(&mut dims_slice, 0, dims);

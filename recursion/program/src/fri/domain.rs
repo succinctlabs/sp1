@@ -35,7 +35,7 @@ where
 {
     type Constant = TwoAdicMultiplicativeCoset<C::F>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         let log_d_val = value.log_n as u32;
         let g_val = C::F::two_adic_generator(value.log_n);
         // Initialize a domain.
@@ -99,7 +99,7 @@ where
     fn split_domains(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
         let num_chunks = 1 << log_num_chunks;
         let log_n: Var<_> = builder.eval(self.log_n - C::N::from_canonical_usize(log_num_chunks));
-        let size = builder.power_of_two_var(Usize::Var(log_n));
+        let size = builder.sll(C::N::one(), Usize::Var(log_n));
 
         let g_dom = self.gen();
 
@@ -202,7 +202,7 @@ pub(crate) mod tests {
 
             // Initialize a reference doamin.
             let domain_val = natural_domain_for_degree(1 << log_d_val);
-            let domain = builder.eval_const(domain_val);
+            let domain = builder.constant(domain_val);
             // builder.assert_felt_eq(domain.shift, domain_val.shift);
             let zeta_val = rng.gen::<EF>();
             domain_assertions(&mut builder, &domain, &domain_val, zeta_val);
@@ -210,7 +210,7 @@ pub(crate) mod tests {
             // Try a shifted domain.
             let disjoint_domain_val =
                 domain_val.create_disjoint_domain(1 << (log_d_val + log_quotient_degree));
-            let disjoint_domain = builder.eval_const(disjoint_domain_val);
+            let disjoint_domain = builder.constant(disjoint_domain_val);
             domain_assertions(
                 &mut builder,
                 &disjoint_domain,
@@ -231,7 +231,7 @@ pub(crate) mod tests {
             // Now try splited domains
             let qc_domains_val = disjoint_domain_val.split_domains(1 << log_quotient_degree);
             for dom_val in qc_domains_val.iter() {
-                let dom = builder.eval_const(*dom_val);
+                let dom = builder.constant(*dom_val);
                 domain_assertions(&mut builder, &dom, dom_val, zeta_val);
             }
 

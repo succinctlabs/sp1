@@ -36,5 +36,5 @@ pub trait MemVariable<C: Config>: Variable<C> {
 pub trait FromConstant<C: Config> {
     type Constant;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self;
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self;
 }

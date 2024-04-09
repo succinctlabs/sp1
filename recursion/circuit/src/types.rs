@@ -101,10 +101,10 @@ pub struct AirOpenedValuesVariable<C: Config> {
 impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
     type Constant = AirOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         AirOpenedValuesVariable {
-            local: value.local.iter().map(|x| builder.eval_const(*x)).collect(),
-            next: value.next.iter().map(|x| builder.eval_const(*x)).collect(),
+            local: value.local.iter().map(|x| builder.constant(*x)).collect(),
+            next: value.next.iter().map(|x| builder.constant(*x)).collect(),
         }
     }
 }
@@ -112,15 +112,15 @@ impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
 impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
     type Constant = ChipOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         ChipOpenedValuesVariable {
-            preprocessed: builder.eval_const(value.preprocessed),
-            main: builder.eval_const(value.main),
-            permutation: builder.eval_const(value.permutation),
+            preprocessed: builder.constant(value.preprocessed),
+            main: builder.constant(value.main),
+            permutation: builder.constant(value.permutation),
             quotient: value
                 .quotient
                 .iter()
-                .map(|x| x.iter().map(|y| builder.eval_const(*y)).collect())
+                .map(|x| x.iter().map(|y| builder.constant(*y)).collect())
                 .collect(),
             cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: value.log_degree,

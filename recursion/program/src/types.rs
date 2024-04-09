@@ -42,7 +42,7 @@ impl<C: Config> PublicValuesVariable<C> {
 impl<C: Config> FromConstant<C> for PublicValuesVariable<C> {
     type Constant = PublicValues<u32, u32>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         let pv_shard = builder.eval(C::F::from_canonical_u32(value.shard));
         let pv_start_pc = builder.eval(C::F::from_canonical_u32(value.start_pc));
         let pv_next_pc = builder.eval(C::F::from_canonical_u32(value.next_pc));
@@ -189,10 +189,10 @@ impl<C: Config> ChipOpening<C> {
 impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
     type Constant = AirOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         AirOpenedValuesVariable {
-            local: builder.eval_const(value.local),
-            next: builder.eval_const(value.next),
+            local: builder.constant(value.local),
+            next: builder.constant(value.next),
         }
     }
 }
@@ -200,12 +200,12 @@ impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
 impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
     type Constant = ChipOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         ChipOpenedValuesVariable {
-            preprocessed: builder.eval_const(value.preprocessed),
-            main: builder.eval_const(value.main),
-            permutation: builder.eval_const(value.permutation),
-            quotient: builder.eval_const(value.quotient),
+            preprocessed: builder.constant(value.preprocessed),
+            main: builder.constant(value.main),
+            permutation: builder.constant(value.permutation),
+            quotient: builder.constant(value.quotient),
             cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: builder.eval(C::N::from_canonical_usize(value.log_degree)),
         }

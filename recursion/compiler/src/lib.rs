@@ -2,13 +2,14 @@
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::type_complexity)]
 
+extern crate alloc;
+
 use asm::AsmConfig;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::extension::BinomialExtensionField;
 use prelude::Config;
 use sp1_recursion_core::stark::config::{InnerChallenge, InnerVal};
-extern crate alloc;
 
 pub mod asm;
 pub mod constraints;
