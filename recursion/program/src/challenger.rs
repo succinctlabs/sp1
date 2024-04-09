@@ -61,6 +61,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
+    /// Creates a new challenger with the same state as an existing challenger.
     pub fn as_clone(&self, builder: &mut Builder<C>) -> Self {
         let mut sponge_state = builder.dyn_array(PERMUTATION_WIDTH);
         builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {

@@ -72,6 +72,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         &self.chips
     }
 
+    /// Returns the id of all chips in the machine that have preprocessed columns.
     pub fn preprocessed_chip_ids(&self) -> Vec<usize> {
         self.chips
             .iter()

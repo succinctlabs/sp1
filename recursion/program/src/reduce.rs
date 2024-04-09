@@ -34,6 +34,7 @@ use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Program as RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
+use sp1_recursion_core::stark::RecursionAir;
 use sp1_sdk::utils::BabyBearPoseidon2;
 
 type SC = BabyBearPoseidon2;
@@ -88,6 +89,7 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
 
 pub fn build_reduce() -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(SC::default());
+    let recursion_machine = RecursionAir::machine(SC::default());
 
     let time = Instant::now();
     let mut builder = VmBuilder::<F, EF>::default();
@@ -148,7 +150,19 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                     );
                 },
                 // Recursive proof
-                |builder| {},
+                |builder| {
+                    // StarkVerifier::<C, SC>::verify_shard(
+                    //     builder,
+                    //     &recursion_vk.clone(),
+                    //     &pcs,
+                    //     &sp1_machine,
+                    //     &mut current_challenger,
+                    //     &proof,
+                    //     sorted_indices.clone(),
+                    //     prep_sorted_indices.clone(),
+                    //     prep_domains.clone(),
+                    // );
+                },
             );
         });
 

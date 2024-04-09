@@ -35,7 +35,7 @@ impl SP1ProverImpl {
         proof
     }
 
-    fn compress(elf: &[u8], proof: Proof<InnerSC>) -> Vec<ShardProof<InnerSC>> {
+    fn reduce(elf: &[u8], proof: Proof<InnerSC>) -> Vec<ShardProof<InnerSC>> {
         let config = InnerSC::default();
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
@@ -129,52 +129,8 @@ impl SP1ProverImpl {
         println!("proving duration = {}", duration);
         proof.shard_proofs
     }
+}
 
-    fn reduce(proofs: Vec<ShardProof<InnerSC>>) -> ShardProof<InnerSC> {
-        todo!()
-    }
-}
-pub fn prove_sp1() -> (Proof<InnerSC>, VerifyingKey<InnerSC>) {
-    let elf = include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
-    let config = InnerSC::default();
-    let machine = RiscvAir::machine(config.clone());
-    let program = Program::from(elf);
-    let stdin = [bincode::serialize::<u32>(&6).unwrap()];
-    let (_, vk) = machine.setup(&program);
-    let (proof, _) = run_and_prove(program, &stdin, config);
-    let mut challenger_ver = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
-    println!("Proof generated successfully");
-    (proof, vk)
-}
-pub fn prove_compress(sp1_proof: Proof<InnerSC>, vk: VerifyingKey<InnerSC>) {
-    let program = build_reduce();
-    todo!()
-    // let config = InnerSC::default();
-    // let machine = InnerA::machine(config);
-    // let mut runtime = Runtime::<InnerF, InnerEF, _>::new(&program, machine.config().perm.clone());
-    // runtime.witness_stream = witness_stream;
-    // let time = Instant::now();
-    // runtime.run();
-    // let elapsed = time.elapsed();
-    // runtime.print_stats();
-    // println!("Execution took: {:?}", elapsed);
-    // let config = BabyBearPoseidon2::new();
-    // let machine = RecursionAir::machine(config);
-    // let (pk, vk) = machine.setup(&program);
-    // let mut challenger = machine.config().challenger();
-    // let record_clone = runtime.record.clone();
-    // machine.debug_constraints(&pk, record_clone, &mut challenger);
-    // let start = Instant::now();
-    // let mut challenger = machine.config().challenger();
-    // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-    // let duration = start.elapsed().as_secs();
-    // let mut challenger = machine.config().challenger();
-    // machine.verify(&vk, &proof, &mut challenger).unwrap();
-    // println!("proving duration = {}", duration);
-}
-pub fn prove_reduce() {}
-pub fn prove_snark() {}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -186,6 +142,6 @@ mod tests {
             include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
         let proof = SP1ProverImpl::prove(elf, &stdin);
-        let compressed_proof = SP1ProverImpl::compress(elf, proof);
+        let compressed_proof = SP1ProverImpl::reduce(elf, proof);
     }
 }

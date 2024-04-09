@@ -81,7 +81,6 @@ pub struct ShardProofVariable<C: Config> {
 #[derive(DslVariable, Clone)]
 pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
-    // TODO: witness chip info?
 }
 
 #[derive(DslVariable, Clone)]

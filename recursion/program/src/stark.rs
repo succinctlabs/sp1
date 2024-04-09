@@ -140,8 +140,6 @@ where
         }
 
         builder.range(0, num_shard_chips).for_each(|i, builder| {
-            let code = builder.eval_const(C::F::from_canonical_u32(91));
-            builder.print_f(code);
             let opening = builder.get(&opened_values.chips, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
             builder.set(&mut trace_domains, i, domain.clone());
@@ -224,17 +222,11 @@ where
         builder.set(&mut rounds, 2, perm_round);
         builder.set(&mut rounds, 3, quotient_round);
 
-        let code = builder.eval_const(C::F::from_canonical_u32(92));
-        builder.print_f(code);
         // Verify the pcs proof
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
-        let code = builder.eval_const(C::F::from_canonical_u32(93));
-        builder.print_f(code);
 
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         for (i, chip) in machine.chips().iter().enumerate() {
-            let code = builder.eval_const(C::F::from_canonical_u32(94));
-            builder.print_f(code);
             let index = builder.get(&chip_sorted_idxs, i);
 
             if chip.preprocessed_width() > 0 {
