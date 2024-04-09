@@ -57,12 +57,20 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub data: PcsProverData<SC>,
-    pub preprocessed_chips: Vec<usize>,
+    pub chip_ordering: HashMap<String, usize>,
 }
 
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
+<<<<<<< HEAD
     pub chip_information: Vec<(usize, Dom<SC>, Dimensions)>,
+||||||| f4737d54 (vk preprocessed indices)
+    pub chip_information: Vec<(usize, Dom<SC>, Dimensions)>,
+    pub preprocessed_chips: Vec<usize>,
+=======
+    pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
+    pub chip_ordering: HashMap<String, usize>,
+>>>>>>> parent of f4737d54 (vk preprocessed indices)
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
@@ -115,11 +123,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
     pub fn setup(&self, program: &A::Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
-        let mut preprocessed_traces = self
+        let mut named_preprocessed_traces = self
             .chips()
             .iter()
-            .enumerate()
-            .map(|(idx, chip)| {
+            .map(|chip| {
                 let prep_trace = chip.generate_preprocessed_trace(program);
                 // Assert that the chip width data is correct.
                 let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
@@ -130,7 +137,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     chip.name()
                 );
 
-                (idx, prep_trace)
+                (chip.name(), prep_trace)
             })
             .filter(|(_, prep_trace)| prep_trace.is_some())
             .map(|(name, prep_trace)| {
@@ -140,16 +147,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .collect::<Vec<_>>();
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        preprocessed_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
+        named_preprocessed_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
 
         let pcs = self.config.pcs();
 
-        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = preprocessed_traces
+        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
             .iter()
-            .map(|(idx, trace)| {
+            .map(|(name, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 (
-                    (*idx, domain, trace.dimensions()),
+                    (name.to_owned(), domain, trace.dimensions()),
                     (domain, trace.to_owned()),
                 )
             })
@@ -158,14 +165,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         // Commit to the batch of traces.
         let (commit, data) = pcs.commit(domains_and_traces);
 
-        // Get the preprocessed chip ordering. This is a vec of chip indices.
-        let preprocessed_chips = preprocessed_traces
+        // Get the chip ordering.
+        let chip_ordering = named_preprocessed_traces
             .iter()
-            .map(|(idx, _)| *idx)
-            .collect::<Vec<_>>();
+            .enumerate()
+            .map(|(i, (name, _))| (name.to_owned(), i))
+            .collect::<HashMap<_, _>>();
 
         // Get the preprocessed traces
-        let traces = preprocessed_traces
+        let traces = named_preprocessed_traces
             .into_iter()
             .map(|(_, trace)| trace)
             .collect::<Vec<_>>();
@@ -175,11 +183,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 commit: commit.clone(),
                 traces,
                 data,
-                preprocessed_chips,
+                chip_ordering: chip_ordering.clone(),
             },
             VerifyingKey {
                 commit,
                 chip_information,
+                chip_ordering,
             },
         )
     }
@@ -307,12 +316,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             // Generate the main trace for each chip.
             let pre_traces = chips
                 .iter()
-                .enumerate()
-                .map(|(chip_idx, chip)| {
-                    pk.preprocessed_chips
-                        .iter()
-                        .position(|&idx| idx == chip_idx)
-                        .map(|index| &pk.traces[index])
+                .map(|chip| {
+                    pk.chip_ordering
+                        .get(&chip.name())
+                        .map(|index| &pk.traces[*index])
                 })
                 .collect::<Vec<_>>();
             let traces = chips
@@ -369,17 +376,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             }
 
             tracing::info_span!("debug constraints").in_scope(|| {
-                for chip_idx in 0..chips.len() {
+                for i in 0..chips.len() {
                     let permutation_trace = pk
-                        .preprocessed_chips
-                        .iter()
-                        .position(|&idx| idx == chip_idx)
-                        .map(|index| &pk.traces[index]);
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
-                        chips[chip_idx],
+                        chips[i],
                         permutation_trace,
-                        &traces[chip_idx].0,
-                        &permutation_traces[chip_idx],
+                        &traces[i].0,
+                        &permutation_traces[i],
                         &permutation_challenges,
                         PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
                     );

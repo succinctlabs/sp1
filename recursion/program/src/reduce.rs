@@ -145,8 +145,16 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         builder.print_f(code);
 
                         // Initialize the current challenger
+                        // let h: [BabyBear; DIGEST_SIZE] = sp1_vk.commit.into();
+                        // let const_commit: DigestVariable<C> = builder.eval_const(h.to_vec());
                         reconstruct_challenger = DuplexChallengerVariable::new(builder);
                         reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
+                        // for j in 0..DIGEST_SIZE {
+                        //     let element = builder.get(&sp1_vk.commit, j);
+                        //     reconstruct_challenger.observe(builder, element);
+                        // }
+                        // reconstruct_challenger
+                        //     .observe_slice(builder, &recursion_vk.commitment);
                     });
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&proof.commitment.main_commit, j);
