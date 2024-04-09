@@ -85,9 +85,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         let preprocessed_domains_points_and_opens = vk
             .chip_information
             .iter()
-            .map(|(name, domain, _)| {
-                let i = proof.chip_ordering[name];
-                let values = proof.opened_values.chips[i].preprocessed.clone();
+            .map(|(chip_idx, domain, _)| {
+                let values = proof.opened_values.chips[*chip_idx].preprocessed.clone();
                 (
                     *domain,
                     vec![

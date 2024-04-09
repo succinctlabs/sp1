@@ -48,6 +48,7 @@ fn field_to_int<F: PrimeField32>(x: F) -> i32 {
 
 pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     chip: &MachineChip<SC, A>,
+    chip_idx: usize,
     pkey: &ProvingKey<SC>,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
@@ -61,9 +62,10 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     let trace = chip.generate_trace(record, &mut A::Record::default());
     let mut pre_traces = pkey.traces.clone();
     let mut preprocessed_trace = pkey
-        .chip_ordering
-        .get(&chip.name())
-        .map(|&index| pre_traces.get_mut(index).unwrap());
+        .preprocessed_chips
+        .iter()
+        .position(|&idx| idx == chip_idx)
+        .map(|index| pre_traces.get_mut(index).unwrap());
     let mut main = trace.clone();
     let height = trace.clone().height();
 
@@ -141,11 +143,11 @@ where
     let mut total = SC::Val::zero();
 
     let chips = machine.chips();
-    for chip in chips.iter() {
+    for (chip_idx, chip) in chips.iter().enumerate() {
         let mut total_events = 0;
         for shard in shards {
             let (_, count) =
-                debug_interactions::<SC, A>(chip, pkey, shard, interaction_kinds.clone());
+                debug_interactions::<SC, A>(chip, chip_idx, pkey, shard, interaction_kinds.clone());
             total_events += count.len();
             for (key, value) in count.iter() {
                 let entry = final_map

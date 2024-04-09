@@ -461,6 +461,7 @@ pub(crate) mod tests {
                 &mut challenger.clone(),
                 proof,
                 sorted_indices,
+                vk.chip_information,
             );
         }
 

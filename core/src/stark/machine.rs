@@ -57,13 +57,13 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub data: PcsProverData<SC>,
-    pub chip_ordering: HashMap<String, usize>,
+    pub preprocessed_chips: Vec<usize>,
 }
 
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
-    pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
-    pub chip_ordering: HashMap<String, usize>,
+    pub chip_information: Vec<(usize, Dom<SC>, Dimensions)>,
+    pub preprocessed_chips: Vec<usize>,
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
@@ -107,10 +107,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
     pub fn setup(&self, program: &A::Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
-        let mut named_preprocessed_traces = self
+        let mut preprocessed_traces = self
             .chips()
             .iter()
-            .map(|chip| {
+            .enumerate()
+            .map(|(idx, chip)| {
                 let prep_trace = chip.generate_preprocessed_trace(program);
                 // Assert that the chip width data is correct.
                 let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
@@ -121,7 +122,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     chip.name()
                 );
 
-                (chip.name(), prep_trace)
+                (idx, prep_trace)
             })
             .filter(|(_, prep_trace)| prep_trace.is_some())
             .map(|(name, prep_trace)| {
@@ -131,16 +132,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .collect::<Vec<_>>();
 
         // Order the chips and traces by trace size (biggest first), and get the ordering map.
-        named_preprocessed_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
+        preprocessed_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
 
         let pcs = self.config.pcs();
 
-        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
+        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = preprocessed_traces
             .iter()
-            .map(|(name, trace)| {
+            .map(|(idx, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 (
-                    (name.to_owned(), domain, trace.dimensions()),
+                    (*idx, domain, trace.dimensions()),
                     (domain, trace.to_owned()),
                 )
             })
@@ -149,15 +150,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         // Commit to the batch of traces.
         let (commit, data) = pcs.commit(domains_and_traces);
 
-        // Get the chip ordering.
-        let chip_ordering = named_preprocessed_traces
+        // Get the preprocessed chip ordering. This is a vec of chip indices.
+        let preprocessed_chips = preprocessed_traces
             .iter()
-            .enumerate()
-            .map(|(i, (name, _))| (name.to_owned(), i))
-            .collect::<HashMap<_, _>>();
+            .map(|(idx, _)| *idx)
+            .collect::<Vec<_>>();
 
         // Get the preprocessed traces
-        let traces = named_preprocessed_traces
+        let traces = preprocessed_traces
             .into_iter()
             .map(|(_, trace)| trace)
             .collect::<Vec<_>>();
@@ -167,12 +167,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 commit: commit.clone(),
                 traces,
                 data,
-                chip_ordering: chip_ordering.clone(),
+                preprocessed_chips: preprocessed_chips.clone(),
             },
             VerifyingKey {
                 commit,
                 chip_information,
-                chip_ordering,
+                preprocessed_chips,
             },
         )
     }
@@ -300,10 +300,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             // Generate the main trace for each chip.
             let pre_traces = chips
                 .iter()
-                .map(|chip| {
-                    pk.chip_ordering
-                        .get(&chip.name())
-                        .map(|index| &pk.traces[*index])
+                .enumerate()
+                .map(|(chip_idx, chip)| {
+                    pk.preprocessed_chips
+                        .iter()
+                        .position(|&idx| idx == chip_idx)
+                        .map(|index| &pk.traces[index])
                 })
                 .collect::<Vec<_>>();
             let traces = chips
@@ -360,16 +362,17 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             }
 
             tracing::info_span!("debug constraints").in_scope(|| {
-                for i in 0..chips.len() {
+                for chip_idx in 0..chips.len() {
                     let permutation_trace = pk
-                        .chip_ordering
-                        .get(&chips[i].name())
-                        .map(|index| &pk.traces[*index]);
+                        .preprocessed_chips
+                        .iter()
+                        .position(|&idx| idx == chip_idx)
+                        .map(|index| &pk.traces[index]);
                     debug_constraints::<SC, A>(
-                        chips[i],
+                        chips[chip_idx],
                         permutation_trace,
-                        &traces[i].0,
-                        &permutation_traces[i],
+                        &traces[chip_idx].0,
+                        &permutation_traces[chip_idx],
                         &permutation_challenges,
                         PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
                     );

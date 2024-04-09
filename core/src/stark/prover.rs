@@ -280,11 +280,13 @@ where
             chips
                 .par_iter()
                 .zip(traces.par_iter())
-                .map(|(chip, main_trace)| {
+                .enumerate()
+                .map(|(chip_idx, (chip, main_trace))| {
                     let preprocessed_trace = pk
-                        .chip_ordering
-                        .get(&chip.name())
-                        .map(|&index| &pk.traces[index]);
+                        .preprocessed_chips
+                        .iter()
+                        .position(|&idx| idx == chip_idx)
+                        .map(|index| &pk.traces[index]);
                     let perm_trace = chip.generate_permutation_trace(
                         preprocessed_trace,
                         main_trace,
@@ -351,24 +353,31 @@ where
             quotient_domains
                 .into_par_iter()
                 .enumerate()
-                .map(|(i, quotient_domain)| {
+                .map(|(chip_idx, quotient_domain)| {
                     let preprocessed_trace_on_quotient_domains = pk
-                        .chip_ordering
-                        .get(&chips[i].name())
-                        .map(|&index| {
+                        .preprocessed_chips
+                        .iter()
+                        .position(|&idx| idx == chip_idx)
+                        .map(|index| {
                             pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
                         })
                         .unwrap_or_else(|| {
                             RowMajorMatrix::new_col(vec![SC::Val::zero(); quotient_domain.size()])
                         });
-                    let main_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain);
-                    let permutation_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&permutation_data, i, *quotient_domain);
+                    let main_trace_on_quotient_domains = pcs.get_evaluations_on_domain(
+                        &shard_data.main_data,
+                        chip_idx,
+                        *quotient_domain,
+                    );
+                    let permutation_trace_on_quotient_domains = pcs.get_evaluations_on_domain(
+                        &permutation_data,
+                        chip_idx,
+                        *quotient_domain,
+                    );
                     quotient_values(
-                        chips[i],
-                        cumulative_sums[i],
-                        trace_domains[i],
+                        chips[chip_idx],
+                        cumulative_sums[chip_idx],
+                        trace_domains[chip_idx],
                         *quotient_domain,
                         preprocessed_trace_on_quotient_domains,
                         main_trace_on_quotient_domains,
@@ -482,11 +491,12 @@ where
             .zip_eq(log_degrees.iter())
             .enumerate()
             .map(
-                |(i, ((((main, permutation), quotient), cumulative_sum), log_degree))| {
+                |(chip_idx, ((((main, permutation), quotient), cumulative_sum), log_degree))| {
                     let preprocessed = pk
-                        .chip_ordering
-                        .get(&chips[i].name())
-                        .map(|&index| preprocessed_opened_values[index].clone())
+                        .preprocessed_chips
+                        .iter()
+                        .position(|&idx| idx == chip_idx)
+                        .map(|index| preprocessed_opened_values[index].clone())
                         .unwrap_or(AirOpenedValues {
                             local: vec![],
                             next: vec![],
