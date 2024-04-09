@@ -140,7 +140,7 @@ where
             builder,
             chip,
             &opening,
-            public_values_digest,
+            public_values,
             &sels,
             alpha,
             permutation_challenges,

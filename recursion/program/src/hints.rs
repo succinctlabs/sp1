@@ -1,5 +1,11 @@
+use crate::challenger::DuplexChallengerVariable;
+use crate::types::{
+    AirOpenedValuesVariable, ChipOpenedValuesVariable, PublicValuesVariable,
+    ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
+};
 use p3_challenger::DuplexChallenger;
 use p3_field::{AbstractExtensionField, AbstractField};
+use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
 use sp1_core::{
     air::{PublicValues, Word},
     stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
@@ -15,11 +21,6 @@ use sp1_recursion_core::{
     },
 };
 use sp1_sdk::utils::BabyBearPoseidon2;
-
-use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, PublicValuesVariable,
-    ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable,
-};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;
@@ -64,6 +65,39 @@ impl Hintable<C> for InnerChallenge {
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         vec![vec![Block::from((*self).as_base_slice())]]
+    }
+}
+
+trait VecAutoHintable<C: Config>: Hintable<C> {}
+
+impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
+impl VecAutoHintable<C> for Vec<usize> {}
+
+impl<I: VecAutoHintable<C>> Hintable<C> for Vec<I> {
+    type HintVariable = Array<C, I::HintVariable>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let len = builder.hint_var();
+        let mut arr = builder.dyn_array(len);
+        builder.range(0, len).for_each(|i, builder| {
+            let hint = I::read(builder);
+            builder.set(&mut arr, i, hint);
+        });
+        arr
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let len = InnerVal::from_canonical_usize(self.len());
+        stream.push(vec![len.into()]);
+
+        self.iter().for_each(|i| {
+            let comm = I::write(i);
+            stream.extend(comm);
+        });
+
+        stream
     }
 }
 
@@ -317,6 +351,22 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
         stream.extend(self.input_buffer.write());
         stream.extend(self.output_buffer.len().write());
         stream.extend(self.output_buffer.write());
+        stream
+    }
+}
+
+impl Hintable<C> for VerifyingKey<BabyBearPoseidon2> {
+    type HintVariable = VerifyingKeyVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let commitment = InnerDigest::read(builder);
+        VerifyingKeyVariable { commitment }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+        let h: InnerDigest = self.commit.into();
+        stream.extend(h.write());
         stream
     }
 }

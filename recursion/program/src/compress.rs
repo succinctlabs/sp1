@@ -1,3 +1,4 @@
+use std::thread::current;
 use std::time::Instant;
 
 use crate::challenger::CanObserveVariable;
@@ -11,14 +12,8 @@ use crate::stark::EMPTY;
 use crate::types::ShardCommitmentVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
-<<<<<<< HEAD
-use p3_challenger::CanObserve;
-||||||| parent of e820b13d (wip)
-use p3_challenger::{CanObserve, FieldChallenger};
-=======
 use p3_challenger::DuplexChallenger;
 use p3_challenger::{CanObserve, FieldChallenger};
->>>>>>> e820b13d (wip)
 use p3_commit::ExtensionMmcs;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::extension::BinomialExtensionField;
@@ -42,7 +37,9 @@ use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
+use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Usize;
+use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::ir::Variable;
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::Program as RecursionProgram;
@@ -94,15 +91,21 @@ pub fn const_fri_config(
     }
 }
 
+fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
+    let mut arr = builder.dyn_array(1);
+    builder.set(&mut arr, 0, var.clone());
+    builder.get(&arr, 0)
+}
+
 // TODO: proof is only necessary now because it's a constant, it should be I/O soon
 pub fn build_compress(
     proof: Proof<BabyBearPoseidon2>,
-    vk: VerifyingKey<SC>,
+    sp1_vk: VerifyingKey<SC>,
 ) -> (RecursionProgram<Val>, Vec<Vec<Block<Val>>>) {
     let machine = RiscvAir::machine(SC::default());
 
     let mut challenger_val = machine.config().challenger();
-    challenger_val.observe(vk.commit);
+    challenger_val.observe(sp1_vk.commit);
     proof.shard_proofs.iter().for_each(|proof| {
         challenger_val.observe(proof.commitment.main_commit);
         let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
@@ -116,7 +119,7 @@ pub fn build_compress(
 
     let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
-    let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+    let preprocessed_commit_val: [F; DIGEST_SIZE] = sp1_vk.commit.into();
     let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
     challenger.observe(&mut builder, preprocessed_commit);
 
@@ -124,25 +127,55 @@ pub fn build_compress(
     let mut shard_proofs = vec![];
     let mut sorted_indices = vec![];
 
-    let num_proofs = usize::read(&mut builder);
+    // Read witness inputs
+    let proofs = Vec::<ShardProof<_>>::read(&mut builder);
+    let is_recursive_flags = Vec::<usize>::read(&mut builder);
+    let chip_indices = Vec::<Vec<usize>>::read(&mut builder);
+    let num_proofs = proofs.len();
     let current_challenger = DuplexChallenger::read(&mut builder);
-    // let
+    let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
+    let verify_start_challenger = DuplexChallenger::read(&mut builder);
+    let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
+
+    let pre_challenger = clone(&mut builder, &current_challenger);
+    let pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
+    let zero: Var<_> = builder.eval_const(F::zero());
     builder
         .range(Usize::Const(0), num_proofs)
-        .for_each(|_, mut builder| {
-            let proof = ShardProof::<_>::read(&mut builder);
-            let sorted_indices_arr = Vec::<usize>::read(&mut builder);
-            builder
-                .range(0, sorted_indices_arr.len())
-                .for_each(|i, builder| {
-                    let el = builder.get(&sorted_indices_arr, i);
-                    builder.print_v(el);
-                });
-            let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
-            challenger.observe(&mut builder, main_commit.clone());
-            // challenger.observe_slice(&mut builder, &proof.public_values.to_vec());
-            shard_proofs.push(proof);
-            sorted_indices.push(sorted_indices_arr);
+        .for_each(|i, builder| {
+            let proof = builder.get(&proofs, i);
+            builder.if_eq(proof.index, zero).then(|builder| {
+                // Ensure that first current_challenger == verify_start_challenger
+                DuplexChallengerVariable::assert_eq(
+                    current_challenger.clone(),
+                    reconstruct_challenger.clone(),
+                    builder,
+                );
+
+                // Initialize the current challenger
+                reconstruct_challenger.assign(reconstruct_challenger.clone(), builder);
+                reconstruct_challenger.observe_slice(builder, &recursion_vk.commitment.vec());
+            })
+            // if i.eq(&zero) {
+            //     current
+            // } else {
+            //     current_challenger.assign(reconstruct_challenger.clone(), &mut builder);
+            // }
+
+            // // let is_recursive = usize::read(&mut builder);
+            // // let proof = ShardProof::<_>::read(&mut builder);
+            // // let sorted_indices_arr = Vec::<usize>::read(&mut builder);
+            // // builder
+            // //     .range(0, sorted_indices_arr.len())
+            // //     .for_each(|i, builder| {
+            // //         let el = builder.get(&sorted_indices_arr, i);
+            // //         builder.print_v(el);
+            // //     });
+            // let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
+            // challenger.observe(&mut builder, main_commit.clone());
+            // // challenger.observe_slice(&mut builder, &proof.public_values.to_vec());
+            // shard_proofs.push(proof);
+            // sorted_indices.push(sorted_indices_arr);
         });
 
     for proof_val in proof.shard_proofs {
@@ -180,7 +213,7 @@ pub fn build_compress(
     for (proof, sorted_indices) in shard_proofs.iter().zip(sorted_indices) {
         StarkVerifier::<C, SC>::verify_shard(
             &mut builder,
-            &vk,
+            &sp1_vk,
             &pcs,
             &machine,
             &mut challenger.clone(),
