@@ -98,7 +98,7 @@ where
             let index = sorted_indices[chip_idx];
             let opening = &opened_values.chips[index];
 
-            let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(*domain);
+            let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
 
             let mut trace_points = Vec::new();
             let zeta_next = domain_var.next_point(builder, zeta);
@@ -274,7 +274,7 @@ pub(crate) mod tests {
     {
         // Set up the public values.
         let public_values: PublicValuesVariable<OuterConfig> =
-            builder.eval_const(proof.public_values);
+            builder.constant(proof.public_values);
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
@@ -293,7 +293,7 @@ pub(crate) mod tests {
         // Set up the opened values.
         let mut opened_values = Vec::new();
         for values in proof.opened_values.chips.iter() {
-            let values: ChipOpenedValuesVariable<_> = builder.eval_const(values.clone());
+            let values: ChipOpenedValuesVariable<_> = builder.constant(values.clone());
             opened_values.push(values);
         }
         let opened_values = RecursionShardOpenedValuesVariable {

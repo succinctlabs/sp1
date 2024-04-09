@@ -466,6 +466,15 @@ where
                         next_pc = self.pc + c_offset;
                     }
                 }
+                Opcode::BNEINC => {
+                    let (mut a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    a_val.0[0] += F::one();
+                    if a_val.0[0] != b_val.0[0] {
+                        next_pc = self.pc + c_offset;
+                    }
+                    self.mw(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
+                }
                 Opcode::EBEQ => {
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));

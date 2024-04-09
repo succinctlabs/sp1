@@ -338,7 +338,7 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
+        let preprocessed_commit: Array<C, _> = builder.constant(preprocessed_commit_val.to_vec());
         challenger.observe(&mut builder, preprocessed_commit);
 
         let mut witness_stream = Vec::new();

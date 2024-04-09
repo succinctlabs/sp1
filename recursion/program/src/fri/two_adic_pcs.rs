@@ -55,11 +55,13 @@ pub fn verify_two_adic_pcs<C: Config>(
 
             let mut ro: Array<C, Ext<C::F, C::EF>> = builder.array(32);
             let mut alpha_pow: Array<C, Ext<C::F, C::EF>> = builder.array(32);
+            let zero_ef = builder.eval(C::EF::zero().cons());
             for j in 0..32 {
-                builder.set(&mut ro, j, C::EF::zero().cons());
+                builder.set_value(&mut ro, j, zero_ef);
             }
+            let one_ef = builder.eval(C::EF::one().cons());
             for j in 0..32 {
-                builder.set(&mut alpha_pow, j, C::EF::one().cons());
+                builder.set_value(&mut alpha_pow, j, one_ef);
             }
 
             builder.range(0, rounds.len()).for_each(|j, builder| {
@@ -72,7 +74,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                 builder.range(0, mats.len()).for_each(|k, builder| {
                     let mat = builder.get(&mats, k);
                     let height_log2: Var<_> = builder.eval(mat.domain.log_n + log_blowup);
-                    builder.set(&mut batch_heights_log2, k, height_log2);
+                    builder.set_value(&mut batch_heights_log2, k, height_log2);
                 });
                 let mut batch_dims: Array<C, DimensionsVariable<C>> = builder.array(mats.len());
                 builder.range(0, mats.len()).for_each(|k, builder| {
@@ -80,7 +82,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let dim = DimensionsVariable::<C> {
                         height: builder.eval(mat.domain.size() * blowup),
                     };
-                    builder.set(&mut batch_dims, k, dim);
+                    builder.set_value(&mut batch_dims, k, dim);
                 });
 
                 let log_batch_max_height = builder.get(&batch_heights_log2, 0);
@@ -136,7 +138,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                             };
 
                             let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
-                            builder.set(&mut input_ptr, 0, input);
+                            builder.set_value(&mut input_ptr, 0, input);
 
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
                                 builder.push(DslIR::FriFold(m, input_ptr.clone()));
@@ -145,7 +147,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     });
             });
 
-            builder.set(&mut reduced_openings, i, ro);
+            builder.set_value(&mut reduced_openings, i, ro);
         });
 
     verify_challenges(
@@ -166,7 +168,7 @@ where
         Vec<(TwoAdicMultiplicativeCoset<C::F>, Vec<(C::EF, Vec<C::EF>)>)>,
     );
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         let (commit_val, domains_and_openings_val) = value;
 
         // Allocate the commitment.
@@ -180,7 +182,7 @@ where
             builder.dyn_array::<TwoAdicPcsMatsVariable<C>>(domains_and_openings_val.len());
 
         for (i, (domain, openning)) in domains_and_openings_val.into_iter().enumerate() {
-            let domain = builder.eval_const::<TwoAdicMultiplicativeCosetVariable<_>>(domain);
+            let domain = builder.constant::<TwoAdicMultiplicativeCosetVariable<_>>(domain);
 
             let points_val = openning.iter().map(|(p, _)| *p).collect::<Vec<_>>();
             let values_val = openning.iter().map(|(_, v)| v.clone()).collect::<Vec<_>>();
@@ -311,7 +313,7 @@ pub(crate) mod tests {
                 shift: InnerVal::one(),
             };
             let domain_value: TwoAdicMultiplicativeCosetVariable<_> =
-                builder.eval_const(constant_domain);
+                builder.constant(constant_domain);
             builder.set(&mut subgroups, i, domain_value);
         }
         FriConfigVariable {
@@ -389,7 +391,7 @@ pub(crate) mod tests {
         let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds =
-            builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(vec![(commit, os.clone())]);
+            builder.constant::<Array<_, TwoAdicPcsRoundVariable<_>>>(vec![(commit, os.clone())]);
 
         // Test natural domain for degree.
         for log_d_val in log_degrees.iter() {
@@ -403,7 +405,7 @@ pub(crate) mod tests {
                 );
 
             let expected_domain: TwoAdicMultiplicativeCosetVariable<_> =
-                builder.eval_const(domain_val);
+                builder.constant(domain_val);
 
             builder.assert_eq::<TwoAdicMultiplicativeCosetVariable<_>>(domain, expected_domain);
         }
@@ -412,7 +414,7 @@ pub(crate) mod tests {
         let proofvar = InnerPcsProof::read(&mut builder);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         let commit = <[InnerVal; DIGEST_SIZE]>::from(commit).to_vec();
-        let commit = builder.eval_const::<Array<_, _>>(commit);
+        let commit = builder.constant::<Array<_, _>>(commit);
         challenger.observe(&mut builder, commit);
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
@@ -522,14 +524,14 @@ pub(crate) mod tests {
         let mut builder = Builder::<InnerConfig>::default();
         let config = const_fri_config(&mut builder, inner_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
-        let rounds = builder.eval_const::<Array<_, TwoAdicPcsRoundVariable<_>>>(rounds_val);
+        let rounds = builder.constant::<Array<_, TwoAdicPcsRoundVariable<_>>>(rounds_val);
 
         // // Test proof verification.
         let proofvar = InnerPcsProof::read(&mut builder);
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
         for commit in batches_commits {
             let commit: [InnerVal; DIGEST_SIZE] = commit.into();
-            let commit = builder.eval_const::<Array<_, _>>(commit.to_vec());
+            let commit = builder.constant::<Array<_, _>>(commit.to_vec());
             challenger.observe(&mut builder, commit);
         }
         challenger.sample_ext(&mut builder);

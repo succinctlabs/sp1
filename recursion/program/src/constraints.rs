@@ -353,14 +353,13 @@ mod tests {
                 );
 
                 // Compute the folded constraints value in the DSL.
-                let values_var: ChipOpenedValuesVariable<_> =
-                    builder.eval_const(values_vals.clone());
+                let values_var: ChipOpenedValuesVariable<_> = builder.constant(values_vals.clone());
                 let values = ChipOpening::from_variable(&mut builder, chip, &values_var);
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
 
                 let trace_domain: TwoAdicMultiplicativeCosetVariable<_> =
-                    builder.eval_const(trace_domain_val);
+                    builder.constant(trace_domain_val);
                 let sels = trace_domain.selectors_at_point(&mut builder, zeta);
 
                 let permutation_challenges = permutation_challenges
@@ -387,7 +386,7 @@ mod tests {
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| {
-                        builder.eval_const::<TwoAdicMultiplicativeCosetVariable<_>>(*domain)
+                        builder.constant::<TwoAdicMultiplicativeCosetVariable<_>>(*domain)
                     })
                     .collect::<Vec<_>>();
                 let quotient = StarkVerifier::<_, SC>::recompute_quotient(
@@ -464,14 +463,14 @@ mod tests {
                 quotient_chunk_domains_vals,
                 proof.opened_values.chips.iter(),
             ) {
-                let opening = builder.eval_const(values_vals.clone());
+                let opening = builder.constant(values_vals.clone());
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
-                let trace_domain = builder.eval_const(trace_domain_val);
-                let public_values = builder.eval_const(proof.public_values);
+                let trace_domain = builder.constant(trace_domain_val);
+                let public_values = builder.constant(proof.public_values);
                 let qc_domains = qc_domains_vals
                     .iter()
-                    .map(|domain| builder.eval_const(*domain))
+                    .map(|domain| builder.constant(*domain))
                     .collect::<Vec<_>>();
 
                 let permutation_challenges = permutation_challenges
