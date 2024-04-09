@@ -4,7 +4,8 @@ use sp1_core::{
     air::{MachineAir, PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
     stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
-use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_compiler::{prelude::*, InnerConfig};
+use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};

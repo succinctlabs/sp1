@@ -1,20 +1,25 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 #![allow(deprecated)]
+use p3_baby_bear::BabyBear;
+use p3_challenger::CanObserve;
 use sp1_core::{
+    air::{PublicValues, Word},
     runtime::Program,
     stark::{LocalProver, Proof, RiscvAir, ShardProof, StarkGenericConfig, VerifyingKey},
     utils::{run_and_prove, BabyBearPoseidon2},
     SP1Stdin,
 };
 use sp1_recursion_core::{runtime::Runtime, stark::RecursionAir};
-use sp1_recursion_program::compress::build_compress;
+use sp1_recursion_program::{hints::Hintable, reduce::build_reduce, stark::EMPTY};
 use std::time::Instant;
 type InnerSC = BabyBearPoseidon2;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
 type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
 type InnerA = RiscvAir<InnerF>;
+
 pub struct SP1ProverImpl;
+
 impl SP1ProverImpl {
     pub fn prove(elf: &[u8], stdin: &[Vec<u8>]) -> Proof<InnerSC> {
         let config = InnerSC::default();
@@ -26,17 +31,57 @@ impl SP1ProverImpl {
         machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         proof
     }
+
     fn compress(elf: &[u8], proof: Proof<InnerSC>) -> Vec<ShardProof<InnerSC>> {
         let config = InnerSC::default();
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
         println!("nb_shards {}", proof.shard_proofs.len());
-        let (program, witness_stream) = build_compress(proof, vk);
+        let program = build_reduce(&vk);
         let config = InnerSC::default();
+
+        let mut witness_stream = Vec::new();
+        witness_stream.extend(proof.shard_proofs.write());
+        let is_recursive_flags: Vec<usize> = proof.shard_proofs.iter().map(|_| 0).collect();
+        witness_stream.extend(is_recursive_flags.write());
+        let sorted_indices: Vec<Vec<usize>> = proof
+            .shard_proofs
+            .iter()
+            .map(|p| {
+                machine
+                    .chips_sorted_indices(p)
+                    .into_iter()
+                    .map(|x| match x {
+                        Some(x) => x,
+                        None => EMPTY,
+                    })
+                    .collect()
+            })
+            .collect();
+        witness_stream.extend(sorted_indices.write());
+
+        let mut challenger = machine.config().challenger();
+        challenger.observe(vk.commit);
+        let reconstruct_challenger = challenger.clone();
+        for proof in proof.shard_proofs.iter() {
+            challenger.observe(proof.commitment.main_commit);
+            let public_values = PublicValues::<Word<BabyBear>, BabyBear>::new(proof.public_values);
+            challenger.observe_slice(&public_values.to_vec());
+        }
+        // Write current_challenger
+        witness_stream.extend(challenger.write());
+        witness_stream.extend(reconstruct_challenger.write());
+        // Write verify_start_challenger
+        witness_stream.extend(challenger.write());
+        // Write recursion_vk
+        // TODO: real recursion_vk
+        witness_stream.extend(vk.write());
+
         let machine = InnerA::machine(config);
         let mut runtime =
             Runtime::<InnerF, InnerEF, _>::new(&program, machine.config().perm.clone());
+
         runtime.witness_stream = witness_stream;
         let time = Instant::now();
         runtime.run();
@@ -58,6 +103,7 @@ impl SP1ProverImpl {
         println!("proving duration = {}", duration);
         proof.shard_proofs
     }
+
     fn reduce(proofs: Vec<ShardProof<InnerSC>>) -> ShardProof<InnerSC> {
         todo!()
     }
@@ -76,16 +122,17 @@ pub fn prove_sp1() -> (Proof<InnerSC>, VerifyingKey<InnerSC>) {
     (proof, vk)
 }
 pub fn prove_compress(sp1_proof: Proof<InnerSC>, vk: VerifyingKey<InnerSC>) {
-    let (program, witness_stream) = build_compress(sp1_proof, vk);
-    let config = InnerSC::default();
-    let machine = InnerA::machine(config);
-    let mut runtime = Runtime::<InnerF, InnerEF, _>::new(&program, machine.config().perm.clone());
-    runtime.witness_stream = witness_stream;
-    let time = Instant::now();
-    runtime.run();
-    let elapsed = time.elapsed();
-    runtime.print_stats();
-    println!("Execution took: {:?}", elapsed);
+    let program = build_reduce(&vk);
+    todo!()
+    // let config = InnerSC::default();
+    // let machine = InnerA::machine(config);
+    // let mut runtime = Runtime::<InnerF, InnerEF, _>::new(&program, machine.config().perm.clone());
+    // runtime.witness_stream = witness_stream;
+    // let time = Instant::now();
+    // runtime.run();
+    // let elapsed = time.elapsed();
+    // runtime.print_stats();
+    // println!("Execution took: {:?}", elapsed);
     // let config = BabyBearPoseidon2::new();
     // let machine = RecursionAir::machine(config);
     // let (pk, vk) = machine.setup(&program);

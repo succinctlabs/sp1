@@ -61,6 +61,33 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
+    pub fn as_clone(&self, builder: &mut Builder<C>) -> Self {
+        let mut sponge_state = builder.dyn_array(PERMUTATION_WIDTH);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.sponge_state, i);
+            builder.set(&mut sponge_state, i, element);
+        });
+        let nb_inputs = builder.eval(self.nb_inputs);
+        let mut input_buffer = builder.dyn_array(PERMUTATION_WIDTH);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.input_buffer, i);
+            builder.set(&mut input_buffer, i, element);
+        });
+        let nb_outputs = builder.eval(self.nb_outputs);
+        let mut output_buffer = builder.dyn_array(PERMUTATION_WIDTH);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.output_buffer, i);
+            builder.set(&mut output_buffer, i, element);
+        });
+        DuplexChallengerVariable::<C> {
+            sponge_state,
+            nb_inputs,
+            input_buffer,
+            nb_outputs,
+            output_buffer,
+        }
+    }
+
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L38
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
         builder.range(0, self.nb_inputs).for_each(|i, builder| {
