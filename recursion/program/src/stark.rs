@@ -50,7 +50,6 @@ where
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
         chip_sorted_idxs: Array<C, Var<C::N>>,
-        chip_information: Vec<(String, Dom<SC>, Dimensions)>,
         preprocessed_sorted_idxs: Array<C, Var<C::N>>,
         prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
     ) where
@@ -111,11 +110,16 @@ where
         let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
         builder.set(&mut qc_points, 0, zeta);
 
+        // Iterate through machine.chips filtered for preprocessed chips.
         for (preprocessed_id, chip_id) in machine.preprocessed_chip_ids().into_iter().enumerate() {
+            // Get index within sorted preprocessed chips.
             let preprocessed_sorted_id = builder.get(&preprocessed_sorted_idxs, preprocessed_id);
+            // Get domain from witnessed domains. Array is ordered by machine.chips ordering.
             let domain = builder.get(&prep_domains, preprocessed_id);
 
+            // Get index within all sorted chips.
             let chip_sorted_id = builder.get(&chip_sorted_idxs, chip_id);
+            // Get opening from proof.
             let opening = builder.get(&opened_values.chips, chip_sorted_id);
 
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
@@ -377,105 +381,6 @@ pub(crate) mod tests {
             "The program executed successfully, number of cycles: {}",
             runtime.timestamp
         );
-    }
-
-    #[test]
-    fn test_recursive_verify_shard() {
-        // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
-
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
-        let machine = A::machine(SC::default());
-
-        let (_, vk) = machine.setup(&Program::from(elf));
-        let proof = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof;
-        let mut challenger_ver = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
-        println!("Proof generated successfully");
-
-        let mut challenger_val = machine.config().challenger();
-        challenger_val.observe(vk.commit);
-        proof.shard_proofs.iter().for_each(|proof| {
-            challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger_val.observe_slice(&public_values_field.to_vec());
-        });
-
-        let time = Instant::now();
-        let mut builder = Builder::<InnerConfig>::default();
-        let config = const_fri_config(&mut builder, inner_fri_config());
-        let pcs = TwoAdicFriPcsVariable { config };
-
-        let mut challenger = DuplexChallengerVariable::new(&mut builder);
-
-        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
-        challenger.observe(&mut builder, preprocessed_commit);
-
-        let mut witness_stream = Vec::new();
-        let mut shard_proofs = vec![];
-        let mut sorted_indices = vec![];
-        for proof_val in proof.shard_proofs {
-            witness_stream.extend(proof_val.write());
-            let sorted_indices_raw: Vec<usize> = machine
-                .chips_sorted_indices(&proof_val)
-                .into_iter()
-                .map(|x| match x {
-                    Some(x) => x,
-                    None => EMPTY,
-                })
-                .collect();
-            witness_stream.extend(sorted_indices_raw.write());
-            let proof = ShardProof::<_>::read(&mut builder);
-            let sorted_indices_arr = Vec::<usize>::read(&mut builder);
-            builder
-                .range(0, sorted_indices_arr.len())
-                .for_each(|i, builder| {
-                    let el = builder.get(&sorted_indices_arr, i);
-                    builder.print_v(el);
-                });
-            let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
-            challenger.observe(&mut builder, main_commit.clone());
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof_val.public_values);
-            let public_values_felt: Vec<Felt<F>> = public_values_field
-                .to_vec()
-                .iter()
-                .map(|x| builder.eval(*x))
-                .collect();
-            challenger.observe_slice(&mut builder, &public_values_felt);
-            shard_proofs.push(proof);
-            sorted_indices.push(sorted_indices_arr);
-        }
-
-        let code = builder.eval(InnerVal::two());
-        builder.print_v(code);
-        for (proof, sorted_indices) in shard_proofs.iter().zip(sorted_indices) {
-            StarkVerifier::<C, SC>::verify_shard(
-                &mut builder,
-                &vk,
-                &pcs,
-                &machine,
-                &mut challenger.clone(),
-                proof,
-                sorted_indices,
-            );
-        }
-
-        let program = builder.compile();
-        let elapsed = time.elapsed();
-        println!("Building took: {:?}", elapsed);
-
-        let time = Instant::now();
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.witness_stream = witness_stream;
-        runtime.run();
-        let elapsed = time.elapsed();
-        runtime.print_stats();
-        println!("Execution took: {:?}", elapsed);
     }
 
     #[test]

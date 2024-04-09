@@ -40,7 +40,7 @@ impl SP1ProverImpl {
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
-        let reduce_program = build_reduce(vk.chip_information.clone());
+        let reduce_program = build_reduce();
         println!("nb_shards {}", proof.shard_proofs.len());
         let config = InnerSC::default();
 
@@ -148,7 +148,7 @@ pub fn prove_sp1() -> (Proof<InnerSC>, VerifyingKey<InnerSC>) {
     (proof, vk)
 }
 pub fn prove_compress(sp1_proof: Proof<InnerSC>, vk: VerifyingKey<InnerSC>) {
-    let program = build_reduce(vk.chip_information.clone());
+    let program = build_reduce();
     todo!()
     // let config = InnerSC::default();
     // let machine = InnerA::machine(config);

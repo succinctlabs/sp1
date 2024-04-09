@@ -10,7 +10,6 @@ use crate::stark::StarkVerifier;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
 use p3_challenger::DuplexChallenger;
-use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::ExtensionMmcs;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::extension::BinomialExtensionField;
@@ -18,29 +17,20 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
-use p3_matrix::Dimensions;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
 use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
-use sp1_core::air::PublicValues;
-use sp1_core::air::Word;
-use sp1_core::stark::Dom;
-use sp1_core::stark::Proof;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::asm::VmBuilder;
-use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
-use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_compiler::ir::Variable;
-use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::Program as RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
@@ -96,20 +86,13 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
     builder.get(&arr, 0)
 }
 
-// TODO: proof is only necessary now because it's a constant, it should be I/O soon
-pub fn build_reduce(chip_information: Vec<(String, Dom<SC>, Dimensions)>) -> RecursionProgram<Val> {
+pub fn build_reduce() -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(SC::default());
 
     let time = Instant::now();
     let mut builder = VmBuilder::<F, EF>::default();
     let config = const_fri_config(&mut builder, inner_fri_config());
     let pcs = TwoAdicFriPcsVariable { config };
-
-    // let mut challenger = DuplexChallengerVariable::new(&mut builder);
-
-    // let preprocessed_commit_val: [F; DIGEST_SIZE] = sp1_vk.commit.into();
-    // let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
-    // challenger.observe(&mut builder, preprocessed_commit);
 
     // Read witness inputs
     let proofs = Vec::<ShardProof<_>>::read(&mut builder);
@@ -118,27 +101,15 @@ pub fn build_reduce(chip_information: Vec<(String, Dom<SC>, Dimensions)>) -> Rec
     let start_challenger = DuplexChallenger::read(&mut builder);
     let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
     let prep_sorted_indices = Vec::<usize>::read(&mut builder);
-    builder
-        .range(Usize::Const(0), prep_sorted_indices.len())
-        .for_each(|i, builder| {
-            let index = builder.get(&prep_sorted_indices, i);
-            let code = builder.eval_const(F::from_canonical_u32(10001));
-            builder.print_f(code);
-            builder.print_v(index);
-        });
     let prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
     let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
     let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
     let num_proofs = proofs.len();
-    let code = builder.eval_const(F::from_canonical_u32(1));
-    builder.print_f(code);
 
     let pre_start_challenger = clone(&mut builder, &start_challenger);
     let pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.eval_const(F::zero());
     let one: Var<_> = builder.eval_const(F::one());
-    let code = builder.eval_const(F::from_canonical_u32(2));
-    builder.print_f(code);
     builder
         .range(Usize::Const(0), num_proofs)
         .for_each(|i, builder| {
@@ -149,20 +120,11 @@ pub fn build_reduce(chip_information: Vec<(String, Dom<SC>, Dimensions)>) -> Rec
                 // Non-recursive proof
                 |builder| {
                     builder.if_eq(proof.index, one).then(|builder| {
-                        let code = builder.eval_const(F::from_canonical_u32(3));
-                        builder.print_f(code);
-
                         // Initialize the current challenger
                         // let h: [BabyBear; DIGEST_SIZE] = sp1_vk.commit.into();
                         // let const_commit: DigestVariable<C> = builder.eval_const(h.to_vec());
                         reconstruct_challenger = DuplexChallengerVariable::new(builder);
                         reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
-                        // for j in 0..DIGEST_SIZE {
-                        //     let element = builder.get(&sp1_vk.commit, j);
-                        //     reconstruct_challenger.observe(builder, element);
-                        // }
-                        // reconstruct_challenger
-                        //     .observe_slice(builder, &recursion_vk.commitment);
                     });
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&proof.commitment.main_commit, j);
@@ -170,8 +132,6 @@ pub fn build_reduce(chip_information: Vec<(String, Dom<SC>, Dimensions)>) -> Rec
                         // TODO: observe public values
                         // challenger.observe_slice(&public_values.to_vec());
                     }
-                    let code = builder.eval_const(F::from_canonical_u32(4));
-                    builder.print_f(code);
                     // reconstruct_challenger
                     //     .observe_slice(builder, &proof.commitment.main_commit.vec());
                     let mut current_challenger = start_challenger.as_clone(builder);
@@ -183,12 +143,9 @@ pub fn build_reduce(chip_information: Vec<(String, Dom<SC>, Dimensions)>) -> Rec
                         &mut current_challenger,
                         &proof,
                         sorted_indices.clone(),
-                        chip_information.clone(),
                         prep_sorted_indices.clone(),
                         prep_domains.clone(),
                     );
-                    let code = builder.eval_const(F::from_canonical_u32(5));
-                    builder.print_f(code);
                 },
                 // Recursive proof
                 |builder| {},
