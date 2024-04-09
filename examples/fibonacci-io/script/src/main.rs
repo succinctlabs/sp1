@@ -35,7 +35,7 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof and public values
-    SP1Verifier::verify(ELF, &proof).expect("verification failed");
+    SP1Verifier::verify(ELF, &proof).expect("verification failed"s);
 
     let mut pv_hasher = Sha256::new();
     pv_hasher.update(n.to_le_bytes());

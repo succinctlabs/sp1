@@ -744,12 +744,17 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         let loop_label = self.compiler.block_label();
         // The loop body.
         f(self.loop_var, self.compiler);
-        // Increment the loop variable.
-        self.compiler.push(AsmInstruction::ADDI(
-            self.loop_var.fp(),
-            self.loop_var.fp(),
-            self.step_size,
-        ));
+
+        if self.step_size == F::one() {
+            self.jump_to_loop_body_inc(loop_label);
+        } else {
+            // Increment the loop variable.
+            self.compiler.push(AsmInstruction::ADDI(
+                self.loop_var.fp(),
+                self.loop_var.fp(),
+                self.step_size,
+            ));
+        }
 
         // Add a basic block for the loop condition.
         self.compiler.basic_block();
@@ -811,6 +816,23 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
             }
             Usize::Var(end) => {
                 let instr = AsmInstruction::BNE(loop_label, self.loop_var.fp(), end.fp());
+                self.compiler.push(instr);
+            }
+        }
+    }
+
+    fn jump_to_loop_body_inc(&mut self, loop_label: F) {
+        match self.end {
+            Usize::Const(end) => {
+                let instr = AsmInstruction::BNEIINC(
+                    loop_label,
+                    self.loop_var.fp(),
+                    F::from_canonical_usize(end),
+                );
+                self.compiler.push(instr);
+            }
+            Usize::Var(end) => {
+                let instr = AsmInstruction::BNEINC(loop_label, self.loop_var.fp(), end.fp());
                 self.compiler.push(instr);
             }
         }

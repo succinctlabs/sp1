@@ -186,6 +186,29 @@ impl<C: Config> Builder<C> {
             }
         }
     }
+
+    pub fn set_value<V: MemVariable<C>, I: Into<Usize<C::N>>>(
+        &mut self,
+        slice: &mut Array<C, V>,
+        index: I,
+        value: V,
+    ) {
+        let index = index.into();
+
+        match slice {
+            Array::Fixed(_) => {
+                todo!()
+            }
+            Array::Dyn(ptr, _) => {
+                let index = MemIndex {
+                    index,
+                    offset: 0,
+                    size: V::size_of(),
+                };
+                self.store(*ptr, index, value);
+            }
+        }
+    }
 }
 
 impl<C: Config, T: MemVariable<C>> Variable<C> for Array<C, T> {
