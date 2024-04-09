@@ -138,7 +138,13 @@ pub fn build_compress(
             .iter()
             .map(|x| builder.eval(*x))
             .collect();
-        challenger.observe_slice(&mut builder, &public_values_felt);
+
+        let mut array: Array<C, Felt<F>> = builder.array(public_values_felt.len());
+        for (i, x) in public_values_felt.iter().enumerate() {
+            builder.set(&mut array, i, *x);
+        }
+
+        challenger.observe_slice(&mut builder, array);
         shard_proofs.push(proof);
         sorted_indices.push(sorted_indices_arr);
     }

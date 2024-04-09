@@ -120,6 +120,8 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
+pub const MAX_NUM_PUBLIC_VALUES: usize = 64;
+
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
@@ -128,7 +130,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub public_values: Vec<SC::Val>,
+    pub public_values: Vec<Val<SC>>,
 }
 
 impl<T> AirOpenedValues<T> {

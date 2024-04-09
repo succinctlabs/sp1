@@ -5,7 +5,10 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::AirOpenedValues;
+use sp1_core::stark::MAX_NUM_PUBLIC_VALUES;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
+use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::prelude::Config;
 use sp1_recursion_compiler::prelude::ExtConst;
 use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
@@ -16,7 +19,6 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifier;
 use crate::types::ChipOpenedValuesVariable;
 use crate::types::ChipOpening;
-use crate::types::PublicValuesVariable;
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -27,7 +29,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values: PublicValuesVariable<C>,
+        public_values: Array<C, Felt<C::F>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
@@ -54,7 +56,12 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-        let public_values_felt = public_values.to_vec(builder);
+
+        let mut folder_pv = Vec::new();
+        for i in 0..MAX_NUM_PUBLIC_VALUES {
+            folder_pv.push(builder.get(&public_values, i));
+        }
+
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -62,7 +69,7 @@ where
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
             cumulative_sum: opening.cumulative_sum,
-            public_values: &public_values_felt,
+            public_values: &folder_pv,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
@@ -124,7 +131,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values: PublicValuesVariable<C>,
+        public_values: Array<C, Felt<C::F>>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -158,7 +165,6 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::{PublicValues, Word},
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -171,7 +177,7 @@ mod tests {
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
-    use sp1_recursion_compiler::{asm::VmBuilder, prelude::ExtConst};
+    use sp1_recursion_compiler::{asm::VmBuilder, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
 
@@ -179,7 +185,7 @@ mod tests {
         commit::PolynomialSpaceVariable,
         fri::TwoAdicMultiplicativeCosetVariable,
         stark::StarkVerifier,
-        types::{ChipOpenedValuesVariable, ChipOpening, PublicValuesVariable},
+        types::{ChipOpenedValuesVariable, ChipOpening},
     };
 
     #[allow(clippy::type_complexity)]
@@ -314,8 +320,11 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values.
-            let public_values =
-                PublicValuesVariable::from_vec(&mut builder, proof.public_values.to_vec());
+            let public_values_felt: Vec<Felt<F>> = proof
+                .public_values
+                .iter()
+                .map(|x| builder.eval(*x))
+                .collect_vec();
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -349,11 +358,12 @@ mod tests {
                     .iter()
                     .map(|c| builder.eval(c.cons()))
                     .collect::<Vec<_>>();
+                let pv_array = builder.vec(public_values_felt.clone());
                 let folded_constraints = StarkVerifier::<_, SC>::eval_constrains(
                     &mut builder,
                     chip,
                     &values,
-                    public_values.clone(),
+                    pv_array,
                     &sels,
                     alpha,
                     permutation_challenges.as_slice(),
@@ -449,9 +459,13 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
-                let pv: PublicValues<Word<F>, F> =
-                    PublicValues::from_vec(proof.public_values.to_vec());
-                let public_values = builder.eval_const(pv);
+
+                let public_values: Vec<Felt<F>> = proof
+                    .public_values
+                    .iter()
+                    .map(|v| builder.eval(*v))
+                    .collect();
+
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))
@@ -462,11 +476,12 @@ mod tests {
                     .map(|c| builder.eval(c.cons()))
                     .collect::<Vec<_>>();
 
+                let pv_array = builder.vec(public_values.clone());
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
                     &mut builder,
                     chip,
                     &opening,
-                    public_values,
+                    pv_array,
                     trace_domain,
                     qc_domains,
                     zeta,

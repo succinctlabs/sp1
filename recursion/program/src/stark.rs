@@ -339,9 +339,7 @@ pub(crate) mod tests {
             let proof = ShardProof::<_>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-
-            let public_values_elements = proof.public_values.to_vec(&mut builder);
-            challenger.observe_slice(&mut builder, &public_values_elements);
+            challenger.observe_slice(&mut builder, proof.public_values);
         }
 
         // Sample the permutation challenges.
@@ -433,7 +431,13 @@ pub(crate) mod tests {
                 .iter()
                 .map(|x| builder.eval(*x))
                 .collect();
-            challenger.observe_slice(&mut builder, &public_values_felt);
+
+            let mut array: Array<C, Felt<F>> = builder.array(public_values_felt.len());
+            for (i, x) in public_values_felt.iter().enumerate() {
+                builder.set(&mut array, i, *x);
+            }
+
+            challenger.observe_slice(&mut builder, array);
             shard_proofs.push(proof);
             sorted_indices.push(sorted_indices_arr);
         }

@@ -5,14 +5,15 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::AirOpenedValues;
+use sp1_core::stark::MAX_NUM_PUBLIC_VALUES;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
+use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::SymbolicExt;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
-use sp1_recursion_program::types::PublicValuesVariable;
 
 use crate::domain::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifierCircuit;
@@ -28,7 +29,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values: PublicValuesVariable<C>,
+        public_values: Array<C, Felt<C::F>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
@@ -57,7 +58,12 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-        let public_values: Vec<Felt<C::F>> = public_values.to_vec(builder);
+
+        let mut folder_pv = Vec::new();
+        for i in 0..MAX_NUM_PUBLIC_VALUES {
+            folder_pv.push(builder.get(&public_values, i));
+        }
+
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -65,7 +71,7 @@ where
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
             cumulative_sum: opening.cumulative_sum,
-            public_values: &public_values,
+            public_values: &folder_pv,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
@@ -127,7 +133,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values: PublicValuesVariable<C>,
+        public_values: Array<C, Felt<C::F>>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -164,12 +170,9 @@ mod tests {
     use p3_commit::{Pcs, PolynomialSpace};
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
-    use sp1_core::{
-        air::{PublicValues, Word},
-        stark::{
-            Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
-            ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
-        },
+    use sp1_core::stark::{
+        Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, ShardCommitment,
+        ShardMainData, ShardProof, StarkGenericConfig,
     };
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
@@ -326,8 +329,12 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
-                let pv = PublicValues::<Word<F>, F>::from_vec(proof.public_values.clone());
-                let public_values = builder.eval_const(pv);
+                let public_values = proof
+                    .public_values
+                    .iter()
+                    .map(|x| builder.eval(*x))
+                    .collect::<Vec<_>>();
+                let pv_array = builder.vec(public_values.clone());
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))
@@ -342,7 +349,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &opening,
-                    public_values,
+                    pv_array,
                     trace_domain,
                     qc_domains,
                     zeta,

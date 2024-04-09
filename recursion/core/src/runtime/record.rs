@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
-use sp1_core::stark::MachineRecord;
+use sp1_core::stark::{MachineRecord, MAX_NUM_PUBLIC_VALUES};
 use std::collections::HashMap;
 
 use super::{Program, DIGEST_SIZE};
@@ -64,9 +64,20 @@ impl<F: AbstractField> RecursivePublicValues<F> {
 
 impl<F: PrimeField32> RecursivePublicValues<F> {
     pub fn to_field_elms<T: AbstractField>(&self) -> Vec<T> {
-        self.0
+        let mut ret: Vec<T> = self
+            .0
             .iter()
             .map(|f| T::from_canonical_u32(F::as_canonical_u32(f)))
-            .collect()
+            .collect();
+
+        assert!(
+            ret.len() <= MAX_NUM_PUBLIC_VALUES,
+            "Too many public values: {}",
+            ret.len()
+        );
+
+        ret.resize(MAX_NUM_PUBLIC_VALUES, T::zero());
+
+        ret
     }
 }

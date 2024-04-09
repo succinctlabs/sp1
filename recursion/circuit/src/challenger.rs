@@ -1,5 +1,6 @@
 use p3_field::AbstractField;
 use p3_field::Field;
+use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 
@@ -57,10 +58,11 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         }
     }
 
-    pub fn observe_slice(&mut self, builder: &mut Builder<C>, values: &[Felt<C::F>]) {
-        for value in values {
-            self.observe(builder, *value);
-        }
+    pub fn observe_slice(&mut self, builder: &mut Builder<C>, values: Array<C, Felt<C::F>>) {
+        builder.range(0, values.len()).for_each(|i, builder| {
+            let value = builder.get(&values, i);
+            self.observe(builder, value);
+        });
     }
 
     pub fn observe_commitment(

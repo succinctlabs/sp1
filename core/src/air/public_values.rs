@@ -1,3 +1,5 @@
+use crate::stark::MAX_NUM_PUBLIC_VALUES;
+
 use super::Word;
 use core::fmt::Debug;
 use itertools::Itertools;
@@ -28,14 +30,25 @@ pub struct PublicValues<W, T> {
 
 impl PublicValues<u32, u32> {
     pub fn to_field_elms<F: AbstractField>(&self) -> Vec<F> {
-        self.committed_value_digest
+        let mut ret = self
+            .committed_value_digest
             .iter()
             .flat_map(|w| Word::<F>::from(*w).into_iter())
             .chain(once(F::from_canonical_u32(self.shard)))
             .chain(once(F::from_canonical_u32(self.start_pc)))
             .chain(once(F::from_canonical_u32(self.next_pc)))
             .chain(once(F::from_canonical_u32(self.exit_code)))
-            .collect_vec()
+            .collect_vec();
+
+        assert!(
+            ret.len() <= MAX_NUM_PUBLIC_VALUES,
+            "Too many public values: {}",
+            ret.len()
+        );
+
+        ret.resize(MAX_NUM_PUBLIC_VALUES, F::zero());
+
+        ret
     }
 }
 
@@ -79,9 +92,10 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
         }
 
         // Collecting the remaining items into a tuple.
-        if let [shard, first_row_pc, last_row_next_pc, exit_code] =
-            iter.collect::<Vec<_>>().as_slice()
-        {
+        let binding = iter.collect_vec();
+        let remaining_items = binding.as_slice();
+
+        if let [shard, first_row_pc, last_row_next_pc, exit_code] = &remaining_items[..4] {
             Self {
                 committed_value_digest: committed_value_digest.try_into().unwrap(),
                 shard: shard.to_owned(),

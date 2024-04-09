@@ -1,7 +1,7 @@
 use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
-    air::{MachineAir, PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+    air::MachineAir,
     stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
 use sp1_recursion_compiler::prelude::*;
@@ -10,80 +10,6 @@ use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
-#[derive(DslVariable, Clone)]
-pub struct PublicValuesVariable<C: Config> {
-    pub committed_values_digest: Array<C, Felt<C::F>>,
-    pub shard: Felt<C::F>,
-    pub start_pc: Felt<C::F>,
-    pub next_pc: Felt<C::F>,
-    pub exit_code: Felt<C::F>,
-}
-
-impl<C: Config> PublicValuesVariable<C> {
-    pub fn to_vec(&self, builder: &mut Builder<C>) -> Vec<Felt<C::F>> {
-        let mut result = Vec::new();
-
-        for i in 0..PV_DIGEST_NUM_WORDS {
-            for j in 0..WORD_SIZE {
-                let el = builder.get(&self.committed_values_digest, i * WORD_SIZE + j);
-                result.push(el);
-            }
-        }
-
-        result.push(self.shard);
-        result.push(self.start_pc);
-        result.push(self.next_pc);
-        result.push(self.exit_code);
-
-        result
-    }
-
-    pub fn from_vec(builder: &mut Builder<C>, data: Vec<C::F>) -> Self {
-        let pv = PublicValues::<Word<C::F>, C::F>::from_vec(data);
-        let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
-        for (i, word) in pv.committed_value_digest.iter().enumerate() {
-            for j in 0..WORD_SIZE {
-                let word_val: Felt<_> = builder.eval(word[j]);
-                builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
-            }
-        }
-
-        PublicValuesVariable {
-            committed_values_digest: pv_committed_value_digest,
-            shard: builder.eval(pv.shard),
-            start_pc: builder.eval(pv.start_pc),
-            next_pc: builder.eval(pv.next_pc),
-            exit_code: builder.eval(pv.exit_code),
-        }
-    }
-}
-
-impl<C: Config> FromConstant<C> for PublicValuesVariable<C> {
-    type Constant = PublicValues<Word<C::F>, C::F>;
-
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        let pv_shard = builder.eval(value.shard);
-        let pv_start_pc = builder.eval(value.start_pc);
-        let pv_next_pc = builder.eval(value.next_pc);
-        let pv_exit_code = builder.eval(value.exit_code);
-        let mut pv_committed_value_digest = Vec::new();
-        for word in value.committed_value_digest.iter() {
-            for j in 0..WORD_SIZE {
-                let word_val: Felt<_> = builder.eval(word[j]);
-                pv_committed_value_digest.push(word_val);
-            }
-        }
-
-        PublicValuesVariable {
-            committed_values_digest: builder.vec(pv_committed_value_digest),
-            shard: pv_shard,
-            start_pc: pv_start_pc,
-            next_pc: pv_next_pc,
-            exit_code: pv_exit_code,
-        }
-    }
-}
-
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {
@@ -91,7 +17,7 @@ pub struct ShardProofVariable<C: Config> {
     pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values: PublicValuesVariable<C>,
+    pub public_values: Array<C, Felt<C::F>>,
 }
 
 #[derive(DslVariable, Clone)]

@@ -228,17 +228,22 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
 
+    use crate::types::{
+        ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
+        RecursionShardProofVariable,
+    };
     use crate::{
         challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
         stark::StarkVerifierCircuit,
     };
+    use itertools::Itertools;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::CanObserve;
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::{
-        air::{MachineAir, PublicValues, Word},
+        air::MachineAir,
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
@@ -250,12 +255,6 @@ pub(crate) mod tests {
         cpu::Instruction,
         runtime::{Opcode, Program, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
-    };
-    use sp1_recursion_program::types::PublicValuesVariable;
-
-    use crate::types::{
-        ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
-        RecursionShardProofVariable,
     };
 
     type SC = BabyBearPoseidon2Outer;
@@ -273,8 +272,12 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let pv = PublicValues::<Word<F>, F>::from_vec(proof.public_values.clone());
-        let public_values: PublicValuesVariable<OuterConfig> = builder.eval_const(pv);
+        let public_values = proof
+            .public_values
+            .iter()
+            .map(|x| builder.eval(*x))
+            .collect_vec();
+        let pv_array = builder.vec(public_values);
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
@@ -325,7 +328,7 @@ pub(crate) mod tests {
             opened_values,
             opening_proof,
             sorted_chips: chips,
-            public_values,
+            public_values: pv_array,
             sorted_indices,
         }
     }
@@ -394,8 +397,7 @@ pub(crate) mod tests {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe_commitment(&mut builder, *main_commit);
-            let public_values_elms = proof.public_values.to_vec(&mut builder);
-            challenger.observe_slice(&mut builder, &public_values_elms);
+            challenger.observe_slice(&mut builder, proof.public_values.clone());
             shard_proofs.push(proof);
         }
 
