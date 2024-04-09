@@ -37,15 +37,19 @@ mod zkvm {
     use crate::syscalls::syscall_halt;
 
     use getrandom::{register_custom_getrandom, Error};
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
     use sha2::{Digest, Sha256};
 
     pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
+    pub static mut DEFERRED_PROOFS_DIGEST: Option<[BabyBear; 8]> = None;
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
             PUBLIC_VALUES_HASHER = Some(Sha256::new());
+            DEFERRED_PROOFS_DIGEST = Some([BabyBear::zero(); 8]);
 
             extern "C" {
                 fn main();

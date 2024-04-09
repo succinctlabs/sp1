@@ -1,12 +1,12 @@
-use sp1_lib::poseidon2_hasher;
+use sp1_primitives::poseidon2_hasher;
 
-use crate::POSEIDON_NUM_WORDS;
+use crate::syscalls::POSEIDON_NUM_WORDS;
 
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use core::arch::asm;
         use sha2::Digest;
-        use crate::PV_DIGEST_NUM_WORDS;
+        use crate::syscalls::PV_DIGEST_NUM_WORDS;
         use crate::zkvm;
     }
 }
