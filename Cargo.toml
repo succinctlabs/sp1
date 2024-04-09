@@ -5,6 +5,7 @@ members = [
     "derive",
     "eval",
     "helper",
+    "primitives",
     "prover",
     "recursion/circuit",
     "recursion/compiler",

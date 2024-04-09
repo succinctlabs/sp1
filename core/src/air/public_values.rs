@@ -8,11 +8,18 @@ use super::Word;
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
+pub const POSEIDON_NUM_WORDS: usize = 8;
+
 /// The PublicValues struct is used to store all of a shard proof's public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct PublicValues<W, T> {
     /// The hash of all the bytes that the guest program has written to public values.
     pub committed_value_digest: [W; PV_DIGEST_NUM_WORDS],
+
+    /// The hash of all deferred proofs that have been witnessed in the VM. It will be rebuilt in
+    /// recursive verification as the proofs get verified. The hash itself is a rolling poseidon2
+    /// hash of each proof+vkey hash and the previous hash which is initially zero.
+    pub deferred_proofs_digest: [W; POSEIDON_NUM_WORDS],
 
     /// The shard number.
     pub shard: T,
@@ -32,15 +39,17 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         let PublicValues {
             committed_value_digest,
             shard,
-            start_pc: first_row_pc,
-            next_pc: last_row_next_pc,
+            start_pc,
+            next_pc,
             exit_code,
+            deferred_proofs_digest,
         } = other;
         Self {
             committed_value_digest: committed_value_digest.map(Word::from),
+            deferred_proofs_digest: deferred_proofs_digest.map(Word::from),
             shard: F::from_canonical_u32(shard),
-            start_pc: F::from_canonical_u32(first_row_pc),
-            next_pc: F::from_canonical_u32(last_row_next_pc),
+            start_pc: F::from_canonical_u32(start_pc),
+            next_pc: F::from_canonical_u32(next_pc),
             exit_code: F::from_canonical_u32(exit_code),
         }
     }
@@ -51,6 +60,11 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
         self.committed_value_digest
             .iter()
             .flat_map(|w| w.clone().into_iter())
+            .chain(
+                self.deferred_proofs_digest
+                    .iter()
+                    .flat_map(|w| w.clone().into_iter()),
+            )
             .chain(once(self.shard.clone()))
             .chain(once(self.start_pc.clone()))
             .chain(once(self.next_pc.clone()))
@@ -66,12 +80,18 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
             committed_value_digest.push(Word::from_iter(&mut iter));
         }
 
+        let mut deferred_proofs_digest = Vec::new();
+        for _ in 0..POSEIDON_NUM_WORDS {
+            deferred_proofs_digest.push(Word::from_iter(&mut iter));
+        }
+
         // Collecting the remaining items into a tuple.
         if let [shard, first_row_pc, last_row_next_pc, exit_code] =
             iter.collect::<Vec<_>>().as_slice()
         {
             Self {
                 committed_value_digest: committed_value_digest.try_into().unwrap(),
+                deferred_proofs_digest: deferred_proofs_digest.try_into().unwrap(),
                 shard: shard.to_owned(),
                 start_pc: first_row_pc.to_owned(),
                 next_pc: last_row_next_pc.to_owned(),

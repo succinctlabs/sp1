@@ -1,3 +1,7 @@
+use sp1_lib::poseidon2_hasher;
+
+use crate::POSEIDON_NUM_WORDS;
+
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use core::arch::asm;

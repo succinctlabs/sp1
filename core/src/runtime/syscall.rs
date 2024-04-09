@@ -7,8 +7,8 @@ use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
-    SyscallCommit, SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt,
-    SyscallHintLen, SyscallHintRead, SyscallWrite,
+    SyscallCommit, SyscallCommitDeferred, SyscallEnterUnconstrained, SyscallExitUnconstrained,
+    SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
@@ -74,6 +74,12 @@ pub enum SyscallCode {
     /// Executes the `COMMIT` precompile.
     COMMIT = 0x00_00_00_10,
 
+    /// Executes the `COMMIT_DEFERRED_PROOFS` precompile.
+    COMMIT_DEFERRED_PROOFS = 0x00_00_00_1A,
+
+    /// Executes the `VERIFY_SP1_PROOF` precompile.
+    VERIFY_SP1_PROOF = 0x00_00_00_1B,
+
     /// Executes the `HINT_LEN` precompile.
     HINT_LEN = 0x00_00_00_F0,
 
@@ -101,6 +107,8 @@ impl SyscallCode {
             0x00_01_01_0E => SyscallCode::BN254_ADD,
             0x00_00_01_0F => SyscallCode::BN254_DOUBLE,
             0x00_00_00_10 => SyscallCode::COMMIT,
+            0x00_00_00_1A => SyscallCode::COMMIT_DEFERRED_PROOFS,
+            0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             _ => panic!("invalid syscall number: {}", value),
@@ -279,6 +287,14 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     );
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
     syscall_map.insert(SyscallCode::COMMIT, Rc::new(SyscallCommit::new()));
+    syscall_map.insert(
+        SyscallCode::COMMIT_DEFERRED_PROOFS,
+        Rc::new(SyscallCommitDeferred::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::VERIFY_SP1_PROOF,
+        Rc::new(SyscallVerifySP1Proof::new()),
+    );
     syscall_map.insert(SyscallCode::HINT_LEN, Rc::new(SyscallHintLen::new()));
     syscall_map.insert(SyscallCode::HINT_READ, Rc::new(SyscallHintRead::new()));
 
@@ -358,6 +374,12 @@ mod tests {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_DOUBLE)
                 }
                 SyscallCode::COMMIT => assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT),
+                SyscallCode::COMMIT_DEFERRED_PROOFS => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT_DEFERRED_PROOFS)
+                }
+                SyscallCode::VERIFY_SP1_PROOF => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::VERIFY_SP1_PROOF)
+                }
                 SyscallCode::HINT_LEN => assert_eq!(code as u32, sp1_zkvm::syscalls::HINT_LEN),
                 SyscallCode::HINT_READ => assert_eq!(code as u32, sp1_zkvm::syscalls::HINT_READ),
             }
