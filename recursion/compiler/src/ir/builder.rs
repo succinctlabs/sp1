@@ -8,7 +8,9 @@ use super::{Felt, Var};
 use super::{SymbolicVar, Variable};
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
-use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, NUM_BITS, PERMUTATION_WIDTH};
+use sp1_recursion_core::runtime::{
+    DIGEST_SIZE, HASH_RATE, NUM_BITS, PERMUTATION_WIDTH, PV_BUFFER_MAX_SIZE,
+};
 
 #[derive(Debug, Clone)]
 pub struct Builder<C: Config> {
@@ -16,6 +18,8 @@ pub struct Builder<C: Config> {
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
     pub operations: Vec<DslIR<C>>,
+    pub nb_public_values: Var<C::N>,
+    pub public_values_buffer: Array<C, Felt<C::F>>,
 }
 
 impl<C: Config> Default for Builder<C> {
@@ -25,18 +29,27 @@ impl<C: Config> Default for Builder<C> {
             ext_count: 0,
             var_count: 0,
             operations: Vec::new(),
+            nb_public_values: Default::default(),
+            public_values_buffer: Default::default(),
         }
     }
 }
 
 impl<C: Config> Builder<C> {
     pub fn new(var_count: u32, felt_count: u32, ext_count: u32) -> Self {
-        Self {
+        let mut ret = Self {
             felt_count,
             ext_count,
             var_count,
             operations: Vec::new(),
-        }
+            nb_public_values: Default::default(),
+            public_values_buffer: Default::default(),
+        };
+
+        ret.nb_public_values = ret.eval(C::N::zero());
+        ret.public_values_buffer = ret.array::<Felt<_>>(PV_BUFFER_MAX_SIZE);
+
+        ret
     }
 
     pub fn push(&mut self, op: DslIR<C>) {
@@ -708,6 +721,28 @@ impl<C: Config> Builder<C> {
         let arr = self.dyn_array(len);
         self.operations.push(DslIR::HintExts(arr.clone()));
         arr
+    }
+
+    pub fn write_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
+        let len = vals.len();
+
+        // TODO:  Is there a way to avoid cloning the public_value_buffer?
+        let nb_public_values = self.nb_public_values;
+        let mut public_values_buffer = self.public_values_buffer.clone();
+
+        self.range(0, len).for_each(|i, builder| {
+            let val = builder.get(vals, i);
+            builder.set(&mut public_values_buffer, nb_public_values, val);
+            builder.assign(nb_public_values, nb_public_values + C::N::one());
+        });
+
+        self.public_values_buffer = public_values_buffer;
+    }
+
+    pub fn commit_public_values(&mut self) {
+        let pv_buffer = self.public_values_buffer.clone();
+        let pv_hash = self.poseidon2_hash(&pv_buffer);
+        self.operations.push(DslIR::Commit(pv_hash.clone()));
     }
 }
 

@@ -5,7 +5,7 @@ use sp1_core::air::PublicValues;
 use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
-use super::Program;
+use super::{Program, DIGEST_SIZE};
 use crate::air::Block;
 use crate::cpu::CpuEvent;
 
@@ -19,6 +19,9 @@ pub struct ExecutionRecord<F: Default> {
 
     // (address, last_timestamp, last_value)
     pub last_memory_record: Vec<(F, F, Block<F>)>,
+
+    /// The public values.
+    pub public_values_digest: [F; DIGEST_SIZE],
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {

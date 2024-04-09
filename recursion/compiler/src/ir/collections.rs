@@ -15,6 +15,16 @@ pub enum Array<C: Config, T> {
     Dyn(Ptr<C::N>, Usize<C::N>),
 }
 
+impl<C, T> Default for Array<C, T>
+where
+    C: Config,
+    T: Default,
+{
+    fn default() -> Self {
+        Self::Fixed(Vec::default())
+    }
+}
+
 impl<C: Config, V: MemVariable<C>> Array<C, V> {
     /// Gets a fixed version of the array.
     pub fn vec(&self) -> Vec<V> {
