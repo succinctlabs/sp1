@@ -63,13 +63,21 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub chip_information: Vec<(usize, Dom<SC>, Dimensions)>,
-    pub preprocessed_chips: Vec<usize>,
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
+    }
+
+    pub fn preprocessed_chip_ids(&self) -> Vec<usize> {
+        self.chips
+            .iter()
+            .enumerate()
+            .filter(|(_, chip)| chip.preprocessed_width() > 0)
+            .map(|(i, _)| i)
+            .collect()
     }
 
     pub fn shard_chips<'a, 'b>(
@@ -167,12 +175,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 commit: commit.clone(),
                 traces,
                 data,
-                preprocessed_chips: preprocessed_chips.clone(),
+                preprocessed_chips,
             },
             VerifyingKey {
                 commit,
                 chip_information,
-                preprocessed_chips,
             },
         )
     }

@@ -12,4 +12,5 @@ sp1-recursion-core = { path = "../recursion/core" }
 sp1-core = { path = "../core" }
 p3-challenger = { workspace = true }
 p3-baby-bear = { workspace = true }
+p3-commit = { workspace = true }
 bincode = "1.3.3"

@@ -3,6 +3,7 @@
 #![allow(deprecated)]
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
+use p3_commit::TwoAdicMultiplicativeCoset;
 use sp1_core::{
     air::{PublicValues, Word},
     runtime::Program,
@@ -11,7 +12,9 @@ use sp1_core::{
     SP1Stdin,
 };
 use sp1_recursion_core::{runtime::Runtime, stark::RecursionAir};
-use sp1_recursion_program::{hints::Hintable, reduce::build_reduce, stark::EMPTY};
+use sp1_recursion_program::{
+    fri::TwoAdicMultiplicativeCosetVariable, hints::Hintable, reduce::build_reduce, stark::EMPTY,
+};
 use std::time::Instant;
 type InnerSC = BabyBearPoseidon2;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
@@ -33,12 +36,13 @@ impl SP1ProverImpl {
     }
 
     fn compress(elf: &[u8], proof: Proof<InnerSC>) -> Vec<ShardProof<InnerSC>> {
+        let reduce_program = build_reduce();
+
         let config = InnerSC::default();
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
         println!("nb_shards {}", proof.shard_proofs.len());
-        let program = build_reduce(vk.chip_information.clone(), vk.chip_information.clone());
         let config = InnerSC::default();
 
         let mut witness_stream = Vec::new();
@@ -73,6 +77,20 @@ impl SP1ProverImpl {
         witness_stream.extend(challenger.write());
         // Write reconstruct_challenger
         witness_stream.extend(reconstruct_challenger.write());
+
+        let (prep_sorted_indices, prep_domains): (
+            Vec<usize>,
+            Vec<TwoAdicMultiplicativeCoset<BabyBear>>,
+        ) = vk
+            .chip_information
+            .clone()
+            .into_iter()
+            .map(|(i, d, _)| (i, d))
+            .unzip();
+        // Write prep_sorted_indices
+        witness_stream.extend(prep_sorted_indices.write());
+        // Write prep_domains
+        witness_stream.extend(prep_domains.write());
         // Write sp1_vk
         witness_stream.extend(vk.write());
         // Write recursion_vk
@@ -81,7 +99,7 @@ impl SP1ProverImpl {
 
         let machine = InnerA::machine(config);
         let mut runtime =
-            Runtime::<InnerF, InnerEF, _>::new(&program, machine.config().perm.clone());
+            Runtime::<InnerF, InnerEF, _>::new(&reduce_program, machine.config().perm.clone());
 
         runtime.witness_stream = witness_stream;
         let time = Instant::now();
@@ -91,7 +109,7 @@ impl SP1ProverImpl {
         println!("Execution took: {:?}", elapsed);
         let config = BabyBearPoseidon2::new();
         let machine = RecursionAir::machine(config);
-        let (pk, vk) = machine.setup(&program);
+        let (pk, vk) = machine.setup(&reduce_program);
         let mut challenger = machine.config().challenger();
         let record_clone = runtime.record.clone();
         machine.debug_constraints(&pk, record_clone, &mut challenger);
@@ -123,7 +141,7 @@ pub fn prove_sp1() -> (Proof<InnerSC>, VerifyingKey<InnerSC>) {
     (proof, vk)
 }
 pub fn prove_compress(sp1_proof: Proof<InnerSC>, vk: VerifyingKey<InnerSC>) {
-    let program = build_reduce(vk.chip_information.clone(), vk.chip_information);
+    let program = build_reduce();
     todo!()
     // let config = InnerSC::default();
     // let machine = InnerA::machine(config);

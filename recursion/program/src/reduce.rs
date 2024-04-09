@@ -97,10 +97,7 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
 }
 
 // TODO: proof is only necessary now because it's a constant, it should be I/O soon
-pub fn build_reduce(
-    sp1_chip_info: Vec<(String, Dom<SC>, Dimensions)>,
-    recursion_chip_info: Vec<(String, Dom<SC>, Dimensions)>,
-) -> RecursionProgram<Val> {
+pub fn build_reduce() -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(SC::default());
 
     let time = Instant::now();
@@ -117,9 +114,11 @@ pub fn build_reduce(
     // Read witness inputs
     let proofs = Vec::<ShardProof<_>>::read(&mut builder);
     let is_recursive_flags = Vec::<usize>::read(&mut builder);
-    let chip_indices = Vec::<Vec<usize>>::read(&mut builder);
+    let sorted_indices = Vec::<Vec<usize>>::read(&mut builder);
     let start_challenger = DuplexChallenger::read(&mut builder);
     let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
+    let prep_sorted_indices = Vec::<usize>::read(&mut builder);
+    let prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
     let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
     let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
     let num_proofs = proofs.len();
@@ -136,7 +135,7 @@ pub fn build_reduce(
         .range(Usize::Const(0), num_proofs)
         .for_each(|i, builder| {
             let proof = builder.get(&proofs, i);
-            let sorted_indices = builder.get(&chip_indices, i);
+            let sorted_indices = builder.get(&sorted_indices, i);
             let is_recursive = builder.get(&is_recursive_flags, i);
             builder.if_eq(is_recursive, zero).then_or_else(
                 // Non-recursive proof
@@ -168,7 +167,8 @@ pub fn build_reduce(
                         &mut current_challenger,
                         &proof,
                         sorted_indices.clone(),
-                        sp1_chip_info.clone(),
+                        prep_sorted_indices.clone(),
+                        prep_domains.clone(),
                     );
                     let code = builder.eval_const(F::from_canonical_u32(5));
                     builder.print_f(code);

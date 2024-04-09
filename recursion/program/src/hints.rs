@@ -1,11 +1,14 @@
 use crate::challenger::DuplexChallengerVariable;
+use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, PublicValuesVariable,
     ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
 use p3_challenger::DuplexChallenger;
+use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
+use sp1_core::stark::{Dom, StarkGenericConfig, VerifyingKey};
 use sp1_core::{
     air::{PublicValues, Word},
     stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
@@ -68,9 +71,38 @@ impl Hintable<C> for InnerChallenge {
     }
 }
 
+impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
+    type HintVariable = TwoAdicMultiplicativeCosetVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let log_n = usize::read(builder);
+        let shift = InnerVal::read(builder);
+        let g_val = InnerVal::read(builder);
+        let size = usize::read(builder);
+
+        // Initialize a domain.
+        TwoAdicMultiplicativeCosetVariable::<C> {
+            log_n,
+            size,
+            shift,
+            g: builder.eval(g_val),
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut vec = Vec::new();
+        vec.extend(usize::write(&self.log_n));
+        vec.extend(InnerVal::write(&self.shift));
+        vec.extend(InnerVal::write(&InnerVal::two_adic_generator(self.log_n)));
+        vec.extend(usize::write(&(1usize << (self.log_n))));
+        vec
+    }
+}
+
 trait VecAutoHintable<C: Config>: Hintable<C> {}
 
 impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
+impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
 
 impl<I: VecAutoHintable<C>> Hintable<C> for Vec<I> {
