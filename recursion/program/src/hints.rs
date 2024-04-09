@@ -1,7 +1,6 @@
-use p3_baby_bear::BabyBear;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
-    air::PublicValues,
+    air::{PublicValues, Word},
     stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
 };
 use sp1_recursion_compiler::{
@@ -253,7 +252,7 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     }
 }
 
-impl Hintable<C> for PublicValues<BabyBear> {
+impl Hintable<C> for PublicValues<u32, u32> {
     type HintVariable = PublicValuesVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -278,14 +277,14 @@ impl Hintable<C> for PublicValues<BabyBear> {
         stream.extend(
             self.committed_value_digest
                 .into_iter()
-                .flat_map(|x| x.0)
+                .flat_map(|x| Word::from(x).0)
                 .collect::<Vec<F>>()
                 .write(),
         );
-        stream.extend(self.shard.write());
-        stream.extend(self.start_pc.write());
-        stream.extend(self.next_pc.write());
-        stream.extend(self.exit_code.write());
+        stream.extend(F::from_canonical_u32(self.shard).write());
+        stream.extend(F::from_canonical_u32(self.start_pc).write());
+        stream.extend(F::from_canonical_u32(self.next_pc).write());
+        stream.extend(F::from_canonical_u32(self.exit_code).write());
         stream
     }
 }

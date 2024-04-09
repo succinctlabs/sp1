@@ -263,6 +263,7 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
+    use sp1_core::air::PublicValues;
     use sp1_core::runtime::Program;
     use sp1_core::{
         stark::{RiscvAir, ShardProof, StarkGenericConfig},
@@ -280,6 +281,8 @@ pub(crate) mod tests {
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
     use sp1_sdk::{SP1Prover, SP1Stdin};
+
+    use sp1_core::air::Word;
 
     use crate::{
         challenger::DuplexChallengerVariable,
@@ -317,7 +320,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = proof.public_values;
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
             challenger_val.observe_slice(&public_values_field.to_vec());
         });
 
@@ -390,7 +393,7 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = proof.public_values;
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
             challenger_val.observe_slice(&public_values_field.to_vec());
         });
 
@@ -429,7 +432,7 @@ pub(crate) mod tests {
                 });
             let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
             challenger.observe(&mut builder, main_commit.clone());
-            let public_values_field = proof_val.public_values;
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof_val.public_values);
             let public_values_felt: Vec<Felt<F>> = public_values_field
                 .to_vec()
                 .iter()

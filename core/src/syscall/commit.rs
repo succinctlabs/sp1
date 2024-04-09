@@ -1,7 +1,4 @@
-use crate::{
-    air::Word,
-    runtime::{Syscall, SyscallContext},
-};
+use crate::runtime::{Syscall, SyscallContext};
 
 pub struct SyscallCommit;
 
@@ -21,7 +18,7 @@ impl Syscall for SyscallCommit {
         let rt = &mut ctx.rt;
 
         rt.record.public_values.committed_value_digest[word_idx as usize] =
-            Word::<u32>::from_u32(public_values_digest_word);
+            public_values_digest_word;
 
         None
     }

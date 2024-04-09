@@ -131,17 +131,3 @@ impl<T: Debug> FromIterator<T> for Word<T> {
         Word(elements)
     }
 }
-
-impl Word<u32> {
-    pub fn from_u32(value: u32) -> Self {
-        Word(
-            value
-                .to_le_bytes()
-                .into_iter()
-                .map(u32::from)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap(),
-        )
-    }
-}

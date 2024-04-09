@@ -1,7 +1,7 @@
 use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
-    air::{MachineAir, PublicValues, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+    air::{MachineAir, PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
     stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
 use sp1_recursion_compiler::prelude::*;
@@ -40,16 +40,16 @@ impl<C: Config> PublicValuesVariable<C> {
 }
 
 impl<C: Config> FromConstant<C> for PublicValuesVariable<C> {
-    type Constant = PublicValues<C::F>;
+    type Constant = PublicValues<u32, u32>;
 
     fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        let pv_shard = builder.eval(value.shard);
-        let pv_start_pc = builder.eval(value.start_pc);
-        let pv_next_pc = builder.eval(value.next_pc);
-        let pv_exit_code = builder.eval(value.exit_code);
+        let pv_shard = builder.eval(C::F::from_canonical_u32(value.shard));
+        let pv_start_pc = builder.eval(C::F::from_canonical_u32(value.start_pc));
+        let pv_next_pc = builder.eval(C::F::from_canonical_u32(value.next_pc));
+        let pv_exit_code = builder.eval(C::F::from_canonical_u32(value.exit_code));
         let mut pv_committed_value_digest = Vec::new();
         for i in 0..PV_DIGEST_NUM_WORDS {
-            let word_val = value.committed_value_digest[i];
+            let word_val: Word<C::F> = Word::from(value.committed_value_digest[i]);
             for j in 0..WORD_SIZE {
                 let word_val: Felt<_> = builder.eval(word_val[j]);
                 pv_committed_value_digest.push(word_val);

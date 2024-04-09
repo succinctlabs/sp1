@@ -238,7 +238,7 @@ pub(crate) mod tests {
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::{
-        air::MachineAir,
+        air::{MachineAir, PublicValues, Word},
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
@@ -379,7 +379,7 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = proof.public_values;
+            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
             challenger_val.observe_slice(&public_values_field.to_vec());
         });
 
