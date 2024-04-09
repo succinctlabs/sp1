@@ -24,8 +24,6 @@ use p3_poseidon2::Poseidon2;
 use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
-use sp1_core::air::PublicValues;
-use sp1_core::air::Word;
 use sp1_core::stark::Proof;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
@@ -96,8 +94,7 @@ pub fn build_compress(
     challenger_val.observe(vk.commit);
     proof.shard_proofs.iter().for_each(|proof| {
         challenger_val.observe(proof.commitment.main_commit);
-        let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-        challenger_val.observe_slice(&public_values_field.to_vec());
+        challenger_val.observe_slice(&proof.public_values);
     });
 
     let time = Instant::now();
@@ -135,8 +132,8 @@ pub fn build_compress(
             });
         let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
         challenger.observe(&mut builder, main_commit.clone());
-        let public_values_field = PublicValues::<Word<F>, F>::new(proof_val.public_values);
-        let public_values_felt: Vec<Felt<F>> = public_values_field
+        let public_values_felt: Vec<Felt<F>> = proof_val
+            .public_values
             .to_vec()
             .iter()
             .map(|x| builder.eval(*x))

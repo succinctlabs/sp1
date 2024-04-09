@@ -677,7 +677,7 @@ where
                     let hash_ptr = a_val[0].as_canonical_u32() as usize;
 
                     for i in 0..DIGEST_SIZE {
-                        self.record.public_values_digest[i] = self.memory[hash_ptr + i].value[0];
+                        self.record.public_values_digest.0[i] = self.memory[hash_ptr + i].value[0];
                     }
 
                     println!(

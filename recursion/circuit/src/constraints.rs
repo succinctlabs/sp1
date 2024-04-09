@@ -300,8 +300,7 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            let public_value_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger.observe_slice(&public_value_field.to_vec());
+            challenger.observe_slice(&proof.public_values);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
@@ -327,7 +326,8 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
-                let public_values = builder.eval_const(proof.public_values);
+                let pv = PublicValues::<Word<F>, F>::from_vec(proof.public_values.clone());
+                let public_values = builder.eval_const(pv);
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))

@@ -1,10 +1,9 @@
+use super::Word;
 use core::fmt::Debug;
 use itertools::Itertools;
 use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 use std::iter::once;
-
-use super::Word;
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
@@ -25,6 +24,19 @@ pub struct PublicValues<W, T> {
 
     /// The exit code of the program.  Only valid if halt has been executed.
     pub exit_code: T,
+}
+
+impl PublicValues<u32, u32> {
+    pub fn to_field_elms<F: AbstractField>(&self) -> Vec<F> {
+        self.committed_value_digest
+            .iter()
+            .flat_map(|w| Word::<F>::from(*w).into_iter())
+            .chain(once(F::from_canonical_u32(self.shard)))
+            .chain(once(F::from_canonical_u32(self.start_pc)))
+            .chain(once(F::from_canonical_u32(self.next_pc)))
+            .chain(once(F::from_canonical_u32(self.exit_code)))
+            .collect_vec()
+    }
 }
 
 impl<F: AbstractField> PublicValues<Word<F>, F> {

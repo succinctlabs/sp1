@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
-use p3_field::PrimeField32;
-use sp1_core::air::PublicValues;
+use p3_field::{AbstractField, PrimeField32};
 use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
@@ -21,7 +20,7 @@ pub struct ExecutionRecord<F: Default> {
     pub last_memory_record: Vec<(F, F, Block<F>)>,
 
     /// The public values.
-    pub public_values_digest: [F; DIGEST_SIZE],
+    pub public_values_digest: RecursivePublicValues<F>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
@@ -49,7 +48,25 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         vec![self]
     }
 
-    fn public_values(&self) -> PublicValues<u32, u32> {
-        PublicValues::default()
+    fn serialized_public_values<T: AbstractField>(&self) -> Vec<T> {
+        self.public_values_digest.to_field_elms()
+    }
+}
+
+#[derive(Default, Debug, Clone)]
+pub struct RecursivePublicValues<F: Default>(pub [F; DIGEST_SIZE]);
+
+impl<F: AbstractField> RecursivePublicValues<F> {
+    pub fn to_vec(&self) -> Vec<F> {
+        self.0.to_vec()
+    }
+}
+
+impl<F: PrimeField32> RecursivePublicValues<F> {
+    pub fn to_field_elms<T: AbstractField>(&self) -> Vec<T> {
+        self.0
+            .iter()
+            .map(|f| T::from_canonical_u32(F::as_canonical_u32(f)))
+            .collect()
     }
 }

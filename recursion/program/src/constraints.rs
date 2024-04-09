@@ -158,7 +158,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::{PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+        air::{PublicValues, Word},
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -170,8 +170,8 @@ mod tests {
     use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::{AbstractField, PrimeField32};
-    use sp1_recursion_compiler::{asm::VmBuilder, ir::Felt, prelude::ExtConst};
+    use p3_field::PrimeField32;
+    use sp1_recursion_compiler::{asm::VmBuilder, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
 
@@ -297,8 +297,7 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger.observe_slice(&public_values_field.to_vec());
+            challenger.observe_slice(&proof.public_values);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
@@ -315,25 +314,8 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values.
-            let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
-            let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
-            let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
-            let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-            let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
-            for i in 0..PV_DIGEST_NUM_WORDS {
-                let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
-                for j in 0..WORD_SIZE {
-                    let word_val: Felt<_> = builder.eval(word_val[j]);
-                    builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
-                }
-            }
-            let public_values = PublicValuesVariable {
-                committed_values_digest: pv_committed_value_digest,
-                shard: pv_shard,
-                start_pc: pv_start_pc,
-                next_pc: pv_next_pc,
-                exit_code: pv_exit_code,
-            };
+            let public_values =
+                PublicValuesVariable::from_vec(&mut builder, proof.public_values.to_vec());
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -349,7 +331,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
-                    PublicValues::<Word<F>, F>::new(proof.public_values),
+                    proof.public_values.clone(),
                 );
 
                 // Compute the folded constraints value in the DSL.
@@ -441,8 +423,7 @@ mod tests {
 
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger.observe_slice(&public_values_field.to_vec());
+            challenger.observe_slice(&proof.public_values);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
@@ -468,7 +449,9 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.eval_const(trace_domain_val);
-                let public_values = builder.eval_const(proof.public_values);
+                let pv: PublicValues<Word<F>, F> =
+                    PublicValues::from_vec(proof.public_values.to_vec());
+                let public_values = builder.eval_const(pv);
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.eval_const(*domain))
