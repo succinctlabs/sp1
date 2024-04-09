@@ -38,7 +38,7 @@ impl SP1ProverImpl {
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
         println!("nb_shards {}", proof.shard_proofs.len());
-        let program = build_reduce(&vk);
+        let program = build_reduce(vk.chip_information.clone(), vk.chip_information.clone());
         let config = InnerSC::default();
 
         let mut witness_stream = Vec::new();
@@ -71,9 +71,10 @@ impl SP1ProverImpl {
         }
         // Write current_challenger
         witness_stream.extend(challenger.write());
+        // Write reconstruct_challenger
         witness_stream.extend(reconstruct_challenger.write());
-        // Write verify_start_challenger
-        witness_stream.extend(challenger.write());
+        // Write sp1_vk
+        witness_stream.extend(vk.write());
         // Write recursion_vk
         // TODO: real recursion_vk
         witness_stream.extend(vk.write());
@@ -122,7 +123,7 @@ pub fn prove_sp1() -> (Proof<InnerSC>, VerifyingKey<InnerSC>) {
     (proof, vk)
 }
 pub fn prove_compress(sp1_proof: Proof<InnerSC>, vk: VerifyingKey<InnerSC>) {
-    let program = build_reduce(&vk);
+    let program = build_reduce(vk.chip_information.clone(), vk.chip_information);
     todo!()
     // let config = InnerSC::default();
     // let machine = InnerA::machine(config);

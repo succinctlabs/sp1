@@ -1,16 +1,12 @@
-use std::thread::current;
 use std::time::Instant;
 
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
-use crate::fri::types::DigestVariable;
 use crate::fri::types::FriConfigVariable;
 use crate::fri::TwoAdicFriPcsVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
-use crate::stark::EMPTY;
-use crate::types::ShardCommitmentVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
 use p3_challenger::DuplexChallenger;
@@ -22,6 +18,7 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::TwoAdicField;
 use p3_fri::FriConfig;
+use p3_matrix::Dimensions;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
 use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
@@ -29,6 +26,7 @@ use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
 use sp1_core::air::PublicValues;
 use sp1_core::air::Word;
+use sp1_core::stark::Dom;
 use sp1_core::stark::Proof;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
@@ -99,7 +97,10 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
 }
 
 // TODO: proof is only necessary now because it's a constant, it should be I/O soon
-pub fn build_reduce(sp1_vk: &VerifyingKey<SC>) -> RecursionProgram<Val> {
+pub fn build_reduce(
+    sp1_chip_info: Vec<(String, Dom<SC>, Dimensions)>,
+    recursion_chip_info: Vec<(String, Dom<SC>, Dimensions)>,
+) -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(SC::default());
 
     let time = Instant::now();
@@ -119,6 +120,7 @@ pub fn build_reduce(sp1_vk: &VerifyingKey<SC>) -> RecursionProgram<Val> {
     let chip_indices = Vec::<Vec<usize>>::read(&mut builder);
     let start_challenger = DuplexChallenger::read(&mut builder);
     let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
+    let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
     let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
     let num_proofs = proofs.len();
     let code = builder.eval_const(F::from_canonical_u32(1));
@@ -144,10 +146,10 @@ pub fn build_reduce(sp1_vk: &VerifyingKey<SC>) -> RecursionProgram<Val> {
                         builder.print_f(code);
 
                         // Initialize the current challenger
-                        let h: [BabyBear; DIGEST_SIZE] = sp1_vk.commit.into();
-                        let const_commit: DigestVariable<C> = builder.eval_const(h.to_vec());
+                        // let h: [BabyBear; DIGEST_SIZE] = sp1_vk.commit.into();
+                        // let const_commit: DigestVariable<C> = builder.eval_const(h.to_vec());
                         reconstruct_challenger = DuplexChallengerVariable::new(builder);
-                        reconstruct_challenger.observe(builder, const_commit);
+                        reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                         // for j in 0..DIGEST_SIZE {
                         //     let element = builder.get(&sp1_vk.commit, j);
                         //     reconstruct_challenger.observe(builder, element);
@@ -168,12 +170,13 @@ pub fn build_reduce(sp1_vk: &VerifyingKey<SC>) -> RecursionProgram<Val> {
                     let mut current_challenger = start_challenger.as_clone(builder);
                     StarkVerifier::<C, SC>::verify_shard(
                         builder,
-                        sp1_vk,
+                        &sp1_vk.clone(),
                         &pcs,
                         &sp1_machine,
                         &mut current_challenger,
                         &proof,
                         sorted_indices.clone(),
+                        sp1_chip_info.clone(),
                     );
                     let code = builder.eval_const(F::from_canonical_u32(5));
                     builder.print_f(code);

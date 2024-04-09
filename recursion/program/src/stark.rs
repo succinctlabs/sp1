@@ -1,18 +1,3 @@
-use p3_air::Air;
-use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::Com;
-use sp1_core::stark::MachineStark;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_core::stark::VerifyingKey;
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_compiler::ir::{Builder, Config, Usize};
-use sp1_recursion_core::runtime::DIGEST_SIZE;
-
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
@@ -22,7 +7,24 @@ use crate::fri::types::TwoAdicPcsMatsVariable;
 use crate::fri::types::TwoAdicPcsRoundVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::ShardCommitmentVariable;
+use crate::types::VerifyingKeyVariable;
 use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
+use p3_air::Air;
+use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_field::AbstractField;
+use p3_field::TwoAdicField;
+use p3_matrix::Dimensions;
+use sp1_core::air::MachineAir;
+use sp1_core::stark::Com;
+use sp1_core::stark::Dom;
+use sp1_core::stark::MachineStark;
+use sp1_core::stark::StarkGenericConfig;
+use sp1_core::stark::VerifyingKey;
+use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::Ext;
+use sp1_recursion_compiler::ir::Var;
+use sp1_recursion_compiler::ir::{Builder, Config, Usize};
+use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 pub const EMPTY: usize = 0x_1111_1111;
 
@@ -42,12 +44,13 @@ where
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
-        vk: &VerifyingKey<SC>,
+        vk: &VerifyingKeyVariable<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &MachineStark<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
         sorted_indices: Array<C, Var<C::N>>,
+        chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -92,7 +95,7 @@ where
         let log_quotient_degree = C::N::from_canonical_usize(log_quotient_degree_val);
         let num_quotient_chunks_val = 1 << log_quotient_degree_val;
 
-        let num_preprocessed_chips = vk.chip_information.len();
+        let num_preprocessed_chips = chip_information.len();
 
         let mut prep_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
             builder.dyn_array(num_preprocessed_chips);
@@ -106,9 +109,12 @@ where
         let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
         builder.set(&mut qc_points, 0, zeta);
 
+        // Constrain: Chip Ids
+        // Witness: Domain
+
         // TODO FIX: There is something weird going on here because the number of chips may not match
         // the number of chips in a shard.
-        for (i, (name, domain, _)) in vk.chip_information.iter().enumerate() {
+        for (i, (name, domain, _)) in chip_information.iter().enumerate() {
             let chip_idx = machine
                 .chips()
                 .iter()
@@ -197,8 +203,7 @@ where
 
         // Create the pcs rounds.
         let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(4);
-        let prep_commit_val: [SC::Val; DIGEST_SIZE] = vk.commit.clone().into();
-        let prep_commit = builder.eval_const(prep_commit_val.to_vec());
+        let prep_commit = vk.commitment.clone();
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             mats: prep_mats,
@@ -223,8 +228,14 @@ where
         // Verify the pcs proof
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
+        // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         for (i, chip) in machine.chips().iter().enumerate() {
             let index = builder.get(&sorted_indices, i);
+
+            if chip.preprocessed_width() > 0 {
+                builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
+            }
+
             builder
                 .if_ne(index, C::N::from_canonical_usize(EMPTY))
                 .then(|builder| {
@@ -252,19 +263,24 @@ where
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::time::Instant;
-
     use crate::challenger::CanObserveVariable;
     use crate::challenger::FeltChallenger;
     use crate::hints::Hintable;
     use crate::stark::Ext;
     use crate::stark::EMPTY;
     use crate::types::ShardCommitmentVariable;
+    use crate::{
+        challenger::DuplexChallengerVariable,
+        fri::{const_fri_config, TwoAdicFriPcsVariable},
+        stark::StarkVerifier,
+    };
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
     use sp1_core::air::PublicValues;
+    use sp1_core::air::Word;
     use sp1_core::runtime::Program;
+    use sp1_core::stark::LocalProver;
     use sp1_core::{
         stark::{RiscvAir, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
@@ -280,19 +296,10 @@ pub(crate) mod tests {
     use sp1_recursion_core::stark::config::inner_fri_config;
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
-    use sp1_sdk::{SP1Prover, SP1Stdin};
-
-    use sp1_core::air::Word;
-
-    use crate::{
-        challenger::DuplexChallengerVariable,
-        fri::{const_fri_config, TwoAdicFriPcsVariable},
-        stark::StarkVerifier,
-    };
-
-    use sp1_core::stark::LocalProver;
     use sp1_recursion_core::stark::RecursionAir;
     use sp1_sdk::utils::setup_logger;
+    use sp1_sdk::{SP1Prover, SP1Stdin};
+    use std::time::Instant;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
