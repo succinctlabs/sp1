@@ -30,7 +30,7 @@ use crate::stark::MachineChip;
 use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 
-use crate::air::{MachineAir, PublicValues, Word};
+use crate::air::MachineAir;
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -90,9 +90,7 @@ where
                 .zip(shards.iter())
                 .for_each(|(commitment, shard)| {
                     challenger.observe(commitment);
-                    let public_values =
-                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values());
-                    challenger.observe_slice(&public_values.to_vec());
+                    challenger.observe_slice(&shard.serialized_public_values::<SC::Val>());
                 });
         });
 
@@ -219,7 +217,7 @@ where
             main_data,
             chip_ordering,
             index,
-            public_values: shard.public_values(),
+            public_values: shard.serialized_public_values(),
         }
     }
 
@@ -375,7 +373,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &packed_perm_challenges,
                         alpha,
-                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard_data.public_values),
+                        shard_data.public_values.clone(),
                     )
                 })
                 .collect::<Vec<_>>()

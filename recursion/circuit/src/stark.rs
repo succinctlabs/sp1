@@ -273,8 +273,8 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let public_values: PublicValuesVariable<OuterConfig> =
-            builder.eval_const(proof.public_values);
+        let pv = PublicValues::<Word<F>, F>::from_vec(proof.public_values.clone());
+        let public_values: PublicValuesVariable<OuterConfig> = builder.eval_const(pv);
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
@@ -379,8 +379,7 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger_val.observe_slice(&public_values_field.to_vec());
+            challenger_val.observe_slice(&proof.public_values);
         });
 
         let mut builder = Builder::<OuterConfig>::default();

@@ -37,21 +37,39 @@ impl<C: Config> PublicValuesVariable<C> {
 
         result
     }
+
+    pub fn from_vec(builder: &mut Builder<C>, data: Vec<C::F>) -> Self {
+        let pv = PublicValues::<Word<C::F>, C::F>::from_vec(data);
+        let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+        for (i, word) in pv.committed_value_digest.iter().enumerate() {
+            for j in 0..WORD_SIZE {
+                let word_val: Felt<_> = builder.eval(word[j]);
+                builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
+            }
+        }
+
+        PublicValuesVariable {
+            committed_values_digest: pv_committed_value_digest,
+            shard: builder.eval(pv.shard),
+            start_pc: builder.eval(pv.start_pc),
+            next_pc: builder.eval(pv.next_pc),
+            exit_code: builder.eval(pv.exit_code),
+        }
+    }
 }
 
 impl<C: Config> FromConstant<C> for PublicValuesVariable<C> {
-    type Constant = PublicValues<u32, u32>;
+    type Constant = PublicValues<Word<C::F>, C::F>;
 
     fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
-        let pv_shard = builder.eval(C::F::from_canonical_u32(value.shard));
-        let pv_start_pc = builder.eval(C::F::from_canonical_u32(value.start_pc));
-        let pv_next_pc = builder.eval(C::F::from_canonical_u32(value.next_pc));
-        let pv_exit_code = builder.eval(C::F::from_canonical_u32(value.exit_code));
+        let pv_shard = builder.eval(value.shard);
+        let pv_start_pc = builder.eval(value.start_pc);
+        let pv_next_pc = builder.eval(value.next_pc);
+        let pv_exit_code = builder.eval(value.exit_code);
         let mut pv_committed_value_digest = Vec::new();
-        for i in 0..PV_DIGEST_NUM_WORDS {
-            let word_val: Word<C::F> = Word::from(value.committed_value_digest[i]);
+        for word in value.committed_value_digest.iter() {
             for j in 0..WORD_SIZE {
-                let word_val: Felt<_> = builder.eval(word_val[j]);
+                let word_val: Felt<_> = builder.eval(word[j]);
                 pv_committed_value_digest.push(word_val);
             }
         }
