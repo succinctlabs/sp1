@@ -46,7 +46,7 @@ pub struct AsmCompiler<F, EF> {
     function_labels: BTreeMap<String, F>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
 
 impl<F: PrimeField + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> Config
@@ -146,13 +146,13 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         }
         for op in operations.clone() {
             match op {
-                DslIR::Imm(dst, src) => {
+                DslIR::ImmV(dst, src) => {
                     self.push(AsmInstruction::IMM(dst.fp(), src));
                 }
-                DslIR::ImmFelt(dst, src) => {
+                DslIR::ImmF(dst, src) => {
                     self.push(AsmInstruction::IMM(dst.fp(), src));
                 }
-                DslIR::ImmExt(dst, src) => {
+                DslIR::ImmE(dst, src) => {
                     self.push(AsmInstruction::EIMM(dst.fp(), src));
                 }
                 DslIR::AddV(dst, lhs, rhs) => {

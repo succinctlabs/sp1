@@ -117,7 +117,7 @@ where
             let index = builder.get(&sorted_indices, chip_idx);
             let opening = builder.get(&opened_values.chips, index);
 
-            let domain: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(*domain);
+            let domain: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
 
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
             let zeta_next = domain.next_point(builder, zeta);
@@ -198,7 +198,7 @@ where
         // Create the pcs rounds.
         let mut rounds = builder.dyn_array::<TwoAdicPcsRoundVariable<_>>(4);
         let prep_commit_val: [SC::Val; DIGEST_SIZE] = vk.commit.clone().into();
-        let prep_commit = builder.eval_const(prep_commit_val.to_vec());
+        let prep_commit = builder.constant(prep_commit_val.to_vec());
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             mats: prep_mats,
@@ -334,7 +334,7 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
+        let preprocessed_commit: Array<C, _> = builder.constant(preprocessed_commit_val.to_vec());
         challenger.observe(&mut builder, preprocessed_commit);
 
         let mut witness_stream = Vec::new();
@@ -405,7 +405,7 @@ pub(crate) mod tests {
         let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
+        let preprocessed_commit: Array<C, _> = builder.constant(preprocessed_commit_val.to_vec());
         challenger.observe(&mut builder, preprocessed_commit);
 
         let mut witness_stream = Vec::new();
