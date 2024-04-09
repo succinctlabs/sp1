@@ -8,7 +8,7 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::stark::{Dom, StarkGenericConfig, VerifyingKey};
+use sp1_core::stark::VerifyingKey;
 use sp1_core::{
     air::{PublicValues, Word},
     stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},

@@ -35,7 +35,7 @@ impl SP1ProverImpl {
         proof
     }
 
-    fn reduce(elf: &[u8], proof: Proof<InnerSC>) -> Vec<ShardProof<InnerSC>> {
+    pub fn reduce(elf: &[u8], proof: Proof<InnerSC>) -> Vec<ShardProof<InnerSC>> {
         let config = InnerSC::default();
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
@@ -135,6 +135,6 @@ mod tests {
             include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
         let proof = SP1ProverImpl::prove(elf, &stdin);
-        let compressed_proof = SP1ProverImpl::reduce(elf, proof);
+        SP1ProverImpl::reduce(elf, proof);
     }
 }

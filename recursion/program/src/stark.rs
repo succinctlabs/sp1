@@ -13,13 +13,10 @@ use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::TwoAdicField;
-use p3_matrix::Dimensions;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
-use sp1_core::stark::Dom;
 use sp1_core::stark::MachineStark;
 use sp1_core::stark::StarkGenericConfig;
-use sp1_core::stark::VerifyingKey;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::Var;
@@ -261,16 +258,11 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::challenger::CanObserveVariable;
+    use crate::challenger::DuplexChallengerVariable;
     use crate::challenger::FeltChallenger;
     use crate::hints::Hintable;
     use crate::stark::Ext;
-    use crate::stark::EMPTY;
     use crate::types::ShardCommitmentVariable;
-    use crate::{
-        challenger::DuplexChallengerVariable,
-        fri::{const_fri_config, TwoAdicFriPcsVariable},
-        stark::StarkVerifier,
-    };
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
@@ -290,7 +282,6 @@ pub(crate) mod tests {
         ir::{Builder, ExtConst},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
-    use sp1_recursion_core::stark::config::inner_fri_config;
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
     use sp1_recursion_core::stark::RecursionAir;
