@@ -24,14 +24,19 @@ pub struct Builder<C: Config> {
 
 impl<C: Config> Default for Builder<C> {
     fn default() -> Self {
-        Self {
+        let mut ret = Self {
             felt_count: 0,
             ext_count: 0,
             var_count: 0,
             operations: Vec::new(),
             nb_public_values: Default::default(),
             public_values_buffer: Default::default(),
-        }
+        };
+
+        ret.nb_public_values = ret.eval(C::N::zero());
+        ret.public_values_buffer = ret.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE);
+
+        ret
     }
 }
 
@@ -47,7 +52,7 @@ impl<C: Config> Builder<C> {
         };
 
         ret.nb_public_values = ret.eval(C::N::zero());
-        ret.public_values_buffer = ret.array::<Felt<_>>(PV_BUFFER_MAX_SIZE);
+        ret.public_values_buffer = ret.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE);
 
         ret
     }
