@@ -99,18 +99,18 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
 
 // TODO: proof is only necessary now because it's a constant, it should be I/O soon
 pub fn build_compress(
-    proof: Proof<BabyBearPoseidon2>,
+    // proof: Proof<BabyBearPoseidon2>,
     sp1_vk: VerifyingKey<SC>,
-) -> (RecursionProgram<Val>, Vec<Vec<Block<Val>>>) {
-    let machine = RiscvAir::machine(SC::default());
+) -> RecursionProgram<Val> {
+    let sp1_machine = RiscvAir::machine(SC::default());
 
-    let mut challenger_val = machine.config().challenger();
-    challenger_val.observe(sp1_vk.commit);
-    proof.shard_proofs.iter().for_each(|proof| {
-        challenger_val.observe(proof.commitment.main_commit);
-        let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-        challenger_val.observe_slice(&public_values_field.to_vec());
-    });
+    // let mut challenger_val = machine.config().challenger();
+    // challenger_val.observe(sp1_vk.commit);
+    // proof.shard_proofs.iter().for_each(|proof| {
+    //     challenger_val.observe(proof.commitment.main_commit);
+    //     let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
+    //     challenger_val.observe_slice(&public_values_field.to_vec());
+    // });
 
     let time = Instant::now();
     let mut builder = VmBuilder::<F, EF>::default();
@@ -122,10 +122,6 @@ pub fn build_compress(
     let preprocessed_commit_val: [F; DIGEST_SIZE] = sp1_vk.commit.into();
     let preprocessed_commit: Array<C, _> = builder.eval_const(preprocessed_commit_val.to_vec());
     challenger.observe(&mut builder, preprocessed_commit);
-
-    let mut witness_stream = Vec::new();
-    let mut shard_proofs = vec![];
-    let mut sorted_indices = vec![];
 
     // Read witness inputs
     let proofs = Vec::<ShardProof<_>>::read(&mut builder);
@@ -144,86 +140,43 @@ pub fn build_compress(
         .range(Usize::Const(0), num_proofs)
         .for_each(|i, builder| {
             let proof = builder.get(&proofs, i);
-            builder.if_eq(proof.index, zero).then(|builder| {
-                // Ensure that first current_challenger == verify_start_challenger
-                DuplexChallengerVariable::assert_eq(
-                    current_challenger.clone(),
-                    reconstruct_challenger.clone(),
-                    builder,
-                );
+            let sorted_indices = builder.get(&chip_indices, i);
+            let is_recursive = builder.get(&is_recursive_flags, i);
+            builder.if_eq(is_recursive, zero).then_or_else(
+                // Non-recursive proof
+                |builder| {
+                    builder.if_eq(proof.index, zero).then(|builder| {
+                        // Ensure that first current_challenger == verify_start_challenger
+                        DuplexChallengerVariable::assert_eq(
+                            current_challenger.clone(),
+                            reconstruct_challenger.clone(),
+                            builder,
+                        );
 
-                // Initialize the current challenger
-                reconstruct_challenger.assign(reconstruct_challenger.clone(), builder);
-                reconstruct_challenger.observe_slice(builder, &recursion_vk.commitment.vec());
-            })
-            // if i.eq(&zero) {
-            //     current
-            // } else {
-            //     current_challenger.assign(reconstruct_challenger.clone(), &mut builder);
-            // }
-
-            // // let is_recursive = usize::read(&mut builder);
-            // // let proof = ShardProof::<_>::read(&mut builder);
-            // // let sorted_indices_arr = Vec::<usize>::read(&mut builder);
-            // // builder
-            // //     .range(0, sorted_indices_arr.len())
-            // //     .for_each(|i, builder| {
-            // //         let el = builder.get(&sorted_indices_arr, i);
-            // //         builder.print_v(el);
-            // //     });
-            // let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
-            // challenger.observe(&mut builder, main_commit.clone());
-            // // challenger.observe_slice(&mut builder, &proof.public_values.to_vec());
-            // shard_proofs.push(proof);
-            // sorted_indices.push(sorted_indices_arr);
+                        // Initialize the current challenger
+                        reconstruct_challenger.assign(reconstruct_challenger.clone(), builder);
+                        reconstruct_challenger
+                            .observe_slice(builder, &recursion_vk.commitment.vec());
+                    });
+                    reconstruct_challenger
+                        .observe_slice(builder, &proof.commitment.main_commit.vec());
+                    StarkVerifier::<C, SC>::verify_shard(
+                        builder,
+                        &sp1_vk,
+                        &pcs,
+                        &sp1_machine,
+                        &mut challenger.clone(),
+                        &proof,
+                        sorted_indices.clone(),
+                    );
+                },
+                // Recursive proof
+                |builder| {},
+            );
         });
-
-    for proof_val in proof.shard_proofs {
-        witness_stream.extend(proof_val.write());
-        let sorted_indices_raw: Vec<usize> = machine
-            .chips_sorted_indices(&proof_val)
-            .into_iter()
-            .map(|x| match x {
-                Some(x) => x,
-                None => EMPTY,
-            })
-            .collect();
-        witness_stream.extend(sorted_indices_raw.write());
-        let proof = ShardProof::<_>::read(&mut builder);
-        let sorted_indices_arr = Vec::<usize>::read(&mut builder);
-        builder
-            .range(0, sorted_indices_arr.len())
-            .for_each(|i, builder| {
-                let el = builder.get(&sorted_indices_arr, i);
-                builder.print_v(el);
-            });
-        let ShardCommitmentVariable { main_commit, .. } = &proof.commitment;
-        challenger.observe(&mut builder, main_commit.clone());
-        let public_values_field = PublicValues::<Word<F>, F>::new(proof_val.public_values);
-        let public_values_felt: Vec<Felt<F>> = public_values_field
-            .to_vec()
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect();
-        challenger.observe_slice(&mut builder, &public_values_felt);
-        shard_proofs.push(proof);
-        sorted_indices.push(sorted_indices_arr);
-    }
-
-    for (proof, sorted_indices) in shard_proofs.iter().zip(sorted_indices) {
-        StarkVerifier::<C, SC>::verify_shard(
-            &mut builder,
-            &sp1_vk,
-            &pcs,
-            &machine,
-            &mut challenger.clone(),
-            proof,
-            sorted_indices,
-        );
-    }
 
     let program = builder.compile();
     let elapsed = time.elapsed();
     println!("Building took: {:?}", elapsed);
-    (program, witness_stream)
+    program
 }
