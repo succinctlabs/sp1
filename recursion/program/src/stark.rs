@@ -50,7 +50,7 @@ where
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
         chip_sorted_idxs: Array<C, Var<C::N>>,
-        // chip_information: Vec<(usize, Dom<SC>, Dimensions)>,
+        chip_information: Vec<(String, Dom<SC>, Dimensions)>,
         preprocessed_sorted_idxs: Array<C, Var<C::N>>,
         prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
     ) where
@@ -113,10 +113,10 @@ where
 
         for (preprocessed_id, chip_id) in machine.preprocessed_chip_ids().into_iter().enumerate() {
             let preprocessed_sorted_id = builder.get(&preprocessed_sorted_idxs, preprocessed_id);
-            let chip_sorted_id = builder.get(&chip_sorted_idxs, chip_id);
+            let domain = builder.get(&prep_domains, preprocessed_id);
 
+            let chip_sorted_id = builder.get(&chip_sorted_idxs, chip_id);
             let opening = builder.get(&opened_values.chips, chip_sorted_id);
-            let domain = builder.get(&prep_domains, preprocessed_sorted_id);
 
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
             let zeta_next = domain.next_point(builder, zeta);
@@ -135,35 +135,9 @@ where
             builder.set(&mut prep_mats, preprocessed_sorted_id, main_mat);
         }
 
-        // for (i, (chip_idx, domain, _)) in chip_information.iter().enumerate() {
-        //     let chip_idx = machine
-        //         .chips()
-        //         .iter()
-        //         .rposition(|chip| &chip.name() == name)
-        //         .unwrap();
-        //     let index = builder.get(&sorted_indices, chip_idx);
-        //     let opening = builder.get(&opened_values.chips, index);
-
-        //     let domain: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(*domain);
-
-        //     let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
-        //     let zeta_next = domain.next_point(builder, zeta);
-
-        //     builder.set(&mut trace_points, 0, zeta);
-        //     builder.set(&mut trace_points, 1, zeta_next);
-
-        //     let mut prep_values = builder.dyn_array::<Array<C, _>>(2);
-        //     builder.set(&mut prep_values, 0, opening.preprocessed.local);
-        //     builder.set(&mut prep_values, 1, opening.preprocessed.next);
-        //     let main_mat = TwoAdicPcsMatsVariable::<C> {
-        //         domain: domain.clone(),
-        //         values: prep_values,
-        //         points: trace_points.clone(),
-        //     };
-        //     builder.set(&mut prep_mats, i, main_mat);
-        // }
-
         builder.range(0, num_shard_chips).for_each(|i, builder| {
+            let code = builder.eval_const(C::F::from_canonical_u32(91));
+            builder.print_f(code);
             let opening = builder.get(&opened_values.chips, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
             builder.set(&mut trace_domains, i, domain.clone());
@@ -246,11 +220,17 @@ where
         builder.set(&mut rounds, 2, perm_round);
         builder.set(&mut rounds, 3, quotient_round);
 
+        let code = builder.eval_const(C::F::from_canonical_u32(92));
+        builder.print_f(code);
         // Verify the pcs proof
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
+        let code = builder.eval_const(C::F::from_canonical_u32(93));
+        builder.print_f(code);
 
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         for (i, chip) in machine.chips().iter().enumerate() {
+            let code = builder.eval_const(C::F::from_canonical_u32(94));
+            builder.print_f(code);
             let index = builder.get(&chip_sorted_idxs, i);
 
             if chip.preprocessed_width() > 0 {

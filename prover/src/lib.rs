@@ -5,7 +5,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use sp1_core::{
-    air::{PublicValues, Word},
+    air::{MachineAir, PublicValues, Word},
     runtime::Program,
     stark::{LocalProver, Proof, RiscvAir, ShardProof, StarkGenericConfig, VerifyingKey},
     utils::{run_and_prove, BabyBearPoseidon2},
@@ -36,12 +36,11 @@ impl SP1ProverImpl {
     }
 
     fn compress(elf: &[u8], proof: Proof<InnerSC>) -> Vec<ShardProof<InnerSC>> {
-        let reduce_program = build_reduce();
-
         let config = InnerSC::default();
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
+        let reduce_program = build_reduce(vk.chip_information.clone());
         println!("nb_shards {}", proof.shard_proofs.len());
         let config = InnerSC::default();
 
@@ -78,15 +77,23 @@ impl SP1ProverImpl {
         // Write reconstruct_challenger
         witness_stream.extend(reconstruct_challenger.write());
 
+        let ordering = vk.chip_ordering.clone();
+        let chips = machine.chips();
         let (prep_sorted_indices, prep_domains): (
             Vec<usize>,
             Vec<TwoAdicMultiplicativeCoset<BabyBear>>,
-        ) = vk
-            .chip_information
-            .clone()
+        ) = machine
+            .preprocessed_chip_ids()
             .into_iter()
-            .map(|(i, d, _)| (i, d))
+            .map(|chip_idx| {
+                let name = chips[chip_idx].name().clone();
+                let prep_sorted_idx = ordering[&name];
+                (prep_sorted_idx, vk.chip_information[prep_sorted_idx].1)
+            })
             .unzip();
+        // let prep_domains:
+        //     Vec<TwoAdicMultiplicativeCoset<BabyBear>> = vk.chip_information[vk.chip_ordering.g]
+        println!("prep_sorted_indices {:?}", prep_sorted_indices);
         // Write prep_sorted_indices
         witness_stream.extend(prep_sorted_indices.write());
         // Write prep_domains
@@ -141,7 +148,7 @@ pub fn prove_sp1() -> (Proof<InnerSC>, VerifyingKey<InnerSC>) {
     (proof, vk)
 }
 pub fn prove_compress(sp1_proof: Proof<InnerSC>, vk: VerifyingKey<InnerSC>) {
-    let program = build_reduce();
+    let program = build_reduce(vk.chip_information.clone());
     todo!()
     // let config = InnerSC::default();
     // let machine = InnerA::machine(config);

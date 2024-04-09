@@ -85,7 +85,7 @@ impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
             log_n,
             size,
             shift,
-            g: builder.eval(g_val),
+            g: g_val,
         }
     }
 

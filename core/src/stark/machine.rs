@@ -62,15 +62,8 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
 
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
-<<<<<<< HEAD
-    pub chip_information: Vec<(usize, Dom<SC>, Dimensions)>,
-||||||| f4737d54 (vk preprocessed indices)
-    pub chip_information: Vec<(usize, Dom<SC>, Dimensions)>,
-    pub preprocessed_chips: Vec<usize>,
-=======
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
->>>>>>> parent of f4737d54 (vk preprocessed indices)
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {

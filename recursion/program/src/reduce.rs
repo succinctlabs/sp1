@@ -97,7 +97,7 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
 }
 
 // TODO: proof is only necessary now because it's a constant, it should be I/O soon
-pub fn build_reduce() -> RecursionProgram<Val> {
+pub fn build_reduce(chip_information: Vec<(String, Dom<SC>, Dimensions)>) -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(SC::default());
 
     let time = Instant::now();
@@ -118,6 +118,14 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     let start_challenger = DuplexChallenger::read(&mut builder);
     let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
     let prep_sorted_indices = Vec::<usize>::read(&mut builder);
+    builder
+        .range(Usize::Const(0), prep_sorted_indices.len())
+        .for_each(|i, builder| {
+            let index = builder.get(&prep_sorted_indices, i);
+            let code = builder.eval_const(F::from_canonical_u32(10001));
+            builder.print_f(code);
+            builder.print_v(index);
+        });
     let prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
     let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
     let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
@@ -175,6 +183,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         &mut current_challenger,
                         &proof,
                         sorted_indices.clone(),
+                        chip_information.clone(),
                         prep_sorted_indices.clone(),
                         prep_domains.clone(),
                     );
