@@ -379,6 +379,7 @@ impl<C: Config> Builder<C> {
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
     pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
+        println!("calling poseidon2_permute_mut");
         self.operations.push(DslIR::Poseidon2PermuteBabyBear(
             array.clone(),
             array.clone(),
@@ -404,12 +405,16 @@ impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
     ///
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
-    pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
+    pub fn poseidon2_hash(
+        &mut self,
+        array: &Array<C, Felt<C::F>>,
+        array_len: Usize<C::N>,
+    ) -> Array<C, Felt<C::F>> {
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
         let break_flag: Var<_> = self.eval(C::N::zero());
-        let last_index: Usize<_> = self.eval(array.len() - 1);
-        self.range(0, array.len())
+        let last_index: Usize<_> = self.eval(array_len - 1);
+        self.range(0, array_len)
             .step_by(HASH_RATE)
             .for_each(|i, builder| {
                 builder.if_eq(break_flag, C::N::one()).then(|builder| {
@@ -741,12 +746,18 @@ impl<C: Config> Builder<C> {
             builder.assign(nb_public_values, nb_public_values + C::N::one());
         });
 
+        self.nb_public_values = nb_public_values;
         self.public_values_buffer = public_values_buffer;
     }
 
     pub fn commit_public_values(&mut self) {
         let pv_buffer = self.public_values_buffer.clone();
-        let pv_hash = self.poseidon2_hash(&pv_buffer);
+
+        if let Usize::Var(len) = pv_buffer.len() {
+            self.print_v(len);
+        }
+
+        let pv_hash = self.poseidon2_hash(&pv_buffer, self.nb_public_values.into());
         self.operations.push(DslIR::Commit(pv_hash.clone()));
     }
 }

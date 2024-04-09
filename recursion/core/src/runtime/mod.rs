@@ -536,6 +536,11 @@ where
                     // Perform the permutation.
                     let result = self.perm.as_ref().unwrap().permute(array);
 
+                    println!(
+                        "called permute on array: {:?} with result: {:?}",
+                        array, result
+                    );
+
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
                     for (i, value) in result.iter().enumerate() {
@@ -674,6 +679,11 @@ where
                     for i in 0..DIGEST_SIZE {
                         self.record.public_values_digest[i] = self.memory[hash_ptr + i].value[0];
                     }
+
+                    println!(
+                        "self.record.public_values_digest is {:?}",
+                        self.record.public_values_digest
+                    );
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
