@@ -2,6 +2,7 @@ use std::{env, time::Duration};
 
 use anyhow::{Ok, Result};
 use futures::future::join_all;
+use log::info;
 use reqwest::{
     header::{HeaderMap, HeaderValue},
     Client as HttpClient, Url,
@@ -10,6 +11,7 @@ use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 pub use sp1_core::stark::StarkGenericConfig;
+use tokio::time::sleep;
 use twirp::Client as TwirpClient;
 
 use crate::{
@@ -100,6 +102,35 @@ impl NetworkClient {
             .await?;
 
         Ok(res.id)
+    }
+
+    pub async fn poll_proof<SC: for<'de> Deserialize<'de> + Serialize + StarkGenericConfig>(
+        &self,
+        proof_id: &str,
+        max_polls: u64,
+        poll_interval: u64,
+    ) -> Result<SP1ProofWithIO<SC>> {
+        // Query every 10 seconds for the proof status.
+        // TODO: Proof status should be an object (instead of a tuple).
+        // TODO: THe STARK config is annoying.
+
+        for _ in 0..max_polls {
+            info!("Polling proof status");
+            let proof_status = self.get_proof_status::<SC>(proof_id).await;
+            if proof_status.is_ok() {
+                let proof_status = proof_status.unwrap();
+                info!("Proof status: {:?}", proof_status.0.status());
+                if proof_status.0.status() == ProofStatus::ProofSucceeded {
+                    if let Some(proof_data) = proof_status.1 {
+                        println!("Proof data: {:?}", proof_data.public_values.buffer.data);
+                        return Ok(proof_data);
+                    }
+                }
+            }
+            sleep(Duration::from_secs(poll_interval)).await;
+        }
+
+        Err(anyhow::anyhow!("Proof failed or was rejected"))
     }
 
     pub async fn get_proof_status<

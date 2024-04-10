@@ -14,35 +14,6 @@ use log::info;
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
-async fn poll_proof<SC: for<'de> Deserialize<'de> + Serialize + StarkGenericConfig>(
-    network_client: NetworkClient,
-    proof_id: &str,
-) -> Result<SP1ProofWithIO<SC>> {
-    // Query every 10 seconds for the proof status.
-    // TODO: Proof status should be an object (instead of a tuple).
-    // TODO: THe STARK config is annoying.
-
-    const POLL_INTERVAL: u64 = 10;
-    const MAX_NUM_POLLS: u64 = 1000;
-
-    for _ in 0..MAX_NUM_POLLS {
-        info!("Polling proof status");
-        let proof_status = network_client.get_proof_status::<SC>(proof_id).await;
-        if let Ok(proof_status) = proof_status {
-            info!("Proof status: {:?}", proof_status.0.status());
-            if proof_status.0.status() == ProofStatus::ProofSucceeded {
-                if let Some(proof_data) = proof_status.1 {
-                    println!("Proof data: {:?}", proof_data.public_values.buffer.data);
-                    return Ok(proof_data);
-                }
-            }
-        }
-        sleep(Duration::from_secs(POLL_INTERVAL)).await;
-    }
-
-    Err(anyhow::anyhow!("Proof failed or was rejected"))
-}
-
 #[tokio::main]
 async fn main() {
     // Setup a tracer for logging.
@@ -59,7 +30,7 @@ async fn main() {
 
     if let Ok(proof_id) = proof_id {
         type SC = BabyBearPoseidon2;
-        let proof = poll_proof::<SC>(network_client, &proof_id).await;
+        let proof = network_client.poll_proof::<SC>(&proof_id, 1000, 10).await;
         if let Ok(valid_proof) = proof {
             info!("Proof: {:?}", valid_proof.public_values.buffer.data);
         }
