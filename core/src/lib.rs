@@ -41,7 +41,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use stark::{Com, OpeningProof, PcsProverData, ProgramVerificationError, Proof, ShardMainData};
 use stark::{StarkGenericConfig, Val};
-use std::fs;
+use std::{fs, panic};
 use utils::{prove_core, run_and_prove, BabyBearPoseidon2};
 
 /// A prover that can prove RISCV ELFs.
@@ -106,6 +106,11 @@ impl SP1Prover {
         runtime.write_vecs(&stdin.buffer);
         runtime.run();
         let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
+
+        let result = panic::catch_unwind(|| {
+            let proof = prove_core(config, runtime);
+            Ok(proof)
+        });
         let proof = prove_core(config, runtime);
         Ok(SP1ProofWithIO {
             proof,
