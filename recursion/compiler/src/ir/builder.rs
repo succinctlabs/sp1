@@ -1,5 +1,5 @@
 use super::{
-    Array, Config, DslIR, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
+    Array, Config, DslIr, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
     SymbolicVar, Usize, Var, Variable,
 };
 use p3_field::AbstractField;
@@ -13,7 +13,7 @@ pub struct Builder<C: Config> {
     pub(crate) felt_count: u32,
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
-    pub operations: Vec<DslIR<C>>,
+    pub operations: Vec<DslIr<C>>,
     pub nb_public_values: Option<Var<C::N>>,
     pub public_values_buffer: Option<Array<C, Felt<C::F>>>,
 }
@@ -32,7 +32,7 @@ impl<C: Config> Builder<C> {
     }
 
     /// Pushes an operation to the builder.
-    pub fn push(&mut self, op: DslIR<C>) {
+    pub fn push(&mut self, op: DslIr<C>) {
         self.operations.push(op);
     }
 
@@ -197,28 +197,28 @@ impl<C: Config> Builder<C> {
 
     /// Break out of a loop.
     pub fn break_loop(&mut self) {
-        self.operations.push(DslIR::Break);
+        self.operations.push(DslIr::Break);
     }
 
     /// Print a variable.
     pub fn print_v(&mut self, dst: Var<C::N>) {
-        self.operations.push(DslIR::PrintV(dst));
+        self.operations.push(DslIr::PrintV(dst));
     }
 
     /// Print a felt.
     pub fn print_f(&mut self, dst: Felt<C::F>) {
-        self.operations.push(DslIR::PrintF(dst));
+        self.operations.push(DslIr::PrintF(dst));
     }
 
     /// Print an ext.
     pub fn print_e(&mut self, dst: Ext<C::F, C::EF>) {
-        self.operations.push(DslIR::PrintE(dst));
+        self.operations.push(DslIr::PrintE(dst));
     }
 
     /// Hint the length of the next vector of variables.
     pub fn hint_len(&mut self) -> Var<C::N> {
         let len = self.uninit();
-        self.operations.push(DslIR::HintLen(len));
+        self.operations.push(DslIr::HintLen(len));
         len
     }
 
@@ -226,7 +226,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_var(&mut self) -> Var<C::N> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintVars(arr.clone()));
+        self.operations.push(DslIr::HintVars(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -234,7 +234,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_felt(&mut self) -> Felt<C::F> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintFelts(arr.clone()));
+        self.operations.push(DslIr::HintFelts(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -242,7 +242,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_ext(&mut self) -> Ext<C::F, C::EF> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintExts(arr.clone()));
+        self.operations.push(DslIr::HintExts(arr.clone()));
         self.get(&arr, 0)
     }
 
@@ -251,7 +251,7 @@ impl<C: Config> Builder<C> {
         let len = self.hint_len();
         self.print_v(len);
         let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintVars(arr.clone()));
+        self.operations.push(DslIr::HintVars(arr.clone()));
         arr
     }
 
@@ -259,7 +259,7 @@ impl<C: Config> Builder<C> {
     pub fn hint_felts(&mut self) -> Array<C, Felt<C::F>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintFelts(arr.clone()));
+        self.operations.push(DslIr::HintFelts(arr.clone()));
         arr
     }
 
@@ -267,13 +267,13 @@ impl<C: Config> Builder<C> {
     pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
         let len = self.hint_len();
         let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintExts(arr.clone()));
+        self.operations.push(DslIr::HintExts(arr.clone()));
         arr
     }
 
     /// Throws an error.
     pub fn error(&mut self) {
-        self.operations.push(DslIR::Error());
+        self.operations.push(DslIr::Error());
     }
 
     /// Materializes a usize into a variable.
@@ -317,7 +317,7 @@ impl<C: Config> Builder<C> {
         pv_buffer.truncate(self, self.nb_public_values.unwrap().into());
 
         let pv_hash = self.poseidon2_hash(&pv_buffer);
-        self.operations.push(DslIR::Commit(pv_hash.clone()));
+        self.operations.push(DslIr::Commit(pv_hash.clone()));
     }
 }
 
@@ -366,19 +366,19 @@ impl<'a, C: Config> IfBuilder<'a, C> {
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
-                let op = DslIR::IfEq(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfEq(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
             IfCondition::EqI(lhs, rhs) => {
-                let op = DslIR::IfEqI(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfEqI(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
             IfCondition::Ne(lhs, rhs) => {
-                let op = DslIR::IfNe(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfNe(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
             IfCondition::NeI(lhs, rhs) => {
-                let op = DslIR::IfNeI(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfNeI(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
         }
@@ -426,19 +426,19 @@ impl<'a, C: Config> IfBuilder<'a, C> {
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
-                let op = DslIR::IfEq(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfEq(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
             IfCondition::EqI(lhs, rhs) => {
-                let op = DslIR::IfEqI(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfEqI(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
             IfCondition::Ne(lhs, rhs) => {
-                let op = DslIR::IfNe(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfNe(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
             IfCondition::NeI(lhs, rhs) => {
-                let op = DslIR::IfNeI(lhs, rhs, then_instructions, else_instructions);
+                let op = DslIr::IfNeI(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
         }
@@ -537,7 +537,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
 
         let loop_instructions = loop_body_builder.operations;
 
-        let op = DslIR::For(
+        let op = DslIr::For(
             self.start,
             self.end,
             step_size,

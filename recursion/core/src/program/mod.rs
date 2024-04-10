@@ -13,7 +13,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::{ExecutionRecord, Program};
+use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
@@ -47,7 +47,7 @@ impl ProgramChip {
 impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     type Record = ExecutionRecord<F>;
 
-    type Program = Program<F>;
+    type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
         "Program".to_string()

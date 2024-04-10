@@ -1,124 +1,75 @@
-use core::marker::PhantomData;
-use std::collections::BTreeSet;
-
-use super::{AssemblyCode, BasicBlock};
 use alloc::collections::BTreeMap;
 use alloc::vec;
+use std::collections::BTreeSet;
 
 use p3_field::ExtensionField;
-use p3_field::PrimeField;
 use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
-use sp1_recursion_core::runtime::Program;
+use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::STACK_SIZE;
 
+use super::config::AsmConfig;
+use super::IndexTriple;
+use super::ValueOrConst;
+use super::{AssemblyCode, BasicBlock};
 use crate::asm::AsmInstruction;
-use crate::ir::Builder;
+use crate::ir::Array;
 use crate::ir::Usize;
-use crate::ir::{Config, DslIR, Ext, Felt, Ptr, Var};
-use crate::prelude::Array;
-use crate::prelude::MemIndex;
+use crate::ir::{DslIr, Ext, Felt, Ptr, Var};
 
+/// The zero address.
+pub(crate) const ZERO: i32 = 0;
+
+/// The offset which the stack starts.
 pub(crate) const STACK_START_OFFSET: i32 = 16;
 
-pub(crate) const ZERO: i32 = 0;
+/// The heap pointer address.
 pub(crate) const HEAP_PTR: i32 = -4;
 
-#[allow(dead_code)]
+/// The address of A0.
 pub(crate) const A0: i32 = -8;
-#[allow(dead_code)]
-pub(crate) const A1: i32 = -12;
 
-pub type VmBuilder<F, EF> = Builder<AsmConfig<F, EF>>;
-
-#[derive(Debug, Clone)]
+/// The assembly compiler.
+#[derive(Debug, Clone, Default)]
 pub struct AsmCompiler<F, EF> {
-    pub basic_blocks: Vec<BasicBlock<F, EF>>,
-
+    basic_blocks: Vec<BasicBlock<F, EF>>,
     break_label: Option<F>,
-
     break_label_map: BTreeMap<F, F>,
-
     break_counter: usize,
-
     contains_break: BTreeSet<F>,
-
     function_labels: BTreeMap<String, F>,
 }
 
-#[derive(Debug, Clone, Default)]
-pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
-
-impl<F: PrimeField + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> Config
-    for AsmConfig<F, EF>
-{
-    type N = F;
-    type F = F;
-    type EF = EF;
-}
-
-impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> VmBuilder<F, EF> {
-    pub fn compile_to_asm(self) -> AssemblyCode<F, EF> {
-        let mut compiler = AsmCompiler::new();
-        compiler.build(self.operations);
-        compiler.code()
-    }
-
-    pub fn compile(self) -> Program<F> {
-        let mut compiler = AsmCompiler::new();
-        compiler.build(self.operations);
-        compiler.compile()
-    }
-}
-
 impl<F> Var<F> {
-    fn fp(&self) -> i32 {
+    /// Gets the frame pointer for a var.
+    pub fn fp(&self) -> i32 {
         -((self.0 as i32) * 3 + 1 + STACK_START_OFFSET)
     }
 }
 
 impl<F> Felt<F> {
-    fn fp(&self) -> i32 {
+    /// Gets the frame pointer for a felt.
+    pub fn fp(&self) -> i32 {
         -((self.0 as i32) * 3 + 2 + STACK_START_OFFSET)
     }
 }
 
-impl<F> Ptr<F> {
-    fn fp(&self) -> i32 {
-        self.address.fp()
-    }
-}
-
 impl<F, EF> Ext<F, EF> {
+    /// Gets the frame pointer for an extension element
     pub fn fp(&self) -> i32 {
         -((self.0 as i32) * 3 + STACK_START_OFFSET)
     }
 }
 
-pub enum IndexTriple<F> {
-    Var(i32, F, F),
-    Const(F, F, F),
-}
-
-impl<F: PrimeField32> MemIndex<F> {
-    pub fn fp(&self) -> IndexTriple<F> {
-        match self.index {
-            Usize::Const(index) => IndexTriple::Const(
-                F::from_canonical_usize(index),
-                F::from_canonical_usize(self.offset),
-                F::from_canonical_usize(self.size),
-            ),
-            Usize::Var(index) => IndexTriple::Var(
-                index.fp(),
-                F::from_canonical_usize(self.offset),
-                F::from_canonical_usize(self.size),
-            ),
-        }
+impl<F> Ptr<F> {
+    /// Gets the frame pointer for a pointer.
+    pub fn fp(&self) -> i32 {
+        self.address.fp()
     }
 }
 
 impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCompiler<F, EF> {
-    #[allow(clippy::new_without_default)]
+    /// Creates a new [AsmCompiler].
     pub fn new() -> Self {
         Self {
             basic_blocks: vec![BasicBlock::new()],
@@ -130,6 +81,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         }
     }
 
+    /// Creates a new break label.
     pub fn new_break_label(&mut self) -> F {
         let label = self.break_counter;
         self.break_counter += 1;
@@ -138,173 +90,176 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         label
     }
 
-    pub fn build(&mut self, operations: Vec<DslIR<AsmConfig<F, EF>>>) {
+    /// Builds the operations into assembly instructions.
+    pub fn build(&mut self, operations: Vec<DslIr<AsmConfig<F, EF>>>) {
+        // Set the heap pointer value according to stack size.
         if self.block_label().is_zero() {
-            // Set the heap pointer value according to stack size
             let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
-            self.push(AsmInstruction::IMM(HEAP_PTR, stack_size));
+            self.push(AsmInstruction::ImmF(HEAP_PTR, stack_size));
         }
+
+        // For each operation, generate assembly instructions.
         for op in operations.clone() {
             match op {
-                DslIR::ImmV(dst, src) => {
-                    self.push(AsmInstruction::IMM(dst.fp(), src));
+                DslIr::ImmV(dst, src) => {
+                    self.push(AsmInstruction::ImmF(dst.fp(), src));
                 }
-                DslIR::ImmF(dst, src) => {
-                    self.push(AsmInstruction::IMM(dst.fp(), src));
+                DslIr::ImmF(dst, src) => {
+                    self.push(AsmInstruction::ImmF(dst.fp(), src));
                 }
-                DslIR::ImmE(dst, src) => {
-                    self.push(AsmInstruction::EIMM(dst.fp(), src));
+                DslIr::ImmE(dst, src) => {
+                    self.push(AsmInstruction::ImmE(dst.fp(), src));
                 }
-                DslIR::AddV(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ADD(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::AddV(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::AddVI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ADDI(dst.fp(), lhs.fp(), rhs));
+                DslIr::AddVI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddFI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ADD(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::AddF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::AddFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ADDI(dst.fp(), lhs.fp(), rhs));
+                DslIr::AddFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddFI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddE(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EADD(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::AddE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddE(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::AddEI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EADDI(dst.fp(), lhs.fp(), rhs));
+                DslIr::AddEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddEI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EADDF(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::AddEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddEF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::AddEFFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::FADDEI(dst.fp(), lhs.fp(), rhs));
+                DslIr::AddEFFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddEIF(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::AddEFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EADDI(
+                DslIr::AddEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddEI(
                         dst.fp(),
                         lhs.fp(),
                         EF::from_base(rhs),
                     ));
                 }
-                DslIR::SubV(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::SUB(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::SubV(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::SubVI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::SUBI(dst.fp(), lhs.fp(), rhs));
+                DslIr::SubVI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubFI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::SubVIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::SUBIN(dst.fp(), lhs, rhs.fp()));
+                DslIr::SubVIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubFIN(dst.fp(), lhs, rhs.fp()));
                 }
-                DslIR::SubF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::SUB(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::SubF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::SubFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::SUBI(dst.fp(), lhs.fp(), rhs));
+                DslIr::SubFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubFI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::SubFIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::SUBIN(dst.fp(), lhs, rhs.fp()));
+                DslIr::SubFIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubFIN(dst.fp(), lhs, rhs.fp()));
                 }
-                DslIR::NegV(dst, src) => {
-                    self.push(AsmInstruction::SUBIN(dst.fp(), F::one(), src.fp()));
+                DslIr::NegV(dst, src) => {
+                    self.push(AsmInstruction::SubFIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::NegF(dst, src) => {
-                    self.push(AsmInstruction::SUBIN(dst.fp(), F::one(), src.fp()));
+                DslIr::NegF(dst, src) => {
+                    self.push(AsmInstruction::SubFIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::DivF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::DIV(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::DivF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::DivFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::DIVI(dst.fp(), lhs.fp(), rhs));
+                DslIr::DivFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivFI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::DivFIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::DIVIN(dst.fp(), lhs, rhs.fp()));
+                DslIr::DivFIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivFIN(dst.fp(), lhs, rhs.fp()));
                 }
-                DslIR::InvV(dst, src) => {
-                    self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
+                DslIr::InvV(dst, src) => {
+                    self.push(AsmInstruction::DivFIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::InvF(dst, src) => {
-                    self.push(AsmInstruction::DIVIN(dst.fp(), F::one(), src.fp()));
+                DslIr::InvF(dst, src) => {
+                    self.push(AsmInstruction::DivFIN(dst.fp(), F::one(), src.fp()));
                 }
-                DslIR::DivEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EDIVF(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::DivEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivFE(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::DivEFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EDIVI(
+                DslIr::DivEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivEI(
                         dst.fp(),
                         lhs.fp(),
                         EF::from_base(rhs),
                     ));
                 }
-                DslIR::DivEIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EDIVIN(dst.fp(), lhs, rhs.fp()));
+                DslIr::DivEIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivEIN(dst.fp(), lhs, rhs.fp()));
                 }
-                DslIR::DivEFIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EDIVIN(
+                DslIr::DivEFIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivEIN(
                         dst.fp(),
                         EF::from_base(lhs),
                         rhs.fp(),
                     ));
                 }
-                DslIR::DivE(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EDIV(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::DivE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivE(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::DivEI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EDIVI(dst.fp(), lhs.fp(), rhs));
+                DslIr::DivEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivEI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::InvE(dst, src) => {
-                    self.push(AsmInstruction::EDIVIN(dst.fp(), EF::one(), src.fp()));
+                DslIr::InvE(dst, src) => {
+                    self.push(AsmInstruction::DivEIN(dst.fp(), EF::one(), src.fp()));
                 }
-                DslIR::SubEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ESUBF(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::SubEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubFE(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::SubEFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ESUBI(
+                DslIr::SubEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubEI(
                         dst.fp(),
                         lhs.fp(),
                         EF::from_base(rhs),
                     ));
                 }
-                DslIR::SubEIN(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ESUBIN(dst.fp(), lhs, rhs.fp()));
+                DslIr::SubEIN(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubEIN(dst.fp(), lhs, rhs.fp()));
                 }
-                DslIR::SubE(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ESUB(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::SubE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubE(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::SubEI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::ESUBI(dst.fp(), lhs.fp(), rhs));
+                DslIr::SubEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubEI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::NegE(dst, src) => {
-                    self.push(AsmInstruction::ESUBIN(dst.fp(), EF::zero(), src.fp()));
+                DslIr::NegE(dst, src) => {
+                    self.push(AsmInstruction::SubEIN(dst.fp(), EF::zero(), src.fp()));
                 }
-                DslIR::MulV(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::MUL(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::MulV(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::MulVI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::MULI(dst.fp(), lhs.fp(), rhs));
+                DslIr::MulVI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulFI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::MulF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::MUL(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::MulF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulF(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::MulFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::MULI(dst.fp(), lhs.fp(), rhs));
+                DslIr::MulFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulFI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::MulE(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EMUL(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::MulE(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulE(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::MulEI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EMULI(dst.fp(), lhs.fp(), rhs));
+                DslIr::MulEI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulEI(dst.fp(), lhs.fp(), rhs));
                 }
-                DslIR::MulEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EMULF(dst.fp(), lhs.fp(), rhs.fp()));
+                DslIr::MulEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulFE(dst.fp(), lhs.fp(), rhs.fp()));
                 }
-                DslIR::MulEFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::EMULI(
+                DslIr::MulEFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulEI(
                         dst.fp(),
                         lhs.fp(),
                         EF::from_base(rhs),
                     ));
                 }
-                DslIR::IfEq(lhs, rhs, then_block, else_block) => {
+                DslIr::IfEq(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -320,7 +275,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         );
                     }
                 }
-                DslIR::IfNe(lhs, rhs, then_block, else_block) => {
+                DslIr::IfNe(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -336,7 +291,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         );
                     }
                 }
-                DslIR::IfEqI(lhs, rhs, then_block, else_block) => {
+                DslIr::IfEqI(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -352,7 +307,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         );
                     }
                 }
-                DslIR::IfNeI(lhs, rhs, then_block, else_block) => {
+                DslIr::IfNeI(lhs, rhs, then_block, else_block) => {
                     let if_compiler = IfCompiler {
                         compiler: self,
                         lhs: lhs.fp(),
@@ -368,13 +323,13 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         );
                     }
                 }
-                DslIR::Break => {
+                DslIr::Break => {
                     let label = self.break_label.expect("No break label set");
                     let current_block = self.block_label();
                     self.contains_break.insert(current_block);
                     self.push(AsmInstruction::Break(label));
                 }
-                DslIR::For(start, end, step_size, loop_var, block) => {
+                DslIr::For(start, end, step_size, loop_var, block) => {
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,
@@ -384,167 +339,203 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     };
                     for_compiler.for_each(move |_, builder| builder.build(block));
                 }
-                DslIR::AssertEqV(lhs, rhs) => {
+                DslIr::AssertEqV(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), false)
                 }
-                DslIR::AssertEqVI(lhs, rhs) => {
+                DslIr::AssertEqVI(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Const(rhs), false)
                 }
-                DslIR::AssertNeV(lhs, rhs) => {
+                DslIr::AssertNeV(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), true)
                 }
-                DslIR::AssertNeVI(lhs, rhs) => {
+                DslIr::AssertNeVI(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Const(rhs), true)
                 }
-                DslIR::AssertEqF(lhs, rhs) => {
+                DslIr::AssertEqF(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), false)
                 }
-                DslIR::AssertEqFI(lhs, rhs) => {
+                DslIr::AssertEqFI(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Const(rhs), false)
                 }
-                DslIR::AssertNeF(lhs, rhs) => {
+                DslIr::AssertNeF(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Val(rhs.fp()), true)
                 }
-                DslIR::AssertNeFI(lhs, rhs) => {
+                DslIr::AssertNeFI(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::Const(rhs), true)
                 }
-                DslIR::AssertEqE(lhs, rhs) => {
+                DslIr::AssertEqE(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::ExtVal(rhs.fp()), false)
                 }
-                DslIR::AssertEqEI(lhs, rhs) => {
+                DslIr::AssertEqEI(lhs, rhs) => {
                     // If lhs != rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::ExtConst(rhs), false)
                 }
-                DslIR::AssertNeE(lhs, rhs) => {
+                DslIr::AssertNeE(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::ExtVal(rhs.fp()), true)
                 }
-                DslIR::AssertNeEI(lhs, rhs) => {
+                DslIr::AssertNeEI(lhs, rhs) => {
                     // If lhs == rhs, execute TRAP
                     self.assert(lhs.fp(), ValueOrConst::ExtConst(rhs), true)
                 }
-                DslIR::Alloc(ptr, len, size) => {
+                DslIr::Alloc(ptr, len, size) => {
                     self.alloc(ptr, len, size);
                 }
-                DslIR::LoadV(var, ptr, index) => match index.fp() {
-                    IndexTriple::Const(index, offset, size) => {
-                        self.push(AsmInstruction::LWI(var.fp(), ptr.fp(), index, offset, size))
+                DslIr::LoadV(var, ptr, index) => {
+                    match index.fp() {
+                        IndexTriple::Const(index, offset, size) => self.push(
+                            AsmInstruction::LoadFI(var.fp(), ptr.fp(), index, offset, size),
+                        ),
+                        IndexTriple::Var(index, offset, size) => self.push(AsmInstruction::LoadF(
+                            var.fp(),
+                            ptr.fp(),
+                            index,
+                            offset,
+                            size,
+                        )),
                     }
-                    IndexTriple::Var(index, offset, size) => {
-                        self.push(AsmInstruction::LW(var.fp(), ptr.fp(), index, offset, size))
+                }
+                DslIr::LoadF(var, ptr, index) => {
+                    match index.fp() {
+                        IndexTriple::Const(index, offset, size) => self.push(
+                            AsmInstruction::LoadFI(var.fp(), ptr.fp(), index, offset, size),
+                        ),
+                        IndexTriple::Var(index, offset, size) => self.push(AsmInstruction::LoadF(
+                            var.fp(),
+                            ptr.fp(),
+                            index,
+                            offset,
+                            size,
+                        )),
                     }
-                },
-                DslIR::LoadF(var, ptr, index) => match index.fp() {
-                    IndexTriple::Const(index, offset, size) => {
-                        self.push(AsmInstruction::LWI(var.fp(), ptr.fp(), index, offset, size))
+                }
+                DslIr::LoadE(var, ptr, index) => {
+                    match index.fp() {
+                        IndexTriple::Const(index, offset, size) => self.push(
+                            AsmInstruction::LoadEI(var.fp(), ptr.fp(), index, offset, size),
+                        ),
+                        IndexTriple::Var(index, offset, size) => self.push(AsmInstruction::LoadE(
+                            var.fp(),
+                            ptr.fp(),
+                            index,
+                            offset,
+                            size,
+                        )),
                     }
-                    IndexTriple::Var(index, offset, size) => {
-                        self.push(AsmInstruction::LW(var.fp(), ptr.fp(), index, offset, size))
+                }
+                DslIr::StoreV(ptr, var, index) => {
+                    match index.fp() {
+                        IndexTriple::Const(index, offset, size) => self.push(
+                            AsmInstruction::StoreFI(ptr.fp(), var.fp(), index, offset, size),
+                        ),
+                        IndexTriple::Var(index, offset, size) => self.push(AsmInstruction::StoreF(
+                            ptr.fp(),
+                            var.fp(),
+                            index,
+                            offset,
+                            size,
+                        )),
                     }
-                },
-                DslIR::LoadE(var, ptr, index) => match index.fp() {
-                    IndexTriple::Const(index, offset, size) => {
-                        self.push(AsmInstruction::LEI(var.fp(), ptr.fp(), index, offset, size))
+                }
+                DslIr::StoreF(ptr, var, index) => {
+                    match index.fp() {
+                        IndexTriple::Const(index, offset, size) => self.push(
+                            AsmInstruction::StoreFI(ptr.fp(), var.fp(), index, offset, size),
+                        ),
+                        IndexTriple::Var(index, offset, size) => self.push(AsmInstruction::StoreF(
+                            ptr.fp(),
+                            var.fp(),
+                            index,
+                            offset,
+                            size,
+                        )),
                     }
-                    IndexTriple::Var(index, offset, size) => {
-                        self.push(AsmInstruction::LE(var.fp(), ptr.fp(), index, offset, size))
+                }
+                DslIr::StoreE(ptr, var, index) => {
+                    match index.fp() {
+                        IndexTriple::Const(index, offset, size) => self.push(
+                            AsmInstruction::StoreEI(ptr.fp(), var.fp(), index, offset, size),
+                        ),
+                        IndexTriple::Var(index, offset, size) => self.push(AsmInstruction::StoreE(
+                            ptr.fp(),
+                            var.fp(),
+                            index,
+                            offset,
+                            size,
+                        )),
                     }
-                },
-                DslIR::StoreV(ptr, var, index) => match index.fp() {
-                    IndexTriple::Const(index, offset, size) => {
-                        self.push(AsmInstruction::SWI(ptr.fp(), var.fp(), index, offset, size))
-                    }
-                    IndexTriple::Var(index, offset, size) => {
-                        self.push(AsmInstruction::SW(ptr.fp(), var.fp(), index, offset, size))
-                    }
-                },
-                DslIR::StoreF(ptr, var, index) => match index.fp() {
-                    IndexTriple::Const(index, offset, size) => {
-                        self.push(AsmInstruction::SWI(ptr.fp(), var.fp(), index, offset, size))
-                    }
-                    IndexTriple::Var(index, offset, size) => {
-                        self.push(AsmInstruction::SW(ptr.fp(), var.fp(), index, offset, size))
-                    }
-                },
-                DslIR::StoreE(ptr, var, index) => match index.fp() {
-                    IndexTriple::Const(index, offset, size) => {
-                        self.push(AsmInstruction::SEI(ptr.fp(), var.fp(), index, offset, size))
-                    }
-                    IndexTriple::Var(index, offset, size) => {
-                        self.push(AsmInstruction::SE(ptr.fp(), var.fp(), index, offset, size))
-                    }
-                },
+                }
 
-                DslIR::HintBitsU(dst, src) => match (dst, src) {
+                DslIr::HintBitsU(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), Usize::Var(src)) => {
                         self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
                     }
                     _ => unimplemented!(),
                 },
-                DslIR::HintBitsF(dst, src) => match dst {
+                DslIr::HintBitsF(dst, src) => match dst {
                     Array::Dyn(dst, _) => {
                         self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
                     }
                     _ => unimplemented!(),
                 },
-                DslIR::HintBitsV(dst, src) => match dst {
+                DslIr::HintBitsV(dst, src) => match dst {
                     Array::Dyn(dst, _) => {
                         self.push(AsmInstruction::HintBits(dst.fp(), src.fp()));
                     }
                     _ => unimplemented!(),
                 },
-                DslIR::Num2BitsF(_, _) => unimplemented!(),
-                DslIR::Num2BitsV(_, _) => unimplemented!(),
-                DslIR::Poseidon2PermuteBabyBear(dst, src) => match (dst, src) {
+                DslIr::Num2BitsF(_, _) => unimplemented!(),
+                DslIr::Num2BitsV(_, _) => unimplemented!(),
+                DslIr::Poseidon2PermuteBabyBear(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), Array::Dyn(src, _)) => {
                         self.push(AsmInstruction::Poseidon2Permute(dst.fp(), src.fp()))
                     }
                     _ => unimplemented!(),
                 },
-                DslIR::ReverseBitsLen(_, _, _) => unimplemented!(),
-                DslIR::TwoAdicGenerator(_, _) => unimplemented!(),
-                DslIR::ExpUsizeV(_, _, _) => unimplemented!(),
-                DslIR::ExpUsizeF(_, _, _) => unimplemented!(),
-                DslIR::Error() => self.push(AsmInstruction::TRAP),
-                DslIR::PrintF(dst) => self.push(AsmInstruction::PrintF(dst.fp())),
-                DslIR::PrintV(dst) => self.push(AsmInstruction::PrintV(dst.fp())),
-                DslIR::PrintE(dst) => self.push(AsmInstruction::PrintE(dst.fp())),
-                DslIR::Ext2Felt(dst, src) => match (dst, src) {
+                DslIr::ReverseBitsLen(_, _, _) => unimplemented!(),
+                DslIr::TwoAdicGenerator(_, _) => unimplemented!(),
+                DslIr::ExpUsizeV(_, _, _) => unimplemented!(),
+                DslIr::ExpUsizeF(_, _, _) => unimplemented!(),
+                DslIr::Error() => self.push(AsmInstruction::Trap),
+                DslIr::PrintF(dst) => self.push(AsmInstruction::PrintF(dst.fp())),
+                DslIr::PrintV(dst) => self.push(AsmInstruction::PrintV(dst.fp())),
+                DslIr::PrintE(dst) => self.push(AsmInstruction::PrintE(dst.fp())),
+                DslIr::Ext2Felt(dst, src) => match (dst, src) {
                     (Array::Dyn(dst, _), src) => {
                         self.push(AsmInstruction::Ext2Felt(dst.fp(), src.fp()))
                     }
                     _ => unimplemented!(),
                 },
-                DslIR::HintLen(dst) => self.push(AsmInstruction::HintLen(dst.fp())),
-                DslIR::HintVars(dst) => match dst {
+                DslIr::HintLen(dst) => self.push(AsmInstruction::HintLen(dst.fp())),
+                DslIr::HintVars(dst) => match dst {
                     Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
                     _ => unimplemented!(),
                 },
-                DslIR::HintFelts(dst) => match dst {
+                DslIr::HintFelts(dst) => match dst {
                     Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
                     _ => unimplemented!(),
                 },
-                DslIR::HintExts(dst) => match dst {
+                DslIr::HintExts(dst) => match dst {
                     Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
                     _ => unimplemented!(),
                 },
-                DslIR::FriFold(m, input_ptr) => {
+                DslIr::FriFold(m, input_ptr) => {
                     if let Array::Dyn(ptr, _) = input_ptr {
                         self.push(AsmInstruction::FriFold(m.fp(), ptr.fp()));
                     } else {
                         unimplemented!();
                     }
                 }
-                DslIR::Poseidon2CompressBabyBear(result, left, right) => {
+                DslIr::Poseidon2CompressBabyBear(result, left, right) => {
                     match (result, left, right) {
                         (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
                             .push(AsmInstruction::Poseidon2Compress(
@@ -556,7 +547,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                 }
 
-                DslIR::Commit(pv_hash) => {
+                DslIr::Commit(pv_hash) => {
                     if let Array::Dyn(pv_hash, _) = pv_hash {
                         self.push(AsmInstruction::Commit(pv_hash.fp()));
                     } else {
@@ -574,13 +565,13 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         match len {
             Usize::Const(len) => {
                 let len = F::from_canonical_usize(len);
-                self.push(AsmInstruction::ADDI(ptr.fp(), HEAP_PTR, F::zero()));
-                self.push(AsmInstruction::ADDI(HEAP_PTR, HEAP_PTR, len * size));
+                self.push(AsmInstruction::AddFI(ptr.fp(), HEAP_PTR, F::zero()));
+                self.push(AsmInstruction::AddFI(HEAP_PTR, HEAP_PTR, len * size));
             }
             Usize::Var(len) => {
-                self.push(AsmInstruction::ADDI(ptr.fp(), HEAP_PTR, F::zero()));
-                self.push(AsmInstruction::MULI(A0, len.fp(), size));
-                self.push(AsmInstruction::ADD(HEAP_PTR, HEAP_PTR, A0));
+                self.push(AsmInstruction::AddFI(ptr.fp(), HEAP_PTR, F::zero()));
+                self.push(AsmInstruction::MulFI(A0, len.fp(), size));
+                self.push(AsmInstruction::AddF(HEAP_PTR, HEAP_PTR, A0));
             }
         }
     }
@@ -592,7 +583,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
             rhs,
             is_eq,
         };
-        if_compiler.then(|builder| builder.push(AsmInstruction::TRAP));
+        if_compiler.then(|builder| builder.push(AsmInstruction::Trap));
     }
 
     pub fn code(self) -> AssemblyCode<F, EF> {
@@ -604,7 +595,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         AssemblyCode::new(self.basic_blocks, labels)
     }
 
-    pub fn compile(self) -> Program<F> {
+    pub fn compile(self) -> RecursionProgram<F> {
         let code = self.code();
         code.machine_code()
     }
@@ -629,13 +620,6 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
     }
 }
 
-pub enum ValueOrConst<F, EF> {
-    Val(i32),
-    ExtVal(i32),
-    Const(F),
-    ExtConst(EF),
-}
-
 pub struct IfCompiler<'a, F, EF> {
     compiler: &'a mut AsmCompiler<F, EF>,
     lhs: i32,
@@ -656,18 +640,21 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
             rhs,
             is_eq,
         } = self;
-        // Get the label for the current block which will contain the branch.
-        let if_branching_block = compiler.block_label();
+
+        // Get the label for the current block.
+        let current_block = compiler.block_label();
+
         // Generate the blocks for the then branch.
         compiler.basic_block();
         f(compiler);
+
         // Generate the block for returning to the main flow.
         compiler.basic_block();
-        // Get the block label for the after if block.
         let after_if_block = compiler.block_label();
-        // Get the branch instruction to push to the `if_branching_block`.
+
+        // Get the branch instruction to push to the `current_block`.
         let instr = Self::branch(lhs, rhs, is_eq, after_if_block);
-        compiler.push_to_block(if_branching_block, instr);
+        compiler.push_to_block(current_block, instr);
     }
 
     pub fn then_or_else<ThenFunc, ElseFunc>(self, then_f: ThenFunc, else_f: ElseFunc)
@@ -681,24 +668,27 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
             rhs,
             is_eq,
         } = self;
+
         // Get the label for the current block, so we can generate the jump instruction into it.
         // conditional branc instruction to it, if the condition is not met.
         let if_branching_block = compiler.block_label();
+
         // Generate the block for the then branch.
         compiler.basic_block();
         then_f(compiler);
         let last_if_block = compiler.block_label();
+
         // Generate the block for the else branch.
         compiler.basic_block();
         let else_block = compiler.block_label();
         else_f(compiler);
+
         // Generate the jump instruction to the else block
         let instr = Self::branch(lhs, rhs, is_eq, else_block);
         compiler.push_to_block(if_branching_block, instr);
+
         // Generate the block for returning to the main flow.
         compiler.basic_block();
-
-        // Get the label for the main flow block and generate the jump instruction to it.
         let main_flow_block = compiler.block_label();
         let instr = AsmInstruction::j(main_flow_block);
         compiler.push_to_block(last_if_block, instr);
@@ -706,21 +696,21 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
     fn branch(lhs: i32, rhs: ValueOrConst<F, EF>, is_eq: bool, block: F) -> AsmInstruction<F, EF> {
         match (rhs, is_eq) {
-            (ValueOrConst::Const(rhs), true) => AsmInstruction::BNEI(block, lhs, rhs),
-            (ValueOrConst::Const(rhs), false) => AsmInstruction::BEQI(block, lhs, rhs),
-            (ValueOrConst::ExtConst(rhs), true) => AsmInstruction::EBNEI(block, lhs, rhs),
-            (ValueOrConst::ExtConst(rhs), false) => AsmInstruction::EBEQI(block, lhs, rhs),
-            (ValueOrConst::Val(rhs), true) => AsmInstruction::BNE(block, lhs, rhs),
-            (ValueOrConst::Val(rhs), false) => AsmInstruction::BEQ(block, lhs, rhs),
-            (ValueOrConst::ExtVal(rhs), true) => AsmInstruction::EBNE(block, lhs, rhs),
-            (ValueOrConst::ExtVal(rhs), false) => AsmInstruction::EBEQ(block, lhs, rhs),
+            (ValueOrConst::Const(rhs), true) => AsmInstruction::BneI(block, lhs, rhs),
+            (ValueOrConst::Const(rhs), false) => AsmInstruction::BeqI(block, lhs, rhs),
+            (ValueOrConst::ExtConst(rhs), true) => AsmInstruction::BneEI(block, lhs, rhs),
+            (ValueOrConst::ExtConst(rhs), false) => AsmInstruction::BeqEI(block, lhs, rhs),
+            (ValueOrConst::Val(rhs), true) => AsmInstruction::Bne(block, lhs, rhs),
+            (ValueOrConst::Val(rhs), false) => AsmInstruction::Beq(block, lhs, rhs),
+            (ValueOrConst::ExtVal(rhs), true) => AsmInstruction::BneE(block, lhs, rhs),
+            (ValueOrConst::ExtVal(rhs), false) => AsmInstruction::BeqE(block, lhs, rhs),
         }
     }
 }
 
 /// A builder for a for loop.
 ///
-/// Starting with end < start will lead to undefined behavior!
+/// SAFETY: Starting with end < start will lead to undefined behavior.
 pub struct ForCompiler<'a, F, EF> {
     compiler: &'a mut AsmCompiler<F, EF>,
     start: Usize<F>,
@@ -738,8 +728,11 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         // - Executing the loop body and incrementing the loop variable
         // - the loop condition
         // Set the loop variable to the start of the range.
+
+        // Set the loop variable to the start of the range.
         self.set_loop_var();
-        // Save the label of the for loop call
+
+        // Save the label of the for loop call.
         let loop_call_label = self.compiler.block_label();
 
         // Initialize a break label for this loop.
@@ -748,16 +741,19 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
         // A basic block for the loop body
         self.compiler.basic_block();
+
         // Save the loop body label for the loop condition.
         let loop_label = self.compiler.block_label();
+
         // The loop body.
         f(self.loop_var, self.compiler);
 
+        // If the step size is just one, compile to the optimized branch instruction.
         if self.step_size == F::one() {
             self.jump_to_loop_body_inc(loop_label);
         } else {
             // Increment the loop variable.
-            self.compiler.push(AsmInstruction::ADDI(
+            self.compiler.push(AsmInstruction::AddFI(
                 self.loop_var.fp(),
                 self.loop_var.fp(),
                 self.step_size,
@@ -766,8 +762,10 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
         // Add a basic block for the loop condition.
         self.compiler.basic_block();
+
         // Jump to loop body if the loop condition still holds.
         self.jump_to_loop_body(loop_label);
+
         // Add a jump instruction to the loop condition in the loop call block.
         let label = self.compiler.block_label();
         let instr = AsmInstruction::j(label);
@@ -775,9 +773,11 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
         // Initialize the after loop block.
         self.compiler.basic_block();
-        // resolve the break label
+
+        // Resolve the break label.
         let label = self.compiler.block_label();
         self.compiler.break_label_map.insert(break_label, label);
+
         // Replace the break instruction with a jump to the after loop block.
         for block in self.compiler.contains_break.iter() {
             for instruction in self.compiler.basic_blocks[block.as_canonical_u32() as usize]
@@ -791,19 +791,20 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
                 }
             }
         }
+
         // self.compiler.contains_break.clear();
     }
 
     fn set_loop_var(&mut self) {
         match self.start {
             Usize::Const(start) => {
-                self.compiler.push(AsmInstruction::IMM(
+                self.compiler.push(AsmInstruction::ImmF(
                     self.loop_var.fp(),
                     F::from_canonical_usize(start),
                 ));
             }
             Usize::Var(var) => {
-                self.compiler.push(AsmInstruction::ADDI(
+                self.compiler.push(AsmInstruction::AddFI(
                     self.loop_var.fp(),
                     var.fp(),
                     F::zero(),
@@ -815,7 +816,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
     fn jump_to_loop_body(&mut self, loop_label: F) {
         match self.end {
             Usize::Const(end) => {
-                let instr = AsmInstruction::BNEI(
+                let instr = AsmInstruction::BneI(
                     loop_label,
                     self.loop_var.fp(),
                     F::from_canonical_usize(end),
@@ -823,7 +824,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
                 self.compiler.push(instr);
             }
             Usize::Var(end) => {
-                let instr = AsmInstruction::BNE(loop_label, self.loop_var.fp(), end.fp());
+                let instr = AsmInstruction::Bne(loop_label, self.loop_var.fp(), end.fp());
                 self.compiler.push(instr);
             }
         }
@@ -832,7 +833,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
     fn jump_to_loop_body_inc(&mut self, loop_label: F) {
         match self.end {
             Usize::Const(end) => {
-                let instr = AsmInstruction::BNEIINC(
+                let instr = AsmInstruction::BneIInc(
                     loop_label,
                     self.loop_var.fp(),
                     F::from_canonical_usize(end),
@@ -840,7 +841,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
                 self.compiler.push(instr);
             }
             Usize::Var(end) => {
-                let instr = AsmInstruction::BNEINC(loop_label, self.loop_var.fp(), end.fp());
+                let instr = AsmInstruction::BneInc(loop_label, self.loop_var.fp(), end.fp());
                 self.compiler.push(instr);
             }
         }
