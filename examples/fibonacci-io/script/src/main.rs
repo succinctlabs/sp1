@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -13,10 +12,6 @@ use tokio::time::Duration;
 
 use anyhow::Result;
 use log::info;
-=======
-use sha2::{Digest, Sha256};
-use sp1_sdk::{utils, PublicValues, SP1Prover, SP1Stdin, SP1Verifier};
->>>>>>> origin/main
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
