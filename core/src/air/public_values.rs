@@ -54,9 +54,9 @@ impl PublicValues<u32, u32> {
     }
 }
 
-impl<F: PrimeField32> PublicValues<Word<F>, F> {
+impl<F: AbstractField> PublicValues<Word<F>, F> {
     /// Convert a vector of field elements into a PublicValues struct.
-    pub fn from_vec(data: Vec<T>) -> Self {
+    pub fn from_vec(data: Vec<F>) -> Self {
         let mut iter = data.iter().cloned();
 
         let mut committed_value_digest = Vec::new();
@@ -66,21 +66,27 @@ impl<F: PrimeField32> PublicValues<Word<F>, F> {
 
         // Collecting the remaining items into a tuple.  Note that it is only getting the first
         // four items, as the rest would be padded values.
-        let remaining_items = iter.collect_vec().as_slice()[..4];
-
-        if let [shard, first_row_pc, last_row_next_pc, exit_code] = &remaining_items {
-            Self {
-                committed_value_digest: committed_value_digest.try_into().unwrap(),
-                shard: shard.to_owned(),
-                start_pc: first_row_pc.to_owned(),
-                next_pc: last_row_next_pc.to_owned(),
-                exit_code: exit_code.to_owned(),
-            }
-        } else {
+        let remaining_items = iter.collect_vec();
+        if remaining_items.len() < 4 {
             panic!("Invalid number of items in the serialized vector.");
         }
-    }
 
+        let [shard, start_pc, next_pc, exit_code] = match &remaining_items.as_slice()[0..4] {
+            [shard, start_pc, next_pc, exit_code] => [shard, start_pc, next_pc, exit_code],
+            _ => unreachable!(),
+        };
+
+        Self {
+            committed_value_digest: committed_value_digest.try_into().unwrap(),
+            shard: shard.to_owned(),
+            start_pc: start_pc.to_owned(),
+            next_pc: next_pc.to_owned(),
+            exit_code: exit_code.to_owned(),
+        }
+    }
+}
+
+impl<F: PrimeField32> PublicValues<Word<F>, F> {
     /// Retrieve the commitment digest from a serialized PublicValues struct.
     pub fn deserialize_commitment_digest(data: Vec<F>) -> Vec<u8> {
         let serialized_pv = PublicValues::<Word<F>, F>::from_vec(data);
