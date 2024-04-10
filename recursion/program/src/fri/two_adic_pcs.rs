@@ -274,11 +274,11 @@ pub(crate) mod tests {
     use p3_fri::FriConfig;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
+    use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;
     use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
-    use sp1_recursion_compiler::InnerConfig;
     use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
     use sp1_recursion_core::stark::config::inner_fri_config;
@@ -419,7 +419,7 @@ pub(crate) mod tests {
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
         runtime.witness_stream.extend(proof.write());
         runtime.run();
@@ -537,7 +537,7 @@ pub(crate) mod tests {
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
         runtime.witness_stream.extend(proof.write());
         runtime.run();

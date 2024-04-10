@@ -147,10 +147,10 @@ mod tests {
     use p3_field::AbstractField;
     use p3_symmetric::Hash;
     use serial_test::serial;
-    use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintBackend};
+    use sp1_recursion_compiler::config::OuterConfig;
+    use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintCompiler};
     use sp1_recursion_compiler::ir::Builder;
     use sp1_recursion_compiler::ir::SymbolicExt;
-    use sp1_recursion_compiler::OuterConfig;
     use sp1_recursion_core::stark::config::{outer_perm, OuterChallenger};
 
     use super::reduce_32;
@@ -170,7 +170,7 @@ mod tests {
             value_u32 >>= 1;
         }
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
@@ -188,7 +188,7 @@ mod tests {
         let result = reduce_32(&mut builder, &[value_1, value_2]);
         builder.assert_var_eq(result, gt);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
@@ -207,7 +207,7 @@ mod tests {
         builder.assert_felt_eq(result[1], gt[1]);
         builder.assert_felt_eq(result[2], gt[2]);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
@@ -245,7 +245,7 @@ mod tests {
         let result2 = challenger.sample(&mut builder);
         builder.assert_felt_eq(gt2, result2);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
@@ -288,7 +288,7 @@ mod tests {
         builder.assert_ext_eq(SymbolicExt::Const(gt1), result1);
         builder.assert_ext_eq(SymbolicExt::Const(gt2), result2);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }

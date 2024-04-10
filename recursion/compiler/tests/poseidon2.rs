@@ -5,7 +5,7 @@ use rand::thread_rng;
 use rand::Rng;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::VmBuilder;
+use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Runtime;
@@ -22,7 +22,7 @@ fn test_compiler_poseidon2_permute() {
     let config = SC::default();
     let perm = &config.perm;
 
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
 
     let random_state_vals: [F; PERMUTATION_WIDTH] = rng.gen();
     // Execute the reference permutation
@@ -52,7 +52,7 @@ fn test_compiler_poseidon2_permute() {
         builder.assert_felt_eq(res, *val);
     }
 
-    let program = builder.compile();
+    let program = builder.compile_program();
 
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();

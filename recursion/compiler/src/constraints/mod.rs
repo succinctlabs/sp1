@@ -7,8 +7,10 @@ use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 use std::marker::PhantomData;
 
-use crate::prelude::{Config, DslIR};
+use crate::ir::Config;
+use crate::ir::DslIR;
 
+/// Operations that can be constrained inside the circuit.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum ConstraintOpcode {
     ImmV,
@@ -49,25 +51,29 @@ pub enum ConstraintOpcode {
     PrintE,
 }
 
+/// A constraint is an operation and a list of nested arguments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Constraint {
     pub opcode: ConstraintOpcode,
     pub args: Vec<Vec<String>>,
 }
 
+/// The backend for the constraint compiler.
 #[derive(Debug, Clone, Default)]
-pub struct ConstraintBackend<C: Config> {
+pub struct ConstraintCompiler<C: Config> {
     pub allocator: usize,
     pub phantom: PhantomData<C>,
 }
 
-impl<C: Config + Debug> ConstraintBackend<C> {
+impl<C: Config + Debug> ConstraintCompiler<C> {
+    /// Allocate a new variable name in the constraint system.
     pub fn alloc_id(&mut self) -> String {
         let id = self.allocator;
         self.allocator += 1;
         format!("backend{}", id)
     }
 
+    /// Allocates a variable in the constraint system.
     pub fn alloc_v(&mut self, constraints: &mut Vec<Constraint>, value: C::N) -> String {
         let tmp_id = self.alloc_id();
         constraints.push(Constraint {
@@ -80,6 +86,7 @@ impl<C: Config + Debug> ConstraintBackend<C> {
         tmp_id
     }
 
+    /// Allocate a felt in the constraint system.
     pub fn alloc_f(&mut self, constraints: &mut Vec<Constraint>, value: C::F) -> String {
         let tmp_id = self.alloc_id();
         constraints.push(Constraint {
@@ -92,6 +99,7 @@ impl<C: Config + Debug> ConstraintBackend<C> {
         tmp_id
     }
 
+    /// Allocate an extension element in the constraint system.
     pub fn alloc_e(&mut self, constraints: &mut Vec<Constraint>, value: C::EF) -> String {
         let tmp_id = self.alloc_id();
         constraints.push(Constraint {
@@ -108,6 +116,7 @@ impl<C: Config + Debug> ConstraintBackend<C> {
         tmp_id
     }
 
+    /// Emit the constraints from a list of operations in the DSL.
     pub fn emit(&mut self, operations: Vec<DslIR<C>>) -> Vec<Constraint> {
         let mut constraints: Vec<Constraint> = Vec::new();
         for instruction in operations {
@@ -368,9 +377,8 @@ mod tests {
 
     use super::*;
     use crate::{
-        ir::Var,
-        prelude::{Builder, Ext, Felt},
-        OuterConfig,
+        config::OuterConfig,
+        ir::{Builder, Ext, Felt, Var},
     };
 
     #[test]
@@ -384,7 +392,7 @@ mod tests {
             DslIR::PrintF(Felt::new(1)),
             DslIR::PrintE(Ext::new(2)),
         ];
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(program);
         gnark_ffi::test_circuit(constraints);
     }
@@ -398,7 +406,7 @@ mod tests {
         let c: Var<_> = builder.eval(a * b);
         builder.assert_var_eq(c, Bn254Fr::from_canonical_u32(200));
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
@@ -414,7 +422,7 @@ mod tests {
             builder.assert_var_eq(bits[i], Bn254Fr::from_canonical_u32((value_u32 >> i) & 1));
         }
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }

@@ -197,8 +197,8 @@ mod tests {
     use p3_field::PrimeField32;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::BabyBearPoseidon2;
+    use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_compiler::asm::AsmConfig;
-    use sp1_recursion_compiler::asm::VmBuilder;
     use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
@@ -222,7 +222,7 @@ mod tests {
         let result: F = challenger.sample();
         println!("expected result: {}", result);
 
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         let width: Var<_> = builder.eval(F::from_canonical_usize(PERMUTATION_WIDTH));
         let mut challenger = DuplexChallengerVariable::<AsmConfig<F, EF>> {
@@ -243,7 +243,7 @@ mod tests {
         let expected_result: Felt<_> = builder.eval(result);
         builder.assert_felt_eq(expected_result, element);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();

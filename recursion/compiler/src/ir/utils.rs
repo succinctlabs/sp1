@@ -220,8 +220,8 @@ mod tests {
     use p3_field::AbstractField;
 
     use crate::{
-        asm::VmBuilder,
-        prelude::{Felt, Var},
+        asm::AsmBuilder,
+        ir::{Felt, Var},
     };
 
     #[test]
@@ -234,7 +234,7 @@ mod tests {
         let config = SC::default();
 
         // Initialize a builder.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         // Get a random var with `NUM_BITS` bits.
         let num_val: F = rng.gen();
@@ -266,7 +266,7 @@ mod tests {
         let num_felt_back = builder.bits2num_f(&bits_felt);
         builder.assert_felt_eq(num_felt_back, num_felt);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();
@@ -282,7 +282,7 @@ mod tests {
         let config = SC::default();
 
         // Initialize a builder.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         // Get a random var with `NUM_BITS` bits.
         let x_val: F = rng.gen();
@@ -303,7 +303,7 @@ mod tests {
             builder.assert_usize_eq(value_var, expected_value);
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();

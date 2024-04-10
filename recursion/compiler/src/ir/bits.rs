@@ -1,8 +1,7 @@
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::NUM_BITS;
 
-use super::{Array, Builder, Config, DslIR, Usize, Var};
-use crate::prelude::Felt;
+use super::{Array, Builder, Config, DslIR, Felt, Usize, Var};
 
 impl<C: Config> Builder<C> {
     /// Converts a variable to bits.

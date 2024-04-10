@@ -242,13 +242,13 @@ pub(crate) mod tests {
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
-        constraints::{gnark_ffi, ConstraintBackend},
+        config::OuterConfig,
+        constraints::{gnark_ffi, ConstraintCompiler},
         ir::{Builder, Config},
-        OuterConfig,
     };
     use sp1_recursion_core::{
         cpu::Instruction,
-        runtime::{Opcode, Program, Runtime},
+        runtime::{Opcode, RecursionProgram, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
     use sp1_recursion_program::types::PublicValuesVariable;
@@ -330,10 +330,10 @@ pub(crate) mod tests {
         }
     }
 
-    pub fn basic_program<F: PrimeField32>() -> Program<F> {
+    pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
-        Program::<F> {
+        RecursionProgram::<F> {
             instructions: [Instruction::new(
                 Opcode::ADD,
                 F::from_canonical_u32(3),
@@ -412,7 +412,7 @@ pub(crate) mod tests {
             break;
         }
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }

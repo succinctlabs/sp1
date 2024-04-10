@@ -30,13 +30,13 @@ use sp1_core::stark::Proof;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
+use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_core::air::Block;
-use sp1_recursion_core::runtime::Program as RecursionProgram;
+use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
 use sp1_sdk::utils::BabyBearPoseidon2;
@@ -100,7 +100,7 @@ pub fn build_compress(
     });
 
     let time = Instant::now();
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
     let config = const_fri_config(&mut builder, inner_fri_config());
     let pcs = TwoAdicFriPcsVariable { config };
 
@@ -157,7 +157,7 @@ pub fn build_compress(
         );
     }
 
-    let program = builder.compile();
+    let program = builder.compile_program();
     let elapsed = time.elapsed();
     println!("Building took: {:?}", elapsed);
     (program, witness_stream)

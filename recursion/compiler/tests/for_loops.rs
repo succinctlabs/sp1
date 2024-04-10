@@ -2,9 +2,11 @@ use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
+use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::asm::VmBuilder;
-use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::SymbolicVar;
+use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Runtime;
 
 #[test]
@@ -12,7 +14,7 @@ fn test_compiler_for_loops() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
 
     let n_val = BabyBear::from_canonical_u32(10);
     let m_val = BabyBear::from_canonical_u32(5);
@@ -42,7 +44,7 @@ fn test_compiler_for_loops() {
     builder.assert_var_eq(total_counter, n_val * m_val);
     builder.assert_var_eq(total_counter, n * m);
 
-    let program = builder.compile();
+    let program = builder.compile_program();
 
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
@@ -54,7 +56,7 @@ fn test_compiler_nested_array_loop() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
     type C = AsmConfig<F, EF>;
 
     let mut array: Array<C, Array<C, Var<_>>> = builder.array(100);
@@ -76,7 +78,7 @@ fn test_compiler_nested_array_loop() {
         });
     });
 
-    let code = builder.compile_to_asm();
+    let code = builder.compile_asm();
 
     println!("{}", code);
 
@@ -92,7 +94,7 @@ fn test_compiler_break() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
     type C = AsmConfig<F, EF>;
 
     let len = 100;
@@ -160,7 +162,7 @@ fn test_compiler_break() {
             .then(|builder| builder.assign(is_break, F::zero()));
     });
 
-    let code = builder.compile_to_asm();
+    let code = builder.compile_asm();
 
     println!("{}", code);
 
@@ -176,7 +178,7 @@ fn test_compiler_step_by() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
 
     let n_val = BabyBear::from_canonical_u32(20);
 
@@ -191,7 +193,7 @@ fn test_compiler_step_by() {
     let n_exp = n_val / F::two();
     builder.assert_var_eq(i_counter, n_exp);
 
-    let program = builder.compile();
+    let program = builder.compile_program();
 
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
@@ -203,7 +205,7 @@ fn test_compiler_bneinc() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
 
     let n_val = BabyBear::from_canonical_u32(20);
 
@@ -215,11 +217,11 @@ fn test_compiler_bneinc() {
         builder.assign(i_counter, i_counter + F::one());
     });
 
-    let code = builder.clone().compile_to_asm();
+    let code = builder.clone().compile_asm();
 
     println!("{}", code);
 
-    let program = builder.compile();
+    let program = builder.compile_program();
 
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());

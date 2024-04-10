@@ -254,45 +254,43 @@ where
 pub(crate) mod tests {
     use std::time::Instant;
 
-    use crate::challenger::CanObserveVariable;
-    use crate::challenger::FeltChallenger;
-    use crate::hints::Hintable;
-    use crate::stark::Ext;
-    use crate::stark::EMPTY;
-    use crate::types::ShardCommitmentVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
     use sp1_core::air::PublicValues;
+    use sp1_core::air::Word;
     use sp1_core::runtime::Program;
+    use sp1_core::stark::LocalProver;
     use sp1_core::{
         stark::{RiscvAir, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
     };
+    use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::InnerConfig;
     use sp1_recursion_compiler::{
-        asm::VmBuilder,
+        asm::AsmBuilder,
         ir::{Builder, ExtConst},
     };
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_recursion_core::stark::config::inner_fri_config;
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
+    use sp1_recursion_core::stark::RecursionAir;
+    use sp1_sdk::utils::setup_logger;
     use sp1_sdk::{SP1Prover, SP1Stdin};
 
-    use sp1_core::air::Word;
-
+    use crate::challenger::CanObserveVariable;
+    use crate::challenger::FeltChallenger;
+    use crate::hints::Hintable;
+    use crate::stark::Ext;
+    use crate::stark::EMPTY;
+    use crate::types::ShardCommitmentVariable;
     use crate::{
         challenger::DuplexChallengerVariable,
         fri::{const_fri_config, TwoAdicFriPcsVariable},
         stark::StarkVerifier,
     };
-
-    use sp1_core::stark::LocalProver;
-    use sp1_recursion_core::stark::RecursionAir;
-    use sp1_sdk::utils::setup_logger;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -360,7 +358,7 @@ pub(crate) mod tests {
             );
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
         runtime.witness_stream = witness_stream;
@@ -457,7 +455,7 @@ pub(crate) mod tests {
             );
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
         let elapsed = time.elapsed();
         println!("Building took: {:?}", elapsed);
 
@@ -476,7 +474,7 @@ pub(crate) mod tests {
         setup_logger();
 
         let time = Instant::now();
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         let a: Felt<_> = builder.eval(F::from_canonical_u32(23));
         let b: Felt<_> = builder.eval(F::from_canonical_u32(17));
@@ -490,7 +488,7 @@ pub(crate) mod tests {
         builder.print_f(a_plus_b);
         builder.print_e(a_plus_b_ext);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
         let elapsed = time.elapsed();
         println!("Building took: {:?}", elapsed);
 

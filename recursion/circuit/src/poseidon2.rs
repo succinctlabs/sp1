@@ -59,9 +59,9 @@ pub mod tests {
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
     use serial_test::serial;
-    use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintBackend};
+    use sp1_recursion_compiler::config::OuterConfig;
+    use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintCompiler};
     use sp1_recursion_compiler::ir::{Builder, Felt, Var};
-    use sp1_recursion_compiler::OuterConfig;
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
 
     use crate::poseidon2::Poseidon2CircuitBuilder;
@@ -89,7 +89,7 @@ pub mod tests {
         builder.assert_var_eq(b, output[1]);
         builder.assert_var_eq(c, output[2]);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
@@ -123,7 +123,7 @@ pub mod tests {
 
         builder.assert_var_eq(result[0], output[0]);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }
@@ -144,7 +144,7 @@ pub mod tests {
         let result = builder.p2_compress([a, b]);
         builder.assert_var_eq(result[0], gt[0]);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::test_circuit(constraints);
     }

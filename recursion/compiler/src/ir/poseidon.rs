@@ -1,8 +1,7 @@
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
-use super::{Array, Builder, Config, DslIR, Usize, Var};
-use crate::prelude::Felt;
+use super::{Array, Builder, Config, DslIR, Felt, Usize, Var};
 
 impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.

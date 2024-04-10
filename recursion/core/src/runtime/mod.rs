@@ -76,7 +76,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub pc: F,
 
     /// The program.
-    pub program: Program<F>,
+    pub program: RecursionProgram<F>,
 
     /// Memory.
     pub memory: Vec<MemoryEntry<F>>,
@@ -114,7 +114,7 @@ where
     >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
     pub fn new(
-        program: &Program<F>,
+        program: &RecursionProgram<F>,
         perm: Poseidon2<
             F,
             Poseidon2ExternalMatrixGeneral,
@@ -149,7 +149,7 @@ where
         }
     }
 
-    pub fn new_no_perm(program: &Program<F>) -> Self {
+    pub fn new_no_perm(program: &RecursionProgram<F>) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
             ..Default::default()
@@ -716,7 +716,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, RecursionProgram, Runtime};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -727,7 +727,7 @@ mod tests {
     fn test_witness() {
         let zero = F::zero();
         let zero_block = [F::zero(); 4];
-        let program = Program {
+        let program = RecursionProgram {
             instructions: vec![
                 Instruction::new(
                     Opcode::HintLen,

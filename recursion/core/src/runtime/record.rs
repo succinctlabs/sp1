@@ -5,13 +5,13 @@ use sp1_core::air::PublicValues;
 use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
-use super::Program;
+use super::RecursionProgram;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
-    pub program: Arc<Program<F>>,
+    pub program: Arc<RecursionProgram<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
 
     // (address)
