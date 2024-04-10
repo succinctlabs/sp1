@@ -37,8 +37,8 @@ runs:
           ~/.cargo/git/db/
           target/
           ~/.rustup/
-        key: test-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: test-rust-nightly-2024-01-25-
+        key: rust-${{ hashFiles('**/Cargo.lock', 'rust-toolchain') }}
+        restore-keys: rust-
 
     - name: Setup toolchain
       id: rustc-toolchain
