@@ -1,14 +1,9 @@
-use super::{Builder, Config, FromConstant, MemIndex, MemVariable, Ptr, Usize, Var, Variable};
 use itertools::Itertools;
 use p3_field::AbstractField;
 
-use super::Ext;
-use super::{DslIR, Felt};
+use super::{Builder, Config, FromConstant, MemIndex, MemVariable, Ptr, Usize, Var, Variable};
 
 /// An array that is either of static or dynamic size.
-///
-/// If the target is a circuit-based system, then the arrays must be static. Other targets can
-/// theoretically support both types of arrays..
 #[derive(Debug, Clone)]
 pub enum Array<C: Config, T> {
     Fixed(Vec<T>),
@@ -32,28 +27,14 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
         }
     }
 
-    /// Gets the fixed length of the fixed-size array.
-    pub fn static_len(&self) -> usize {
-        match self {
-            Self::Fixed(vec) => vec.len(),
-            _ => panic!("cannot get the static length of a dynamic array"),
-        }
-    }
-
-    /// Gets the n'th elment.
-    pub fn static_get(&self, index: usize) -> V {
-        match self {
-            Self::Fixed(vec) => vec[index].clone(),
-            _ => panic!("cannot get the n'th element of a dynamic array"),
-        }
-    }
-
+    /// Shifts the array by `shift` elements.
     pub fn shift(&self, builder: &mut Builder<C>, shift: Var<C::N>) -> Array<C, V> {
         match self {
             Self::Fixed(_) => {
                 todo!()
             }
             Self::Dyn(ptr, len) => {
+                assert!(V::size_of() == 1, "only support variables of size 1");
                 let new_address = builder.eval(ptr.address + shift);
                 let new_ptr = Ptr::<C::N> {
                     address: new_address,
@@ -65,6 +46,7 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
         }
     }
 
+    /// Truncates the array to `len` elements.
     pub fn truncate(&self, builder: &mut Builder<C>, len: Usize<C::N>) {
         match self {
             Self::Fixed(_) => {
@@ -83,33 +65,12 @@ impl<C: Config> Builder<C> {
         self.dyn_array(len)
     }
 
+    /// Creates an array from a vector.
     pub fn vec<V: MemVariable<C>>(&mut self, v: Vec<V>) -> Array<C, V> {
         Array::Fixed(v)
     }
 
-    pub fn select_v(&mut self, cond: Var<C::N>, a: Var<C::N>, b: Var<C::N>) -> Var<C::N> {
-        let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectV(cond, a, b, c));
-        c
-    }
-
-    pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
-        let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectF(cond, a, b, c));
-        c
-    }
-
-    pub fn select_ef(
-        &mut self,
-        cond: Var<C::N>,
-        a: Ext<C::F, C::EF>,
-        b: Ext<C::F, C::EF>,
-    ) -> Ext<C::F, C::EF> {
-        let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectE(cond, a, b, c));
-        c
-    }
-
+    /// Creates a dynamic array for a length.
     pub fn dyn_array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
         let len = match len.into() {
             Usize::Const(len) => self.eval(C::N::from_canonical_usize(len)),
@@ -118,20 +79,6 @@ impl<C: Config> Builder<C> {
         let len = Usize::Var(len);
         let ptr = self.alloc(len, V::size_of());
         Array::Dyn(ptr, len)
-    }
-
-    pub fn array_to_dyn<V: MemVariable<C>>(&mut self, array: Array<C, V>) -> Array<C, V> {
-        match array {
-            Array::Fixed(v) => {
-                let mut dyn_array = self.dyn_array(v.len());
-
-                for (i, value) in v.into_iter().enumerate() {
-                    self.set(&mut dyn_array, i, value);
-                }
-                dyn_array
-            }
-            Array::Dyn(ptr, len) => Array::Dyn(ptr, len),
-        }
     }
 
     pub fn get<V: MemVariable<C>, I: Into<Usize<C::N>>>(
@@ -181,6 +128,29 @@ impl<C: Config> Builder<C> {
                     size: V::size_of(),
                 };
                 let value: V = self.eval(value);
+                self.store(*ptr, index, value);
+            }
+        }
+    }
+
+    pub fn set_value<V: MemVariable<C>, I: Into<Usize<C::N>>>(
+        &mut self,
+        slice: &mut Array<C, V>,
+        index: I,
+        value: V,
+    ) {
+        let index = index.into();
+
+        match slice {
+            Array::Fixed(_) => {
+                todo!()
+            }
+            Array::Dyn(ptr, _) => {
+                let index = MemIndex {
+                    index,
+                    offset: 0,
+                    size: V::size_of(),
+                };
                 self.store(*ptr, index, value);
             }
         }
@@ -305,11 +275,10 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
 impl<C: Config, V: FromConstant<C> + MemVariable<C>> FromConstant<C> for Array<C, V> {
     type Constant = Vec<V::Constant>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         let mut array = builder.dyn_array(value.len());
-        // Assign each element.
         for (i, val) in value.into_iter().enumerate() {
-            let val = V::eval_const(val, builder);
+            let val = V::constant(val, builder);
             builder.set(&mut array, i, val);
         }
         array

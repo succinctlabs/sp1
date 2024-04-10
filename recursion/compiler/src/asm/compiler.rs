@@ -46,7 +46,7 @@ pub struct AsmCompiler<F, EF> {
     function_labels: BTreeMap<String, F>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct AsmConfig<F, EF>(PhantomData<(F, EF)>);
 
 impl<F: PrimeField + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> Config
@@ -146,13 +146,13 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         }
         for op in operations.clone() {
             match op {
-                DslIR::Imm(dst, src) => {
+                DslIR::ImmV(dst, src) => {
                     self.push(AsmInstruction::IMM(dst.fp(), src));
                 }
-                DslIR::ImmFelt(dst, src) => {
+                DslIR::ImmF(dst, src) => {
                     self.push(AsmInstruction::IMM(dst.fp(), src));
                 }
-                DslIR::ImmExt(dst, src) => {
+                DslIR::ImmE(dst, src) => {
                     self.push(AsmInstruction::EIMM(dst.fp(), src));
                 }
                 DslIR::AddV(dst, lhs, rhs) => {
@@ -524,6 +524,45 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
+                DslIR::HintLen(dst) => self.push(AsmInstruction::HintLen(dst.fp())),
+                DslIR::HintVars(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
+                DslIR::HintFelts(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
+                DslIR::HintExts(dst) => match dst {
+                    Array::Dyn(dst, _) => self.push(AsmInstruction::Hint(dst.fp())),
+                    _ => unimplemented!(),
+                },
+                DslIR::FriFold(m, input_ptr) => {
+                    if let Array::Dyn(ptr, _) = input_ptr {
+                        self.push(AsmInstruction::FriFold(m.fp(), ptr.fp()));
+                    } else {
+                        unimplemented!();
+                    }
+                }
+                DslIR::Poseidon2CompressBabyBear(result, left, right) => {
+                    match (result, left, right) {
+                        (Array::Dyn(result, _), Array::Dyn(left, _), Array::Dyn(right, _)) => self
+                            .push(AsmInstruction::Poseidon2Compress(
+                                result.fp(),
+                                left.fp(),
+                                right.fp(),
+                            )),
+                        _ => unimplemented!(),
+                    }
+                }
+
+                DslIR::Commit(pv_hash) => {
+                    if let Array::Dyn(pv_hash, _) = pv_hash {
+                        self.push(AsmInstruction::Commit(pv_hash.fp()));
+                    } else {
+                        unimplemented!();
+                    }
+                }
                 _ => unimplemented!(),
             }
         }
@@ -713,12 +752,17 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         let loop_label = self.compiler.block_label();
         // The loop body.
         f(self.loop_var, self.compiler);
-        // Increment the loop variable.
-        self.compiler.push(AsmInstruction::ADDI(
-            self.loop_var.fp(),
-            self.loop_var.fp(),
-            self.step_size,
-        ));
+
+        if self.step_size == F::one() {
+            self.jump_to_loop_body_inc(loop_label);
+        } else {
+            // Increment the loop variable.
+            self.compiler.push(AsmInstruction::ADDI(
+                self.loop_var.fp(),
+                self.loop_var.fp(),
+                self.step_size,
+            ));
+        }
 
         // Add a basic block for the loop condition.
         self.compiler.basic_block();
@@ -780,6 +824,23 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
             }
             Usize::Var(end) => {
                 let instr = AsmInstruction::BNE(loop_label, self.loop_var.fp(), end.fp());
+                self.compiler.push(instr);
+            }
+        }
+    }
+
+    fn jump_to_loop_body_inc(&mut self, loop_label: F) {
+        match self.end {
+            Usize::Const(end) => {
+                let instr = AsmInstruction::BNEIINC(
+                    loop_label,
+                    self.loop_var.fp(),
+                    F::from_canonical_usize(end),
+                );
+                self.compiler.push(instr);
+            }
+            Usize::Var(end) => {
+                let instr = AsmInstruction::BNEINC(loop_label, self.loop_var.fp(), end.fp());
                 self.compiler.push(instr);
             }
         }

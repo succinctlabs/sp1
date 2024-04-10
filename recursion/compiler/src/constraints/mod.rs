@@ -112,15 +112,15 @@ impl<C: Config + Debug> ConstraintBackend<C> {
         let mut constraints: Vec<Constraint> = Vec::new();
         for instruction in operations {
             match instruction {
-                DslIR::Imm(a, b) => constraints.push(Constraint {
+                DslIR::ImmV(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::ImmV,
                     args: vec![vec![a.id()], vec![b.as_canonical_biguint().to_string()]],
                 }),
-                DslIR::ImmFelt(a, b) => constraints.push(Constraint {
+                DslIR::ImmF(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::ImmF,
                     args: vec![vec![a.id()], vec![b.as_canonical_biguint().to_string()]],
                 }),
-                DslIR::ImmExt(a, b) => constraints.push(Constraint {
+                DslIR::ImmE(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::ImmE,
                     args: vec![
                         vec![a.id()],
@@ -377,9 +377,9 @@ mod tests {
     #[serial]
     fn test_imm() {
         let program = vec![
-            DslIR::Imm(Var::new(0), Bn254Fr::zero()),
-            DslIR::ImmFelt(Felt::new(1), BabyBear::one()),
-            DslIR::ImmExt(Ext::new(2), BinomialExtensionField::<BabyBear, 4>::one()),
+            DslIR::ImmV(Var::new(0), Bn254Fr::zero()),
+            DslIR::ImmF(Felt::new(1), BabyBear::one()),
+            DslIR::ImmE(Ext::new(2), BinomialExtensionField::<BabyBear, 4>::one()),
             DslIR::PrintV(Var::new(0)),
             DslIR::PrintF(Felt::new(1)),
             DslIR::PrintE(Ext::new(2)),

@@ -2,11 +2,14 @@
 #![allow(clippy::needless_range_loop)]
 #![allow(clippy::type_complexity)]
 
+extern crate alloc;
+
+use asm::AsmConfig;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_field::extension::BinomialExtensionField;
 use prelude::Config;
-extern crate alloc;
+use sp1_recursion_core::stark::config::{InnerChallenge, InnerVal};
 
 pub mod asm;
 pub mod constraints;
@@ -19,14 +22,7 @@ pub mod prelude {
     pub use sp1_recursion_derive::DslVariable;
 }
 
-#[derive(Clone, Default, Debug)]
-pub struct InnerConfig;
-
-impl Config for InnerConfig {
-    type N = BabyBear;
-    type F = BabyBear;
-    type EF = BinomialExtensionField<BabyBear, 4>;
-}
+pub type InnerConfig = AsmConfig<InnerVal, InnerChallenge>;
 
 #[derive(Clone, Default, Debug)]
 pub struct OuterConfig;

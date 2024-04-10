@@ -1,8 +1,10 @@
+use core::ops::{Add, Sub};
+
 use p3_field::Field;
 
 use super::{Builder, Config, DslIR, MemIndex, MemVariable, SymbolicVar, Usize, Var, Variable};
-use core::ops::{Add, Sub};
 
+/// A point to a location in memory.
 #[derive(Debug, Clone, Copy)]
 pub struct Ptr<N> {
     pub address: Var<N>,
@@ -13,16 +15,19 @@ pub struct SymbolicPtr<N> {
 }
 
 impl<C: Config> Builder<C> {
+    /// Allocates an array on the heap.
     pub(crate) fn alloc(&mut self, len: Usize<C::N>, size: usize) -> Ptr<C::N> {
         let ptr = Ptr::uninit(self);
         self.push(DslIR::Alloc(ptr, len, size));
         ptr
     }
 
+    /// Loads a value from memory.
     pub fn load<V: MemVariable<C>>(&mut self, var: V, ptr: Ptr<C::N>, index: MemIndex<C::N>) {
         var.load(ptr, index, self);
     }
 
+    /// Stores a value to memory.
     pub fn store<V: MemVariable<C>>(&mut self, ptr: Ptr<C::N>, index: MemIndex<C::N>, value: V) {
         value.store(ptr, index, self);
     }

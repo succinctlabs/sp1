@@ -7,26 +7,29 @@ use reqwest::{
     Client as HttpClient, Url,
 };
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use serde::{de::DeserializeOwned, Serialize};
+use rmp_serde::{Deserializer, Serializer};
+use serde::{Deserialize, Serialize};
 use sp1_core::stark::StarkGenericConfig;
 use twirp::Client as TwirpClient;
 
 use crate::{
-    proto::prover::{
-        CreateProofRequest, GetProofStatusRequest, GetProofStatusResponse, ProofStatus,
-        Sp1ProverServiceClient, SubmitProofRequest,
+    proto::network::{
+        CreateProofRequest, GetProofStatusRequest, GetProofStatusResponse, GetRelayStatusRequest,
+        GetRelayStatusResponse, NetworkServiceClient, ProofStatus, RelayProofRequest,
+        SubmitProofRequest, TransactionStatus,
     },
-    SP1ProofWithIO, SP1Stdin,
+    SP1ProofWithIO,
 };
 
-pub struct SP1ProverServiceClient {
+const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
+const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0x9a39f368676f7a5cbbfe8ea33c258c4536b5398f";
+
+pub struct NetworkClient {
     pub rpc: TwirpClient,
     pub http: HttpClientWithMiddleware,
 }
 
-const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
-
-impl SP1ProverServiceClient {
+impl NetworkClient {
     pub fn with_token(access_token: String) -> Self {
         let rpc_url = env::var("PROVER_NETWORK_RPC")
             .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
@@ -60,16 +63,29 @@ impl SP1ProverServiceClient {
         }
     }
 
+    pub fn get_sp1_verifier_address() -> [u8; 20] {
+        let verifier_hex = env::var("SP1_VERIFIER_ADDRESS")
+            .unwrap_or_else(|_| DEFAULT_SP1_VERIFIER_ADDRESS.to_string());
+        let verifier_bytes = hex::decode(verifier_hex.trim_start_matches("0x"))
+            .expect("Invalid SP1_VERIFIER_ADDRESS format");
+
+        verifier_bytes
+            .try_into()
+            .expect("Verifier address must be 20 bytes")
+    }
+
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
         self.http.put(url).body(data).send().await?;
         Ok(())
     }
 
-    pub async fn create_proof(&self, elf: &[u8], stdin: SP1Stdin) -> Result<String> {
+    pub async fn create_proof(&self, elf: &[u8], stdin: &[u8]) -> Result<String> {
         let res = self.rpc.create_proof(CreateProofRequest {}).await?;
 
-        let program_bytes = bincode::serialize(elf)?;
-        let stdin_bytes = bincode::serialize(&stdin)?;
+        let mut program_bytes = Vec::new();
+        elf.serialize(&mut Serializer::new(&mut program_bytes))?;
+        let mut stdin_bytes = Vec::new();
+        stdin.serialize(&mut Serializer::new(&mut stdin_bytes))?;
         let program_promise = self.upload_file(&res.program_put_url, program_bytes);
         let stdin_promise = self.upload_file(&res.stdin_put_url, stdin_bytes);
         let v = vec![program_promise, stdin_promise];
@@ -84,7 +100,9 @@ impl SP1ProverServiceClient {
         Ok(res.id)
     }
 
-    pub async fn get_proof_status<SC: StarkGenericConfig + Serialize + DeserializeOwned>(
+    pub async fn get_proof_status<
+        SC: for<'de> Deserialize<'de> + Serialize + StarkGenericConfig,
+    >(
         &self,
         proof_id: &str,
     ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithIO<SC>>)> {
@@ -95,7 +113,7 @@ impl SP1ProverServiceClient {
             })
             .await?;
 
-        let result = if res.status() == ProofStatus::Succeeded {
+        let result = if res.status() == ProofStatus::ProofSucceeded {
             let proof = self
                 .http
                 .get(res.result_get_url.clone())
@@ -103,11 +121,55 @@ impl SP1ProverServiceClient {
                 .await?
                 .bytes()
                 .await?;
-            Some(bincode::deserialize(&proof).expect("Failed to deserialize proof"))
+            let mut de = Deserializer::new(&proof[..]);
+            Some(Deserialize::deserialize(&mut de).expect("Failed to deserialize proof"))
         } else {
             None
         };
 
         Ok((res, result))
+    }
+
+    pub async fn relay_proof(
+        &self,
+        proof_id: &str,
+        chain_id: u32,
+        verifier: [u8; 20],
+        callback: [u8; 20],
+        callback_data: &[u8],
+    ) -> Result<String> {
+        let req = RelayProofRequest {
+            proof_id: proof_id.to_string(),
+            chain_id,
+            verifier: verifier.to_vec(),
+            callback: callback.to_vec(),
+            callback_data: callback_data.to_vec(),
+        };
+        let result = self.rpc.relay_proof(req).await?;
+        Ok(result.id)
+    }
+
+    pub async fn get_relay_status(
+        &self,
+        tx_id: &str,
+    ) -> Result<(GetRelayStatusResponse, Option<String>, Option<String>)> {
+        let res = self
+            .rpc
+            .get_relay_status(GetRelayStatusRequest {
+                id: tx_id.to_string(),
+            })
+            .await?;
+
+        let tx_hash = match res.status() {
+            TransactionStatus::TransactionScheduled => None,
+            _ => Some(format!("0x{}", hex::encode(res.tx_hash.clone()))),
+        };
+
+        let simulation_url = match res.status() {
+            TransactionStatus::TransactionFailed => Some(res.simulation_url.clone()),
+            _ => None,
+        };
+
+        Ok((res, tx_hash, simulation_url))
     }
 }

@@ -2,7 +2,6 @@ use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
     TwoRowMatrixView,
 };
-use sp1_core::air::PublicValuesBuilder;
 use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 
 use sp1_recursion_compiler::{
@@ -15,7 +14,7 @@ pub struct RecursiveVerifierConstraintFolder<'a, C: Config> {
     pub preprocessed: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
     pub main: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
     pub perm: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
-    pub perm_challenges: &'a [C::EF],
+    pub perm_challenges: &'a [Ext<C::F, C::EF>],
     pub public_values: &'a [Felt<C::F>],
     pub cumulative_sum: Ext<C::F, C::EF>,
     pub is_first_row: Ext<C::F, C::EF>,
@@ -74,12 +73,13 @@ impl<'a, C: Config> ExtensionBuilder for RecursiveVerifierConstraintFolder<'a, C
 
 impl<'a, C: Config> PermutationAirBuilder for RecursiveVerifierConstraintFolder<'a, C> {
     type MP = TwoRowMatrixView<'a, Self::Var>;
+    type RandomVar = Ext<C::F, C::EF>;
 
     fn permutation(&self) -> Self::MP {
         self.perm
     }
 
-    fn permutation_randomness(&self) -> &[Self::EF] {
+    fn permutation_randomness(&self) -> &[Self::RandomVar] {
         self.perm_challenges
     }
 }
@@ -99,8 +99,6 @@ impl<'a, C: Config> PairBuilder for RecursiveVerifierConstraintFolder<'a, C> {
 }
 
 impl<'a, C: Config> EmptyMessageBuilder for RecursiveVerifierConstraintFolder<'a, C> {}
-
-impl<'a, C: Config> PublicValuesBuilder for RecursiveVerifierConstraintFolder<'a, C> {}
 
 impl<'a, C: Config> AirBuilderWithPublicValues for RecursiveVerifierConstraintFolder<'a, C> {
     type PublicVar = Felt<C::F>;

@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::Client;
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier, PublicValues};
 
 use sha2::{Digest, Sha256};
 use tendermint_light_client_verifier::options::Options;
@@ -67,8 +67,12 @@ async fn main() {
     pv_hasher.update(&serde_cbor::to_vec(&expected_verdict).unwrap());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pv_bytes: Vec<u8> = proof.proof.public_values_digest.into();
-    assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
+    let public_values_bytes = proof.proof.shard_proofs[0].public_values.clone();
+    let public_values = PublicValues::from_vec(public_values_bytes);
+    assert_eq!(
+        public_values.commit_digest_bytes().as_slice(),
+        expected_pv_digest
+    );
 
     // Save proof.
     proof

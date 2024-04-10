@@ -1,13 +1,11 @@
 use p3_air::BaseAir;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractExtensionField;
-use sp1_core::air::PublicValuesDigest;
-use sp1_core::air::Word;
 use sp1_core::{
     air::MachineAir,
     stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
 };
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
 
 use crate::DIGEST_SIZE;
 
@@ -18,7 +16,7 @@ pub struct RecursionShardProofVariable<C: Config> {
     pub commitment: ShardCommitment<OuterDigest<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values_digest: PublicValuesDigest<Word<Felt<C::F>>>,
+    pub public_values: Array<C, Felt<C::F>>,
     pub sorted_chips: Vec<String>,
     pub sorted_indices: Vec<usize>,
 }
@@ -102,10 +100,10 @@ pub struct AirOpenedValuesVariable<C: Config> {
 impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
     type Constant = AirOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         AirOpenedValuesVariable {
-            local: value.local.iter().map(|x| builder.eval_const(*x)).collect(),
-            next: value.next.iter().map(|x| builder.eval_const(*x)).collect(),
+            local: value.local.iter().map(|x| builder.constant(*x)).collect(),
+            next: value.next.iter().map(|x| builder.constant(*x)).collect(),
         }
     }
 }
@@ -113,15 +111,15 @@ impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
 impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
     type Constant = ChipOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         ChipOpenedValuesVariable {
-            preprocessed: builder.eval_const(value.preprocessed),
-            main: builder.eval_const(value.main),
-            permutation: builder.eval_const(value.permutation),
+            preprocessed: builder.constant(value.preprocessed),
+            main: builder.constant(value.main),
+            permutation: builder.constant(value.permutation),
             quotient: value
                 .quotient
                 .iter()
-                .map(|x| x.iter().map(|y| builder.eval_const(*y)).collect())
+                .map(|x| x.iter().map(|y| builder.constant(*y)).collect())
                 .collect(),
             cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: value.log_degree,

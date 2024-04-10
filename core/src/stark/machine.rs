@@ -5,13 +5,14 @@ use std::collections::HashMap;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::{MachineAir, PublicValuesDigest, Word};
+use crate::air::MachineAir;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
+use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
 
 use p3_air::Air;
@@ -71,6 +72,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         &self.chips
     }
 
+    /// Returns the id of all chips in the machine that have preprocessed columns.
+    pub fn preprocessed_chip_ids(&self) -> Vec<usize> {
+        self.chips
+            .iter()
+            .enumerate()
+            .filter(|(_, chip)| chip.preprocessed_width() > 0)
+            .map(|(i, _)| i)
+            .collect()
+    }
+
     pub fn shard_chips<'a, 'b>(
         &'a self,
         shard: &'b A::Record,
@@ -92,6 +103,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .iter()
             .filter(|chip| chip_ordering.contains_key(&chip.name()))
             .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
+    }
+
+    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
+        self.chips()
+            .iter()
+            .map(|chip| proof.chip_ordering.get(&chip.name()).cloned())
+            .collect()
     }
 
     /// The setup preprocessing phase.
@@ -239,13 +257,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
+                challenger.observe_slice(&proof.public_values);
             });
         });
-
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<Val<SC>> =
-            PublicValuesDigest::<Word<Val<SC>>>::new(proof.public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
@@ -365,7 +379,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
-                        PublicValuesDigest::<Word<Val<SC>>>::new(shard.public_values_digest()),
+                        shard.public_values(),
                     );
                 }
             });

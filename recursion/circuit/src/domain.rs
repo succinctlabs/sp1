@@ -4,7 +4,7 @@ use p3_field::Field;
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::types::FriConfigVariable;
+use sp1_recursion_program::fri::types::FriConfigVariable;
 
 #[derive(Clone, Copy)]
 pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
@@ -34,7 +34,7 @@ where
 {
     type Constant = TwoAdicMultiplicativeCoset<C::F>;
 
-    fn eval_const(value: Self::Constant, _: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, _: &mut Builder<C>) -> Self {
         let g_val = C::F::two_adic_generator(value.log_n);
         TwoAdicMultiplicativeCosetVariable::<C> {
             log_n: value.log_n,

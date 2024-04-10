@@ -1,5 +1,6 @@
 use p3_field::AbstractField;
 use p3_field::Field;
+use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 
@@ -57,6 +58,22 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         }
     }
 
+    pub fn observe_slice(&mut self, builder: &mut Builder<C>, values: Array<C, Felt<C::F>>) {
+        match values {
+            Array::Dyn(_, len) => {
+                builder.range(0, len).for_each(|i, builder| {
+                    let element = builder.get(&values, i);
+                    self.observe(builder, element);
+                });
+            }
+            Array::Fixed(values) => {
+                values.iter().for_each(|value| {
+                    self.observe(builder, *value);
+                });
+            }
+        }
+    }
+
     pub fn observe_commitment(
         &mut self,
         builder: &mut Builder<C>,
@@ -91,7 +108,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, bits: usize) -> Var<C::N> {
         let rand_f = self.sample(builder);
         let rand_f_bits = builder.num2bits_f_circuit(rand_f);
-        builder.bits_to_num_var_circuit(&rand_f_bits[0..bits])
+        builder.bits2num_v_circuit(&rand_f_bits[0..bits])
     }
 
     pub fn check_witness(&mut self, builder: &mut Builder<C>, bits: usize, witness: Felt<C::F>) {
@@ -106,7 +123,7 @@ pub fn reduce_32<C: Config>(builder: &mut Builder<C>, vals: &[Felt<C::F>]) -> Va
     let result: Var<C::N> = builder.eval(C::N::zero());
     for val in vals.iter() {
         let bits = builder.num2bits_f_circuit(*val);
-        let val = builder.bits_to_num_var_circuit(&bits);
+        let val = builder.bits2num_v_circuit(&bits);
         builder.assign(result, result + val * power);
         power *= C::N::from_canonical_usize(1usize << 32);
     }

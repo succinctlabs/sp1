@@ -51,6 +51,9 @@ pub struct OpcodeSelectorCols<T> {
     // System instructions.
     pub is_trap: T,
     pub is_noop: T,
+
+    pub is_fri_fold: T,
+    pub is_commit: T,
 }
 
 impl<F: Field> OpcodeSelectorCols<F> {
@@ -92,6 +95,9 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::HintBits => self.is_noop = F::one(),
             Opcode::PrintF => self.is_noop = F::one(),
             Opcode::PrintE => self.is_noop = F::one(),
+            Opcode::FRIFold => self.is_fri_fold = F::one(),
+            Opcode::Commit => self.is_commit = F::one(),
+            _ => {}
         }
     }
 }
@@ -129,6 +135,8 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_jalr,
             self.is_trap,
             self.is_noop,
+            self.is_fri_fold,
+            self.is_commit,
         ]
         .into_iter()
     }
