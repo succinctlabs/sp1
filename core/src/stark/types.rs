@@ -133,6 +133,22 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub public_values: PublicValues<u32, u32>,
 }
 
+impl<SC: StarkGenericConfig> Clone for ShardProof<SC>
+where
+    OpeningProof<SC>: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            index: self.index,
+            commitment: self.commitment.clone(),
+            opened_values: self.opened_values.clone(),
+            opening_proof: self.opening_proof.clone(),
+            chip_ordering: self.chip_ordering.clone(),
+            public_values: self.public_values,
+        }
+    }
+}
+
 impl<T> AirOpenedValues<T> {
     pub fn view(&self) -> TwoRowMatrixView<T> {
         TwoRowMatrixView::new(&self.local, &self.next)

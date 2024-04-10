@@ -129,20 +129,18 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                     let shard = builder.bits2num_v(&shard_bits);
                     builder.if_eq(shard, one).then(|builder| {
                         // Initialize the current challenger
-                        // let h: [BabyBear; DIGEST_SIZE] = sp1_vk.commit.into();
-                        // let const_commit: DigestVariable<C> = builder.eval_const(h.to_vec());
                         reconstruct_challenger = DuplexChallengerVariable::new(builder);
                         reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                     });
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&proof.commitment.main_commit, j);
                         reconstruct_challenger.observe(builder, element);
-                        // TODO: observe public values
-                        // challenger.observe_slice(&public_values.to_vec());
                     }
-                    // reconstruct_challenger
-                    //     .observe_slice(builder, &proof.commitment.main_commit.vec());
+                    // TODO: observe public values
+                    // challenger.observe_slice(&public_values.to_vec());
                     let mut current_challenger = sp1_challenger.as_clone(builder);
+                    let code = builder.constant(BabyBear::from_canonical_u32(1001));
+                    builder.print_v(code);
                     StarkVerifier::<C, SC>::verify_shard(
                         builder,
                         &sp1_vk.clone(),
@@ -158,6 +156,19 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                 // Recursive proof
                 |builder| {
                     let mut current_challenger = recursion_challenger.as_clone(builder);
+                    for j in 0..DIGEST_SIZE {
+                        let element = builder.get(&proof.commitment.main_commit, j);
+                        current_challenger.observe(builder, element);
+                    }
+                    let public_values = proof.public_values.to_vec(builder);
+                    current_challenger.observe_slice(builder, &public_values);
+                    let code = builder.constant(BabyBear::from_canonical_u32(1099));
+                    builder.print_v(code);
+                    for j in 0..public_values.len() {
+                        let element = builder.get(&proof.public_values.committed_values_digest, j);
+                        // current_challenger.observe(builder, element);
+                        builder.print_f(element);
+                    }
                     StarkVerifier::<C, SC>::verify_shard(
                         builder,
                         &recursion_vk.clone(),
