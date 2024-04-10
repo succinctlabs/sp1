@@ -29,7 +29,10 @@ impl SP1ProverImpl {
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
+        let start = Instant::now();
         let (proof, _) = run_and_prove(program, stdin, config);
+        let duration = start.elapsed().as_secs_f64();
+        println!("leaf proving time = {:?}", duration);
         let mut challenger_ver = machine.config().challenger();
         machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         proof
@@ -114,7 +117,7 @@ impl SP1ProverImpl {
         let mut challenger = machine.config().challenger();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
         let duration = start.elapsed().as_secs();
-        println!("proving duration = {}", duration);
+        println!("recursion duration = {}", duration);
 
         // let mut challenger = machine.config().challenger();
         // machine.verify(&vk, &proof, &mut challenger).unwrap();
@@ -131,9 +134,10 @@ mod tests {
     fn test_prove_sp1() {
         setup_logger();
         let elf =
-            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
         let proof = SP1ProverImpl::prove(elf, &stdin);
+        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
         SP1ProverImpl::reduce(elf, proof);
     }
 }

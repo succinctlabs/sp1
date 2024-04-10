@@ -25,14 +25,14 @@ use p3_symmetric::TruncatedPermutation;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
+use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_core::runtime::Program as RecursionProgram;
+use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
 use sp1_recursion_core::stark::RecursionAir;
@@ -92,7 +92,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     let _recursion_machine = RecursionAir::machine(SC::default());
 
     let time = Instant::now();
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
     let config = const_fri_config(&mut builder, inner_fri_config());
     let pcs = TwoAdicFriPcsVariable { config };
 
@@ -186,7 +186,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
 
-    let program = builder.compile();
+    let program = builder.compile_program();
     let elapsed = time.elapsed();
     println!("Building took: {:?}", elapsed);
     program

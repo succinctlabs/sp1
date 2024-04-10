@@ -1,36 +1,44 @@
-use super::AsmInstruction;
 use alloc::collections::BTreeMap;
 use alloc::format;
 use core::fmt;
 use core::fmt::Display;
-use p3_field::{ExtensionField, PrimeField32};
-use sp1_recursion_core::runtime::Program;
 
+use p3_field::{ExtensionField, PrimeField32};
+use sp1_recursion_core::runtime::RecursionProgram;
+
+use super::AsmInstruction;
+
+/// A basic block of assembly instructions.
 #[derive(Debug, Clone, Default)]
 pub struct BasicBlock<F, EF>(pub(crate) Vec<AsmInstruction<F, EF>>);
 
+impl<F: PrimeField32, EF: ExtensionField<F>> BasicBlock<F, EF> {
+    /// Creates a new basic block.
+    pub fn new() -> Self {
+        Self(Vec::new())
+    }
+
+    /// Pushes an instruction to a basic block.
+    pub(crate) fn push(&mut self, instruction: AsmInstruction<F, EF>) {
+        self.0.push(instruction);
+    }
+}
+
+/// Assembly code for a program.
 #[derive(Debug, Clone)]
 pub struct AssemblyCode<F, EF> {
     blocks: Vec<BasicBlock<F, EF>>,
     labels: BTreeMap<F, String>,
 }
 
-impl<F: PrimeField32, EF: ExtensionField<F>> BasicBlock<F, EF> {
-    pub fn new() -> Self {
-        Self(Vec::new())
-    }
-
-    pub(crate) fn push(&mut self, instruction: AsmInstruction<F, EF>) {
-        self.0.push(instruction);
-    }
-}
-
 impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
+    /// Creates a new assembly code.
     pub fn new(blocks: Vec<BasicBlock<F, EF>>, labels: BTreeMap<F, String>) -> Self {
         Self { blocks, labels }
     }
 
-    pub fn machine_code(self) -> Program<F> {
+    /// Convert the assembly code to a program.
+    pub fn machine_code(self) -> RecursionProgram<F> {
         let blocks = self.blocks;
 
         // Make a first pass to collect all the pc rows corresponding to the labels.
@@ -51,7 +59,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
             }
         }
 
-        Program {
+        RecursionProgram {
             instructions: machine_code,
         }
     }

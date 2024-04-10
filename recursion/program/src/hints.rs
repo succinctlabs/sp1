@@ -13,8 +13,8 @@ use sp1_core::stark::{
     AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
 };
 use sp1_recursion_compiler::{
+    config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
-    InnerConfig,
 };
 use sp1_recursion_core::{
     air::Block,
