@@ -684,11 +684,6 @@ where
                         self.record.public_values_digest.0[i] = self.memory[hash_ptr + i].value[0];
                     }
 
-                    println!(
-                        "self.record.public_values_digest is {:?}",
-                        self.record.public_values_digest
-                    );
-
                     (a, b, c) = (a_val, b_val, c_val);
                 }
             };

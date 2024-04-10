@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
-use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
+use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
 use super::{Program, DIGEST_SIZE};
@@ -49,35 +49,19 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
-        self.public_values_digest.to_field_elms()
+        self.public_values_digest
+            .0
+            .map(|x| T::from_canonical_u32(x.as_canonical_u32()))
+            .to_vec()
     }
 }
 
+/// The public values type for recursive proofs.
 #[derive(Default, Debug, Clone)]
 pub struct RecursivePublicValues<F: Default>(pub [F; DIGEST_SIZE]);
 
 impl<F: AbstractField> RecursivePublicValues<F> {
     pub fn to_vec(&self) -> Vec<F> {
         self.0.to_vec()
-    }
-}
-
-impl<F: PrimeField32> RecursivePublicValues<F> {
-    pub fn to_field_elms<T: AbstractField>(&self) -> Vec<T> {
-        let mut ret: Vec<T> = self
-            .0
-            .iter()
-            .map(|f| T::from_canonical_u32(F::as_canonical_u32(f)))
-            .collect();
-
-        assert!(
-            ret.len() <= PROOF_MAX_NUM_PVS,
-            "Too many public values: {}",
-            ret.len()
-        );
-
-        ret.resize(PROOF_MAX_NUM_PVS, T::zero());
-
-        ret
     }
 }

@@ -236,7 +236,6 @@ pub(crate) mod tests {
         challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
         stark::StarkVerifierCircuit,
     };
-    use itertools::Itertools;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::CanObserve;

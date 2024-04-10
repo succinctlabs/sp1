@@ -284,6 +284,7 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    /// Stores an array of felts in the public values buffer.
     pub fn write_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));
@@ -292,7 +293,6 @@ impl<C: Config> Builder<C> {
 
         let len = vals.len();
 
-        // TODO:  Is there a way to avoid cloning the public_value_buffer?
         let nb_public_values = self.nb_public_values.unwrap();
         let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
 
@@ -306,6 +306,7 @@ impl<C: Config> Builder<C> {
         self.public_values_buffer = Some(public_values_buffer);
     }
 
+    /// Hashes the public values buffer and calls the Commit command on the digest.
     pub fn commit_public_values(&mut self) {
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));
