@@ -8,7 +8,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use sp1_core::{
-    air::{MachineAir, PublicValues, Word},
+    air::MachineAir,
     runtime::Program,
     stark::{LocalProver, Proof, RiscvAir, ShardProof, StarkGenericConfig},
     utils::{run_and_prove, BabyBearPoseidon2},
