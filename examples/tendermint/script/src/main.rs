@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::Client;
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier, PublicValues};
 
 use itertools::Itertools;
 use sha2::{Digest, Sha256};
@@ -68,12 +68,8 @@ async fn main() {
     pv_hasher.update(&serde_cbor::to_vec(&expected_verdict).unwrap());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pv_bytes: Vec<u8> = proof.proof.shard_proofs[0]
-        .public_values
-        .committed_value_digest
-        .iter()
-        .flat_map(|w| w.to_le_bytes())
-        .collect_vec();
+    let public_values = proof.proof.shard_proofs[0].public_values.clone();
+    let proof_pv_bytes: Vec<u8> = PublicValues::deserialize_commitment_digest(public_values);
     assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
 
     // Save proof.
