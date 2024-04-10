@@ -42,9 +42,12 @@ fn main() {
     pv_hasher.update(expected_b.to_le_bytes());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let public_values = proof.proof.shard_proofs[0].public_values.clone();
-    let proof_pv_bytes: Vec<u8> = PublicValues::deserialize_commitment_digest(public_values);
-    assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
+    let public_values_bytes = proof.proof.shard_proofs[0].public_values.clone();
+    let public_values = PublicValues::from_vec(public_values_bytes);
+    assert_eq!(
+        public_values.commit_digest_bytes().as_slice(),
+        expected_pv_digest
+    );
 
     // Save the proof.
     proof

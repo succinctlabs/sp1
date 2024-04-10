@@ -87,13 +87,11 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
 }
 
 impl<F: PrimeField32> PublicValues<Word<F>, F> {
-    /// Retrieve the commitment digest from a serialized PublicValues struct.
-    pub fn deserialize_commitment_digest(data: Vec<F>) -> Vec<u8> {
-        let serialized_pv = PublicValues::<Word<F>, F>::from_vec(data);
-        serialized_pv
-            .committed_value_digest
-            .into_iter()
-            .flat_map(|w| w.0.map(|x| F::as_canonical_u32(&x) as u8))
+    /// Returns the ccommit digest as a vector of little-endian bytes.
+    pub fn commit_digest_bytes(&self) -> Vec<u8> {
+        self.committed_value_digest
+            .iter()
+            .flat_map(|w| w.into_iter().map(|f| f.as_canonical_u32() as u8))
             .collect_vec()
     }
 }
