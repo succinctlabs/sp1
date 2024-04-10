@@ -276,14 +276,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         tracing::info!("verifying cumulative sum is 0");
         // Verify the cumulative sum is 0.
-        // let mut sum = SC::Challenge::zero();
-        // for proof in proof.shard_proofs.iter() {
-        //     sum += proof.cumulative_sum();
-        // }
-        // match sum.is_zero() {
-        //     true => Ok(()),
-        //     false => Err(ProgramVerificationError::NonZeroCumulativeSum),
-        // }
+        let mut sum = SC::Challenge::zero();
+        for proof in proof.shard_proofs.iter() {
+            sum += proof.cumulative_sum();
+        }
+        match sum.is_zero() {
+            true => Ok(()),
+            false => Err(ProgramVerificationError::NonZeroCumulativeSum),
+        }
         Ok(())
     }
 

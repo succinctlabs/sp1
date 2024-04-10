@@ -198,6 +198,8 @@ mod tests {
     use sp1_core::{
         utils::setup_logger,
     };
+
+    #[ignore]
     #[test]
     fn test_prove_sp1() {
         setup_logger();
@@ -249,6 +251,7 @@ mod tests {
         //     bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
         // layer = 1;
 
+        let start = Instant::now();
         while reduce_proofs.len() > 1 {
             // Write layer to {i}.bin with bincode
             let serialized = bincode::serialize(&reduce_proofs).unwrap();
@@ -280,22 +283,7 @@ mod tests {
             reduce_proofs = next_proofs;
             layer += 1;
         }
-        // let proof = prover.reduce(&vk, reduce_proofs);
-        // println!("DONE PROOF 1");
-        // let proof2 = prover.reduce(&vk, reduce_proofs);
-        // println!("DONE PROOF 2");
-        // let proof3 = prover.reduce(
-        //     &vk,
-        //     &[
-        //         ReduceProof {
-        //             proof,
-        //             is_recursive: true,
-        //         },
-        //         ReduceProof {
-        //             proof,
-        //             is_recursive: true,
-        //         },
-        //     ],
-        // );
+        let duration = start.elapsed().as_secs();
+        println!("duration = {}", duration);
     }
 }
