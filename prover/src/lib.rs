@@ -65,8 +65,7 @@ impl SP1ProverImpl {
         let reconstruct_challenger = challenger.clone();
         for proof in proof.shard_proofs.iter() {
             challenger.observe(proof.commitment.main_commit);
-            let public_values = PublicValues::<Word<BabyBear>, BabyBear>::new(proof.public_values);
-            challenger.observe_slice(&public_values.to_vec());
+            challenger.observe_slice(&proof.public_values);
         }
 
         let chips = machine.chips();
