@@ -49,3 +49,4 @@ runs:
         rustup set profile minimal
         rustup component add rustfmt clippy
         rustup show
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
