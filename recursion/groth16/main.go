@@ -12,7 +12,10 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/succinctlabs/sp1-recursion-groth16/babybear"
 	"github.com/succinctlabs/sp1-recursion-groth16/poseidon2"
 )
@@ -139,4 +142,82 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-func main() {}
+func main() {
+	buildDir := "build"
+
+	switch os.Args[1] {
+	case "build":
+		// Initialize the circuit.
+		var circuit Circuit
+
+		// Compile the circuit.
+		builder := r1cs.NewBuilder
+		r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+		if err != nil {
+			panic(err)
+		}
+
+		// Run the dummy setup.
+		var pk groth16.ProvingKey
+		pk, err = groth16.DummySetup(r1cs)
+		if err != nil {
+			panic(err)
+		}
+
+		// Create the build directory.
+		os.MkdirAll(buildDir, 0755)
+
+		// Write the R1CS.
+		r1csFile, err := os.Create(buildDir + "/r1cs.bin")
+		if err != nil {
+			panic(err)
+		}
+		r1cs.WriteTo(r1csFile)
+		r1csFile.Close()
+
+		// Write the proving key.
+		pkFile, err := os.Create(buildDir + "/pk.bin")
+		if err != nil {
+			panic(err)
+		}
+		pk.WriteTo(pkFile)
+		pkFile.Close()
+	case "prove":
+		// Read the R1CS.
+		r1csFile, err := os.Open(buildDir + "/r1cs.bin")
+		if err != nil {
+			panic(err)
+		}
+		r1cs := groth16.NewCS(ecc.BN254)
+		r1cs.ReadFrom(r1csFile)
+
+		// Read the proving key.
+		pkFile, err := os.Open(buildDir + "/pk.bin")
+		if err != nil {
+			panic(err)
+		}
+		pk := groth16.NewProvingKey(ecc.BN254)
+		pk.ReadFrom(pkFile)
+
+		// Generate the witness.
+		assignment := Circuit{
+			X: 0,
+			Y: 0,
+		}
+		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		if err != nil {
+			panic(err)
+		}
+
+		// Generate the proof.
+		proof, err := groth16.Prove(r1cs, pk, witness)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println(proof)
+	default:
+		fmt.Println("unknown command")
+		os.Exit(1)
+	}
+}
