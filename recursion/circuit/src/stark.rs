@@ -414,6 +414,6 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        gnark_ffi::execute(constraints);
     }
 }

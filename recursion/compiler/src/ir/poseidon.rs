@@ -1,7 +1,7 @@
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, PERMUTATION_WIDTH};
 
-use super::{Array, Builder, Config, DslIR, Felt, Usize, Var};
+use super::{Array, Builder, Config, DslIr, Felt, Usize, Var};
 
 impl<C: Config> Builder<C> {
     /// Applies the Poseidon2 permutation to the given array.
@@ -15,7 +15,7 @@ impl<C: Config> Builder<C> {
             }
             Array::Dyn(_, len) => self.array::<Felt<C::F>>(*len),
         };
-        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+        self.operations.push(DslIr::Poseidon2PermuteBabyBear(
             output.clone(),
             array.clone(),
         ));
@@ -26,7 +26,7 @@ impl<C: Config> Builder<C> {
     ///
     /// Reference: [p3_poseidon2::Poseidon2]
     pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
-        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
+        self.operations.push(DslIr::Poseidon2PermuteBabyBear(
             array.clone(),
             array.clone(),
         ));
@@ -60,7 +60,7 @@ impl<C: Config> Builder<C> {
         left: &Array<C, Felt<C::F>>,
         right: &Array<C, Felt<C::F>>,
     ) {
-        self.operations.push(DslIR::Poseidon2CompressBabyBear(
+        self.operations.push(DslIr::Poseidon2CompressBabyBear(
             result.clone(),
             left.clone(),
             right.clone(),

@@ -4,7 +4,7 @@ use itertools::Itertools;
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::{Builder, Config, DslIR, Var};
+use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Var};
 
 use crate::challenger::reduce_32;
 use crate::types::OuterDigest;
@@ -20,7 +20,7 @@ pub trait Poseidon2CircuitBuilder<C: Config> {
 
 impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]) {
-        self.push(DslIR::CircuitPoseidon2Permute(state))
+        self.push(DslIr::CircuitPoseidon2Permute(state))
     }
 
     fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigest<C> {
@@ -91,7 +91,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        gnark_ffi::execute(constraints);
     }
 
     #[test]
@@ -125,7 +125,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        gnark_ffi::execute(constraints);
     }
 
     #[test]
@@ -146,6 +146,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        gnark_ffi::execute(constraints);
     }
 }

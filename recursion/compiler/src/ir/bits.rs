@@ -1,13 +1,13 @@
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::NUM_BITS;
 
-use super::{Array, Builder, Config, DslIR, Felt, Usize, Var};
+use super::{Array, Builder, Config, DslIr, Felt, Usize, Var};
 
 impl<C: Config> Builder<C> {
     /// Converts a variable to bits.
     pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
         let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        self.operations.push(DslIR::HintBitsV(output.clone(), num));
+        self.operations.push(DslIr::HintBitsV(output.clone(), num));
 
         let sum: Var<_> = self.eval(C::N::zero());
         for i in 0..NUM_BITS {
@@ -28,7 +28,7 @@ impl<C: Config> Builder<C> {
         }
 
         self.operations
-            .push(DslIR::CircuitNum2BitsV(num, bits, output.clone()));
+            .push(DslIr::CircuitNum2BitsV(num, bits, output.clone()));
 
         output
     }
@@ -36,7 +36,7 @@ impl<C: Config> Builder<C> {
     /// Converts a felt to bits.
     pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
         let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        self.operations.push(DslIR::HintBitsF(output.clone(), num));
+        self.operations.push(DslIr::HintBitsF(output.clone(), num));
 
         let sum: Felt<_> = self.eval(C::F::zero());
         for i in 0..NUM_BITS {
@@ -60,7 +60,7 @@ impl<C: Config> Builder<C> {
         }
 
         self.operations
-            .push(DslIR::CircuitNum2BitsF(num, output.clone()));
+            .push(DslIr::CircuitNum2BitsF(num, output.clone()));
 
         output
     }

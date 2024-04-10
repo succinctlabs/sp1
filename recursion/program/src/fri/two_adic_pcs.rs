@@ -141,7 +141,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.set_value(&mut input_ptr, 0, input);
 
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
-                                builder.push(DslIR::FriFold(m, input_ptr.clone()));
+                                builder.push(DslIr::FriFold(m, input_ptr.clone()));
                             });
                         });
                     });

@@ -1,7 +1,7 @@
 use p3_field::{AbstractExtensionField, AbstractField};
 use std::ops::{Add, Mul, MulAssign};
 
-use super::{Array, Builder, Config, DslIR, Ext, Felt, SymbolicExt, Usize, Var, Variable};
+use super::{Array, Builder, Config, DslIr, Ext, Felt, SymbolicExt, Usize, Var, Variable};
 
 impl<C: Config> Builder<C> {
     /// The generator for the field.
@@ -14,14 +14,14 @@ impl<C: Config> Builder<C> {
     /// Select a variable based on a condition.
     pub fn select_v(&mut self, cond: Var<C::N>, a: Var<C::N>, b: Var<C::N>) -> Var<C::N> {
         let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectV(cond, a, b, c));
+        self.operations.push(DslIr::CircuitSelectV(cond, a, b, c));
         c
     }
 
     /// Select a felt based on a condition.
     pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
         let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectF(cond, a, b, c));
+        self.operations.push(DslIr::CircuitSelectF(cond, a, b, c));
         c
     }
 
@@ -33,7 +33,7 @@ impl<C: Config> Builder<C> {
         b: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectE(cond, a, b, c));
+        self.operations.push(DslIr::CircuitSelectE(cond, a, b, c));
         c
     }
 
@@ -193,7 +193,7 @@ impl<C: Config> Builder<C> {
     /// Converts an ext to a slice of felts.
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);
-        self.operations.push(DslIR::Ext2Felt(result.clone(), value));
+        self.operations.push(DslIr::Ext2Felt(result.clone(), value));
         result
     }
 
@@ -204,7 +204,7 @@ impl<C: Config> Builder<C> {
         let c = self.uninit();
         let d = self.uninit();
         self.operations
-            .push(DslIR::CircuitExt2Felt([a, b, c, d], value));
+            .push(DslIr::CircuitExt2Felt([a, b, c, d], value));
         [a, b, c, d]
     }
 }
