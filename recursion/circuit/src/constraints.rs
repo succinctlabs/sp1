@@ -329,7 +329,12 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.constant(trace_domain_val);
-                let public_values = builder.constant(proof.public_values.clone());
+                let pv_felts = proof
+                    .public_values
+                    .iter()
+                    .map(|v| builder.constant(*v))
+                    .collect_vec();
+                let public_values = builder.vec(pv_felts);
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.constant(*domain))
