@@ -8,6 +8,7 @@ use std::{marker::PhantomData, sync::Arc};
 pub use instruction::*;
 pub use opcode::*;
 use p3_poseidon2::Poseidon2;
+use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::CryptographicPermutation;
 use p3_symmetric::Permutation;
 pub use program::*;
@@ -89,19 +90,38 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub witness_stream: Vec<Vec<Block<F>>>,
 
     // pub witness_stream: Vec<Witness<F, EF>>,
-    perm: Option<Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>>,
+    perm: Option<
+        Poseidon2<
+            F,
+            Poseidon2ExternalMatrixGeneral,
+            Diffusion,
+            PERMUTATION_WIDTH,
+            POSEIDON2_SBOX_DEGREE,
+        >,
+    >,
 
     _marker: PhantomData<EF>,
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>, Diffusion> Runtime<F, EF, Diffusion>
 where
-    Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>:
-        CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
+    Poseidon2<
+        F,
+        Poseidon2ExternalMatrixGeneral,
+        Diffusion,
+        PERMUTATION_WIDTH,
+        POSEIDON2_SBOX_DEGREE,
+    >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
     pub fn new(
         program: &Program<F>,
-        perm: Poseidon2<F, Diffusion, PERMUTATION_WIDTH, POSEIDON2_SBOX_DEGREE>,
+        perm: Poseidon2<
+            F,
+            Poseidon2ExternalMatrixGeneral,
+            Diffusion,
+            PERMUTATION_WIDTH,
+            POSEIDON2_SBOX_DEGREE,
+        >,
     ) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
@@ -445,6 +465,15 @@ where
                     if a.0[0] != b.0[0] {
                         next_pc = self.pc + c_offset;
                     }
+                }
+                Opcode::BNEINC => {
+                    let (mut a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    a_val.0[0] += F::one();
+                    if a_val.0[0] != b_val.0[0] {
+                        next_pc = self.pc + c_offset;
+                    }
+                    self.mw(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
                 }
                 Opcode::EBEQ => {
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);

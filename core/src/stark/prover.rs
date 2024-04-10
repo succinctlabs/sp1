@@ -27,9 +27,10 @@ use super::{ProvingKey, VerifierConstraintFolder};
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::MachineChip;
+use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 
-use crate::air::{MachineAir, PublicValuesDigest, Word};
+use crate::air::{MachineAir, PublicValues, Word};
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -84,21 +85,16 @@ where
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
+            shard_commits
+                .into_iter()
+                .zip(shards.iter())
+                .for_each(|(commitment, shard)| {
+                    challenger.observe(commitment);
+                    let public_values =
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values());
+                    challenger.observe_slice(&public_values.to_vec());
+                });
         });
-
-        let public_values_digest = shards
-            .last()
-            .expect("at least one shard")
-            .public_values_digest();
-
-        // Observe the public input digest.
-
-        let pv_digest_field_elms: Vec<Val<SC>> =
-            PublicValuesDigest::<Word<Val<SC>>>::new(public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -154,10 +150,7 @@ where
                 .collect::<Vec<_>>()
         });
 
-        Proof {
-            shard_proofs,
-            public_values_digest,
-        }
+        Proof { shard_proofs }
     }
 }
 
@@ -226,9 +219,7 @@ where
             main_data,
             chip_ordering,
             index,
-            public_values_digest: PublicValuesDigest::<Word<Val<SC>>>::new(
-                shard.public_values_digest(),
-            ),
+            public_values: shard.public_values(),
         }
     }
 
@@ -277,6 +268,10 @@ where
         for _ in 0..2 {
             permutation_challenges.push(challenger.sample_ext_element());
         }
+        let packed_perm_challenges = permutation_challenges
+            .iter()
+            .map(|c| PackedChallenge::<SC>::from_f(*c))
+            .collect::<Vec<_>>();
 
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
@@ -378,9 +373,9 @@ where
                         preprocessed_trace_on_quotient_domains,
                         main_trace_on_quotient_domains,
                         permutation_trace_on_quotient_domains,
-                        &permutation_challenges,
+                        &packed_perm_challenges,
                         alpha,
-                        shard_data.public_values_digest,
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard_data.public_values),
                     )
                 })
                 .collect::<Vec<_>>()
@@ -520,7 +515,7 @@ where
             },
             opening_proof,
             chip_ordering: shard_data.chip_ordering,
-            public_values_digest: shard_data.public_values_digest,
+            public_values: shard_data.public_values,
         }
     }
 

@@ -1,16 +1,14 @@
-use std::ops::{Add, Mul};
+use p3_field::AbstractField;
 
 use super::{
-    Array, Config, DslIR, Ext, ExtConst, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
-    Usize,
+    Array, Config, DslIR, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
+    SymbolicVar, Usize, Var, Variable,
 };
-use super::{Felt, Var};
-use super::{SymbolicVar, Variable};
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use sp1_recursion_core::runtime::{DIGEST_SIZE, HASH_RATE, NUM_BITS, PERMUTATION_WIDTH};
 
-#[derive(Debug, Clone)]
+/// A builder for the DSL.
+///
+/// Can compile to both assembly and a set of constraints.
+#[derive(Debug, Clone, Default)]
 pub struct Builder<C: Config> {
     pub(crate) felt_count: u32,
     pub(crate) ext_count: u32,
@@ -18,18 +16,8 @@ pub struct Builder<C: Config> {
     pub operations: Vec<DslIR<C>>,
 }
 
-impl<C: Config> Default for Builder<C> {
-    fn default() -> Self {
-        Self {
-            felt_count: 0,
-            ext_count: 0,
-            var_count: 0,
-            operations: Vec::new(),
-        }
-    }
-}
-
 impl<C: Config> Builder<C> {
+    /// Creates a new builder with a given number of counts for each type.
     pub fn new(var_count: u32, felt_count: u32, ext_count: u32) -> Self {
         Self {
             felt_count,
@@ -39,28 +27,34 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    /// Pushes an operation to the builder.
     pub fn push(&mut self, op: DslIR<C>) {
         self.operations.push(op);
     }
 
+    /// Creates an uninitialized variable.
     pub fn uninit<V: Variable<C>>(&mut self) -> V {
         V::uninit(self)
     }
 
-    pub fn eval_const<V: FromConstant<C>>(&mut self, value: V::Constant) -> V {
-        V::eval_const(value, self)
-    }
-
-    pub fn assign<V: Variable<C>, E: Into<V::Expression>>(&mut self, dst: V, expr: E) {
-        dst.assign(expr.into(), self);
-    }
-
+    /// Evaluates an expression and returns a variable.
     pub fn eval<V: Variable<C>, E: Into<V::Expression>>(&mut self, expr: E) -> V {
         let dst = V::uninit(self);
         dst.assign(expr.into(), self);
         dst
     }
 
+    /// Evaluates a constant expression and returns a variable.
+    pub fn constant<V: FromConstant<C>>(&mut self, value: V::Constant) -> V {
+        V::constant(value, self)
+    }
+
+    /// Assigns an expression to a variable.
+    pub fn assign<V: Variable<C>, E: Into<V::Expression>>(&mut self, dst: V, expr: E) {
+        dst.assign(expr.into(), self);
+    }
+
+    /// Asserts that two expressions are equal.
     pub fn assert_eq<V: Variable<C>>(
         &mut self,
         lhs: impl Into<V::Expression>,
@@ -69,6 +63,7 @@ impl<C: Config> Builder<C> {
         V::assert_eq(lhs, rhs, self);
     }
 
+    /// Asserts that two expressions are not equal.
     pub fn assert_ne<V: Variable<C>>(
         &mut self,
         lhs: impl Into<V::Expression>,
@@ -77,6 +72,7 @@ impl<C: Config> Builder<C> {
         V::assert_ne(lhs, rhs, self);
     }
 
+    /// Assert that two vars are equal.
     pub fn assert_var_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
         &mut self,
         lhs: LhsExpr,
@@ -85,6 +81,7 @@ impl<C: Config> Builder<C> {
         self.assert_eq::<Var<C::N>>(lhs, rhs);
     }
 
+    /// Assert that two vars are not equal.
     pub fn assert_var_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
         &mut self,
         lhs: LhsExpr,
@@ -93,6 +90,7 @@ impl<C: Config> Builder<C> {
         self.assert_ne::<Var<C::N>>(lhs, rhs);
     }
 
+    /// Assert that two felts are equal.
     pub fn assert_felt_eq<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
         &mut self,
         lhs: LhsExpr,
@@ -101,6 +99,7 @@ impl<C: Config> Builder<C> {
         self.assert_eq::<Felt<C::F>>(lhs, rhs);
     }
 
+    /// Assert that two felts are not equal.
     pub fn assert_felt_ne<LhsExpr: Into<SymbolicFelt<C::F>>, RhsExpr: Into<SymbolicFelt<C::F>>>(
         &mut self,
         lhs: LhsExpr,
@@ -109,6 +108,7 @@ impl<C: Config> Builder<C> {
         self.assert_ne::<Felt<C::F>>(lhs, rhs);
     }
 
+    /// Assert that two usizes are equal.
     pub fn assert_usize_eq<
         LhsExpr: Into<SymbolicUsize<C::N>>,
         RhsExpr: Into<SymbolicUsize<C::N>>,
@@ -120,10 +120,12 @@ impl<C: Config> Builder<C> {
         self.assert_eq::<Usize<C::N>>(lhs, rhs);
     }
 
+    /// Assert that two usizes are not equal.
     pub fn assert_usize_ne(&mut self, lhs: SymbolicUsize<C::N>, rhs: SymbolicUsize<C::N>) {
         self.assert_ne::<Usize<C::N>>(lhs, rhs);
     }
 
+    /// Assert that two exts are equal.
     pub fn assert_ext_eq<
         LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
         RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
@@ -135,6 +137,7 @@ impl<C: Config> Builder<C> {
         self.assert_eq::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
+    /// Assert that two exts are not equal.
     pub fn assert_ext_ne<
         LhsExpr: Into<SymbolicExt<C::F, C::EF>>,
         RhsExpr: Into<SymbolicExt<C::F, C::EF>>,
@@ -146,6 +149,7 @@ impl<C: Config> Builder<C> {
         self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
+    /// Evaluate a block of operations if two expressions are equal.
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
         &mut self,
         lhs: LhsExpr,
@@ -159,6 +163,7 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    /// Evaluate a block of operations if two expressions are not equal.
     pub fn if_ne<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
         &mut self,
         lhs: LhsExpr,
@@ -172,6 +177,7 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    /// Evaluate a block of operations over a range from start to end.
     pub fn range(
         &mut self,
         start: impl Into<Usize<C::N>>,
@@ -185,254 +191,85 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    /// Break out of a loop.
     pub fn break_loop(&mut self) {
         self.operations.push(DslIR::Break);
     }
 
+    /// Print a variable.
     pub fn print_v(&mut self, dst: Var<C::N>) {
         self.operations.push(DslIR::PrintV(dst));
     }
 
+    /// Print a felt.
     pub fn print_f(&mut self, dst: Felt<C::F>) {
         self.operations.push(DslIR::PrintF(dst));
     }
 
+    /// Print an ext.
     pub fn print_e(&mut self, dst: Ext<C::F, C::EF>) {
         self.operations.push(DslIR::PrintE(dst));
     }
 
-    pub fn ext_from_base_slice(&mut self, arr: &[Felt<C::F>]) -> Ext<C::F, C::EF> {
-        assert!(arr.len() <= <C::EF as AbstractExtensionField::<C::F>>::D);
-        let mut res = SymbolicExt::Const(C::EF::zero());
-        for i in 0..arr.len() {
-            res += arr[i] * SymbolicExt::Const(C::EF::monomial(i));
-        }
-        self.eval(res)
+    /// Hint the length of the next vector of variables.
+    pub fn hint_len(&mut self) -> Var<C::N> {
+        let len = self.uninit();
+        self.operations.push(DslIR::HintLen(len));
+        len
     }
 
-    pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
-        let result = self.dyn_array(4);
-        self.operations.push(DslIR::Ext2Felt(result.clone(), value));
-        result
+    /// Hint a single variable.
+    pub fn hint_var(&mut self) -> Var<C::N> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintVars(arr.clone()));
+        self.get(&arr, 0)
     }
 
-    pub fn ext2felt_circuit(&mut self, value: Ext<C::F, C::EF>) -> [Felt<C::F>; 4] {
-        let a = self.uninit();
-        let b = self.uninit();
-        let c = self.uninit();
-        let d = self.uninit();
-        self.operations
-            .push(DslIR::CircuitExt2Felt([a, b, c, d], value));
-        [a, b, c, d]
+    /// Hint a single felt.
+    pub fn hint_felt(&mut self) -> Felt<C::F> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintFelts(arr.clone()));
+        self.get(&arr, 0)
+    }
+
+    /// Hint a single ext.
+    pub fn hint_ext(&mut self) -> Ext<C::F, C::EF> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintExts(arr.clone()));
+        self.get(&arr, 0)
+    }
+
+    /// Hint a vector of variables.
+    pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
+        let len = self.hint_len();
+        self.print_v(len);
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintVars(arr.clone()));
+        arr
+    }
+
+    /// Hint a vector of felts.
+    pub fn hint_felts(&mut self) -> Array<C, Felt<C::F>> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintFelts(arr.clone()));
+        arr
+    }
+
+    /// Hint a vector of exts.
+    pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
+        let len = self.hint_len();
+        let arr = self.dyn_array(len);
+        self.operations.push(DslIR::HintExts(arr.clone()));
+        arr
     }
 
     /// Throws an error.
     pub fn error(&mut self) {
         self.operations.push(DslIR::Error());
-    }
-
-    /// Converts a usize to a fixed length of bits.
-    pub fn num2bits_usize(&mut self, num: impl Into<Usize<C::N>>) -> Array<C, Var<C::N>> {
-        // TODO: A separate function for a circuit backend.
-
-        let num = num.into();
-        // Allocate an array for the output.
-        let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        // Hint the bits of the number to the output array.
-        self.operations.push(DslIR::HintBitsU(output.clone(), num));
-
-        // Assert that the entries are bits, compute the sum, and compare it to the original number.
-        // If the number does not fit in `NUM_BITS`, we will get an error.
-        let sum: Var<_> = self.eval(C::N::zero());
-        for i in 0..NUM_BITS {
-            // Get the bit.
-            let bit = self.get(&output, i);
-            // Assert that the bit is either 0 or 1.
-            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
-            // Add `bit * 2^i` to the sum.
-            self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
-        }
-        // Finally, assert that the sum is equal to the original number.
-        self.assert_eq::<Usize<_>>(sum, num);
-
-        output
-    }
-
-    /// Converts a var to a fixed length of bits.
-    pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
-        // TODO: A separate function for a circuit backend.
-
-        // Allocate an array for the output.
-        let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        // Hint the bits of the number to the output array.
-        self.operations.push(DslIR::HintBitsV(output.clone(), num));
-
-        // Assert that the entries are bits, compute the sum, and compare it to the original number.
-        // If the number does not fit in `NUM_BITS`, we will get an error.
-        let sum: Var<_> = self.eval(C::N::zero());
-        for i in 0..NUM_BITS {
-            // Get the bit.
-            let bit = self.get(&output, i);
-            // Assert that the bit is either 0 or 1.
-            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
-            // Add `bit * 2^i` to the sum.
-            self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
-        }
-        // Finally, assert that the sum is equal to the original number.
-        self.assert_var_eq(sum, num);
-
-        output
-    }
-
-    /// Converts a felt to a fixed length of bits.
-    pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
-        // TODO: A separate function for a circuit backend.
-
-        // Allocate an array for the output.
-        let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        // Hint the bits of the number to the output array.
-        self.operations.push(DslIR::HintBitsF(output.clone(), num));
-
-        // Assert that the entries are bits, compute the sum, and compare it to the original number.
-        // If the number does not fit in `NUM_BITS`, we will get an error.
-        let sum: Felt<_> = self.eval(C::F::zero());
-        for i in 0..NUM_BITS {
-            // Get the bit.
-            let bit = self.get(&output, i);
-            // Assert that the bit is either 0 or 1.
-            self.assert_var_eq(bit * (bit - C::N::one()), C::N::zero());
-            // Add `bit * 2^i` to the sum.
-            self.if_eq(bit, C::N::one()).then(|builder| {
-                builder.assign(sum, sum + C::F::from_canonical_u32(1 << i));
-            });
-        }
-        // // Finally, assert that the sum is equal to the original number.
-        // self.assert_felt_eq(sum, num);
-
-        output
-    }
-
-    pub fn bits_to_num_felt(&mut self, bits: &Array<C, Var<C::N>>) -> Felt<C::F> {
-        let num: Felt<_> = self.eval(C::F::zero());
-        for i in 0..NUM_BITS {
-            let bit = self.get(bits, i);
-            // Add `bit * 2^i` to the sum.
-            self.if_eq(bit, C::N::one()).then(|builder| {
-                builder.assign(num, num + C::F::from_canonical_u32(1 << i));
-            });
-        }
-        num
-    }
-
-    pub fn bits_to_num_var(&mut self, bits: &Array<C, Var<C::N>>) -> Var<C::N> {
-        let num: Var<_> = self.eval(C::N::zero());
-        let power: Var<_> = self.eval(C::N::one());
-        self.range(0, bits.len()).for_each(|i, builder| {
-            let bit = builder.get(bits, i);
-            builder.assign(num, num + bit * power);
-            builder.assign(power, power * C::N::from_canonical_u32(2));
-        });
-        num
-    }
-
-    pub fn bits_to_num_usize(&mut self, bits: &Array<C, Var<C::N>>) -> Usize<C::N> {
-        self.bits_to_num_var(bits).into()
-    }
-
-    /// Applies the Poseidon2 permutation to the given array.
-    ///
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
-    pub fn poseidon2_permute(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
-        let output = match array {
-            Array::Fixed(values) => {
-                assert_eq!(values.len(), PERMUTATION_WIDTH);
-                self.array::<Felt<C::F>>(Usize::Const(PERMUTATION_WIDTH))
-            }
-            Array::Dyn(_, len) => self.array::<Felt<C::F>>(*len),
-        };
-        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
-            output.clone(),
-            array.clone(),
-        ));
-        output
-    }
-
-    /// Applies the Poseidon2 permutation to the given array.
-    ///
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
-    pub fn poseidon2_permute_mut(&mut self, array: &Array<C, Felt<C::F>>) {
-        self.operations.push(DslIR::Poseidon2PermuteBabyBear(
-            array.clone(),
-            array.clone(),
-        ));
-    }
-
-    /// Applies the Poseidon2 permutation to the given array.
-    ///
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
-    pub fn poseidon2_compress_x(
-        &mut self,
-        result: &mut Array<C, Felt<C::F>>,
-        left: &Array<C, Felt<C::F>>,
-        right: &Array<C, Felt<C::F>>,
-    ) {
-        self.operations.push(DslIR::Poseidon2CompressBabyBear(
-            result.clone(),
-            left.clone(),
-            right.clone(),
-        ));
-    }
-
-    /// Applies the Poseidon2 permutation to the given array.
-    ///
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/poseidon2/src/lib.rs#L119
-    pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
-        let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
-
-        let break_flag: Var<_> = self.eval(C::N::zero());
-        let last_index: Usize<_> = self.eval(array.len() - 1);
-        self.range(0, array.len())
-            .step_by(HASH_RATE)
-            .for_each(|i, builder| {
-                builder.if_eq(break_flag, C::N::one()).then(|builder| {
-                    builder.break_loop();
-                });
-                // Insert elements of the chunk.
-                builder.range(0, HASH_RATE).for_each(|j, builder| {
-                    let index: Var<_> = builder.eval(i + j);
-                    let element = builder.get(array, index);
-                    builder.set(&mut state, j, element);
-                    builder.if_eq(index, last_index).then(|builder| {
-                        builder.assign(break_flag, C::N::one());
-                        builder.break_loop();
-                    });
-                });
-                builder.poseidon2_permute_mut(&state);
-            });
-
-        state.truncate(self, Usize::Const(DIGEST_SIZE));
-        state
-    }
-
-    /// Applies the Poseidon2 compression function to the given array.
-    ///
-    /// Assumes we are doing a 2-1 compression function with 8 element chunks.
-    ///
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/symmetric/src/compression.rs#L35
-    pub fn poseidon2_compress(
-        &mut self,
-        left: &Array<C, Felt<C::F>>,
-        right: &Array<C, Felt<C::F>>,
-    ) -> Array<C, Felt<C::F>> {
-        let mut input = self.dyn_array(PERMUTATION_WIDTH);
-        for i in 0..DIGEST_SIZE {
-            let a = self.get(left, i);
-            let b = self.get(right, i);
-            self.set(&mut input, i, a);
-            self.set(&mut input, i + DIGEST_SIZE, b);
-        }
-        self.poseidon2_permute_mut(&input);
-        input
     }
 
     /// Materializes a usize into a variable.
@@ -442,275 +279,9 @@ impl<C: Config> Builder<C> {
             Usize::Var(num) => num,
         }
     }
-
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/baby-bear/src/baby_bear.rs#L306
-    pub fn generator(&mut self) -> Felt<C::F> {
-        self.eval(C::F::from_canonical_u32(31))
-    }
-
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
-    ///
-    /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
-    /// behavior.
-    pub fn reverse_bits_len_circuit(
-        &mut self,
-        index_bits: Vec<Var<C::N>>,
-        bit_len: usize,
-    ) -> Vec<Var<C::N>> {
-        let mut result_bits = Vec::new();
-        for i in 0..bit_len {
-            let idx = bit_len - i - 1;
-            result_bits.push(index_bits[idx]);
-        }
-        result_bits
-    }
-
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
-    ///
-    /// *Safety* calling this function with `bit_len` greater [`NUM_BITS`] will result in undefined
-    /// behavior.
-    pub fn reverse_bits_len(
-        &mut self,
-        index_bits: &Array<C, Var<C::N>>,
-        bit_len: impl Into<Usize<C::N>>,
-    ) -> Array<C, Var<C::N>> {
-        // Compute the reverse bits.
-        let bit_len = bit_len.into();
-        let mut result_bits = self.dyn_array::<Var<_>>(NUM_BITS);
-        // let bit_len = self.materialize(bit_len);
-        self.range(0, bit_len).for_each(|i, builder| {
-            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
-            let entry = builder.get(index_bits, index);
-            builder.set(&mut result_bits, i, entry);
-        });
-
-        self.range(bit_len, NUM_BITS).for_each(|i, builder| {
-            builder.set(&mut result_bits, i, C::N::zero());
-        });
-
-        result_bits
-    }
-
-    #[allow(unused_variables)]
-    pub fn exp_usize_ef(&mut self, x: Ext<C::F, C::EF>, power: Usize<C::N>) -> Ext<C::F, C::EF> {
-        let result = self.eval(C::F::one());
-        let power_f: Ext<_, _> = self.eval(x);
-        let bits = self.num2bits_usize(power);
-        self.range(0, bits.len()).for_each(|i, builder| {
-            let bit = builder.get(&bits, i);
-            builder
-                .if_eq(bit, C::N::one())
-                .then(|builder| builder.assign(result, result * power_f));
-            builder.assign(power_f, power_f * power_f);
-        });
-        result
-    }
-
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
-    #[allow(unused_variables)]
-    pub fn exp_usize_f_bits(&mut self, x: Felt<C::F>, power_bits: Vec<Var<C::N>>) -> Felt<C::F> {
-        let mut result = self.eval(C::F::one());
-        let mut power_f: Felt<_> = self.eval(x);
-        for i in 0..power_bits.len() {
-            let bit = power_bits[i];
-            let tmp = self.eval(result * power_f);
-            result = self.select_f(bit, tmp, result);
-            power_f = self.eval(power_f * power_f);
-        }
-        result
-    }
-
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
-    #[allow(unused_variables)]
-    pub fn exp_usize_ef_bits(
-        &mut self,
-        x: Ext<C::F, C::EF>,
-        power_bits: Vec<Var<C::N>>,
-    ) -> Ext<C::F, C::EF> {
-        let mut result = self.eval(SymbolicExt::Const(C::EF::one()));
-        let mut power_f: Ext<_, _> = self.eval(x);
-        for i in 0..power_bits.len() {
-            let bit = power_bits[i];
-            let tmp = self.eval(result * power_f);
-            result = self.select_ef(bit, tmp, result);
-            power_f = self.eval(power_f * power_f);
-        }
-        result
-    }
-
-    pub fn exp_bits<V: Variable<C>>(&mut self, x: V, power_bits: &Array<C, Var<C::N>>) -> V
-    where
-        V::Expression: AbstractField,
-        V: Copy + Mul<Output = V::Expression>,
-    {
-        let result = self.eval(V::Expression::one());
-        let power_f: V = self.eval(x);
-        self.range(0, power_bits.len()).for_each(|i, builder| {
-            let bit = builder.get(power_bits, i);
-            builder
-                .if_eq(bit, C::N::one())
-                .then(|builder| builder.assign(result, result * power_f));
-            builder.assign(power_f, power_f * power_f);
-        });
-        result
-    }
-
-    // Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/util/src/lib.rs#L59
-    pub fn exp_reverse_bits_len<V: Variable<C>>(
-        &mut self,
-        x: V,
-        power_bits: &Array<C, Var<C::N>>,
-        bit_len: impl Into<Usize<C::N>>,
-    ) -> V
-    where
-        V::Expression: AbstractField,
-        V: Copy + Mul<Output = V::Expression>,
-    {
-        let result = self.eval(V::Expression::one());
-        let power_f: V = self.eval(x);
-        let bit_len = bit_len.into();
-        self.range(0, bit_len).for_each(|i, builder| {
-            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
-            let bit = builder.get(power_bits, index);
-            builder
-                .if_eq(bit, C::N::one())
-                .then(|builder| builder.assign(result, result * power_f));
-            builder.assign(power_f, power_f * power_f);
-        });
-        result
-    }
-
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/field/src/field.rs#L79
-    #[allow(unused_variables)]
-    pub fn exp<V>(&mut self, x: V, power: impl Into<Usize<C::N>>) -> V
-    where
-        V::Expression: AbstractField,
-        V: Variable<C> + Copy + Mul<Output = V::Expression>,
-    {
-        let power = power.into();
-        let result = self.eval(V::Expression::one());
-        self.range(0, power).for_each(|_, builder| {
-            builder.assign(result, result * x);
-        });
-        result
-    }
-
-    pub fn exp_power_of_2_v<V>(
-        &mut self,
-        base: impl Into<V::Expression>,
-        power_log: impl Into<Usize<C::N>>,
-    ) -> V
-    where
-        V: Variable<C> + Copy + Mul<Output = V::Expression>,
-    {
-        let mut result: V = self.eval(base);
-        let power_log: Usize<_> = power_log.into();
-        match power_log {
-            Usize::Var(power_log) => {
-                self.range(0, power_log)
-                    .for_each(|_, builder| builder.assign(result, result * result));
-            }
-            Usize::Const(power_log) => {
-                for _ in 0..power_log {
-                    result = self.eval(result * result);
-                }
-            }
-        }
-        result
-    }
-
-    pub fn exp_power_of_2_v_circuit<V: Variable<C>>(
-        &mut self,
-        base: impl Into<V::Expression>,
-        power_log: usize,
-    ) -> V
-    where
-        V: Copy + Mul<Output = V::Expression>,
-    {
-        let mut result: V = self.eval(base);
-        for _ in 0..power_log {
-            result = self.eval(result * result)
-        }
-        result
-    }
-
-    /// Multiplies `base` by `2^{log_power}`.
-    pub fn sll<V>(&mut self, base: impl Into<V::Expression>, shift: Usize<C::N>) -> V
-    where
-        V: Variable<C> + Copy + Add<Output = V::Expression>,
-    {
-        let result: V = self.eval(base);
-        self.range(0, shift)
-            .for_each(|_, builder| builder.assign(result, result + result));
-        result
-    }
-
-    pub fn power_of_two_usize(&mut self, power: Usize<C::N>) -> Usize<C::N> {
-        self.sll(Usize::Const(1), power)
-    }
-
-    pub fn power_of_two_var(&mut self, power: Usize<C::N>) -> Var<C::N> {
-        self.sll(C::N::one(), power)
-    }
-
-    pub fn power_of_two_felt(&mut self, power: Usize<C::N>) -> Felt<C::F> {
-        self.sll(C::F::one(), power)
-    }
-
-    pub fn power_of_two_expr(&mut self, power: Usize<C::N>) -> Ext<C::F, C::EF> {
-        self.sll(C::EF::one().cons(), power)
-    }
-
-    pub fn hint_len(&mut self) -> Var<C::N> {
-        let len = self.uninit();
-        self.operations.push(DslIR::HintLen(len));
-        len
-    }
-
-    pub fn hint_var(&mut self) -> Var<C::N> {
-        let len = self.hint_len();
-        let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintVars(arr.clone()));
-        self.get(&arr, 0)
-    }
-
-    pub fn hint_felt(&mut self) -> Felt<C::F> {
-        let len = self.hint_len();
-        let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintFelts(arr.clone()));
-        self.get(&arr, 0)
-    }
-
-    pub fn hint_ext(&mut self) -> Ext<C::F, C::EF> {
-        let len = self.hint_len();
-        let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintExts(arr.clone()));
-        self.get(&arr, 0)
-    }
-
-    pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
-        let len = self.hint_len();
-        self.print_v(len);
-        let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintVars(arr.clone()));
-        arr
-    }
-
-    pub fn hint_felts(&mut self) -> Array<C, Felt<C::F>> {
-        let len = self.hint_len();
-        let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintFelts(arr.clone()));
-        arr
-    }
-
-    pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
-        let len = self.hint_len();
-        let arr = self.dyn_array(len);
-        self.operations.push(DslIR::HintExts(arr.clone()));
-        arr
-    }
 }
 
+/// A builder for the DSL that handles if statements.
 pub struct IfBuilder<'a, C: Config> {
     lhs: SymbolicVar<C::N>,
     rhs: SymbolicVar<C::N>,
@@ -718,7 +289,8 @@ pub struct IfBuilder<'a, C: Config> {
     pub(crate) builder: &'a mut Builder<C>,
 }
 
-enum Condition<N> {
+/// A set of conditions that if statements can be based on.
+enum IfCondition<N> {
     EqConst(N, N),
     NeConst(N, N),
     Eq(Var<N>, Var<N>),
@@ -743,29 +315,29 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
         // Dispatch instructions to the correct conditional block.
         match condition {
-            Condition::EqConst(lhs, rhs) => {
+            IfCondition::EqConst(lhs, rhs) => {
                 if lhs == rhs {
                     self.builder.operations.extend(then_instructions);
                 }
             }
-            Condition::NeConst(lhs, rhs) => {
+            IfCondition::NeConst(lhs, rhs) => {
                 if lhs != rhs {
                     self.builder.operations.extend(then_instructions);
                 }
             }
-            Condition::Eq(lhs, rhs) => {
+            IfCondition::Eq(lhs, rhs) => {
                 let op = DslIR::IfEq(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
-            Condition::EqI(lhs, rhs) => {
+            IfCondition::EqI(lhs, rhs) => {
                 let op = DslIR::IfEqI(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
-            Condition::Ne(lhs, rhs) => {
+            IfCondition::Ne(lhs, rhs) => {
                 let op = DslIR::IfNe(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
-            Condition::NeI(lhs, rhs) => {
+            IfCondition::NeI(lhs, rhs) => {
                 let op = DslIR::IfNeI(lhs, rhs, then_instructions, Vec::new());
                 self.builder.operations.push(op);
             }
@@ -799,105 +371,106 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
         // Dispatch instructions to the correct conditional block.
         match condition {
-            Condition::EqConst(lhs, rhs) => {
+            IfCondition::EqConst(lhs, rhs) => {
                 if lhs == rhs {
                     self.builder.operations.extend(then_instructions);
                 } else {
                     self.builder.operations.extend(else_instructions);
                 }
             }
-            Condition::NeConst(lhs, rhs) => {
+            IfCondition::NeConst(lhs, rhs) => {
                 if lhs != rhs {
                     self.builder.operations.extend(then_instructions);
                 } else {
                     self.builder.operations.extend(else_instructions);
                 }
             }
-            Condition::Eq(lhs, rhs) => {
+            IfCondition::Eq(lhs, rhs) => {
                 let op = DslIR::IfEq(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
-            Condition::EqI(lhs, rhs) => {
+            IfCondition::EqI(lhs, rhs) => {
                 let op = DslIR::IfEqI(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
-            Condition::Ne(lhs, rhs) => {
+            IfCondition::Ne(lhs, rhs) => {
                 let op = DslIR::IfNe(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
-            Condition::NeI(lhs, rhs) => {
+            IfCondition::NeI(lhs, rhs) => {
                 let op = DslIR::IfNeI(lhs, rhs, then_instructions, else_instructions);
                 self.builder.operations.push(op);
             }
         }
     }
 
-    fn condition(&mut self) -> Condition<C::N> {
+    fn condition(&mut self) -> IfCondition<C::N> {
         match (self.lhs.clone(), self.rhs.clone(), self.is_eq) {
             (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs), true) => {
-                Condition::EqConst(lhs, rhs)
+                IfCondition::EqConst(lhs, rhs)
             }
             (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs), false) => {
-                Condition::NeConst(lhs, rhs)
+                IfCondition::NeConst(lhs, rhs)
             }
-            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs), true) => Condition::EqI(rhs, lhs),
-            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs), false) => Condition::NeI(rhs, lhs),
+            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs), true) => IfCondition::EqI(rhs, lhs),
+            (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs), false) => IfCondition::NeI(rhs, lhs),
             (SymbolicVar::Const(lhs), rhs, true) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
-                Condition::EqI(rhs, lhs)
+                IfCondition::EqI(rhs, lhs)
             }
             (SymbolicVar::Const(lhs), rhs, false) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
-                Condition::NeI(rhs, lhs)
+                IfCondition::NeI(rhs, lhs)
             }
             (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs), true) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
-                Condition::EqI(lhs, rhs)
+                IfCondition::EqI(lhs, rhs)
             }
             (SymbolicVar::Val(lhs), SymbolicVar::Const(rhs), false) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
-                Condition::NeI(lhs, rhs)
+                IfCondition::NeI(lhs, rhs)
             }
             (lhs, SymbolicVar::Const(rhs), true) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
-                Condition::EqI(lhs, rhs)
+                IfCondition::EqI(lhs, rhs)
             }
             (lhs, SymbolicVar::Const(rhs), false) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
-                Condition::NeI(lhs, rhs)
+                IfCondition::NeI(lhs, rhs)
             }
-            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs), true) => Condition::Eq(lhs, rhs),
-            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs), false) => Condition::Ne(lhs, rhs),
+            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs), true) => IfCondition::Eq(lhs, rhs),
+            (SymbolicVar::Val(lhs), SymbolicVar::Val(rhs), false) => IfCondition::Ne(lhs, rhs),
             (SymbolicVar::Val(lhs), rhs, true) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
-                Condition::Eq(lhs, rhs)
+                IfCondition::Eq(lhs, rhs)
             }
             (SymbolicVar::Val(lhs), rhs, false) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
-                Condition::Ne(lhs, rhs)
+                IfCondition::Ne(lhs, rhs)
             }
             (lhs, SymbolicVar::Val(rhs), true) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
-                Condition::Eq(lhs, rhs)
+                IfCondition::Eq(lhs, rhs)
             }
             (lhs, SymbolicVar::Val(rhs), false) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
-                Condition::Ne(lhs, rhs)
+                IfCondition::Ne(lhs, rhs)
             }
             (lhs, rhs, true) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 let rhs: Var<C::N> = self.builder.eval(rhs);
-                Condition::Eq(lhs, rhs)
+                IfCondition::Eq(lhs, rhs)
             }
             (lhs, rhs, false) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 let rhs: Var<C::N> = self.builder.eval(rhs);
-                Condition::Ne(lhs, rhs)
+                IfCondition::Ne(lhs, rhs)
             }
         }
     }
 }
 
+/// A builder for the DSL that handles for loops.
 pub struct RangeBuilder<'a, C: Config> {
     start: Usize<C::N>,
     end: Usize<C::N>,
@@ -932,114 +505,5 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             loop_instructions,
         );
         self.builder.operations.push(op);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use p3_field::PrimeField32;
-    use p3_util::reverse_bits_len;
-    use rand::{thread_rng, Rng};
-    use sp1_core::{stark::StarkGenericConfig, utils::BabyBearPoseidon2};
-    use sp1_recursion_core::runtime::{Runtime, NUM_BITS};
-
-    use p3_field::AbstractField;
-
-    use crate::{
-        asm::VmBuilder,
-        prelude::{Felt, Usize, Var},
-    };
-
-    #[test]
-    fn test_num2bits() {
-        type SC = BabyBearPoseidon2;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-
-        let mut rng = thread_rng();
-        let config = SC::default();
-
-        // Initialize a builder.
-        let mut builder = VmBuilder::<F, EF>::default();
-
-        // Get a random var with `NUM_BITS` bits.
-        let num_val: F = rng.gen();
-
-        // Materialize the number as a var
-        let num: Var<_> = builder.eval(num_val);
-        // Materialize the number as a felt
-        let num_felt: Felt<_> = builder.eval(num_val);
-        // Materialize the number as a usize
-        let num_usize: Usize<_> = builder.eval(num_val.as_canonical_u32() as usize);
-
-        // Get the bits.
-        let bits = builder.num2bits_v(num);
-        let bits_felt = builder.num2bits_f(num_felt);
-        let bits_usize = builder.num2bits_usize(num_usize);
-
-        // Compare the expected bits with the actual bits.
-        for i in 0..NUM_BITS {
-            // Get the i-th bit of the number.
-            let expected_bit = F::from_canonical_u32((num_val.as_canonical_u32() >> i) & 1);
-            // Compare the expected bit of the var with the actual bit.
-            let bit = builder.get(&bits, i);
-            builder.assert_var_eq(bit, expected_bit);
-            // Compare the expected bit of the felt with the actual bit.
-            let bit_felt = builder.get(&bits_felt, i);
-            builder.assert_var_eq(bit_felt, expected_bit);
-            // Compare the expected bit of the usize with the actual bit.
-            let bit_usize = builder.get(&bits_usize, i);
-            builder.assert_var_eq(bit_usize, expected_bit);
-        }
-
-        // Test the conversion back to a number.
-        let num_back = builder.bits_to_num_var(&bits);
-        builder.assert_var_eq(num_back, num);
-        let num_felt_back = builder.bits_to_num_felt(&bits_felt);
-        builder.assert_felt_eq(num_felt_back, num_felt);
-        let num_usize_back = builder.bits_to_num_usize(&bits_usize);
-        builder.assert_usize_eq(num_usize_back, num_usize);
-
-        let program = builder.compile();
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
-    }
-
-    #[test]
-    fn test_reverse_bits_len() {
-        type SC = BabyBearPoseidon2;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-
-        let mut rng = thread_rng();
-        let config = SC::default();
-
-        // Initialize a builder.
-        let mut builder = VmBuilder::<F, EF>::default();
-
-        // Get a random var with `NUM_BITS` bits.
-        let x_val: F = rng.gen();
-
-        // Materialize the number as a var
-        let x: Var<_> = builder.eval(x_val);
-        let x_bits = builder.num2bits_v(x);
-
-        for i in 1..NUM_BITS {
-            // Get the reference value.
-            let expected_value = reverse_bits_len(x_val.as_canonical_u32() as usize, i);
-            let value_bits = builder.reverse_bits_len(&x_bits, i);
-            let value = builder.bits_to_num_var(&value_bits);
-            builder.assert_usize_eq(value, expected_value);
-            let var_i: Var<_> = builder.eval(F::from_canonical_usize(i));
-            let value_var_bits = builder.reverse_bits_len(&x_bits, var_i);
-            let value_var = builder.bits_to_num_var(&value_var_bits);
-            builder.assert_usize_eq(value_var, expected_value);
-        }
-
-        let program = builder.compile();
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
     }
 }

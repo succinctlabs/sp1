@@ -1,13 +1,13 @@
 use alloc::format;
+use core::marker::PhantomData;
+use std::collections::HashMap;
+use std::hash::Hash;
+
 use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::Field;
 use serde::Deserialize;
 use serde::Serialize;
-
-use core::marker::PhantomData;
-use std::collections::HashMap;
-use std::hash::Hash;
 
 use super::ExtConst;
 use super::FromConstant;
@@ -17,15 +17,25 @@ use super::Ptr;
 use super::SymbolicUsize;
 use super::{Builder, Config, DslIR, SymbolicExt, SymbolicFelt, SymbolicVar, Variable};
 
+/// A variable that represents a native field element.
+///
+/// Used for counters, simple loops, etc.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Var<N>(pub u32, pub PhantomData<N>);
 
+/// A variable that represents an emulated field element.
+///
+/// Used to do field arithmetic for recursive verification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Felt<F>(pub u32, pub PhantomData<F>);
 
+/// A variable that represents an emulated extension field element.
+///
+/// Used to do extension field arithmetic for recursive verification.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Ext<F, EF>(pub u32, pub PhantomData<(F, EF)>);
 
+/// A variable that represents either a constant or variable counter.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Usize<N> {
     Const(usize),
@@ -202,7 +212,7 @@ impl<N: Field> Var<N> {
         }
         match src {
             SymbolicVar::Const(c) => {
-                builder.operations.push(DslIR::Imm(*self, c));
+                builder.operations.push(DslIR::ImmV(*self, c));
             }
             SymbolicVar::Val(v) => {
                 builder
@@ -212,7 +222,7 @@ impl<N: Field> Var<N> {
             SymbolicVar::Add(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs)) => {
                     let sum = *lhs + *rhs;
-                    builder.operations.push(DslIR::Imm(*self, sum));
+                    builder.operations.push(DslIR::ImmV(*self, sum));
                 }
                 (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs)) => {
                     builder.operations.push(DslIR::AddVI(*self, *rhs, *lhs));
@@ -256,7 +266,7 @@ impl<N: Field> Var<N> {
             SymbolicVar::Mul(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs)) => {
                     let product = *lhs * *rhs;
-                    builder.push(DslIR::Imm(*self, product));
+                    builder.push(DslIR::ImmV(*self, product));
                 }
                 (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs)) => {
                     builder.push(DslIR::MulVI(*self, *rhs, *lhs));
@@ -304,7 +314,7 @@ impl<N: Field> Var<N> {
             SymbolicVar::Sub(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs)) => {
                     let difference = *lhs - *rhs;
-                    builder.push(DslIR::Imm(*self, difference));
+                    builder.push(DslIR::ImmV(*self, difference));
                 }
                 (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs)) => {
                     builder.push(DslIR::SubVIN(*self, *lhs, *rhs));
@@ -352,7 +362,7 @@ impl<N: Field> Var<N> {
             SymbolicVar::Neg(operand) => match &*operand {
                 SymbolicVar::Const(operand) => {
                     let negated = -*operand;
-                    builder.push(DslIR::Imm(*self, negated));
+                    builder.push(DslIR::ImmV(*self, negated));
                 }
                 SymbolicVar::Val(operand) => {
                     builder.push(DslIR::SubVIN(*self, C::N::zero(), *operand));
@@ -493,7 +503,7 @@ impl<F: Field> Felt<F> {
         }
         match src {
             SymbolicFelt::Const(c) => {
-                builder.operations.push(DslIR::ImmFelt(*self, c));
+                builder.operations.push(DslIR::ImmF(*self, c));
             }
             SymbolicFelt::Val(v) => {
                 builder
@@ -503,7 +513,7 @@ impl<F: Field> Felt<F> {
             SymbolicFelt::Add(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
                     let sum = *lhs + *rhs;
-                    builder.operations.push(DslIR::ImmFelt(*self, sum));
+                    builder.operations.push(DslIR::ImmF(*self, sum));
                 }
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
                     builder.operations.push(DslIR::AddFI(*self, *rhs, *lhs));
@@ -551,7 +561,7 @@ impl<F: Field> Felt<F> {
             SymbolicFelt::Mul(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
                     let product = *lhs * *rhs;
-                    builder.push(DslIR::ImmFelt(*self, product));
+                    builder.push(DslIR::ImmF(*self, product));
                 }
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
                     builder.push(DslIR::MulFI(*self, *rhs, *lhs));
@@ -599,7 +609,7 @@ impl<F: Field> Felt<F> {
             SymbolicFelt::Sub(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
                     let difference = *lhs - *rhs;
-                    builder.push(DslIR::ImmFelt(*self, difference));
+                    builder.push(DslIR::ImmF(*self, difference));
                 }
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
                     builder.push(DslIR::SubFIN(*self, *lhs, *rhs));
@@ -647,7 +657,7 @@ impl<F: Field> Felt<F> {
             SymbolicFelt::Div(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
                     let quotient = *lhs / *rhs;
-                    builder.push(DslIR::ImmFelt(*self, quotient));
+                    builder.push(DslIR::ImmF(*self, quotient));
                 }
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
                     builder.push(DslIR::DivFIN(*self, *lhs, *rhs));
@@ -695,7 +705,7 @@ impl<F: Field> Felt<F> {
             SymbolicFelt::Neg(operand) => match &*operand {
                 SymbolicFelt::Const(operand) => {
                     let negated = -*operand;
-                    builder.push(DslIR::ImmFelt(*self, negated));
+                    builder.push(DslIR::ImmF(*self, negated));
                 }
                 SymbolicFelt::Val(operand) => {
                     builder.push(DslIR::SubFIN(*self, C::F::zero(), *operand));
@@ -841,7 +851,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                 SymbolicFelt::Const(c) => {
                     builder
                         .operations
-                        .push(DslIR::ImmExt(*self, C::EF::from_base(*c)));
+                        .push(DslIR::ImmE(*self, C::EF::from_base(*c)));
                 }
                 SymbolicFelt::Val(v) => {
                     builder
@@ -855,7 +865,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                 }
             },
             SymbolicExt::Const(c) => {
-                builder.operations.push(DslIR::ImmExt(*self, c));
+                builder.operations.push(DslIR::ImmE(*self, c));
             }
             SymbolicExt::Val(v) => {
                 builder
@@ -865,7 +875,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
             SymbolicExt::Add(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
                     let sum = *lhs + *rhs;
-                    builder.operations.push(DslIR::ImmExt(*self, sum));
+                    builder.operations.push(DslIR::ImmE(*self, sum));
                 }
                 (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
                     builder.operations.push(DslIR::AddEI(*self, *rhs, *lhs));
@@ -874,7 +884,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                     match rhs.as_ref() {
                         SymbolicFelt::Const(rhs) => {
                             let sum = *lhs + C::EF::from_base(*rhs);
-                            builder.operations.push(DslIR::ImmExt(*self, sum));
+                            builder.operations.push(DslIR::ImmE(*self, sum));
                         }
                         SymbolicFelt::Val(rhs) => {
                             builder.operations.push(DslIR::AddEFFI(*self, *rhs, *lhs));
@@ -945,7 +955,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
             SymbolicExt::Mul(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
                     let product = *lhs * *rhs;
-                    builder.push(DslIR::ImmExt(*self, product));
+                    builder.push(DslIR::ImmE(*self, product));
                 }
                 (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
                     builder.push(DslIR::MulEI(*self, *rhs, *lhs));
@@ -993,7 +1003,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
             SymbolicExt::Sub(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
                     let difference = *lhs - *rhs;
-                    builder.push(DslIR::ImmExt(*self, difference));
+                    builder.push(DslIR::ImmE(*self, difference));
                 }
                 (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
                     builder.push(DslIR::SubEIN(*self, *lhs, *rhs));
@@ -1040,7 +1050,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
             SymbolicExt::Div(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
                     let quotient = *lhs / *rhs;
-                    builder.push(DslIR::ImmExt(*self, quotient));
+                    builder.push(DslIR::ImmE(*self, quotient));
                 }
                 (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
                     builder.push(DslIR::DivEIN(*self, *lhs, *rhs));
@@ -1088,7 +1098,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
             SymbolicExt::Neg(operand) => match &*operand {
                 SymbolicExt::Const(operand) => {
                     let negated = -*operand;
-                    builder.push(DslIR::ImmExt(*self, negated));
+                    builder.push(DslIR::ImmE(*self, negated));
                 }
                 SymbolicExt::Val(operand) => {
                     builder.push(DslIR::NegE(*self, *operand));
@@ -1222,7 +1232,7 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
 impl<C: Config> FromConstant<C> for Var<C::N> {
     type Constant = C::N;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         builder.eval(value)
     }
 }
@@ -1230,7 +1240,7 @@ impl<C: Config> FromConstant<C> for Var<C::N> {
 impl<C: Config> FromConstant<C> for Felt<C::F> {
     type Constant = C::F;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         builder.eval(value)
     }
 }
@@ -1238,7 +1248,7 @@ impl<C: Config> FromConstant<C> for Felt<C::F> {
 impl<C: Config> FromConstant<C> for Ext<C::F, C::EF> {
     type Constant = C::EF;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         builder.eval(value.cons())
     }
 }

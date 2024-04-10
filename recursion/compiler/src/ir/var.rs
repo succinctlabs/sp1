@@ -29,12 +29,14 @@ pub struct MemIndex<N> {
 
 pub trait MemVariable<C: Config>: Variable<C> {
     fn size_of() -> usize;
+    /// Loads the variable from the heap.
     fn load(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>);
+    /// Stores the variable to the heap.
     fn store(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>);
 }
 
 pub trait FromConstant<C: Config> {
     type Constant;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self;
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self;
 }

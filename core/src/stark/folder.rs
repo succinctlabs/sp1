@@ -4,7 +4,7 @@ use std::{
 };
 
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
-use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder, PublicValuesBuilder};
+use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
     TwoRowMatrixView,
@@ -16,7 +16,7 @@ pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
     pub preprocessed: TwoRowMatrixView<'a, PackedVal<SC>>,
     pub main: TwoRowMatrixView<'a, PackedVal<SC>>,
     pub perm: TwoRowMatrixView<'a, PackedChallenge<SC>>,
-    pub perm_challenges: &'a [SC::Challenge],
+    pub perm_challenges: &'a [PackedChallenge<SC>],
     pub cumulative_sum: SC::Challenge,
     pub is_first_row: PackedVal<SC>,
     pub is_last_row: PackedVal<SC>,
@@ -79,11 +79,13 @@ impl<'a, SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'a,
 impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolder<'a, SC> {
     type MP = TwoRowMatrixView<'a, PackedChallenge<SC>>;
 
+    type RandomVar = PackedChallenge<SC>;
+
     fn permutation(&self) -> Self::MP {
         self.perm
     }
 
-    fn permutation_randomness(&self) -> &[Self::EF] {
+    fn permutation_randomness(&self) -> &[Self::RandomVar] {
         self.perm_challenges
     }
 }
@@ -104,8 +106,6 @@ impl<'a, SC: StarkGenericConfig> PairBuilder for ProverConstraintFolder<'a, SC> 
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
 
-impl<'a, SC: StarkGenericConfig> PublicValuesBuilder for ProverConstraintFolder<'a, SC> {}
-
 impl<'a, SC: StarkGenericConfig> AirBuilderWithPublicValues for ProverConstraintFolder<'a, SC> {
     type PublicVar = Self::F;
 
@@ -122,7 +122,7 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, Var, Expr> {
     pub preprocessed: TwoRowMatrixView<'a, Var>,
     pub main: TwoRowMatrixView<'a, Var>,
     pub perm: TwoRowMatrixView<'a, Var>,
-    pub perm_challenges: &'a [EF],
+    pub perm_challenges: &'a [Var],
     pub cumulative_sum: Var,
     pub is_first_row: Var,
     pub is_last_row: Var,
@@ -130,7 +130,7 @@ pub struct GenericVerifierConstraintFolder<'a, F, EF, Var, Expr> {
     pub alpha: Var,
     pub accumulator: Expr,
     pub public_values: &'a [F],
-    pub _marker: PhantomData<F>,
+    pub _marker: PhantomData<(F, EF)>,
 }
 
 impl<'a, F, EF, Var, Expr> AirBuilder for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
@@ -255,12 +255,13 @@ where
         + Mul<Expr, Output = Expr>,
 {
     type MP = TwoRowMatrixView<'a, Var>;
+    type RandomVar = Var;
 
     fn permutation(&self) -> Self::MP {
         self.perm
     }
 
-    fn permutation_randomness(&self) -> &[Self::EF] {
+    fn permutation_randomness(&self) -> &[Self::Var] {
         self.perm_challenges
     }
 }
@@ -329,34 +330,6 @@ where
 }
 
 impl<'a, F, EF, Var, Expr> EmptyMessageBuilder
-    for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
-where
-    F: Field,
-    EF: ExtensionField<F>,
-    Expr: AbstractField<F = EF>
-        + From<F>
-        + Add<Var, Output = Expr>
-        + Add<F, Output = Expr>
-        + Sub<Var, Output = Expr>
-        + Sub<F, Output = Expr>
-        + Mul<Var, Output = Expr>
-        + Mul<F, Output = Expr>
-        + MulAssign<EF>,
-    Var: Into<Expr>
-        + Copy
-        + Add<F, Output = Expr>
-        + Add<Var, Output = Expr>
-        + Add<Expr, Output = Expr>
-        + Sub<F, Output = Expr>
-        + Sub<Var, Output = Expr>
-        + Sub<Expr, Output = Expr>
-        + Mul<F, Output = Expr>
-        + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
-{
-}
-
-impl<'a, F, EF, Var, Expr> PublicValuesBuilder
     for GenericVerifierConstraintFolder<'a, F, EF, Var, Expr>
 where
     F: Field,

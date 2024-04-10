@@ -56,6 +56,7 @@ pub enum Opcode {
     HintLen = 37,
     Hint = 38,
     Poseidon2Compress = 39,
+    BNEINC = 40,
 }
 
 impl Opcode {

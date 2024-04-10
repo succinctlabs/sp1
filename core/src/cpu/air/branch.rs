@@ -44,12 +44,18 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.pc.reduce::<AB>(), local.pc);
 
-            // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
+            // When we are branching, assert that next.pc <==> branch_columns.next_pc as Word.
             builder
                 .when_transition()
                 .when(next.is_real)
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
+
+            // When the current row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
+            builder
+                .when(local.is_real)
+                .when(local.branching)
+                .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_alu(
@@ -67,6 +73,15 @@ impl CpuChip {
                 .when(next.is_real)
                 .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+            // When local.not_branching is true, assert that local.is_real is true.
+            builder.when(local.not_branching).assert_one(local.is_real);
+
+            // When the last row is real and local.not_branching, assert that local.pc + 4 <==> local.next_pc.
+            builder
+                .when(local.is_real)
+                .when(local.not_branching)
+                .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
         }
 
         // Evaluate branching value constraints.

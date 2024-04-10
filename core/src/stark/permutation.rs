@@ -9,11 +9,11 @@ use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
-pub fn generate_interaction_rlc_elements<F: Field, EF: AbstractExtensionField<F>>(
+pub fn generate_interaction_rlc_elements<F: Field, AF: AbstractField>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
-    random_element: EF,
-) -> Vec<EF> {
+    random_element: AF,
+) -> Vec<AF> {
     let n = sends
         .iter()
         .chain(receives.iter())
@@ -211,7 +211,8 @@ pub fn eval_permutation_constraints<F, AB>(
     AB: MultiTableAirBuilder<F = F> + PairBuilder,
 {
     let random_elements = builder.permutation_randomness();
-    let (alpha, beta) = (random_elements[0], random_elements[1]);
+    let (alpha, beta): (AB::ExprEF, AB::ExprEF) =
+        (random_elements[0].into(), random_elements[1].into());
 
     let main = builder.main();
     let main_local: &[AB::Var] = main.row_slice(0);
@@ -245,9 +246,9 @@ pub fn eval_permutation_constraints<F, AB>(
             let mut rlc = AB::ExprEF::zero();
             for (field, beta) in interaction.values.iter().zip(betas.clone()) {
                 let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
-                rlc += AB::ExprEF::from_f(beta) * elem;
+                rlc += beta * elem;
             }
-            rlc += AB::ExprEF::from_f(alphas[interaction.argument_index()]);
+            rlc += alphas[interaction.argument_index()].clone();
             rlcs.push(rlc);
 
             let send_factor = if is_send { AB::F::one() } else { -AB::F::one() };

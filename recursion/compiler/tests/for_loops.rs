@@ -197,3 +197,31 @@ fn test_compiler_step_by() {
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }
+
+#[test]
+fn test_compiler_bneinc() {
+    type SC = BabyBearPoseidon2;
+    type F = <SC as StarkGenericConfig>::Val;
+    type EF = <SC as StarkGenericConfig>::Challenge;
+    let mut builder = VmBuilder::<F, EF>::default();
+
+    let n_val = BabyBear::from_canonical_u32(20);
+
+    let zero: Var<_> = builder.eval(F::zero());
+    let n: Var<_> = builder.eval(n_val);
+
+    let i_counter: Var<_> = builder.eval(F::zero());
+    builder.range(zero, n).step_by(1).for_each(|_, builder| {
+        builder.assign(i_counter, i_counter + F::one());
+    });
+
+    let code = builder.clone().compile_to_asm();
+
+    println!("{}", code);
+
+    let program = builder.compile();
+
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+    runtime.run();
+}
