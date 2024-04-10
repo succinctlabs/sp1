@@ -217,7 +217,7 @@ where
             main_data,
             chip_ordering,
             index,
-            public_values: shard.serialized_public_values(),
+            public_values: shard.public_values(),
         }
     }
 

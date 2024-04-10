@@ -15,5 +15,5 @@ pub trait MachineRecord: Default + Sized + Send + Sync {
 
     fn shard(self, config: &Self::Config) -> Vec<Self>;
 
-    fn serialized_public_values<F: AbstractField>(&self) -> Vec<F>;
+    fn public_values<F: AbstractField>(&self) -> Vec<F>;
 }

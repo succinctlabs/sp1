@@ -474,8 +474,8 @@ impl MachineRecord for ExecutionRecord {
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
     /// the public values digest is used by the prover.
-    fn serialized_public_values<F: AbstractField>(&self) -> Vec<F> {
-        self.public_values.to_field_elms()
+    fn public_values<F: AbstractField>(&self) -> Vec<F> {
+        self.public_values.to_vec()
     }
 }
 

@@ -379,7 +379,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
-                        shard.serialized_public_values(),
+                        shard.public_values(),
                     );
                 }
             });

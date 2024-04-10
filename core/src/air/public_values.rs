@@ -1,4 +1,4 @@
-use crate::stark::MAX_NUM_PUBLIC_VALUES;
+use crate::stark::PROOF_MAX_NUM_PVS;
 
 use super::Word;
 use core::fmt::Debug;
@@ -29,7 +29,9 @@ pub struct PublicValues<W, T> {
 }
 
 impl PublicValues<u32, u32> {
-    pub fn to_field_elms<F: AbstractField>(&self) -> Vec<F> {
+    /// Convert the public values into a vector of field elements.  This function will pad the vector
+    /// to the maximum number of public values.
+    pub fn to_vec<F: AbstractField>(&self) -> Vec<F> {
         let mut ret = self
             .committed_value_digest
             .iter()
@@ -41,18 +43,19 @@ impl PublicValues<u32, u32> {
             .collect_vec();
 
         assert!(
-            ret.len() <= MAX_NUM_PUBLIC_VALUES,
+            ret.len() <= PROOF_MAX_NUM_PVS,
             "Too many public values: {}",
             ret.len()
         );
 
-        ret.resize(MAX_NUM_PUBLIC_VALUES, F::zero());
+        ret.resize(PROOF_MAX_NUM_PVS, F::zero());
 
         ret
     }
 }
 
-impl<T: Clone + Debug> PublicValues<Word<T>, T> {
+impl<F: PrimeField32> PublicValues<Word<F>, F> {
+    /// Convert a vector of field elements into a PublicValues struct.
     pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
@@ -61,11 +64,11 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
             committed_value_digest.push(Word::from_iter(&mut iter));
         }
 
-        // Collecting the remaining items into a tuple.
-        let binding = iter.collect_vec();
-        let remaining_items = binding.as_slice();
+        // Collecting the remaining items into a tuple.  Note that it is only getting the first
+        // four items, as the rest would be padded values.
+        let remaining_items = iter.collect_vec().as_slice()[..4];
 
-        if let [shard, first_row_pc, last_row_next_pc, exit_code] = &remaining_items[..4] {
+        if let [shard, first_row_pc, last_row_next_pc, exit_code] = &remaining_items {
             Self {
                 committed_value_digest: committed_value_digest.try_into().unwrap(),
                 shard: shard.to_owned(),
@@ -77,9 +80,8 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
             panic!("Invalid number of items in the serialized vector.");
         }
     }
-}
 
-impl<F: PrimeField32> PublicValues<Word<F>, F> {
+    /// Retrieve the commitment digest from a serialized PublicValues struct.
     pub fn deserialize_commitment_digest(data: Vec<F>) -> Vec<u8> {
         let serialized_pv = PublicValues::<Word<F>, F>::from_vec(data);
         serialized_pv

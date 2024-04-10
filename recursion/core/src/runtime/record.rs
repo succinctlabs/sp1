@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
-use sp1_core::stark::{MachineRecord, MAX_NUM_PUBLIC_VALUES};
+use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
 use std::collections::HashMap;
 
 use super::{Program, DIGEST_SIZE};
@@ -48,7 +48,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         vec![self]
     }
 
-    fn serialized_public_values<T: AbstractField>(&self) -> Vec<T> {
+    fn public_values<T: AbstractField>(&self) -> Vec<T> {
         self.public_values_digest.to_field_elms()
     }
 }
@@ -71,12 +71,12 @@ impl<F: PrimeField32> RecursivePublicValues<F> {
             .collect();
 
         assert!(
-            ret.len() <= MAX_NUM_PUBLIC_VALUES,
+            ret.len() <= PROOF_MAX_NUM_PVS,
             "Too many public values: {}",
             ret.len()
         );
 
-        ret.resize(MAX_NUM_PUBLIC_VALUES, T::zero());
+        ret.resize(PROOF_MAX_NUM_PVS, T::zero());
 
         ret
     }

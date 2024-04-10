@@ -5,7 +5,7 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::AirOpenedValues;
-use sp1_core::stark::MAX_NUM_PUBLIC_VALUES;
+use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Felt;
@@ -60,7 +60,7 @@ where
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
 
         let mut folder_pv = Vec::new();
-        for i in 0..MAX_NUM_PUBLIC_VALUES {
+        for i in 0..PROOF_MAX_NUM_PVS {
             folder_pv.push(builder.get(&public_values, i));
         }
 

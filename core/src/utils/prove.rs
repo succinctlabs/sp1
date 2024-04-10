@@ -163,7 +163,7 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            public_values = runtime.record.serialized_public_values();
+            public_values = runtime.record.public_values();
             return std::mem::take(&mut runtime.state.public_values_stream);
         }
     });
@@ -194,7 +194,7 @@ where
 
         for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
-            challenger.observe_slice(&shard.serialized_public_values::<SC::Val>());
+            challenger.observe_slice(&shard.public_values::<SC::Val>());
         }
     }
 

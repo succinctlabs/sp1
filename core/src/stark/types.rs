@@ -120,7 +120,7 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
-pub const MAX_NUM_PUBLIC_VALUES: usize = 64;
+pub const PROOF_MAX_NUM_PVS: usize = 64;
 
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]

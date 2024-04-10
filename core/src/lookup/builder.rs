@@ -1,6 +1,6 @@
 use crate::{
     air::{AirInteraction, MessageBuilder},
-    stark::MAX_NUM_PUBLIC_VALUES,
+    stark::PROOF_MAX_NUM_PVS,
 };
 use p3_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
@@ -39,14 +39,12 @@ impl<F: Field> InteractionBuilder<F> {
             })
             .collect();
 
-        let empty_pv = [F::zero(); MAX_NUM_PUBLIC_VALUES];
-
         Self {
             preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),
             main: RowMajorMatrix::new(main_values, main_width),
             sends: vec![],
             receives: vec![],
-            public_values: empty_pv.to_vec(),
+            public_values: vec![F::zero(); PROOF_MAX_NUM_PVS],
         }
     }
 
