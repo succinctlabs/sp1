@@ -12,8 +12,8 @@ fn test_compiler_public_values() {
     type EF = <SC as StarkGenericConfig>::Challenge;
     let mut builder = VmBuilder::<F, EF>::default();
 
-    let a: Felt<_> = builder.eval_const(F::from_canonical_u32(10));
-    let b: Felt<_> = builder.eval_const(F::from_canonical_u32(20));
+    let a: Felt<_> = builder.constant(F::from_canonical_u32(10));
+    let b: Felt<_> = builder.constant(F::from_canonical_u32(20));
 
     let dyn_len: Var<_> = builder.eval(F::from_canonical_usize(2));
     let mut var_array = builder.dyn_array::<Felt<_>>(dyn_len);
