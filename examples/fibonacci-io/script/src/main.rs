@@ -1,5 +1,4 @@
 use sha2::{Digest, Sha256};
-use sp1_core::air::PublicValues;
 use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 /// The ELF we want to execute inside the zkVM.
@@ -51,7 +50,8 @@ fn main() {
         .public_values
         .clone();
 
-    let proof_pv_bytes: Vec<u8> = PublicValues::deserialize_commitment_digest(last_public_values);
+    let proof_pv_bytes: Vec<u8> =
+        utils::PublicValues::deserialize_commitment_digest(last_public_values);
     assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
 
     // Save the proof.
