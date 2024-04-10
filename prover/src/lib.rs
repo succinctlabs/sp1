@@ -131,8 +131,6 @@ impl SP1ProverImpl {
 
         let mut reconstruct_challenger = sp1_machine.config().challenger();
         reconstruct_challenger.observe(sp1_vk.commit);
-        let mut recursion_challenger = recursion_machine.config().challenger();
-        recursion_challenger.observe(self.reduce_vk.commit);
 
         let (prep_sorted_indices, prep_domains): (
             Vec<usize>,
@@ -154,7 +152,6 @@ impl SP1ProverImpl {
         witness_stream.extend(sorted_indices.write());
         witness_stream.extend(sp1_challenger.write());
         witness_stream.extend(reconstruct_challenger.write());
-        witness_stream.extend(recursion_challenger.write());
         witness_stream.extend(prep_sorted_indices.write());
         witness_stream.extend(prep_domains.write());
         witness_stream.extend(recursion_prep_sorted_indices.write());
@@ -193,7 +190,6 @@ impl SP1ProverImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::process::exit;
 
     use super::*;
     use sp1_core::{
@@ -244,13 +240,13 @@ mod tests {
                 is_recursive: false,
             })
             .collect::<Vec<_>>();
-        let n = 3;
+        let n = 2;
         let mut layer = 0;
 
         // let sp1_challenger = sp1_machine.config().challenger();
-        let mut reduce_proofs: Vec<ReduceProof> =
-            bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
-        layer = 1;
+        // let mut reduce_proofs: Vec<ReduceProof> =
+        //     bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
+        // layer = 1;
 
         while reduce_proofs.len() > 1 {
             // Write layer to {i}.bin with bincode
@@ -259,6 +255,10 @@ mod tests {
             let mut next_proofs = Vec::new();
             for i in (0..reduce_proofs.len()).step_by(n) {
                 let end = std::cmp::min(i + n, reduce_proofs.len());
+                if i == end - 1 {
+                    next_proofs.push(reduce_proofs.pop().unwrap());
+                    continue;
+                }
                 let proofs = &reduce_proofs[i..end];
                 let proof = prover.reduce(&vk, sp1_challenger.clone(), proofs);
                 let recursion_machine = RecursionAir::machine(BabyBearPoseidon2::default());

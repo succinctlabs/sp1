@@ -196,6 +196,11 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIR::Break);
     }
 
+    pub fn print_debug(&mut self, val: usize) {
+        let constant = self.eval(C::N::from_canonical_usize(val));
+        self.print_v(constant);
+    }
+
     /// Print a variable.
     pub fn print_v(&mut self, dst: Var<C::N>) {
         self.operations.push(DslIR::PrintV(dst));
@@ -245,7 +250,6 @@ impl<C: Config> Builder<C> {
     /// Hint a vector of variables.
     pub fn hint_vars(&mut self) -> Array<C, Var<C::N>> {
         let len = self.hint_len();
-        self.print_v(len);
         let arr = self.dyn_array(len);
         self.operations.push(DslIR::HintVars(arr.clone()));
         arr

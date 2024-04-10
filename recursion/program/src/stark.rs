@@ -220,8 +220,6 @@ where
         builder.set(&mut rounds, 3, quotient_round);
 
         // Verify the pcs proof
-        let code = builder.constant(C::N::from_canonical_u32(1002));
-        builder.print_v(code);
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
@@ -241,8 +239,6 @@ where
                         builder.get(&quotient_domains, index);
                     let qc_domains =
                         quotient_domain.split_domains(builder, chip.log_quotient_degree());
-                    let code = builder.constant(C::N::from_canonical_u32(1003));
-                    builder.print_v(code);
                     Self::verify_constraints(
                         builder,
                         chip,
