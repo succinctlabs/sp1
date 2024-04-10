@@ -32,6 +32,9 @@ pub const HASH_RATE: usize = 8;
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
 pub const DIGEST_SIZE: usize = 8;
 
+/// The max size of the public values buffer
+pub const PV_BUFFER_MAX_SIZE: usize = 1024;
+
 pub const NUM_BITS: usize = 31;
 
 pub const D: usize = 4;
@@ -76,7 +79,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub pc: F,
 
     /// The program.
-    pub program: Program<F>,
+    pub program: RecursionProgram<F>,
 
     /// Memory.
     pub memory: Vec<MemoryEntry<F>>,
@@ -114,7 +117,7 @@ where
     >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
     pub fn new(
-        program: &Program<F>,
+        program: &RecursionProgram<F>,
         perm: Poseidon2<
             F,
             Poseidon2ExternalMatrixGeneral,
@@ -149,7 +152,7 @@ where
         }
     }
 
-    pub fn new_no_perm(program: &Program<F>) -> Self {
+    pub fn new_no_perm(program: &RecursionProgram<F>) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
             ..Default::default()
@@ -670,6 +673,19 @@ where
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::Commit => {
+                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+                    let b_val = Block::<F>::default();
+                    let c_val = Block::<F>::default();
+
+                    let hash_ptr = a_val[0].as_canonical_u32() as usize;
+
+                    for i in 0..DIGEST_SIZE {
+                        self.record.public_values_digest[i] = self.memory[hash_ptr + i].value[0];
+                    }
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
             };
 
             let event = CpuEvent {
@@ -716,7 +732,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, RecursionProgram, Runtime};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -727,7 +743,7 @@ mod tests {
     fn test_witness() {
         let zero = F::zero();
         let zero_block = [F::zero(); 4];
-        let program = Program {
+        let program = RecursionProgram {
             instructions: vec![
                 Instruction::new(
                     Opcode::HintLen,

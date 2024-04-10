@@ -25,14 +25,14 @@ use p3_symmetric::TruncatedPermutation;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
+use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::asm::VmBuilder;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_core::runtime::Program as RecursionProgram;
+use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
 use sp1_recursion_core::stark::RecursionAir;
@@ -97,7 +97,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     let recursion_machine = RecursionAir::machine(SC::default());
 
     let time = Instant::now();
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
     let config = const_fri_config(&mut builder, inner_fri_config());
     let pcs = TwoAdicFriPcsVariable { config };
 
@@ -127,8 +127,6 @@ pub fn build_reduce() -> RecursionProgram<Val> {
         recursion_challenger.observe(&mut builder, element);
     }
 
-    let _start_shard = builder.get(&proofs, 0).public_values.shard;
-
     builder
         .range(Usize::Const(0), num_proofs)
         .for_each(|i, builder| {
@@ -138,7 +136,8 @@ pub fn build_reduce() -> RecursionProgram<Val> {
             builder.if_eq(is_recursive, zero).then_or_else(
                 // Non-recursive proof
                 |builder| {
-                    let shard = felt_to_var(builder, proof.public_values.shard);
+                    let shard_f = builder.get(&proof.public_values, 32);
+                    let shard = felt_to_var(builder, shard_f);
                     // First shard logic
                     builder.if_eq(shard, one).then(|builder| {
                         // Initialize the current challenger
@@ -153,8 +152,9 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         let element = builder.get(&proof.commitment.main_commit, j);
                         reconstruct_challenger.observe(builder, element);
                     }
-                    let public_values = proof.public_values.to_vec(builder);
-                    reconstruct_challenger.observe_slice(builder, &public_values);
+                    // TODO: fix public values observe
+                    // let public_values = proof.public_values.to_vec(builder);
+                    // reconstruct_challenger.observe_slice(builder, &public_values);
 
                     // Verify proof with copy of witnessed challenger
                     let mut current_challenger = sp1_challenger.as_clone(builder);
@@ -180,8 +180,10 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         let element = builder.get(&proof.commitment.main_commit, j);
                         current_challenger.observe(builder, element);
                     }
-                    let public_values = proof.public_values.to_vec(builder);
-                    current_challenger.observe_slice(builder, &public_values);
+                    builder.range(0, proof.public_values.len()).for_each(|j, builder| {
+                        let element = builder.get(&proof.public_values, j);
+                        current_challenger.observe(builder, element);
+                    });
                     // Verify the proof
                     StarkVerifier::<C, SC>::verify_shard(
                         builder,
@@ -212,7 +214,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
 
-    let program = builder.compile();
+    let program = builder.compile_program();
     let elapsed = time.elapsed();
     println!("Building took: {:?}", elapsed);
     program

@@ -1,5 +1,3 @@
-use crate::air::{PublicValues, Word};
-
 use super::folder::ProverConstraintFolder;
 use super::Chip;
 use super::Domain;
@@ -29,7 +27,7 @@ pub fn quotient_values<SC, A, Mat>(
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[PackedChallenge<SC>],
     alpha: SC::Challenge,
-    public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
+    public_values: Vec<Val<SC>>,
 ) -> Vec<SC::Challenge>
 where
     A: for<'a> Air<ProverConstraintFolder<'a, SC>>,

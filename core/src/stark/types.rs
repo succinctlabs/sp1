@@ -12,8 +12,6 @@ use size::Size;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
-use crate::air::PublicValues;
-
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
@@ -27,7 +25,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub index: usize,
-    pub public_values: PublicValues<u32, u32>,
+    pub public_values: Vec<SC::Val>,
 }
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
@@ -37,7 +35,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_data: PcsProverData<SC>,
         chip_ordering: HashMap<String, usize>,
         index: usize,
-        public_values: PublicValues<u32, u32>,
+        public_values: Vec<Val<SC>>,
     ) -> Self {
         Self {
             traces,
@@ -122,6 +120,8 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
+pub const PROOF_MAX_NUM_PVS: usize = 64;
+
 #[derive(Serialize, Deserialize)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
@@ -130,7 +130,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub public_values: PublicValues<u32, u32>,
+    pub public_values: Vec<Val<SC>>,
 }
 
 impl<SC: StarkGenericConfig> Clone for ShardProof<SC>
@@ -144,7 +144,7 @@ where
             opened_values: self.opened_values.clone(),
             opening_proof: self.opening_proof.clone(),
             chip_ordering: self.chip_ordering.clone(),
-            public_values: self.public_values,
+            public_values: self.public_values.clone(),
         }
     }
 }

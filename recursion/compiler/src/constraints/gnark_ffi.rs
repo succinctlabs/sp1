@@ -6,7 +6,7 @@ use std::{
 
 use super::Constraint;
 
-pub fn test_circuit(constraints: Vec<Constraint>) {
+pub fn execute(constraints: Vec<Constraint>) {
     let serialized = serde_json::to_string(&constraints).unwrap();
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let dir = format!("{}/../groth16", manifest_dir);

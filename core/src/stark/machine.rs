@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::{MachineAir, PublicValues, Word};
+use crate::air::MachineAir;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -257,10 +257,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
-                let public_values =
-                    PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values);
-                println!("{:?}", public_values.to_vec());
-                challenger.observe_slice(&public_values.to_vec());
+                challenger.observe_slice(&proof.public_values);
             });
         });
 
@@ -383,7 +380,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
-                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
+                        shard.public_values(),
                     );
                 }
             });

@@ -244,9 +244,9 @@ pub mod tests {
     use rand::rngs::OsRng;
     use serial_test::serial;
     use sp1_recursion_compiler::{
-        constraints::{gnark_ffi, ConstraintBackend},
+        config::OuterConfig,
+        constraints::{gnark_ffi, ConstraintCompiler},
         ir::{Builder, Ext, Felt, SymbolicExt, Var},
-        OuterConfig,
     };
     use sp1_recursion_core::stark::config::{
         outer_fri_config, outer_perm, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
@@ -483,9 +483,9 @@ pub mod tests {
             );
         }
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        gnark_ffi::execute(constraints);
     }
 
     #[test]
@@ -557,8 +557,8 @@ pub mod tests {
         challenger.sample_ext(&mut builder);
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        gnark_ffi::execute(constraints);
     }
 }

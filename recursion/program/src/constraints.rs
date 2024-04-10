@@ -5,7 +5,10 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::AirOpenedValues;
+use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
+use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::prelude::Config;
 use sp1_recursion_compiler::prelude::ExtConst;
 use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
@@ -16,7 +19,6 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifier;
 use crate::types::ChipOpenedValuesVariable;
 use crate::types::ChipOpening;
-use crate::types::PublicValuesVariable;
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -27,7 +29,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpening<C>,
-        public_values: PublicValuesVariable<C>,
+        public_values: Array<C, Felt<C::F>>,
         selectors: &LagrangeSelectors<Ext<C::F, C::EF>>,
         alpha: Ext<C::F, C::EF>,
         permutation_challenges: &[Ext<C::F, C::EF>],
@@ -54,7 +56,12 @@ where
         };
 
         let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-        let public_values_felt = public_values.to_vec(builder);
+
+        let mut folder_pv = Vec::new();
+        for i in 0..PROOF_MAX_NUM_PVS {
+            folder_pv.push(builder.get(&public_values, i));
+        }
+
         let mut folder = RecursiveVerifierConstraintFolder {
             builder,
             preprocessed: opening.preprocessed.view(),
@@ -62,7 +69,7 @@ where
             perm: perm_opening.view(),
             perm_challenges: permutation_challenges,
             cumulative_sum: opening.cumulative_sum,
-            public_values: &public_values_felt,
+            public_values: &folder_pv,
             is_first_row: selectors.is_first_row,
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
@@ -124,7 +131,7 @@ where
         builder: &mut Builder<C>,
         chip: &MachineChip<SC, A>,
         opening: &ChipOpenedValuesVariable<C>,
-        public_values: PublicValuesVariable<C>,
+        public_values: Array<C, Felt<C::F>>,
         trace_domain: TwoAdicMultiplicativeCosetVariable<C>,
         qc_domains: Vec<TwoAdicMultiplicativeCosetVariable<C>>,
         zeta: Ext<C::F, C::EF>,
@@ -158,7 +165,6 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::{PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -170,8 +176,9 @@ mod tests {
     use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::{AbstractField, PrimeField32};
-    use sp1_recursion_compiler::{asm::VmBuilder, ir::Felt, prelude::ExtConst};
+    use p3_field::PrimeField32;
+    use sp1_recursion_compiler::prelude::Array;
+    use sp1_recursion_compiler::{asm::AsmBuilder, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
 
@@ -179,7 +186,7 @@ mod tests {
         commit::PolynomialSpaceVariable,
         fri::TwoAdicMultiplicativeCosetVariable,
         stark::StarkVerifier,
-        types::{ChipOpenedValuesVariable, ChipOpening, PublicValuesVariable},
+        types::{ChipOpenedValuesVariable, ChipOpening},
     };
 
     #[allow(clippy::type_complexity)]
@@ -297,12 +304,11 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger.observe_slice(&public_values_field.to_vec());
+            challenger.observe_slice(&proof.public_values);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         for proof in proof.shard_proofs.into_iter().take(1) {
             let (
@@ -315,25 +321,7 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values.
-            let pv_shard = builder.eval(F::from_canonical_u32(proof.public_values.shard));
-            let pv_start_pc = builder.eval(F::from_canonical_u32(proof.public_values.start_pc));
-            let pv_next_pc = builder.eval(F::from_canonical_u32(proof.public_values.next_pc));
-            let pv_exit_code = builder.eval(F::from_canonical_u32(proof.public_values.exit_code));
-            let mut pv_committed_value_digest = builder.dyn_array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
-            for i in 0..PV_DIGEST_NUM_WORDS {
-                let word_val: Word<F> = Word::from(proof.public_values.committed_value_digest[i]);
-                for j in 0..WORD_SIZE {
-                    let word_val: Felt<_> = builder.eval(word_val[j]);
-                    builder.set(&mut pv_committed_value_digest, i * WORD_SIZE + j, word_val);
-                }
-            }
-            let public_values = PublicValuesVariable {
-                committed_values_digest: pv_committed_value_digest,
-                shard: pv_shard,
-                start_pc: pv_start_pc,
-                next_pc: pv_next_pc,
-                exit_code: pv_exit_code,
-            };
+            let public_values: Array<_, Felt<F>> = builder.constant(proof.public_values.clone());
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -349,7 +337,7 @@ mod tests {
                     &sels_val,
                     alpha_val,
                     &permutation_challenges,
-                    PublicValues::<Word<F>, F>::new(proof.public_values),
+                    proof.public_values.clone(),
                 );
 
                 // Compute the folded constraints value in the DSL.
@@ -404,7 +392,7 @@ mod tests {
             }
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
         runtime.run();
@@ -440,12 +428,11 @@ mod tests {
 
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger.observe_slice(&public_values_field.to_vec());
+            challenger.observe_slice(&proof.public_values);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         for proof in proof.shard_proofs.into_iter().take(1) {
             let (
@@ -467,7 +454,8 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.constant(trace_domain_val);
-                let public_values = builder.constant(proof.public_values);
+                let public_values = builder.constant(proof.public_values.clone());
+
                 let qc_domains = qc_domains_vals
                     .iter()
                     .map(|domain| builder.constant(*domain))
@@ -492,7 +480,7 @@ mod tests {
             }
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
         runtime.run();

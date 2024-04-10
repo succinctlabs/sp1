@@ -16,7 +16,7 @@ use sp1_core::{
     utils::{run_and_prove, BabyBearPoseidon2},
 };
 use sp1_recursion_core::{
-    runtime::{Program as RecursionProgram, Runtime},
+    runtime::{RecursionProgram, Runtime},
     stark::RecursionAir,
 };
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce, stark::EMPTY};
@@ -92,7 +92,10 @@ impl SP1ProverImpl {
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
+        let start = Instant::now();
         let (proof, _) = run_and_prove(program, stdin, config);
+        let duration = start.elapsed().as_secs_f64();
+        println!("leaf proving time = {:?}", duration);
         let mut challenger_ver = machine.config().challenger();
         machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         proof
@@ -179,7 +182,7 @@ impl SP1ProverImpl {
         let mut challenger = machine.config().challenger();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
         let duration = start.elapsed().as_secs();
-        println!("proving duration = {}", duration);
+        println!("recursion duration = {}", duration);
 
         // let mut challenger = machine.config().challenger();
         // machine.verify(&vk, &proof, &mut challenger).unwrap();
@@ -193,12 +196,12 @@ mod tests {
 
     use super::*;
     use sp1_core::{
-        air::{PublicValues, Word},
         utils::setup_logger,
     };
     #[test]
     fn test_prove_sp1() {
         setup_logger();
+        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
         let prover = SP1ProverImpl::new();
 
         // let proofs: Vec<ReduceProof> =
@@ -216,7 +219,7 @@ mod tests {
         // exit(0);
 
         let elf =
-            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
         let proof = SP1ProverImpl::prove(elf, &stdin);
 
@@ -227,9 +230,7 @@ mod tests {
         sp1_challenger.observe(vk.commit);
         for shard_proof in proof.shard_proofs.iter() {
             sp1_challenger.observe(shard_proof.commitment.main_commit);
-            let public_values =
-                PublicValues::<Word<BabyBear>, BabyBear>::new(shard_proof.public_values);
-            sp1_challenger.observe_slice(&public_values.to_vec());
+            sp1_challenger.observe_slice(&shard_proof.public_values.to_vec());
         }
 
         let mut reduce_proofs = proof
