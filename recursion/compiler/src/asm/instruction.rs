@@ -152,7 +152,6 @@ pub enum AsmInstruction<F, EF> {
     Hint(i32),
     // FRIFold(m, input) specific instructions.
     FriFold(i32, i32),
-
     Commit(i32),
 }
 

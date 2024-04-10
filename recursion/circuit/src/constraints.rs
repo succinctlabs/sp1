@@ -164,7 +164,7 @@ where
 #[cfg(test)]
 mod tests {
 
-    use itertools::{izip, Itertools};
+    use itertools::izip;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
@@ -344,7 +344,7 @@ mod tests {
                     &mut builder,
                     chip,
                     &opening,
-                    pv_array,
+                    public_values,
                     trace_domain,
                     qc_domains,
                     zeta,

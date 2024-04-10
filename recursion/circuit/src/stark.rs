@@ -272,12 +272,7 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let public_values = proof
-            .public_values
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect_vec();
-        let pv_array = builder.vec(public_values);
+        let public_values = builder.constant(proof.public_values.clone());
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
@@ -328,7 +323,7 @@ pub(crate) mod tests {
             opened_values,
             opening_proof,
             sorted_chips: chips,
-            public_values: pv_array,
+            public_values,
             sorted_indices,
         }
     }
