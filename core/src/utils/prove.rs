@@ -2,7 +2,6 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
-use crate::air::{PublicValues, Word};
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -150,7 +149,7 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut public_values: PublicValues<u32, u32> = Default::default();
+    let mut public_values: Vec<SC::Val> = Vec::new();
     let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
@@ -195,8 +194,7 @@ where
 
         for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
-            let public_values = PublicValues::<Word<SC::Val>, SC::Val>::new(shard.public_values());
-            challenger.observe_slice(&public_values.to_vec());
+            challenger.observe_slice(&shard.public_values::<SC::Val>());
         }
     }
 

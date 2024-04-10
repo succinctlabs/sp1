@@ -546,6 +546,14 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         _ => unimplemented!(),
                     }
                 }
+
+                DslIr::Commit(pv_hash) => {
+                    if let Array::Dyn(pv_hash, _) = pv_hash {
+                        self.push(AsmInstruction::Commit(pv_hash.fp()));
+                    } else {
+                        unimplemented!();
+                    }
+                }
                 _ => unimplemented!(),
             }
         }

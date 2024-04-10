@@ -228,34 +228,34 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
 
+    use crate::types::{
+        ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
+        RecursionShardProofVariable,
+    };
     use crate::{
         challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
         stark::StarkVerifierCircuit,
     };
+    use itertools::Itertools;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::CanObserve;
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::{
-        air::{MachineAir, PublicValues, Word},
+        air::MachineAir,
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::{gnark_ffi, ConstraintCompiler},
         ir::{Builder, Config},
+        prelude::{Array, Felt},
     };
     use sp1_recursion_core::{
         cpu::Instruction,
         runtime::{Opcode, RecursionProgram, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
-    };
-    use sp1_recursion_program::types::PublicValuesVariable;
-
-    use crate::types::{
-        ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
-        RecursionShardProofVariable,
     };
 
     type SC = BabyBearPoseidon2Outer;
@@ -273,8 +273,12 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let public_values: PublicValuesVariable<OuterConfig> =
-            builder.constant(proof.public_values);
+        let pv_felts = proof
+            .public_values
+            .iter()
+            .map(|v| builder.eval::<Felt<F>, F>(*v))
+            .collect_vec();
+        let public_values: Array<C, Felt<F>> = builder.vec(pv_felts);
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
@@ -379,8 +383,7 @@ pub(crate) mod tests {
         challenger_val.observe(vk.commit);
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger_val.observe_slice(&public_values_field.to_vec());
+            challenger_val.observe_slice(&proof.public_values);
         });
 
         let mut builder = Builder::<OuterConfig>::default();
@@ -395,8 +398,7 @@ pub(crate) mod tests {
             let proof = const_proof(&mut builder, &machine, proof_val);
             let ShardCommitment { main_commit, .. } = &proof.commitment;
             challenger.observe_commitment(&mut builder, *main_commit);
-            let public_values_elms = proof.public_values.to_vec(&mut builder);
-            challenger.observe_slice(&mut builder, &public_values_elms);
+            challenger.observe_slice(&mut builder, proof.public_values.clone());
             shard_proofs.push(proof);
         }
 
