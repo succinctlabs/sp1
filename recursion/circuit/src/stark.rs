@@ -236,6 +236,7 @@ pub(crate) mod tests {
         challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
         stark::StarkVerifierCircuit,
     };
+    use itertools::Itertools;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::CanObserve;
@@ -248,6 +249,7 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::{
         constraints::{gnark_ffi, ConstraintBackend},
         ir::{Builder, Config},
+        prelude::{Array, Felt},
         OuterConfig,
     };
     use sp1_recursion_core::{
@@ -271,7 +273,12 @@ pub(crate) mod tests {
         C: Config<F = F, EF = EF>,
     {
         // Set up the public values.
-        let public_values = builder.constant(proof.public_values.clone());
+        let pv_felts = proof
+            .public_values
+            .iter()
+            .map(|v| builder.eval::<Felt<F>, F>(*v))
+            .collect_vec();
+        let public_values: Array<C, Felt<F>> = builder.vec(pv_felts);
 
         // Set up the commitments.
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
-use sp1_core::stark::MachineRecord;
+use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
 use std::collections::HashMap;
 
 use super::{Program, DIGEST_SIZE};
@@ -20,7 +20,7 @@ pub struct ExecutionRecord<F: Default> {
     pub last_memory_record: Vec<(F, F, Block<F>)>,
 
     /// The public values.
-    pub public_values_digest: RecursivePublicValues<F>,
+    pub public_values_digest: [F; DIGEST_SIZE],
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
@@ -49,19 +49,15 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
-        self.public_values_digest
-            .0
+        let mut ret = self
+            .public_values_digest
             .map(|x| T::from_canonical_u32(x.as_canonical_u32()))
-            .to_vec()
-    }
-}
+            .to_vec();
 
-/// The public values type for recursive proofs.
-#[derive(Default, Debug, Clone)]
-pub struct RecursivePublicValues<F: Default>(pub [F; DIGEST_SIZE]);
+        assert!(ret.len() <= PROOF_MAX_NUM_PVS);
 
-impl<F: AbstractField> RecursivePublicValues<F> {
-    pub fn to_vec(&self) -> Vec<F> {
-        self.0.to_vec()
+        ret.resize(PROOF_MAX_NUM_PVS, T::zero());
+
+        ret
     }
 }
