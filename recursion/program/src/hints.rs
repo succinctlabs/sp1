@@ -104,6 +104,20 @@ impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
 impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
 
+impl<I: VecAutoHintable<C>> VecAutoHintable<C> for &I {}
+
+impl<H: Hintable<C>> Hintable<C> for &H {
+    type HintVariable = H::HintVariable;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        H::read(builder)
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        H::write(self)
+    }
+}
+
 impl<I: VecAutoHintable<C>> Hintable<C> for Vec<I> {
     type HintVariable = Array<C, I::HintVariable>;
 
