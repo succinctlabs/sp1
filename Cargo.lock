@@ -3540,9 +3540,11 @@ dependencies = [
  "bincode",
  "cfg-if",
  "getrandom",
+ "hex",
  "k256",
  "rand",
  "serde",
+ "snowbridge-amcl",
 ]
 
 [[package]]

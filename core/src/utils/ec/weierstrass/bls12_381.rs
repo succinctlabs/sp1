@@ -8,7 +8,11 @@ use typenum::{U48, U94};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
-use crate::utils::ec::{AffinePoint, EllipticCurveParameters, CurveType};
+use crate::utils::ec::{AffinePoint, EllipticCurveParameters, CurveType, EllipticCurve};
+
+// Serialization flags
+const COMPRESION_FLAG: u8 = 0b_1000_0000;
+const Y_IS_ODD_FLAG: u8 = 0b_0010_0000;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Bls12381 curve parameter
@@ -92,8 +96,16 @@ impl WeierstrassParameters for Bls12381Parameters {
     }
 }
 
-pub fn decompress(g1_bytes: &[u8; 48]) -> AffinePoint<Bls12381> {
-    let point = deserialize_g1(g1_bytes).unwrap();
+pub fn bls12381_decompress<E: EllipticCurve>(bytes_be: &[u8], is_odd: u32) -> AffinePoint<E> {
+    let mut g1_bytes_be: [u8; 48] = bytes_be.try_into().unwrap();
+    let mut flags = COMPRESION_FLAG;
+    if is_odd == 0 {
+        flags |= Y_IS_ODD_FLAG;
+    };
+
+    // set sign and compression flag
+    g1_bytes_be[0] |= flags;
+    let point = deserialize_g1(&g1_bytes_be).unwrap();
 
     let x_str = point.getx().to_string();
     let x = BigUint::from_str_radix(x_str.as_str(), 16).unwrap();
@@ -103,7 +115,7 @@ pub fn decompress(g1_bytes: &[u8; 48]) -> AffinePoint<Bls12381> {
     AffinePoint::new(x, y)
 }
 
-pub fn bls381_sqrt(a: &BigUint) -> BigUint {
+pub fn bls12381_sqrt(a: &BigUint) -> BigUint {
     let a_big = Big::from_bytes(a.to_bytes_be().as_slice());
 
     let a_sqrt = FP::new_big(a_big).sqrt();
@@ -131,10 +143,6 @@ mod tests {
         );
     }
 
-    // Serialization flags
-    const COMPRESION_FLAG: u8 = 0b_1000_0000;
-    const Y_FLAG: u8 = 0b_0010_0000;
-
     #[test]
     fn test_bls12381_decompress() {
         // This test checks that decompression of generator, 2x generator, 4x generator, etc. works.
@@ -145,7 +153,7 @@ mod tests {
             AffinePoint::<SwCurve<Bls12381Parameters>>::new(x, y)
         };
         for _ in 0..NUM_TEST_CASES {
-            let compressed_point = {
+            let (compressed_point, is_odd) = {
                 let mut result = [0u8; G1_BYTES];
                 let x = point.x.to_bytes_le();
                 result[..x.len()].copy_from_slice(&x);
@@ -156,14 +164,16 @@ mod tests {
                 let y_neg = Bls12381BaseField::modulus() - y.clone();
 
                 // Set flags
+                let mut is_odd = 0;
                 if y > y_neg {
-                    result[0] += Y_FLAG;
+                    result[0] += Y_IS_ODD_FLAG;
+                    is_odd = 1;
                 }
                 result[0] += COMPRESION_FLAG;
 
-                result
+                (result, is_odd)
             };
-            assert_eq!(point, decompress(&compressed_point));
+            assert_eq!(point, bls12381_decompress(&compressed_point, is_odd));
 
             // Double the point to create a "random" point for the next iteration.
             point = point.clone().sw_double();
@@ -173,12 +183,12 @@ mod tests {
     #[test]
     fn test_bls12381_sqrt() {
         let mut rng = thread_rng();
-        for _ in 0..10 {
+        for _ in 0..NUM_TEST_CASES {
             // Check that sqrt(x^2)^2 == x^2
             // We use x^2 since not all field elements have a square root
             let x = rng.gen_biguint(256) % Bls12381BaseField::modulus();
             let x_2 = (&x * &x) % Bls12381BaseField::modulus();
-            let sqrt = bls381_sqrt(&x_2);
+            let sqrt = bls12381_sqrt(&x_2);
             if sqrt > x_2 {
                 println!("wtf");
             }

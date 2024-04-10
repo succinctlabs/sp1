@@ -1,6 +1,7 @@
 pub mod bn254;
 pub mod io;
 pub mod secp256k1;
+pub mod bls12381;
 pub mod unconstrained;
 pub mod utils;
 
@@ -24,4 +25,5 @@ extern "C" {
     pub fn syscall_hint_len() -> usize;
     pub fn syscall_hint_read(ptr: *mut u8, len: usize);
     pub fn sys_alloc_aligned(bytes: usize, align: usize) -> *mut u8;
+    pub fn syscall_bls12381_decompress(point: &mut [u8; 96], is_odd: bool);
 }

@@ -1,7 +1,5 @@
 pub mod blake3;
 pub mod edwards;
-pub mod k256;
-pub mod bls12381;
 pub mod keccak256;
 pub mod sha256;
 pub mod weierstrass;
@@ -10,8 +8,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::runtime::SyscallContext;
 
-use crate::utils::ec::{AffinePoint, EllipticCurve};
+use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::weierstrass::bls12_381::bls12381_decompress;
+use crate::utils::ec::weierstrass::secp256k1::secp256k1_decompress;
+use crate::utils::ec::{AffinePoint, CurveType, EllipticCurve};
+use crate::utils::{bytes_to_words_le_vec, words_to_bytes_le_vec};
 use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
+use typenum::Unsigned;
 
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,5 +103,63 @@ pub fn create_ec_double_event<E: EllipticCurve>(
         p_ptr,
         p,
         p_memory_records,
+    }
+}
+
+/// Elliptic curve point decompress event.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ECDecompressEvent {
+    pub shard: u32,
+    pub clk: u32,
+    pub ptr: u32,
+    pub is_odd: bool,
+    pub x_bytes: Vec<u8>,
+    pub decompressed_y_bytes: Vec<u8>,
+    pub x_memory_records: Vec<MemoryReadRecord>,
+    pub y_memory_records: Vec<MemoryWriteRecord>,
+}
+
+pub fn create_ec_decompress_event<E: EllipticCurve>(
+    rt: &mut SyscallContext,
+    slice_ptr: u32,
+    is_odd: u32,
+) -> ECDecompressEvent {
+    let start_clk = rt.clk;
+    assert!(slice_ptr % 4 == 0, "slice_ptr must be 4-byte aligned");
+    assert!(is_odd <= 1, "is_odd must be 0 or 1");
+
+    let num_limbs = <E::BaseField as NumLimbs>::Limbs::USIZE;
+    let num_words_field_element = num_limbs / 4;
+
+    let (x_memory_records, x_vec) =
+        rt.mr_slice(slice_ptr + (num_limbs as u32), num_words_field_element);
+
+    let x_bytes = words_to_bytes_le_vec(&x_vec);
+    let mut x_bytes_be = x_bytes.clone();
+    x_bytes_be.reverse();
+
+    let decompress_fn = match E::CURVE_TYPE {
+        CurveType::Secp256k1 => secp256k1_decompress::<E>,
+        CurveType::Bls12381 => bls12381_decompress::<E>,
+        _ => panic!("Unsupported curve"),
+    };
+
+    let computed_point: AffinePoint<E> = decompress_fn(&x_bytes_be, is_odd);
+
+    let mut decompressed_y_bytes = computed_point.y.to_bytes_le();
+    decompressed_y_bytes.resize(num_limbs, 0u8);
+    let y_words = bytes_to_words_le_vec(&decompressed_y_bytes);
+
+    let y_memory_records = rt.mw_slice(slice_ptr, &y_words);
+
+    ECDecompressEvent {
+        shard: rt.current_shard(),
+        clk: start_clk,
+        ptr: slice_ptr,
+        is_odd: is_odd != 0,
+        x_bytes: x_bytes.to_vec(),
+        decompressed_y_bytes,
+        x_memory_records,
+        y_memory_records,
     }
 }

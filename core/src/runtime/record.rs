@@ -11,10 +11,9 @@ use crate::cpu::CpuEvent;
 use crate::runtime::MemoryInitializeFinalizeEvent;
 use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
+use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
-use crate::syscall::precompiles::bls12381::Bls12381DecompressEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
-use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
@@ -80,7 +79,7 @@ pub struct ExecutionRecord {
 
     pub bn254_double_events: Vec<ECDoubleEvent>,
 
-    pub k256_decompress_events: Vec<K256DecompressEvent>,
+    pub k256_decompress_events: Vec<ECDecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
@@ -90,7 +89,7 @@ pub struct ExecutionRecord {
 
     pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 
-    pub bls12381_decompress_events: Vec<Bls12381DecompressEvent>,
+    pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 }
 
 pub struct ShardingConfig {
