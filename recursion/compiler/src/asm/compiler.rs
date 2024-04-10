@@ -632,18 +632,21 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
             rhs,
             is_eq,
         } = self;
-        // Get the label for the current block which will contain the branch.
-        let if_branching_block = compiler.block_label();
+
+        // Get the label for the current block.
+        let current_block = compiler.block_label();
+
         // Generate the blocks for the then branch.
         compiler.basic_block();
         f(compiler);
+
         // Generate the block for returning to the main flow.
         compiler.basic_block();
-        // Get the block label for the after if block.
         let after_if_block = compiler.block_label();
-        // Get the branch instruction to push to the `if_branching_block`.
+
+        // Get the branch instruction to push to the `current_block`.
         let instr = Self::branch(lhs, rhs, is_eq, after_if_block);
-        compiler.push_to_block(if_branching_block, instr);
+        compiler.push_to_block(current_block, instr);
     }
 
     pub fn then_or_else<ThenFunc, ElseFunc>(self, then_f: ThenFunc, else_f: ElseFunc)
@@ -657,24 +660,27 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
             rhs,
             is_eq,
         } = self;
+
         // Get the label for the current block, so we can generate the jump instruction into it.
         // conditional branc instruction to it, if the condition is not met.
         let if_branching_block = compiler.block_label();
+
         // Generate the block for the then branch.
         compiler.basic_block();
         then_f(compiler);
         let last_if_block = compiler.block_label();
+
         // Generate the block for the else branch.
         compiler.basic_block();
         let else_block = compiler.block_label();
         else_f(compiler);
+
         // Generate the jump instruction to the else block
         let instr = Self::branch(lhs, rhs, is_eq, else_block);
         compiler.push_to_block(if_branching_block, instr);
+
         // Generate the block for returning to the main flow.
         compiler.basic_block();
-
-        // Get the label for the main flow block and generate the jump instruction to it.
         let main_flow_block = compiler.block_label();
         let instr = AsmInstruction::j(main_flow_block);
         compiler.push_to_block(last_if_block, instr);
@@ -696,7 +702,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
 /// A builder for a for loop.
 ///
-/// Starting with end < start will lead to undefined behavior!
+/// SAFETY: Starting with end < start will lead to undefined behavior.
 pub struct ForCompiler<'a, F, EF> {
     compiler: &'a mut AsmCompiler<F, EF>,
     start: Usize<F>,
@@ -714,8 +720,11 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         // - Executing the loop body and incrementing the loop variable
         // - the loop condition
         // Set the loop variable to the start of the range.
+
+        // Set the loop variable to the start of the range.
         self.set_loop_var();
-        // Save the label of the for loop call
+
+        // Save the label of the for loop call.
         let loop_call_label = self.compiler.block_label();
 
         // Initialize a break label for this loop.
@@ -724,11 +733,14 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
         // A basic block for the loop body
         self.compiler.basic_block();
+
         // Save the loop body label for the loop condition.
         let loop_label = self.compiler.block_label();
+
         // The loop body.
         f(self.loop_var, self.compiler);
 
+        // If the step size is just one, compile to the optimized branch instruction.
         if self.step_size == F::one() {
             self.jump_to_loop_body_inc(loop_label);
         } else {
@@ -742,8 +754,10 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
         // Add a basic block for the loop condition.
         self.compiler.basic_block();
+
         // Jump to loop body if the loop condition still holds.
         self.jump_to_loop_body(loop_label);
+
         // Add a jump instruction to the loop condition in the loop call block.
         let label = self.compiler.block_label();
         let instr = AsmInstruction::j(label);
@@ -751,9 +765,11 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
 
         // Initialize the after loop block.
         self.compiler.basic_block();
-        // resolve the break label
+
+        // Resolve the break label.
         let label = self.compiler.block_label();
         self.compiler.break_label_map.insert(break_label, label);
+
         // Replace the break instruction with a jump to the after loop block.
         for block in self.compiler.contains_break.iter() {
             for instruction in self.compiler.basic_blocks[block.as_canonical_u32() as usize]
@@ -767,6 +783,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
                 }
             }
         }
+
         // self.compiler.contains_break.clear();
     }
 
