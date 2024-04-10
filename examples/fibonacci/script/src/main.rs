@@ -1,15 +1,16 @@
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier, client::NetworkClient};
-use sp1_sdk::utils::BabyBearPoseidon2;
-use std::env;
-use tokio::time::Duration;
-use tokio::time::sleep;
-use sp1_sdk::proto::network::ProofStatus;
-use sp1_sdk::SP1ProofWithIO;
-use sp1_sdk::client::StarkGenericConfig;
 use serde::{Deserialize, Serialize};
+use sp1_sdk::client::StarkGenericConfig;
+use sp1_sdk::proto::network::ProofStatus;
+use sp1_sdk::utils::BabyBearPoseidon2;
+use sp1_sdk::SP1ProofWithIO;
+use sp1_sdk::{client::NetworkClient, utils, SP1Prover, SP1Stdin, SP1Verifier};
+use std::env;
+use tokio::time::sleep;
+use tokio::time::Duration;
 
-use log::info;
 use anyhow::Result;
+use log::info;
+
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -31,6 +32,7 @@ async fn poll_proof<SC: for<'de> Deserialize<'de> + Serialize + StarkGenericConf
             info!("Proof status: {:?}", proof_status.0.status());
             if proof_status.0.status() == ProofStatus::ProofSucceeded {
                 if let Some(proof_data) = proof_status.1 {
+                    println!("Proof data: {:?}", proof_data.public_values.buffer.data);
                     return Ok(proof_data);
                 }
             }
@@ -51,8 +53,7 @@ async fn main() {
         env::var("SP1_NETWORK_TOKEN").expect("SP1_NETWORK_TOKEN not set"),
     );
 
-    let proof_id = network_client
-        .create_proof(ELF, &[]).await;
+    let proof_id = network_client.create_proof(ELF, &[]).await;
 
     info!("proof_id: {:?}", proof_id);
 
