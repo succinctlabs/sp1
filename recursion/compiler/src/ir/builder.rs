@@ -1,9 +1,9 @@
-use p3_field::AbstractField;
-
 use super::{
     Array, Config, DslIR, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
     SymbolicVar, Usize, Var, Variable,
 };
+use p3_field::AbstractField;
+use sp1_recursion_core::runtime::PV_BUFFER_MAX_SIZE;
 
 /// A builder for the DSL.
 ///
@@ -14,6 +14,8 @@ pub struct Builder<C: Config> {
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
     pub operations: Vec<DslIR<C>>,
+    pub nb_public_values: Option<Var<C::N>>,
+    pub public_values_buffer: Option<Array<C, Felt<C::F>>>,
 }
 
 impl<C: Config> Builder<C> {
@@ -24,6 +26,8 @@ impl<C: Config> Builder<C> {
             ext_count,
             var_count,
             operations: Vec::new(),
+            nb_public_values: None,
+            public_values_buffer: None,
         }
     }
 
@@ -278,6 +282,42 @@ impl<C: Config> Builder<C> {
             Usize::Const(num) => self.eval(C::N::from_canonical_usize(num)),
             Usize::Var(num) => num,
         }
+    }
+
+    /// Stores an array of felts in the public values buffer.
+    pub fn write_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
+        if self.nb_public_values.is_none() {
+            self.nb_public_values = Some(self.eval(C::N::zero()));
+            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
+        }
+
+        let len = vals.len();
+
+        let nb_public_values = self.nb_public_values.unwrap();
+        let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
+
+        self.range(0, len).for_each(|i, builder| {
+            let val = builder.get(vals, i);
+            builder.set(&mut public_values_buffer, nb_public_values, val);
+            builder.assign(nb_public_values, nb_public_values + C::N::one());
+        });
+
+        self.nb_public_values = Some(nb_public_values);
+        self.public_values_buffer = Some(public_values_buffer);
+    }
+
+    /// Hashes the public values buffer and calls the Commit command on the digest.
+    pub fn commit_public_values(&mut self) {
+        if self.nb_public_values.is_none() {
+            self.nb_public_values = Some(self.eval(C::N::zero()));
+            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
+        }
+
+        let pv_buffer = self.public_values_buffer.clone().unwrap();
+        pv_buffer.truncate(self, self.nb_public_values.unwrap().into());
+
+        let pv_hash = self.poseidon2_hash(&pv_buffer);
+        self.operations.push(DslIR::Commit(pv_hash.clone()));
     }
 }
 

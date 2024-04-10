@@ -5,8 +5,7 @@ use sp1_core::{
     air::MachineAir,
     stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
 };
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
-use sp1_recursion_program::types::PublicValuesVariable;
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
 
 use crate::DIGEST_SIZE;
 
@@ -17,7 +16,7 @@ pub struct RecursionShardProofVariable<C: Config> {
     pub commitment: ShardCommitment<OuterDigest<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values: PublicValuesVariable<C>,
+    pub public_values: Array<C, Felt<C::F>>,
     pub sorted_chips: Vec<String>,
     pub sorted_indices: Vec<usize>,
 }

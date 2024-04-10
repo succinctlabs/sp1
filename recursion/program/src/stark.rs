@@ -258,16 +258,14 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
     use crate::challenger::CanObserveVariable;
-    use crate::challenger::DuplexChallengerVariable;
     use crate::challenger::FeltChallenger;
     use crate::hints::Hintable;
+    use crate::stark::DuplexChallengerVariable;
     use crate::stark::Ext;
     use crate::types::ShardCommitmentVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::PublicValues;
-    use sp1_core::air::Word;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
     use sp1_core::{
@@ -284,9 +282,10 @@ pub(crate) mod tests {
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
+    use sp1_sdk::{SP1Prover, SP1Stdin};
+
     use sp1_recursion_core::stark::RecursionAir;
     use sp1_sdk::utils::setup_logger;
-    use sp1_sdk::{SP1Prover, SP1Stdin};
     use std::time::Instant;
 
     type SC = BabyBearPoseidon2;
@@ -315,8 +314,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger_val.observe_slice(&public_values_field.to_vec());
+            challenger_val.observe_slice(&proof.public_values);
         });
 
         let permutation_challenges = (0..2)
@@ -338,9 +336,7 @@ pub(crate) mod tests {
             let proof = ShardProof::<_>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-
-            let public_values_elements = proof.public_values.to_vec(&mut builder);
-            challenger.observe_slice(&mut builder, &public_values_elements);
+            challenger.observe_slice(&mut builder, proof.public_values);
         }
 
         // Sample the permutation challenges.

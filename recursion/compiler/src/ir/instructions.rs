@@ -131,6 +131,8 @@ pub enum DslIR<C: Config> {
     HintVars(Array<C, Var<C::N>>),
     HintFelts(Array<C, Felt<C::F>>),
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    Commit(Array<C, Felt<C::F>>),
+    // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),

@@ -125,7 +125,8 @@ pub fn build_reduce() -> RecursionProgram<Val> {
             builder.if_eq(is_recursive, zero).then_or_else(
                 // Non-recursive proof
                 |builder| {
-                    let shard_bits = builder.num2bits_f(proof.public_values.shard);
+                    let shard = builder.get(&proof.public_values, 32);
+                    let shard_bits = builder.num2bits_f(shard);
                     let shard = builder.bits2num_v(&shard_bits);
                     builder.if_eq(shard, one).then(|builder| {
                         // Initialize the current challenger

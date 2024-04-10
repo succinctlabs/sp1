@@ -152,6 +152,7 @@ pub enum AsmInstruction<F, EF> {
     Hint(i32),
     // FRIFold(m, input) specific instructions.
     FriFold(i32, i32),
+    Commit(i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -918,6 +919,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 false,
             ),
+            AsmInstruction::Commit(pv_hash) => Instruction::new(
+                Opcode::Commit,
+                i32_f(pv_hash),
+                f_u32(F::zero()),
+                f_u32(F::zero()),
+                F::zero(),
+                F::zero(),
+                true,
+                true,
+            ),
         }
     }
 
@@ -1229,6 +1240,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     "poseidon2_compress ({})fp, {})fp, {})fp",
                     result, src1, src2
                 )
+            }
+            AsmInstruction::Commit(pv_hash) => {
+                write!(f, "commit ({})fp", pv_hash)
             }
         }
     }
