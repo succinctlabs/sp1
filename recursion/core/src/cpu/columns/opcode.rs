@@ -97,7 +97,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::PrintE => self.is_noop = F::one(),
             Opcode::FRIFold => self.is_fri_fold = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
-            _ => unreachable!(),
+            _ => {}
         }
     }
 }

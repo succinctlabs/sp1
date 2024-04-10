@@ -168,19 +168,18 @@ where
             let index_pair = index_bits.shift(builder, i_plus_one);
 
             let mut evals: Array<C, Ext<C::F, C::EF>> = builder.array(2);
-            builder.set(&mut evals, 0, folded_eval);
-            builder.set(&mut evals, 1, folded_eval);
-            builder.set(&mut evals, index_sibling_mod_2, step.sibling_value);
+            builder.set_value(&mut evals, 0, folded_eval);
+            builder.set_value(&mut evals, 1, folded_eval);
+            builder.set_value(&mut evals, index_sibling_mod_2, step.sibling_value);
 
-            let two: Var<C::N> = builder.eval(C::N::from_canonical_u32(2));
             let dims = DimensionsVariable::<C> {
-                height: builder.exp(two, log_folded_height),
+                height: builder.sll(C::N::one(), Usize::Var(log_folded_height)),
             };
             let mut dims_slice: Array<C, DimensionsVariable<C>> = builder.array(1);
-            builder.set(&mut dims_slice, 0, dims);
+            builder.set_value(&mut dims_slice, 0, dims);
 
             let mut opened_values = builder.array(1);
-            builder.set(&mut opened_values, 0, evals.clone());
+            builder.set_value(&mut opened_values, 0, evals.clone());
             verify_batch::<C, 4>(
                 builder,
                 &commit,
@@ -192,8 +191,8 @@ where
 
             let mut xs: Array<C, Ext<C::F, C::EF>> = builder.array(2);
             let two_adic_generator_one = config.get_two_adic_generator(builder, Usize::Const(1));
-            builder.set(&mut xs, 0, x);
-            builder.set(&mut xs, 1, x);
+            builder.set_value(&mut xs, 0, x);
+            builder.set_value(&mut xs, 1, x);
             builder.set(&mut xs, index_sibling_mod_2, x * two_adic_generator_one);
 
             let xs_0 = builder.get(&xs, 0);
@@ -306,7 +305,7 @@ pub fn reduce<C: Config, const D: usize>(
                         let opened_value_flat = builder.ext2felt(opened_value);
                         for k in 0..D {
                             let base = builder.get(&opened_value_flat, k);
-                            builder.set(&mut flattened_opened_values, nb_opened_values, base);
+                            builder.set_value(&mut flattened_opened_values, nb_opened_values, base);
                             builder.assign(nb_opened_values, nb_opened_values + C::N::one());
                         }
                     });

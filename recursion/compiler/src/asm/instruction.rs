@@ -113,8 +113,11 @@ pub enum AsmInstruction<F, EF> {
     JALR(i32, i32, i32),
     /// Branch not equal
     BNE(F, i32, i32),
+    /// Branch not equal increment c by 1.
+    BNEINC(F, i32, i32),
     /// Branch not equal immediate
     BNEI(F, i32, F),
+    BNEIINC(F, i32, F),
     /// Branch equal
     BEQ(F, i32, i32),
     /// Branch equal immediate
@@ -685,11 +688,39 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     true,
                 )
             }
+            AsmInstruction::BNEINC(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BNEINC,
+                    i32_f(lhs),
+                    i32_f_arr(rhs),
+                    f_u32(offset),
+                    F::zero(),
+                    F::zero(),
+                    false,
+                    true,
+                )
+            }
             AsmInstruction::BNEI(label, lhs, rhs) => {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
                     Opcode::BNE,
+                    i32_f(lhs),
+                    f_u32(rhs),
+                    f_u32(offset),
+                    F::zero(),
+                    F::zero(),
+                    true,
+                    true,
+                )
+            }
+            AsmInstruction::BNEIINC(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BNEINC,
                     i32_f(lhs),
                     f_u32(rhs),
                     f_u32(offset),
@@ -1107,6 +1138,24 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 write!(
                     f,
                     "bnei  {}, ({})fp, {}",
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
+            AsmInstruction::BNEINC(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "bneinc {}, ({})fp, {}",
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
+            AsmInstruction::BNEIINC(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "bneiinc {}, ({})fp, {}",
                     labels.get(label).unwrap_or(&format!(".L{}", label)),
                     lhs,
                     rhs

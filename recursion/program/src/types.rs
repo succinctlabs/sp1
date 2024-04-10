@@ -20,6 +20,12 @@ pub struct ShardProofVariable<C: Config> {
     pub public_values: Array<C, Felt<C::F>>,
 }
 
+/// Reference: https://github.com/succinctlabs/sp1/blob/b5d5473c010ab0630102652146e16c014a1eddf6/core/src/stark/machine.rs#L63
+#[derive(DslVariable, Clone)]
+pub struct VerifyingKeyVariable<C: Config> {
+    pub commitment: DigestVariable<C>,
+}
+
 #[derive(DslVariable, Clone)]
 pub struct ShardCommitmentVariable<C: Config> {
     pub main_commit: DigestVariable<C>,
@@ -133,10 +139,10 @@ impl<C: Config> ChipOpening<C> {
 impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
     type Constant = AirOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         AirOpenedValuesVariable {
-            local: builder.eval_const(value.local),
-            next: builder.eval_const(value.next),
+            local: builder.constant(value.local),
+            next: builder.constant(value.next),
         }
     }
 }
@@ -144,12 +150,12 @@ impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
 impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
     type Constant = ChipOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         ChipOpenedValuesVariable {
-            preprocessed: builder.eval_const(value.preprocessed),
-            main: builder.eval_const(value.main),
-            permutation: builder.eval_const(value.permutation),
-            quotient: builder.eval_const(value.quotient),
+            preprocessed: builder.constant(value.preprocessed),
+            main: builder.constant(value.main),
+            permutation: builder.constant(value.permutation),
+            quotient: builder.constant(value.quotient),
             cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: builder.eval(C::N::from_canonical_usize(value.log_degree)),
         }

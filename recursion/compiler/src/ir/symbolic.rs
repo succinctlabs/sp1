@@ -1,14 +1,16 @@
-use super::Usize;
-use super::{Ext, Felt, Var};
 use alloc::rc::Rc;
 use core::any::Any;
 use core::ops::{Add, Div, Mul, Neg, Sub};
-use p3_field::Field;
-use p3_field::{AbstractField, ExtensionField};
 use std::any::TypeId;
 use std::iter::{Product, Sum};
 use std::mem;
 use std::ops::{AddAssign, DivAssign, MulAssign, SubAssign};
+
+use p3_field::Field;
+use p3_field::{AbstractField, ExtensionField};
+
+use super::Usize;
+use super::{Ext, Felt, Var};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum SymbolicVar<N> {

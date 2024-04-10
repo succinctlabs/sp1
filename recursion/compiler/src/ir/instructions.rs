@@ -1,14 +1,14 @@
 use super::{Array, FriFoldInput, MemIndex, Ptr};
-
 use super::{Config, Ext, Felt, Usize, Var};
 
 #[derive(Debug, Clone)]
 pub enum DslIR<C: Config> {
-    Imm(Var<C::N>, C::N),
-    ImmFelt(Felt<C::F>, C::F),
-    ImmExt(Ext<C::F, C::EF>, C::EF),
+    // Immediates.
+    ImmV(Var<C::N>, C::N),
+    ImmF(Felt<C::F>, C::F),
+    ImmE(Ext<C::F, C::EF>, C::EF),
 
-    // Arithmetic instructions.
+    // Additions.
     AddV(Var<C::N>, Var<C::N>, Var<C::N>),
     AddVI(Var<C::N>, Var<C::N>, C::N),
     AddF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
@@ -18,14 +18,8 @@ pub enum DslIR<C: Config> {
     AddEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
     AddEFFI(Ext<C::F, C::EF>, Felt<C::F>, C::EF),
     AddEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
-    MulV(Var<C::N>, Var<C::N>, Var<C::N>),
-    MulVI(Var<C::N>, Var<C::N>, C::N),
-    MulF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    MulFI(Felt<C::F>, Felt<C::F>, C::F),
-    MulE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    MulEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
-    MulEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
-    MulEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
+
+    // Subtractions.
     SubV(Var<C::N>, Var<C::N>, Var<C::N>),
     SubVI(Var<C::N>, Var<C::N>, C::N),
     SubVIN(Var<C::N>, C::N, Var<C::N>),
@@ -37,6 +31,18 @@ pub enum DslIR<C: Config> {
     SubEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
     SubEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
     SubEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
+
+    // Multiplications.
+    MulV(Var<C::N>, Var<C::N>, Var<C::N>),
+    MulVI(Var<C::N>, Var<C::N>, C::N),
+    MulF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    MulFI(Felt<C::F>, Felt<C::F>, C::F),
+    MulE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    MulEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
+    MulEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
+    MulEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
+
+    // Divisions.
     DivF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
     DivFI(Felt<C::F>, Felt<C::F>, C::F),
     DivFIN(Felt<C::F>, C::F, Felt<C::F>),
@@ -46,6 +52,8 @@ pub enum DslIR<C: Config> {
     DivEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
     DivEFIN(Ext<C::F, C::EF>, C::F, Ext<C::F, C::EF>),
     DivEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
+
+    // Negations.
     NegV(Var<C::N>, Var<C::N>),
     NegF(Felt<C::F>, Felt<C::F>),
     NegE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
@@ -53,7 +61,7 @@ pub enum DslIR<C: Config> {
     InvF(Felt<C::F>, Felt<C::F>),
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
-    // Control flow instructions.
+    // Control flow.
     For(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, Vec<DslIR<C>>),
     IfEq(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
     IfNe(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
@@ -61,7 +69,7 @@ pub enum DslIR<C: Config> {
     IfNeI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),
     Break,
 
-    // Assertions
+    // Assertions.
     AssertEqV(Var<C::N>, Var<C::N>),
     AssertNeV(Var<C::N>, Var<C::N>),
     AssertEqF(Felt<C::F>, Felt<C::F>),
@@ -91,29 +99,34 @@ pub enum DslIR<C: Config> {
     /// Store extension field at adress
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>, MemIndex<C::N>),
 
-    // Miscellaneous instructions.
-    PrintV(Var<C::N>),
-    PrintF(Felt<C::F>),
-    PrintE(Ext<C::F, C::EF>),
-    Error(),
+    // Bits.
     Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),
     Num2BitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
+    CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
+    ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
 
-    HintBitsU(Array<C, Var<C::N>>, Usize<C::N>),
-    HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
-    HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    // Hashing.
     Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
     Poseidon2CompressBabyBear(
         Array<C, Felt<C::F>>,
         Array<C, Felt<C::F>>,
         Array<C, Felt<C::F>>,
     ),
+    CircuitPoseidon2Permute([Var<C::N>; 3]),
+
+    // Miscellaneous instructions.
+    HintBitsU(Array<C, Var<C::N>>, Usize<C::N>),
+    HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
+    HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    PrintV(Var<C::N>),
+    PrintF(Felt<C::F>),
+    PrintE(Ext<C::F, C::EF>),
+    Error(),
     TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
-    ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
     ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
     ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
     Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
-
     HintLen(Var<C::N>),
     HintVars(Array<C, Var<C::N>>),
     HintFelts(Array<C, Felt<C::F>>),
@@ -123,11 +136,6 @@ pub enum DslIR<C: Config> {
 
     // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
-
-    // Circuit-specific instructions.
-    CircuitPoseidon2Permute([Var<C::N>; 3]),
-    CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
-    CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
     CircuitSelectE(
