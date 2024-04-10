@@ -195,9 +195,7 @@ impl SP1ProverImpl {
 mod tests {
 
     use super::*;
-    use sp1_core::{
-        utils::setup_logger,
-    };
+    use sp1_core::utils::setup_logger;
 
     #[ignore]
     #[test]

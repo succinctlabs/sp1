@@ -144,7 +144,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         reconstruct_challenger = DuplexChallengerVariable::new(builder);
                         reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                     });
-                    
+
                     // TODO: more shard transition constraints here
 
                     // Observe current proof commit and public values into reconstruct challenger
@@ -180,10 +180,12 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         let element = builder.get(&proof.commitment.main_commit, j);
                         current_challenger.observe(builder, element);
                     }
-                    builder.range(0, proof.public_values.len()).for_each(|j, builder| {
-                        let element = builder.get(&proof.public_values, j);
-                        current_challenger.observe(builder, element);
-                    });
+                    builder
+                        .range(0, proof.public_values.len())
+                        .for_each(|j, builder| {
+                            let element = builder.get(&proof.public_values, j);
+                            current_challenger.observe(builder, element);
+                        });
                     // Verify the proof
                     StarkVerifier::<C, SC>::verify_shard(
                         builder,
