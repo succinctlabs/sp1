@@ -42,4 +42,5 @@ runs:
 
     - name: Setup toolchain
       id: rustc-toolchain
+      shell: bash
       run: rustup show
