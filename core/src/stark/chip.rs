@@ -98,7 +98,7 @@ where
         )
     }
 
-    fn logup_batch_size(&self) -> usize {
+    pub fn logup_batch_size(&self) -> usize {
         // TODO: calculate by log_quotient_degree.
         2
     }
