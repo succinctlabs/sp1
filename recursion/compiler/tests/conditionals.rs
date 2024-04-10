@@ -59,3 +59,39 @@ fn test_compiler_conditionals() {
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
 }
+
+#[test]
+fn test_compiler_conditionals_v2() {
+    type SC = BabyBearPoseidon2;
+    type F = BabyBear;
+    type EF = BinomialExtensionField<BabyBear, 4>;
+    let mut builder = AsmBuilder::<F, EF>::default();
+
+    let zero: Var<_> = builder.eval(F::zero());
+    let one: Var<_> = builder.eval(F::one());
+    let two: Var<_> = builder.eval(F::two());
+    let three: Var<_> = builder.eval(F::from_canonical_u32(3));
+    let four: Var<_> = builder.eval(F::from_canonical_u32(4));
+
+    let c: Var<_> = builder.eval(F::zero());
+    builder.if_eq(zero, zero).then(|builder| {
+        builder.if_eq(one, one).then(|builder| {
+            builder.if_eq(two, two).then(|builder| {
+                builder.if_eq(three, three).then(|builder| {
+                    builder
+                        .if_eq(four, four)
+                        .then(|builder| builder.assign(c, F::one()))
+                })
+            })
+        })
+    });
+
+    let code = builder.compile_asm();
+    println!("{}", code);
+    // let program = builder.compile();
+    let program = code.machine_code();
+
+    let config = SC::default();
+    let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
+    runtime.run();
+}

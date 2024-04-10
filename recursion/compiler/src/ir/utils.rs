@@ -116,9 +116,10 @@ impl<C: Config> Builder<C> {
     {
         let result = self.eval(V::Expression::one());
         let power_f: V = self.eval(x);
-        let bit_len = bit_len.into();
-        self.range(0, bit_len).for_each(|i, builder| {
-            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
+        let bit_len = bit_len.into().materialize(self);
+        let bit_len_plus_one: Var<_> = self.eval(bit_len + C::N::one());
+        self.range(1, bit_len_plus_one).for_each(|i, builder| {
+            let index: Var<C::N> = builder.eval(bit_len - i);
             let bit = builder.get(power_bits, index);
             builder
                 .if_eq(bit, C::N::one())
