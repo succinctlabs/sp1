@@ -8,11 +8,11 @@ use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::MatrixRowSlices;
-use sp1_zkvm::PV_DIGEST_NUM_WORDS;
 
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
 use crate::air::Word;
+use crate::air::PV_DIGEST_NUM_WORDS;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
