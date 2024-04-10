@@ -6,6 +6,7 @@ edition = "2021"
 
 [dependencies]
 itertools = "0.12.1"
+sp1-core = { path = "../../../core" }
 sp1-sdk = { path = "../../../sdk" }
 sha2 = "0.10.8"
 

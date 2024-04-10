@@ -3,9 +3,13 @@ use crate::stark::MAX_NUM_PUBLIC_VALUES;
 use super::Word;
 use core::fmt::Debug;
 use itertools::Itertools;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use serde::{Deserialize, Serialize};
 use std::iter::once;
+
+pub trait PubicValuesCommitDigest {
+    fn deserialize_commitment_digest<T>(data: Vec<T>) -> Vec<u8>;
+}
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
@@ -26,6 +30,17 @@ pub struct PublicValues<W, T> {
 
     /// The exit code of the program.  Only valid if halt has been executed.
     pub exit_code: T,
+}
+
+impl<F: PrimeField32> PublicValues<Word<F>, F> {
+    pub fn deserialize_commitment_digest(data: Vec<F>) -> Vec<u8> {
+        let serialized_pv = PublicValues::<Word<F>, F>::from_vec(data);
+        serialized_pv
+            .committed_value_digest
+            .into_iter()
+            .flat_map(|w| w.0.map(|x| F::as_canonical_u32(&x) as u8))
+            .collect_vec()
+    }
 }
 
 impl PublicValues<u32, u32> {

@@ -1,5 +1,5 @@
-use itertools::Itertools;
 use sha2::{Digest, Sha256};
+use sp1_core::air::PublicValues;
 use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 
 /// The ELF we want to execute inside the zkVM.
@@ -43,12 +43,15 @@ fn main() {
     pv_hasher.update(expected_b.to_le_bytes());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pv_bytes: Vec<u8> = proof.proof.shard_proofs[0]
+    let last_public_values = proof
+        .proof
+        .shard_proofs
+        .last()
+        .unwrap()
         .public_values
-        .committed_value_digest
-        .iter()
-        .flat_map(|w| w.to_le_bytes())
-        .collect_vec();
+        .clone();
+
+    let proof_pv_bytes: Vec<u8> = PublicValues::deserialize_commitment_digest(last_public_values);
     assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
 
     // Save the proof.
