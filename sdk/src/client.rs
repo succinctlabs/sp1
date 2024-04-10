@@ -9,7 +9,7 @@ use reqwest::{
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
-use sp1_core::stark::StarkGenericConfig;
+pub use sp1_core::stark::StarkGenericConfig;
 use twirp::Client as TwirpClient;
 
 use crate::{
@@ -80,6 +80,8 @@ impl NetworkClient {
     }
 
     pub async fn create_proof(&self, elf: &[u8], stdin: &[u8]) -> Result<String> {
+        // TODO: Naming convention here is unclear. We should have separate methods for creating the
+        // proof with the RPC and the client for interfacing with the API.
         let res = self.rpc.create_proof(CreateProofRequest {}).await?;
 
         let mut program_bytes = Vec::new();
