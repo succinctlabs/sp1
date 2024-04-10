@@ -8,7 +8,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use sp1_core::{
-    air::{MachineAir, PublicValues, Word},
+    air::MachineAir,
     runtime::Program,
     stark::{LocalProver, Proof, RiscvAir, ShardProof, StarkGenericConfig},
     utils::{run_and_prove, BabyBearPoseidon2},
@@ -65,8 +65,7 @@ impl SP1ProverImpl {
         let reconstruct_challenger = challenger.clone();
         for proof in proof.shard_proofs.iter() {
             challenger.observe(proof.commitment.main_commit);
-            let public_values = PublicValues::<Word<BabyBear>, BabyBear>::new(proof.public_values);
-            challenger.observe_slice(&public_values.to_vec());
+            challenger.observe_slice(&proof.public_values);
         }
 
         let chips = machine.chips();

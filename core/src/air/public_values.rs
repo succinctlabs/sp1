@@ -1,10 +1,11 @@
-use core::fmt::Debug;
-use itertools::Itertools;
-use p3_field::AbstractField;
-use serde::{Deserialize, Serialize};
-use std::iter::once;
+use crate::stark::PROOF_MAX_NUM_PVS;
 
 use super::Word;
+use core::fmt::Debug;
+use itertools::Itertools;
+use p3_field::{AbstractField, PrimeField32};
+use serde::{Deserialize, Serialize};
+use std::iter::once;
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
@@ -27,38 +28,35 @@ pub struct PublicValues<W, T> {
     pub exit_code: T,
 }
 
-impl<F: AbstractField> PublicValues<Word<F>, F> {
-    pub fn new(other: PublicValues<u32, u32>) -> Self {
-        let PublicValues {
-            committed_value_digest,
-            shard,
-            start_pc: first_row_pc,
-            next_pc: last_row_next_pc,
-            exit_code,
-        } = other;
-        Self {
-            committed_value_digest: committed_value_digest.map(Word::from),
-            shard: F::from_canonical_u32(shard),
-            start_pc: F::from_canonical_u32(first_row_pc),
-            next_pc: F::from_canonical_u32(last_row_next_pc),
-            exit_code: F::from_canonical_u32(exit_code),
-        }
+impl PublicValues<u32, u32> {
+    /// Convert the public values into a vector of field elements.  This function will pad the vector
+    /// to the maximum number of public values.
+    pub fn to_vec<F: AbstractField>(&self) -> Vec<F> {
+        let mut ret = self
+            .committed_value_digest
+            .iter()
+            .flat_map(|w| Word::<F>::from(*w).into_iter())
+            .chain(once(F::from_canonical_u32(self.shard)))
+            .chain(once(F::from_canonical_u32(self.start_pc)))
+            .chain(once(F::from_canonical_u32(self.next_pc)))
+            .chain(once(F::from_canonical_u32(self.exit_code)))
+            .collect_vec();
+
+        assert!(
+            ret.len() <= PROOF_MAX_NUM_PVS,
+            "Too many public values: {}",
+            ret.len()
+        );
+
+        ret.resize(PROOF_MAX_NUM_PVS, F::zero());
+
+        ret
     }
 }
 
-impl<T: Clone + Debug> PublicValues<Word<T>, T> {
-    pub fn to_vec(&self) -> Vec<T> {
-        self.committed_value_digest
-            .iter()
-            .flat_map(|w| w.clone().into_iter())
-            .chain(once(self.shard.clone()))
-            .chain(once(self.start_pc.clone()))
-            .chain(once(self.next_pc.clone()))
-            .chain(once(self.exit_code.clone()))
-            .collect_vec()
-    }
-
-    pub fn from_vec(data: Vec<T>) -> Self {
+impl<F: AbstractField> PublicValues<Word<F>, F> {
+    /// Convert a vector of field elements into a PublicValues struct.
+    pub fn from_vec(data: Vec<F>) -> Self {
         let mut iter = data.iter().cloned();
 
         let mut committed_value_digest = Vec::new();
@@ -66,20 +64,35 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
             committed_value_digest.push(Word::from_iter(&mut iter));
         }
 
-        // Collecting the remaining items into a tuple.
-        if let [shard, first_row_pc, last_row_next_pc, exit_code] =
-            iter.collect::<Vec<_>>().as_slice()
-        {
-            Self {
-                committed_value_digest: committed_value_digest.try_into().unwrap(),
-                shard: shard.to_owned(),
-                start_pc: first_row_pc.to_owned(),
-                next_pc: last_row_next_pc.to_owned(),
-                exit_code: exit_code.to_owned(),
-            }
-        } else {
+        // Collecting the remaining items into a tuple.  Note that it is only getting the first
+        // four items, as the rest would be padded values.
+        let remaining_items = iter.collect_vec();
+        if remaining_items.len() < 4 {
             panic!("Invalid number of items in the serialized vector.");
         }
+
+        let [shard, start_pc, next_pc, exit_code] = match &remaining_items.as_slice()[0..4] {
+            [shard, start_pc, next_pc, exit_code] => [shard, start_pc, next_pc, exit_code],
+            _ => unreachable!(),
+        };
+
+        Self {
+            committed_value_digest: committed_value_digest.try_into().unwrap(),
+            shard: shard.to_owned(),
+            start_pc: start_pc.to_owned(),
+            next_pc: next_pc.to_owned(),
+            exit_code: exit_code.to_owned(),
+        }
+    }
+}
+
+impl<F: PrimeField32> PublicValues<Word<F>, F> {
+    /// Returns the commit digest as a vector of little-endian bytes.
+    pub fn commit_digest_bytes(&self) -> Vec<u8> {
+        self.committed_value_digest
+            .iter()
+            .flat_map(|w| w.into_iter().map(|f| f.as_canonical_u32() as u8))
+            .collect_vec()
     }
 }
 

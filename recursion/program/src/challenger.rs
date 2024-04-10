@@ -12,14 +12,7 @@ use crate::fri::types::DigestVariable;
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
 
-    fn observe_slice(&mut self, builder: &mut Builder<C>, values: &[V])
-    where
-        V: Copy,
-    {
-        for value in values {
-            self.observe(builder, *value);
-        }
-    }
+    fn observe_slice(&mut self, builder: &mut Builder<C>, values: Array<C, V>);
 }
 
 pub trait CanSampleVariable<C: Config, V> {
@@ -191,6 +184,22 @@ impl<C: Config> CanObserveVariable<C, Felt<C::F>> for DuplexChallengerVariable<C
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         DuplexChallengerVariable::observe(self, builder, value);
     }
+
+    fn observe_slice(&mut self, builder: &mut Builder<C>, values: Array<C, Felt<C::F>>) {
+        match values {
+            Array::Dyn(_, len) => {
+                builder.range(0, len).for_each(|i, builder| {
+                    let element = builder.get(&values, i);
+                    self.observe(builder, element);
+                });
+            }
+            Array::Fixed(values) => {
+                values.iter().for_each(|value| {
+                    self.observe(builder, *value);
+                });
+            }
+        }
+    }
 }
 
 impl<C: Config> CanSampleVariable<C, Felt<C::F>> for DuplexChallengerVariable<C> {
@@ -212,6 +221,10 @@ impl<C: Config> CanSampleBitsVariable<C> for DuplexChallengerVariable<C> {
 impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVariable<C> {
     fn observe(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         DuplexChallengerVariable::observe_commitment(self, builder, commitment);
+    }
+
+    fn observe_slice(&mut self, _builder: &mut Builder<C>, _values: Array<C, DigestVariable<C>>) {
+        todo!()
     }
 }
 

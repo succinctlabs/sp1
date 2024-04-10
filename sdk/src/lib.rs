@@ -13,6 +13,9 @@ pub mod utils {
         setup_logger, setup_tracer, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2,
     };
 }
+
+pub use sp1_core::air::PublicValues;
+
 pub use crate::io::*;
 use proto::network::{ProofStatus, TransactionStatus};
 use utils::*;
