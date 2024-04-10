@@ -177,7 +177,7 @@ mod tests {
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
-    use sp1_recursion_compiler::{asm::VmBuilder, ir::Felt, prelude::ExtConst};
+    use sp1_recursion_compiler::{asm::VmBuilder, ir::Array, ir::Felt, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
 
@@ -320,11 +320,7 @@ mod tests {
             ) = get_shard_data(&machine, &proof, &mut challenger);
 
             // Set up the public values.
-            let public_values_felt: Vec<Felt<F>> = proof
-                .public_values
-                .iter()
-                .map(|x| builder.eval(*x))
-                .collect_vec();
+            let public_values: Array<_, Felt<F>> = builder.constant(proof.public_values.clone());
 
             for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
                 chips.iter(),
@@ -357,12 +353,11 @@ mod tests {
                     .iter()
                     .map(|c| builder.eval(c.cons()))
                     .collect::<Vec<_>>();
-                let pv_array = builder.vec(public_values_felt.clone());
                 let folded_constraints = StarkVerifier::<_, SC>::eval_constrains(
                     &mut builder,
                     chip,
                     &values,
-                    pv_array,
+                    public_values.clone(),
                     &sels,
                     alpha,
                     permutation_challenges.as_slice(),
@@ -458,12 +453,7 @@ mod tests {
                 let alpha = builder.eval(alpha_val.cons());
                 let zeta = builder.eval(zeta_val.cons());
                 let trace_domain = builder.constant(trace_domain_val);
-
-                let public_values: Vec<Felt<F>> = proof
-                    .public_values
-                    .iter()
-                    .map(|v| builder.eval(*v))
-                    .collect();
+                let public_values = builder.constant(proof.public_values.clone());
 
                 let qc_domains = qc_domains_vals
                     .iter()
@@ -475,12 +465,11 @@ mod tests {
                     .map(|c| builder.eval(c.cons()))
                     .collect::<Vec<_>>();
 
-                let pv_array = builder.vec(public_values.clone());
                 StarkVerifier::<_, SC>::verify_constraints::<A>(
                     &mut builder,
                     chip,
                     &opening,
-                    pv_array,
+                    public_values,
                     trace_domain,
                     qc_domains,
                     zeta,
