@@ -14,7 +14,7 @@ nohash-hasher = "0.2.0"
 num = { version = "0.4.1" }
 p3-air = { workspace = true }
 p3-baby-bear = { workspace = true }
-p3-blake3 = { workspace = true }
+p3-blake3 = { workspace = true, features = ["parallel"] }
 p3-challenger = { workspace = true }
 p3-commit = { workspace = true }
 p3-dft = { workspace = true }
@@ -24,7 +24,7 @@ p3-goldilocks = { workspace = true }
 p3-keccak = { workspace = true }
 p3-keccak-air = { workspace = true }
 p3-matrix = { workspace = true }
-p3-maybe-rayon = { workspace = true }
+p3-maybe-rayon = { workspace = true, features = ["parallel"] }
 p3-mds = { workspace = true }
 p3-merkle-tree = { workspace = true }
 p3-poseidon2 = { workspace = true }
@@ -43,7 +43,7 @@ cfg-if = "1.0.0"
 generic-array = { version = "1.0.0", features = ["alloc"] }
 typenum = "1.17.0"
 clap = { version = "4.4.0", features = ["derive"] }
-curve25519-dalek = { version = "=4.0.0" }
+curve25519-dalek = { version = "4.1.2" }
 elliptic-curve = "0.13.8"
 flate2 = "1.0.28"
 hashbrown = "0.14.3"
@@ -72,14 +72,8 @@ num = { version = "0.4.1", features = ["rand"] }
 rand = "0.8.5"
 
 [features]
-debug = ["parallel"]
-debug-proof = ["parallel", "perf"]
-default = ["perf"]
-keccak = []
+debug = []
 neon = ["p3-blake3/neon"]
-parallel = ["p3-maybe-rayon/parallel", "p3-blake3/parallel"]
-perf = ["parallel"]
-serial = []
 
 [[bench]]
 harness = false

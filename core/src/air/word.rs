@@ -1,10 +1,14 @@
 use std::array::IntoIter;
 use std::ops::{Index, IndexMut};
 
+use itertools::Itertools;
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 use p3_field::Field;
+use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
+
+use core::fmt::Debug;
 
 use super::SP1AirBuilder;
 
@@ -12,7 +16,9 @@ use super::SP1AirBuilder;
 pub const WORD_SIZE: usize = 4;
 
 /// A word is a 32-bit value represented in an AIR.
-#[derive(AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(
+    AlignedBorrow, Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize,
+)]
 #[repr(C)]
 pub struct Word<T>(pub [T; WORD_SIZE]);
 
@@ -41,6 +47,16 @@ impl<T: AbstractField> Word<T> {
     pub fn extend_expr<AB: SP1AirBuilder<Expr = T>>(expr: T) -> Word<AB::Expr> {
         Word([
             AB::Expr::zero() + expr,
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+            AB::Expr::zero(),
+        ])
+    }
+
+    /// Returns a word with all zero expressions.
+    pub fn zero<AB: SP1AirBuilder<Expr = T>>() -> Word<T> {
+        Word([
+            AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
             AB::Expr::zero(),
@@ -81,7 +97,7 @@ impl<T> IndexMut<usize> for Word<T> {
     }
 }
 
-impl<F: Field> From<u32> for Word<F> {
+impl<F: AbstractField> From<u32> for Word<F> {
     fn from(value: u32) -> Self {
         let inner = value
             .to_le_bytes()
@@ -100,5 +116,18 @@ impl<T> IntoIterator for Word<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.into_iter()
+    }
+}
+
+impl<T: Debug> FromIterator<T> for Word<T> {
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let elements: [T; WORD_SIZE] = iter
+            .into_iter()
+            .take(WORD_SIZE)
+            .collect_vec()
+            .try_into()
+            .unwrap();
+
+        Word(elements)
     }
 }

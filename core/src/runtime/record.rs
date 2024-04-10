@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use super::program::Program;
 use super::Opcode;
+use crate::air::PublicValues;
 use crate::alu::AluEvent;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::CpuEvent;
@@ -58,8 +59,9 @@ pub struct ExecutionRecord {
     /// A trace of the SLT, SLTI, SLTU, and SLTIU events.
     pub lt_events: Vec<AluEvent>,
 
-    /// A trace of the byte lookups needed.
-    pub byte_lookups: BTreeMap<ByteLookupEvent, usize>,
+    /// All byte lookups that are needed. The layout is shard -> (event -> count). Byte lookups are
+    /// sharded to prevent the multiplicities from overflowing.
+    pub byte_lookups: BTreeMap<u32, BTreeMap<ByteLookupEvent, usize>>,
 
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
@@ -90,6 +92,9 @@ pub struct ExecutionRecord {
     pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
 
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
+
+    /// The public values.
+    pub public_values: PublicValues<u32, u32>,
 }
 
 pub struct ShardingConfig {
@@ -245,11 +250,20 @@ impl MachineRecord for ExecutionRecord {
         self.bls12381_decompress_events
             .append(&mut other.bls12381_decompress_events);
 
-        for (event, mult) in other.byte_lookups.iter_mut() {
-            self.byte_lookups
-                .entry(*event)
-                .and_modify(|i| *i += *mult)
-                .or_insert(*mult);
+        // Merge the byte lookups.
+        for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
+            match self.byte_lookups.get_mut(&shard) {
+                Some(existing) => {
+                    // If there's already a map for this shard, update counts for each event.
+                    for (event, count) in events_map.iter() {
+                        *existing.entry(*event).or_insert(0) += count;
+                    }
+                }
+                None => {
+                    // If there isn't a map for this shard, insert the whole map.
+                    self.byte_lookups.insert(shard, events_map);
+                }
+            }
         }
 
         self.memory_initialize_events
@@ -274,6 +288,7 @@ impl MachineRecord for ExecutionRecord {
             .collect::<Vec<_>>();
         let mut start_idx = 0;
         let mut current_shard_num = 1;
+
         for (i, cpu_event) in self.cpu_events.iter().enumerate() {
             let at_last_event = i == num_cpu_events - 1;
             if cpu_event.shard != current_shard_num || at_last_event {
@@ -282,7 +297,29 @@ impl MachineRecord for ExecutionRecord {
                 let shard = &mut shards[current_shard_num as usize - 1];
                 shard.index = current_shard_num;
                 shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
+                // Each shard needs program because we use it in ProgramChip.
                 shard.program = self.program.clone();
+
+                // Byte lookups are already sharded, so put this shard's lookups in.
+                shard.byte_lookups.insert(
+                    current_shard_num,
+                    self.byte_lookups
+                        .remove(&current_shard_num)
+                        .unwrap_or_default(),
+                );
+
+                let last_shard_cpu_event = shard.cpu_events.last().unwrap();
+                // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
+                // will read the public values.  But in some very rare edge cases, the last two shards will
+                // read it (e.g. when the halt instruction is the only instruction in the last shard).
+                // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
+                // for all of the shards.
+                shard.public_values.committed_value_digest =
+                    self.public_values.committed_value_digest;
+                shard.public_values.shard = current_shard_num;
+                shard.public_values.start_pc = shard.cpu_events[0].pc;
+                shard.public_values.next_pc = last_shard_cpu_event.next_pc;
+                shard.public_values.exit_code = last_shard_cpu_event.exit_code;
 
                 if !(at_last_event) {
                     start_idx = i;
@@ -429,9 +466,6 @@ impl MachineRecord for ExecutionRecord {
         // Bls12-381 decompress events .
         first.bls12381_decompress_events = std::mem::take(&mut self.bls12381_decompress_events);
 
-        // Put all byte lookups in the first shard (as the table size is fixed)
-        first.byte_lookups = std::mem::take(&mut self.byte_lookups);
-
         // Put the memory records in the last shard.
         let last_shard = shards.last_mut().unwrap();
 
@@ -446,6 +480,12 @@ impl MachineRecord for ExecutionRecord {
             .extend_from_slice(&self.program_memory_events);
 
         shards
+    }
+
+    /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
+    /// the public values digest is used by the prover.
+    fn public_values(&self) -> PublicValues<u32, u32> {
+        self.public_values
     }
 }
 
@@ -467,10 +507,12 @@ impl ExecutionRecord {
     }
 
     pub fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent) {
-        self.byte_lookups
+        *self
+            .byte_lookups
+            .entry(blu_event.shard)
+            .or_default()
             .entry(blu_event)
-            .and_modify(|i| *i += 1)
-            .or_insert(1);
+            .or_insert(0) += 1
     }
 
     pub fn add_alu_events(&mut self, alu_events: HashMap<Opcode, Vec<AluEvent>>) {
@@ -514,8 +556,9 @@ impl ExecutionRecord {
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` and `b are indeed bytes to the shard.
-    pub fn add_u8_range_check(&mut self, a: u8, b: u8) {
+    pub fn add_u8_range_check(&mut self, shard: u32, a: u8, b: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
+            shard,
             opcode: ByteOpcode::U8Range,
             a1: 0,
             a2: 0,
@@ -525,8 +568,9 @@ impl ExecutionRecord {
     }
 
     /// Adds a `ByteLookupEvent` to verify `a` is indeed u16.
-    pub fn add_u16_range_check(&mut self, a: u32) {
+    pub fn add_u16_range_check(&mut self, shard: u32, a: u32) {
         self.add_byte_lookup_event(ByteLookupEvent {
+            shard,
             opcode: ByteOpcode::U16Range,
             a1: a,
             a2: 0,
@@ -536,26 +580,27 @@ impl ExecutionRecord {
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    pub fn add_u8_range_checks(&mut self, ls: &[u8]) {
+    pub fn add_u8_range_checks(&mut self, shard: u32, ls: &[u8]) {
         let mut index = 0;
         while index + 1 < ls.len() {
-            self.add_u8_range_check(ls[index], ls[index + 1]);
+            self.add_u8_range_check(shard, ls[index], ls[index + 1]);
             index += 2;
         }
         if index < ls.len() {
             // If the input slice's length is odd, we need to add a check for the last byte.
-            self.add_u8_range_check(ls[index], 0);
+            self.add_u8_range_check(shard, ls[index], 0);
         }
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    pub fn add_u16_range_checks(&mut self, ls: &[u32]) {
-        ls.iter().for_each(|x| self.add_u16_range_check(*x));
+    pub fn add_u16_range_checks(&mut self, shard: u32, ls: &[u32]) {
+        ls.iter().for_each(|x| self.add_u16_range_check(shard, *x));
     }
 
     /// Adds a `ByteLookupEvent` to compute the bitwise OR of the two input values.
-    pub fn lookup_or(&mut self, b: u8, c: u8) {
+    pub fn lookup_or(&mut self, shard: u32, b: u8, c: u8) {
         self.add_byte_lookup_event(ByteLookupEvent {
+            shard,
             opcode: ByteOpcode::OR,
             a1: (b | c) as u32,
             a2: 0,

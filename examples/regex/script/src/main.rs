@@ -21,7 +21,7 @@ fn main() {
     let mut proof = SP1Prover::prove(REGEX_IO_ELF, stdin).expect("proving failed");
 
     // Read the output.
-    let res = proof.stdout.read::<bool>();
+    let res = proof.public_values.read::<bool>();
     println!("res: {}", res);
 
     // Verify proof.

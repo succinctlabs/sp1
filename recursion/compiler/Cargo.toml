@@ -18,12 +18,14 @@ sp1-core = { path = "../../core" }
 itertools = "0.12.1"
 serde = { version = "1.0.197", features = ["derive"] }
 sp1-recursion-derive = { path = "../derive" }
+serde_json = "1.0.115"
+p3-bn254-fr = { workspace = true }
+p3-baby-bear = { workspace = true }
+serial_test = "3.0.0"
+p3-poseidon2 = { workspace = true }
 
 [dev-dependencies]
-p3-baby-bear = { workspace = true }
 p3-challenger = { workspace = true }
-p3-symmetric = { workspace = true }
 p3-dft = { workspace = true }
 p3-merkle-tree = { workspace = true }
-p3-poseidon2 = { workspace = true }
 rand = "0.8.4"

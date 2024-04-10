@@ -1,9 +1,9 @@
 use p3_commit::{LagrangeSelectors, TwoAdicMultiplicativeCoset};
-
 use p3_field::{AbstractField, TwoAdicField};
 use sp1_recursion_compiler::prelude::*;
 
-use crate::{commit::PolynomialSpaceVariable, types::FriConfigVariable};
+use super::types::FriConfigVariable;
+use crate::commit::PolynomialSpaceVariable;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
 #[derive(DslVariable, Clone, Copy)]
@@ -35,7 +35,7 @@ where
 {
     type Constant = TwoAdicMultiplicativeCoset<C::F>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         let log_d_val = value.log_n as u32;
         let g_val = C::F::two_adic_generator(value.log_n);
         // Initialize a domain.
@@ -47,35 +47,6 @@ where
         }
     }
 }
-
-// pub fn new_coset<C: Config>(
-//     builder: &mut Builder<C>,
-//     log_degree: Usize<C::N>,
-// ) -> TwoAdicMultiplicativeCosetVariable<C>
-// where
-//     C::F: TwoAdicField,
-// {
-//     let two_addicity = C::F::TWO_ADICITY;
-
-//     let is_valid: Var<_> = builder.eval(C::N::zero());
-//     let domain: TwoAdicMultiplicativeCosetVariable<C> = builder.uninit();
-//     for i in 1..=two_addicity {
-//         let i_f = C::N::from_canonical_usize(i);
-//         builder.if_eq(log_degree, i_f).then(|builder| {
-//             let constant = TwoAdicMultiplicativeCoset {
-//                 log_n: i,
-//                 shift: C::F::one(),
-//             };
-//             let domain_value: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(constant);
-//             builder.assign(domain.clone(), domain_value);
-//             builder.assign(is_valid, C::N::one());
-//         });
-//     }
-
-//     builder.assert_var_eq(is_valid, C::N::one());
-
-//     domain
-// }
 
 impl<C: Config> PolynomialSpaceVariable<C> for TwoAdicMultiplicativeCosetVariable<C>
 where
@@ -128,7 +99,7 @@ where
     fn split_domains(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
         let num_chunks = 1 << log_num_chunks;
         let log_n: Var<_> = builder.eval(self.log_n - C::N::from_canonical_usize(log_num_chunks));
-        let size = builder.power_of_two_var(Usize::Var(log_n));
+        let size = builder.sll(C::N::one(), Usize::Var(log_n));
 
         let g_dom = self.gen();
 
@@ -154,10 +125,10 @@ where
         &self,
         builder: &mut Builder<C>,
         log_degree: Usize<<C as Config>::N>,
-        config: &FriConfigVariable<C>,
+        config: Option<FriConfigVariable<C>>,
     ) -> Self {
         // let domain = new_coset(builder, log_degree);
-        let domain = config.get_subgroup(builder, log_degree);
+        let domain = config.unwrap().get_subgroup(builder, log_degree);
         builder.assign(domain.shift, self.shift * C::F::generator());
 
         domain
@@ -169,8 +140,9 @@ pub(crate) mod tests {
 
     use itertools::Itertools;
     use sp1_recursion_compiler::asm::VmBuilder;
+    use sp1_recursion_core::stark::config::inner_fri_config;
 
-    use crate::fri::{const_fri_config, default_fri_config};
+    use crate::fri::const_fri_config;
 
     use super::*;
     use p3_commit::{Pcs, PolynomialSpace};
@@ -222,7 +194,7 @@ pub(crate) mod tests {
         // Initialize a builder.
         let mut builder = VmBuilder::<F, EF>::default();
 
-        let config_var = const_fri_config(&mut builder, default_fri_config());
+        let config_var = const_fri_config(&mut builder, inner_fri_config());
         for i in 0..5 {
             let log_d_val = 10 + i;
 
@@ -230,7 +202,7 @@ pub(crate) mod tests {
 
             // Initialize a reference doamin.
             let domain_val = natural_domain_for_degree(1 << log_d_val);
-            let domain = builder.eval_const(domain_val);
+            let domain = builder.constant(domain_val);
             // builder.assert_felt_eq(domain.shift, domain_val.shift);
             let zeta_val = rng.gen::<EF>();
             domain_assertions(&mut builder, &domain, &domain_val, zeta_val);
@@ -238,7 +210,7 @@ pub(crate) mod tests {
             // Try a shifted domain.
             let disjoint_domain_val =
                 domain_val.create_disjoint_domain(1 << (log_d_val + log_quotient_degree));
-            let disjoint_domain = builder.eval_const(disjoint_domain_val);
+            let disjoint_domain = builder.constant(disjoint_domain_val);
             domain_assertions(
                 &mut builder,
                 &disjoint_domain,
@@ -248,7 +220,7 @@ pub(crate) mod tests {
 
             let log_degree: Usize<_> = builder.eval(Usize::Const(log_d_val) + log_quotient_degree);
             let disjoint_domain_gen =
-                domain.create_disjoint_domain(&mut builder, log_degree, &config_var);
+                domain.create_disjoint_domain(&mut builder, log_degree, Some(config_var.clone()));
             domain_assertions(
                 &mut builder,
                 &disjoint_domain_gen,
@@ -259,7 +231,7 @@ pub(crate) mod tests {
             // Now try splited domains
             let qc_domains_val = disjoint_domain_val.split_domains(1 << log_quotient_degree);
             for dom_val in qc_domains_val.iter() {
-                let dom = builder.eval_const(*dom_val);
+                let dom = builder.constant(*dom_val);
                 domain_assertions(&mut builder, &dom, dom_val, zeta_val);
             }
 

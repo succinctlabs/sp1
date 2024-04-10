@@ -1,12 +1,25 @@
 use p3_field::AbstractField;
 
-use sp1_recursion_compiler::prelude::{Array, Builder, Config, Ext, Felt, Usize, Var};
+use sp1_recursion_compiler::prelude::MemIndex;
+use sp1_recursion_compiler::prelude::MemVariable;
+use sp1_recursion_compiler::prelude::Ptr;
+use sp1_recursion_compiler::prelude::Variable;
+use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, Felt, Usize, Var};
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
-use crate::types::Commitment;
+use crate::fri::types::DigestVariable;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
+
+    fn observe_slice(&mut self, builder: &mut Builder<C>, values: &[V])
+    where
+        V: Copy,
+    {
+        for value in values {
+            self.observe(builder, *value);
+        }
+    }
 }
 
 pub trait CanSampleVariable<C: Config, V> {
@@ -28,7 +41,7 @@ pub trait CanSampleBitsVariable<C: Config> {
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
-#[derive(Clone)]
+#[derive(Clone, DslVariable)]
 pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: Array<C, Felt<C::F>>,
     pub nb_inputs: Var<C::N>,
@@ -45,6 +58,34 @@ impl<C: Config> DuplexChallengerVariable<C> {
             input_buffer: builder.dyn_array(PERMUTATION_WIDTH),
             nb_outputs: builder.eval(C::N::zero()),
             output_buffer: builder.dyn_array(PERMUTATION_WIDTH),
+        }
+    }
+
+    /// Creates a new challenger with the same state as an existing challenger.
+    pub fn as_clone(&self, builder: &mut Builder<C>) -> Self {
+        let mut sponge_state = builder.dyn_array(PERMUTATION_WIDTH);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.sponge_state, i);
+            builder.set(&mut sponge_state, i, element);
+        });
+        let nb_inputs = builder.eval(self.nb_inputs);
+        let mut input_buffer = builder.dyn_array(PERMUTATION_WIDTH);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.input_buffer, i);
+            builder.set(&mut input_buffer, i, element);
+        });
+        let nb_outputs = builder.eval(self.nb_outputs);
+        let mut output_buffer = builder.dyn_array(PERMUTATION_WIDTH);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.output_buffer, i);
+            builder.set(&mut output_buffer, i, element);
+        });
+        DuplexChallengerVariable::<C> {
+            sponge_state,
+            nb_inputs,
+            input_buffer,
+            nb_outputs,
+            output_buffer,
         }
     }
 
@@ -85,7 +126,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L78
-    fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
+    fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         for i in 0..DIGEST_SIZE {
             let element = builder.get(&commitment, i);
             self.observe(builder, element);
@@ -168,8 +209,8 @@ impl<C: Config> CanSampleBitsVariable<C> for DuplexChallengerVariable<C> {
     }
 }
 
-impl<C: Config> CanObserveVariable<C, Commitment<C>> for DuplexChallengerVariable<C> {
-    fn observe(&mut self, builder: &mut Builder<C>, commitment: Commitment<C>) {
+impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVariable<C> {
+    fn observe(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         DuplexChallengerVariable::observe_commitment(self, builder, commitment);
     }
 }

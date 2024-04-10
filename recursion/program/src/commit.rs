@@ -1,7 +1,7 @@
 use p3_commit::{LagrangeSelectors, PolynomialSpace};
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, FromConstant, Usize};
 
-use crate::{fri::TwoAdicPcsRoundVariable, types::FriConfigVariable};
+use crate::fri::types::{FriConfigVariable, TwoAdicPcsRoundVariable};
 
 pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
     type Constant: PolynomialSpace<Val = C::F>;
@@ -24,7 +24,7 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
         &self,
         builder: &mut Builder<C>,
         log_degree: Usize<C::N>,
-        config: &FriConfigVariable<C>,
+        config: Option<FriConfigVariable<C>>,
     ) -> Self;
 }
 

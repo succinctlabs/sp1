@@ -113,8 +113,11 @@ pub enum AsmInstruction<F, EF> {
     JALR(i32, i32, i32),
     /// Branch not equal
     BNE(F, i32, i32),
+    /// Branch not equal increment c by 1.
+    BNEINC(F, i32, i32),
     /// Branch not equal immediate
     BNEI(F, i32, F),
+    BNEIINC(F, i32, F),
     /// Branch equal
     BEQ(F, i32, i32),
     /// Branch equal immediate
@@ -138,11 +141,17 @@ pub enum AsmInstruction<F, EF> {
 
     /// Perform a permutation of the Poseidon2 hash function on the array specified by the ptr.
     Poseidon2Permute(i32, i32),
+    Poseidon2Compress(i32, i32, i32),
 
     PrintV(i32),
     PrintF(i32),
     PrintE(i32),
     Ext2Felt(i32, i32),
+
+    HintLen(i32),
+    Hint(i32),
+    // FRIFold(m, input) specific instructions.
+    FriFold(i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -677,11 +686,39 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     true,
                 )
             }
+            AsmInstruction::BNEINC(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BNEINC,
+                    i32_f(lhs),
+                    i32_f_arr(rhs),
+                    f_u32(offset),
+                    F::zero(),
+                    F::zero(),
+                    false,
+                    true,
+                )
+            }
             AsmInstruction::BNEI(label, lhs, rhs) => {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
                     Opcode::BNE,
+                    i32_f(lhs),
+                    f_u32(rhs),
+                    f_u32(offset),
+                    F::zero(),
+                    F::zero(),
+                    true,
+                    true,
+                )
+            }
+            AsmInstruction::BNEIINC(label, lhs, rhs) => {
+                let offset =
+                    F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
+                Instruction::new(
+                    Opcode::BNEINC,
                     i32_f(lhs),
                     f_u32(rhs),
                     f_u32(offset),
@@ -840,6 +877,46 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 F::zero(),
                 false,
                 true,
+            ),
+            AsmInstruction::HintLen(dst) => Instruction::new(
+                Opcode::HintLen,
+                i32_f(dst),
+                i32_f_arr(dst),
+                f_u32(F::zero()),
+                F::zero(),
+                F::zero(),
+                false,
+                true,
+            ),
+            AsmInstruction::Hint(dst) => Instruction::new(
+                Opcode::Hint,
+                i32_f(dst),
+                i32_f_arr(dst),
+                f_u32(F::zero()),
+                F::zero(),
+                F::zero(),
+                false,
+                true,
+            ),
+            AsmInstruction::FriFold(m, ptr) => Instruction::new(
+                Opcode::FRIFold,
+                i32_f(m),
+                i32_f_arr(ptr),
+                f_u32(F::zero()),
+                F::zero(),
+                F::zero(),
+                false,
+                true,
+            ),
+            AsmInstruction::Poseidon2Compress(result, src1, src2) => Instruction::new(
+                Opcode::Poseidon2Compress,
+                i32_f(result),
+                i32_f_arr(src1),
+                i32_f_arr(src2),
+                F::zero(),
+                F::zero(),
+                false,
+                false,
             ),
         }
     }
@@ -1054,6 +1131,24 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     rhs
                 )
             }
+            AsmInstruction::BNEINC(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "bneinc {}, ({})fp, {}",
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
+            AsmInstruction::BNEIINC(label, lhs, rhs) => {
+                write!(
+                    f,
+                    "bneiinc {}, ({})fp, {}",
+                    labels.get(label).unwrap_or(&format!(".L{}", label)),
+                    lhs,
+                    rhs
+                )
+            }
             AsmInstruction::BEQ(label, lhs, rhs) => {
                 write!(
                     f,
@@ -1123,6 +1218,18 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 write!(f, "print_e ({})fp", dst)
             }
             AsmInstruction::Ext2Felt(dst, src) => write!(f, "ext2felt ({})fp, {})fp", dst, src),
+            AsmInstruction::HintLen(dst) => write!(f, "hint_len ({})fp", dst),
+            AsmInstruction::Hint(dst) => write!(f, "hint ({})fp", dst),
+            AsmInstruction::FriFold(m, input_ptr) => {
+                write!(f, "fri_fold ({})fp, ({})fp", m, input_ptr)
+            }
+            AsmInstruction::Poseidon2Compress(result, src1, src2) => {
+                write!(
+                    f,
+                    "poseidon2_compress ({})fp, {})fp, {})fp",
+                    result, src1, src2
+                )
+            }
         }
     }
 }

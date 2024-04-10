@@ -1,5 +1,5 @@
-use crate::air::{AirInteraction, MessageBuilder};
-use p3_air::{AirBuilder, PairBuilder, PairCol, VirtualPairCol};
+use crate::air::{AirInteraction, MessageBuilder, PublicValues, Word};
+use p3_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
@@ -12,6 +12,7 @@ pub struct InteractionBuilder<F: Field> {
     main: RowMajorMatrix<SymbolicVariable<F>>,
     sends: Vec<Interaction<F>>,
     receives: Vec<Interaction<F>>,
+    public_values: Vec<F>,
 }
 
 impl<F: Field> InteractionBuilder<F> {
@@ -34,11 +35,15 @@ impl<F: Field> InteractionBuilder<F> {
                     .map(move |column| SymbolicVariable::new(Entry::Main { offset }, column))
             })
             .collect();
+
+        let public_values = PublicValues::<Word<F>, F>::default().to_vec();
+
         Self {
             preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),
             main: RowMajorMatrix::new(main_values, main_width),
             sends: vec![],
             receives: vec![],
+            public_values,
         }
     }
 
@@ -108,6 +113,14 @@ impl<F: Field> MessageBuilder<AirInteraction<SymbolicExpression<F>>> for Interac
 
         self.receives
             .push(Interaction::new(values, multiplicity, message.kind));
+    }
+}
+
+impl<F: Field> AirBuilderWithPublicValues for InteractionBuilder<F> {
+    type PublicVar = F;
+
+    fn public_values(&self) -> &[Self::PublicVar] {
+        &self.public_values
     }
 }
 

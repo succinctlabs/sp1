@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
+use crate::air::{PublicValues, Word};
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -12,7 +13,8 @@ use crate::{
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
-use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
+
+use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 
@@ -39,12 +41,12 @@ pub fn run_test_io(
         runtime.run();
         runtime
     });
-    let stdout = SP1Stdout::from(&runtime.state.output_stream);
+    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
     let proof = run_test_core(runtime)?;
     Ok(SP1ProofWithIO {
         proof,
         stdin: inputs,
-        stdout,
+        public_values,
     })
 }
 
@@ -59,6 +61,7 @@ pub fn run_test(
     run_test_core(runtime)
 }
 
+#[allow(unused_variables)]
 pub fn run_test_core(
     runtime: Runtime,
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
@@ -68,8 +71,12 @@ pub fn run_test_core(
     let mut challenger = machine.config().challenger();
 
     #[cfg(feature = "debug")]
-    let record_clone = runtime.record.clone();
-
+    {
+        let mut challenger_clone = machine.config().challenger();
+        let record_clone = runtime.record.clone();
+        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
+        log::debug!("debug_constraints done");
+    }
     let start = Instant::now();
     let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
@@ -77,9 +84,6 @@ pub fn run_test_core(
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    #[cfg(feature = "debug")]
-    machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
@@ -110,7 +114,7 @@ fn reset_seek(file: &mut File) {
 
 pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
-    stdin: SP1Stdin,
+    stdin: &[Vec<u8>],
     config: SC,
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
@@ -125,7 +129,7 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
-    runtime.write_vecs(&stdin.buffer);
+    runtime.write_vecs(stdin);
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
@@ -137,16 +141,17 @@ where
             let record_clone = runtime.record.clone();
             machine.debug_constraints(&pk, record_clone, &mut challenger);
         }
-        let stdout = std::mem::take(&mut runtime.state.output_stream);
+        let public_values = std::mem::take(&mut runtime.state.public_values_stream);
         let proof = prove_core(machine.config().clone(), runtime);
-        return (proof, stdout);
+        return (proof, public_values);
     }
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
+    let mut public_values: PublicValues<u32, u32> = Default::default();
+    let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
         let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
@@ -159,7 +164,8 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            return std::mem::take(&mut runtime.state.output_stream);
+            public_values = runtime.record.public_values();
+            return std::mem::take(&mut runtime.state.public_values_stream);
         }
     });
 
@@ -184,10 +190,13 @@ where
         shard_main_datas.push(commit_data);
 
         if reuse_shards {
-            all_shards = Some(shards);
+            all_shards = Some(shards.clone());
         }
-        for commitment in commitments {
+
+        for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
+            let public_values = PublicValues::<Word<SC::Val>, SC::Val>::new(shard.public_values());
+            challenger.observe_slice(&public_values.to_vec());
         }
     }
 
@@ -229,7 +238,7 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    (proof, stdout)
+    (proof, public_values_stream)
 }
 
 pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
@@ -345,6 +354,7 @@ pub mod baby_bear_poseidon2 {
     use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
 
@@ -356,7 +366,7 @@ pub mod baby_bear_poseidon2 {
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
@@ -407,7 +417,24 @@ pub mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            const ROUNDS_F: usize = 8;
+            const ROUNDS_P: usize = 22;
+            let mut round_constants = RC_16_30.to_vec();
+            let internal_start = ROUNDS_F / 2;
+            let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+            let internal_round_constants = round_constants
+                .drain(internal_start..internal_end)
+                .map(|vec| vec[0])
+                .collect::<Vec<_>>();
+            let external_round_constants = round_constants;
+            let perm = Perm::new(
+                ROUNDS_F,
+                external_round_constants,
+                Poseidon2ExternalMatrixGeneral,
+                ROUNDS_P,
+                internal_round_constants,
+                DiffusionMatrixBabybear,
+            );
 
             let hash = MyHash::new(perm.clone());
 

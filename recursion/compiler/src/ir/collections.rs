@@ -1,7 +1,9 @@
-use super::{Builder, Config, FromConstant, MemIndex, MemVariable, Ptr, Usize, Var, Variable};
 use itertools::Itertools;
 use p3_field::AbstractField;
 
+use super::{Builder, Config, FromConstant, MemIndex, MemVariable, Ptr, Usize, Var, Variable};
+
+/// An array that is either of static or dynamic size.
 #[derive(Debug, Clone)]
 pub enum Array<C: Config, T> {
     Fixed(Vec<T>),
@@ -9,6 +11,15 @@ pub enum Array<C: Config, T> {
 }
 
 impl<C: Config, V: MemVariable<C>> Array<C, V> {
+    /// Gets a fixed version of the array.
+    pub fn vec(&self) -> Vec<V> {
+        match self {
+            Self::Fixed(vec) => vec.clone(),
+            _ => panic!("array is dynamic, not fixed"),
+        }
+    }
+
+    /// Gets the length of the array as a variable inside the DSL.
     pub fn len(&self) -> Usize<C::N> {
         match self {
             Self::Fixed(vec) => Usize::from(vec.len()),
@@ -16,12 +27,14 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
         }
     }
 
+    /// Shifts the array by `shift` elements.
     pub fn shift(&self, builder: &mut Builder<C>, shift: Var<C::N>) -> Array<C, V> {
         match self {
             Self::Fixed(_) => {
                 todo!()
             }
             Self::Dyn(ptr, len) => {
+                assert!(V::size_of() == 1, "only support variables of size 1");
                 let new_address = builder.eval(ptr.address + shift);
                 let new_ptr = Ptr::<C::N> {
                     address: new_address,
@@ -33,6 +46,7 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
         }
     }
 
+    /// Truncates the array to `len` elements.
     pub fn truncate(&self, builder: &mut Builder<C>, len: Usize<C::N>) {
         match self {
             Self::Fixed(_) => {
@@ -51,6 +65,12 @@ impl<C: Config> Builder<C> {
         self.dyn_array(len)
     }
 
+    /// Creates an array from a vector.
+    pub fn vec<V: MemVariable<C>>(&mut self, v: Vec<V>) -> Array<C, V> {
+        Array::Fixed(v)
+    }
+
+    /// Creates a dynamic array for a length.
     pub fn dyn_array<V: MemVariable<C>>(&mut self, len: impl Into<Usize<C::N>>) -> Array<C, V> {
         let len = match len.into() {
             Usize::Const(len) => self.eval(C::N::from_canonical_usize(len)),
@@ -59,20 +79,6 @@ impl<C: Config> Builder<C> {
         let len = Usize::Var(len);
         let ptr = self.alloc(len, V::size_of());
         Array::Dyn(ptr, len)
-    }
-
-    pub fn array_to_dyn<V: MemVariable<C>>(&mut self, array: Array<C, V>) -> Array<C, V> {
-        match array {
-            Array::Fixed(v) => {
-                let mut dyn_array = self.dyn_array(v.len());
-
-                for (i, value) in v.into_iter().enumerate() {
-                    self.set(&mut dyn_array, i, value);
-                }
-                dyn_array
-            }
-            Array::Dyn(ptr, len) => Array::Dyn(ptr, len),
-        }
     }
 
     pub fn get<V: MemVariable<C>, I: Into<Usize<C::N>>>(
@@ -122,6 +128,29 @@ impl<C: Config> Builder<C> {
                     size: V::size_of(),
                 };
                 let value: V = self.eval(value);
+                self.store(*ptr, index, value);
+            }
+        }
+    }
+
+    pub fn set_value<V: MemVariable<C>, I: Into<Usize<C::N>>>(
+        &mut self,
+        slice: &mut Array<C, V>,
+        index: I,
+        value: V,
+    ) {
+        let index = index.into();
+
+        match slice {
+            Array::Fixed(_) => {
+                todo!()
+            }
+            Array::Dyn(ptr, _) => {
+                let index = MemIndex {
+                    index,
+                    offset: 0,
+                    size: V::size_of(),
+                };
                 self.store(*ptr, index, value);
             }
         }
@@ -246,11 +275,10 @@ impl<C: Config, T: MemVariable<C>> MemVariable<C> for Array<C, T> {
 impl<C: Config, V: FromConstant<C> + MemVariable<C>> FromConstant<C> for Array<C, V> {
     type Constant = Vec<V::Constant>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         let mut array = builder.dyn_array(value.len());
-        // Assign each element.
         for (i, val) in value.into_iter().enumerate() {
-            let val = V::eval_const(val, builder);
+            let val = V::constant(val, builder);
             builder.set(&mut array, i, val);
         }
         array

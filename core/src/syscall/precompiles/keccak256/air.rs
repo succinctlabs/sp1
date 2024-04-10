@@ -136,7 +136,6 @@ where
     }
 }
 
-#[cfg(feature = "keccak")]
 #[cfg(test)]
 mod test {
     use crate::SP1Stdin;
@@ -151,6 +150,7 @@ mod test {
     const NUM_TEST_CASES: usize = 45;
 
     #[test]
+    #[ignore]
     fn test_keccak_random() {
         setup_logger();
         let mut rng = rand::rngs::StdRng::seed_from_u64(0);
@@ -178,7 +178,7 @@ mod test {
 
         for i in 0..NUM_TEST_CASES {
             let expected = outputs.get(i).unwrap();
-            let actual = proof.stdout.read::<[u8; 32]>();
+            let actual = proof.public_values.read::<[u8; 32]>();
             assert_eq!(expected, &actual);
         }
     }

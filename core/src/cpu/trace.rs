@@ -138,6 +138,7 @@ impl CpuChip {
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
+        cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
         *cols.op_a_access.value_mut() = event.a.into();
@@ -169,7 +170,15 @@ impl CpuChip {
         self.populate_branch(cols, event, &mut new_alu_events);
         self.populate_jump(cols, event, &mut new_alu_events);
         self.populate_auipc(cols, event, &mut new_alu_events);
-        self.populate_ecall(cols, event);
+        let is_halt = self.populate_ecall(cols, event);
+
+        if !event.instruction.is_branch_instruction()
+            && !event.instruction.is_jump_instruction()
+            && !event.instruction.is_ecall_instruction()
+            && !is_halt
+        {
+            cols.is_sequential_instr = F::one();
+        }
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -185,15 +194,36 @@ impl CpuChip {
         new_blu_events: &mut Vec<ByteLookupEvent>,
     ) {
         cols.shard = F::from_canonical_u32(event.shard);
-        new_blu_events.push(ByteLookupEvent::new(U16Range, event.shard, 0, 0, 0));
+        new_blu_events.push(ByteLookupEvent::new(
+            event.shard,
+            U16Range,
+            event.shard,
+            0,
+            0,
+            0,
+        ));
 
         cols.clk = F::from_canonical_u32(event.clk);
         let clk_16bit_limb = event.clk & 0xffff;
         cols.clk_16bit_limb = F::from_canonical_u32(clk_16bit_limb);
         let clk_8bit_limb = (event.clk >> 16) & 0xff;
         cols.clk_8bit_limb = F::from_canonical_u32(clk_8bit_limb);
-        new_blu_events.push(ByteLookupEvent::new(U16Range, clk_16bit_limb, 0, 0, 0));
-        new_blu_events.push(ByteLookupEvent::new(U8Range, 0, 0, 0, clk_8bit_limb));
+        new_blu_events.push(ByteLookupEvent::new(
+            event.shard,
+            U16Range,
+            clk_16bit_limb,
+            0,
+            0,
+            0,
+        ));
+        new_blu_events.push(ByteLookupEvent::new(
+            event.shard,
+            U8Range,
+            0,
+            0,
+            0,
+            clk_8bit_limb,
+        ));
     }
 
     /// Populates columns related to memory.
@@ -227,6 +257,7 @@ impl CpuChip {
 
         // Add event to ALU check to check that addr == b + c
         let add_event = AluEvent {
+            shard: event.shard,
             clk: event.clk,
             opcode: Opcode::ADD,
             a: memory_addr,
@@ -290,6 +321,7 @@ impl CpuChip {
                 if memory_columns.most_sig_byte_decomp[7] == F::one() {
                     cols.mem_value_is_neg = F::one();
                     let sub_event = AluEvent {
+                        shard: event.shard,
                         clk: event.clk,
                         opcode: Opcode::SUB,
                         a: event.a,
@@ -309,6 +341,7 @@ impl CpuChip {
         let addr_bytes = memory_addr.to_le_bytes();
         for byte_pair in addr_bytes.chunks_exact(2) {
             new_blu_events.push(ByteLookupEvent {
+                shard: event.shard,
                 opcode: ByteOpcode::U8Range,
                 a1: 0,
                 a2: 0,
@@ -351,6 +384,7 @@ impl CpuChip {
             };
             // Add the ALU events for the comparisons
             let lt_comp_event = AluEvent {
+                shard: event.shard,
                 clk: event.clk,
                 opcode: alu_op_code,
                 a: a_lt_b as u32,
@@ -364,6 +398,7 @@ impl CpuChip {
                 .or_insert(vec![lt_comp_event]);
 
             let gt_comp_event = AluEvent {
+                shard: event.shard,
                 clk: event.clk,
                 opcode: alu_op_code,
                 a: a_gt_b as u32,
@@ -396,6 +431,7 @@ impl CpuChip {
                 branch_columns.next_pc = next_pc.into();
 
                 let add_event = AluEvent {
+                    shard: event.shard,
                     clk: event.clk,
                     opcode: Opcode::ADD,
                     a: next_pc,
@@ -430,6 +466,7 @@ impl CpuChip {
                     jump_columns.next_pc = next_pc.into();
 
                     let add_event = AluEvent {
+                        shard: event.shard,
                         clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
@@ -447,6 +484,7 @@ impl CpuChip {
                     jump_columns.next_pc = next_pc.into();
 
                     let add_event = AluEvent {
+                        shard: event.shard,
                         clk: event.clk,
                         opcode: Opcode::ADD,
                         a: next_pc,
@@ -477,6 +515,7 @@ impl CpuChip {
             auipc_columns.pc = event.pc.into();
 
             let add_event = AluEvent {
+                shard: event.shard,
                 clk: event.clk,
                 opcode: Opcode::ADD,
                 a: event.a,
@@ -492,7 +531,9 @@ impl CpuChip {
     }
 
     /// Populate columns related to ECALL.
-    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) {
+    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) -> bool {
+        let mut is_halt = false;
+
         if cols.selectors.is_ecall == F::one() {
             // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
             // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
@@ -522,16 +563,27 @@ impl CpuChip {
             ecall_cols.is_halt.populate_from_field_element(
                 syscall_id - F::from_canonical_u32(SyscallCode::HALT.syscall_id()),
             );
+
+            // Populate `is_commit`.
+            ecall_cols.is_commit.populate_from_field_element(
+                syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
+            );
+
+            // If the syscall is a `COMMIT`, set the index bitmap and digest word.
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()) {
+                let digest_idx = cols.op_b_access.value().to_u32() as usize;
+                ecall_cols.index_bitmap[digest_idx] = F::one();
+                ecall_cols.digest_word = *cols.op_c_access.value();
+            }
+
+            is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
         }
+
+        is_halt
     }
 
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
-        let len: usize = values.len();
         let n_real_rows = values.len() / NUM_CPU_COLS;
-        let last_row = &values[len - NUM_CPU_COLS..];
-        let pc = last_row[CPU_COL_MAP.pc];
-        let shard = last_row[CPU_COL_MAP.shard];
-        let clk = last_row[CPU_COL_MAP.clk];
 
         values.resize(n_real_rows.next_power_of_two() * NUM_CPU_COLS, F::zero());
 
@@ -544,9 +596,6 @@ impl CpuChip {
         };
 
         rows[n_real_rows..].iter_mut().for_each(|padded_row| {
-            padded_row[CPU_COL_MAP.pc] = pc;
-            padded_row[CPU_COL_MAP.shard] = shard;
-            padded_row[CPU_COL_MAP.clk] = clk;
             padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
             padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
         });
@@ -559,12 +608,8 @@ mod tests {
 
     use super::*;
 
-    use crate::stark::StarkGenericConfig;
-    use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
-    use crate::{
-        runtime::{tests::simple_program, Instruction, Runtime},
-        utils::BabyBearPoseidon2,
-    };
+    use crate::runtime::{tests::simple_program, Instruction, Runtime};
+    use crate::utils::run_test;
 
     #[test]
     fn generate_trace() {
@@ -573,6 +618,7 @@ mod tests {
             shard: 1,
             clk: 6,
             pc: 1,
+            next_pc: 5,
             instruction: Instruction {
                 opcode: Opcode::ADD,
                 op_a: 0,
@@ -589,6 +635,7 @@ mod tests {
             c_record: None,
             memory: None,
             memory_record: None,
+            exit_code: 0,
         }];
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
@@ -612,20 +659,7 @@ mod tests {
 
     #[test]
     fn prove_trace() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
         let program = simple_program();
-        let mut runtime = Runtime::new(program);
-        runtime.run();
-        let chip = CpuChip::default();
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());
-        trace.rows().for_each(|row| println!("{:?}", row));
-
-        let proof = prove::<BabyBearPoseidon2, _>(&config, &chip, &mut challenger, trace);
-
-        let mut challenger = config.challenger();
-        verify(&config, &chip, &mut challenger, &proof).unwrap();
+        run_test(program).unwrap();
     }
 }

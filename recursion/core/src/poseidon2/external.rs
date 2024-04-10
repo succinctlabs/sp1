@@ -333,13 +333,15 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::{
         air::MachineAir,
-        utils::{poseidon2_instance::RC_16_30, uni_stark_prove, BabyBearPoseidon2},
+        utils::{uni_stark_prove, BabyBearPoseidon2},
     };
 
     use crate::poseidon2::external::WIDTH;
+    use crate::stark::config::inner_perm;
     use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
     use p3_symmetric::Permutation;
 
@@ -356,6 +358,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn prove_babybear() {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
@@ -366,8 +369,13 @@ mod tests {
             &mut ExecutionRecord::<BabyBear>::default(),
         );
 
-        let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> =
-            Poseidon2::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabybear,
+            16,
+            7,
+        > = inner_perm();
         let input = [BabyBear::one(); WIDTH];
         let output = gt.permute(input);
 

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::PrimeField32;
+use sp1_core::air::PublicValues;
 use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
@@ -33,9 +34,19 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         HashMap::new()
     }
 
-    fn append(&mut self, _: &mut Self) {}
+    fn append(&mut self, other: &mut Self) {
+        self.cpu_events.append(&mut other.cpu_events);
+        self.first_memory_record
+            .append(&mut other.first_memory_record);
+        self.last_memory_record
+            .append(&mut other.last_memory_record);
+    }
 
     fn shard(self, _: &Self::Config) -> Vec<Self> {
         vec![self]
+    }
+
+    fn public_values(&self) -> PublicValues<u32, u32> {
+        PublicValues::default()
     }
 }

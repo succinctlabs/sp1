@@ -21,5 +21,5 @@ pub fn main() {
     }
     println!("after: {:?}", decompressed_key);
 
-    sp1_zkvm::io::write_slice(&decompressed_key);
+    sp1_zkvm::io::commit_slice(&decompressed_key);
 }

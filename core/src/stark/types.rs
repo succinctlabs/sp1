@@ -12,6 +12,8 @@ use size::Size;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
+use crate::air::PublicValues;
+
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
@@ -25,6 +27,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub index: usize,
+    pub public_values: PublicValues<u32, u32>,
 }
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
@@ -34,6 +37,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_data: PcsProverData<SC>,
         chip_ordering: HashMap<String, usize>,
         index: usize,
+        public_values: PublicValues<u32, u32>,
     ) -> Self {
         Self {
             traces,
@@ -41,6 +45,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             main_data,
             chip_ordering,
             index,
+            public_values,
         }
     }
 
@@ -125,6 +130,7 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
+    pub public_values: PublicValues<u32, u32>,
 }
 
 impl<T> AirOpenedValues<T> {

@@ -59,17 +59,17 @@ pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned>
     #[serde(with = "proof_serde")]
     pub proof: Proof<SC>,
     pub stdin: SP1Stdin,
-    pub stdout: SP1Stdout,
+    pub public_values: SP1PublicValues,
 }
 
 impl SP1Prover {
     /// Executes the elf with the given inputs and returns the output.
-    pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1Stdout> {
+    pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&stdin.buffer);
         runtime.run();
-        Ok(SP1Stdout::from(&runtime.state.output_stream))
+        Ok(SP1PublicValues::from(&runtime.state.public_values_stream))
     }
 
     /// Generate a proof for the execution of the ELF with the given public inputs.
@@ -77,12 +77,12 @@ impl SP1Prover {
         let config = BabyBearPoseidon2::new();
 
         let program = Program::from(elf);
-        let (proof, stdout) = run_and_prove(program, stdin.clone(), config);
-        let stdout = SP1Stdout::from(&stdout);
+        let (proof, public_values) = run_and_prove(program, &stdin.buffer, config);
+        let public_values = SP1PublicValues::from(&public_values);
         Ok(SP1ProofWithIO {
             proof,
             stdin,
-            stdout,
+            public_values,
         })
     }
 
@@ -105,12 +105,12 @@ impl SP1Prover {
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&stdin.buffer);
         runtime.run();
-        let stdout = SP1Stdout::from(&runtime.state.output_stream);
+        let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
         let proof = prove_core(config, runtime);
         Ok(SP1ProofWithIO {
             proof,
             stdin,
-            stdout,
+            public_values,
         })
     }
 }

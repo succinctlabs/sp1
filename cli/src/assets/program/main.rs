@@ -17,6 +17,6 @@ pub fn main() {
         b = sum;
     }
 
-    sp1_zkvm::io::write(&a);
-    sp1_zkvm::io::write(&b);
+    sp1_zkvm::io::commit(&a);
+    sp1_zkvm::io::commit(&b);
 }

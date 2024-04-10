@@ -29,7 +29,7 @@ pub use bls12381::*;
 /// that checks that the enum is consistent with the syscalls.
 
 /// Halts the program.
-pub const HALT: u32 = 0x01_00_00_00;
+pub const HALT: u32 = 0x00_00_00_00;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 0x00_00_00_02;
@@ -72,6 +72,9 @@ pub const BN254_ADD: u32 = 0x00_01_01_0E;
 
 /// Executes `BN254_DOUBLE`.
 pub const BN254_DOUBLE: u32 = 0x00_00_01_0F;
+
+/// Executes the `COMMIT` precompile.
+pub const COMMIT: u32 = 0x00_00_00_10;
 
 /// Executes `HINT_LEN`.
 pub const HINT_LEN: u32 = 0x00_00_00_F0;

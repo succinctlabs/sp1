@@ -5,13 +5,14 @@ use std::collections::HashMap;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::MachineAir;
+use crate::air::{MachineAir, PublicValues, Word};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
+use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
 
 use p3_air::Air;
@@ -71,6 +72,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         &self.chips
     }
 
+    /// Returns the id of all chips in the machine that have preprocessed columns.
+    pub fn preprocessed_chip_ids(&self) -> Vec<usize> {
+        self.chips
+            .iter()
+            .enumerate()
+            .filter(|(_, chip)| chip.preprocessed_width() > 0)
+            .map(|(i, _)| i)
+            .collect()
+    }
+
     pub fn shard_chips<'a, 'b>(
         &'a self,
         shard: &'b A::Record,
@@ -92,6 +103,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .iter()
             .filter(|chip| chip_ordering.contains_key(&chip.name()))
             .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
+    }
+
+    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
+        self.chips()
+            .iter()
+            .map(|chip| proof.chip_ordering.get(&chip.name()).cloned())
+            .collect()
     }
 
     /// The setup preprocessing phase.
@@ -236,10 +254,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         challenger.observe(vk.commit.clone());
         // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
         // in a map-reduce recursion setting.
-        #[cfg(feature = "perf")]
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
+                let public_values =
+                    PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values);
+                challenger.observe_slice(&public_values.to_vec());
             });
         });
 
@@ -254,8 +274,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
-        tracing::info!("success");
+        tracing::info!("verifying individual shards succeeded");
 
+        tracing::info!("verifying cumulative sum is 0");
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         for proof in proof.shard_proofs.iter() {
@@ -277,7 +298,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         tracing::debug!("sharding the execution record");
-        let mut shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
+        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
         tracing::debug!("checking constraints for each shard");
 
@@ -287,9 +308,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
             // Generate the main trace for each chip.
+            let pre_traces = chips
+                .iter()
+                .map(|chip| {
+                    pk.chip_ordering
+                        .get(&chip.name())
+                        .map(|index| &pk.traces[*index])
+                })
+                .collect::<Vec<_>>();
             let traces = chips
                 .par_iter()
                 .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+                .zip(pre_traces)
                 .collect::<Vec<_>>();
 
             // Get a permutation challenge.
@@ -306,9 +336,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 chips
                     .par_iter()
                     .zip(traces.par_iter())
-                    .map(|(chip, main_trace)| {
+                    .map(|(chip, (main_trace, pre_trace))| {
                         let perm_trace = chip.generate_permutation_trace(
-                            None,
+                            *pre_trace,
                             main_trace,
                             &permutation_challenges,
                         );
@@ -326,15 +356,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
             // Compute some statistics.
             for i in 0..chips.len() {
-                let trace_width = traces[i].width();
+                let trace_width = traces[i].0.width();
                 let permutation_width = permutation_traces[i].width();
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
                 "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
                 chips[i].name(),
                 total_width,
-                traces[i].height(),
-                total_width * traces[i].height(),
+                traces[i].0.height(),
+                total_width * traces[i].0.height(),
                 (100f32 * trace_width as f32) / total_width as f32,
                 (100f32 * permutation_width as f32) / total_width as f32);
             }
@@ -348,9 +378,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     debug_constraints::<SC, A>(
                         chips[i],
                         permutation_trace,
-                        &traces[i],
+                        &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
                     );
                 }
             });
@@ -358,14 +389,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         // If the cumulative sum is not zero, debug the interactions.
         if !cumulative_sum.is_zero() {
-            // Get the total record
-            let mut record = A::Record::default();
-            for shard in shards.iter_mut() {
-                record.append(shard);
-            }
             debug_interactions_with_all_chips::<SC, A>(
-                self.chips(),
-                &record,
+                self,
+                pk,
+                &shards,
                 InteractionKind::all_kinds(),
             );
         }
@@ -476,6 +503,7 @@ pub mod tests {
 
     #[test]
     fn test_lt_prove() {
+        setup_logger();
         let less_than = [Opcode::SLT, Opcode::SLTU];
         for lt_op in less_than.iter() {
             let instructions = vec![
@@ -490,6 +518,7 @@ pub mod tests {
 
     #[test]
     fn test_bitwise_prove() {
+        setup_logger();
         let bitwise_opcodes = [Opcode::XOR, Opcode::OR, Opcode::AND];
 
         for bitwise_op in bitwise_opcodes.iter() {
@@ -505,6 +534,7 @@ pub mod tests {
 
     #[test]
     fn test_divrem_prove() {
+        setup_logger();
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
         let operands = [
             (1, 1),

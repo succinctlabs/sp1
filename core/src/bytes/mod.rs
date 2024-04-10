@@ -36,7 +36,9 @@ impl<F: Field> ByteChip<F> {
     ///  - `trace` is a matrix containing all possible byte operations.
     /// - `map` is a map map from a byte lookup to the corresponding row it appears in the table and
     /// the index of the result in the array of multiplicities.
-    pub fn trace_and_map() -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
+    pub fn trace_and_map(
+        shard: u32,
+    ) -> (RowMajorMatrix<F>, BTreeMap<ByteLookupEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
         let mut event_map = BTreeMap::new();
@@ -66,44 +68,53 @@ impl<F: Field> ByteChip<F> {
                     ByteOpcode::AND => {
                         let and = b & c;
                         col.and = F::from_canonical_u8(and);
-                        ByteLookupEvent::new(*opcode, and as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(shard, *opcode, and as u32, 0, b as u32, c as u32)
                     }
                     ByteOpcode::OR => {
                         let or = b | c;
                         col.or = F::from_canonical_u8(or);
-                        ByteLookupEvent::new(*opcode, or as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(shard, *opcode, or as u32, 0, b as u32, c as u32)
                     }
                     ByteOpcode::XOR => {
                         let xor = b ^ c;
                         col.xor = F::from_canonical_u8(xor);
-                        ByteLookupEvent::new(*opcode, xor as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(shard, *opcode, xor as u32, 0, b as u32, c as u32)
                     }
                     ByteOpcode::SLL => {
                         let sll = b << (c & 7);
                         col.sll = F::from_canonical_u8(sll);
-                        ByteLookupEvent::new(*opcode, sll as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(shard, *opcode, sll as u32, 0, b as u32, c as u32)
                     }
-                    ByteOpcode::U8Range => ByteLookupEvent::new(*opcode, 0, 0, b as u32, c as u32),
+                    ByteOpcode::U8Range => {
+                        ByteLookupEvent::new(shard, *opcode, 0, 0, b as u32, c as u32)
+                    }
                     ByteOpcode::ShrCarry => {
                         let (res, carry) = shr_carry(b, c);
                         col.shr = F::from_canonical_u8(res);
                         col.shr_carry = F::from_canonical_u8(carry);
-                        ByteLookupEvent::new(*opcode, res as u32, carry as u32, b as u32, c as u32)
+                        ByteLookupEvent::new(
+                            shard,
+                            *opcode,
+                            res as u32,
+                            carry as u32,
+                            b as u32,
+                            c as u32,
+                        )
                     }
                     ByteOpcode::LTU => {
                         let ltu = b < c;
                         col.ltu = F::from_bool(ltu);
-                        ByteLookupEvent::new(*opcode, ltu as u32, 0, b as u32, c as u32)
+                        ByteLookupEvent::new(shard, *opcode, ltu as u32, 0, b as u32, c as u32)
                     }
                     ByteOpcode::MSB => {
                         let msb = (b & 0b1000_0000) != 0;
                         col.msb = F::from_bool(msb);
-                        ByteLookupEvent::new(*opcode, msb as u32, 0, b as u32, 0 as u32)
+                        ByteLookupEvent::new(shard, *opcode, msb as u32, 0, b as u32, 0 as u32)
                     }
                     ByteOpcode::U16Range => {
                         let v = ((b as u32) << 8) + c as u32;
                         col.value_u16 = F::from_canonical_u32(v);
-                        ByteLookupEvent::new(*opcode, v, 0, 0, 0)
+                        ByteLookupEvent::new(shard, *opcode, v, 0, 0, 0)
                     }
                 };
                 event_map.insert(event, (row_index, i));

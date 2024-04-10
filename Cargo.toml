@@ -5,9 +5,10 @@ members = [
     "derive",
     "eval",
     "helper",
-    "recursion/core",
-    "recursion/compiler",
+    "prover",
     "recursion/circuit",
+    "recursion/compiler",
+    "recursion/core",
     "recursion/program",
     "sdk",
     "zkvm/*",
@@ -31,7 +32,9 @@ p3-air = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-field = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-commit = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-matrix = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
+p3-baby-bear = { git = "https://github.com/Plonky3/Plonky3.git", features = [
+    "nightly-features",
+], branch = "sp1" }
 p3-util = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-challenger = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-dft = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }

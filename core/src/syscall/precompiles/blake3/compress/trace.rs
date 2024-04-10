@@ -37,7 +37,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
 
         for i in 0..input.blake3_compress_inner_events.len() {
             let event = input.blake3_compress_inner_events[i].clone();
-
+            let shard = event.shard;
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
                 for operation in 0..OPERATION_COUNT {
@@ -46,7 +46,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
 
                     // Assign basic values to the columns.
                     {
-                        cols.segment = F::from_canonical_u32(event.shard);
+                        cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(clk);
 
                         cols.round_index = F::from_canonical_u32(round as u32);
@@ -99,7 +99,7 @@ impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
                             event.message_reads[round][operation][1].value,
                         ];
 
-                        cols.g.populate(output, input);
+                        cols.g.populate(output, shard, input);
                     }
 
                     clk += 1;

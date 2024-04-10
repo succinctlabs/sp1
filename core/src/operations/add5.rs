@@ -37,9 +37,11 @@ pub struct Add5Operation<T> {
 }
 
 impl<F: Field> Add5Operation<F> {
+    #[allow(clippy::too_many_arguments)]
     pub fn populate(
         &mut self,
-        shard: &mut ExecutionRecord,
+        record: &mut ExecutionRecord,
+        shard: u32,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,
@@ -80,12 +82,12 @@ impl<F: Field> Add5Operation<F> {
 
         // Range check.
         {
-            shard.add_u8_range_checks(&a);
-            shard.add_u8_range_checks(&b);
-            shard.add_u8_range_checks(&c);
-            shard.add_u8_range_checks(&d);
-            shard.add_u8_range_checks(&e);
-            shard.add_u8_range_checks(&expected.to_le_bytes());
+            record.add_u8_range_checks(shard, &a);
+            record.add_u8_range_checks(shard, &b);
+            record.add_u8_range_checks(shard, &c);
+            record.add_u8_range_checks(shard, &d);
+            record.add_u8_range_checks(shard, &e);
+            record.add_u8_range_checks(shard, &expected.to_le_bytes());
         }
 
         expected
@@ -94,6 +96,7 @@ impl<F: Field> Add5Operation<F> {
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         words: &[Word<AB::Var>; 5],
+        shard: AB::Var,
         is_real: AB::Var,
         cols: Add5Operation<AB::Var>,
     ) {
@@ -102,8 +105,8 @@ impl<F: Field> Add5Operation<F> {
         {
             words
                 .iter()
-                .for_each(|word| builder.slice_range_check_u8(&word.0, is_real));
-            builder.slice_range_check_u8(&cols.value.0, is_real);
+                .for_each(|word| builder.slice_range_check_u8(&word.0, shard, is_real));
+            builder.slice_range_check_u8(&cols.value.0, shard, is_real);
         }
         let mut builder_is_real = builder.when(is_real);
 

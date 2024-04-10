@@ -1,71 +1,92 @@
 use p3_air::BaseAir;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
+use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
-    air::MachineAir,
-    stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
+    air::{MachineAir, PublicValues, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
+    stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
-
 use sp1_recursion_compiler::prelude::*;
 
+use crate::fri::types::TwoAdicPcsProofVariable;
+use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::fri::TwoAdicPcsProofVariable;
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/merkle-tree/src/mmcs.rs#L54
-#[allow(type_alias_bounds)]
-pub type Commitment<C: Config> = Array<C, Felt<C::F>>;
+#[derive(DslVariable, Clone)]
+pub struct PublicValuesVariable<C: Config> {
+    pub committed_values_digest: Array<C, Felt<C::F>>,
+    pub shard: Felt<C::F>,
+    pub start_pc: Felt<C::F>,
+    pub next_pc: Felt<C::F>,
+    pub exit_code: Felt<C::F>,
+}
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/config.rs#L1
-#[derive(Clone)]
-pub struct FriConfigVariable<C: Config> {
-    pub log_blowup: C::N,
-    pub num_queries: usize,
-    pub proof_of_work_bits: usize,
-    pub generators: Array<C, Felt<C::F>>,
-    pub subgroups: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+impl<C: Config> PublicValuesVariable<C> {
+    pub fn to_vec(&self, builder: &mut Builder<C>) -> Vec<Felt<C::F>> {
+        let mut result = Vec::new();
+
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            for j in 0..WORD_SIZE {
+                let el = builder.get(&self.committed_values_digest, i * WORD_SIZE + j);
+                result.push(el);
+            }
+        }
+
+        result.push(self.shard);
+        result.push(self.start_pc);
+        result.push(self.next_pc);
+        result.push(self.exit_code);
+
+        result
+    }
+}
+
+impl<C: Config> FromConstant<C> for PublicValuesVariable<C> {
+    type Constant = PublicValues<u32, u32>;
+
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+        let pv_shard = builder.eval(C::F::from_canonical_u32(value.shard));
+        let pv_start_pc = builder.eval(C::F::from_canonical_u32(value.start_pc));
+        let pv_next_pc = builder.eval(C::F::from_canonical_u32(value.next_pc));
+        let pv_exit_code = builder.eval(C::F::from_canonical_u32(value.exit_code));
+        let mut pv_committed_value_digest = Vec::new();
+        for i in 0..PV_DIGEST_NUM_WORDS {
+            let word_val: Word<C::F> = Word::from(value.committed_value_digest[i]);
+            for j in 0..WORD_SIZE {
+                let word_val: Felt<_> = builder.eval(word_val[j]);
+                pv_committed_value_digest.push(word_val);
+            }
+        }
+
+        PublicValuesVariable {
+            committed_values_digest: builder.vec(pv_committed_value_digest),
+            shard: pv_shard,
+            start_pc: pv_start_pc,
+            next_pc: pv_next_pc,
+            exit_code: pv_exit_code,
+        }
+    }
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(DslVariable, Clone)]
-pub struct FriProofVariable<C: Config> {
-    pub commit_phase_commits: Array<C, Commitment<C>>,
-    pub query_proofs: Array<C, FriQueryProofVariable<C>>,
-    pub final_poly: Ext<C::F, C::EF>,
-    pub pow_witness: Felt<C::F>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
-#[derive(DslVariable, Clone)]
-pub struct FriQueryProofVariable<C: Config> {
-    pub commit_phase_openings: Array<C, FriCommitPhaseProofStepVariable<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L32
-#[derive(DslVariable, Clone)]
-pub struct FriCommitPhaseProofStepVariable<C: Config> {
-    pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Array<C, Commitment<C>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L22
-#[derive(DslVariable, Clone)]
-pub struct FriChallenges<C: Config> {
-    pub query_indices: Array<C, Array<C, Var<C::N>>>,
-    pub betas: Array<C, Ext<C::F, C::EF>>,
-}
-
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/matrix/src/lib.rs#L38
-#[derive(DslVariable, Clone)]
-pub struct Dimensions<C: Config> {
-    pub height: Var<C::N>,
-}
-
 pub struct ShardProofVariable<C: Config> {
-    pub index: Usize<C::N>,
-    pub commitment: ShardCommitment<Commitment<C>>,
+    pub index: Var<C::N>,
+    pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub sorted_indices: Vec<Var<C::N>>,
+    pub public_values: PublicValuesVariable<C>,
+}
+
+/// Reference: https://github.com/succinctlabs/sp1/blob/b5d5473c010ab0630102652146e16c014a1eddf6/core/src/stark/machine.rs#L63
+#[derive(DslVariable, Clone)]
+pub struct VerifyingKeyVariable<C: Config> {
+    pub commitment: DigestVariable<C>,
+}
+
+#[derive(DslVariable, Clone)]
+pub struct ShardCommitmentVariable<C: Config> {
+    pub main_commit: DigestVariable<C>,
+    pub permutation_commit: DigestVariable<C>,
+    pub quotient_commit: DigestVariable<C>,
 }
 
 #[derive(DslVariable, Debug, Clone)]
@@ -80,11 +101,10 @@ pub struct ChipOpening<C: Config> {
     pub permutation: AirOpenedValues<Ext<C::F, C::EF>>,
     pub quotient: Vec<Vec<Ext<C::F, C::EF>>>,
     pub cumulative_sum: Ext<C::F, C::EF>,
-    pub log_degree: Usize<C::N>,
+    pub log_degree: Var<C::N>,
 }
 
 #[derive(DslVariable, Debug, Clone)]
-#[allow(clippy::type_complexity)]
 pub struct ChipOpenedValuesVariable<C: Config> {
     pub preprocessed: AirOpenedValuesVariable<C>,
     pub main: AirOpenedValuesVariable<C>,
@@ -167,7 +187,7 @@ impl<C: Config> ChipOpening<C> {
             permutation,
             quotient,
             cumulative_sum: opening.cumulative_sum,
-            log_degree: Usize::Var(opening.log_degree),
+            log_degree: opening.log_degree,
         }
     }
 }
@@ -175,10 +195,10 @@ impl<C: Config> ChipOpening<C> {
 impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
     type Constant = AirOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         AirOpenedValuesVariable {
-            local: builder.eval_const(value.local),
-            next: builder.eval_const(value.next),
+            local: builder.constant(value.local),
+            next: builder.constant(value.next),
         }
     }
 }
@@ -186,12 +206,12 @@ impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
 impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
     type Constant = ChipOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         ChipOpenedValuesVariable {
-            preprocessed: builder.eval_const(value.preprocessed),
-            main: builder.eval_const(value.main),
-            permutation: builder.eval_const(value.permutation),
-            quotient: builder.eval_const(value.quotient),
+            preprocessed: builder.constant(value.preprocessed),
+            main: builder.constant(value.main),
+            permutation: builder.constant(value.permutation),
+            quotient: builder.constant(value.quotient),
             cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: builder.eval(C::N::from_canonical_usize(value.log_degree)),
         }

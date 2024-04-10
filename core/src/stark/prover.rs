@@ -27,9 +27,10 @@ use super::{ProvingKey, VerifierConstraintFolder};
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::MachineChip;
+use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 
-use crate::air::MachineAir;
+use crate::air::{MachineAir, PublicValues, Word};
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -84,9 +85,15 @@ where
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
+            shard_commits
+                .into_iter()
+                .zip(shards.iter())
+                .for_each(|(commitment, shard)| {
+                    challenger.observe(commitment);
+                    let public_values =
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values());
+                    challenger.observe_slice(&public_values.to_vec());
+                });
         });
 
         let finished = AtomicU32::new(0);
@@ -212,6 +219,7 @@ where
             main_data,
             chip_ordering,
             index,
+            public_values: shard.public_values(),
         }
     }
 
@@ -260,6 +268,10 @@ where
         for _ in 0..2 {
             permutation_challenges.push(challenger.sample_ext_element());
         }
+        let packed_perm_challenges = permutation_challenges
+            .iter()
+            .map(|c| PackedChallenge::<SC>::from_f(*c))
+            .collect::<Vec<_>>();
 
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
@@ -361,8 +373,9 @@ where
                         preprocessed_trace_on_quotient_domains,
                         main_trace_on_quotient_domains,
                         permutation_trace_on_quotient_domains,
-                        &permutation_challenges,
+                        &packed_perm_challenges,
                         alpha,
+                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard_data.public_values),
                     )
                 })
                 .collect::<Vec<_>>()
@@ -502,6 +515,7 @@ where
             },
             opening_proof,
             chip_ordering: shard_data.chip_ordering,
+            public_values: shard_data.public_values,
         }
     }
 
@@ -568,24 +582,6 @@ where
                     .into_iter()
                     .unzip()
             });
-
-        #[cfg(not(feature = "perf"))]
-        {
-            let bytes_written = shard_main_data
-                .iter()
-                .map(|data| match data {
-                    ShardMainDataWrapper::InMemory(_) => 0,
-                    ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
-                    ShardMainDataWrapper::Empty() => 0,
-                })
-                .sum::<u64>();
-            if bytes_written > 0 {
-                tracing::debug!(
-                    "total main data written to disk: {}",
-                    size::Size::from_bytes(bytes_written)
-                );
-            }
-        }
 
         (commitments, shard_main_data)
     }
