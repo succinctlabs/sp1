@@ -1,4 +1,7 @@
-use crate::air::{AirInteraction, MessageBuilder, PublicValues, Word};
+use crate::{
+    air::{AirInteraction, MessageBuilder},
+    stark::MAX_NUM_PUBLIC_VALUES,
+};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
@@ -36,14 +39,14 @@ impl<F: Field> InteractionBuilder<F> {
             })
             .collect();
 
-        let public_values = PublicValues::<Word<F>, F>::default().to_vec();
+        let empty_pv = [F::zero(); MAX_NUM_PUBLIC_VALUES];
 
         Self {
             preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),
             main: RowMajorMatrix::new(main_values, main_width),
             sends: vec![],
             receives: vec![],
-            public_values,
+            public_values: empty_pv.to_vec(),
         }
     }
 

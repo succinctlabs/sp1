@@ -7,10 +7,6 @@ use p3_field::{AbstractField, PrimeField32};
 use serde::{Deserialize, Serialize};
 use std::iter::once;
 
-pub trait PubicValuesCommitDigest {
-    fn deserialize_commitment_digest<T>(data: Vec<T>) -> Vec<u8>;
-}
-
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The PublicValues struct is used to store all of a shard proof's public values.
@@ -30,17 +26,6 @@ pub struct PublicValues<W, T> {
 
     /// The exit code of the program.  Only valid if halt has been executed.
     pub exit_code: T,
-}
-
-impl<F: PrimeField32> PublicValues<Word<F>, F> {
-    pub fn deserialize_commitment_digest(data: Vec<F>) -> Vec<u8> {
-        let serialized_pv = PublicValues::<Word<F>, F>::from_vec(data);
-        serialized_pv
-            .committed_value_digest
-            .into_iter()
-            .flat_map(|w| w.0.map(|x| F::as_canonical_u32(&x) as u8))
-            .collect_vec()
-    }
 }
 
 impl PublicValues<u32, u32> {
@@ -67,37 +52,7 @@ impl PublicValues<u32, u32> {
     }
 }
 
-impl<F: AbstractField> PublicValues<Word<F>, F> {
-    pub fn new(other: PublicValues<u32, u32>) -> Self {
-        let PublicValues {
-            committed_value_digest,
-            shard,
-            start_pc: first_row_pc,
-            next_pc: last_row_next_pc,
-            exit_code,
-        } = other;
-        Self {
-            committed_value_digest: committed_value_digest.map(Word::from),
-            shard: F::from_canonical_u32(shard),
-            start_pc: F::from_canonical_u32(first_row_pc),
-            next_pc: F::from_canonical_u32(last_row_next_pc),
-            exit_code: F::from_canonical_u32(exit_code),
-        }
-    }
-}
-
 impl<T: Clone + Debug> PublicValues<Word<T>, T> {
-    pub fn to_vec(&self) -> Vec<T> {
-        self.committed_value_digest
-            .iter()
-            .flat_map(|w| w.clone().into_iter())
-            .chain(once(self.shard.clone()))
-            .chain(once(self.start_pc.clone()))
-            .chain(once(self.next_pc.clone()))
-            .chain(once(self.exit_code.clone()))
-            .collect_vec()
-    }
-
     pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
@@ -121,6 +76,17 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
         } else {
             panic!("Invalid number of items in the serialized vector.");
         }
+    }
+}
+
+impl<F: PrimeField32> PublicValues<Word<F>, F> {
+    pub fn deserialize_commitment_digest(data: Vec<F>) -> Vec<u8> {
+        let serialized_pv = PublicValues::<Word<F>, F>::from_vec(data);
+        serialized_pv
+            .committed_value_digest
+            .into_iter()
+            .flat_map(|w| w.0.map(|x| F::as_canonical_u32(&x) as u8))
+            .collect_vec()
     }
 }
 
