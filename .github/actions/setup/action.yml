@@ -40,9 +40,6 @@ runs:
         key: test-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.lock') }}
         restore-keys: test-rust-nightly-2024-01-25-
 
-    - name: Install nightly toolchain
+    - name: Setup toolchain
       id: rustc-toolchain
-      uses: actions-rs/toolchain@v1
-      with:
-        profile: minimal
-        override: true
+      run: rustup show

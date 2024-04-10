@@ -27,12 +27,9 @@ jobs:
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
           git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
 
-      - name: Install nightly toolchain
+      - name: Setup toolchain
         id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
+        run: rustup show
 
       - name: Install SP1 toolchain
         run: |
