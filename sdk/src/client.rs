@@ -9,7 +9,7 @@ use reqwest::{
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
-use sp1_core::stark::StarkGenericConfig;
+pub use sp1_core::stark::StarkGenericConfig;
 use twirp::Client as TwirpClient;
 
 use crate::{

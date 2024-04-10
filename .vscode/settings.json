@@ -21,6 +21,7 @@
     ],
     "rust-analyzer.linkedProjects": [
         "Cargo.toml",
+        "core/Cargo.toml",
         // // Examples.
         // "examples/chess/program/Cargo.toml",
         // "examples/chess/script/Cargo.toml",
@@ -40,8 +41,8 @@
         // "examples/rsa/script/Cargo.toml",
         // "examples/ssz-withdrawals/program/Cargo.toml",
         // "examples/ssz-withdrawals/script/Cargo.toml",
-        // "examples/tendermint/program/Cargo.toml",
-        // "examples/tendermint/script/Cargo.toml",
+        "examples/tendermint/program/Cargo.toml",
+        "examples/tendermint/script/Cargo.toml",
         // // Tests.
         // "tests/blake3-compress/Cargo.toml",
         // "tests/cycle-tracker/Cargo.toml",
