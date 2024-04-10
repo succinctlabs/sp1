@@ -232,7 +232,11 @@ pub fn verify_batch<C: Config, const D: usize>(
     let current_height = builder.get(&dimensions, index).height;
 
     // Reduce all the tables that have the same height to a single root.
-    let mut root = reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+    let mut root = if D == 4 {
+        reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values)
+    } else {
+        reduce_fast::<C, D>(builder, index, &dimensions, current_height, &opened_values)
+    };
 
     // For each sibling in the proof, reconstruct the root.
     let one: Var<_> = builder.eval(C::N::one());
@@ -259,8 +263,11 @@ pub fn verify_batch<C: Config, const D: usize>(
         builder.if_ne(index, dimensions.len()).then(|builder| {
             let next_height = builder.get(&dimensions, index).height;
             builder.if_eq(next_height, current_height).then(|builder| {
-                let next_height_openings_digest =
-                    reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+                let next_height_openings_digest = if D == 4 {
+                    reduce::<C, D>(builder, index, &dimensions, current_height, &opened_values)
+                } else {
+                    reduce_fast::<C, D>(builder, index, &dimensions, current_height, &opened_values)
+                };
                 builder.poseidon2_compress_x(
                     &mut root.clone(),
                     &root.clone(),
@@ -313,5 +320,42 @@ pub fn reduce<C: Config, const D: usize>(
             });
         });
     flattened_opened_values.truncate(builder, Usize::Var(nb_opened_values));
+    let code = builder.eval(C::N::from_canonical_usize(193));
+    builder.print_v(code);
     builder.poseidon2_hash(&flattened_opened_values)
+}
+
+#[allow(clippy::type_complexity)]
+pub fn reduce_fast<C: Config, const D: usize>(
+    builder: &mut Builder<C>,
+    dim_idx: Var<C::N>,
+    dims: &Array<C, DimensionsVariable<C>>,
+    curr_height_padded: Var<C::N>,
+    opened_values: &Array<C, Array<C, Ext<C::F, C::EF>>>,
+) -> Array<C, Felt<C::F>> {
+    let nb_opened_values: Var<_> = builder.eval(C::N::zero());
+    let mut nested_opened_values: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(8192);
+    let start_dim_idx: Var<_> = builder.eval(dim_idx);
+    builder
+        .range(start_dim_idx, dims.len())
+        .for_each(|i, builder| {
+            let height = builder.get(dims, i).height;
+            builder.if_eq(height, curr_height_padded).then(|builder| {
+                let opened_values = builder.get(opened_values, i);
+                builder.set_value(
+                    &mut nested_opened_values,
+                    nb_opened_values,
+                    opened_values.clone(),
+                );
+                builder.assign(nb_opened_values, nb_opened_values + C::N::one());
+                builder.assign(dim_idx, dim_idx + C::N::one());
+            });
+        });
+
+    let nested_opened_values = match nested_opened_values {
+        Array::Dyn(ptr, len) => Array::Dyn(ptr, len),
+        _ => unreachable!(),
+    };
+    nested_opened_values.truncate(builder, Usize::Var(nb_opened_values));
+    builder.poseidon2_hash_x(&nested_opened_values)
 }
