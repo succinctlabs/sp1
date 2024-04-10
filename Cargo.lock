@@ -3486,6 +3486,7 @@ dependencies = [
  "p3-baby-bear",
  "p3-challenger",
  "p3-commit",
+ "p3-field",
  "sp1-core",
  "sp1-recursion-compiler",
  "sp1-recursion-core",

@@ -89,7 +89,7 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
 
 pub fn build_reduce() -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(SC::default());
-    let _recursion_machine = RecursionAir::machine(SC::default());
+    let recursion_machine = RecursionAir::machine(SC::default());
 
     let time = Instant::now();
     let mut builder = VmBuilder::<F, EF>::default();
@@ -102,13 +102,13 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     let sorted_indices = Vec::<Vec<usize>>::read(&mut builder);
     let sp1_challenger = DuplexChallenger::read(&mut builder);
     let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
-    // let recursion_challenger = DuplexChallenger::read(&mut builder);
+    let recursion_challenger = DuplexChallenger::read(&mut builder);
     let prep_sorted_indices = Vec::<usize>::read(&mut builder);
     let prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
-    // let recursion_prep_sorted_indices = Vec::<usize>::read(&mut builder);
-    // let recursion_prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
+    let recursion_prep_sorted_indices = Vec::<usize>::read(&mut builder);
+    let recursion_prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
     let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
-    let _recursion_vk = VerifyingKey::<SC>::read(&mut builder);
+    let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
     let num_proofs = proofs.len();
 
     let _pre_start_challenger = clone(&mut builder, &sp1_challenger);
@@ -156,19 +156,19 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                     );
                 },
                 // Recursive proof
-                |_builder| {
-                    // let mut current_challenger = recursion_challenger.as_clone(builder);
-                    // StarkVerifier::<C, SC>::verify_shard(
-                    //     builder,
-                    //     &recursion_vk.clone(),
-                    //     &pcs,
-                    //     &recursion_machine,
-                    //     &mut current_challenger,
-                    //     &proof,
-                    //     sorted_indices.clone(),
-                    //     prep_sorted_indices.clone(),
-                    //     prep_domains.clone(),
-                    // );
+                |builder| {
+                    let mut current_challenger = recursion_challenger.as_clone(builder);
+                    StarkVerifier::<C, SC>::verify_shard(
+                        builder,
+                        &recursion_vk.clone(),
+                        &pcs,
+                        &recursion_machine,
+                        &mut current_challenger,
+                        &proof,
+                        sorted_indices.clone(),
+                        recursion_prep_sorted_indices.clone(),
+                        recursion_prep_domains.clone(),
+                    );
                 },
             );
         });
