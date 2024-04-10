@@ -138,6 +138,7 @@ mod tests {
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
         let proof = SP1ProverImpl::prove(elf, &stdin);
+        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
         SP1ProverImpl::reduce(elf, proof);
     }
 }
