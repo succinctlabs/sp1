@@ -32,7 +32,6 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: nightly-2024-01-25
           override: true
 
       - name: Install SP1 toolchain
