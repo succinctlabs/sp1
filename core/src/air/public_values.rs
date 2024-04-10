@@ -87,7 +87,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
 }
 
 impl<F: PrimeField32> PublicValues<Word<F>, F> {
-    /// Returns the ccommit digest as a vector of little-endian bytes.
+    /// Returns the commit digest as a vector of little-endian bytes.
     pub fn commit_digest_bytes(&self) -> Vec<u8> {
         self.committed_value_digest
             .iter()
