@@ -284,7 +284,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
         }
-        Ok(())
     }
 
     pub fn debug_constraints(
