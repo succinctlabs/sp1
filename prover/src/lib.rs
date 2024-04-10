@@ -120,7 +120,9 @@ impl SP1ProverImpl {
             .iter()
             .map(|p| {
                 if p.is_recursive {
-                    get_sorted_indices(&recursion_machine, &p.proof)
+                    let indices = get_sorted_indices(&recursion_machine, &p.proof);
+                    println!("indices = {:?}", indices);
+                    indices
                 } else {
                     get_sorted_indices(&sp1_machine, &p.proof)
                 }
@@ -140,7 +142,7 @@ impl SP1ProverImpl {
         let (recursion_prep_sorted_indices, recursion_prep_domains): (
             Vec<usize>,
             Vec<TwoAdicMultiplicativeCoset<BabyBear>>,
-        ) = get_preprocessed_data(&recursion_machine, sp1_vk);
+        ) = get_preprocessed_data(&recursion_machine, &self.reduce_vk);
 
         let proofs: Vec<&ShardProof<BabyBearPoseidon2>> =
             reduce_proofs.iter().map(|p| &p.proof).collect();
@@ -203,63 +205,74 @@ mod tests {
         setup_logger();
         let prover = SP1ProverImpl::new();
 
-        let proofs: Vec<ReduceProof> =
-            bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
-        println!("nb_proofs {}", proofs.len());
-        let recursion_machine = RecursionAir::machine(BabyBearPoseidon2::default());
-        let mut challenger = recursion_machine.config().challenger();
-        let proof = Proof::<BabyBearPoseidon2> {
-            shard_proofs: vec![proofs.into_iter().next().unwrap().proof],
-        };
-        recursion_machine
-            .verify(&prover.reduce_vk, &proof, &mut challenger)
-            .unwrap();
+        // let proofs: Vec<ReduceProof> =
+        //     bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
+        // println!("nb_proofs {}", proofs.len());
+        // let recursion_machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        // let mut challenger = recursion_machine.config().challenger();
+        // let proof = Proof::<BabyBearPoseidon2> {
+        //     shard_proofs: vec![proofs.into_iter().next().unwrap().proof],
+        // };
+        // recursion_machine
+        //     .verify(&prover.reduce_vk, &proof, &mut challenger)
+        //     .unwrap();
 
         // exit(0);
 
         let elf =
             include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
-        // let stdin = [bincode::serialize::<u32>(&6).unwrap()];
-        // let proof = SP1ProverImpl::prove(elf, &stdin);
+        let stdin = [bincode::serialize::<u32>(&6).unwrap()];
+        let proof = SP1ProverImpl::prove(elf, &stdin);
 
         let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
         let (_, vk) = sp1_machine.setup(&Program::from(elf));
 
-        // let mut sp1_challenger = sp1_machine.config().challenger();
-        // sp1_challenger.observe(vk.commit);
-        // for shard_proof in proof.shard_proofs.iter() {
-        //     sp1_challenger.observe(shard_proof.commitment.main_commit);
-        //     let public_values =
-        //         PublicValues::<Word<BabyBear>, BabyBear>::new(shard_proof.public_values);
-        //     sp1_challenger.observe_slice(&public_values.to_vec());
-        // }
+        let mut sp1_challenger = sp1_machine.config().challenger();
+        sp1_challenger.observe(vk.commit);
+        for shard_proof in proof.shard_proofs.iter() {
+            sp1_challenger.observe(shard_proof.commitment.main_commit);
+            let public_values =
+                PublicValues::<Word<BabyBear>, BabyBear>::new(shard_proof.public_values);
+            sp1_challenger.observe_slice(&public_values.to_vec());
+        }
 
-        // let mut reduce_proofs = proof
-        //     .shard_proofs
-        //     .into_iter()
-        //     .map(|p| ReduceProof {
-        //         proof: p,
-        //         is_recursive: false,
-        //     })
-        //     .collect::<Vec<_>>();
-        let sp1_challenger = sp1_machine.config().challenger();
+        let mut reduce_proofs = proof
+            .shard_proofs
+            .into_iter()
+            .map(|p| ReduceProof {
+                proof: p,
+                is_recursive: false,
+            })
+            .collect::<Vec<_>>();
         let n = 3;
+        let mut layer = 0;
 
+        // let sp1_challenger = sp1_machine.config().challenger();
         let mut reduce_proofs: Vec<ReduceProof> =
             bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
+        layer = 1;
 
-        let mut layer = 0;
         while reduce_proofs.len() > 1 {
             // Write layer to {i}.bin with bincode
-            // let serialized = bincode::serialize(&reduce_proofs).unwrap();
-            // std::fs::write(format!("{}.bin", layer), serialized).unwrap();
+            let serialized = bincode::serialize(&reduce_proofs).unwrap();
+            std::fs::write(format!("{}.bin", layer), serialized).unwrap();
             let mut next_proofs = Vec::new();
             for i in (0..reduce_proofs.len()).step_by(n) {
                 let end = std::cmp::min(i + n, reduce_proofs.len());
                 let proofs = &reduce_proofs[i..end];
                 let proof = prover.reduce(&vk, sp1_challenger.clone(), proofs);
+                let recursion_machine = RecursionAir::machine(BabyBearPoseidon2::default());
+                let mut challenger = recursion_machine.config().challenger();
+                let full_proof = Proof::<BabyBearPoseidon2> {
+                    shard_proofs: vec![proof],
+                };
+                let res = recursion_machine.verify(&prover.reduce_vk, &full_proof, &mut challenger);
+                if res.is_err() {
+                    println!("Failed to verify proof");
+                    println!("err = {:?}", res.err());
+                }
                 next_proofs.push(ReduceProof {
-                    proof,
+                    proof: full_proof.shard_proofs.into_iter().next().unwrap(),
                     is_recursive: true,
                 });
             }
