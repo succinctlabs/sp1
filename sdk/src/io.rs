@@ -184,7 +184,7 @@ pub mod proof_serde {
             client.verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
 
-        /// Tests bincode roundtrip serialization of `SP1Stdin`
+        /// Tests bincode roundtrip serialization of `SP1Stdin`.
         #[test]
         fn test_bincode_sp1_stdin() {
             setup_logger();
