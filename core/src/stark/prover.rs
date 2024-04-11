@@ -1,6 +1,7 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
+use std::fs::OpenOptions;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
@@ -118,7 +119,7 @@ where
 
                             let idx = shard.index() as usize;
                             let data = if reconstruct_commitments {
-                                Self::commit_main(config, machine, &shard, idx)
+                                Self::commit_main(config, machine, &shard, idx, false)
                             } else {
                                 data.materialize()
                                     .expect("failed to materialize shard main data")
@@ -168,6 +169,7 @@ where
         machine: &MachineStark<SC, A>,
         shard: &A::Record,
         index: usize,
+        phase1: bool,
     ) -> ShardMainData<SC> {
         // Filter the chips based on what is used.
         let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
@@ -176,10 +178,22 @@ where
         let mut named_traces = shard_chips
             .par_iter()
             .map(|chip| {
-                (
-                    chip.name(),
-                    chip.generate_trace(shard, &mut A::Record::default()),
+                let start = ProcessTime::now();
+                let trace = chip.generate_trace(shard, &mut A::Record::default());
+                let elapsed = start.elapsed().as_secs_f64();
+                let file = OpenOptions::new().append(true).open("output.csv").unwrap();
+                let phase_name = if phase1 { "Phase 1" } else { "Phase 2" };
+                file.write_all(
+                    format!(
+                        "{}, Trace Generation, {},{}\n",
+                        phase_name,
+                        chip.name(),
+                        elapsed
+                    )
+                    .as_bytes(),
                 )
+                .unwrap();
+                (chip.name(), trace)
             })
             .collect::<Vec<_>>();
 
@@ -551,7 +565,7 @@ where
                                 let index = shard.index();
                                 let start = Instant::now();
                                 let data =
-                                    Self::commit_main(config, machine, shard, index as usize);
+                                    Self::commit_main(config, machine, shard, index as usize, true);
                                 finished.fetch_add(1, Ordering::Relaxed);
                                 log::info!(
                                     "> commit shards ({}/{}): shard = {}, time = {:.2} secs",

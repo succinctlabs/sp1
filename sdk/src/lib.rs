@@ -21,6 +21,9 @@ pub use crate::io::*;
 use proto::network::{ProofStatus, TransactionStatus};
 use utils::*;
 
+// For benchmarking
+use std::fs::File;
+
 use crate::client::NetworkClient;
 use anyhow::{Context, Ok, Result};
 use serde::de::DeserializeOwned;
@@ -83,6 +86,10 @@ impl ProverClient {
     /// Generate a proof for the execution of the ELF with the given public inputs. If a
     /// NetworkClient is configured, it uses remote proving, otherwise, it proves locally.
     pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearPoseidon2>> {
+        //For benchmarking
+        let mut file = File::create("output.csv").unwrap();
+        file.write_all(b"Phase, Process, Chip, CPU Time\n").unwrap();
+
         if self.client.is_some() {
             println!("Proving remotely");
             self.prove_remote(elf, stdin)
