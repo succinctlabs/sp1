@@ -1,13 +1,18 @@
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
-pub struct CreateProofRequest {}
+pub struct CreateProofRequest {
+    #[prost(uint64, tag = "1")]
+    pub deadline: u64,
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
+}
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateProofResponse {
     #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
+    pub proof_id: ::prost::alloc::string::String,
     #[prost(string, tag = "2")]
     pub program_put_url: ::prost::alloc::string::String,
     #[prost(string, tag = "3")]
@@ -18,7 +23,9 @@ pub struct CreateProofResponse {
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitProofRequest {
     #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
+    pub proof_id: ::prost::alloc::string::String,
+    #[prost(bytes = "vec", tag = "2")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -29,7 +36,7 @@ pub struct SubmitProofResponse {}
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetProofStatusRequest {
     #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
+    pub proof_id: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -64,20 +71,22 @@ pub struct RelayProofRequest {
     pub callback: ::prost::alloc::vec::Vec<u8>,
     #[prost(bytes = "vec", tag = "5")]
     pub callback_data: ::prost::alloc::vec::Vec<u8>,
+    #[prost(bytes = "vec", tag = "6")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RelayProofResponse {
     #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
+    pub tx_id: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct GetRelayStatusRequest {
     #[prost(string, tag = "1")]
-    pub id: ::prost::alloc::string::String,
+    pub tx_id: ::prost::alloc::string::String,
 }
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]

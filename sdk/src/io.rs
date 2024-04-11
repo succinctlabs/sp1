@@ -152,7 +152,7 @@ pub mod proof_serde {
 
         use crate::{
             utils::{setup_logger, BabyBearPoseidon2},
-            SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier,
+            ProverClient, SP1ProofWithIO, SP1Stdin,
         };
 
         pub const FIBONACCI_IO_ELF: &[u8] =
@@ -163,10 +163,11 @@ pub mod proof_serde {
         fn test_json_roundtrip() {
             let mut stdin = SP1Stdin::new();
             stdin.write(&3u32);
-            let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
+            let client = ProverClient::new();
+            let proof = client.prove(FIBONACCI_IO_ELF, stdin).unwrap();
             let json = serde_json::to_string(&proof).unwrap();
             let output = serde_json::from_str::<SP1ProofWithIO<BabyBearPoseidon2>>(&json).unwrap();
-            SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
+            client.verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
 
         /// Tests serialization with a binary encoding
@@ -175,11 +176,12 @@ pub mod proof_serde {
             setup_logger();
             let mut stdin = SP1Stdin::new();
             stdin.write(&3u32);
-            let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
+            let client = ProverClient::new();
+            let proof = client.prove(FIBONACCI_IO_ELF, stdin).unwrap();
             let serialized = bincode::serialize(&proof).unwrap();
             let output =
                 bincode::deserialize::<SP1ProofWithIO<BabyBearPoseidon2>>(&serialized).unwrap();
-            SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
+            client.verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
     }
 }

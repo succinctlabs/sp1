@@ -39,4 +39,7 @@ pub enum ConstraintOpcode {
     PrintV,
     PrintF,
     PrintE,
+    WitnessV,
+    WitnessF,
+    WitnessE,
 }

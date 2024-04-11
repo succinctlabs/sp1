@@ -18,7 +18,6 @@ anyhow = "1.0.80"
 sp1-core = { path = "../core" }
 futures = "0.3.30"
 bincode = "1.3.3"
-rmp-serde = "1.1.2"
 tokio = { version = "1.36.0", features = ["full"] }
 p3-matrix = { workspace = true }
 p3-commit = { workspace = true }
@@ -28,6 +27,11 @@ tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.21"
 axum = "=0.7.4"
+alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bfd0fda", features = [
+    "contract",
+    "signer-wallet",
+] }
+dotenv = "0.15.0"
 
 [features]
 neon = ["sp1-core/neon"]
