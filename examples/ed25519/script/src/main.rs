@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 const ED25519_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -6,10 +6,13 @@ fn main() {
     // Generate proof.
     utils::setup_logger();
     let stdin = SP1Stdin::new();
-    let proof = SP1Prover::prove(ED25519_ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let proof = client.prove(ED25519_ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    SP1Verifier::verify(ED25519_ELF, &proof).expect("verification failed");
+    client
+        .verify(ED25519_ELF, &proof)
+        .expect("verification failed");
 
     // Save proof.
     proof

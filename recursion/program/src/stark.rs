@@ -290,6 +290,8 @@ pub(crate) mod tests {
 
     use sp1_recursion_core::stark::RecursionAir;
     use sp1_sdk::utils::setup_logger;
+    use sp1_sdk::{ProverClient, SP1Stdin};
+    use std::time::Instant;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -307,7 +309,9 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+        let client = ProverClient::new();
+        let proofs = client
+            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof
             .shard_proofs;

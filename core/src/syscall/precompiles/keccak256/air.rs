@@ -138,11 +138,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::SP1Stdin;
-    use crate::{
-        utils::{setup_logger, tests::KECCAK256_ELF},
-        SP1Prover, SP1Verifier,
-    };
+    use crate::runtime::Program;
+    use crate::stark::{RiscvAir, StarkGenericConfig};
+    use crate::utils::{run_and_prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
+    use crate::{SP1PublicValues, SP1Stdin};
+
     use rand::Rng;
     use rand::SeedableRng;
     use tiny_keccak::Hasher;
@@ -173,12 +173,22 @@ mod test {
             stdin.write(&input);
         }
 
-        let mut proof = SP1Prover::prove(KECCAK256_ELF, stdin).unwrap();
-        SP1Verifier::verify(KECCAK256_ELF, &proof).unwrap();
+        let config = BabyBearPoseidon2::new();
+
+        let program = Program::from(KECCAK256_ELF);
+        let (proof, public_values) = run_and_prove(program, &stdin.buffer, config);
+        let mut public_values = SP1PublicValues::from(&public_values);
+
+        let config = BabyBearPoseidon2::new();
+        let mut challenger = config.challenger();
+        let machine = RiscvAir::machine(config);
+        let (_, vk) = machine.setup(&Program::from(KECCAK256_ELF));
+        let _ =
+            tracing::info_span!("verify").in_scope(|| machine.verify(&vk, &proof, &mut challenger));
 
         for i in 0..NUM_TEST_CASES {
             let expected = outputs.get(i).unwrap();
-            let actual = proof.public_values.read::<[u8; 32]>();
+            let actual = public_values.read::<[u8; 32]>();
             assert_eq!(expected, &actual);
         }
     }
