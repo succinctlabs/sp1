@@ -11,12 +11,12 @@ use sp1_core::{
     air::MachineAir,
     runtime::Program,
     stark::{
-        Challenger, Com, Dom, LocalProver, MachineStark, PcsProverData, Proof, Prover, RiscvAir,
-        ShardMainData, ShardProof, StarkGenericConfig, Val, VerifyingKey,
+        Challenger, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, Proof,
+        Prover, RiscvAir, ShardMainData, ShardProof, StarkGenericConfig, Val, VerifyingKey,
     },
     utils::{run_and_prove, BabyBearPoseidon2},
 };
-use sp1_recursion_compiler::ir::Config;
+use sp1_recursion_compiler::{config::InnerConfig, ir::Config};
 use sp1_recursion_core::{
     runtime::{RecursionProgram, Runtime},
     stark::{
@@ -41,7 +41,7 @@ pub struct SP1ProverImpl {
 
 #[derive(Serialize, Deserialize)]
 pub enum ReduceProof {
-    SP1(ShardProof<SP1SC>),
+    SP1(ShardProof<InnerSC>),
     Recursive(ShardProof<InnerSC>),
     FinalRecursive(ShardProof<OuterSC>),
 }
@@ -94,8 +94,19 @@ impl SP1ProverImpl {
         }
     }
 
-    pub fn prove(elf: &[u8], stdin: &[Vec<u8>]) -> Proof<SP1SC> {
-        let config = SP1SC::default();
+    pub fn prove<SC: StarkGenericConfig<Val = BabyBear> + Default>(
+        elf: &[u8],
+        stdin: &[Vec<u8>],
+    ) -> Proof<SC>
+    where
+        <SC as StarkGenericConfig>::Challenger: Clone,
+        OpeningProof<SC>: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+        <SC as StarkGenericConfig>::Val: PrimeField32,
+    {
+        let config = SC::default();
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
@@ -110,7 +121,7 @@ impl SP1ProverImpl {
 
     pub fn reduce<SC: StarkGenericConfig<Val = BabyBear> + Default>(
         &self,
-        sp1_vk: &VerifyingKey<SP1SC>,
+        sp1_vk: &VerifyingKey<InnerSC>,
         sp1_challenger: Challenger<SP1SC>,
         reduce_proofs: &[ReduceProof],
     ) -> ShardProof<SC>
@@ -121,7 +132,7 @@ impl SP1ProverImpl {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         LocalProver<SC, RecursionAir<BabyBear>>: Prover<SC, RecursionAir<BabyBear>>,
     {
-        let sp1_config = SP1SC::default();
+        let sp1_config = InnerSC::default();
         let sp1_machine = RiscvAir::machine(sp1_config);
         let recursion_config = InnerSC::default();
         let recursion_machine = RecursionAir::machine(recursion_config.clone());
@@ -248,11 +259,11 @@ mod tests {
         // exit(0);
 
         let elf =
-            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
-        let proof = SP1ProverImpl::prove(elf, &stdin);
+        let proof: Proof<InnerSC> = SP1ProverImpl::prove(elf, &stdin);
 
-        let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
+        let sp1_machine = RiscvAir::machine(InnerSC::default());
         let (_, vk) = sp1_machine.setup(&Program::from(elf));
 
         let mut sp1_challenger = sp1_machine.config().challenger();
@@ -265,7 +276,7 @@ mod tests {
         let mut reduce_proofs = proof
             .shard_proofs
             .into_iter()
-            .map(|p| ReduceProof::SP1(p))
+            .map(ReduceProof::SP1)
             .collect::<Vec<_>>();
         let n = 2;
         let mut layer = 0;

@@ -27,6 +27,7 @@ use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
@@ -95,12 +96,12 @@ fn felt_to_var(builder: &mut RecursionBuilder, felt: Felt<BabyBear>) -> Var<Baby
 }
 
 pub fn build_reduce() -> RecursionProgram<Val> {
-    let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
+    let sp1_machine = RiscvAir::machine(BabyBearPoseidon2Inner::default());
     let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
 
     let time = Instant::now();
     let mut builder = AsmBuilder::<F, EF>::default();
-    let sp1_config = const_fri_config(&mut builder, sp1_fri_config());
+    let sp1_config = const_fri_config(&mut builder, inner_fri_config());
     // TODO: this config may change
     let recursion_config = const_fri_config(&mut builder, inner_fri_config());
     let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };
@@ -134,7 +135,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     }
 
     builder.range(0, num_proofs).for_each(|i, builder| {
-        let proof = ShardProof::<SC>::read(builder);
+        let proof = ShardProof::<BabyBearPoseidon2Inner>::read(builder);
         let sorted_indices = builder.get(&sorted_indices, i);
         let is_recursive = builder.get(&is_recursive_flags, i);
         builder.if_eq(is_recursive, zero).then_or_else(
@@ -162,7 +163,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
 
                 // Verify proof with copy of witnessed challenger
                 let mut current_challenger = sp1_challenger.as_clone(builder);
-                StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
+                StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                     builder,
                     &sp1_vk.clone(),
                     &sp1_pcs,
