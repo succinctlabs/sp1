@@ -332,17 +332,6 @@ impl<C: Config> Builder<C> {
         arr
     }
 
-    /// Hint a vector of felts into an array with a given capacity. Returns length and array.
-    pub fn hint_felts_with_capacity(
-        &mut self,
-        capacity: impl Into<Usize<C::N>>,
-    ) -> (Array<C, Felt<C::F>>, Var<C::N>) {
-        let len = self.hint_len();
-        let arr = self.dyn_array(capacity);
-        self.operations.push(DslIr::HintFelts(arr.clone()));
-        (arr, len)
-    }
-
     /// Hint a vector of exts.
     pub fn hint_exts(&mut self) -> Array<C, Ext<C::F, C::EF>> {
         let len = self.hint_len();

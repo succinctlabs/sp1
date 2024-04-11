@@ -20,6 +20,7 @@ use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
+use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
 use sp1_recursion_core::stark::config::{BabyBearPoseidon2Inner, BabyBearPoseidon2Outer};
 use sp1_recursion_core::{
     air::Block,
@@ -345,8 +346,10 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let sponge_state = builder.hint_felts();
-        let (input_buffer, nb_inputs) = builder.hint_felts_with_capacity(8192);
-        let (output_buffer, nb_outputs) = builder.hint_felts_with_capacity(8192);
+        let nb_inputs = builder.hint_var();
+        let input_buffer = builder.hint_felts();
+        let nb_outputs = builder.hint_var();
+        let output_buffer = builder.hint_felts();
         DuplexChallengerVariable {
             sponge_state,
             nb_inputs,
@@ -359,8 +362,14 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
         stream.extend(self.sponge_state.to_vec().write());
-        stream.extend(self.input_buffer.write());
-        stream.extend(self.output_buffer.write());
+        stream.extend(self.input_buffer.len().write());
+        let mut input_padded = self.input_buffer.to_vec();
+        input_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
+        stream.extend(input_padded.write());
+        stream.extend(self.output_buffer.len().write());
+        let mut output_padded = self.output_buffer.to_vec();
+        output_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
+        stream.extend(output_padded.write());
         stream
     }
 }

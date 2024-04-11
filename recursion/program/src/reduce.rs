@@ -138,6 +138,14 @@ pub fn build_reduce() -> RecursionProgram<Val> {
         recursion_challenger.observe(&mut builder, element);
     }
 
+    builder.print_debug(234);
+    let reconstruct_len = reconstruct_challenger
+        .input_buffer
+        .len()
+        .materialize(&mut builder);
+    builder.print_v(reconstruct_len);
+    builder.print_v(reconstruct_challenger.nb_inputs);
+
     builder.range(0, num_proofs).for_each(|i, builder| {
         let proof = ShardProof::<BabyBearPoseidon2>::read(builder);
         let sorted_indices = builder.get(&sorted_indices, i);
