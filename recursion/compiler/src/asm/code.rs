@@ -1,5 +1,6 @@
 use alloc::collections::BTreeMap;
 use alloc::format;
+use backtrace::Backtrace;
 use core::fmt;
 use core::fmt::Display;
 
@@ -10,17 +11,25 @@ use super::AsmInstruction;
 
 /// A basic block of assembly instructions.
 #[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F, EF>(pub(crate) Vec<AsmInstruction<F, EF>>);
+pub struct BasicBlock<F, EF>(
+    pub(crate) Vec<AsmInstruction<F, EF>>,
+    pub(crate) Vec<Option<Backtrace>>,
+);
 
 impl<F: PrimeField32, EF: ExtensionField<F>> BasicBlock<F, EF> {
     /// Creates a new basic block.
     pub fn new() -> Self {
-        Self(Vec::new())
+        Self(Vec::new(), Vec::new())
     }
 
     /// Pushes an instruction to a basic block.
-    pub(crate) fn push(&mut self, instruction: AsmInstruction<F, EF>) {
+    pub(crate) fn push(
+        &mut self,
+        instruction: AsmInstruction<F, EF>,
+        backtrace: Option<Backtrace>,
+    ) {
         self.0.push(instruction);
+        self.1.push(backtrace);
     }
 }
 
@@ -54,11 +63,19 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
         let mut pc = 0;
         for (i, block) in blocks.into_iter().enumerate() {
             let instructions = block.0.clone();
-            for instruction in block.0 {
+            for (instruction_num, instruction) in block.0.into_iter().enumerate() {
                 if pc == 2946 {
                     println!("instruction: {:?}", instruction);
                     println!("i: {:?}", i);
                     println!("block: {:?}", instructions);
+                    for j in instruction_num..instructions.len() {
+                        if block.1[j].is_some() {
+                            let mut trace = block.1[j].clone().unwrap();
+                            trace.resolve();
+                            println!("backtrace: {:?}", trace);
+                            break;
+                        }
+                    }
                 }
                 machine_code.push(instruction.to_machine(pc, &label_to_pc));
                 pc += 1;
