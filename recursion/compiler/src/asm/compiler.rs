@@ -1,5 +1,6 @@
 use alloc::collections::BTreeMap;
 use alloc::vec;
+use std::backtrace::Backtrace;
 use std::collections::BTreeSet;
 
 use p3_field::ExtensionField;
@@ -97,6 +98,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
             let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
             self.push(AsmInstruction::ImmF(HEAP_PTR, stack_size));
         }
+
+        let mut n = 0;
 
         // For each operation, generate assembly instructions.
         for op in operations.clone() {
@@ -330,6 +333,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::Break(label));
                 }
                 DslIr::For(start, end, step_size, loop_var, block) => {
+                    println!("n: {:?}", n);
+                    n += 1;
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,
@@ -601,6 +606,11 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
     }
 
     fn basic_block(&mut self) {
+        if self.basic_blocks.len() == 250 {
+            // panic!("Too many basic blocks");
+            let backtrace = Backtrace::force_capture();
+            println!("Backtrace: {:?}", backtrace);
+        }
         self.basic_blocks.push(BasicBlock::new());
     }
 
@@ -749,16 +759,16 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         f(self.loop_var, self.compiler);
 
         // If the step size is just one, compile to the optimized branch instruction.
-        if self.step_size == F::one() {
-            self.jump_to_loop_body_inc(loop_label);
-        } else {
-            // Increment the loop variable.
-            self.compiler.push(AsmInstruction::AddFI(
-                self.loop_var.fp(),
-                self.loop_var.fp(),
-                self.step_size,
-            ));
-        }
+        // if self.step_size == F::one() {
+        //     self.jump_to_loop_body_inc(loop_label);
+        // } else {
+        // Increment the loop variable.
+        self.compiler.push(AsmInstruction::AddFI(
+            self.loop_var.fp(),
+            self.loop_var.fp(),
+            self.step_size,
+        ));
+        // }
 
         // Add a basic block for the loop condition.
         self.compiler.basic_block();

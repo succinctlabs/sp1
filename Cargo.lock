@@ -3482,6 +3482,7 @@ dependencies = [
 name = "sp1-prover"
 version = "0.1.0"
 dependencies = [
+ "backtrace",
  "bincode",
  "p3-baby-bear",
  "p3-challenger",
