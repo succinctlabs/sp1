@@ -147,6 +147,8 @@ pub fn build_reduce() -> RecursionProgram<Val> {
             |builder| {
                 let shard_f = builder.get(&proof.public_values, 32);
                 let shard = felt_to_var(builder, shard_f);
+                // builder.print_debug(101010101);
+                // builder.print_v(shard);
                 // First shard logic
                 builder.if_eq(shard, one).then(|builder| {
                     // Initialize the current challenger
@@ -158,6 +160,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
 
                 // Observe current proof commit and public values into reconstruct challenger
                 for j in 0..DIGEST_SIZE {
+                    builder.print_debug(20202);
                     let element = builder.get(&proof.commitment.main_commit, j);
                     reconstruct_challenger.observe(builder, element);
                 }

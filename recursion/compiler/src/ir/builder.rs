@@ -13,7 +13,7 @@ static mut GLOBAL_OP_TRACE_ID: u32 = 0;
 #[derive(Debug, Clone)]
 pub struct TracedVec<T> {
     pub(crate) vec: Vec<T>,
-    pub(crate) traces: Vec<(Backtrace, u32)>,
+    pub(crate) traces: Vec<(Option<Backtrace>, u32)>,
 }
 
 impl<T> Default for TracedVec<T> {
@@ -32,13 +32,14 @@ impl<T> TracedVec<T> {
 
     pub fn push(&mut self, value: T) {
         self.vec.push(value);
-        self.traces.push((Backtrace::new_unresolved(), unsafe {
-            GLOBAL_OP_TRACE_ID += 1;
-            GLOBAL_OP_TRACE_ID
-        }));
+        self.traces
+            .push((Some(Backtrace::new_unresolved()), unsafe {
+                GLOBAL_OP_TRACE_ID += 1;
+                GLOBAL_OP_TRACE_ID
+            }));
     }
 
-    pub fn extend<I: IntoIterator<Item = (T, (Backtrace, u32))>>(&mut self, iter: I) {
+    pub fn extend<I: IntoIterator<Item = (T, (Option<Backtrace>, u32))>>(&mut self, iter: I) {
         let iter = iter.into_iter();
         let len = iter.size_hint().0;
         self.vec.reserve(len);
@@ -55,8 +56,8 @@ impl<T> TracedVec<T> {
 }
 
 impl<T> IntoIterator for TracedVec<T> {
-    type Item = (T, (Backtrace, u32));
-    type IntoIter = Zip<IntoIter<T>, IntoIter<(Backtrace, u32)>>;
+    type Item = (T, (Option<Backtrace>, u32));
+    type IntoIter = Zip<IntoIter<T>, IntoIter<(Option<Backtrace>, u32)>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.vec.into_iter().zip(self.traces)
@@ -323,6 +324,17 @@ impl<C: Config> Builder<C> {
         let arr = self.dyn_array(len);
         self.operations.push(DslIr::HintFelts(arr.clone()));
         arr
+    }
+
+    /// Hint a vector of felts into an array with a given capacity. Returns length and array.
+    pub fn hint_felts_with_capacity(
+        &mut self,
+        capacity: impl Into<Usize<C::N>>,
+    ) -> (Array<C, Felt<C::F>>, Var<C::N>) {
+        let len = self.hint_len();
+        let arr = self.dyn_array(capacity);
+        self.operations.push(DslIr::HintFelts(arr.clone()));
+        (arr, len)
     }
 
     /// Hint a vector of exts.

@@ -3,6 +3,7 @@ mod opcode;
 mod program;
 mod record;
 
+use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
 pub use instruction::*;
@@ -248,6 +249,11 @@ where
                 self.program.instructions[self.pc.as_canonical_u32() as usize]
             );
             println!("fp={}", self.fp);
+            let mut trace = self.program.traces[self.pc.as_canonical_u32() as usize]
+                .clone()
+                .unwrap();
+            trace.resolve();
+            println!("backtrace:\n{:?}", trace);
             panic!("Memory access out of bounds");
         }
         &self.memory[addr.as_canonical_u32() as usize]
@@ -537,7 +543,14 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
-                    panic!("TRAP instruction encountered")
+                    let trace = self.program.traces[self.pc.as_canonical_u32() as usize].clone();
+                    if let Some(mut trace) = trace {
+                        trace.resolve();
+                        eprintln!("TRAP encountered. Backtrace:\n{:?}", trace);
+                    } else {
+                        eprintln!("TRAP encountered. No backtrace available");
+                    }
+                    exit(1);
                 }
                 Opcode::Ext2Felt => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);

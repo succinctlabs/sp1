@@ -152,12 +152,12 @@ impl SP1ProverImpl {
             .iter()
             .map(|p| match p {
                 ReduceProof::SP1(proof) => {
-                    let indices = get_sorted_indices(&sp1_machine, &proof);
+                    let indices = get_sorted_indices(&sp1_machine, proof);
                     println!("indices = {:?}", indices);
                     indices
                 }
                 ReduceProof::Recursive(proof) => {
-                    let indices = get_sorted_indices(&recursion_machine, &proof);
+                    let indices = get_sorted_indices(&recursion_machine, proof);
                     println!("indices = {:?}", indices);
                     indices
                 }
@@ -303,6 +303,17 @@ mod tests {
                         continue;
                     }
                     let proofs = &reduce_proofs[i..end];
+                    for proof in proofs.iter() {
+                        match proof {
+                            ReduceProof::SP1(proof) => {
+                                println!("public values = {:?}", proof.public_values);
+                            }
+                            ReduceProof::Recursive(proof) => {
+                                println!("recursive public values = {:?}", proof.public_values);
+                            }
+                            _ => unreachable!(),
+                        }
+                    }
                     if reduce_proofs.len() <= n {
                         println!("last proof");
                         let proof: ShardProof<OuterSC> =

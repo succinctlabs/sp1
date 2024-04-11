@@ -345,10 +345,8 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let sponge_state = builder.hint_felts();
-        let nb_inputs = builder.hint_var();
-        let input_buffer = builder.hint_felts();
-        let nb_outputs = builder.hint_var();
-        let output_buffer = builder.hint_felts();
+        let (input_buffer, nb_inputs) = builder.hint_felts_with_capacity(8192);
+        let (output_buffer, nb_outputs) = builder.hint_felts_with_capacity(8192);
         DuplexChallengerVariable {
             sponge_state,
             nb_inputs,
@@ -361,9 +359,7 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
         stream.extend(self.sponge_state.to_vec().write());
-        stream.extend(self.input_buffer.len().write());
         stream.extend(self.input_buffer.write());
-        stream.extend(self.output_buffer.len().write());
         stream.extend(self.output_buffer.write());
         stream
     }

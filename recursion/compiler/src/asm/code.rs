@@ -61,29 +61,24 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
         // Make the second pass to convert the assembly code to machine code.
         let mut machine_code = Vec::new();
         let mut pc = 0;
+        let mut traces = Vec::new();
         for (i, block) in blocks.into_iter().enumerate() {
             let instructions = block.0.clone();
-            for (instruction_num, instruction) in block.0.into_iter().enumerate() {
+            for (instruction, trace) in block.0.into_iter().zip(block.1) {
                 if pc == 2946 {
                     println!("instruction: {:?}", instruction);
                     println!("i: {:?}", i);
                     println!("block: {:?}", instructions);
-                    for j in instruction_num..instructions.len() {
-                        if block.1[j].is_some() {
-                            let mut trace = block.1[j].clone().unwrap();
-                            trace.resolve();
-                            println!("backtrace: {:?}", trace);
-                            break;
-                        }
-                    }
                 }
                 machine_code.push(instruction.to_machine(pc, &label_to_pc));
+                traces.push(trace);
                 pc += 1;
             }
         }
 
         RecursionProgram {
             instructions: machine_code,
+            traces,
         }
     }
 }

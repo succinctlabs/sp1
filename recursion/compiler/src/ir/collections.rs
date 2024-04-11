@@ -121,7 +121,11 @@ impl<C: Config> Builder<C> {
             Array::Fixed(_) => {
                 todo!()
             }
-            Array::Dyn(ptr, _) => {
+            Array::Dyn(ptr, len) => {
+                // let len = len.materialize(self);
+                // self.print_v(len);
+                // let index_v = index.materialize(self);
+                // self.print_v(index_v);
                 let index = MemIndex {
                     index,
                     offset: 0,
