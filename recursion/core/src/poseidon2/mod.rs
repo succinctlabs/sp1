@@ -1,8 +1,14 @@
 #![allow(clippy::needless_range_loop)]
 
+use crate::poseidon2::external::WIDTH;
 use p3_field::{AbstractField, Field};
 
-mod external;
+pub mod external;
+
+#[derive(Debug, Clone)]
+pub struct Poseidon2Event<F> {
+    pub input: [F; WIDTH],
+}
 
 // TODO: Make this public inside Plonky3 and import directly.
 pub fn apply_m_4<AF>(x: &mut [AF])
