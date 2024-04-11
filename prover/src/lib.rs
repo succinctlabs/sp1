@@ -76,6 +76,17 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 }
 
 impl SP1ProverImpl {
+    pub fn new() -> Self {
+        // TODO: load from serde
+        let reduce_program = build_reduce();
+        let (_, reduce_vk) =
+            RecursionAir::machine(BabyBearPoseidon2::default()).setup(&reduce_program);
+        Self {
+            reduce_program,
+            reduce_vk,
+        }
+    }
+
     pub fn prove(elf: &[u8], stdin: &[Vec<u8>]) -> Proof<InnerSC> {
         let config = InnerSC::default();
         let machine = RiscvAir::machine(config.clone());

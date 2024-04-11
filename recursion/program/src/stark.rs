@@ -286,12 +286,10 @@ pub(crate) mod tests {
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
-    use sp1_sdk::{SP1Prover, SP1Stdin};
 
     use sp1_recursion_core::stark::RecursionAir;
     use sp1_sdk::utils::setup_logger;
     use sp1_sdk::{ProverClient, SP1Stdin};
-    use std::time::Instant;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
