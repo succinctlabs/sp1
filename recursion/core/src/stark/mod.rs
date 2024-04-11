@@ -4,10 +4,9 @@ pub mod poseidon2;
 use crate::{
     cpu::CpuChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
-    poseidon2::external::Poseidon2Chip,
+    poseidon2::Poseidon2Chip,
     program::ProgramChip,
 };
-
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig};
 use sp1_derive::MachineAir;

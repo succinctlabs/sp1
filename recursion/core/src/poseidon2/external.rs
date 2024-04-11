@@ -74,7 +74,6 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 cols.input = round_input;
 
                 cols.rounds[r] = F::one();
-
                 let is_initial_layer = r == 0;
                 let is_external_layer = r != 0
                     && (((r - 1) < rounds_f_beginning) || (p_end <= (r - 1) && (r - 1) < rounds));

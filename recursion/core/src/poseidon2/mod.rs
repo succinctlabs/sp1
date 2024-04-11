@@ -3,7 +3,9 @@
 use crate::poseidon2::external::WIDTH;
 use p3_field::{AbstractField, Field};
 
-pub mod external;
+mod external;
+
+pub use external::Poseidon2Chip;
 
 #[derive(Debug, Clone)]
 pub struct Poseidon2Event<F> {
