@@ -60,16 +60,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
 
         // Make the second pass to convert the assembly code to machine code.
         let mut machine_code = Vec::new();
-        let mut pc = 0;
         let mut traces = Vec::new();
-        for (i, block) in blocks.into_iter().enumerate() {
-            let instructions = block.0.clone();
+        let mut pc = 0;
+        for block in blocks {
             for (instruction, trace) in block.0.into_iter().zip(block.1) {
-                if pc == 2946 {
-                    println!("instruction: {:?}", instruction);
-                    println!("i: {:?}", i);
-                    println!("block: {:?}", instructions);
-                }
                 machine_code.push(instruction.to_machine(pc, &label_to_pc));
                 traces.push(trace);
                 pc += 1;

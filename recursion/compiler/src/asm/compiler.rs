@@ -100,10 +100,8 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
             self.push(AsmInstruction::ImmF(HEAP_PTR, stack_size), None);
         }
 
-        let mut n = 0;
-
         // For each operation, generate assembly instructions.
-        for (op, mut trace) in operations.clone() {
+        for (op, trace) in operations.clone() {
             match op {
                 DslIr::ImmV(dst, src) => {
                     self.push(AsmInstruction::ImmF(dst.fp(), src), trace);
@@ -332,8 +330,6 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::Break(label), trace);
                 }
                 DslIr::For(start, end, step_size, loop_var, block) => {
-                    println!("n: {:?}", n);
-                    n += 1;
                     let for_compiler = ForCompiler {
                         compiler: self,
                         start,
@@ -605,11 +601,6 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
     }
 
     fn basic_block(&mut self) {
-        if self.basic_blocks.len() == 253 {
-            // panic!("Too many basic blocks");
-            let backtrace = Backtrace::new();
-            println!("Backtrace: {:?}", backtrace);
-        }
         self.basic_blocks.push(BasicBlock::new());
     }
 
