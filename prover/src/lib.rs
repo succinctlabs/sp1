@@ -279,18 +279,21 @@ mod tests {
         let final_proof: ShardProof<OuterSC> = {
             let mut final_proof = None;
             while reduce_proofs.len() > 1 {
+                println!("layer = {}", layer);
                 // Write layer to {i}.bin with bincode
                 let serialized = bincode::serialize(&reduce_proofs).unwrap();
                 std::fs::write(format!("{}.bin", layer), serialized).unwrap();
                 let mut next_proofs = Vec::new();
                 for i in (0..reduce_proofs.len()).step_by(n) {
                     let end = std::cmp::min(i + n, reduce_proofs.len());
+                    println!("i = {}, end = {}", i, end);
                     if i == end - 1 {
                         next_proofs.push(reduce_proofs.pop().unwrap());
                         continue;
                     }
                     let proofs = &reduce_proofs[i..end];
                     if reduce_proofs.len() <= n {
+                        println!("last proof");
                         let proof: ShardProof<OuterSC> =
                             prover.reduce(&vk, sp1_challenger.clone(), proofs);
                         final_proof = Some(proof);

@@ -222,7 +222,7 @@ where
         builder.set_value(&mut rounds, 3, quotient_round);
 
         // Verify the pcs proof
-        // pcs.verify(builder, rounds, opening_proof.clone(), challenger);
+        pcs.verify(builder, rounds, opening_proof.clone(), challenger);
 
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         for (i, chip) in machine.chips().iter().enumerate() {
