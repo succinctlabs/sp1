@@ -3,7 +3,7 @@
 ## Execution Only
 
 We recommend that during development of large programs (> 1 million cycles) that you do not generate proofs each time.
-Instead, you should have your script only execute the program with the RISC-V runtime and read `stdout`. Here is an example:
+Instead, you should have your script only execute the program with the RISC-V runtime and read `public_values`. Here is an example:
 
 ```rust,noplayground
 use sp1_sdk::{ProverClient, SP1Stdin};
@@ -16,9 +16,9 @@ fn main() {
     let n = 5000u32;
     stdin.write(&n);
     let client = ProverClient::new();
-    let mut stdout = client.execute(ELF, stdin).expect("execution failed");
-    let a = stdout.read::<u32>();
-    let b = stdout.read::<u32>();
+    let mut public_values = client.execute(ELF, stdin).expect("execution failed");
+    let a = public_values.read::<u32>();
+    let b = public_values.read::<u32>();
 
     // Print the program's outputs in our script.
     println!("a: {}", a);
