@@ -17,8 +17,6 @@ pub struct RecursionShardProofVariable<C: Config> {
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
     pub public_values: Array<C, Felt<C::F>>,
-    pub sorted_chips: Vec<String>,
-    pub sorted_indices: Vec<usize>,
 }
 
 #[derive(Clone)]

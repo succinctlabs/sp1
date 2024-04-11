@@ -21,9 +21,9 @@ import (
 )
 
 type Circuit struct {
-	Vars  []frontend.Variable           `gnark:",public"`
-	Felts []*babybear.Variable          `gnark:",public"`
-	Exts  []*babybear.ExtensionVariable `gnark:",public"`
+	Vars  []frontend.Variable
+	Felts []*babybear.Variable
+	Exts  []*babybear.ExtensionVariable
 }
 
 type Constraint struct {
@@ -147,6 +147,18 @@ func (circuit *Circuit) Define(api frontend.API) error {
 				panic(err)
 			}
 			vars[cs.Args[0][0]] = circuit.Vars[i]
+		case "WitnessF":
+			i, err := strconv.Atoi(cs.Args[1][0])
+			if err != nil {
+				panic(err)
+			}
+			felts[cs.Args[0][0]] = circuit.Felts[i]
+		case "WitnessE":
+			i, err := strconv.Atoi(cs.Args[1][0])
+			if err != nil {
+				panic(err)
+			}
+			exts[cs.Args[0][0]] = circuit.Exts[i]
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}

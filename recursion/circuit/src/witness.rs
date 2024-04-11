@@ -1,18 +1,20 @@
 use p3_bn254_fr::Bn254Fr;
-use sp1_core::stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues};
+use sp1_core::stark::{
+    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
+};
 use sp1_recursion_compiler::{
     config::OuterConfig,
     ir::{Builder, Config, Ext, Felt, Var, Witness},
 };
 use sp1_recursion_core::stark::config::{
-    OuterBatchOpening, OuterChallenge, OuterCommitPhaseStep, OuterDigest, OuterFriProof,
-    OuterPcsProof, OuterQueryProof, OuterVal,
+    BabyBearPoseidon2Outer, OuterBatchOpening, OuterChallenge, OuterCommitPhaseStep, OuterDigest,
+    OuterFriProof, OuterPcsProof, OuterQueryProof, OuterVal,
 };
 
 use crate::types::{
     AirOpenedValuesVariable, BatchOpeningVariable, ChipOpenedValuesVariable,
     FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable, OuterDigestVariable,
-    RecursionShardOpenedValuesVariable, TwoAdicPcsProofVariable,
+    RecursionShardOpenedValuesVariable, RecursionShardProofVariable, TwoAdicPcsProofVariable,
 };
 
 pub trait Witnessable<C: Config> {
@@ -285,15 +287,56 @@ impl Witnessable<C> for OuterPcsProof {
     }
 }
 
+impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
+    type WitnessVariable = RecursionShardProofVariable<C>;
+
+    fn read(&self, builder: &mut Builder<C>) -> Self::WitnessVariable {
+        let main_commit: OuterDigest = self.commitment.main_commit.into();
+        let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
+        let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
+        let commitment = ShardCommitment {
+            main_commit: main_commit.read(builder),
+            permutation_commit: permutation_commit.read(builder),
+            quotient_commit: quotient_commit.read(builder),
+        };
+        let opened_values = self.opened_values.read(builder);
+        let opening_proof = self.opening_proof.read(builder);
+        let public_values = self.public_values.read(builder);
+        let public_values = builder.vec(public_values);
+
+        RecursionShardProofVariable {
+            index: self.index,
+            commitment,
+            opened_values,
+            opening_proof,
+            public_values,
+        }
+    }
+
+    fn write(&self, witness: &mut Witness<C>) {
+        let main_commit: OuterDigest = self.commitment.main_commit.into();
+        let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
+        let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
+        main_commit.write(witness);
+        permutation_commit.write(witness);
+        quotient_commit.write(witness);
+        self.opened_values.write(witness);
+        self.opening_proof.write(witness);
+        self.public_values.write(witness);
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::{gnark_ffi, ConstraintCompiler},
-        ir::{Builder, Witness},
+        ir::{Builder, ExtConst, Witness},
     };
+    use sp1_recursion_core::stark::config::OuterChallenge;
 
     #[test]
     fn test_witness_simple() {
@@ -305,14 +348,28 @@ mod tests {
         builder.print_v(a);
         builder.print_v(b);
 
+        let a = builder.witness_felt();
+        let b = builder.witness_felt();
+        builder.assert_felt_eq(a, BabyBear::one());
+        builder.assert_felt_eq(b, BabyBear::two());
+        builder.print_f(a);
+        builder.print_f(b);
+
+        let a = builder.witness_ext();
+        let b = builder.witness_ext();
+        builder.assert_ext_eq(a, OuterChallenge::one().cons());
+        builder.assert_ext_eq(b, OuterChallenge::two().cons());
+        builder.print_e(a);
+        builder.print_e(b);
+
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
         gnark_ffi::execute::<OuterConfig>(
             constraints,
             Witness {
                 vars: vec![Bn254Fr::one(), Bn254Fr::two()],
-                felts: vec![],
-                exts: vec![],
+                felts: vec![BabyBear::one(), BabyBear::two()],
+                exts: vec![OuterChallenge::one(), OuterChallenge::two()],
             },
         );
     }

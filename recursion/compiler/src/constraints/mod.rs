@@ -324,6 +324,14 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::WitnessV,
                     args: vec![vec![a.id()], vec![b.to_string()]],
                 }),
+                DslIr::WitnessFelt(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::WitnessF,
+                    args: vec![vec![a.id()], vec![b.to_string()]],
+                }),
+                DslIr::WitnessExt(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::WitnessE,
+                    args: vec![vec![a.id()], vec![b.to_string()]],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }
