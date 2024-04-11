@@ -5,8 +5,7 @@ use anyhow::{Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use rmp_serde::{Deserializer, Serializer};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Serialize};
 use sp1_core::stark::StarkGenericConfig;
 use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
@@ -92,10 +91,8 @@ impl NetworkClient {
             })
             .await?;
 
-        let mut program_bytes = Vec::new();
-        elf.serialize(&mut Serializer::new(&mut program_bytes))?;
-        let mut stdin_bytes = Vec::new();
-        stdin.serialize(&mut Serializer::new(&mut stdin_bytes))?;
+        let program_bytes = bincode::serialize(elf)?;
+        let stdin_bytes = bincode::serialize(&stdin)?;
         let program_promise = self.upload_file(&res.program_put_url, program_bytes);
         let stdin_promise = self.upload_file(&res.stdin_put_url, stdin_bytes);
         let v = vec![program_promise, stdin_promise];
@@ -115,9 +112,7 @@ impl NetworkClient {
         Ok(res.proof_id)
     }
 
-    pub async fn get_proof_status<
-        SC: for<'de> Deserialize<'de> + Serialize + StarkGenericConfig,
-    >(
+    pub async fn get_proof_status<SC: StarkGenericConfig + Serialize + DeserializeOwned>(
         &self,
         proof_id: &str,
     ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithIO<SC>>)> {
@@ -136,8 +131,7 @@ impl NetworkClient {
                 .await?
                 .bytes()
                 .await?;
-            let mut de = Deserializer::new(&proof[..]);
-            Some(Deserialize::deserialize(&mut de).expect("Failed to deserialize proof"))
+            Some(bincode::deserialize(&proof).expect("Failed to deserialize proof"))
         } else {
             None
         };
