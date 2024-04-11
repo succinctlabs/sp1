@@ -32,6 +32,7 @@ alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bfd0fda", features =
     "contract",
     "signer-wallet",
 ] }
+dotenv = "0.15.0"
 
 [features]
 neon = ["sp1-core/neon"]
