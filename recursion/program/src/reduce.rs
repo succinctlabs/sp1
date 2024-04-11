@@ -98,11 +98,15 @@ pub fn build_reduce() -> RecursionProgram<Val> {
 
     let time = Instant::now();
     let mut builder = AsmBuilder::<F, EF>::default();
-    let config = const_fri_config(&mut builder, inner_fri_config());
-    let pcs = TwoAdicFriPcsVariable { config };
+    let sp1_config = const_fri_config(&mut builder, inner_fri_config());
+    // TODO: this config may change
+    let recursion_config = const_fri_config(&mut builder, inner_fri_config());
+    let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };
+    let recursion_pcs = TwoAdicFriPcsVariable {
+        config: recursion_config,
+    };
 
     // Read witness inputs
-    let proofs = Vec::<ShardProof<_>>::read(&mut builder);
     let is_recursive_flags = Vec::<usize>::read(&mut builder);
     let sorted_indices = Vec::<Vec<usize>>::read(&mut builder);
     let sp1_challenger = DuplexChallenger::read(&mut builder);
@@ -113,7 +117,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     let recursion_prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
     let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
     let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
-    let num_proofs = proofs.len();
+    let num_proofs = is_recursive_flags.len();
 
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.constant(F::zero());
@@ -130,7 +134,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     builder
         .range(Usize::Const(0), num_proofs)
         .for_each(|i, builder| {
-            let proof = builder.get(&proofs, i);
+            let proof = ShardProof::<SC>::read(builder);
             let sorted_indices = builder.get(&sorted_indices, i);
             let is_recursive = builder.get(&is_recursive_flags, i);
             builder.if_eq(is_recursive, zero).then_or_else(
@@ -161,7 +165,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                     StarkVerifier::<C, SC>::verify_shard(
                         builder,
                         &sp1_vk.clone(),
-                        &pcs,
+                        &sp1_pcs,
                         &sp1_machine,
                         &mut current_challenger,
                         &proof,
@@ -190,7 +194,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                     StarkVerifier::<C, SC>::verify_shard(
                         builder,
                         &recursion_vk.clone(),
-                        &pcs,
+                        &recursion_pcs,
                         &recursion_machine,
                         &mut current_challenger,
                         &proof,

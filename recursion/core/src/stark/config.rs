@@ -196,3 +196,66 @@ impl StarkGenericConfig for BabyBearPoseidon2Outer {
         OuterChallenger::new(self.perm.clone()).unwrap()
     }
 }
+
+#[derive(Deserialize)]
+#[serde(from = "std::marker::PhantomData<BabyBearPoseidon2Inner>")]
+pub struct BabyBearPoseidon2Inner {
+    pub perm: InnerPerm,
+    pub pcs: InnerPcs,
+}
+
+impl Clone for BabyBearPoseidon2Inner {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl Serialize for BabyBearPoseidon2Inner {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        std::marker::PhantomData::<BabyBearPoseidon2Inner>.serialize(serializer)
+    }
+}
+
+impl From<std::marker::PhantomData<BabyBearPoseidon2Inner>> for BabyBearPoseidon2Inner {
+    fn from(_: std::marker::PhantomData<BabyBearPoseidon2Inner>) -> Self {
+        Self::new()
+    }
+}
+
+impl BabyBearPoseidon2Inner {
+    pub fn new() -> Self {
+        let perm = inner_perm();
+        let hash = InnerHash::new(perm.clone());
+        let compress = InnerCompress::new(perm.clone());
+        let val_mmcs = InnerValMmcs::new(hash, compress);
+        let dft = InnerDft {};
+        let fri_config = inner_fri_config();
+        let pcs = InnerPcs::new(27, dft, val_mmcs, fri_config);
+        Self { pcs, perm }
+    }
+}
+
+impl Default for BabyBearPoseidon2Inner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StarkGenericConfig for BabyBearPoseidon2Inner {
+    type Val = InnerVal;
+    type Domain = <InnerPcs as p3_commit::Pcs<InnerChallenge, InnerChallenger>>::Domain;
+    type Pcs = InnerPcs;
+    type Challenge = InnerChallenge;
+    type Challenger = InnerChallenger;
+
+    fn pcs(&self) -> &Self::Pcs {
+        &self.pcs
+    }
+
+    fn challenger(&self) -> Self::Challenger {
+        InnerChallenger::new(self.perm.clone())
+    }
+}

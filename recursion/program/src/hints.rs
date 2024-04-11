@@ -1,21 +1,26 @@
+use std::collections::HashMap;
+
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
     ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
+use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
-use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_commit::{Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset, Val};
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
+    AirOpenedValues, Challenge, ChipOpenedValues, Com, Dom, OpeningProof, ShardCommitment,
+    ShardOpenedValues, ShardProof,
 };
+use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
+use sp1_recursion_core::stark::config::{BabyBearPoseidon2Inner, BabyBearPoseidon2Outer};
 use sp1_recursion_core::{
     air::Block,
     stark::config::{
@@ -101,6 +106,7 @@ impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
 trait VecAutoHintable<C: Config>: Hintable<C> {}
 
 impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
+impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2Inner> {}
 impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
 
@@ -363,7 +369,14 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
     }
 }
 
-impl Hintable<C> for VerifyingKey<BabyBearPoseidon2> {
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+        >,
+    > Hintable<C> for VerifyingKey<SC>
+{
     type HintVariable = VerifyingKeyVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -379,7 +392,17 @@ impl Hintable<C> for VerifyingKey<BabyBearPoseidon2> {
     }
 }
 
-impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
+// Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+        >,
+    > Hintable<C> for ShardProof<SC>
+where
+    ShardCommitment<Com<SC>>: Hintable<C>,
+{
     type HintVariable = ShardProofVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
