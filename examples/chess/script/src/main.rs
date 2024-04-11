@@ -17,7 +17,7 @@ fn main() {
     let mut proof = client.prove(ELF, stdin).unwrap();
 
     // Read output.
-    let is_valid_move = proof.stdout.read::<bool>();
+    let is_valid_move = proof.public_values.read::<bool>();
     println!("is_valid_move: {}", is_valid_move);
 
     // Verify proof.

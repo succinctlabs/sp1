@@ -104,14 +104,8 @@ impl ProverClient {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
 
-        let flat_stdin = stdin
-            .buffer
-            .iter()
-            .flat_map(|v| v.iter())
-            .copied()
-            .collect::<Vec<u8>>();
-
-        let proof_id = client.create_proof(elf, &flat_stdin).await?;
+        let proof_id = client.create_proof(elf, &stdin).await?;
+        println!("proof_id: {:?}", proof_id);
 
         let mut pb = StageProgressBar::new();
         loop {

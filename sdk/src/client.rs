@@ -1,6 +1,6 @@
 use std::{env, time::Duration};
 
-use crate::auth::NetworkAuth;
+use crate::{auth::NetworkAuth, SP1Stdin};
 use anyhow::{Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
@@ -75,7 +75,7 @@ impl NetworkClient {
         Ok(())
     }
 
-    pub async fn create_proof(&self, elf: &[u8], stdin: &[u8]) -> Result<String> {
+    pub async fn create_proof(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start
             .duration_since(UNIX_EPOCH)

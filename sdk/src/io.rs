@@ -183,5 +183,26 @@ pub mod proof_serde {
                 bincode::deserialize::<SP1ProofWithIO<BabyBearPoseidon2>>(&serialized).unwrap();
             client.verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
+
+        /// Tests bincode roundtrip serialization of `SP1Stdin`.
+        #[test]
+        fn test_bincode_sp1_stdin() {
+            setup_logger();
+            // From the Chess example.
+            let mut stdin = SP1Stdin::new();
+
+            // FEN representation of a chessboard in its initial state
+            let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
+            stdin.write(&fen);
+
+            // SAN representation Queen's pawn opening
+            let san = "d4".to_string();
+            stdin.write(&san);
+
+            let serialized = bincode::serialize(&stdin).unwrap();
+            let output = bincode::deserialize::<SP1Stdin>(&serialized).unwrap();
+
+            assert_eq!(stdin.buffer, output.buffer);
+        }
     }
 }
