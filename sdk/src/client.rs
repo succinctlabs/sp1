@@ -20,7 +20,9 @@ use crate::{
     SP1ProofWithIO,
 };
 
+/// The default RPC endpoint for the Succinct prover network.
 const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
+/// The default SP1 Verifier address on all chains.
 const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0xed2107448519345059eab9cddab42ddc78fbebe9";
 
 pub struct NetworkClient {

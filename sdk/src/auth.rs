@@ -24,7 +24,14 @@ sol! {
     }
 }
 
+/// Handles authentication for the prover network. All interactions that could potentially use
+/// computational resources must be authenticated by signing a message with a secp256k1 key.
+///
+/// The messages themselves follow EIP-712, where the domain is "succinct" and the TypeStruct changes
+/// depending on which endpoint is being used. Documentation for this EIP-712 can be found
+/// [here](https://eips.ethereum.org/EIPS/eip-712).
 pub struct NetworkAuth {
+    // Holds a secp256k1 private key.
     wallet: LocalWallet,
 }
 
@@ -34,6 +41,7 @@ impl NetworkAuth {
         Self { wallet }
     }
 
+    /// Gets the EIP-712 domain separator for the Succinct prover network.
     fn get_domain_separator() -> Eip712Domain {
         Eip712Domain {
             name: Some(Cow::Borrowed("succinct")),
@@ -42,6 +50,7 @@ impl NetworkAuth {
         }
     }
 
+    /// Signs a message to create a proof.
     pub async fn sign_create_proof_message(&self, deadline: u64) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
@@ -53,6 +62,7 @@ impl NetworkAuth {
         Ok(signature.as_bytes().to_vec())
     }
 
+    /// Signs a message to submit a proof.
     pub async fn sign_submit_proof_message(&self, proof_id: &str) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
@@ -66,6 +76,7 @@ impl NetworkAuth {
         Ok(signature.as_bytes().to_vec())
     }
 
+    /// Signs a message to relay a proof.
     pub async fn sign_relay_proof_message(
         &self,
         proof_id: &str,

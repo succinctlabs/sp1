@@ -38,12 +38,6 @@ use tokio::runtime;
 use tokio::time::sleep;
 use util::StageProgressBar;
 
-/// A client that can prove RISCV ELFs and verify those proofs.
-pub struct ProverClient {
-    /// An optional prover network client used for remote operations.
-    pub client: Option<NetworkClient>,
-}
-
 /// A proof of a RISCV ELF execution with given inputs and outputs.
 #[derive(Serialize, Deserialize)]
 pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
@@ -51,6 +45,12 @@ pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned>
     pub proof: Proof<SC>,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
+}
+
+/// A client that can prove RISCV ELFs and verify those proofs.
+pub struct ProverClient {
+    /// An optional prover network client used for remote operations.
+    pub client: Option<NetworkClient>,
 }
 
 impl ProverClient {
