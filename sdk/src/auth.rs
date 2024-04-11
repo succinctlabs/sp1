@@ -8,14 +8,17 @@ use anyhow::Result;
 
 sol! {
     struct CreateProof {
+        uint64 nonce;
         uint64 deadline;
     }
 
     struct SubmitProof {
+        uint64 nonce;
         string proof_id;
     }
 
     struct RelayProof {
+        uint64 nonce;
         string proof_id;
         uint32 chain_id;
         address verifier;
@@ -50,11 +53,15 @@ impl NetworkAuth {
         }
     }
 
+    pub fn get_address(&self) -> [u8; 20] {
+        *self.wallet.address().0
+    }
+
     /// Signs a message to create a proof.
-    pub async fn sign_create_proof_message(&self, deadline: u64) -> Result<Vec<u8>> {
+    pub async fn sign_create_proof_message(&self, nonce: u64, deadline: u64) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
-        let type_struct = CreateProof { deadline };
+        let type_struct = CreateProof { nonce, deadline };
 
         let message_hash = type_struct.eip712_signing_hash(&domain_seperator);
         let signature = self.wallet.sign_hash(&message_hash).await?;
@@ -63,10 +70,11 @@ impl NetworkAuth {
     }
 
     /// Signs a message to submit a proof.
-    pub async fn sign_submit_proof_message(&self, proof_id: &str) -> Result<Vec<u8>> {
+    pub async fn sign_submit_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
         let type_struct = SubmitProof {
+            nonce,
             proof_id: proof_id.to_string(),
         };
 
@@ -79,6 +87,7 @@ impl NetworkAuth {
     /// Signs a message to relay a proof.
     pub async fn sign_relay_proof_message(
         &self,
+        nonce: u64,
         proof_id: &str,
         chain_id: u32,
         verifier: [u8; 20],
@@ -88,6 +97,7 @@ impl NetworkAuth {
         let domain_seperator = Self::get_domain_separator();
 
         let type_struct = RelayProof {
+            nonce,
             proof_id: proof_id.to_string(),
             chain_id,
             verifier: verifier.into(),
