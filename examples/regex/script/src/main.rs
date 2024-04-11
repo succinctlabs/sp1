@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const REGEX_IO_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -18,14 +18,17 @@ fn main() {
     stdin.write(&target_string);
 
     // Generate the proof for the given program and input.
-    let mut proof = SP1Prover::prove(REGEX_IO_ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let mut proof = client.prove(REGEX_IO_ELF, stdin).expect("proving failed");
 
     // Read the output.
     let res = proof.public_values.read::<bool>();
     println!("res: {}", res);
 
     // Verify proof.
-    SP1Verifier::verify(REGEX_IO_ELF, &proof).expect("verification failed");
+    client
+        .verify(REGEX_IO_ELF, &proof)
+        .expect("verification failed");
 
     // Save the proof.
     proof

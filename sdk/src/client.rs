@@ -1,15 +1,14 @@
 use std::{env, time::Duration};
 
+use crate::auth::NetworkAuth;
 use anyhow::{Ok, Result};
 use futures::future::join_all;
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Client as HttpClient, Url,
-};
+use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use rmp_serde::{Deserializer, Serializer};
 use serde::{Deserialize, Serialize};
 use sp1_core::stark::StarkGenericConfig;
+use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
 
 use crate::{
@@ -21,31 +20,27 @@ use crate::{
     SP1ProofWithIO,
 };
 
+/// The default RPC endpoint for the Succinct prover network.
 const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
-const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0x9a39f368676f7a5cbbfe8ea33c258c4536b5398f";
+/// The default SP1 Verifier address on all chains.
+const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0xed2107448519345059eab9cddab42ddc78fbebe9";
 
 pub struct NetworkClient {
     pub rpc: TwirpClient,
     pub http: HttpClientWithMiddleware,
+    pub auth: NetworkAuth,
 }
 
 impl NetworkClient {
-    pub fn with_token(access_token: String) -> Self {
+    pub fn new(private_key: &str) -> Self {
+        let auth = NetworkAuth::new(private_key);
+
         let rpc_url = env::var("PROVER_NETWORK_RPC")
             .unwrap_or_else(|_| DEFAULT_PROVER_NETWORK_RPC.to_string());
-        Self::with_url(access_token, rpc_url)
-    }
 
-    pub fn with_url(access_token: String, rpc_url: String) -> Self {
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Authorization",
-            HeaderValue::from_str(&format!("Bearer {}", access_token)).unwrap(),
-        );
         let twirp_http_client = HttpClient::builder()
             .pool_max_idle_per_host(0)
             .pool_idle_timeout(Duration::from_secs(240))
-            .default_headers(headers)
             .build()
             .unwrap();
 
@@ -57,7 +52,9 @@ impl NetworkClient {
             .pool_idle_timeout(Duration::from_secs(240))
             .build()
             .unwrap();
+
         Self {
+            auth,
             rpc,
             http: http_client.into(),
         }
@@ -71,7 +68,7 @@ impl NetworkClient {
 
         verifier_bytes
             .try_into()
-            .expect("Verifier address must be 20 bytes")
+            .expect("SP1_VERIFIER_ADDRESS must be 20 bytes")
     }
 
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
@@ -80,7 +77,20 @@ impl NetworkClient {
     }
 
     pub async fn create_proof(&self, elf: &[u8], stdin: &[u8]) -> Result<String> {
-        let res = self.rpc.create_proof(CreateProofRequest {}).await?;
+        let start = SystemTime::now();
+        let since_the_epoch = start
+            .duration_since(UNIX_EPOCH)
+            .expect("Invalid start time");
+        let deadline = since_the_epoch.as_secs() + 1000;
+
+        let create_proof_signature = self.auth.sign_create_proof_message(deadline).await?;
+        let res = self
+            .rpc
+            .create_proof(CreateProofRequest {
+                deadline,
+                signature: create_proof_signature.to_vec(),
+            })
+            .await?;
 
         let mut program_bytes = Vec::new();
         elf.serialize(&mut Serializer::new(&mut program_bytes))?;
@@ -93,11 +103,16 @@ impl NetworkClient {
         results.pop().expect("Failed to upload stdin")?;
         results.pop().expect("Failed to upload program")?;
 
+        let submit_proof_signature = self.auth.sign_submit_proof_message(&res.proof_id).await?;
+
         self.rpc
-            .submit_proof(SubmitProofRequest { id: res.id.clone() })
+            .submit_proof(SubmitProofRequest {
+                proof_id: res.proof_id.clone(),
+                signature: submit_proof_signature.to_vec(),
+            })
             .await?;
 
-        Ok(res.id)
+        Ok(res.proof_id)
     }
 
     pub async fn get_proof_status<
@@ -109,11 +124,11 @@ impl NetworkClient {
         let res = self
             .rpc
             .get_proof_status(GetProofStatusRequest {
-                id: proof_id.to_string(),
+                proof_id: proof_id.to_string(),
             })
             .await?;
 
-        let result = if res.status() == ProofStatus::ProofSucceeded {
+        let proof = if res.status() == ProofStatus::ProofSucceeded {
             let proof = self
                 .http
                 .get(res.result_get_url.clone())
@@ -127,7 +142,7 @@ impl NetworkClient {
             None
         };
 
-        Ok((res, result))
+        Ok((res, proof))
     }
 
     pub async fn relay_proof(
@@ -138,15 +153,20 @@ impl NetworkClient {
         callback: [u8; 20],
         callback_data: &[u8],
     ) -> Result<String> {
+        let relay_proof_signature = self
+            .auth
+            .sign_relay_proof_message(proof_id, chain_id, verifier, callback, callback_data)
+            .await?;
         let req = RelayProofRequest {
             proof_id: proof_id.to_string(),
             chain_id,
             verifier: verifier.to_vec(),
             callback: callback.to_vec(),
             callback_data: callback_data.to_vec(),
+            signature: relay_proof_signature.to_vec(),
         };
         let result = self.rpc.relay_proof(req).await?;
-        Ok(result.id)
+        Ok(result.tx_id)
     }
 
     pub async fn get_relay_status(
@@ -156,7 +176,7 @@ impl NetworkClient {
         let res = self
             .rpc
             .get_relay_status(GetRelayStatusRequest {
-                id: tx_id.to_string(),
+                tx_id: tx_id.to_string(),
             })
             .await?;
 

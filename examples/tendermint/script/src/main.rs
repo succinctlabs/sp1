@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use reqwest::Client;
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier, PublicValues};
+use sp1_sdk::{utils, ProverClient, PublicValues, SP1Stdin};
 
 use sha2::{Digest, Sha256};
 use tendermint_light_client_verifier::options::Options;
@@ -55,10 +55,13 @@ async fn main() {
     // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
-    let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let proof = client.prove(TENDERMINT_ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
+    client
+        .verify(TENDERMINT_ELF, &proof)
+        .expect("verification failed");
 
     // Verify the public values
     let mut pv_hasher = Sha256::new();
