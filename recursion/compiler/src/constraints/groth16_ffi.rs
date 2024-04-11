@@ -13,7 +13,7 @@ use super::Constraint;
 use crate::prelude::{Config, Witness};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct GnarkWitness {
+pub struct Groth16Witness {
     pub vars: Vec<String>,
     pub felts: Vec<String>,
     pub exts: Vec<Vec<String>>,
@@ -31,7 +31,7 @@ pub fn execute<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
 
     // Write witness.
     let witness_path = format!("{}/witness.json", dir);
-    let gnark_witness = GnarkWitness {
+    let gnark_witness = Groth16Witness {
         vars: witness
             .vars
             .into_iter()

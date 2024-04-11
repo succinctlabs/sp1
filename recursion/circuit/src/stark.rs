@@ -243,7 +243,7 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::ir::Witness;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{gnark_ffi, ConstraintCompiler},
+        constraints::{groth16_ffi, ConstraintCompiler},
         ir::Builder,
     };
     use sp1_recursion_core::{
@@ -351,6 +351,6 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute::<OuterConfig>(constraints, witness);
+        groth16_ffi::execute::<OuterConfig>(constraints, witness);
     }
 }

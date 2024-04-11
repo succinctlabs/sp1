@@ -245,7 +245,7 @@ pub mod tests {
     use serial_test::serial;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{gnark_ffi, ConstraintCompiler},
+        constraints::{groth16_ffi, ConstraintCompiler},
         ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
@@ -485,7 +485,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -559,6 +559,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 }

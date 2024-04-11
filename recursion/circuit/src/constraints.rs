@@ -176,7 +176,7 @@ mod tests {
     };
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{gnark_ffi, ConstraintCompiler},
+        constraints::{groth16_ffi, ConstraintCompiler},
         ir::{Builder, Witness},
         prelude::ExtConst,
     };
@@ -361,6 +361,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 }

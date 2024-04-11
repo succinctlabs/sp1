@@ -333,7 +333,7 @@ mod tests {
     use p3_field::AbstractField;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{gnark_ffi, ConstraintCompiler},
+        constraints::{groth16_ffi, ConstraintCompiler},
         ir::{Builder, ExtConst, Witness},
     };
     use sp1_recursion_core::stark::config::OuterChallenge;
@@ -364,7 +364,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute::<OuterConfig>(
+        groth16_ffi::execute::<OuterConfig>(
             constraints,
             Witness {
                 vars: vec![Bn254Fr::one(), Bn254Fr::two()],

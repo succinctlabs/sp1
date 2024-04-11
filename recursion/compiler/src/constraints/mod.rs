@@ -1,4 +1,4 @@
-pub mod gnark_ffi;
+pub mod groth16_ffi;
 pub mod opcodes;
 
 use core::fmt::Debug;
@@ -368,7 +368,7 @@ mod tests {
         ];
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(program);
-        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -382,7 +382,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -398,6 +398,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 }
