@@ -39,7 +39,8 @@ pub type OuterQueryProof = QueryProof<OuterChallenge, OuterChallengeMmcs>;
 pub type OuterCommitPhaseStep = CommitPhaseProofStep<OuterChallenge, OuterChallengeMmcs>;
 pub type OuterFriProof = FriProof<OuterChallenge, OuterChallengeMmcs, OuterVal>;
 pub type OuterBatchOpening = BatchOpening<OuterVal, OuterValMmcs>;
-pub type OuterPcsProof = TwoAdicFriPcsProof<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
+pub type OuterPcsProof =
+    TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>;
 
 /// The permutation for outer recursion.
 pub fn outer_perm() -> OuterPerm {
