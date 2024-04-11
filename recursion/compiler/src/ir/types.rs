@@ -42,6 +42,13 @@ pub enum Usize<N> {
     Var(Var<N>),
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct Witness<C: Config> {
+    pub vars: Vec<C::N>,
+    pub felts: Vec<C::F>,
+    pub exts: Vec<C::EF>,
+}
+
 impl<N: AbstractField> Usize<N> {
     pub fn value(&self) -> usize {
         match self {

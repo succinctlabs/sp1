@@ -246,7 +246,7 @@ pub mod tests {
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::{gnark_ffi, ConstraintCompiler},
-        ir::{Builder, Ext, Felt, SymbolicExt, Var},
+        ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
         outer_fri_config, outer_perm, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
@@ -485,7 +485,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -559,6 +559,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 }

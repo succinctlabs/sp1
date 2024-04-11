@@ -21,14 +21,20 @@ import (
 )
 
 type Circuit struct {
-	Vars  []frontend.Variable
-	Felts []*babybear.Variable
-	Exts  []*babybear.ExtensionVariable
+	Vars  []frontend.Variable           `gnark:",public"`
+	Felts []*babybear.Variable          `gnark:",public"`
+	Exts  []*babybear.ExtensionVariable `gnark:",public"`
 }
 
 type Constraint struct {
 	Opcode string     `json:"opcode"`
 	Args   [][]string `json:"args"`
+}
+
+type Witness struct {
+	Vars  []string   `json:"vars"`
+	Felts []string   `json:"felts"`
+	Exts  [][]string `json:"exts"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
@@ -135,6 +141,12 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			fieldAPI.PrintF(felts[cs.Args[0][0]])
 		case "PrintE":
 			fieldAPI.PrintE(exts[cs.Args[0][0]])
+		case "WitnessV":
+			i, err := strconv.Atoi(cs.Args[1][0])
+			if err != nil {
+				panic(err)
+			}
+			vars[cs.Args[0][0]] = circuit.Vars[i]
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}

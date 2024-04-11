@@ -246,6 +246,7 @@ pub(crate) mod tests {
         air::MachineAir,
         stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
     };
+    use sp1_recursion_compiler::ir::Witness;
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::{gnark_ffi, ConstraintCompiler},
@@ -415,6 +416,6 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 }

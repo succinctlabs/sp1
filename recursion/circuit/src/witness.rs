@@ -2,7 +2,7 @@ use p3_bn254_fr::Bn254Fr;
 use sp1_core::stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues};
 use sp1_recursion_compiler::{
     config::OuterConfig,
-    ir::{Builder, Config, Ext, Felt, Var},
+    ir::{Builder, Config, Ext, Felt, Var, Witness},
 };
 use sp1_recursion_core::stark::config::{
     OuterBatchOpening, OuterChallenge, OuterCommitPhaseStep, OuterDigest, OuterFriProof,
@@ -14,12 +14,6 @@ use crate::types::{
     FriCommitPhaseProofStepVariable, FriProofVariable, FriQueryProofVariable, OuterDigestVariable,
     RecursionShardOpenedValuesVariable, TwoAdicPcsProofVariable,
 };
-
-pub struct Witness<C: Config> {
-    vars: Vec<C::N>,
-    felts: Vec<C::F>,
-    exts: Vec<C::EF>,
-}
 
 pub trait Witnessable<C: Config> {
     type WitnessVariable;
@@ -288,5 +282,38 @@ impl Witnessable<C> for OuterPcsProof {
     fn write(&self, witness: &mut Witness<C>) {
         self.fri_proof.write(witness);
         self.query_openings.write(witness);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_bn254_fr::Bn254Fr;
+    use p3_field::AbstractField;
+    use sp1_recursion_compiler::{
+        config::OuterConfig,
+        constraints::{gnark_ffi, ConstraintCompiler},
+        ir::{Builder, Witness},
+    };
+
+    #[test]
+    fn test_witness_simple() {
+        let mut builder = Builder::<OuterConfig>::default();
+        let a = builder.witness_var();
+        let b = builder.witness_var();
+        builder.assert_var_eq(a, Bn254Fr::one());
+        builder.assert_var_eq(b, Bn254Fr::two());
+        builder.print_v(a);
+        builder.print_v(b);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        gnark_ffi::execute::<OuterConfig>(
+            constraints,
+            Witness {
+                vars: vec![Bn254Fr::one(), Bn254Fr::two()],
+                felts: vec![],
+                exts: vec![],
+            },
+        );
     }
 }

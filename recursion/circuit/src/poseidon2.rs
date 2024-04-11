@@ -61,7 +61,7 @@ pub mod tests {
     use serial_test::serial;
     use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::constraints::{gnark_ffi, ConstraintCompiler};
-    use sp1_recursion_compiler::ir::{Builder, Felt, Var};
+    use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
 
     use crate::poseidon2::Poseidon2CircuitBuilder;
@@ -91,7 +91,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -125,7 +125,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -146,6 +146,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        gnark_ffi::execute::<OuterConfig>(constraints, Witness::default());
     }
 }
