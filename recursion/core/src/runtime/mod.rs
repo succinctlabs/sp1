@@ -239,6 +239,11 @@ where
     }
 
     fn get_memory_entry(&self, addr: F) -> &MemoryEntry<F> {
+        if addr.as_canonical_u32() as usize >= MEMORY_SIZE {
+            println!("clk={}", self.clk);
+            println!("addr={}", addr);
+            panic!("Memory access out of bounds");
+        }
         &self.memory[addr.as_canonical_u32() as usize]
     }
 

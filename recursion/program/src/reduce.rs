@@ -134,6 +134,8 @@ pub fn build_reduce() -> RecursionProgram<Val> {
         recursion_challenger.observe(&mut builder, element);
     }
 
+    builder.print_debug(10001);
+
     builder.range(0, num_proofs).for_each(|i, builder| {
         let proof = ShardProof::<BabyBearPoseidon2>::read(builder);
         let sorted_indices = builder.get(&sorted_indices, i);
@@ -141,8 +143,10 @@ pub fn build_reduce() -> RecursionProgram<Val> {
         builder.if_eq(is_recursive, zero).then_or_else(
             // Non-recursive proof
             |builder| {
+                builder.print_debug(10002);
                 let shard_f = builder.get(&proof.public_values, 32);
                 let shard = felt_to_var(builder, shard_f);
+                builder.print_v(shard);
                 // First shard logic
                 builder.if_eq(shard, one).then(|builder| {
                     // Initialize the current challenger
@@ -162,6 +166,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                 // reconstruct_challenger.observe_slice(builder, &public_values);
 
                 // Verify proof with copy of witnessed challenger
+                builder.print_debug(10003);
                 let mut current_challenger = sp1_challenger.as_clone(builder);
                 StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                     builder,
@@ -174,12 +179,14 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                     prep_sorted_indices.clone(),
                     prep_domains.clone(),
                 );
+                builder.print_debug(10004);
             },
             // Recursive proof
             |builder| {
                 // TODO: Verify proof public values
 
                 // Build recursion challenger
+                builder.print_debug(10005);
                 let mut current_challenger = recursion_challenger.as_clone(builder);
                 for j in 0..DIGEST_SIZE {
                     let element = builder.get(&proof.commitment.main_commit, j);
@@ -192,6 +199,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         current_challenger.observe(builder, element);
                     });
                 // Verify the proof
+                builder.print_debug(10006);
                 StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                     builder,
                     &recursion_vk.clone(),
@@ -203,6 +211,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                     recursion_prep_sorted_indices.clone(),
                     recursion_prep_domains.clone(),
                 );
+                builder.print_debug(10007);
             },
         );
     });
