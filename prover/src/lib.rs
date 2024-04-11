@@ -31,8 +31,8 @@ type SP1SC = BabyBearPoseidon2;
 type InnerSC = BabyBearPoseidon2Inner;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
 type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
-type InnerA = RiscvAir<InnerF>;
-type OuterSC = BabyBearPoseidon2Outer;
+type InnerA = RecursionAir<InnerF>;
+type OuterSC = BabyBearPoseidon2Inner;
 
 pub struct SP1ProverImpl {
     reduce_program: RecursionProgram<BabyBear>,
@@ -41,7 +41,7 @@ pub struct SP1ProverImpl {
 
 #[derive(Serialize, Deserialize)]
 pub enum ReduceProof {
-    SP1(ShardProof<InnerSC>),
+    SP1(ShardProof<SP1SC>),
     Recursive(ShardProof<InnerSC>),
     FinalRecursive(ShardProof<OuterSC>),
 }
@@ -121,7 +121,7 @@ impl SP1ProverImpl {
 
     pub fn reduce<SC: StarkGenericConfig<Val = BabyBear> + Default>(
         &self,
-        sp1_vk: &VerifyingKey<InnerSC>,
+        sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
         reduce_proofs: &[ReduceProof],
     ) -> ShardProof<SC>
@@ -132,7 +132,7 @@ impl SP1ProverImpl {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         LocalProver<SC, RecursionAir<BabyBear>>: Prover<SC, RecursionAir<BabyBear>>,
     {
-        let sp1_config = InnerSC::default();
+        let sp1_config = SP1SC::default();
         let sp1_machine = RiscvAir::machine(sp1_config);
         let recursion_config = InnerSC::default();
         let recursion_machine = RecursionAir::machine(recursion_config.clone());
@@ -204,7 +204,7 @@ impl SP1ProverImpl {
         println!("witness_stream.len() = {}", witness_stream.len());
 
         // Execute runtime.
-        let machine = InnerA::machine(recursion_config);
+        let machine = RecursionAir::machine(recursion_config);
         let mut runtime =
             Runtime::<InnerF, InnerEF, _>::new(&self.reduce_program, machine.config().perm.clone());
         runtime.witness_stream = witness_stream;
@@ -261,9 +261,9 @@ mod tests {
         let elf =
             include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
-        let proof: Proof<InnerSC> = SP1ProverImpl::prove(elf, &stdin);
+        let proof: Proof<SP1SC> = SP1ProverImpl::prove(elf, &stdin);
 
-        let sp1_machine = RiscvAir::machine(InnerSC::default());
+        let sp1_machine = RiscvAir::machine(SP1SC::default());
         let (_, vk) = sp1_machine.setup(&Program::from(elf));
 
         let mut sp1_challenger = sp1_machine.config().challenger();

@@ -96,12 +96,12 @@ fn felt_to_var(builder: &mut RecursionBuilder, felt: Felt<BabyBear>) -> Var<Baby
 }
 
 pub fn build_reduce() -> RecursionProgram<Val> {
-    let sp1_machine = RiscvAir::machine(BabyBearPoseidon2Inner::default());
+    let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
     let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
 
     let time = Instant::now();
     let mut builder = AsmBuilder::<F, EF>::default();
-    let sp1_config = const_fri_config(&mut builder, inner_fri_config());
+    let sp1_config = const_fri_config(&mut builder, sp1_fri_config());
     // TODO: this config may change
     let recursion_config = const_fri_config(&mut builder, inner_fri_config());
     let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };
@@ -118,8 +118,8 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     let prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
     let recursion_prep_sorted_indices = Vec::<usize>::read(&mut builder);
     let recursion_prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
-    let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
-    let recursion_vk = VerifyingKey::<SC>::read(&mut builder);
+    let sp1_vk = VerifyingKey::<BabyBearPoseidon2>::read(&mut builder);
+    let recursion_vk = VerifyingKey::<BabyBearPoseidon2Inner>::read(&mut builder);
     let num_proofs = is_recursive_flags.len();
 
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
@@ -135,7 +135,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     }
 
     builder.range(0, num_proofs).for_each(|i, builder| {
-        let proof = ShardProof::<BabyBearPoseidon2Inner>::read(builder);
+        let proof = ShardProof::<BabyBearPoseidon2>::read(builder);
         let sorted_indices = builder.get(&sorted_indices, i);
         let is_recursive = builder.get(&is_recursive_flags, i);
         builder.if_eq(is_recursive, zero).then_or_else(
@@ -163,7 +163,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
 
                 // Verify proof with copy of witnessed challenger
                 let mut current_challenger = sp1_challenger.as_clone(builder);
-                StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
+                StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                     builder,
                     &sp1_vk.clone(),
                     &sp1_pcs,
