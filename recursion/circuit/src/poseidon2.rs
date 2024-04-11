@@ -7,15 +7,15 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::{Builder, Config, DslIr, Var};
 
 use crate::challenger::reduce_32;
-use crate::types::OuterDigest;
+use crate::types::OuterDigestVariable;
 use crate::DIGEST_SIZE;
 use crate::RATE;
 use crate::SPONGE_SIZE;
 
 pub trait Poseidon2CircuitBuilder<C: Config> {
     fn p2_permute_mut(&mut self, state: [Var<C::N>; SPONGE_SIZE]);
-    fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigest<C>;
-    fn p2_compress(&mut self, input: [OuterDigest<C>; 2]) -> OuterDigest<C>;
+    fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigestVariable<C>;
+    fn p2_compress(&mut self, input: [OuterDigestVariable<C>; 2]) -> OuterDigestVariable<C>;
 }
 
 impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
@@ -23,7 +23,7 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         self.push(DslIr::CircuitPoseidon2Permute(state))
     }
 
-    fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigest<C> {
+    fn p2_hash(&mut self, input: &[Felt<C::F>]) -> OuterDigestVariable<C> {
         let num_f_elms = C::N::bits() / C::F::bits();
         let mut state: [Var<C::N>; SPONGE_SIZE] = [
             self.eval(C::N::zero()),
@@ -41,7 +41,7 @@ impl<C: Config> Poseidon2CircuitBuilder<C> for Builder<C> {
         [state[0]]
     }
 
-    fn p2_compress(&mut self, input: [OuterDigest<C>; 2]) -> OuterDigest<C> {
+    fn p2_compress(&mut self, input: [OuterDigestVariable<C>; 2]) -> OuterDigestVariable<C> {
         let state: [Var<C::N>; SPONGE_SIZE] = [
             self.eval(input[0][0]),
             self.eval(input[1][0]),
@@ -65,7 +65,7 @@ pub mod tests {
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
 
     use crate::poseidon2::Poseidon2CircuitBuilder;
-    use crate::types::OuterDigest;
+    use crate::types::OuterDigestVariable;
 
     #[test]
     #[serial]
@@ -139,8 +139,8 @@ pub mod tests {
         let gt = compressor.compress([a, b]);
 
         let mut builder = Builder::<OuterConfig>::default();
-        let a: OuterDigest<OuterConfig> = [builder.eval(a[0])];
-        let b: OuterDigest<OuterConfig> = [builder.eval(b[0])];
+        let a: OuterDigestVariable<OuterConfig> = [builder.eval(a[0])];
+        let b: OuterDigestVariable<OuterConfig> = [builder.eval(b[0])];
         let result = builder.p2_compress([a, b]);
         builder.assert_var_eq(result[0], gt[0]);
 

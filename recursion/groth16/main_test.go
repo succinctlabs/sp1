@@ -4,7 +4,9 @@ import (
 	"testing"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/test"
+	"github.com/succinctlabs/sp1-recursion-groth16/babybear"
 )
 
 func TestMain(t *testing.T) {
@@ -57,8 +59,9 @@ func TestMain(t *testing.T) {
 
 	// Run some sanity checks.
 	assert.CheckCircuit(&Circuit{
-		X: 0,
-		Y: 0,
+		Vars:  []frontend.Variable{},
+		Felts: []*babybear.Variable{},
+		Exts:  []*babybear.ExtensionVariable{},
 	}, test.WithCurves(ecc.BN254))
 
 	// assert.ProverSucceeded(&circuit, &Circuit{

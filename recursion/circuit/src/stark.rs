@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::types::OuterDigest;
+use crate::types::OuterDigestVariable;
 use p3_air::Air;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -176,7 +176,7 @@ where
 
         let mut rounds = Vec::new();
         let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
-        let prep_commit: OuterDigest<C> = [builder.eval(prep_commit_val[0])];
+        let prep_commit: OuterDigestVariable<C> = [builder.eval(prep_commit_val[0])];
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             mats: prep_mats,
@@ -229,7 +229,7 @@ where
 pub(crate) mod tests {
 
     use crate::types::{
-        ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
+        ChipOpenedValuesVariable, OuterDigestVariable, RecursionShardOpenedValuesVariable,
         RecursionShardProofVariable,
     };
     use crate::{
@@ -284,9 +284,9 @@ pub(crate) mod tests {
         let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
         let permutation_commit: [Bn254Fr; 1] = proof.commitment.permutation_commit.into();
         let quotient_commit: [Bn254Fr; 1] = proof.commitment.quotient_commit.into();
-        let main_commit: OuterDigest<C> = [builder.eval(main_commit[0])];
-        let permutation_commit: OuterDigest<C> = [builder.eval(permutation_commit[0])];
-        let quotient_commit: OuterDigest<C> = [builder.eval(quotient_commit[0])];
+        let main_commit: OuterDigestVariable<C> = [builder.eval(main_commit[0])];
+        let permutation_commit: OuterDigestVariable<C> = [builder.eval(permutation_commit[0])];
+        let quotient_commit: OuterDigestVariable<C> = [builder.eval(quotient_commit[0])];
 
         let commitment = ShardCommitment {
             main_commit,
@@ -390,7 +390,8 @@ pub(crate) mod tests {
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [Bn254Fr; 1] = vk.commit.into();
-        let preprocessed_commit: OuterDigest<C> = [builder.eval(preprocessed_commit_val[0])];
+        let preprocessed_commit: OuterDigestVariable<C> =
+            [builder.eval(preprocessed_commit_val[0])];
         challenger.observe_commitment(&mut builder, preprocessed_commit);
 
         let mut shard_proofs = vec![];
@@ -402,16 +403,14 @@ pub(crate) mod tests {
             shard_proofs.push(proof);
         }
 
-        #[allow(clippy::never_loop)]
-        for proof in shard_proofs {
+        for proof in &shard_proofs[0..1] {
             StarkVerifierCircuit::<C, SC>::verify_shard(
                 &mut builder,
                 &vk,
                 &machine,
                 &mut challenger.clone(),
-                &proof,
+                proof,
             );
-            break;
         }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();

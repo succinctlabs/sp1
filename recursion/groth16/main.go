@@ -21,8 +21,9 @@ import (
 )
 
 type Circuit struct {
-	X frontend.Variable
-	Y frontend.Variable
+	Vars  []frontend.Variable
+	Felts []*babybear.Variable
+	Exts  []*babybear.ExtensionVariable
 }
 
 type Constraint struct {
@@ -148,7 +149,11 @@ func main() {
 	switch os.Args[1] {
 	case "build":
 		// Initialize the circuit.
-		var circuit Circuit
+		circuit := Circuit{
+			Vars:  []frontend.Variable{},
+			Felts: []*babybear.Variable{},
+			Exts:  []*babybear.ExtensionVariable{},
+		}
 
 		// Compile the circuit.
 		builder := r1cs.NewBuilder
@@ -201,8 +206,9 @@ func main() {
 
 		// Generate the witness.
 		assignment := Circuit{
-			X: 0,
-			Y: 0,
+			Vars:  []frontend.Variable{},
+			Felts: []*babybear.Variable{},
+			Exts:  []*babybear.ExtensionVariable{},
 		}
 		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 		if err != nil {
