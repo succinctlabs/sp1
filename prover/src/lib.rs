@@ -259,7 +259,7 @@ mod tests {
         // exit(0);
 
         let elf =
-            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let stdin = [bincode::serialize::<u32>(&6).unwrap()];
         let proof: Proof<SP1SC> = SP1ProverImpl::prove(elf, &stdin);
 
@@ -350,24 +350,5 @@ mod tests {
         // Save final proof to file
         let serialized = bincode::serialize(&final_proof).unwrap();
         std::fs::write("final.bin", serialized).unwrap();
-    }
-
-    #[test]
-    fn test_mysterious() {
-        let prover = SP1ProverImpl::new();
-        let proofs: Vec<ReduceProof> =
-            bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
-        let recursion_machine = RecursionAir::machine(BabyBearPoseidon2::default());
-
-        println!("nb_proofs {}", proofs.len());
-        // Reduce the two proofs into one
-        let challenger = recursion_machine.config().challenger();
-
-        let elf =
-            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
-        let empty_program = Program::from(elf);
-        let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
-        let (_, empty_vk) = sp1_machine.setup(&empty_program);
-        prover.reduce::<BabyBearPoseidon2Inner>(&empty_vk, challenger, &proofs);
     }
 }

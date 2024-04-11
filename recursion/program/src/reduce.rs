@@ -110,10 +110,6 @@ pub fn build_reduce() -> RecursionProgram<Val> {
         config: recursion_config,
     };
 
-    builder
-        .range(0, 1)
-        .for_each(|_, builder| builder.print_debug(9999999));
-
     // Read witness inputs
     let is_recursive_flags = Vec::<usize>::read(&mut builder);
     let sorted_indices = Vec::<Vec<usize>>::read(&mut builder);
@@ -139,14 +135,6 @@ pub fn build_reduce() -> RecursionProgram<Val> {
         recursion_challenger.observe(&mut builder, element);
     }
 
-    builder.print_debug(234);
-    let reconstruct_len = reconstruct_challenger
-        .input_buffer
-        .len()
-        .materialize(&mut builder);
-    builder.print_v(reconstruct_len);
-    builder.print_v(reconstruct_challenger.nb_inputs);
-
     builder.range(0, num_proofs).for_each(|i, builder| {
         let proof = ShardProof::<BabyBearPoseidon2>::read(builder);
         let sorted_indices = builder.get(&sorted_indices, i);
@@ -156,8 +144,6 @@ pub fn build_reduce() -> RecursionProgram<Val> {
             |builder| {
                 let shard_f = builder.get(&proof.public_values, 32);
                 let shard = felt_to_var(builder, shard_f);
-                // builder.print_debug(101010101);
-                // builder.print_v(shard);
                 // First shard logic
                 builder.if_eq(shard, one).then(|builder| {
                     // Initialize the current challenger

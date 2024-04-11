@@ -10,10 +10,12 @@ use sp1_recursion_core::runtime::PV_BUFFER_MAX_SIZE;
 
 static mut GLOBAL_OP_TRACE_ID: u32 = 0;
 
+/// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
+/// from another TracedVec, the traces are copied over.
 #[derive(Debug, Clone)]
 pub struct TracedVec<T> {
     pub(crate) vec: Vec<T>,
-    pub(crate) traces: Vec<(Option<Backtrace>, u32)>,
+    pub(crate) traces: Vec<Option<Backtrace>>,
 }
 
 impl<T> Default for TracedVec<T> {
@@ -32,14 +34,10 @@ impl<T> TracedVec<T> {
 
     pub fn push(&mut self, value: T) {
         self.vec.push(value);
-        self.traces
-            .push((Some(Backtrace::new_unresolved()), unsafe {
-                GLOBAL_OP_TRACE_ID += 1;
-                GLOBAL_OP_TRACE_ID
-            }));
+        self.traces.push(Some(Backtrace::new_unresolved()));
     }
 
-    pub fn extend<I: IntoIterator<Item = (T, (Option<Backtrace>, u32))>>(&mut self, iter: I) {
+    pub fn extend<I: IntoIterator<Item = (T, Option<Backtrace>)>>(&mut self, iter: I) {
         let iter = iter.into_iter();
         let len = iter.size_hint().0;
         self.vec.reserve(len);
@@ -56,8 +54,8 @@ impl<T> TracedVec<T> {
 }
 
 impl<T> IntoIterator for TracedVec<T> {
-    type Item = (T, (Option<Backtrace>, u32));
-    type IntoIter = Zip<IntoIter<T>, IntoIter<(Option<Backtrace>, u32)>>;
+    type Item = (T, Option<Backtrace>);
+    type IntoIter = Zip<IntoIter<T>, IntoIter<Option<Backtrace>>>;
 
     fn into_iter(self) -> Self::IntoIter {
         self.vec.into_iter().zip(self.traces)

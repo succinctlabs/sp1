@@ -240,22 +240,6 @@ where
     }
 
     fn get_memory_entry(&self, addr: F) -> &MemoryEntry<F> {
-        if addr.as_canonical_u32() as usize >= MEMORY_SIZE {
-            println!("clk={}", self.clk);
-            println!("addr={}", addr);
-            println!("pc={}", self.pc);
-            println!(
-                "instruction = {:?}",
-                self.program.instructions[self.pc.as_canonical_u32() as usize]
-            );
-            println!("fp={}", self.fp);
-            let mut trace = self.program.traces[self.pc.as_canonical_u32() as usize]
-                .clone()
-                .unwrap();
-            trace.resolve();
-            println!("backtrace:\n{:?}", trace);
-            panic!("Memory access out of bounds");
-        }
         &self.memory[addr.as_canonical_u32() as usize]
     }
 
@@ -335,19 +319,6 @@ where
             // Load without touching access. This assumes that the caller will call mw on a_ptr.
             self.get_memory_entry(self.fp + instruction.op_a).value[0] + index * size + offset
         };
-        if a_ptr == F::from_canonical_u32(2013265920) {
-            println!("clk={}", self.clk);
-            println!("pc={}", self.pc);
-            println!("fp={}", self.fp);
-            println!("index={}", index);
-            println!("offset={}", offset);
-            println!("size={}", size);
-            println!(
-                "value={}",
-                self.get_memory_entry(self.fp + instruction.op_a).value[0]
-            );
-            println!("wtf");
-        }
 
         let b = if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
