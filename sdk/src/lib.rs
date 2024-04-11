@@ -56,6 +56,7 @@ pub struct ProverClient {
 impl ProverClient {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
+        dotenv::dotenv().ok();
         let private_key = env::var("PRIVATE_KEY").unwrap_or_default();
         if private_key.is_empty() {
             Self { client: None }
@@ -92,61 +93,70 @@ impl ProverClient {
         }
     }
 
+    // Generate a proof remotely using the Succinct Network in an async context.
+    pub async fn prove_remote_async(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<SP1ProofWithIO<BabyBearPoseidon2>, anyhow::Error> {
+        let client = self
+            .client
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
+
+        let flat_stdin = stdin
+            .buffer
+            .iter()
+            .flat_map(|v| v.iter())
+            .copied()
+            .collect::<Vec<u8>>();
+
+        let proof_id = client.create_proof(elf, &flat_stdin).await?;
+
+        let mut pb = StageProgressBar::new();
+        loop {
+            let (status, maybe_proof) = client
+                .get_proof_status::<BabyBearPoseidon2>(&proof_id)
+                .await?;
+
+            match status.status() {
+                ProofStatus::ProofSucceeded => {
+                    println!("Proof succeeded");
+                    pb.finish();
+                    if let Some(proof) = maybe_proof {
+                        return Ok(proof);
+                    } else {
+                        return Err(anyhow::anyhow!("Proof succeeded but no proof available"));
+                    }
+                }
+                ProofStatus::ProofFailed => {
+                    pb.finish();
+                    return Err(anyhow::anyhow!("Proof generation failed"));
+                }
+                _ => {
+                    pb.update(
+                        status.stage,
+                        status.total_stages,
+                        &status.stage_name,
+                        status.stage_progress.map(|p| (p, status.stage_total())),
+                    );
+                    sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+    }
+
+    // Generate a proof remotely using the Succinct Network in a sync context.
     pub fn prove_remote(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithIO<BabyBearPoseidon2>, anyhow::Error> {
         let rt = runtime::Runtime::new()?;
-        rt.block_on(async {
-            let client = self
-                .client
-                .as_ref()
-                .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
-
-            let flat_stdin = stdin
-                .buffer
-                .iter()
-                .flat_map(|v| v.iter())
-                .copied()
-                .collect::<Vec<u8>>();
-
-            let proof_id = client.create_proof(elf, &flat_stdin).await?;
-
-            let mut pb = StageProgressBar::new();
-            loop {
-                let (status, maybe_proof) = client
-                    .get_proof_status::<BabyBearPoseidon2>(&proof_id)
-                    .await?;
-
-                match status.status() {
-                    ProofStatus::ProofSucceeded => {
-                        println!("Proof succeeded");
-                        pb.finish();
-                        if let Some(proof) = maybe_proof {
-                            return Ok(proof);
-                        } else {
-                            return Err(anyhow::anyhow!("Proof succeeded but no proof available"));
-                        }
-                    }
-                    ProofStatus::ProofFailed => {
-                        pb.finish();
-                        return Err(anyhow::anyhow!("Proof generation failed"));
-                    }
-                    _ => {
-                        pb.update(
-                            status.stage,
-                            status.total_stages,
-                            &status.stage_name,
-                            status.stage_progress.map(|p| (p, status.stage_total())),
-                        );
-                        sleep(Duration::from_secs(1)).await;
-                    }
-                }
-            }
-        })
+        rt.block_on(async { self.prove_remote_async(elf, stdin).await })
     }
 
+    // Generate a proof locally for the execution of the ELF with the given public inputs.
     pub fn prove_local<SC: StarkGenericConfig>(
         &self,
         elf: &[u8],

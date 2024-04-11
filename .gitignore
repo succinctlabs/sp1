@@ -17,3 +17,6 @@ pgo-data.profdata
 
 # Benchmark
 benchmark.csv
+
+# Environment
+.env
