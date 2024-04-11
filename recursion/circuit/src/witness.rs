@@ -331,6 +331,7 @@ mod tests {
     use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
+    use serial_test::serial;
     use sp1_recursion_compiler::{
         config::OuterConfig,
         constraints::{groth16_ffi, ConstraintCompiler},
@@ -339,6 +340,7 @@ mod tests {
     use sp1_recursion_core::stark::config::OuterChallenge;
 
     #[test]
+    #[serial]
     fn test_witness_simple() {
         let mut builder = Builder::<OuterConfig>::default();
         let a = builder.witness_var();
@@ -364,7 +366,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::execute::<OuterConfig>(
+        groth16_ffi::prove::<OuterConfig>(
             constraints,
             Witness {
                 vars: vec![Bn254Fr::one(), Bn254Fr::two()],

@@ -351,6 +351,6 @@ pub(crate) mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::execute::<OuterConfig>(constraints, witness);
+        groth16_ffi::prove::<OuterConfig>(constraints, witness);
     }
 }

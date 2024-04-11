@@ -368,7 +368,7 @@ mod tests {
         ];
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(program);
-        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -382,7 +382,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -398,6 +398,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::execute::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 }

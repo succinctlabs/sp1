@@ -5,6 +5,7 @@ use std::{
 };
 
 use p3_field::AbstractExtensionField;
+use p3_field::AbstractField;
 use p3_field::PrimeField;
 use serde::Deserialize;
 use serde::Serialize;
@@ -19,10 +20,15 @@ pub struct Groth16Witness {
     pub exts: Vec<Vec<String>>,
 }
 
-pub fn execute<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
+pub fn prove<C: Config>(constraints: Vec<Constraint>, mut witness: Witness<C>) {
     let serialized = serde_json::to_string(&constraints).unwrap();
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let dir = format!("{}/../groth16", manifest_dir);
+
+    // Append some dummy elements to the witness to avoid compilation errors.
+    witness.vars.push(C::N::from_canonical_usize(999));
+    witness.felts.push(C::F::from_canonical_usize(999));
+    witness.exts.push(C::EF::from_canonical_usize(999));
 
     // Write constraints.
     let constraints_path = format!("{}/constraints.json", dir);

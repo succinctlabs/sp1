@@ -50,7 +50,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Deserialize the JSON data into a slice of Instruction structs
+	// Deserialize the JSON data into a slice of Instruction structs.
 	var constraints []Constraint
 	err = json.Unmarshal(data, &constraints)
 	if err != nil {
@@ -63,7 +63,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	felts := make(map[string]*babybear.Variable)
 	exts := make(map[string]*babybear.ExtensionVariable)
 
-	// Iterate through the instructions and handle each opcode
+	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
 		switch cs.Opcode {
 		case "ImmV":
