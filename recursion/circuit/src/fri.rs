@@ -13,7 +13,7 @@ use crate::mmcs::verify_batch;
 use crate::types::FriChallenges;
 use crate::types::FriProofVariable;
 use crate::types::FriQueryProofVariable;
-use crate::types::OuterDigest;
+use crate::types::OuterDigestVariable;
 use crate::types::TwoAdicPcsProofVariable;
 use crate::types::TwoAdicPcsRoundVariable;
 use crate::{challenger::MultiField32ChallengerVariable, DIGEST_SIZE};
@@ -168,7 +168,7 @@ pub fn verify_challenges<C: Config>(
 
 pub fn verify_query<C: Config>(
     builder: &mut Builder<C>,
-    commit_phase_commits: Vec<OuterDigest<C>>,
+    commit_phase_commits: Vec<OuterDigestVariable<C>>,
     index: Var<C::N>,
     proof: FriQueryProofVariable<C>,
     betas: Vec<Ext<C::F, C::EF>>,
@@ -245,8 +245,8 @@ pub mod tests {
     use serial_test::serial;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{gnark_ffi, ConstraintCompiler},
-        ir::{Builder, Ext, Felt, SymbolicExt, Var},
+        constraints::{groth16_ffi, ConstraintCompiler},
+        ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
         outer_fri_config, outer_perm, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
@@ -258,8 +258,8 @@ pub mod tests {
         challenger::MultiField32ChallengerVariable,
         fri::FriQueryProofVariable,
         types::{
-            BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, OuterDigest,
-            TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+            BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
+            OuterDigestVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
         },
         DIGEST_SIZE,
     };
@@ -364,10 +364,10 @@ pub mod tests {
             Vec<(OuterChallenge, Vec<OuterChallenge>)>,
         )>,
     ) -> (
-        OuterDigest<OuterConfig>,
+        OuterDigestVariable<OuterConfig>,
         Vec<TwoAdicPcsRoundVariable<OuterConfig>>,
     ) {
-        let commit: OuterDigest<OuterConfig> = [builder.eval(commit[0])];
+        let commit: OuterDigestVariable<OuterConfig> = [builder.eval(commit[0])];
 
         let mut mats = Vec::new();
         for (domain, poly) in os.into_iter() {
@@ -485,7 +485,7 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -559,6 +559,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 }

@@ -16,6 +16,9 @@ pub struct Builder<C: Config> {
     pub operations: Vec<DslIr<C>>,
     pub nb_public_values: Option<Var<C::N>>,
     pub public_values_buffer: Option<Array<C, Felt<C::F>>>,
+    pub witness_var_count: u32,
+    pub witness_felt_count: u32,
+    pub witness_ext_count: u32,
 }
 
 impl<C: Config> Builder<C> {
@@ -25,6 +28,9 @@ impl<C: Config> Builder<C> {
             felt_count,
             ext_count,
             var_count,
+            witness_var_count: 0,
+            witness_felt_count: 0,
+            witness_ext_count: 0,
             operations: Vec::new(),
             nb_public_values: None,
             public_values_buffer: None,
@@ -273,6 +279,30 @@ impl<C: Config> Builder<C> {
         let arr = self.dyn_array(len);
         self.operations.push(DslIr::HintExts(arr.clone()));
         arr
+    }
+
+    pub fn witness_var(&mut self) -> Var<C::N> {
+        let witness = self.uninit();
+        self.operations
+            .push(DslIr::WitnessVar(witness, self.witness_var_count));
+        self.witness_var_count += 1;
+        witness
+    }
+
+    pub fn witness_felt(&mut self) -> Felt<C::F> {
+        let witness = self.uninit();
+        self.operations
+            .push(DslIr::WitnessFelt(witness, self.witness_felt_count));
+        self.witness_felt_count += 1;
+        witness
+    }
+
+    pub fn witness_ext(&mut self) -> Ext<C::F, C::EF> {
+        let witness = self.uninit();
+        self.operations
+            .push(DslIr::WitnessExt(witness, self.witness_ext_count));
+        self.witness_ext_count += 1;
+        witness
     }
 
     /// Throws an error.

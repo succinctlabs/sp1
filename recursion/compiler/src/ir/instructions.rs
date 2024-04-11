@@ -135,6 +135,9 @@ pub enum DslIr<C: Config> {
     HintVars(Array<C, Var<C::N>>),
     HintFelts(Array<C, Felt<C::F>>),
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    WitnessVar(Var<C::N>, u32),
+    WitnessFelt(Felt<C::F>, u32),
+    WitnessExt(Ext<C::F, C::EF>, u32),
     Commit(Array<C, Felt<C::F>>),
     // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),

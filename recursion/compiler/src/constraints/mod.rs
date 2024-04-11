@@ -1,4 +1,4 @@
-pub mod gnark_ffi;
+pub mod groth16_ffi;
 pub mod opcodes;
 
 use core::fmt::Debug;
@@ -320,6 +320,18 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::PrintE,
                     args: vec![vec![a.id()]],
                 }),
+                DslIr::WitnessVar(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::WitnessV,
+                    args: vec![vec![a.id()], vec![b.to_string()]],
+                }),
+                DslIr::WitnessFelt(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::WitnessF,
+                    args: vec![vec![a.id()], vec![b.to_string()]],
+                }),
+                DslIr::WitnessExt(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::WitnessE,
+                    args: vec![vec![a.id()], vec![b.to_string()]],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }
@@ -340,6 +352,7 @@ mod tests {
     use crate::{
         config::OuterConfig,
         ir::{Builder, Ext, Felt, Var},
+        prelude::Witness,
     };
 
     #[test]
@@ -355,7 +368,7 @@ mod tests {
         ];
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(program);
-        gnark_ffi::execute(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -369,7 +382,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -385,6 +398,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 }

@@ -12,19 +12,29 @@ import (
 	"os"
 	"strconv"
 
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/succinctlabs/sp1-recursion-groth16/babybear"
 	"github.com/succinctlabs/sp1-recursion-groth16/poseidon2"
 )
 
 type Circuit struct {
-	X frontend.Variable
-	Y frontend.Variable
+	Vars  []frontend.Variable
+	Felts []*babybear.Variable
+	Exts  []*babybear.ExtensionVariable
 }
 
 type Constraint struct {
 	Opcode string     `json:"opcode"`
 	Args   [][]string `json:"args"`
+}
+
+type Witness struct {
+	Vars  []string   `json:"vars"`
+	Felts []string   `json:"felts"`
+	Exts  [][]string `json:"exts"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
@@ -40,7 +50,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
 
-	// Deserialize the JSON data into a slice of Instruction structs
+	// Deserialize the JSON data into a slice of Instruction structs.
 	var constraints []Constraint
 	err = json.Unmarshal(data, &constraints)
 	if err != nil {
@@ -53,7 +63,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	felts := make(map[string]*babybear.Variable)
 	exts := make(map[string]*babybear.ExtensionVariable)
 
-	// Iterate through the instructions and handle each opcode
+	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
 		switch cs.Opcode {
 		case "ImmV":
@@ -131,6 +141,24 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			fieldAPI.PrintF(felts[cs.Args[0][0]])
 		case "PrintE":
 			fieldAPI.PrintE(exts[cs.Args[0][0]])
+		case "WitnessV":
+			i, err := strconv.Atoi(cs.Args[1][0])
+			if err != nil {
+				panic(err)
+			}
+			vars[cs.Args[0][0]] = circuit.Vars[i]
+		case "WitnessF":
+			i, err := strconv.Atoi(cs.Args[1][0])
+			if err != nil {
+				panic(err)
+			}
+			felts[cs.Args[0][0]] = circuit.Felts[i]
+		case "WitnessE":
+			i, err := strconv.Atoi(cs.Args[1][0])
+			if err != nil {
+				panic(err)
+			}
+			exts[cs.Args[0][0]] = circuit.Exts[i]
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}
@@ -139,4 +167,87 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	return nil
 }
 
-func main() {}
+func main() {
+	buildDir := "build"
+
+	switch os.Args[1] {
+	case "build":
+		// Initialize the circuit.
+		circuit := Circuit{
+			Vars:  []frontend.Variable{},
+			Felts: []*babybear.Variable{},
+			Exts:  []*babybear.ExtensionVariable{},
+		}
+
+		// Compile the circuit.
+		builder := r1cs.NewBuilder
+		r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+		if err != nil {
+			panic(err)
+		}
+
+		// Run the dummy setup.
+		var pk groth16.ProvingKey
+		pk, err = groth16.DummySetup(r1cs)
+		if err != nil {
+			panic(err)
+		}
+
+		// Create the build directory.
+		os.MkdirAll(buildDir, 0755)
+
+		// Write the R1CS.
+		r1csFile, err := os.Create(buildDir + "/r1cs.bin")
+		if err != nil {
+			panic(err)
+		}
+		r1cs.WriteTo(r1csFile)
+		r1csFile.Close()
+
+		// Write the proving key.
+		pkFile, err := os.Create(buildDir + "/pk.bin")
+		if err != nil {
+			panic(err)
+		}
+		pk.WriteTo(pkFile)
+		pkFile.Close()
+	case "prove":
+		// Read the R1CS.
+		r1csFile, err := os.Open(buildDir + "/r1cs.bin")
+		if err != nil {
+			panic(err)
+		}
+		r1cs := groth16.NewCS(ecc.BN254)
+		r1cs.ReadFrom(r1csFile)
+
+		// Read the proving key.
+		pkFile, err := os.Open(buildDir + "/pk.bin")
+		if err != nil {
+			panic(err)
+		}
+		pk := groth16.NewProvingKey(ecc.BN254)
+		pk.ReadFrom(pkFile)
+
+		// Generate the witness.
+		assignment := Circuit{
+			Vars:  []frontend.Variable{},
+			Felts: []*babybear.Variable{},
+			Exts:  []*babybear.ExtensionVariable{},
+		}
+		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		if err != nil {
+			panic(err)
+		}
+
+		// Generate the proof.
+		proof, err := groth16.Prove(r1cs, pk, witness)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println(proof)
+	default:
+		fmt.Println("unknown command")
+		os.Exit(1)
+	}
+}

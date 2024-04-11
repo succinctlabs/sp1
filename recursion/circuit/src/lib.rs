@@ -12,6 +12,7 @@ pub mod mmcs;
 pub mod poseidon2;
 pub mod stark;
 pub mod types;
+pub mod witness;
 
 pub const SPONGE_SIZE: usize = 3;
 pub const DIGEST_SIZE: usize = 1;

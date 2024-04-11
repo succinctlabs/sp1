@@ -1,6 +1,6 @@
 use std::marker::PhantomData;
 
-use crate::types::OuterDigest;
+use crate::types::OuterDigestVariable;
 use p3_air::Air;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -42,6 +42,8 @@ where
         machine: &MachineStark<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
         proof: &RecursionShardProofVariable<C>,
+        sorted_chips: Vec<String>,
+        sorted_indices: Vec<usize>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -52,8 +54,6 @@ where
         let RecursionShardProofVariable {
             commitment,
             opened_values,
-            sorted_chips,
-            sorted_indices,
             ..
         } = proof;
 
@@ -176,7 +176,7 @@ where
 
         let mut rounds = Vec::new();
         let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
-        let prep_commit: OuterDigest<C> = [builder.eval(prep_commit_val[0])];
+        let prep_commit: OuterDigestVariable<C> = [builder.eval(prep_commit_val[0])];
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             mats: prep_mats,
@@ -228,15 +228,9 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use crate::types::{
-        ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
-        RecursionShardProofVariable,
-    };
-    use crate::{
-        challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
-        stark::StarkVerifierCircuit,
-    };
-    use itertools::Itertools;
+    use crate::types::OuterDigestVariable;
+    use crate::witness::Witnessable;
+    use crate::{challenger::MultiField32ChallengerVariable, stark::StarkVerifierCircuit};
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_bn254_fr::Bn254Fr;
     use p3_challenger::CanObserve;
@@ -244,13 +238,13 @@ pub(crate) mod tests {
     use serial_test::serial;
     use sp1_core::{
         air::MachineAir,
-        stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
+        stark::{LocalProver, ShardCommitment, StarkGenericConfig},
     };
+    use sp1_recursion_compiler::ir::Witness;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{gnark_ffi, ConstraintCompiler},
-        ir::{Builder, Config},
-        prelude::{Array, Felt},
+        constraints::{groth16_ffi, ConstraintCompiler},
+        ir::Builder,
     };
     use sp1_recursion_core::{
         cpu::Instruction,
@@ -258,81 +252,7 @@ pub(crate) mod tests {
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
 
-    type SC = BabyBearPoseidon2Outer;
-    type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
     type C = OuterConfig;
-    type A = RecursionAir<F>;
-
-    pub(crate) fn const_proof(
-        builder: &mut Builder<C>,
-        machine: &MachineStark<SC, A>,
-        proof: ShardProof<SC>,
-    ) -> RecursionShardProofVariable<C>
-    where
-        C: Config<F = F, EF = EF>,
-    {
-        // Set up the public values.
-        let pv_felts = proof
-            .public_values
-            .iter()
-            .map(|v| builder.eval::<Felt<F>, F>(*v))
-            .collect_vec();
-        let public_values: Array<C, Felt<F>> = builder.vec(pv_felts);
-
-        // Set up the commitments.
-        let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
-        let permutation_commit: [Bn254Fr; 1] = proof.commitment.permutation_commit.into();
-        let quotient_commit: [Bn254Fr; 1] = proof.commitment.quotient_commit.into();
-        let main_commit: OuterDigest<C> = [builder.eval(main_commit[0])];
-        let permutation_commit: OuterDigest<C> = [builder.eval(permutation_commit[0])];
-        let quotient_commit: OuterDigest<C> = [builder.eval(quotient_commit[0])];
-
-        let commitment = ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        };
-
-        // Set up the opened values.
-        let mut opened_values = Vec::new();
-        for values in proof.opened_values.chips.iter() {
-            let values: ChipOpenedValuesVariable<_> = builder.constant(values.clone());
-            opened_values.push(values);
-        }
-        let opened_values = RecursionShardOpenedValuesVariable {
-            chips: opened_values,
-        };
-
-        let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
-
-        let chips = machine
-            .shard_chips_ordered(&proof.chip_ordering)
-            .map(|chip| chip.name())
-            .collect::<Vec<_>>();
-
-        let sorted_indices = machine
-            .chips()
-            .iter()
-            .map(|chip| {
-                proof
-                    .chip_ordering
-                    .get(&chip.name())
-                    .copied()
-                    .unwrap_or(usize::MAX)
-            })
-            .collect::<Vec<_>>();
-
-        RecursionShardProofVariable {
-            index: proof.index,
-            commitment,
-            opened_values,
-            opening_proof,
-            sorted_chips: chips,
-            public_values,
-            sorted_indices,
-        }
-    }
 
     pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
@@ -368,7 +288,7 @@ pub(crate) mod tests {
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
-        let proofs = machine
+        let mut proofs = machine
             .prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger)
             .shard_proofs;
 
@@ -390,32 +310,47 @@ pub(crate) mod tests {
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
         let preprocessed_commit_val: [Bn254Fr; 1] = vk.commit.into();
-        let preprocessed_commit: OuterDigest<C> = [builder.eval(preprocessed_commit_val[0])];
+        let preprocessed_commit: OuterDigestVariable<C> =
+            [builder.eval(preprocessed_commit_val[0])];
         challenger.observe_commitment(&mut builder, preprocessed_commit);
 
-        let mut shard_proofs = vec![];
-        for proof_val in proofs {
-            let proof = const_proof(&mut builder, &machine, proof_val);
-            let ShardCommitment { main_commit, .. } = &proof.commitment;
-            challenger.observe_commitment(&mut builder, *main_commit);
-            challenger.observe_slice(&mut builder, proof.public_values.clone());
-            shard_proofs.push(proof);
-        }
+        let proof_val = proofs.pop().unwrap();
+        let chips = machine
+            .shard_chips_ordered(&proof_val.chip_ordering)
+            .map(|chip| chip.name())
+            .collect::<Vec<_>>();
 
-        #[allow(clippy::never_loop)]
-        for proof in shard_proofs {
-            StarkVerifierCircuit::<C, SC>::verify_shard(
-                &mut builder,
-                &vk,
-                &machine,
-                &mut challenger.clone(),
-                &proof,
-            );
-            break;
-        }
+        let sorted_indices = machine
+            .chips()
+            .iter()
+            .map(|chip| {
+                proof_val
+                    .chip_ordering
+                    .get(&chip.name())
+                    .copied()
+                    .unwrap_or(usize::MAX)
+            })
+            .collect::<Vec<_>>();
+
+        let mut witness = Witness::default();
+        proof_val.write(&mut witness);
+        let proof = proof_val.read(&mut builder);
+        let ShardCommitment { main_commit, .. } = &proof.commitment;
+        challenger.observe_commitment(&mut builder, *main_commit);
+        challenger.observe_slice(&mut builder, proof.public_values.clone());
+
+        StarkVerifierCircuit::<C, SC>::verify_shard(
+            &mut builder,
+            &vk,
+            &machine,
+            &mut challenger.clone(),
+            &proof,
+            chips,
+            sorted_indices,
+        );
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::execute(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, witness);
     }
 }
