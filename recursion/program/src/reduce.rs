@@ -33,6 +33,7 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
+use sp1_recursion_compiler::ir::Variable;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
@@ -160,7 +161,8 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                 // First shard logic
                 builder.if_eq(shard, one).then(|builder| {
                     // Initialize the current challenger
-                    reconstruct_challenger = DuplexChallengerVariable::new(builder);
+                    let empty_challenger = DuplexChallengerVariable::new(builder);
+                    builder.assign(reconstruct_challenger.clone(), empty_challenger);
                     reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                 });
 
