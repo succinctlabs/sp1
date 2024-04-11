@@ -41,8 +41,6 @@ pub struct Poseidon2Cols<T> {
     pub is_external: T,
 }
 
-const NUM_ROUNDS: usize = 32;
-
 impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     type Record = ExecutionRecord<F>;
 
@@ -60,20 +58,20 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
+        let rounds_f = 8;
+        let rounds_p = 22;
+        let rounds = rounds_f + rounds_p;
+        let rounds_f_beginning = rounds_f / 2;
+        let p_end = rounds_f_beginning + rounds_p;
+
         for poseidon2_event in input.poseidon2_events.iter() {
             let mut round_input = poseidon2_event.input;
 
-            for r in 0..NUM_ROUNDS {
+            for r in 0..rounds {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.input = round_input;
-
-                let rounds_f = 8;
-                let rounds_p = 22;
-                let rounds = rounds_f + rounds_p;
-                let rounds_f_beginning = rounds_f / 2;
-                let p_end = rounds_f_beginning + rounds_p;
 
                 cols.rounds[r] = F::one();
 
@@ -151,8 +149,6 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 rows.push(row);
             }
         }
-
-        println!("num rows in poseidon2 trace: {}", rows.len());
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(

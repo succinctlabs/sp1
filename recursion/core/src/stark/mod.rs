@@ -49,7 +49,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
             kind: MemoryChipKind::Finalize,
         };
         chips.push(RecursionAir::MemoryFinalize(memory_finalize));
-        let poseidon2 = Poseidon2Chip::default();
+        let poseidon2 = Poseidon2Chip {};
         chips.push(RecursionAir::Poseidon2(poseidon2));
         chips
     }
