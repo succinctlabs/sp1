@@ -58,6 +58,7 @@ pub enum Opcode {
     Poseidon2Compress = 39,
     BNEINC = 40,
     Commit = 41,
+    LessThanF = 42,
 }
 
 impl Opcode {

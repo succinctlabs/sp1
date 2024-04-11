@@ -212,6 +212,12 @@ impl<C: Config> Builder<C> {
         self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
     }
 
+    pub fn lt(&mut self, lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
+        let result = self.uninit();
+        self.operations.push(DslIr::LessThan(result, lhs, rhs));
+        result
+    }
+
     /// Evaluate a block of operations if two expressions are equal.
     pub fn if_eq<LhsExpr: Into<SymbolicVar<C::N>>, RhsExpr: Into<SymbolicVar<C::N>>>(
         &mut self,

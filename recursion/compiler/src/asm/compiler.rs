@@ -559,6 +559,12 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         unimplemented!();
                     }
                 }
+                DslIr::LessThan(dst, left, right) => {
+                    self.push(
+                        AsmInstruction::LessThan(dst.fp(), left.fp(), right.fp()),
+                        trace.0,
+                    );
+                }
                 _ => unimplemented!(),
             }
         }

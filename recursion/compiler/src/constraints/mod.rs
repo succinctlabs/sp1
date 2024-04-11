@@ -368,7 +368,7 @@ mod tests {
         builder.assert_var_eq(c, Bn254Fr::from_canonical_u32(200));
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.operations.vec);
         gnark_ffi::execute(constraints);
     }
 
@@ -384,7 +384,7 @@ mod tests {
         }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.operations.vec);
         gnark_ffi::execute(constraints);
     }
 }

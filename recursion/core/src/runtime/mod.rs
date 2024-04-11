@@ -399,6 +399,13 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::LessThanF => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let mut a_val = Block::default();
+                    a_val.0[0] = F::from_bool(b_val.0[0] < c_val.0[0]);
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::SUB => {
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
@@ -781,6 +788,7 @@ mod tests {
         let zero = F::zero();
         let zero_block = [F::zero(); 4];
         let program = RecursionProgram {
+            traces: vec![],
             instructions: vec![
                 Instruction::new(
                     Opcode::HintLen,

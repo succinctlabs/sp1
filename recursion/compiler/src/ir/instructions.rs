@@ -163,4 +163,7 @@ pub enum DslIr<C: Config> {
         Ext<C::F, C::EF>,
     ),
     CircuitExt2Felt([Felt<C::F>; 4], Ext<C::F, C::EF>),
+
+    // Debugging instructions.
+    LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
 }
