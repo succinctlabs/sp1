@@ -86,7 +86,7 @@ impl ProverClient {
     pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearPoseidon2>> {
         if self.client.is_some() {
             println!("Proving remotely");
-            self.prove_remote_sync(elf, stdin)
+            self.prove_remote(elf, stdin)
         } else {
             println!("Proving locally");
             self.prove_local(elf, stdin, BabyBearPoseidon2::new())
@@ -101,7 +101,7 @@ impl ProverClient {
     ) -> Result<SP1ProofWithIO<BabyBearPoseidon2>> {
         if self.client.is_some() {
             println!("Proving remotely");
-            self.prove_remote(elf, stdin).await
+            self.prove_remote_async(elf, stdin).await
         } else {
             println!("Proving locally");
             self.prove_local(elf, stdin, BabyBearPoseidon2::new())
@@ -109,7 +109,7 @@ impl ProverClient {
     }
 
     // Generate a proof remotely using the Succinct Network in an async context.
-    pub async fn prove_remote(
+    pub async fn prove_remote_async(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
@@ -162,13 +162,13 @@ impl ProverClient {
     }
 
     // Generate a proof remotely using the Succinct Network in a sync context.
-    pub fn prove_remote_sync(
+    pub fn prove_remote(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithIO<BabyBearPoseidon2>, anyhow::Error> {
         let rt = runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_remote(elf, stdin).await })
+        rt.block_on(async { self.prove_remote_async(elf, stdin).await })
     }
 
     // Generate a proof locally for the execution of the ELF with the given public inputs.
