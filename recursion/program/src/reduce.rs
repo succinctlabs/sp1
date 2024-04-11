@@ -35,6 +35,7 @@ use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
+use sp1_recursion_core::stark::config::sp1_fri_config;
 use sp1_recursion_core::stark::RecursionAir;
 use sp1_sdk::utils::BabyBearPoseidon2;
 
@@ -98,7 +99,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
 
     let time = Instant::now();
     let mut builder = AsmBuilder::<F, EF>::default();
-    let sp1_config = const_fri_config(&mut builder, inner_fri_config());
+    let sp1_config = const_fri_config(&mut builder, sp1_fri_config());
     // TODO: this config may change
     let recursion_config = const_fri_config(&mut builder, inner_fri_config());
     let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };

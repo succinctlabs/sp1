@@ -121,7 +121,7 @@ pub fn inner_perm() -> InnerPerm {
 }
 
 /// The FRI config for inner recursion.
-pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
+pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
     let hash = InnerHash::new(perm.clone());
     let compress = InnerCompress::new(perm.clone());
@@ -129,6 +129,20 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     FriConfig {
         log_blowup: 1,
         num_queries: 100,
+        proof_of_work_bits: 16,
+        mmcs: challenge_mmcs,
+    }
+}
+
+/// The FRI config for inner recursion.
+pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
+    let perm = inner_perm();
+    let hash = InnerHash::new(perm.clone());
+    let compress = InnerCompress::new(perm.clone());
+    let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
+    FriConfig {
+        log_blowup: 4,
+        num_queries: 25,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }
