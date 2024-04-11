@@ -162,7 +162,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
 
                 // Verify proof with copy of witnessed challenger
                 let mut current_challenger = sp1_challenger.as_clone(builder);
-                StarkVerifier::<C, SC>::verify_shard(
+                StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                     builder,
                     &sp1_vk.clone(),
                     &sp1_pcs,
@@ -191,7 +191,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
                         current_challenger.observe(builder, element);
                     });
                 // Verify the proof
-                StarkVerifier::<C, SC>::verify_shard(
+                StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                     builder,
                     &recursion_vk.clone(),
                     &recursion_pcs,
