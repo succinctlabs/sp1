@@ -757,15 +757,15 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         f(self.loop_var, self.compiler);
 
         // If the step size is just one, compile to the optimized branch instruction.
-        // if self.step_size == F::one() {
-        //     self.jump_to_loop_body_inc(loop_label);
-        // } else {
-        // Increment the loop variable.
-        self.compiler.push(
-            AsmInstruction::AddFI(self.loop_var.fp(), self.loop_var.fp(), self.step_size),
-            None,
-        );
-        // }
+        if self.step_size == F::one() {
+            self.jump_to_loop_body_inc(loop_label);
+        } else {
+            // Increment the loop variable.
+            self.compiler.push(
+                AsmInstruction::AddFI(self.loop_var.fp(), self.loop_var.fp(), self.step_size),
+                None,
+            );
+        }
 
         // Add a basic block for the loop condition.
         self.compiler.basic_block();
