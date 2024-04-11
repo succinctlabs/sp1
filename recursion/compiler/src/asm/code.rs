@@ -53,10 +53,12 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
         let mut machine_code = Vec::new();
         let mut pc = 0;
         for (i, block) in blocks.into_iter().enumerate() {
+            let instructions = block.0.clone();
             for instruction in block.0 {
-                if pc == 2940 {
+                if pc == 2946 {
                     println!("instruction: {:?}", instruction);
                     println!("i: {:?}", i);
+                    println!("block: {:?}", instructions);
                 }
                 machine_code.push(instruction.to_machine(pc, &label_to_pc));
                 pc += 1;

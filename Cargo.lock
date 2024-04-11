@@ -3529,6 +3529,7 @@ dependencies = [
 name = "sp1-recursion-compiler"
 version = "0.1.0"
 dependencies = [
+ "backtrace",
  "itertools 0.12.1",
  "p3-air",
  "p3-baby-bear",

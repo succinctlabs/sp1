@@ -17,6 +17,7 @@ use crate::asm::AsmInstruction;
 use crate::ir::Array;
 use crate::ir::Usize;
 use crate::ir::{DslIr, Ext, Felt, Ptr, Var};
+use crate::prelude::TracedVec;
 
 /// The zero address.
 pub(crate) const ZERO: i32 = 0;
@@ -92,7 +93,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
     }
 
     /// Builds the operations into assembly instructions.
-    pub fn build(&mut self, operations: Vec<DslIr<AsmConfig<F, EF>>>) {
+    pub fn build(&mut self, operations: TracedVec<DslIr<AsmConfig<F, EF>>>) {
         // Set the heap pointer value according to stack size.
         if self.block_label().is_zero() {
             let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
@@ -102,7 +103,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         let mut n = 0;
 
         // For each operation, generate assembly instructions.
-        for op in operations.clone() {
+        for (op, mut trace) in operations.clone() {
             match op {
                 DslIr::ImmV(dst, src) => {
                     self.push(AsmInstruction::ImmF(dst.fp(), src));
@@ -270,6 +271,11 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         is_eq: true,
                     };
                     if else_block.is_empty() {
+                        println!("trace id: {:?}", trace.1);
+                        if trace.1 == 2649 {
+                            trace.0.resolve();
+                            println!("backtrace: {:?}", trace.0)
+                        }
                         if_compiler.then(|builder| builder.build(then_block));
                     } else {
                         if_compiler.then_or_else(
@@ -606,10 +612,10 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
     }
 
     fn basic_block(&mut self) {
-        if self.basic_blocks.len() == 250 {
+        if self.basic_blocks.len() == 253 {
             // panic!("Too many basic blocks");
             let backtrace = Backtrace::force_capture();
-            println!("Backtrace: {:?}", backtrace);
+            println!("Backtrace: {}", backtrace);
         }
         self.basic_blocks.push(BasicBlock::new());
     }

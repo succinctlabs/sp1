@@ -1,9 +1,67 @@
+use std::{iter::Zip, vec::IntoIter};
+
 use super::{
     Array, Config, DslIr, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
     SymbolicVar, Usize, Var, Variable,
 };
+use backtrace::Backtrace;
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::PV_BUFFER_MAX_SIZE;
+
+static mut GLOBAL_OP_TRACE_ID: u32 = 0;
+
+#[derive(Debug, Clone)]
+pub struct TracedVec<T> {
+    pub(crate) vec: Vec<T>,
+    pub(crate) traces: Vec<(Backtrace, u32)>,
+}
+
+impl<T> Default for TracedVec<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> TracedVec<T> {
+    pub fn new() -> Self {
+        Self {
+            vec: Vec::new(),
+            traces: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        self.vec.push(value);
+        self.traces.push((Backtrace::new_unresolved(), unsafe {
+            GLOBAL_OP_TRACE_ID += 1;
+            GLOBAL_OP_TRACE_ID
+        }));
+    }
+
+    pub fn extend<I: IntoIterator<Item = (T, (Backtrace, u32))>>(&mut self, iter: I) {
+        let iter = iter.into_iter();
+        let len = iter.size_hint().0;
+        self.vec.reserve(len);
+        self.traces.reserve(len);
+        for (value, trace) in iter {
+            self.vec.push(value);
+            self.traces.push(trace);
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.vec.is_empty()
+    }
+}
+
+impl<T> IntoIterator for TracedVec<T> {
+    type Item = (T, (Backtrace, u32));
+    type IntoIter = Zip<IntoIter<T>, IntoIter<(Backtrace, u32)>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.vec.into_iter().zip(self.traces)
+    }
+}
 
 /// A builder for the DSL.
 ///
@@ -13,7 +71,7 @@ pub struct Builder<C: Config> {
     pub(crate) felt_count: u32,
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
-    pub operations: Vec<DslIr<C>>,
+    pub operations: TracedVec<DslIr<C>>,
     pub nb_public_values: Option<Var<C::N>>,
     pub public_values_buffer: Option<Array<C, Felt<C::F>>>,
 }
@@ -25,7 +83,7 @@ impl<C: Config> Builder<C> {
             felt_count,
             ext_count,
             var_count,
-            operations: Vec::new(),
+            operations: TracedVec::new(),
             nb_public_values: None,
             public_values_buffer: None,
         }
@@ -370,19 +428,19 @@ impl<'a, C: Config> IfBuilder<'a, C> {
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
-                let op = DslIr::IfEq(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfEq(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
             IfCondition::EqI(lhs, rhs) => {
-                let op = DslIr::IfEqI(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfEqI(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
             IfCondition::Ne(lhs, rhs) => {
-                let op = DslIr::IfNe(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfNe(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
             IfCondition::NeI(lhs, rhs) => {
-                let op = DslIr::IfNeI(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfNeI(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
         }
