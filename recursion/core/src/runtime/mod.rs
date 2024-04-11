@@ -17,6 +17,7 @@ pub use record::*;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
+use crate::poseidon2::Poseidon2Event;
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
@@ -550,6 +551,11 @@ where
                     for (i, value) in result.iter().enumerate() {
                         self.memory[dst + i].value[0] = *value;
                     }
+
+                    self.record
+                        .poseidon2_events
+                        .push(Poseidon2Event { input: array });
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Poseidon2Compress => {
@@ -589,6 +595,10 @@ where
                     for (i, value) in result.iter().enumerate() {
                         self.memory[dst + i].value[0] = *value;
                     }
+
+                    self.record
+                        .poseidon2_events
+                        .push(Poseidon2Event { input: array });
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {
