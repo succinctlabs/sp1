@@ -154,7 +154,7 @@ where
 
         let prep_local = preprocessed.row_slice(0);
         let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
-        let mult_local = main.row_slice(1);
+        let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
         // Dummy constraint of degree 3.

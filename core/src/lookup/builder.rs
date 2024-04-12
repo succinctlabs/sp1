@@ -147,7 +147,10 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
                 (vec![(PairCol::Preprocessed(v.index), F::one())], F::zero())
             }
             Entry::Main { offset: 0 } => (vec![(PairCol::Main(v.index), F::one())], F::zero()),
-            _ => panic!("Not an affine expression in current row elements"),
+            _ => panic!(
+                "Not an affine expression in current row elements {:?}",
+                v.entry
+            ),
         },
         SymbolicExpression::Add { x, y, .. } => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
