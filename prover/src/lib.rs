@@ -259,6 +259,8 @@ impl SP1ProverImpl {
 #[cfg(test)]
 mod tests {
 
+    use std::process::exit;
+
     use super::*;
     use sp1_core::utils::setup_logger;
 
@@ -284,9 +286,13 @@ mod tests {
 
         let elf =
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = [bincode::serialize::<u32>(&6).unwrap()];
-        let proof: Proof<SP1SC> = SP1ProverImpl::prove(elf, &stdin);
+        // let stdin = [bincode::serialize::<u32>(&6).unwrap()];
+        // let proof: Proof<SP1SC> = SP1ProverImpl::prove(elf, &stdin);
+        // let serialized = bincode::serialize(&proof).unwrap();
+        // std::fs::write("xxx.bin", serialized).unwrap();
+        // exit(0);
 
+        let proof: Proof<SP1SC> = bincode::deserialize(&std::fs::read("xxx.bin").unwrap()).unwrap();
         let sp1_machine = RiscvAir::machine(SP1SC::default());
         let (_, vk) = sp1_machine.setup(&Program::from(elf));
 

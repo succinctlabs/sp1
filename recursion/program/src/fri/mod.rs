@@ -189,14 +189,20 @@ where
                 &step.opening_proof,
             );
 
-            let mut xs: Array<C, Ext<C::F, C::EF>> = builder.array(2);
             let two_adic_generator_one = config.get_two_adic_generator(builder, Usize::Const(1));
-            builder.set_value(&mut xs, 0, x);
-            builder.set_value(&mut xs, 1, x);
-            builder.set(&mut xs, index_sibling_mod_2, x * two_adic_generator_one);
+            let xs_0: Ext<_, _> = builder.eval(x);
+            let xs_1: Ext<_, _> = builder.eval(x);
+            builder
+                .if_eq(index_sibling_mod_2, C::N::zero())
+                .then_or_else(
+                    |builder| {
+                        builder.assign(xs_0, x * two_adic_generator_one);
+                    },
+                    |builder| {
+                        builder.assign(xs_1, x * two_adic_generator_one);
+                    },
+                );
 
-            let xs_0 = builder.get(&xs, 0);
-            let xs_1 = builder.get(&xs, 1);
             let eval_0 = builder.get(&evals, 0);
             let eval_1 = builder.get(&evals, 1);
             builder.assign(

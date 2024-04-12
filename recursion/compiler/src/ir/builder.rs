@@ -84,6 +84,8 @@ pub struct Builder<C: Config> {
     pub witness_var_count: u32,
     pub witness_felt_count: u32,
     pub witness_ext_count: u32,
+    pub debug: bool,
+    pub po2_table: Option<Array<C, Var<C::N>>>,
 }
 
 impl<C: Config> Builder<C> {
@@ -99,6 +101,8 @@ impl<C: Config> Builder<C> {
             operations: Default::default(),
             nb_public_values: None,
             public_values_buffer: None,
+            debug: false,
+            po2_table: None,
         }
     }
 
