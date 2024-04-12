@@ -18,20 +18,24 @@ use sp1_core::{
 };
 use sp1_recursion_core::{
     runtime::{RecursionProgram, Runtime},
-    stark::{config::BabyBearPoseidon2Inner, RecursionAir},
+    stark::{
+        config::{BabyBearPoseidon2Inner, BabyBearPoseidon2Outer},
+        RecursionAir,
+    },
 };
-use sp1_recursion_program::{hints::Hintable, reduce::build_reduce, stark::EMPTY};
+use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
 use std::time::Instant;
 
 type SP1SC = BabyBearPoseidon2;
 type InnerSC = BabyBearPoseidon2Inner;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
 type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
-type OuterSC = BabyBearPoseidon2Inner;
+type OuterSC = BabyBearPoseidon2Outer;
 
 pub struct SP1ProverImpl {
     reduce_program: RecursionProgram<BabyBear>,
-    reduce_vk: VerifyingKey<InnerSC>,
+    reduce_vk_inner: VerifyingKey<InnerSC>,
+    reduce_vk_outer: VerifyingKey<OuterSC>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -81,11 +85,13 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 impl SP1ProverImpl {
     pub fn new() -> Self {
         // TODO: load from serde
-        let reduce_program = build_reduce();
-        let (_, reduce_vk) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
+        let reduce_program = build_reduce_program();
+        let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
+        let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
         Self {
             reduce_program,
-            reduce_vk,
+            reduce_vk_inner,
+            reduce_vk_outer,
         }
     }
 
@@ -171,7 +177,7 @@ impl SP1ProverImpl {
         let (recursion_prep_sorted_indices, recursion_prep_domains): (
             Vec<usize>,
             Vec<TwoAdicMultiplicativeCoset<BabyBear>>,
-        ) = get_preprocessed_data(&recursion_machine, &self.reduce_vk);
+        ) = get_preprocessed_data(&recursion_machine, &self.reduce_vk_inner);
 
         // Generate inputs.
         let mut witness_stream = Vec::new();
@@ -184,7 +190,7 @@ impl SP1ProverImpl {
         witness_stream.extend(recursion_prep_sorted_indices.write());
         witness_stream.extend(recursion_prep_domains.write());
         witness_stream.extend(sp1_vk.write());
-        witness_stream.extend(self.reduce_vk.write());
+        witness_stream.extend(self.reduce_vk_inner.write());
         for proof in reduce_proofs.iter() {
             match proof {
                 ReduceProof::SP1(proof) => {
@@ -231,6 +237,13 @@ mod tests {
 
     use super::*;
     use sp1_core::utils::setup_logger;
+    use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
+    use sp1_recursion_compiler::{
+        config::OuterConfig,
+        constraints::groth16_ffi,
+        ir::{Builder, Witness},
+    };
+    use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     #[ignore]
     #[test]
@@ -325,8 +338,11 @@ mod tests {
                     let mut full_proof = Proof::<InnerSC> {
                         shard_proofs: vec![proof],
                     };
-                    let res =
-                        recursion_machine.verify(&prover.reduce_vk, &full_proof, &mut challenger);
+                    let res = recursion_machine.verify(
+                        &prover.reduce_vk_inner,
+                        &full_proof,
+                        &mut challenger,
+                    );
                     if res.is_err() {
                         println!("Failed to verify proof");
                         println!("err = {:?}", res.err());
@@ -345,5 +361,25 @@ mod tests {
         // Save final proof to file
         let serialized = bincode::serialize(&final_proof).unwrap();
         std::fs::write("final.bin", serialized).unwrap();
+    }
+
+    #[test]
+    fn test_gnark_final() {
+        let reduce_proof = bincode::deserialize::<ShardProof<BabyBearPoseidon2Outer>>(
+            &std::fs::read("final.bin").expect("Failed to read file"),
+        )
+        .unwrap();
+        let prover = SP1ProverImpl::new();
+        let constraints = build_wrap_circuit(prover.reduce_vk_outer, reduce_proof);
+
+        let reduce_proof = bincode::deserialize::<ShardProof<BabyBearPoseidon2Outer>>(
+            &std::fs::read("final.bin").expect("Failed to read file"),
+        )
+        .unwrap();
+
+        let mut witness = Witness::default();
+        reduce_proof.write(&mut witness);
+
+        groth16_ffi::prove(constraints, witness);
     }
 }

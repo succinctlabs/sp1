@@ -4424,6 +4424,7 @@ dependencies = [
  "p3-field",
  "serde",
  "sp1-core",
+ "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-program",
