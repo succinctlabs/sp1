@@ -6,6 +6,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32};
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
@@ -312,15 +313,24 @@ impl SP1ProverImpl {
             None
         };
 
-        let mut new_proofs: Vec<ReduceProof> = proofs
-            // .into_par_iter()
-            .chunks(N)
-            .map(|chunk| {
-                let start = Instant::now();
-                let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk);
-                let duration = start.elapsed().as_secs();
-                println!("reduce duration = {}", duration);
-                ReduceProof::Recursive(proof)
+        let chunks: Vec<_> = proofs.chunks(N).collect();
+
+        // Process at most 4 proofs at once in parallel, due to memory limits.
+        let partition_size = std::cmp::min(1, chunks.len() / 4);
+        let mut new_proofs: Vec<ReduceProof> = chunks
+            .into_par_iter()
+            .chunks(partition_size)
+            .flat_map(|partition| {
+                partition
+                    .iter()
+                    .map(|chunk| {
+                        let start = Instant::now();
+                        let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk);
+                        let duration = start.elapsed().as_secs();
+                        println!("reduce duration = {}", duration);
+                        ReduceProof::Recursive(proof)
+                    })
+                    .collect::<Vec<_>>()
             })
             .collect();
 
