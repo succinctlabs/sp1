@@ -3,7 +3,7 @@ use core::mem::size_of;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_core::air::{AirInteraction, MachineAir, SP1AirBuilder};
 use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::pad_to_power_of_two;
@@ -152,8 +152,10 @@ where
         let main = builder.main();
         let preprocessed = builder.preprocessed();
 
-        let prep_local: &ProgramPreprocessedCols<AB::Var> = preprocessed.row_slice(0).borrow();
-        let mult_local: &ProgramMultiplicityCols<AB::Var> = main.row_slice(0).borrow();
+        let prep_local = main.row_slice(0);
+        let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
+        let mult_local = main.row_slice(1);
+        let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
         // Dummy constraint of degree 3.
         builder.assert_eq(

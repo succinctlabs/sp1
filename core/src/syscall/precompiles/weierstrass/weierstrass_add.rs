@@ -31,7 +31,7 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 use std::fmt::Debug;
 use std::marker::PhantomData;
@@ -245,7 +245,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = (*row).borrow();
 
         let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 4;
 

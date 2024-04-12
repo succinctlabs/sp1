@@ -30,7 +30,7 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
@@ -204,7 +204,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &EdAddAssignCols<AB::Var> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &EdAddAssignCols<AB::Var> = (*row).borrow();
 
         let x1 = limbs_from_prev_access(&row.p_access[0..8]);
         let x2 = limbs_from_prev_access(&row.q_access[0..8]);

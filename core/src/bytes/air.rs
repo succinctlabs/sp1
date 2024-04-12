@@ -3,7 +3,7 @@ use p3_air::PairBuilder;
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::Field;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 
 use super::columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS};
 use super::{ByteChip, ByteOpcode};
@@ -24,10 +24,12 @@ impl<F: Field> BaseAir<F> for ByteChip<F> {
 impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local_mult: &ByteMultCols<AB::Var> = main.row_slice(0).borrow();
+        let local_mult = main.row_slice(0);
+        let local_mult: &ByteMultCols<AB::Var> = (*local_mult).borrow();
 
         let prep = builder.preprocessed();
-        let local: &BytePreprocessedCols<AB::Var> = prep.row_slice(0).borrow();
+        let prep = prep.row_slice(0);
+        let local: &BytePreprocessedCols<AB::Var> = (*prep).borrow();
 
         // Send all the lookups for each operation.
         for (i, opcode) in ByteOpcode::all().iter().enumerate() {

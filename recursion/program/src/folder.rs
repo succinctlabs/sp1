@@ -1,7 +1,9 @@
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
-    TwoRowMatrixView,
+    VirtualPairCol,
 };
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
 use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 
 use sp1_recursion_compiler::{
@@ -11,9 +13,18 @@ use sp1_recursion_compiler::{
 
 pub struct RecursiveVerifierConstraintFolder<'a, C: Config> {
     pub builder: &'a mut Builder<C>,
-    pub preprocessed: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
-    pub main: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
-    pub perm: TwoRowMatrixView<'a, Ext<C::F, C::EF>>,
+    pub preprocessed: VerticalPair<
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+    >,
+    pub main: VerticalPair<
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+    >,
+    pub perm: VerticalPair<
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+    >,
     pub perm_challenges: &'a [Ext<C::F, C::EF>],
     pub public_values: &'a [Felt<C::F>],
     pub cumulative_sum: Ext<C::F, C::EF>,
@@ -28,7 +39,10 @@ impl<'a, C: Config> AirBuilder for RecursiveVerifierConstraintFolder<'a, C> {
     type F = C::F;
     type Expr = SymbolicExt<C::F, C::EF>;
     type Var = Ext<C::F, C::EF>;
-    type M = TwoRowMatrixView<'a, Ext<C::F, C::EF>>;
+    type M = VerticalPair<
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+        RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
+    >;
 
     fn main(&self) -> Self::M {
         self.main
@@ -72,7 +86,7 @@ impl<'a, C: Config> ExtensionBuilder for RecursiveVerifierConstraintFolder<'a, C
 }
 
 impl<'a, C: Config> PermutationAirBuilder for RecursiveVerifierConstraintFolder<'a, C> {
-    type MP = TwoRowMatrixView<'a, Self::Var>;
+    type MP = VerticalPair<RowMajorMatrixView<'a, Self::Var>, RowMajorMatrixView<'a, Self::Var>>;
     type RandomVar = Ext<C::F, C::EF>;
 
     fn permutation(&self) -> Self::MP {

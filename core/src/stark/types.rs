@@ -5,10 +5,11 @@ use std::{
 };
 
 use bincode::{deserialize_from, Error};
-use p3_air::TwoRowMatrixView;
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
@@ -133,9 +134,12 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub public_values: Vec<Val<SC>>,
 }
 
-impl<T> AirOpenedValues<T> {
-    pub fn view(&self) -> TwoRowMatrixView<T> {
-        TwoRowMatrixView::new(&self.local, &self.next)
+impl<T: Send + Sync + Clone> AirOpenedValues<T> {
+    pub fn view(&self) -> VerticalPair<RowMajorMatrixView<'_, T>, RowMajorMatrixView<'_, T>> {
+        VerticalPair::new(
+            RowMajorMatrixView::new_row(&self.local),
+            RowMajorMatrixView::new_row(&self.next),
+        )
     }
 }
 

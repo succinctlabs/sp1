@@ -14,8 +14,10 @@ use p3_commit::PolynomialSpace;
 use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::PrimeField32;
+use p3_matrix::bitrev::BitReversableMatrix;
+use p3_matrix::dense::DenseMatrix;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::{Matrix, MatrixRowSlices};
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
@@ -152,6 +154,10 @@ where
     }
 }
 
+fn empty<'a, SC: StarkGenericConfig>(data: &'a DenseMatrix<SC::Val>) -> impl Matrix<Val<SC>> + 'a {
+    data.split_rows(0).1.bit_reverse_rows()
+}
+
 pub struct LocalProver<SC, A>(PhantomData<SC>, PhantomData<A>);
 
 impl<SC, A> LocalProver<SC, A>
@@ -226,7 +232,7 @@ where
         config: &SC,
         pk: &ProvingKey<SC>,
         chips: &[&MachineChip<SC, A>],
-        shard_data: ShardMainData<SC>,
+        mut shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
     where
@@ -238,7 +244,7 @@ where
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Get the traces.
-        let traces = &shard_data.traces;
+        let traces = &mut shard_data.traces;
 
         let degrees = traces
             .iter()
@@ -277,7 +283,7 @@ where
         tracing::debug_span!("generate permutation traces").in_scope(|| {
             chips
                 .par_iter()
-                .zip(traces.par_iter())
+                .zip(traces.par_iter_mut())
                 .map(|(chip, main_trace)| {
                     let preprocessed_trace = pk
                         .chip_ordering
@@ -355,14 +361,17 @@ where
                         .get(&chips[i].name())
                         .map(|&index| {
                             pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
+                                .to_row_major_matrix()
                         })
                         .unwrap_or_else(|| {
                             RowMajorMatrix::new_col(vec![SC::Val::zero(); quotient_domain.size()])
                         });
-                    let main_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain);
-                    let permutation_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&permutation_data, i, *quotient_domain);
+                    let main_trace_on_quotient_domains = pcs
+                        .get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain)
+                        .to_row_major_matrix();
+                    let permutation_trace_on_quotient_domains = pcs
+                        .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
+                        .to_row_major_matrix();
                     quotient_values(
                         chips[i],
                         cumulative_sums[i],

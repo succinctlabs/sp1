@@ -3,7 +3,7 @@ use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
@@ -126,7 +126,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &BitwiseCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &BitwiseCols<AB::Var> = (*local).borrow();
 
         // Get the opcode for the operation.
         let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>()

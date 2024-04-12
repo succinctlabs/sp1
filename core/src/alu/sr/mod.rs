@@ -49,7 +49,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
@@ -294,7 +294,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ShiftRightCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &ShiftRightCols<AB::Var> = (*local).borrow();
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
 

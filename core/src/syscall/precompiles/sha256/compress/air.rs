@@ -11,7 +11,7 @@ use crate::operations::{
 };
 use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 
 impl<F> BaseAir<F> for ShaCompressChip {
     fn width(&self) -> usize {
@@ -25,8 +25,9 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ShaCompressCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &ShaCompressCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &ShaCompressCols<AB::Var> = (*local).borrow();
+        let next: &ShaCompressCols<AB::Var> = (*next).borrow();
 
         self.constrain_control_flow_flags(builder, local, next);
 

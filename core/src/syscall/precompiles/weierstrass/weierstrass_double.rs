@@ -32,7 +32,7 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
@@ -271,7 +271,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = (*row).borrow();
 
         let num_words_field_element = E::BaseField::NB_LIMBS / 4;
         let p_x = limbs_from_prev_access(&row.p_access[0..num_words_field_element]);

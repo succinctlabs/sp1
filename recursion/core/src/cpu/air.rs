@@ -10,7 +10,6 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
 use sp1_core::air::MachineAir;
@@ -154,8 +153,9 @@ where
         //   and the clock.
 
         let main = builder.main();
-        let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &CpuCols<AB::Var> = (*local).borrow();
+        let next: &CpuCols<AB::Var> = (*next).borrow();
 
         // Increment clk by 4 every cycle..
         builder

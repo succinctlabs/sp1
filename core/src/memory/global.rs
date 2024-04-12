@@ -10,7 +10,7 @@ use core::mem::{size_of, transmute};
 use p3_air::BaseAir;
 use p3_air::{Air, AirBuilder};
 use p3_field::AbstractField;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_util::indices_arr;
 use sp1_derive::AlignedBorrow;
 
@@ -127,7 +127,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &MemoryInitCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &MemoryInitCols<AB::Var> = (*local).borrow();
 
         // Dummy constraint of degree 3.
         builder.assert_eq(

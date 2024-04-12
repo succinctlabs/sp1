@@ -38,7 +38,7 @@ use num::Zero;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use serde::Deserialize;
 use serde::Serialize;
 use std::marker::PhantomData;
@@ -333,7 +333,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &EdDecompressCols<AB::Var> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &EdDecompressCols<AB::Var> = (*row).borrow();
         row.eval::<AB, E::BaseField, E>(builder);
     }
 }

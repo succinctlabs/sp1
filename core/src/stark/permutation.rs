@@ -1,8 +1,11 @@
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
-use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices, MatrixRowSlicesMut};
+use p3_field::{
+    AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue, Powers, PrimeField,
+};
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
+use std::borrow::Borrow;
 
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 
@@ -74,7 +77,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
     preprocessed: Option<&RowMajorMatrix<F>>,
-    main: &RowMajorMatrix<F>,
+    mut main: &mut RowMajorMatrix<F>,
     random_elements: &[EF],
     batch_size: usize,
 ) -> RowMajorMatrix<EF> {
@@ -104,10 +107,10 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 
     match preprocessed {
         Some(prep) => {
-            permutation_trace
+            (&mut permutation_trace)
                 .par_row_chunks_mut(chunk_rate)
-                .zip_eq(prep.par_row_chunks(chunk_rate))
-                .zip_eq(main.par_row_chunks(chunk_rate))
+                .zip_eq(prep.clone().par_row_chunks_mut(chunk_rate))
+                .zip_eq((&mut main).par_row_chunks_mut(chunk_rate))
                 .for_each(|((mut chunk, prep_rows_chunk), main_rows_chunk)| {
                     chunk
                         .rows_mut()
@@ -116,8 +119,8 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         .for_each(|((row, prep_row), main_row)| {
                             populate_permutation_row(
                                 row,
-                                prep_row,
-                                main_row,
+                                prep_row.collect::<Vec<_>>().as_slice(),
+                                main_row.collect::<Vec<_>>().as_slice(),
                                 sends,
                                 receives,
                                 &alphas,
@@ -131,9 +134,9 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
             for i in 0..remainder {
                 let index = height - remainder + i;
                 populate_permutation_row(
-                    permutation_trace.row_slice_mut(index),
-                    prep.row_slice(index),
-                    main.row_slice(index),
+                    permutation_trace.row_mut(index),
+                    &(*prep.row_slice(index)),
+                    &(*main.row_slice(index)),
                     sends,
                     receives,
                     &alphas,
@@ -145,7 +148,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
         None => {
             permutation_trace
                 .par_row_chunks_mut(chunk_rate)
-                .zip_eq(main.par_row_chunks(chunk_rate))
+                .zip_eq(main.par_row_chunks_mut(chunk_rate))
                 .for_each(|(mut chunk, main_rows_chunk)| {
                     chunk
                         .rows_mut()
@@ -154,7 +157,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                             populate_permutation_row(
                                 row,
                                 &[],
-                                main_row,
+                                main_row.collect::<Vec<_>>().as_slice(),
                                 sends,
                                 receives,
                                 &alphas,
@@ -168,9 +171,9 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
             for i in 0..remainder {
                 let index = height - remainder + i;
                 populate_permutation_row(
-                    permutation_trace.row_slice_mut(index),
+                    permutation_trace.row_mut(index),
                     &[],
-                    main.row_slice(index),
+                    &(*main.row_slice(index)),
                     sends,
                     receives,
                     &alphas,
@@ -215,15 +218,18 @@ pub fn eval_permutation_constraints<F, AB>(
         (random_elements[0].into(), random_elements[1].into());
 
     let main = builder.main();
-    let main_local: &[AB::Var] = main.row_slice(0);
+    let main_local = main.row_slice(0);
+    let main_local: &[AB::Var] = (*main_local).borrow();
 
     let preprocessed = builder.preprocessed();
     let preprocessed_local = preprocessed.row_slice(0);
 
     let perm = builder.permutation();
     let perm_width = perm.width();
-    let perm_local: &[AB::VarEF] = perm.row_slice(0);
-    let perm_next: &[AB::VarEF] = perm.row_slice(1);
+    let perm_local = perm.row_slice(0);
+    let perm_local: &[AB::VarEF] = (*perm_local).borrow();
+    let perm_next = perm.row_slice(1);
+    let perm_next: &[AB::VarEF] = (*perm_next).borrow();
 
     let alphas = generate_interaction_rlc_elements(sends, receives, alpha);
     let betas = beta.powers();
@@ -245,7 +251,7 @@ pub fn eval_permutation_constraints<F, AB>(
         for (interaction, is_send) in chunk {
             let mut rlc = AB::ExprEF::zero();
             for (field, beta) in interaction.values.iter().zip(betas.clone()) {
-                let elem = field.apply::<AB::Expr, AB::Var>(preprocessed_local, main_local);
+                let elem = field.apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local);
                 rlc += beta * elem;
             }
             rlc += alphas[interaction.argument_index()].clone();
@@ -255,7 +261,7 @@ pub fn eval_permutation_constraints<F, AB>(
             multiplicities.push(
                 interaction
                     .multiplicity
-                    .apply::<AB::Expr, AB::Var>(preprocessed_local, main_local)
+                    .apply::<AB::Expr, AB::Var>(&preprocessed_local, main_local)
                     * send_factor,
             );
         }
