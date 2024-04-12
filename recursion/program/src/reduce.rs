@@ -147,6 +147,7 @@ pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
         return builder.compile_program();
     }
 
+    builder.print_debug(99999);
     let num_proofs = is_recursive_flags.len();
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.constant(F::zero());
