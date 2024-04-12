@@ -306,6 +306,7 @@ impl SP1ProverImpl {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
+        println!("constraints.len() = {}", constraints.len());
         let start = Instant::now();
         groth16_ffi::prove(constraints, witness);
         let duration = start.elapsed().as_secs();
@@ -379,6 +380,7 @@ mod tests {
         .unwrap();
         let prover = SP1ProverImpl::new();
         let constraints = build_wrap_circuit(&prover.reduce_vk_outer, reduce_proof);
+        println!("constraints.len() = {}", constraints.len());
 
         let reduce_proof = bincode::deserialize::<ShardProof<BabyBearPoseidon2Outer>>(
             &std::fs::read("final.bin").expect("Failed to read file"),
