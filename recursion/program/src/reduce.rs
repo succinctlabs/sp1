@@ -249,6 +249,10 @@ pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
 
+    builder.write_public_values(&sp1_vk.commitment);
+    builder.write_public_values(&recursion_vk.commitment);
+    builder.commit_public_values();
+
     let program = builder.compile_program();
     let elapsed = time.elapsed();
     println!("Building took: {:?}", elapsed);

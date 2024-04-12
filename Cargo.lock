@@ -4422,6 +4422,7 @@ dependencies = [
  "p3-challenger",
  "p3-commit",
  "p3-field",
+ "p3-symmetric",
  "serde",
  "sp1-core",
  "sp1-recursion-compiler",
@@ -4491,6 +4492,7 @@ dependencies = [
 name = "sp1-recursion-core"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "backtrace",
  "ff 0.13.0",
  "hashbrown 0.14.3",

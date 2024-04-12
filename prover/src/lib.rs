@@ -260,10 +260,13 @@ impl SP1ProverImpl {
 mod tests {
 
     use super::*;
+    use p3_symmetric::CryptographicHasher;
     use sp1_core::utils::setup_logger;
+    use sp1_recursion_core::air::PublicValues;
+    use sp1_recursion_core::stark::config::InnerHash;
 
     #[test]
-    #[ignore]
+    // #[ignore]
     fn test_prove_sp1() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
@@ -285,10 +288,10 @@ mod tests {
 
         let elf =
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        // let stdin = [bincode::serialize::<u32>(&6).unwrap()];
-        // let proof: Proof<SP1SC> = SP1ProverImpl::prove(elf, &stdin);
-        // let serialized = bincode::serialize(&proof).unwrap();
-        // std::fs::write("xxx.bin", serialized).unwrap();
+        let stdin = [bincode::serialize::<u32>(&6).unwrap()];
+        let proof: Proof<SP1SC> = SP1ProverImpl::prove(elf, &stdin);
+        let serialized = bincode::serialize(&proof).unwrap();
+        std::fs::write("xxx.bin", serialized).unwrap();
         // exit(0);
 
         let proof: Proof<SP1SC> = bincode::deserialize(&std::fs::read("xxx.bin").unwrap()).unwrap();
@@ -347,6 +350,7 @@ mod tests {
                         println!("last proof");
                         let proof: ShardProof<OuterSC> =
                             prover.reduce(&vk, sp1_challenger.clone(), proofs);
+
                         final_proof = Some(proof);
                         reduce_proofs.clear();
                         break;
@@ -365,6 +369,20 @@ mod tests {
                         println!("Failed to verify proof");
                         println!("err = {:?}", res.err());
                     }
+
+                    // Verify the public inputs commitment
+                    let expected_pv_values = vk
+                        .commit
+                        .into_iter()
+                        .chain(prover.reduce_vk.commit.into_iter());
+                    let perm = recursion_machine.config().perm.clone();
+                    let hasher = InnerHash::new(perm.clone());
+                    let expected_digest = hasher.hash_iter(expected_pv_values);
+                    let pv =
+                        PublicValues::from_vec(full_proof.shard_proofs[0].public_values.clone());
+
+                    assert!(expected_digest == pv.committed_value_digest);
+
                     let proof = full_proof.shard_proofs.pop().unwrap();
                     next_proofs.push(ReduceProof::Recursive(proof));
                 }
