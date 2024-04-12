@@ -358,8 +358,6 @@ pub mod baby_bear_poseidon2 {
 
     use crate::stark::StarkGenericConfig;
 
-    use super::LOG_DEGREE_BOUND;
-
     pub type Val = BabyBear;
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
