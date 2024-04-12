@@ -1,10 +1,19 @@
-use p3_field::AbstractField;
 use rand::{thread_rng, Rng};
+
+use p3_field::AbstractField;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::VmBuilder;
-use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_compiler::asm::AsmBuilder;
+use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::Builder;
+use sp1_recursion_compiler::ir::ExtConst;
+use sp1_recursion_compiler::ir::MemIndex;
+use sp1_recursion_compiler::ir::MemVariable;
+use sp1_recursion_compiler::ir::Ptr;
+use sp1_recursion_compiler::ir::Variable;
+use sp1_recursion_compiler::ir::{Config, Ext, Felt, Var};
 use sp1_recursion_core::runtime::Runtime;
+use sp1_recursion_derive::DslVariable;
 
 #[derive(DslVariable, Clone, Debug)]
 pub struct Point<C: Config> {
@@ -18,7 +27,7 @@ fn test_compiler_array() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
 
     // Sum all the values of an array.
     let len: usize = 1000;
@@ -105,7 +114,7 @@ fn test_compiler_array() {
         builder.assert_eq::<Array<_, _>>(point_array_back, var_array.clone());
     });
 
-    let code = builder.compile_to_asm();
+    let code = builder.compile_asm();
     println!("{code}");
 
     let program = code.machine_code();

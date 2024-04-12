@@ -5,21 +5,18 @@ use sp1_core::{
     air::MachineAir,
     stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardCommitment},
 };
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
-use sp1_recursion_program::types::PublicValuesVariable;
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, FromConstant, Var};
 
 use crate::DIGEST_SIZE;
 
-pub type OuterDigest<C: Config> = [Var<C::N>; DIGEST_SIZE];
+pub type OuterDigestVariable<C: Config> = [Var<C::N>; DIGEST_SIZE];
 
 pub struct RecursionShardProofVariable<C: Config> {
     pub index: usize,
-    pub commitment: ShardCommitment<OuterDigest<C>>,
+    pub commitment: ShardCommitment<OuterDigestVariable<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
-    pub public_values: PublicValuesVariable<C>,
-    pub sorted_chips: Vec<String>,
-    pub sorted_indices: Vec<usize>,
+    pub public_values: Array<C, Felt<C::F>>,
 }
 
 #[derive(Clone)]
@@ -30,7 +27,7 @@ pub struct RecursionShardOpenedValuesVariable<C: Config> {
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(Clone)]
 pub struct FriProofVariable<C: Config> {
-    pub commit_phase_commits: Vec<OuterDigest<C>>,
+    pub commit_phase_commits: Vec<OuterDigestVariable<C>>,
     pub query_proofs: Vec<FriQueryProofVariable<C>>,
     pub final_poly: Ext<C::F, C::EF>,
     pub pow_witness: Felt<C::F>,
@@ -40,7 +37,7 @@ pub struct FriProofVariable<C: Config> {
 #[derive(Clone)]
 pub struct FriCommitPhaseProofStepVariable<C: Config> {
     pub sibling_value: Ext<C::F, C::EF>,
-    pub opening_proof: Vec<OuterDigest<C>>,
+    pub opening_proof: Vec<OuterDigestVariable<C>>,
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L23
@@ -59,7 +56,7 @@ pub struct FriChallenges<C: Config> {
 #[derive(Clone)]
 pub struct BatchOpeningVariable<C: Config> {
     pub opened_values: Vec<Vec<Vec<Felt<C::F>>>>,
-    pub opening_proof: Vec<OuterDigest<C>>,
+    pub opening_proof: Vec<OuterDigestVariable<C>>,
 }
 
 #[derive(Clone)]
@@ -70,7 +67,7 @@ pub struct TwoAdicPcsProofVariable<C: Config> {
 
 #[derive(Clone)]
 pub struct TwoAdicPcsRoundVariable<C: Config> {
-    pub batch_commit: OuterDigest<C>,
+    pub batch_commit: OuterDigestVariable<C>,
     pub mats: Vec<TwoAdicPcsMatsVariable<C>>,
 }
 
@@ -101,10 +98,10 @@ pub struct AirOpenedValuesVariable<C: Config> {
 impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
     type Constant = AirOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         AirOpenedValuesVariable {
-            local: value.local.iter().map(|x| builder.eval_const(*x)).collect(),
-            next: value.next.iter().map(|x| builder.eval_const(*x)).collect(),
+            local: value.local.iter().map(|x| builder.constant(*x)).collect(),
+            next: value.next.iter().map(|x| builder.constant(*x)).collect(),
         }
     }
 }
@@ -112,15 +109,15 @@ impl<C: Config> FromConstant<C> for AirOpenedValuesVariable<C> {
 impl<C: Config> FromConstant<C> for ChipOpenedValuesVariable<C> {
     type Constant = ChipOpenedValues<C::EF>;
 
-    fn eval_const(value: Self::Constant, builder: &mut Builder<C>) -> Self {
+    fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         ChipOpenedValuesVariable {
-            preprocessed: builder.eval_const(value.preprocessed),
-            main: builder.eval_const(value.main),
-            permutation: builder.eval_const(value.permutation),
+            preprocessed: builder.constant(value.preprocessed),
+            main: builder.constant(value.main),
+            permutation: builder.constant(value.permutation),
             quotient: value
                 .quotient
                 .iter()
-                .map(|x| x.iter().map(|y| builder.eval_const(*y)).collect())
+                .map(|x| x.iter().map(|y| builder.constant(*y)).collect())
                 .collect(),
             cumulative_sum: builder.eval(value.cumulative_sum.cons()),
             log_degree: value.log_degree,
@@ -171,7 +168,9 @@ impl<C: Config> ChipOpening<C> {
             local: vec![],
             next: vec![],
         };
-        let permutation_width = C::EF::D * (chip.num_interactions() + 1);
+        let permutation_width =
+            C::EF::D * ((chip.num_interactions() + 1) / chip.logup_batch_size() + 1);
+
         for i in 0..permutation_width {
             permutation.local.push(opening.permutation.local[i]);
             permutation.next.push(opening.permutation.next[i]);

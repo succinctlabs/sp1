@@ -1,7 +1,7 @@
 use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
 use crate::cpu::CpuChip;
-use crate::runtime::Program;
+use crate::runtime::RecursionProgram;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -21,6 +21,7 @@ use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::mem::transmute;
+use tracing::instrument;
 
 use super::columns::CpuCols;
 use crate::runtime::ExecutionRecord;
@@ -36,12 +37,13 @@ pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
-    type Program = Program<F>;
+    type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
         "CPU".to_string()
     }
 
+    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,

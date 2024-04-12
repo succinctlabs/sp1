@@ -1,9 +1,9 @@
 use std::time::Duration;
+use tokio::runtime::Runtime;
 
 use reqwest::Client;
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, ProverClient, PublicValues, SP1Stdin};
 
-use itertools::Itertools;
 use sha2::{Digest, Sha256};
 use tendermint_light_client_verifier::options::Options;
 use tendermint_light_client_verifier::types::LightBlock;
@@ -17,10 +17,7 @@ use crate::util::fetch_light_block;
 const TENDERMINT_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 mod util;
 
-#[tokio::main]
-async fn main() {
-    // Generate proof.
-    utils::setup_logger();
+async fn get_light_blocks() -> (LightBlock, LightBlock) {
     // Uniquely identify a peer in the network.
     let peer_id: [u8; 20] = [
         0x72, 0x6b, 0xc8, 0xd2, 0x60, 0x38, 0x7c, 0xf5, 0x6e, 0xcf, 0xad, 0x3a, 0x6b, 0xf6, 0xfe,
@@ -32,14 +29,22 @@ async fn main() {
     let latest_commit = fetch_latest_commit(&client, &url).await.unwrap();
     let block: u64 = latest_commit.result.signed_header.header.height.into();
     println!("Latest block: {}", block);
-
     let light_block_1 = fetch_light_block(block - 20, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 1");
-
     let light_block_2 = fetch_light_block(block, peer_id, BASE_URL)
         .await
         .expect("Failed to generate light block 2");
+    (light_block_1, light_block_2)
+}
+
+fn main() {
+    // Generate proof.
+    utils::setup_logger();
+
+    // Use tokio runtime to get the light blocks.
+    let rt = Runtime::new().unwrap();
+    let (light_block_1, light_block_2) = rt.block_on(async { get_light_blocks().await });
 
     let expected_verdict = verify_blocks(light_block_1.clone(), light_block_2.clone());
 
@@ -56,10 +61,13 @@ async fn main() {
     // let encoded: Vec<u8> = bincode::serialize(&light_block_1).unwrap();
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
-    let proof = SP1Prover::prove(TENDERMINT_ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let proof = client.prove(TENDERMINT_ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    SP1Verifier::verify(TENDERMINT_ELF, &proof).expect("verification failed");
+    client
+        .verify(TENDERMINT_ELF, &proof)
+        .expect("verification failed");
 
     // Verify the public values
     let mut pv_hasher = Sha256::new();
@@ -68,13 +76,12 @@ async fn main() {
     pv_hasher.update(&serde_cbor::to_vec(&expected_verdict).unwrap());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pv_bytes: Vec<u8> = proof.proof.shard_proofs[0]
-        .public_values
-        .committed_value_digest
-        .iter()
-        .flat_map(|w| w.to_le_bytes())
-        .collect_vec();
-    assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
+    let public_values_bytes = proof.proof.shard_proofs[0].public_values.clone();
+    let public_values = PublicValues::from_vec(public_values_bytes);
+    assert_eq!(
+        public_values.commit_digest_bytes().as_slice(),
+        expected_pv_digest
+    );
 
     // Save proof.
     proof

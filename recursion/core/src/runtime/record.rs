@@ -1,24 +1,28 @@
 use std::sync::Arc;
 
-use p3_field::PrimeField32;
-use sp1_core::air::PublicValues;
-use sp1_core::stark::MachineRecord;
+use p3_field::{AbstractField, PrimeField32};
+use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
 use std::collections::HashMap;
 
-use super::Program;
+use super::{RecursionProgram, DIGEST_SIZE};
 use crate::air::Block;
 use crate::cpu::CpuEvent;
+use crate::poseidon2::Poseidon2Event;
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
-    pub program: Arc<Program<F>>,
+    pub program: Arc<RecursionProgram<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
+    pub poseidon2_events: Vec<Poseidon2Event<F>>,
 
     // (address)
     pub first_memory_record: Vec<F>,
 
     // (address, last_timestamp, last_value)
     pub last_memory_record: Vec<(F, F, Block<F>)>,
+
+    /// The public values.
+    pub public_values_digest: [F; DIGEST_SIZE],
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
@@ -46,7 +50,16 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         vec![self]
     }
 
-    fn public_values(&self) -> PublicValues<u32, u32> {
-        PublicValues::default()
+    fn public_values<T: AbstractField>(&self) -> Vec<T> {
+        let mut ret = self
+            .public_values_digest
+            .map(|x| T::from_canonical_u32(x.as_canonical_u32()))
+            .to_vec();
+
+        assert!(ret.len() <= PROOF_MAX_NUM_PVS);
+
+        ret.resize(PROOF_MAX_NUM_PVS, T::zero());
+
+        ret
     }
 }

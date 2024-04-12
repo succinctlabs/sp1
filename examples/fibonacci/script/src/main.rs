@@ -1,4 +1,4 @@
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -11,10 +11,11 @@ fn main() {
     let stdin = SP1Stdin::new();
 
     // Generate the proof for the given program.
-    let proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
+    let client = SP1Prover::new();
+    let proof = client.prove(ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    SP1Verifier::verify(ELF, &proof).expect("verification failed");
+    client.verify(ELF, &proof).expect("verification failed");
 
     // Save the proof.
     proof

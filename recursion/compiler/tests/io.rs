@@ -1,7 +1,7 @@
 use p3_field::AbstractField;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
-use sp1_recursion_compiler::asm::VmBuilder;
+use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_core::runtime::Runtime;
 
 #[test]
@@ -9,7 +9,7 @@ fn test_io() {
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
     type EF = <SC as StarkGenericConfig>::Challenge;
-    let mut builder = VmBuilder::<F, EF>::default();
+    let mut builder = AsmBuilder::<F, EF>::default();
 
     let arr = builder.hint_vars();
     builder.range(0, arr.len()).for_each(|i, builder| {
@@ -29,7 +29,7 @@ fn test_io() {
         builder.print_e(el);
     });
 
-    let program = builder.compile();
+    let program = builder.compile_program();
 
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());

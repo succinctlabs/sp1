@@ -1,6 +1,5 @@
-use itertools::Itertools;
 use sha2::{Digest, Sha256};
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, ProverClient, PublicValues, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -20,7 +19,8 @@ fn main() {
     stdin.write(&n);
 
     // Generate the proof for the given program and input.
-    let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let mut proof = client.prove(ELF, stdin).unwrap();
 
     println!("generated proof");
 
@@ -35,7 +35,7 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof and public values
-    SP1Verifier::verify(ELF, &proof).expect("verification failed");
+    client.verify(ELF, &proof).expect("verification failed");
 
     let mut pv_hasher = Sha256::new();
     pv_hasher.update(n.to_le_bytes());
@@ -43,13 +43,12 @@ fn main() {
     pv_hasher.update(expected_b.to_le_bytes());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let proof_pv_bytes: Vec<u8> = proof.proof.shard_proofs[0]
-        .public_values
-        .committed_value_digest
-        .iter()
-        .flat_map(|w| w.to_le_bytes())
-        .collect_vec();
-    assert_eq!(proof_pv_bytes.as_slice(), expected_pv_digest);
+    let public_values_bytes = proof.proof.shard_proofs[0].public_values.clone();
+    let public_values = PublicValues::from_vec(public_values_bytes);
+    assert_eq!(
+        public_values.commit_digest_bytes().as_slice(),
+        expected_pv_digest
+    );
 
     // Save the proof.
     proof

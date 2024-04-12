@@ -3,6 +3,7 @@ mod opcode;
 mod program;
 mod record;
 
+use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
 pub use instruction::*;
@@ -17,6 +18,7 @@ pub use record::*;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
+use crate::poseidon2::Poseidon2Event;
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
@@ -31,6 +33,9 @@ pub const HASH_RATE: usize = 8;
 
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
 pub const DIGEST_SIZE: usize = 8;
+
+/// The max size of the public values buffer
+pub const PV_BUFFER_MAX_SIZE: usize = 1024;
 
 pub const NUM_BITS: usize = 31;
 
@@ -76,7 +81,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub pc: F,
 
     /// The program.
-    pub program: Program<F>,
+    pub program: RecursionProgram<F>,
 
     /// Memory.
     pub memory: Vec<MemoryEntry<F>>,
@@ -114,7 +119,7 @@ where
     >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
     pub fn new(
-        program: &Program<F>,
+        program: &RecursionProgram<F>,
         perm: Poseidon2<
             F,
             Poseidon2ExternalMatrixGeneral,
@@ -149,7 +154,7 @@ where
         }
     }
 
-    pub fn new_no_perm(program: &Program<F>) -> Self {
+    pub fn new_no_perm(program: &RecursionProgram<F>) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
             ..Default::default()
@@ -366,6 +371,13 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::LessThanF => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let mut a_val = Block::default();
+                    a_val.0[0] = F::from_bool(b_val.0[0] < c_val.0[0]);
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::SUB => {
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
@@ -466,6 +478,15 @@ where
                         next_pc = self.pc + c_offset;
                     }
                 }
+                Opcode::BNEINC => {
+                    let (mut a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    a_val.0[0] += F::one();
+                    if a_val.0[0] != b_val.0[0] {
+                        next_pc = self.pc + c_offset;
+                    }
+                    self.mw(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
+                }
                 Opcode::EBEQ => {
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
@@ -501,7 +522,14 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
-                    panic!("TRAP instruction encountered")
+                    let trace = self.program.traces[self.pc.as_canonical_u32() as usize].clone();
+                    if let Some(mut trace) = trace {
+                        trace.resolve();
+                        eprintln!("TRAP encountered. Backtrace:\n{:?}", trace);
+                    } else {
+                        eprintln!("TRAP encountered. No backtrace available");
+                    }
+                    exit(1);
                 }
                 Opcode::Ext2Felt => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
@@ -538,6 +566,11 @@ where
                     for (i, value) in result.iter().enumerate() {
                         self.memory[dst + i].value[0] = *value;
                     }
+
+                    self.record
+                        .poseidon2_events
+                        .push(Poseidon2Event { input: array });
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Poseidon2Compress => {
@@ -577,6 +610,10 @@ where
                     for (i, value) in result.iter().enumerate() {
                         self.memory[dst + i].value[0] = *value;
                     }
+
+                    self.record
+                        .poseidon2_events
+                        .push(Poseidon2Event { input: array });
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {
@@ -661,6 +698,19 @@ where
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::Commit => {
+                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+                    let b_val = Block::<F>::default();
+                    let c_val = Block::<F>::default();
+
+                    let hash_ptr = a_val[0].as_canonical_u32() as usize;
+
+                    for i in 0..DIGEST_SIZE {
+                        self.record.public_values_digest[i] = self.memory[hash_ptr + i].value[0];
+                    }
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
             };
 
             let event = CpuEvent {
@@ -707,7 +757,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, RecursionProgram, Runtime};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -718,7 +768,8 @@ mod tests {
     fn test_witness() {
         let zero = F::zero();
         let zero_block = [F::zero(); 4];
-        let program = Program {
+        let program = RecursionProgram {
+            traces: vec![],
             instructions: vec![
                 Instruction::new(
                     Opcode::HintLen,

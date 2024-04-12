@@ -1,5 +1,5 @@
 use super::Domain;
-use crate::air::{MachineAir, PublicValues, Word};
+use crate::air::MachineAir;
 use crate::stark::MachineChip;
 use itertools::Itertools;
 use p3_air::Air;
@@ -185,7 +185,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
-                PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values),
+                proof.public_values.clone(),
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -201,7 +201,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
+        public_values: Vec<Val<SC>>,
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -232,7 +232,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
+        public_values: Vec<Val<SC>>,
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,

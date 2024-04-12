@@ -26,14 +26,21 @@ pub type OuterVal = BabyBear;
 pub type OuterChallenge = BinomialExtensionField<OuterVal, 4>;
 pub type OuterPerm = Poseidon2<Bn254Fr, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBN254, 3, 5>;
 pub type OuterHash = MultiField32PaddingFreeSponge<OuterVal, Bn254Fr, OuterPerm, 3, 8, 1>;
+pub type OuterDigestHash = Hash<Bn254Fr, Bn254Fr, 1>;
+pub type OuterDigest = [Bn254Fr; 1];
 pub type OuterCompress = TruncatedPermutation<OuterPerm, 2, 1, 3>;
 pub type OuterValMmcs = FieldMerkleTreeMmcs<BabyBear, Bn254Fr, OuterHash, OuterCompress, 1>;
 pub type OuterChallengeMmcs = ExtensionMmcs<OuterVal, OuterChallenge, OuterValMmcs>;
 pub type OuterDft = Radix2DitParallel;
 pub type OuterChallenger = MultiField32Challenger<OuterVal, Bn254Fr, OuterPerm, 3>;
 pub type OuterPcs = TwoAdicFriPcs<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
+
+pub type OuterQueryProof = QueryProof<OuterChallenge, OuterChallengeMmcs>;
+pub type OuterCommitPhaseStep = CommitPhaseProofStep<OuterChallenge, OuterChallengeMmcs>;
 pub type OuterFriProof = FriProof<OuterChallenge, OuterChallengeMmcs, OuterVal>;
-pub type OuterPcsProof = TwoAdicFriPcsProof<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
+pub type OuterBatchOpening = BatchOpening<OuterVal, OuterValMmcs>;
+pub type OuterPcsProof =
+    TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>;
 
 /// The permutation for outer recursion.
 pub fn outer_perm() -> OuterPerm {
@@ -121,6 +128,20 @@ pub fn inner_perm() -> InnerPerm {
 }
 
 /// The FRI config for inner recursion.
+pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
+    let perm = inner_perm();
+    let hash = InnerHash::new(perm.clone());
+    let compress = InnerCompress::new(perm.clone());
+    let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
+    FriConfig {
+        log_blowup: 1,
+        num_queries: 100,
+        proof_of_work_bits: 16,
+        mmcs: challenge_mmcs,
+    }
+}
+
+/// The FRI config for inner recursion.
 pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
     let hash = InnerHash::new(perm.clone());
@@ -194,5 +215,68 @@ impl StarkGenericConfig for BabyBearPoseidon2Outer {
 
     fn challenger(&self) -> Self::Challenger {
         OuterChallenger::new(self.perm.clone()).unwrap()
+    }
+}
+
+#[derive(Deserialize)]
+#[serde(from = "std::marker::PhantomData<BabyBearPoseidon2Inner>")]
+pub struct BabyBearPoseidon2Inner {
+    pub perm: InnerPerm,
+    pub pcs: InnerPcs,
+}
+
+impl Clone for BabyBearPoseidon2Inner {
+    fn clone(&self) -> Self {
+        Self::new()
+    }
+}
+
+impl Serialize for BabyBearPoseidon2Inner {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        std::marker::PhantomData::<BabyBearPoseidon2Inner>.serialize(serializer)
+    }
+}
+
+impl From<std::marker::PhantomData<BabyBearPoseidon2Inner>> for BabyBearPoseidon2Inner {
+    fn from(_: std::marker::PhantomData<BabyBearPoseidon2Inner>) -> Self {
+        Self::new()
+    }
+}
+
+impl BabyBearPoseidon2Inner {
+    pub fn new() -> Self {
+        let perm = inner_perm();
+        let hash = InnerHash::new(perm.clone());
+        let compress = InnerCompress::new(perm.clone());
+        let val_mmcs = InnerValMmcs::new(hash, compress);
+        let dft = InnerDft {};
+        let fri_config = inner_fri_config();
+        let pcs = InnerPcs::new(27, dft, val_mmcs, fri_config);
+        Self { pcs, perm }
+    }
+}
+
+impl Default for BabyBearPoseidon2Inner {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl StarkGenericConfig for BabyBearPoseidon2Inner {
+    type Val = InnerVal;
+    type Domain = <InnerPcs as p3_commit::Pcs<InnerChallenge, InnerChallenger>>::Domain;
+    type Pcs = InnerPcs;
+    type Challenge = InnerChallenge;
+    type Challenger = InnerChallenger;
+
+    fn pcs(&self) -> &Self::Pcs {
+        &self.pcs
+    }
+
+    fn challenger(&self) -> Self::Challenger {
+        InnerChallenger::new(self.perm.clone())
     }
 }
