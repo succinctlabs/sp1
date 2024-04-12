@@ -316,7 +316,7 @@ impl SP1ProverImpl {
         let chunks: Vec<_> = proofs.chunks(N).collect();
 
         // Process at most 4 proofs at once in parallel, due to memory limits.
-        let partition_size = std::cmp::min(1, chunks.len() / 4);
+        let partition_size = std::cmp::max(1, chunks.len() / 4);
         let mut new_proofs: Vec<ReduceProof> = chunks
             .into_par_iter()
             .chunks(partition_size)
