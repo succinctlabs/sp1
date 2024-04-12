@@ -27,8 +27,8 @@ sol! {
     }
 }
 
-/// Handles authentication for the prover network. All interactions that could potentially use
-/// computational resources must be authenticated by signing a message with a secp256k1 key.
+/// Handles authentication for the Succinct prover network. All interactions that could potentially
+/// use computational resources must be authenticated by signing a message with a secp256k1 key.
 ///
 /// The messages themselves follow EIP-712, where the domain is "succinct" and the TypeStruct changes
 /// depending on which endpoint is being used. Documentation for EIP-712 can be found at:

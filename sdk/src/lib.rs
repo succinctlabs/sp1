@@ -49,7 +49,7 @@ pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned>
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {
-    /// An optional prover network client used for remote operations.
+    /// An optional Succinct prover network client used for remote operations.
     pub client: Option<NetworkClient>,
 }
 
