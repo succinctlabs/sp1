@@ -53,11 +53,12 @@ impl NetworkAuth {
         }
     }
 
+    /// Gets the address of the auth's account, derived from the secp256k1 private key.
     pub fn get_address(&self) -> [u8; 20] {
         *self.wallet.address().0
     }
 
-    /// Signs a message to create a proof.
+    /// Signs a message to to request ot create a proof.
     pub async fn sign_create_proof_message(&self, nonce: u64, deadline: u64) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
@@ -69,7 +70,7 @@ impl NetworkAuth {
         Ok(signature.as_bytes().to_vec())
     }
 
-    /// Signs a message to submit a proof.
+    /// Signs a message to mark a proof as ready for proof generation.
     pub async fn sign_submit_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
@@ -84,7 +85,8 @@ impl NetworkAuth {
         Ok(signature.as_bytes().to_vec())
     }
 
-    /// Signs a message to relay a proof.
+    /// Signs a message to remote relay a proof to a specific chain with the verifier and callback
+    /// specified.
     pub async fn sign_relay_proof_message(
         &self,
         nonce: u64,

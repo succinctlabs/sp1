@@ -70,6 +70,7 @@ impl NetworkClient {
             .expect("SP1_VERIFIER_ADDRESS must be 20 bytes")
     }
 
+    /// Gets the latest nonce for this auth's account.
     pub async fn get_nonce(&self) -> u64 {
         let res = self
             .rpc
@@ -86,6 +87,7 @@ impl NetworkClient {
         Ok(())
     }
 
+    /// Makes a request to create a proof for the given ELF and stdin.
     pub async fn create_proof(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start
