@@ -24,6 +24,7 @@ use p3_poseidon2::Poseidon2;
 use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
+use sp1_core::air::Word;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
@@ -41,6 +42,7 @@ use sp1_recursion_core::stark::config::sp1_fri_config;
 use sp1_recursion_core::stark::config::BabyBearPoseidon2Inner;
 use sp1_recursion_core::stark::RecursionAir;
 use sp1_sdk::utils::BabyBearPoseidon2;
+use sp1_sdk::PublicValues;
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
@@ -122,6 +124,8 @@ pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
     let sp1_vk: VerifyingKeyVariable<_> = builder.uninit();
     let recursion_vk: VerifyingKeyVariable<_> = builder.uninit();
     let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
+    let start_pcs: Array<_, Felt<_>> = builder.uninit();
+    let next_pcs: Array<_, Felt<_>> = builder.uninit();
 
     // 2) Witness the inputs.
     if setup {
@@ -135,6 +139,8 @@ pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
         Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(&recursion_prep_domains, &mut builder);
         VerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
         VerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
+        Vec::<Val>::witness(&start_pcs, &mut builder);
+        Vec::<Val>::witness(&next_pcs, &mut builder);
         let num_proofs = is_recursive_flags.len();
         let mut proofs_target = builder.dyn_array(num_proofs);
         builder.range(0, num_proofs).for_each(|i, builder| {
@@ -161,15 +167,33 @@ pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
         recursion_challenger.observe(&mut builder, element);
     }
 
+    let mut expected_start_pc = builder.get(&start_pcs, zero);
+
     builder.range(0, num_proofs).for_each(|i, builder| {
         let proof = builder.get(&proofs, i);
         let sorted_indices = builder.get(&sorted_indices, i);
         let is_recursive = builder.get(&is_recursive_flags, i);
+
+        let shard_start_pc = builder.get(&start_pcs, i);
+        let shard_next_pc = builder.get(&next_pcs, i);
+
+        builder.assert_felt_eq(expected_start_pc, shard_start_pc);
+        expected_start_pc = shard_next_pc;
+
         builder.if_eq(is_recursive, zero).then_or_else(
             // Non-recursive proof
             |builder| {
-                let shard_f = builder.get(&proof.public_values, 32);
+                let pv =
+                    PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(proof.public_values.vec());
+
+                // Verify shard transition.
+                builder.assert_felt_eq(shard_start_pc, pv.start_pc);
+                builder.assert_felt_eq(shard_next_pc, pv.next_pc);
+
+                // Need to convert the shard as a felt to a variable, since `if_eq` only handles variables.
+                let shard_f = pv.shard;
                 let shard = felt_to_var(builder, shard_f);
+
                 // First shard logic
                 builder.if_eq(shard, one).then(|builder| {
                     // Initialize the current challenger
@@ -177,8 +201,6 @@ pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
                     builder.assign(reconstruct_challenger.clone(), empty_challenger);
                     reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                 });
-
-                // TODO: more shard transition constraints here
 
                 // Observe current proof commit and public values into reconstruct challenger
                 for j in 0..DIGEST_SIZE {
@@ -249,8 +271,13 @@ pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
 
-    builder.write_public_values(&sp1_vk.commitment);
-    builder.write_public_values(&recursion_vk.commitment);
+    let start_pc = builder.get(&start_pcs, zero);
+    builder.write_public_value(start_pc);
+
+    let last_idx: Var<_> = builder.eval(num_proofs - one);
+    let next_pc = builder.get(&next_pcs, last_idx);
+    builder.write_public_value(next_pc);
+
     builder.commit_public_values();
 
     let program = builder.compile_program();

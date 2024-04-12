@@ -393,6 +393,23 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    /// Store a felt in the public values buffer.
+    pub fn write_public_value(&mut self, val: Felt<C::F>) {
+        if self.nb_public_values.is_none() {
+            self.nb_public_values = Some(self.eval(C::N::zero()));
+            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
+        }
+
+        let nb_public_values = self.nb_public_values.unwrap();
+        let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
+
+        self.assign(nb_public_values, nb_public_values + C::N::one());
+        self.set(&mut public_values_buffer, nb_public_values, val);
+
+        self.nb_public_values = Some(nb_public_values);
+        self.public_values_buffer = Some(public_values_buffer);
+    }
+
     /// Stores an array of felts in the public values buffer.
     pub fn write_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
         if self.nb_public_values.is_none() {

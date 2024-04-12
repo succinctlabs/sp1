@@ -1,6 +1,7 @@
 use crate::stark::PROOF_MAX_NUM_PVS;
 
 use super::Word;
+use arrayref::array_ref;
 use core::fmt::Debug;
 use itertools::Itertools;
 use p3_field::{AbstractField, PrimeField32};
@@ -54,9 +55,9 @@ impl PublicValues<u32, u32> {
     }
 }
 
-impl<F: AbstractField> PublicValues<Word<F>, F> {
+impl<T: Clone> PublicValues<Word<T>, T> {
     /// Convert a vector of field elements into a PublicValues struct.
-    pub fn from_vec(data: Vec<F>) -> Self {
+    pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
         let mut committed_value_digest = Vec::new();
@@ -77,7 +78,8 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
         };
 
         Self {
-            committed_value_digest: committed_value_digest.try_into().unwrap(),
+            committed_value_digest: array_ref![committed_value_digest, 0, PV_DIGEST_NUM_WORDS]
+                .clone(),
             shard: shard.to_owned(),
             start_pc: start_pc.to_owned(),
             next_pc: next_pc.to_owned(),
