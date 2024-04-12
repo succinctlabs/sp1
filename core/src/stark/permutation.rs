@@ -224,7 +224,7 @@ pub fn eval_permutation_constraints<F, AB>(
     let preprocessed = builder.preprocessed();
     let preprocessed_local = preprocessed.row_slice(0);
 
-    let perm = builder.permutation();
+    let perm = builder.permutation().to_row_major_matrix();
     let perm_width = perm.width();
     let perm_local = perm.row_slice(0);
     let perm_local: &[AB::VarEF] = (*perm_local).borrow();
