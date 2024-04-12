@@ -28,6 +28,15 @@ impl<M: Matrix<T>, T: Send + Sync> Matrix<T> for SubMatrixRowSlices<M, T> {
         self.inner.row(r)
     }
 
+    fn row_slice(&self, r: usize) -> impl std::ops::Deref<Target = [T]> {
+        self.inner
+            .row(r)
+            .enumerate()
+            .filter(|(i, _)| self.column_range.contains(i))
+            .map(|(_, el)| el)
+            .collect::<Vec<_>>()
+    }
+
     fn width(&self) -> usize {
         self.column_range.end - self.column_range.start
     }

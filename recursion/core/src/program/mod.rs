@@ -152,7 +152,7 @@ where
         let main = builder.main();
         let preprocessed = builder.preprocessed();
 
-        let prep_local = main.row_slice(0);
+        let prep_local = preprocessed.row_slice(0);
         let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
         let mult_local = main.row_slice(1);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();

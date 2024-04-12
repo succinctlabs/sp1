@@ -75,7 +75,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
     preprocessed: Option<&RowMajorMatrix<F>>,
-    mut main: &mut RowMajorMatrix<F>,
+    main: &mut RowMajorMatrix<F>,
     random_elements: &[EF],
     batch_size: usize,
 ) -> RowMajorMatrix<EF> {
@@ -105,10 +105,10 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 
     match preprocessed {
         Some(prep) => {
-            (&mut permutation_trace)
+            permutation_trace
                 .par_row_chunks_mut(chunk_rate)
                 .zip_eq(prep.clone().par_row_chunks_mut(chunk_rate))
-                .zip_eq((&mut main).par_row_chunks_mut(chunk_rate))
+                .zip_eq(main.par_row_chunks_mut(chunk_rate))
                 .for_each(|((mut chunk, prep_rows_chunk), main_rows_chunk)| {
                     chunk
                         .rows_mut()
@@ -133,8 +133,8 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                 let index = height - remainder + i;
                 populate_permutation_row(
                     permutation_trace.row_mut(index),
-                    &(*prep.row_slice(index)),
-                    &(*main.row_slice(index)),
+                    &(prep.row_slice(index)),
+                    &(main.row_slice(index)),
                     sends,
                     receives,
                     &alphas,
@@ -171,7 +171,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                 populate_permutation_row(
                     permutation_trace.row_mut(index),
                     &[],
-                    &(*main.row_slice(index)),
+                    &(main.row_slice(index)),
                     sends,
                     receives,
                     &alphas,

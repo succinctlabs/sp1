@@ -1,6 +1,5 @@
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
-    VirtualPairCol,
 };
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;

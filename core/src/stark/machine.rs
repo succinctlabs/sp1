@@ -287,7 +287,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn debug_constraints(
         &self,
-        pk: &mut ProvingKey<SC>,
+        pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
     ) where

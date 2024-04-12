@@ -186,7 +186,7 @@ mod tests {
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::MatrixRowSlices;
+    use p3_matrix::Matrix;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
     use std::mem::size_of;
@@ -289,7 +289,8 @@ mod tests {
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var, P> = main.row_slice(0).borrow();
+            let local = main.row_slice(0);
+            let local: &TestCols<AB::Var, P> = (*local).borrow();
             local
                 .a_op_b
                 .eval::<AB, _, _>(builder, &local.a, &local.b, self.operation);

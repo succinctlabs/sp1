@@ -45,7 +45,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     .iter()
                     .map(|event_index| input.keccak_permute_events[*event_index].pre_state)
                     .collect::<Vec<_>>();
-                let mut p3_keccak_trace = generate_trace_rows::<F>(perm_inputs);
+                let p3_keccak_trace = generate_trace_rows::<F>(perm_inputs);
 
                 let rows = chunk
                     .iter()
@@ -120,7 +120,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             padded_nb_rows = 4;
         }
         if padded_nb_rows > nb_rows {
-            let mut dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);
+            let dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);
             let mut dummy_rows = Vec::new();
             for i in 0..NUM_ROUNDS {
                 let dummy_row = dummy_keccak_rows.row(i);
