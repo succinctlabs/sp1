@@ -5,8 +5,7 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_field::TwoAdicField;
-
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 
 use crate::air::SP1AirBuilder;
 use crate::operations::IsZeroOperation;
@@ -44,8 +43,9 @@ impl<F: Field> ShaExtendCols<F> {
 impl ShaExtendChip {
     pub fn eval_flags<AB: SP1AirBuilder>(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ShaExtendCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &ShaExtendCols<AB::Var> = (*local).borrow();
+        let next: &ShaExtendCols<AB::Var> = (*next).borrow();
 
         let one = AB::Expr::from(AB::F::one());
         // Generator with order 16 within BabyBear.

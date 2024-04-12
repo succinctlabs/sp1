@@ -270,6 +270,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             public_values: &public_values,
             _marker: PhantomData,
         };
+
         chip.eval(&mut folder);
 
         folder.accumulator

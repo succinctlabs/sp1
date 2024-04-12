@@ -147,7 +147,10 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
                 (vec![(PairCol::Preprocessed(v.index), F::one())], F::zero())
             }
             Entry::Main { offset: 0 } => (vec![(PairCol::Main(v.index), F::one())], F::zero()),
-            _ => panic!("Not an affine expression in current row elements"),
+            _ => panic!(
+                "Not an affine expression in current row elements {:?}",
+                v.entry
+            ),
         },
         SymbolicExpression::Add { x, y, .. } => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
@@ -196,7 +199,8 @@ mod tests {
     use p3_air::{Air, BaseAir};
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::MatrixRowSlices;
+    use p3_matrix::Matrix;
+    use std::borrow::Borrow;
 
     use super::*;
     use crate::{air::SP1AirBuilder, lookup::InteractionKind};
@@ -238,6 +242,7 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local = main.row_slice(0);
+            let local: &[AB::Var] = (*local).borrow();
 
             let x = local[0];
             let y = local[1];

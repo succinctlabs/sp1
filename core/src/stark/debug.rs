@@ -1,13 +1,16 @@
+use std::borrow::Borrow;
 use std::panic::{self, AssertUnwindSafe};
 use std::process::exit;
 
 use p3_air::{
     Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
-    PermutationAirBuilder, TwoRowMatrixView,
+    PermutationAirBuilder,
 };
 use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
-use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 
@@ -41,34 +44,42 @@ pub fn debug_constraints<SC, A>(
         let i_next = (i + 1) % height;
 
         let main_local = main.row_slice(i);
+        let main_local = &(*main_local);
         let main_next = main.row_slice(i_next);
+        let main_next = &(*main_next);
         let preprocessed_local = if let Some(preprocessed) = preprocessed {
-            preprocessed.row_slice(i)
+            let row = preprocessed.row_slice(i);
+            let row: &[_] = (*row).borrow();
+            row.to_vec()
         } else {
-            &[]
+            Vec::new()
         };
         let preprocessed_next = if let Some(preprocessed) = preprocessed {
-            preprocessed.row_slice(i_next)
+            let row = preprocessed.row_slice(i_next);
+            let row: &[_] = (*row).borrow();
+            row.to_vec()
         } else {
-            &[]
+            Vec::new()
         };
         let perm_local = perm.row_slice(i);
+        let perm_local = &(*perm_local);
         let perm_next = perm.row_slice(i_next);
+        let perm_next = &(*perm_next);
 
         let public_values = public_values.to_vec();
         let mut builder = DebugConstraintBuilder {
-            preprocessed: TwoRowMatrixView {
-                local: preprocessed_local,
-                next: preprocessed_next,
-            },
-            main: TwoRowMatrixView {
-                local: main_local,
-                next: main_next,
-            },
-            perm: TwoRowMatrixView {
-                local: perm_local,
-                next: perm_next,
-            },
+            preprocessed: VerticalPair::new(
+                RowMajorMatrixView::new_row(&preprocessed_local),
+                RowMajorMatrixView::new_row(&preprocessed_next),
+            ),
+            main: VerticalPair::new(
+                RowMajorMatrixView::new_row(main_local),
+                RowMajorMatrixView::new_row(main_next),
+            ),
+            perm: VerticalPair::new(
+                RowMajorMatrixView::new_row(perm_local),
+                RowMajorMatrixView::new_row(perm_next),
+            ),
             perm_challenges,
             cumulative_sum,
             is_first_row: Val::<SC>::zero(),
@@ -116,9 +127,9 @@ pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorM
 
 /// A builder for debugging constraints.
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
-    pub(crate) preprocessed: TwoRowMatrixView<'a, F>,
-    pub(crate) main: TwoRowMatrixView<'a, F>,
-    pub(crate) perm: TwoRowMatrixView<'a, EF>,
+    pub(crate) preprocessed: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
+    pub(crate) main: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
+    pub(crate) perm: VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>,
     pub(crate) cumulative_sum: EF,
     pub(crate) perm_challenges: &'a [EF],
     pub(crate) is_first_row: F,
@@ -149,7 +160,7 @@ where
     F: Field,
     EF: ExtensionField<F>,
 {
-    type MP = TwoRowMatrixView<'a, EF>;
+    type MP = VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>;
 
     type RandomVar = EF;
 
@@ -195,7 +206,7 @@ where
     type F = F;
     type Expr = F;
     type Var = F;
-    type M = TwoRowMatrixView<'a, F>;
+    type M = VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>;
 
     fn is_first_row(&self) -> Self::Expr {
         self.is_first_row

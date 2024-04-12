@@ -4,6 +4,7 @@ use crate::{runtime::Program, stark::MachineRecord};
 use p3_field::PrimeField32;
 use p3_keccak_air::{generate_trace_rows, NUM_KECCAK_COLS, NUM_ROUNDS};
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use tracing::instrument;
 
@@ -44,7 +45,7 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                     .iter()
                     .map(|event_index| input.keccak_permute_events[*event_index].pre_state)
                     .collect::<Vec<_>>();
-                let mut p3_keccak_trace = generate_trace_rows::<F>(perm_inputs);
+                let p3_keccak_trace = generate_trace_rows::<F>(perm_inputs);
 
                 let rows = chunk
                     .iter()
@@ -59,10 +60,11 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
                         // Create all the rows for the permutation.
                         for i in 0..NUM_ROUNDS {
                             let p3_keccak_row =
-                                p3_keccak_trace.row_mut(i + index_in_chunk * NUM_ROUNDS);
+                                p3_keccak_trace.row(i + index_in_chunk * NUM_ROUNDS);
                             let mut row = [F::zero(); NUM_KECCAK_MEM_COLS];
                             // Copy p3_keccak_row into start of cols
-                            row[..NUM_KECCAK_COLS].copy_from_slice(p3_keccak_row);
+                            row[..NUM_KECCAK_COLS]
+                                .copy_from_slice(p3_keccak_row.collect::<Vec<_>>().as_slice());
                             let cols: &mut KeccakMemCols<F> = row.as_mut_slice().borrow_mut();
 
                             cols.shard = F::from_canonical_u32(shard);
@@ -118,12 +120,12 @@ impl<F: PrimeField32> MachineAir<F> for KeccakPermuteChip {
             padded_nb_rows = 4;
         }
         if padded_nb_rows > nb_rows {
-            let mut dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);
+            let dummy_keccak_rows = generate_trace_rows::<F>(vec![[0; STATE_SIZE]]);
             let mut dummy_rows = Vec::new();
             for i in 0..NUM_ROUNDS {
-                let dummy_row = dummy_keccak_rows.row_mut(i);
+                let dummy_row = dummy_keccak_rows.row(i);
                 let mut row = [F::zero(); NUM_KECCAK_MEM_COLS];
-                row[..NUM_KECCAK_COLS].copy_from_slice(dummy_row);
+                row[..NUM_KECCAK_COLS].copy_from_slice(dummy_row.collect::<Vec<_>>().as_slice());
                 dummy_rows.push(row);
             }
             rows.append(

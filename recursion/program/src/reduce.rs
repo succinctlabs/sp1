@@ -98,7 +98,7 @@ fn felt_to_var(builder: &mut RecursionBuilder, felt: Felt<BabyBear>) -> Var<Baby
     builder.bits2num_v(&bits)
 }
 
-pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
+pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
     let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
 
