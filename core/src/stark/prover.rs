@@ -1,12 +1,16 @@
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use std::cmp::Reverse;
-use std::fs::OpenOptions;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
 use itertools::Itertools;
+
+//For benchmarking
+use cpu_time::ProcessTime;
+use std::fs::OpenOptions;
+use std::io::prelude::*;
 
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
@@ -108,8 +112,8 @@ where
         log::info!("open shards");
         let shard_proofs = tracing::debug_span!("open shards").in_scope(|| {
             shard_data_chunks
-                .into_par_iter()
-                .zip(shard_chunks.into_par_iter())
+                .into_iter()
+                .zip(shard_chunks.into_iter())
                 .map(|(datas, shards)| {
                     datas
                         .into_iter()
@@ -181,11 +185,11 @@ where
                 let start = ProcessTime::now();
                 let trace = chip.generate_trace(shard, &mut A::Record::default());
                 let elapsed = start.elapsed().as_secs_f64();
-                let file = OpenOptions::new().append(true).open("output.csv").unwrap();
+                let mut file = OpenOptions::new().append(true).open("output.csv").unwrap();
                 let phase_name = if phase1 { "Phase 1" } else { "Phase 2" };
                 file.write_all(
                     format!(
-                        "{}, Trace Generation, {},{}\n",
+                        "{},Trace Generation,{},{}\n",
                         phase_name,
                         chip.name(),
                         elapsed
@@ -204,14 +208,14 @@ where
 
         let domains_and_traces = named_traces
             .iter()
-            .map(|(_, trace)| {
+            .map(|(name, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
-                (domain, trace.to_owned())
+                (name, domain, trace.to_owned())
             })
             .collect::<Vec<_>>();
 
         // Commit to the batch of traces.
-        let (main_commit, main_data) = pcs.commit(domains_and_traces);
+        let (main_commit, main_data) = pcs.commit_with_names(domains_and_traces, phase1);
 
         // Get the chip ordering.
         let chip_ordering = named_traces
@@ -557,7 +561,7 @@ where
             tracing::debug_span!("commit shards").in_scope(|| {
                 let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
                 shards
-                    .par_chunks(chunk_size)
+                    .chunks(chunk_size)
                     .map(|shard_batch| {
                         shard_batch
                             .iter()

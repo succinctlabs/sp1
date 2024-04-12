@@ -214,8 +214,13 @@ where
             .map(|shard| {
                 let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
                 let config = machine.config();
-                let shard_data =
-                    LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
+                let shard_data = LocalProver::commit_main(
+                    config,
+                    &machine,
+                    &shard,
+                    shard.index() as usize,
+                    false,
+                );
                 LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger.clone())
             })
             .collect::<Vec<_>>();
