@@ -105,7 +105,7 @@ impl ProverClient {
             println!("Proving locally");
             ret_val = self.prove_local(elf, stdin, BabyBearPoseidon2::new());
         }
-        let elapsed = now.elapsed().as_secs_f64();
+        // let elapsed = now.elapsed().as_secs_f64();
         // let mut file = OpenOptions::new().append(true).open("output.csv").unwrap();
         // file.write_all(format!("All,Total Proof,All,{:?}\n", elapsed).as_bytes())
         //     .unwrap();
