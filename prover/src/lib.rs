@@ -284,11 +284,11 @@ impl SP1ProverImpl {
         };
 
         let mut new_proofs: Vec<ReduceProof> = proofs
-            .into_par_iter()
+            // .into_par_iter()
             .chunks(N)
             .map(|chunk| {
                 let start = Instant::now();
-                let proof = self.reduce(sp1_vk, sp1_challenger.clone(), &chunk);
+                let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk);
                 let duration = start.elapsed().as_secs();
                 println!("reduce duration = {}", duration);
                 ReduceProof::Recursive(proof)
