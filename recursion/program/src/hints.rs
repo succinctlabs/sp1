@@ -8,14 +8,16 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof,
+    AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
 };
+use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
+use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+use sp1_recursion_core::stark::config::BabyBearPoseidon2Inner;
 use sp1_recursion_core::{
     air::Block,
     stark::config::{
@@ -101,6 +103,7 @@ impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
 trait VecAutoHintable<C: Config>: Hintable<C> {}
 
 impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
+impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2Inner> {}
 impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
 
@@ -356,14 +359,25 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
         let mut stream = Vec::new();
         stream.extend(self.sponge_state.to_vec().write());
         stream.extend(self.input_buffer.len().write());
-        stream.extend(self.input_buffer.write());
+        let mut input_padded = self.input_buffer.to_vec();
+        input_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
+        stream.extend(input_padded.write());
         stream.extend(self.output_buffer.len().write());
-        stream.extend(self.output_buffer.write());
+        let mut output_padded = self.output_buffer.to_vec();
+        output_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
+        stream.extend(output_padded.write());
         stream
     }
 }
 
-impl Hintable<C> for VerifyingKey<BabyBearPoseidon2> {
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+        >,
+    > Hintable<C> for VerifyingKey<SC>
+{
     type HintVariable = VerifyingKeyVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -379,7 +393,17 @@ impl Hintable<C> for VerifyingKey<BabyBearPoseidon2> {
     }
 }
 
-impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
+// Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+        >,
+    > Hintable<C> for ShardProof<SC>
+where
+    ShardCommitment<Com<SC>>: Hintable<C>,
+{
     type HintVariable = ShardProofVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {

@@ -96,7 +96,11 @@ impl<C: Config> Builder<C> {
                     panic!("Cannot index into a fixed slice with a variable size")
                 }
             }
-            Array::Dyn(ptr, _) => {
+            Array::Dyn(ptr, len) => {
+                let index_v = index.materialize(self);
+                let len_v = len.materialize(self);
+                let valid = self.lt(index_v, len_v);
+                self.assert_var_eq(valid, C::N::one());
                 let index = MemIndex {
                     index,
                     offset: 0,
@@ -121,7 +125,11 @@ impl<C: Config> Builder<C> {
             Array::Fixed(_) => {
                 todo!()
             }
-            Array::Dyn(ptr, _) => {
+            Array::Dyn(ptr, len) => {
+                let index_v = index.materialize(self);
+                let len_v = len.materialize(self);
+                let valid = self.lt(index_v, len_v);
+                self.assert_var_eq(valid, C::N::one());
                 let index = MemIndex {
                     index,
                     offset: 0,

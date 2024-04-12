@@ -338,7 +338,7 @@ pub(crate) mod tests {
         let mut witness_stream = Vec::new();
         for proof in proofs {
             witness_stream.extend(proof.write());
-            let proof = ShardProof::<_>::read(&mut builder);
+            let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
             challenger.observe_slice(&mut builder, proof.public_values);

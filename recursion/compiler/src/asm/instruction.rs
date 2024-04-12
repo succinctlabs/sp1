@@ -229,6 +229,8 @@ pub enum AsmInstruction<F, EF> {
     // FRIFold(m, input).
     FriFold(i32, i32),
     Commit(i32),
+
+    LessThan(i32, i32, i32),
 }
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
@@ -303,6 +305,16 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             ),
             AsmInstruction::AddF(dst, lhs, rhs) => Instruction::new(
                 Opcode::ADD,
+                i32_f(dst),
+                i32_f_arr(lhs),
+                i32_f_arr(rhs),
+                F::zero(),
+                F::zero(),
+                false,
+                false,
+            ),
+            AsmInstruction::LessThan(dst, lhs, rhs) => Instruction::new(
+                Opcode::LessThanF,
                 i32_f(dst),
                 i32_f_arr(lhs),
                 i32_f_arr(rhs),
@@ -1011,6 +1023,9 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
     pub fn fmt(&self, labels: &BTreeMap<F, String>, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             AsmInstruction::Break(_) => panic!("Unresolved break instruction"),
+            AsmInstruction::LessThan(dst, left, right) => {
+                write!(f, "lt  ({})fp, {}, {}", dst, left, right,)
+            }
             AsmInstruction::LoadF(dst, src, index, offset, size) => {
                 write!(
                     f,

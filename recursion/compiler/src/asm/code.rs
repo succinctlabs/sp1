@@ -1,5 +1,6 @@
 use alloc::collections::BTreeMap;
 use alloc::format;
+use backtrace::Backtrace;
 use core::fmt;
 use core::fmt::Display;
 
@@ -10,17 +11,25 @@ use super::AsmInstruction;
 
 /// A basic block of assembly instructions.
 #[derive(Debug, Clone, Default)]
-pub struct BasicBlock<F, EF>(pub(crate) Vec<AsmInstruction<F, EF>>);
+pub struct BasicBlock<F, EF>(
+    pub(crate) Vec<AsmInstruction<F, EF>>,
+    pub(crate) Vec<Option<Backtrace>>,
+);
 
 impl<F: PrimeField32, EF: ExtensionField<F>> BasicBlock<F, EF> {
     /// Creates a new basic block.
     pub fn new() -> Self {
-        Self(Vec::new())
+        Self(Vec::new(), Vec::new())
     }
 
     /// Pushes an instruction to a basic block.
-    pub(crate) fn push(&mut self, instruction: AsmInstruction<F, EF>) {
+    pub(crate) fn push(
+        &mut self,
+        instruction: AsmInstruction<F, EF>,
+        backtrace: Option<Backtrace>,
+    ) {
         self.0.push(instruction);
+        self.1.push(backtrace);
     }
 }
 
@@ -51,16 +60,19 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
 
         // Make the second pass to convert the assembly code to machine code.
         let mut machine_code = Vec::new();
+        let mut traces = Vec::new();
         let mut pc = 0;
         for block in blocks {
-            for instruction in block.0 {
+            for (instruction, trace) in block.0.into_iter().zip(block.1) {
                 machine_code.push(instruction.to_machine(pc, &label_to_pc));
+                traces.push(trace);
                 pc += 1;
             }
         }
 
         RecursionProgram {
             instructions: machine_code,
+            traces,
         }
     }
 }
