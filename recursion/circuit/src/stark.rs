@@ -303,8 +303,6 @@ pub(crate) mod tests {
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
 
-    type C = OuterConfig;
-
     pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];

@@ -37,7 +37,7 @@ type OuterSC = BabyBearPoseidon2Outer;
 
 pub struct SP1ProverImpl {
     pub reduce_program: RecursionProgram<BabyBear>,
-    pub reduce_setup_rogram: RecursionProgram<BabyBear>,
+    pub reduce_setup_program: RecursionProgram<BabyBear>,
     pub reduce_vk_inner: VerifyingKey<InnerSC>,
     pub reduce_vk_outer: VerifyingKey<OuterSC>,
 }
@@ -89,8 +89,8 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 impl SP1ProverImpl {
     pub fn new() -> Self {
         // TODO: load from serde
-        let reduce_setup_program = build_reduce(true);
-        let mut reduce_program = build_reduce(false);
+        let reduce_setup_program = build_reduce_program(true);
+        let mut reduce_program = build_reduce_program(false);
         reduce_program.instructions[0] = Instruction::new(
             sp1_recursion_core::runtime::Opcode::ADD,
             BabyBear::zero(),
