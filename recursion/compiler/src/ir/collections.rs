@@ -97,10 +97,12 @@ impl<C: Config> Builder<C> {
                 }
             }
             Array::Dyn(ptr, len) => {
-                let index_v = index.materialize(self);
-                let len_v = len.materialize(self);
-                let valid = self.lt(index_v, len_v);
-                self.assert_var_eq(valid, C::N::one());
+                if self.debug {
+                    let index_v = index.materialize(self);
+                    let len_v = len.materialize(self);
+                    let valid = self.lt(index_v, len_v);
+                    self.assert_var_eq(valid, C::N::one());
+                }
                 let index = MemIndex {
                     index,
                     offset: 0,
@@ -126,10 +128,12 @@ impl<C: Config> Builder<C> {
                 todo!()
             }
             Array::Dyn(ptr, len) => {
-                let index_v = index.materialize(self);
-                let len_v = len.materialize(self);
-                let valid = self.lt(index_v, len_v);
-                self.assert_var_eq(valid, C::N::one());
+                if self.debug {
+                    let index_v = index.materialize(self);
+                    let len_v = len.materialize(self);
+                    let valid = self.lt(index_v, len_v);
+                    self.assert_var_eq(valid, C::N::one());
+                }
                 let index = MemIndex {
                     index,
                     offset: 0,

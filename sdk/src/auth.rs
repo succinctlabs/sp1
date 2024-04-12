@@ -8,14 +8,17 @@ use anyhow::Result;
 
 sol! {
     struct CreateProof {
+        uint64 nonce;
         uint64 deadline;
     }
 
     struct SubmitProof {
+        uint64 nonce;
         string proof_id;
     }
 
     struct RelayProof {
+        uint64 nonce;
         string proof_id;
         uint32 chain_id;
         address verifier;
@@ -24,8 +27,8 @@ sol! {
     }
 }
 
-/// Handles authentication for the prover network. All interactions that could potentially use
-/// computational resources must be authenticated by signing a message with a secp256k1 key.
+/// Handles authentication for the Succinct prover network. All interactions that could potentially
+/// use computational resources must be authenticated by signing a message with a secp256k1 key.
 ///
 /// The messages themselves follow EIP-712, where the domain is "succinct" and the TypeStruct changes
 /// depending on which endpoint is being used. Documentation for EIP-712 can be found at:
@@ -50,11 +53,16 @@ impl NetworkAuth {
         }
     }
 
-    /// Signs a message to create a proof.
-    pub async fn sign_create_proof_message(&self, deadline: u64) -> Result<Vec<u8>> {
+    /// Gets the address of the auth's account, derived from the secp256k1 private key.
+    pub fn get_address(&self) -> [u8; 20] {
+        *self.wallet.address().0
+    }
+
+    /// Signs a message to to request ot create a proof.
+    pub async fn sign_create_proof_message(&self, nonce: u64, deadline: u64) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
-        let type_struct = CreateProof { deadline };
+        let type_struct = CreateProof { nonce, deadline };
 
         let message_hash = type_struct.eip712_signing_hash(&domain_seperator);
         let signature = self.wallet.sign_hash(&message_hash).await?;
@@ -62,11 +70,12 @@ impl NetworkAuth {
         Ok(signature.as_bytes().to_vec())
     }
 
-    /// Signs a message to submit a proof.
-    pub async fn sign_submit_proof_message(&self, proof_id: &str) -> Result<Vec<u8>> {
+    /// Signs a message to mark a proof as ready for proof generation.
+    pub async fn sign_submit_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 
         let type_struct = SubmitProof {
+            nonce,
             proof_id: proof_id.to_string(),
         };
 
@@ -76,9 +85,11 @@ impl NetworkAuth {
         Ok(signature.as_bytes().to_vec())
     }
 
-    /// Signs a message to relay a proof.
+    /// Signs a message to remote relay a proof to a specific chain with the verifier and callback
+    /// specified.
     pub async fn sign_relay_proof_message(
         &self,
+        nonce: u64,
         proof_id: &str,
         chain_id: u32,
         verifier: [u8; 20],
@@ -88,6 +99,7 @@ impl NetworkAuth {
         let domain_seperator = Self::get_domain_separator();
 
         let type_struct = RelayProof {
+            nonce,
             proof_id: proof_id.to_string(),
             chain_id,
             verifier: verifier.into(),

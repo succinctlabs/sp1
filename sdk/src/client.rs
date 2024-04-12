@@ -12,9 +12,9 @@ use twirp::Client as TwirpClient;
 
 use crate::{
     proto::network::{
-        CreateProofRequest, GetProofStatusRequest, GetProofStatusResponse, GetRelayStatusRequest,
-        GetRelayStatusResponse, NetworkServiceClient, ProofStatus, RelayProofRequest,
-        SubmitProofRequest, TransactionStatus,
+        CreateProofRequest, GetNonceRequest, GetProofStatusRequest, GetProofStatusResponse,
+        GetRelayStatusRequest, GetRelayStatusResponse, NetworkServiceClient, ProofStatus,
+        RelayProofRequest, SubmitProofRequest, TransactionStatus,
     },
     SP1ProofWithIO,
 };
@@ -70,11 +70,24 @@ impl NetworkClient {
             .expect("SP1_VERIFIER_ADDRESS must be 20 bytes")
     }
 
+    /// Gets the latest nonce for this auth's account.
+    pub async fn get_nonce(&self) -> u64 {
+        let res = self
+            .rpc
+            .get_nonce(GetNonceRequest {
+                address: self.auth.get_address().to_vec(),
+            })
+            .await
+            .unwrap();
+        res.nonce
+    }
+
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
         self.http.put(url).body(data).send().await?;
         Ok(())
     }
 
+    /// Makes a request to create a proof for the given ELF and stdin.
     pub async fn create_proof(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start
@@ -82,10 +95,12 @@ impl NetworkClient {
             .expect("Invalid start time");
         let deadline = since_the_epoch.as_secs() + 1000;
 
-        let create_proof_signature = self.auth.sign_create_proof_message(deadline).await?;
+        let nonce = self.get_nonce().await;
+        let create_proof_signature = self.auth.sign_create_proof_message(nonce, deadline).await?;
         let res = self
             .rpc
             .create_proof(CreateProofRequest {
+                nonce,
                 deadline,
                 signature: create_proof_signature.to_vec(),
             })
@@ -100,10 +115,14 @@ impl NetworkClient {
         results.pop().expect("Failed to upload stdin")?;
         results.pop().expect("Failed to upload program")?;
 
-        let submit_proof_signature = self.auth.sign_submit_proof_message(&res.proof_id).await?;
-
+        let nonce = self.get_nonce().await;
+        let submit_proof_signature = self
+            .auth
+            .sign_submit_proof_message(nonce, &res.proof_id)
+            .await?;
         self.rpc
             .submit_proof(SubmitProofRequest {
+                nonce,
                 proof_id: res.proof_id.clone(),
                 signature: submit_proof_signature.to_vec(),
             })
@@ -147,11 +166,13 @@ impl NetworkClient {
         callback: [u8; 20],
         callback_data: &[u8],
     ) -> Result<String> {
+        let nonce = self.get_nonce().await;
         let relay_proof_signature = self
             .auth
-            .sign_relay_proof_message(proof_id, chain_id, verifier, callback, callback_data)
+            .sign_relay_proof_message(nonce, proof_id, chain_id, verifier, callback, callback_data)
             .await?;
         let req = RelayProofRequest {
+            nonce,
             proof_id: proof_id.to_string(),
             chain_id,
             verifier: verifier.to_vec(),

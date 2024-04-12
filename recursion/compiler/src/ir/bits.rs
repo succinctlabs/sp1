@@ -7,7 +7,7 @@ impl<C: Config> Builder<C> {
     /// Converts a variable to bits.
     pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
         let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        self.operations.push(DslIr::HintBitsV(output.clone(), num));
+        self.push(DslIr::HintBitsV(output.clone(), num));
 
         let sum: Var<_> = self.eval(C::N::zero());
         for i in 0..NUM_BITS {
@@ -27,8 +27,7 @@ impl<C: Config> Builder<C> {
             output.push(self.uninit());
         }
 
-        self.operations
-            .push(DslIr::CircuitNum2BitsV(num, bits, output.clone()));
+        self.push(DslIr::CircuitNum2BitsV(num, bits, output.clone()));
 
         output
     }
@@ -36,7 +35,7 @@ impl<C: Config> Builder<C> {
     /// Converts a felt to bits.
     pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
         let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        self.operations.push(DslIr::HintBitsF(output.clone(), num));
+        self.push(DslIr::HintBitsF(output.clone(), num));
 
         let sum: Felt<_> = self.eval(C::F::zero());
         for i in 0..NUM_BITS {
@@ -59,8 +58,7 @@ impl<C: Config> Builder<C> {
             output.push(self.uninit());
         }
 
-        self.operations
-            .push(DslIr::CircuitNum2BitsF(num, output.clone()));
+        self.push(DslIr::CircuitNum2BitsF(num, output.clone()));
 
         output
     }

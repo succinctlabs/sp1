@@ -5,7 +5,7 @@
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
@@ -19,6 +19,7 @@ use sp1_core::{
 use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
 use sp1_recursion_core::{
+    cpu::Instruction,
     runtime::{RecursionProgram, Runtime},
     stark::{
         config::{BabyBearPoseidon2Inner, BabyBearPoseidon2Outer},
@@ -36,6 +37,7 @@ type OuterSC = BabyBearPoseidon2Outer;
 
 pub struct SP1ProverImpl {
     pub reduce_program: RecursionProgram<BabyBear>,
+    pub reduce_setup_rogram: RecursionProgram<BabyBear>,
     pub reduce_vk_inner: VerifyingKey<InnerSC>,
     pub reduce_vk_outer: VerifyingKey<OuterSC>,
 }
@@ -87,10 +89,22 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 impl SP1ProverImpl {
     pub fn new() -> Self {
         // TODO: load from serde
-        let reduce_program = build_reduce_program();
+        let reduce_setup_program = build_reduce(true);
+        let mut reduce_program = build_reduce(false);
+        reduce_program.instructions[0] = Instruction::new(
+            sp1_recursion_core::runtime::Opcode::ADD,
+            BabyBear::zero(),
+            [BabyBear::zero(); 4],
+            [BabyBear::zero(); 4],
+            BabyBear::zero(),
+            BabyBear::zero(),
+            false,
+            false,
+        );
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
         Self {
+            reduce_setup_program,
             reduce_program,
             reduce_vk_inner,
             reduce_vk_outer,
@@ -208,11 +222,27 @@ impl SP1ProverImpl {
         }
         println!("witness_stream.len() = {}", witness_stream.len());
 
+        // Execute runtime to get the memory setup.
+        println!("setting up memory for recursion");
+        let machine = RecursionAir::machine(recursion_config.clone());
+        let mut runtime = Runtime::<InnerF, InnerEF, _>::new(
+            &self.reduce_setup_program,
+            machine.config().perm.clone(),
+        );
+        runtime.witness_stream = witness_stream;
+        runtime.run();
+        let mut checkpoint = runtime.memory.clone();
+        runtime.print_stats();
+
         // Execute runtime.
+        println!("executing recursion");
         let machine = RecursionAir::machine(recursion_config);
         let mut runtime =
             Runtime::<InnerF, InnerEF, _>::new(&self.reduce_program, machine.config().perm.clone());
-        runtime.witness_stream = witness_stream;
+        checkpoint.iter_mut().for_each(|e| {
+            e.timestamp = BabyBear::zero();
+        });
+        runtime.memory = checkpoint;
         runtime.run();
         runtime.print_stats();
 
@@ -321,8 +351,8 @@ mod tests {
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
-    #[ignore]
     #[test]
+    #[ignore]
     fn test_prove_sp1() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");

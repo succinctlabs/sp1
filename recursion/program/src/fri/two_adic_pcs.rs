@@ -189,16 +189,16 @@ where
             let mut points: Array<_, Ext<_, _>> = builder.dyn_array(points_val.len());
             for (j, point) in points_val.into_iter().enumerate() {
                 let el: Ext<_, _> = builder.eval(point.cons());
-                builder.set(&mut points, j, el);
+                builder.set_value(&mut points, j, el);
             }
             let mut values: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(values_val.len());
             for (j, val) in values_val.into_iter().enumerate() {
                 let mut tmp = builder.dyn_array(val.len());
                 for (k, v) in val.into_iter().enumerate() {
                     let el: Ext<_, _> = builder.eval(v.cons());
-                    builder.set(&mut tmp, k, el);
+                    builder.set_value(&mut tmp, k, el);
                 }
-                builder.set(&mut values, j, tmp);
+                builder.set_value(&mut values, j, tmp);
             }
 
             let mat = TwoAdicPcsMatsVariable {
@@ -206,7 +206,7 @@ where
                 points,
                 values,
             };
-            builder.set(&mut mats, i, mat);
+            builder.set_value(&mut mats, i, mat);
         }
 
         Self {
