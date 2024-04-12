@@ -33,9 +33,9 @@ type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
 type OuterSC = BabyBearPoseidon2Outer;
 
 pub struct SP1ProverImpl {
-    reduce_program: RecursionProgram<BabyBear>,
-    reduce_vk_inner: VerifyingKey<InnerSC>,
-    reduce_vk_outer: VerifyingKey<OuterSC>,
+    pub reduce_program: RecursionProgram<BabyBear>,
+    pub reduce_vk_inner: VerifyingKey<InnerSC>,
+    pub reduce_vk_outer: VerifyingKey<OuterSC>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -216,17 +216,12 @@ impl SP1ProverImpl {
         let config = SC::default();
         let machine = RecursionAir::machine(config);
         let (pk, _) = machine.setup(&self.reduce_program);
-        // let mut challenger = machine.config().challenger();
-        // let record_clone = runtime.record.clone();
-        // machine.debug_constraints(&pk, record_clone, &mut challenger);
+
         let start = Instant::now();
         let mut challenger = machine.config().challenger();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
         let duration = start.elapsed().as_secs();
         println!("recursion duration = {}", duration);
-
-        // let mut challenger = machine.config().challenger();
-        // machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         proof.shard_proofs.into_iter().next().unwrap()
     }
@@ -238,11 +233,7 @@ mod tests {
     use super::*;
     use sp1_core::utils::setup_logger;
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
-    use sp1_recursion_compiler::{
-        config::OuterConfig,
-        constraints::groth16_ffi,
-        ir::{Builder, Witness},
-    };
+    use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     #[ignore]
@@ -274,6 +265,9 @@ mod tests {
         let sp1_machine = RiscvAir::machine(SP1SC::default());
         let (_, vk) = sp1_machine.setup(&Program::from(elf));
 
+        // Observe all commitments and public values. This challenger will be witnessed into
+        // reduce program and used to verify sp1 proofs. It will also be reconstructed over all the
+        // reduce steps to prove that the witnessed challenger was correct.
         let mut sp1_challenger = sp1_machine.config().challenger();
         sp1_challenger.observe(vk.commit);
         for shard_proof in proof.shard_proofs.iter() {
@@ -303,10 +297,12 @@ mod tests {
                 let serialized = bincode::serialize(&reduce_proofs).unwrap();
                 std::fs::write(format!("{}.bin", layer), serialized).unwrap();
                 let mut next_proofs = Vec::new();
+                // Reduce in batches of N
                 for i in (0..reduce_proofs.len()).step_by(n) {
                     let end = std::cmp::min(i + n, reduce_proofs.len());
                     println!("i = {}, end = {}", i, end);
                     if i == end - 1 {
+                        // If the last batch only has 1 proof, just push it to the next layer.
                         next_proofs.push(reduce_proofs.pop().unwrap());
                         continue;
                     }
@@ -323,6 +319,8 @@ mod tests {
                         }
                     }
                     if reduce_proofs.len() <= n {
+                        // With the last proof, we need to use outer config since the proof will be
+                        // verified in groth16 circuit.
                         println!("last proof");
                         let proof: ShardProof<OuterSC> =
                             prover.reduce(&vk, sp1_challenger.clone(), proofs);
@@ -363,6 +361,7 @@ mod tests {
         std::fs::write("final.bin", serialized).unwrap();
     }
 
+    #[ignore]
     #[test]
     fn test_gnark_final() {
         let reduce_proof = bincode::deserialize::<ShardProof<BabyBearPoseidon2Outer>>(
