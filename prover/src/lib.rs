@@ -5,7 +5,7 @@
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
@@ -17,6 +17,7 @@ use sp1_core::{
     utils::{run_and_prove, BabyBearPoseidon2},
 };
 use sp1_recursion_core::{
+    cpu::Instruction,
     runtime::{RecursionProgram, Runtime},
     stark::{config::BabyBearPoseidon2Inner, RecursionAir},
 };
@@ -30,6 +31,7 @@ type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
 type OuterSC = BabyBearPoseidon2Inner;
 
 pub struct SP1ProverImpl {
+    reduce_setup_program: RecursionProgram<BabyBear>,
     reduce_program: RecursionProgram<BabyBear>,
     reduce_vk: VerifyingKey<InnerSC>,
 }
@@ -81,9 +83,21 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 impl SP1ProverImpl {
     pub fn new() -> Self {
         // TODO: load from serde
-        let reduce_program = build_reduce();
+        let reduce_setup_program = build_reduce(true);
+        let mut reduce_program = build_reduce(false);
+        reduce_program.instructions[0] = Instruction::new(
+            sp1_recursion_core::runtime::Opcode::ADD,
+            BabyBear::zero(),
+            [BabyBear::zero(); 4],
+            [BabyBear::zero(); 4],
+            BabyBear::zero(),
+            BabyBear::zero(),
+            false,
+            false,
+        );
         let (_, reduce_vk) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         Self {
+            reduce_setup_program,
             reduce_program,
             reduce_vk,
         }
@@ -198,11 +212,27 @@ impl SP1ProverImpl {
         }
         println!("witness_stream.len() = {}", witness_stream.len());
 
+        // Execute runtime to get the memory setup.
+        println!("setting up memory for recursion");
+        let machine = RecursionAir::machine(recursion_config.clone());
+        let mut runtime = Runtime::<InnerF, InnerEF, _>::new(
+            &self.reduce_setup_program,
+            machine.config().perm.clone(),
+        );
+        runtime.witness_stream = witness_stream;
+        runtime.run();
+        let mut checkpoint = runtime.memory.clone();
+        runtime.print_stats();
+
         // Execute runtime.
+        println!("executing recursion");
         let machine = RecursionAir::machine(recursion_config);
         let mut runtime =
             Runtime::<InnerF, InnerEF, _>::new(&self.reduce_program, machine.config().perm.clone());
-        runtime.witness_stream = witness_stream;
+        checkpoint.iter_mut().for_each(|e| {
+            e.timestamp = BabyBear::zero();
+        });
+        runtime.memory = checkpoint;
         runtime.run();
         runtime.print_stats();
 
@@ -232,7 +262,6 @@ mod tests {
     use super::*;
     use sp1_core::utils::setup_logger;
 
-    #[ignore]
     #[test]
     fn test_prove_sp1() {
         setup_logger();

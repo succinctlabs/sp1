@@ -7,6 +7,8 @@ use crate::fri::TwoAdicFriPcsVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
+use crate::types::ShardProofVariable;
+use crate::types::VerifyingKeyVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
 use p3_challenger::DuplexChallenger;
@@ -27,6 +29,7 @@ use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
+use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
@@ -93,7 +96,7 @@ fn felt_to_var(builder: &mut RecursionBuilder, felt: Felt<BabyBear>) -> Var<Baby
     builder.bits2num_v(&bits)
 }
 
-pub fn build_reduce() -> RecursionProgram<Val> {
+pub fn build_reduce(setup: bool) -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
     let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
 
@@ -107,19 +110,44 @@ pub fn build_reduce() -> RecursionProgram<Val> {
         config: recursion_config,
     };
 
-    // Read witness inputs
-    let is_recursive_flags = Vec::<usize>::read(&mut builder);
-    let sorted_indices = Vec::<Vec<usize>>::read(&mut builder);
-    let sp1_challenger = DuplexChallenger::read(&mut builder);
-    let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
-    let prep_sorted_indices = Vec::<usize>::read(&mut builder);
-    let prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
-    let recursion_prep_sorted_indices = Vec::<usize>::read(&mut builder);
-    let recursion_prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
-    let sp1_vk = VerifyingKey::<BabyBearPoseidon2>::read(&mut builder);
-    let recursion_vk = VerifyingKey::<BabyBearPoseidon2Inner>::read(&mut builder);
-    let num_proofs = is_recursive_flags.len();
+    // 1) Allocate inputs to the stack.
+    let is_recursive_flags: Array<_, Var<_>> = builder.uninit();
+    let sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
+    let sp1_challenger: DuplexChallengerVariable<_> = builder.uninit();
+    let mut reconstruct_challenger: DuplexChallengerVariable<_> = builder.uninit();
+    let prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
+    let prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
+    let recursion_prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
+    let recursion_prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
+    let sp1_vk: VerifyingKeyVariable<_> = builder.uninit();
+    let recursion_vk: VerifyingKeyVariable<_> = builder.uninit();
+    let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
 
+    // 2) Witness the inputs.
+    if setup {
+        Vec::<usize>::witness(&is_recursive_flags, &mut builder);
+        Vec::<Vec<usize>>::witness(&sorted_indices, &mut builder);
+        DuplexChallenger::witness(&sp1_challenger, &mut builder);
+        DuplexChallenger::witness(&reconstruct_challenger, &mut builder);
+        Vec::<usize>::witness(&prep_sorted_indices, &mut builder);
+        Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(&prep_domains, &mut builder);
+        Vec::<usize>::witness(&recursion_prep_sorted_indices, &mut builder);
+        Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(&recursion_prep_domains, &mut builder);
+        VerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
+        VerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
+        let num_proofs = is_recursive_flags.len();
+        let mut proofs_target = builder.dyn_array(num_proofs);
+        builder.range(0, num_proofs).for_each(|i, builder| {
+            let proof = ShardProof::<SC>::read(builder);
+            builder.set(&mut proofs_target, i, proof);
+        });
+        builder.assign(proofs.clone(), proofs_target);
+
+        // Compile the program up to this point.
+        return builder.compile_program();
+    }
+
+    let num_proofs = is_recursive_flags.len();
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.constant(F::zero());
     let one: Var<_> = builder.constant(F::one());
@@ -133,7 +161,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     }
 
     builder.range(0, num_proofs).for_each(|i, builder| {
-        let proof = ShardProof::<BabyBearPoseidon2>::read(builder);
+        let proof = builder.get(&proofs, i);
         let sorted_indices = builder.get(&sorted_indices, i);
         let is_recursive = builder.get(&is_recursive_flags, i);
         builder.if_eq(is_recursive, zero).then_or_else(
