@@ -27,13 +27,10 @@ use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
-use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_compiler::ir::Variable;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
@@ -156,7 +153,6 @@ pub fn build_reduce() -> RecursionProgram<Val> {
 
                 // Observe current proof commit and public values into reconstruct challenger
                 for j in 0..DIGEST_SIZE {
-                    builder.print_debug(20202);
                     let element = builder.get(&proof.commitment.main_commit, j);
                     reconstruct_challenger.observe(builder, element);
                 }

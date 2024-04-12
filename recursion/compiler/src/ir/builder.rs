@@ -12,13 +12,23 @@ use sp1_recursion_core::runtime::PV_BUFFER_MAX_SIZE;
 /// from another TracedVec, the traces are copied over.
 #[derive(Debug, Clone)]
 pub struct TracedVec<T> {
-    pub(crate) vec: Vec<T>,
-    pub(crate) traces: Vec<Option<Backtrace>>,
+    pub vec: Vec<T>,
+    pub traces: Vec<Option<Backtrace>>,
 }
 
 impl<T> Default for TracedVec<T> {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+impl<T> From<Vec<T>> for TracedVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        let len = vec.len();
+        Self {
+            vec,
+            traces: vec![None; len],
+        }
     }
 }
 

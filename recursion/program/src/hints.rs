@@ -1,19 +1,15 @@
-use std::collections::HashMap;
-
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
     ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
-use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
-use p3_commit::{Pcs, PolynomialSpace, TwoAdicMultiplicativeCoset, Val};
+use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::stark::{
-    AirOpenedValues, Challenge, ChipOpenedValues, Com, Dom, OpeningProof, ShardCommitment,
-    ShardOpenedValues, ShardProof,
+    AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
 };
 use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
 use sp1_recursion_compiler::{
@@ -21,7 +17,7 @@ use sp1_recursion_compiler::{
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
 use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
-use sp1_recursion_core::stark::config::{BabyBearPoseidon2Inner, BabyBearPoseidon2Outer};
+use sp1_recursion_core::stark::config::BabyBearPoseidon2Inner;
 use sp1_recursion_core::{
     air::Block,
     stark::config::{

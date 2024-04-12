@@ -5,7 +5,7 @@
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::{extension::BinomiallyExtendable, PrimeField32};
+use p3_field::PrimeField32;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
@@ -16,13 +16,9 @@ use sp1_core::{
     },
     utils::{run_and_prove, BabyBearPoseidon2},
 };
-use sp1_recursion_compiler::{config::InnerConfig, ir::Config};
 use sp1_recursion_core::{
     runtime::{RecursionProgram, Runtime},
-    stark::{
-        config::{BabyBearPoseidon2Inner, BabyBearPoseidon2Outer},
-        RecursionAir,
-    },
+    stark::{config::BabyBearPoseidon2Inner, RecursionAir},
 };
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce, stark::EMPTY};
 use std::time::Instant;
@@ -31,7 +27,6 @@ type SP1SC = BabyBearPoseidon2;
 type InnerSC = BabyBearPoseidon2Inner;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
 type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
-type InnerA = RecursionAir<InnerF>;
 type OuterSC = BabyBearPoseidon2Inner;
 
 pub struct SP1ProverImpl {
