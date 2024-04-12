@@ -232,7 +232,7 @@ mod tests {
     use super::*;
     use sp1_core::utils::setup_logger;
 
-    // #[ignore]
+    #[ignore]
     #[test]
     fn test_prove_sp1() {
         setup_logger();
