@@ -93,7 +93,7 @@ impl ProverClient {
         let now = std::time::Instant::now();
         let mut file = File::create("output.csv").unwrap();
         file.write_all(b"Phase,Process,Chip,CPU Time\n").unwrap();
-        let file = File::create("column_counts.csv");
+        let mut file = File::create("column_counts.csv").unwrap();
         file.write_all(b"Chip,Total Width,Trace Height,Area,Trace Width,Permutation Width\n")
             .unwrap();
 

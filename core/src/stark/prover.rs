@@ -333,7 +333,7 @@ where
             let trace_width = traces[i].width();
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width + permutation_width;
-            let file = OpenOptions::new()
+            let mut file = OpenOptions::new()
                 .append(true)
                 .open("column_counts.csv")
                 .unwrap();
