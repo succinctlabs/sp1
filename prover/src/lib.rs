@@ -245,8 +245,11 @@ impl SP1ProverImpl {
             .collect::<Vec<_>>();
         let mut layer = 0;
         while reduce_proofs.len() > 1 {
-            println!("layer = {}", layer);
+            println!("layer = {}, num_proofs = {}", layer, reduce_proofs.len());
+            let start = Instant::now();
             reduce_proofs = self.reduce_layer::<N>(sp1_vk, sp1_challenger.clone(), reduce_proofs);
+            let duration = start.elapsed().as_secs();
+            println!("layer {}, reduce duration = {}", layer, duration);
             layer += 1;
         }
         let last_proof = reduce_proofs.into_iter().next().unwrap();
@@ -266,8 +269,10 @@ impl SP1ProverImpl {
         if proofs.len() <= N {
             // With the last proof, we need to use outer config since the proof will be
             // verified in groth16 circuit.
-            println!("last proof");
+            let start = Instant::now();
             let proof: ShardProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
+            let duration = start.elapsed().as_secs();
+            println!("final reduce duration = {}", duration);
             return vec![ReduceProof::FinalRecursive(proof)];
         }
 
@@ -282,7 +287,10 @@ impl SP1ProverImpl {
             .into_par_iter()
             .chunks(N)
             .map(|chunk| {
+                let start = Instant::now();
                 let proof = self.reduce(sp1_vk, sp1_challenger.clone(), &chunk);
+                let duration = start.elapsed().as_secs();
+                println!("reduce duration = {}", duration);
                 ReduceProof::Recursive(proof)
             })
             .collect();
@@ -298,7 +306,10 @@ impl SP1ProverImpl {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
+        let start = Instant::now();
         groth16_ffi::prove(constraints, witness);
+        let duration = start.elapsed().as_secs();
+        println!("wrap duration = {}", duration);
     }
 }
 
@@ -346,85 +357,17 @@ mod tests {
             sp1_challenger.observe_slice(&shard_proof.public_values.to_vec());
         }
 
-        let mut reduce_proofs = proof
-            .shard_proofs
-            .into_iter()
-            .map(ReduceProof::SP1)
-            .collect::<Vec<_>>();
-        let n = 2;
-        let mut layer = 0;
-
         let start = Instant::now();
-        let final_proof: ShardProof<OuterSC> = {
-            let mut final_proof = None;
-            while reduce_proofs.len() > 1 {
-                println!("layer = {}", layer);
-                // Write layer to {i}.bin with bincode
-                let serialized = bincode::serialize(&reduce_proofs).unwrap();
-                std::fs::write(format!("{}.bin", layer), serialized).unwrap();
-                let mut next_proofs = Vec::new();
-                // Reduce in batches of N
-                for i in (0..reduce_proofs.len()).step_by(n) {
-                    let end = std::cmp::min(i + n, reduce_proofs.len());
-                    println!("i = {}, end = {}", i, end);
-                    if i == end - 1 {
-                        // If the last batch only has 1 proof, just push it to the next layer.
-                        next_proofs.push(reduce_proofs.pop().unwrap());
-                        continue;
-                    }
-                    let proofs = &reduce_proofs[i..end];
-                    for proof in proofs.iter() {
-                        match proof {
-                            ReduceProof::SP1(proof) => {
-                                println!("public values = {:?}", proof.public_values);
-                            }
-                            ReduceProof::Recursive(proof) => {
-                                println!("recursive public values = {:?}", proof.public_values);
-                            }
-                            _ => unreachable!(),
-                        }
-                    }
-                    if reduce_proofs.len() <= n {
-                        // With the last proof, we need to use outer config since the proof will be
-                        // verified in groth16 circuit.
-                        println!("last proof");
-                        let proof: ShardProof<OuterSC> =
-                            prover.reduce(&vk, sp1_challenger.clone(), proofs);
-                        final_proof = Some(proof);
-                        reduce_proofs.clear();
-                        break;
-                    }
-                    let proof: ShardProof<InnerSC> =
-                        prover.reduce(&vk, sp1_challenger.clone(), proofs);
-
-                    let recursion_machine = RecursionAir::machine(InnerSC::default());
-                    let mut challenger = recursion_machine.config().challenger();
-                    let mut full_proof = Proof::<InnerSC> {
-                        shard_proofs: vec![proof],
-                    };
-                    let res = recursion_machine.verify(
-                        &prover.reduce_vk_inner,
-                        &full_proof,
-                        &mut challenger,
-                    );
-                    if res.is_err() {
-                        println!("Failed to verify proof");
-                        println!("err = {:?}", res.err());
-                    }
-                    let proof = full_proof.shard_proofs.pop().unwrap();
-                    next_proofs.push(ReduceProof::Recursive(proof));
-                }
-                reduce_proofs = next_proofs;
-                layer += 1;
-            }
-            final_proof.unwrap()
-        };
+        let final_proof = prover.reduce_tree::<2>(&vk, sp1_challenger, proof);
         let duration = start.elapsed().as_secs();
-        println!("duration = {}", duration);
+        println!("full reduce duration = {}", duration);
 
         // Save final proof to file
         let serialized = bincode::serialize(&final_proof).unwrap();
         std::fs::write("final.bin", serialized).unwrap();
+
+        // Wrap the final proof into a groth16 proof
+        prover.wrap(final_proof);
     }
 
     #[ignore]
