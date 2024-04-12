@@ -21,6 +21,7 @@ use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::mem::transmute;
+use tracing::instrument;
 
 use super::columns::CpuCols;
 use crate::runtime::ExecutionRecord;
@@ -42,6 +43,7 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
         "CPU".to_string()
     }
 
+    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
