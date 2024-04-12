@@ -451,10 +451,7 @@ where
                 AirOpenedValues { local, next }
             })
             .collect::<Vec<_>>();
-        println!(
-            "preprocessed opened values: {:?}",
-            preprocessed_opened_values.len()
-        );
+
         let main_opened_values = main_values
             .into_iter()
             .map(|op| {
