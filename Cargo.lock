@@ -4551,6 +4551,7 @@ dependencies = [
  "axum",
  "bincode",
  "cpu-time",
+ "dotenv",
  "futures",
  "hex",
  "indicatif 0.17.8",

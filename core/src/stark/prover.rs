@@ -290,37 +290,67 @@ where
             .collect::<Vec<_>>();
 
         // Generate the permutation traces.
-        let mut permutation_traces = Vec::with_capacity(chips.len());
-        let mut cumulative_sums = Vec::with_capacity(chips.len());
-        tracing::debug_span!("generate permutation traces").in_scope(|| {
-            chips
-                .par_iter()
-                .zip(traces.par_iter())
-                .map(|(chip, main_trace)| {
-                    let preprocessed_trace = pk
-                        .chip_ordering
-                        .get(&chip.name())
-                        .map(|&index| &pk.traces[index]);
-                    let perm_trace = chip.generate_permutation_trace(
-                        preprocessed_trace,
-                        main_trace,
-                        &permutation_challenges,
-                    );
-                    let cumulative_sum = perm_trace
-                        .row_slice(main_trace.height() - 1)
-                        .last()
-                        .copied()
-                        .unwrap();
-                    (perm_trace, cumulative_sum)
-                })
-                .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
-        });
+        let (permutation_traces, cumulative_sums): (Vec<_>, Vec<_>) =
+            tracing::debug_span!("generate permutation traces").in_scope(|| {
+                chips
+                    .iter()
+                    .zip(traces.iter())
+                    .map(|(chip, main_trace)| {
+                        let preprocessed_trace = pk
+                            .chip_ordering
+                            .get(&chip.name())
+                            .map(|&index| &pk.traces[index]);
+                        let now = ProcessTime::now();
+                        let perm_trace = chip.generate_permutation_trace(
+                            preprocessed_trace,
+                            main_trace,
+                            &permutation_challenges,
+                        );
+                        let cumulative_sum = perm_trace
+                            .row_slice(main_trace.height() - 1)
+                            .last()
+                            .copied()
+                            .unwrap();
+                        let elapsed = now.elapsed().as_secs_f64();
+                        let mut file = OpenOptions::new().append(true).open("output.csv").unwrap();
+                        let _ = file
+                            .write_all(
+                                format!(
+                                    "Phase 2,Permutation Trace Generation,{},{}\n",
+                                    chip.name(),
+                                    elapsed
+                                )
+                                .as_bytes(),
+                            )
+                            .unwrap();
+                        (perm_trace, cumulative_sum)
+                    })
+                    .unzip()
+            });
 
         // Compute some statistics.
         for i in 0..chips.len() {
             let trace_width = traces[i].width();
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width + permutation_width;
+            let file = OpenOptions::new()
+                .append(true)
+                .open("column_counts.csv")
+                .unwrap();
+            let _ = file
+                .write_all(
+                    format!(
+                        "{},{},{},{},{},{}\n",
+                        chips[i].name(),
+                        total_width,
+                        traces[i].height(),
+                        total_width * traces[i].height(),
+                        trace_width,
+                        permutation_width,
+                    )
+                    .as_bytes(),
+                )
+                .unwrap();
             tracing::debug!(
                 "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
                 chips[i].name(),
@@ -365,9 +395,10 @@ where
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
         let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
             quotient_domains
-                .into_par_iter()
+                .iter()
                 .enumerate()
                 .map(|(i, quotient_domain)| {
+                    let now = ProcessTime::now();
                     let preprocessed_trace_on_quotient_domains = pk
                         .chip_ordering
                         .get(&chips[i].name())
@@ -381,7 +412,7 @@ where
                         pcs.get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain);
                     let permutation_trace_on_quotient_domains =
                         pcs.get_evaluations_on_domain(&permutation_data, i, *quotient_domain);
-                    quotient_values(
+                    let quot_vals = quotient_values(
                         chips[i],
                         cumulative_sums[i],
                         trace_domains[i],
@@ -392,7 +423,16 @@ where
                         &packed_perm_challenges,
                         alpha,
                         shard_data.public_values.clone(),
-                    )
+                    );
+                    let elapsed = now.elapsed().as_secs_f64();
+                    let mut file = OpenOptions::new().append(true).open("output.csv").unwrap();
+                    let _ = file
+                        .write_all(
+                            format!("Phase 2,Quotient,{},{}\n", chips[i].name(), elapsed)
+                                .as_bytes(),
+                        )
+                        .unwrap();
+                    quot_vals
                 })
                 .collect::<Vec<_>>()
         });

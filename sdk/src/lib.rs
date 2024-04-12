@@ -93,6 +93,9 @@ impl ProverClient {
         let now = std::time::Instant::now();
         let mut file = File::create("output.csv").unwrap();
         file.write_all(b"Phase,Process,Chip,CPU Time\n").unwrap();
+        let file = File::create("column_counts.csv");
+        file.write_all(b"Chip,Total Width,Trace Height,Area,Trace Width,Permutation Width\n")
+            .unwrap();
 
         let ret_val;
         if self.client.is_some() {
@@ -103,9 +106,9 @@ impl ProverClient {
             ret_val = self.prove_local(elf, stdin, BabyBearPoseidon2::new());
         }
         let elapsed = now.elapsed().as_secs_f64();
-        let mut file = OpenOptions::new().append(true).open("output.csv").unwrap();
-        file.write_all(format!("All,Total Proof,All,{:?}\n", elapsed).as_bytes())
-            .unwrap();
+        // let mut file = OpenOptions::new().append(true).open("output.csv").unwrap();
+        // file.write_all(format!("All,Total Proof,All,{:?}\n", elapsed).as_bytes())
+        //     .unwrap();
         ret_val
     }
 

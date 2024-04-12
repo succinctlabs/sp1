@@ -1,250 +1,211 @@
 Phase,Process,Chip,CPU Time
-Phase 1,Trace Generation,DivRem,0.000636
-Phase 1,Trace Generation,Mul,0.023809
-Phase 1,Trace Generation,Program,0.129147
-Phase 1,Trace Generation,Lt,0.409365
-Phase 1,Trace Generation,AddSub,1.097948
-Phase 1,Trace Generation,ShiftLeft,1.1592310000000001
-Phase 1,Trace Generation,Byte,0.973744
-Phase 1,Trace Generation,Bitwise,1.185401
-Phase 1,Trace Generation,ShiftRight,2.064517
-Phase 1,Trace Generation,ShaExtend,2.103771
-Phase 1,Trace Generation,CPU,2.389656
-Phase 1,Trace Generation,ShaCompress,2.839195
-Phase 1,LDE Generation,AddSub,0.420702
-Phase 1,LDE Generation,CPU,0.863487
-Phase 1,LDE Generation,Bitwise,0.171984
-Phase 1,LDE Generation,ShiftRight,0.553487
-Phase 1,LDE Generation,ShiftLeft,0.399733
-Phase 1,LDE Generation,Lt,0.314273
-Phase 1,LDE Generation,ShaCompress,0.45412
-Phase 1,LDE Generation,ShaExtend,0.153697
-Phase 1,LDE Generation,Byte,0.024057
-Phase 1,LDE Generation,Program,0.015546
-Phase 1,LDE Generation,Mul,0.011716
-Phase 1,LDE Generation,DivRem,0.001583
-Phase 1,Merkle Trees,All,26.431777
-Phase 1,Trace Generation,Program,0.133995
-Phase 1,Trace Generation,Bitwise,0.527657
-Phase 1,Trace Generation,AddSub,0.57786
-Phase 1,Trace Generation,Byte,0.635995
-Phase 1,Trace Generation,CPU,0.851795
-Phase 1,LDE Generation,CPU,0.868151
-Phase 1,LDE Generation,AddSub,0.195492
-Phase 1,LDE Generation,Bitwise,0.080031
-Phase 1,LDE Generation,Byte,0.024336
-Phase 1,LDE Generation,Program,0.01418
-Phase 1,Merkle Trees,All,9.528306
-Phase 1,Trace Generation,Program,0.139759
-Phase 1,Trace Generation,AddSub,0.436312
-Phase 1,Trace Generation,Byte,0.523129
-Phase 1,Trace Generation,CPU,0.718567
-Phase 1,LDE Generation,CPU,0.849651
-Phase 1,LDE Generation,AddSub,0.203276
-Phase 1,LDE Generation,Byte,0.027162
-Phase 1,LDE Generation,Program,0.012835
-Phase 1,Merkle Trees,All,8.710921
-Phase 1,Trace Generation,Program,0.185578
-Phase 1,Trace Generation,Byte,0.421738
-Phase 1,Trace Generation,CPU,0.603803
-Phase 1,LDE Generation,CPU,0.842782
-Phase 1,LDE Generation,Byte,0.024605
-Phase 1,LDE Generation,Program,0.014254
-Phase 1,Merkle Trees,All,7.878915
-Phase 1,Trace Generation,Program,0.150622
-Phase 1,Trace Generation,Byte,0.417678
-Phase 1,Trace Generation,CPU,0.599595
-Phase 1,LDE Generation,CPU,0.823966
-Phase 1,LDE Generation,Byte,0.024835
-Phase 1,LDE Generation,Program,0.015431
-Phase 1,Merkle Trees,All,7.860613
-Phase 1,Trace Generation,MemoryFinalize,0.007468
-Phase 1,Trace Generation,MemoryProgram,0.014043
-Phase 1,Trace Generation,MemoryInit,0.013788
-Phase 1,Trace Generation,Program,0.05714
-Phase 1,Trace Generation,Byte,0.236652
-Phase 1,Trace Generation,CPU,0.245895
-Phase 1,LDE Generation,CPU,0.419197
-Phase 1,LDE Generation,Byte,0.024967
-Phase 1,LDE Generation,Program,0.017166
-Phase 1,LDE Generation,MemoryProgram,0.014982
-Phase 1,LDE Generation,MemoryInit,0.010624
-Phase 1,LDE Generation,MemoryFinalize,0.009568
-Phase 1,Merkle Trees,All,4.138208
-Phase 2,Trace Generation,DivRem,0.000178
-Phase 2,Trace Generation,Mul,0.070761
-Phase 2,Trace Generation,Program,0.192342
-Phase 2,Trace Generation,Lt,0.427782
-Phase 2,Trace Generation,AddSub,0.989917
-Phase 2,Trace Generation,ShiftLeft,1.048614
-Phase 2,Trace Generation,Byte,0.632396
-Phase 2,Trace Generation,Bitwise,1.224434
-Phase 2,Trace Generation,ShaExtend,1.706636
-Phase 2,Trace Generation,ShiftRight,1.819186
-Phase 2,Trace Generation,CPU,2.430022
-Phase 2,Trace Generation,ShaCompress,2.741639
-Phase 2,LDE Generation,AddSub,0.416624
-Phase 2,LDE Generation,CPU,0.856642
-Phase 2,LDE Generation,Bitwise,0.170976
-Phase 2,LDE Generation,ShiftRight,0.556382
-Phase 2,LDE Generation,ShiftLeft,0.401041
-Phase 2,LDE Generation,Lt,0.320626
-Phase 2,LDE Generation,ShaCompress,0.462577
-Phase 2,LDE Generation,ShaExtend,0.147052
-Phase 2,LDE Generation,Byte,0.025257
-Phase 2,LDE Generation,Program,0.014146
-Phase 2,LDE Generation,Mul,0.010781
-Phase 2,LDE Generation,DivRem,0.001889
-Phase 2,Merkle Trees,All,26.547082
-Phase 2,Permutation Trace Generation,AddSub,4.118891
-Phase 2,Permutation Trace Generation,CPU,8.924031
-Phase 2,Permutation Trace Generation,Bitwise,1.277583
-Phase 2,Permutation Trace Generation,ShiftRight,6.101093
-Phase 2,Permutation Trace Generation,ShiftLeft,1.2722470000000001
-Phase 2,Permutation Trace Generation,Lt,0.355876
-Phase 2,Permutation Trace Generation,ShaCompress,6.585574
-Phase 2,Permutation Trace Generation,ShaExtend,2.06001
-Phase 2,Permutation Trace Generation,Byte,0.268695
-Phase 2,Permutation Trace Generation,Program,0.046546
-Phase 2,Permutation Trace Generation,Mul,0.055952
-Phase 2,Permutation Trace Generation,DivRem,0.000502
-Phase 2,Quotient,AddSub,0.000038
-Phase 2,Quotient,CPU,0.000007
-Phase 2,Quotient,Bitwise,0.000001
-Phase 2,Quotient,ShiftRight,0.000001
-Phase 2,Quotient,ShiftLeft,0
-Phase 2,Quotient,Lt,0
-Phase 2,Quotient,ShaCompress,0
-Phase 2,Quotient,ShaExtend,0.000001
-Phase 2,Quotient,Byte,0
-Phase 2,Quotient,Program,0
-Phase 2,Quotient,Mul,0
-Phase 2,Quotient,DivRem,0
-Phase 2,Quotient,AddSub,2.822031
-Phase 2,Quotient,CPU,5.834742
-Phase 2,Quotient,Bitwise,0.982762
-Phase 2,Quotient,ShiftRight,3.283453
-Phase 2,Quotient,ShiftLeft,1.626007
-Phase 2,Quotient,Lt,1.08062
-Phase 2,Quotient,ShaCompress,3.5349120000000003
-Phase 2,Quotient,ShaExtend,0.910664
-Phase 2,Quotient,Byte,0.148566
-Phase 2,Quotient,Program,0.057273
-Phase 2,Quotient,Mul,0.033384
-Phase 2,Quotient,DivRem,0.000707
-Phase 2,Quotient Commit,All,6.967471
-Phase 2,Trace Generation,Program,0.232914
-Phase 2,Trace Generation,Bitwise,0.558223
-Phase 2,Trace Generation,AddSub,0.587592
-Phase 2,Trace Generation,Byte,0.651252
-Phase 2,Trace Generation,CPU,0.849366
-Phase 2,LDE Generation,CPU,0.856303
-Phase 2,LDE Generation,AddSub,0.20096
-Phase 2,LDE Generation,Bitwise,0.088851
-Phase 2,LDE Generation,Byte,0.02621
-Phase 2,LDE Generation,Program,0.015035
-Phase 2,Merkle Trees,All,9.513787
-Phase 2,Permutation Trace Generation,CPU,8.921352
-Phase 2,Permutation Trace Generation,AddSub,2.177259
-Phase 2,Permutation Trace Generation,Bitwise,0.64311
-Phase 2,Permutation Trace Generation,Byte,0.25938
-Phase 2,Permutation Trace Generation,Program,0.044451
-Phase 2,Quotient,CPU,0.000033
-Phase 2,Quotient,AddSub,0.000002
-Phase 2,Quotient,Bitwise,0
-Phase 2,Quotient,Byte,0.000001
-Phase 2,Quotient,Program,0
-Phase 2,Quotient,CPU,5.806481
-Phase 2,Quotient,AddSub,1.391781
-Phase 2,Quotient,Bitwise,0.476027
-Phase 2,Quotient,Byte,0.147348
-Phase 2,Quotient,Program,0.060928
-Phase 2,Quotient Commit,All,2.647667
-Phase 2,Trace Generation,Program,0.12245
-Phase 2,Trace Generation,AddSub,0.425332
-Phase 2,Trace Generation,Byte,0.51127
-Phase 2,Trace Generation,CPU,0.70714
-Phase 2,LDE Generation,CPU,0.858541
-Phase 2,LDE Generation,AddSub,0.216116
-Phase 2,LDE Generation,Byte,0.026852
-Phase 2,LDE Generation,Program,0.014632
-Phase 2,Merkle Trees,All,8.805554
-Phase 2,Permutation Trace Generation,CPU,8.909823
-Phase 2,Permutation Trace Generation,AddSub,2.0570019999999998
-Phase 2,Permutation Trace Generation,Byte,0.265212
-Phase 2,Permutation Trace Generation,Program,0.047333
-Phase 2,Quotient,CPU,0.000007
-Phase 2,Quotient,AddSub,0.000002
-Phase 2,Quotient,Byte,0.000001
-Phase 2,Quotient,Program,0.000001
-Phase 2,Quotient,CPU,5.788174
-Phase 2,Quotient,AddSub,1.390008
-Phase 2,Quotient,Byte,0.142893
-Phase 2,Quotient,Program,0.054607
-Phase 2,Quotient Commit,All,2.086729
-Phase 2,Trace Generation,Program,0.120614
-Phase 2,Trace Generation,Byte,0.431391
-Phase 2,Trace Generation,CPU,0.612309
-Phase 2,LDE Generation,CPU,0.870117
-Phase 2,LDE Generation,Byte,0.026057
-Phase 2,LDE Generation,Program,0.014633
-Phase 2,Merkle Trees,All,7.862281
-Phase 2,Permutation Trace Generation,CPU,8.933373
-Phase 2,Permutation Trace Generation,Byte,0.263838
-Phase 2,Permutation Trace Generation,Program,0.045114
-Phase 2,Quotient,CPU,0.000033
-Phase 2,Quotient,Byte,0.000002
-Phase 2,Quotient,Program,0.000001
-Phase 2,Quotient,CPU,5.820128
-Phase 2,Quotient,Byte,0.142547
-Phase 2,Quotient,Program,0.057941
-Phase 2,Quotient Commit,All,1.412366
-Phase 2,Trace Generation,Program,0.131623
-Phase 2,Trace Generation,Byte,0.25151
-Phase 2,Trace Generation,CPU,0.580516
-Phase 2,LDE Generation,CPU,0.860243
-Phase 2,LDE Generation,Byte,0.026019
-Phase 2,LDE Generation,Program,0.014604
-Phase 2,Merkle Trees,All,7.8627780000000005
-Phase 2,Permutation Trace Generation,CPU,8.875988
-Phase 2,Permutation Trace Generation,Byte,0.260748
-Phase 2,Permutation Trace Generation,Program,0.047777
-Phase 2,Quotient,CPU,0.000013
-Phase 2,Quotient,Byte,0.000001
-Phase 2,Quotient,Program,0.000001
-Phase 2,Quotient,CPU,5.785575
-Phase 2,Quotient,Byte,0.144512
-Phase 2,Quotient,Program,0.056008
-Phase 2,Quotient Commit,All,1.420641
-Phase 2,Trace Generation,MemoryFinalize,0.005519
-Phase 2,Trace Generation,MemoryInit,0.00478
-Phase 2,Trace Generation,MemoryProgram,0.045162
-Phase 2,Trace Generation,Program,0.076195
-Phase 2,Trace Generation,Byte,0.143126
-Phase 2,Trace Generation,CPU,0.235733
-Phase 2,LDE Generation,CPU,0.429013
-Phase 2,LDE Generation,Byte,0.029561
-Phase 2,LDE Generation,Program,0.014473
-Phase 2,LDE Generation,MemoryProgram,0.012875
-Phase 2,LDE Generation,MemoryInit,0.01019
-Phase 2,LDE Generation,MemoryFinalize,0.010064
-Phase 2,Merkle Trees,All,4.141491
-Phase 2,Permutation Trace Generation,CPU,4.453809
-Phase 2,Permutation Trace Generation,Byte,0.264253
-Phase 2,Permutation Trace Generation,Program,0.047152
-Phase 2,Permutation Trace Generation,MemoryProgram,0.019366
-Phase 2,Permutation Trace Generation,MemoryInit,0.01154
-Phase 2,Permutation Trace Generation,MemoryFinalize,0.011299
-Phase 2,Quotient,CPU,0.000022
-Phase 2,Quotient,Byte,0.000001
-Phase 2,Quotient,Program,0
-Phase 2,Quotient,MemoryProgram,0.000001
-Phase 2,Quotient,MemoryInit,0.000001
-Phase 2,Quotient,MemoryFinalize,0.000001
-Phase 2,Quotient,CPU,2.902028
-Phase 2,Quotient,Byte,0.142732
-Phase 2,Quotient,Program,0.054222
-Phase 2,Quotient,MemoryProgram,0.032856
-Phase 2,Quotient,MemoryInit,0.018758
-Phase 2,Quotient,MemoryFinalize,0.018051
-Phase 2,Quotient Commit,All,0.993169
+Phase 1,Trace Generation,DivRem,0.000807
+Phase 1,Trace Generation,Mul,0.034142
+Phase 1,Trace Generation,Program,0.114095
+Phase 1,Trace Generation,Lt,0.561465
+Phase 1,Trace Generation,AddSub,1.160115
+Phase 1,Trace Generation,ShiftLeft,1.210976
+Phase 1,Trace Generation,Byte,1.073929
+Phase 1,Trace Generation,Bitwise,1.510902
+Phase 1,Trace Generation,ShiftRight,2.154294
+Phase 1,Trace Generation,ShaExtend,2.187883
+Phase 1,Trace Generation,CPU,2.322205
+Phase 1,Trace Generation,ShaCompress,2.8816
+Phase 1,LDE Generation,AddSub,0.505501
+Phase 1,LDE Generation,CPU,0.904105
+Phase 1,LDE Generation,Bitwise,0.22764
+Phase 1,LDE Generation,ShiftRight,0.626168
+Phase 1,LDE Generation,ShiftLeft,0.438101
+Phase 1,LDE Generation,Lt,0.354512
+Phase 1,LDE Generation,ShaCompress,0.468188
+Phase 1,LDE Generation,ShaExtend,0.15509
+Phase 1,LDE Generation,Byte,0.02991
+Phase 1,LDE Generation,Program,0.017717
+Phase 1,LDE Generation,Mul,0.011431
+Phase 1,LDE Generation,DivRem,0.00172
+Phase 1,Merkle Trees,All,26.549606
+Phase 1,Trace Generation,Program,0.164751
+Phase 1,Trace Generation,Bitwise,0.467951
+Phase 1,Trace Generation,AddSub,0.528366
+Phase 1,Trace Generation,Byte,0.28077
+Phase 1,Trace Generation,CPU,0.8314
+Phase 1,LDE Generation,CPU,0.891124
+Phase 1,LDE Generation,AddSub,0.239144
+Phase 1,LDE Generation,Bitwise,0.106545
+Phase 1,LDE Generation,Byte,0.028829
+Phase 1,LDE Generation,Program,0.017051
+Phase 1,Merkle Trees,All,9.517088
+Phase 1,Trace Generation,Program,0.146782
+Phase 1,Trace Generation,AddSub,0.427814
+Phase 1,Trace Generation,Byte,0.532022
+Phase 1,Trace Generation,CPU,0.719785
+Phase 1,LDE Generation,CPU,0.887227
+Phase 1,LDE Generation,AddSub,0.240304
+Phase 1,LDE Generation,Byte,0.030538
+Phase 1,LDE Generation,Program,0.017626
+Phase 1,Merkle Trees,All,8.809916
+Phase 1,Trace Generation,Program,0.157561
+Phase 1,Trace Generation,Byte,0.384008
+Phase 1,Trace Generation,CPU,0.611143
+Phase 1,LDE Generation,CPU,0.885281
+Phase 1,LDE Generation,Byte,0.029581
+Phase 1,LDE Generation,Program,0.017725
+Phase 1,Merkle Trees,All,7.8765
+Phase 1,Trace Generation,Program,0.236929
+Phase 1,Trace Generation,Byte,0.418505
+Phase 1,Trace Generation,CPU,0.595951
+Phase 1,LDE Generation,CPU,0.904319
+Phase 1,LDE Generation,Byte,0.029315
+Phase 1,LDE Generation,Program,0.016945
+Phase 1,Merkle Trees,All,7.866842
+Phase 1,Trace Generation,MemoryFinalize,0.004869
+Phase 1,Trace Generation,MemoryInit,0.004986
+Phase 1,Trace Generation,MemoryProgram,0.012654
+Phase 1,Trace Generation,Program,0.049627
+Phase 1,Trace Generation,Byte,0.231258
+Phase 1,Trace Generation,CPU,0.236226
+Phase 1,LDE Generation,CPU,0.44341
+Phase 1,LDE Generation,Byte,0.029521
+Phase 1,LDE Generation,Program,0.017246
+Phase 1,LDE Generation,MemoryProgram,0.014374
+Phase 1,LDE Generation,MemoryInit,0.010294
+Phase 1,LDE Generation,MemoryFinalize,0.013701
+Phase 1,Merkle Trees,All,4.134731
+Phase 2,Trace Generation,DivRem,0.000192
+Phase 2,Trace Generation,Mul,0.025627
+Phase 2,Trace Generation,Program,0.206142
+Phase 2,Trace Generation,Lt,0.249961
+Phase 2,Trace Generation,ShiftLeft,0.9869
+Phase 2,Trace Generation,Byte,0.604643
+Phase 2,Trace Generation,Bitwise,1.352226
+Phase 2,Trace Generation,AddSub,1.447683
+Phase 2,Trace Generation,ShiftRight,1.991546
+Phase 2,Trace Generation,ShaExtend,1.979831
+Phase 2,Trace Generation,CPU,2.257059
+Phase 2,Trace Generation,ShaCompress,2.755551
+Phase 2,LDE Generation,AddSub,0.516054
+Phase 2,LDE Generation,CPU,0.858081
+Phase 2,LDE Generation,Bitwise,0.197605
+Phase 2,LDE Generation,ShiftRight,0.614635
+Phase 2,LDE Generation,ShiftLeft,0.436102
+Phase 2,LDE Generation,Lt,0.352954
+Phase 2,LDE Generation,ShaCompress,0.469479
+Phase 2,LDE Generation,ShaExtend,0.156858
+Phase 2,LDE Generation,Byte,0.028478
+Phase 2,LDE Generation,Program,0.016481
+Phase 2,LDE Generation,Mul,0.010231
+Phase 2,LDE Generation,DivRem,0.002473
+Phase 2,Merkle Trees,All,26.497643
+Phase 2,Permutation Trace Generation,AddSub,4.133798
+Phase 2,Permutation Trace Generation,CPU,8.915098
+Phase 2,Permutation Trace Generation,Bitwise,1.278147
+Phase 2,Permutation Trace Generation,ShiftRight,6.535999
+Phase 2,Permutation Trace Generation,ShiftLeft,1.343154
+Phase 2,Permutation Trace Generation,Lt,0.353098
+Phase 2,Permutation Trace Generation,ShaCompress,7.110322
+Phase 2,Permutation Trace Generation,ShaExtend,2.058086
+Phase 2,Permutation Trace Generation,Byte,0.264286
+Phase 2,Permutation Trace Generation,Program,0.046174
+Phase 2,Permutation Trace Generation,Mul,0.054594
+Phase 2,Permutation Trace Generation,DivRem,0.000526
+Phase 2,Quotient,AddSub,2.829575
+Phase 2,Quotient,CPU,5.928591
+Phase 2,Quotient,Bitwise,0.979446
+Phase 2,Quotient,ShiftRight,3.30906
+Phase 2,Quotient,ShiftLeft,1.622827
+Phase 2,Quotient,Lt,1.085365
+Phase 2,Quotient,ShaCompress,3.590769
+Phase 2,Quotient,ShaExtend,0.915439
+Phase 2,Quotient,Byte,0.141635
+Phase 2,Quotient,Program,0.058159
+Phase 2,Quotient,Mul,0.032742
+Phase 2,Quotient,DivRem,0.000572
+Phase 2,Trace Generation,Program,0.212113
+Phase 2,Trace Generation,Bitwise,0.479734
+Phase 2,Trace Generation,AddSub,0.501843
+Phase 2,Trace Generation,Byte,0.181572
+Phase 2,Trace Generation,CPU,0.806476
+Phase 2,LDE Generation,CPU,0.89887
+Phase 2,LDE Generation,AddSub,0.243469
+Phase 2,LDE Generation,Bitwise,0.10445
+Phase 2,LDE Generation,Byte,0.03036
+Phase 2,LDE Generation,Program,0.017451
+Phase 2,Merkle Trees,All,9.522774
+Phase 2,Permutation Trace Generation,CPU,8.917757
+Phase 2,Permutation Trace Generation,AddSub,2.060981
+Phase 2,Permutation Trace Generation,Bitwise,0.639564
+Phase 2,Permutation Trace Generation,Byte,0.26578
+Phase 2,Permutation Trace Generation,Program,0.048237
+Phase 2,Quotient,CPU,5.926043
+Phase 2,Quotient,AddSub,1.396479
+Phase 2,Quotient,Bitwise,0.47585
+Phase 2,Quotient,Byte,0.146405
+Phase 2,Quotient,Program,0.056509
+Phase 2,Trace Generation,Program,0.142778
+Phase 2,Trace Generation,AddSub,0.437376
+Phase 2,Trace Generation,Byte,0.522164
+Phase 2,Trace Generation,CPU,0.71473
+Phase 2,LDE Generation,CPU,0.876215
+Phase 2,LDE Generation,AddSub,0.243555
+Phase 2,LDE Generation,Byte,0.030724
+Phase 2,LDE Generation,Program,0.017735
+Phase 2,Merkle Trees,All,8.831867
+Phase 2,Permutation Trace Generation,CPU,8.898654
+Phase 2,Permutation Trace Generation,AddSub,2.044926
+Phase 2,Permutation Trace Generation,Byte,0.263472
+Phase 2,Permutation Trace Generation,Program,0.046051
+Phase 2,Quotient,CPU,5.900955
+Phase 2,Quotient,AddSub,1.394681
+Phase 2,Quotient,Byte,0.143026
+Phase 2,Quotient,Program,0.058587
+Phase 2,Trace Generation,Program,0.141954
+Phase 2,Trace Generation,Byte,0.422289
+Phase 2,Trace Generation,CPU,0.601668
+Phase 2,LDE Generation,CPU,0.904448
+Phase 2,LDE Generation,Byte,0.030478
+Phase 2,LDE Generation,Program,0.016529
+Phase 2,Merkle Trees,All,7.837077
+Phase 2,Permutation Trace Generation,CPU,8.911673
+Phase 2,Permutation Trace Generation,Byte,0.264057
+Phase 2,Permutation Trace Generation,Program,0.045278
+Phase 2,Quotient,CPU,5.9060559999999995
+Phase 2,Quotient,Byte,0.142132
+Phase 2,Quotient,Program,0.055068
+Phase 2,Trace Generation,Program,0.180821
+Phase 2,Trace Generation,Byte,0.416284
+Phase 2,Trace Generation,CPU,0.584332
+Phase 2,LDE Generation,CPU,0.87054
+Phase 2,LDE Generation,Byte,0.028425
+Phase 2,LDE Generation,Program,0.017207
+Phase 2,Merkle Trees,All,7.848836
+Phase 2,Permutation Trace Generation,CPU,8.880294
+Phase 2,Permutation Trace Generation,Byte,0.294982
+Phase 2,Permutation Trace Generation,Program,0.046825
+Phase 2,Quotient,CPU,5.963566
+Phase 2,Quotient,Byte,0.145299
+Phase 2,Quotient,Program,0.056491
+Phase 2,Trace Generation,MemoryFinalize,0.005397
+Phase 2,Trace Generation,MemoryProgram,0.032457
+Phase 2,Trace Generation,MemoryInit,0.005231
+Phase 2,Trace Generation,Program,0.078291
+Phase 2,Trace Generation,Byte,0.129782
+Phase 2,Trace Generation,CPU,0.230039
+Phase 2,LDE Generation,CPU,0.538022
+Phase 2,LDE Generation,Byte,0.029354
+Phase 2,LDE Generation,Program,0.018135
+Phase 2,LDE Generation,MemoryProgram,0.016635
+Phase 2,LDE Generation,MemoryInit,0.00973
+Phase 2,LDE Generation,MemoryFinalize,0.01078
+Phase 2,Merkle Trees,All,4.1450569999999995
+Phase 2,Permutation Trace Generation,CPU,4.452046
+Phase 2,Permutation Trace Generation,Byte,0.264298
+Phase 2,Permutation Trace Generation,Program,0.046824
+Phase 2,Permutation Trace Generation,MemoryProgram,0.019661
+Phase 2,Permutation Trace Generation,MemoryInit,0.009881
+Phase 2,Permutation Trace Generation,MemoryFinalize,0.010642
+Phase 2,Quotient,CPU,2.968569
+Phase 2,Quotient,Byte,0.143836
+Phase 2,Quotient,Program,0.056084
+Phase 2,Quotient,MemoryProgram,0.033897
+Phase 2,Quotient,MemoryInit,0.01989
+Phase 2,Quotient,MemoryFinalize,0.019562
