@@ -154,10 +154,6 @@ where
     }
 }
 
-fn empty<'a, SC: StarkGenericConfig>(data: &'a DenseMatrix<SC::Val>) -> impl Matrix<Val<SC>> + 'a {
-    data.split_rows(0).1.bit_reverse_rows()
-}
-
 pub struct LocalProver<SC, A>(PhantomData<SC>, PhantomData<A>);
 
 impl<SC, A> LocalProver<SC, A>
