@@ -136,10 +136,9 @@ pub struct ShardProof<SC: StarkGenericConfig> {
 
 impl<T: Send + Sync + Clone> AirOpenedValues<T> {
     pub fn view(&self) -> VerticalPair<RowMajorMatrixView<'_, T>, RowMajorMatrixView<'_, T>> {
-        VerticalPair::new(
-            RowMajorMatrixView::new_row(&self.local),
-            RowMajorMatrixView::new_row(&self.next),
-        )
+        let a = RowMajorMatrixView::new_row(&self.local);
+        let b = RowMajorMatrixView::new_row(&self.next);
+        VerticalPair::new(a, b)
     }
 }
 

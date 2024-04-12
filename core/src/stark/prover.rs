@@ -14,8 +14,6 @@ use p3_commit::PolynomialSpace;
 use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::PrimeField32;
-use p3_matrix::bitrev::BitReversableMatrix;
-use p3_matrix::dense::DenseMatrix;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
@@ -498,8 +496,6 @@ where
                             local: vec![],
                             next: vec![],
                         });
-                    println!("pk: {:?}", pk.chip_ordering);
-                    println!("preprocessed: {:?}", preprocessed);
                     ChipOpenedValues {
                         preprocessed,
                         main,

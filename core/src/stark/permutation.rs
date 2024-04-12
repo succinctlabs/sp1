@@ -1,8 +1,6 @@
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{
-    AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue, Powers, PrimeField,
-};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use std::borrow::Borrow;
@@ -218,7 +216,8 @@ pub fn eval_permutation_constraints<F, AB>(
         (random_elements[0].into(), random_elements[1].into());
 
     let main = builder.main();
-    let main_local = main.row_slice(0);
+    let main_local = main.to_row_major_matrix();
+    let main_local = main_local.row_slice(0);
     let main_local: &[AB::Var] = (*main_local).borrow();
 
     let preprocessed = builder.preprocessed();
