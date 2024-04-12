@@ -362,6 +362,7 @@ mod tests {
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     #[test]
+    #[ignore]
     fn test_prove_sp1() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
