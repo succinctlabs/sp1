@@ -234,7 +234,7 @@ type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
 pub fn build_wrap_circuit(
-    vk: VerifyingKey<OuterSC>,
+    vk: &VerifyingKey<OuterSC>,
     dummy_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let outer_config = OuterSC::new();
@@ -274,7 +274,7 @@ pub fn build_wrap_circuit(
 
     StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
         &mut builder,
-        &vk,
+        vk,
         &outer_machine,
         &mut challenger.clone(),
         &proof,
@@ -290,24 +290,13 @@ pub fn build_wrap_circuit(
 pub(crate) mod tests {
 
     use crate::stark::build_wrap_circuit;
-    use crate::types::OuterDigestVariable;
     use crate::witness::Witnessable;
-    use crate::{challenger::MultiField32ChallengerVariable, stark::StarkVerifierCircuit};
     use p3_baby_bear::DiffusionMatrixBabybear;
-    use p3_bn254_fr::Bn254Fr;
-    use p3_challenger::CanObserve;
     use p3_field::PrimeField32;
     use serial_test::serial;
-    use sp1_core::{
-        air::MachineAir,
-        stark::{LocalProver, ShardCommitment, StarkGenericConfig},
-    };
+    use sp1_core::stark::{LocalProver, StarkGenericConfig};
     use sp1_recursion_compiler::ir::Witness;
-    use sp1_recursion_compiler::{
-        config::OuterConfig,
-        constraints::{groth16_ffi, ConstraintCompiler},
-        ir::Builder,
-    };
+    use sp1_recursion_compiler::{config::OuterConfig, constraints::groth16_ffi};
     use sp1_recursion_core::{
         cpu::Instruction,
         runtime::{Opcode, RecursionProgram, Runtime},
@@ -362,7 +351,7 @@ pub(crate) mod tests {
         let proof = proofs.pop().unwrap();
         proof.write(&mut witness);
 
-        let constraints = build_wrap_circuit(vk, proof);
+        let constraints = build_wrap_circuit(&vk, proof);
 
         groth16_ffi::prove::<OuterConfig>(constraints, witness);
     }

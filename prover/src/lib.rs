@@ -6,6 +6,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::PrimeField32;
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
@@ -16,6 +17,8 @@ use sp1_core::{
     },
     utils::{run_and_prove, BabyBearPoseidon2},
 };
+use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
+use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
 use sp1_recursion_core::{
     runtime::{RecursionProgram, Runtime},
     stark::{
@@ -95,6 +98,7 @@ impl SP1ProverImpl {
         }
     }
 
+    /// Generate an SP1 core proof of a program and its inputs.
     pub fn prove<SC: StarkGenericConfig<Val = BabyBear> + Default>(
         elf: &[u8],
         stdin: &[Vec<u8>],
@@ -120,6 +124,7 @@ impl SP1ProverImpl {
         proof
     }
 
+    /// Generate a reduce proof that reduces a Vec of proofs into 1 proof.
     pub fn reduce<SC: StarkGenericConfig<Val = BabyBear> + Default>(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
@@ -225,6 +230,76 @@ impl SP1ProverImpl {
 
         proof.shard_proofs.into_iter().next().unwrap()
     }
+
+    /// Recursively reduce proofs into a single proof using an N-ary tree.
+    pub fn reduce_tree<const N: usize>(
+        &self,
+        sp1_vk: &VerifyingKey<SP1SC>,
+        sp1_challenger: Challenger<SP1SC>,
+        proof: Proof<SP1SC>,
+    ) -> ShardProof<OuterSC> {
+        let mut reduce_proofs = proof
+            .shard_proofs
+            .into_iter()
+            .map(ReduceProof::SP1)
+            .collect::<Vec<_>>();
+        let mut layer = 0;
+        while reduce_proofs.len() > 1 {
+            println!("layer = {}", layer);
+            reduce_proofs = self.reduce_layer::<N>(sp1_vk, sp1_challenger.clone(), reduce_proofs);
+            layer += 1;
+        }
+        let last_proof = reduce_proofs.into_iter().next().unwrap();
+        match last_proof {
+            ReduceProof::FinalRecursive(proof) => proof,
+            _ => unreachable!(),
+        }
+    }
+
+    /// Reduce a list of proofs in groups of N into a smaller list of proofs.
+    pub fn reduce_layer<const N: usize>(
+        &self,
+        sp1_vk: &VerifyingKey<SP1SC>,
+        sp1_challenger: Challenger<SP1SC>,
+        mut proofs: Vec<ReduceProof>,
+    ) -> Vec<ReduceProof> {
+        if proofs.len() <= N {
+            // With the last proof, we need to use outer config since the proof will be
+            // verified in groth16 circuit.
+            println!("last proof");
+            let proof: ShardProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
+            return vec![ReduceProof::FinalRecursive(proof)];
+        }
+
+        // If there's one proof at the end, just push it to the next layer.
+        let last_proof = if proofs.len() % N == 1 {
+            Some(proofs.pop().unwrap())
+        } else {
+            None
+        };
+
+        let mut new_proofs: Vec<ReduceProof> = proofs
+            .into_par_iter()
+            .chunks(N)
+            .map(|chunk| {
+                let proof = self.reduce(sp1_vk, sp1_challenger.clone(), &chunk);
+                ReduceProof::Recursive(proof)
+            })
+            .collect();
+
+        if let Some(proof) = last_proof {
+            new_proofs.push(proof);
+        }
+        new_proofs
+    }
+
+    /// Wrap an outer recursive proof into a groth16 proof.
+    pub fn wrap(&self, proof: ShardProof<OuterSC>) {
+        let mut witness = Witness::default();
+        proof.write(&mut witness);
+        let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
+        groth16_ffi::prove(constraints, witness);
+    }
 }
 
 #[cfg(test)]
@@ -241,20 +316,6 @@ mod tests {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
         let prover = SP1ProverImpl::new();
-
-        // let proofs: Vec<ReduceProof> =
-        //     bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
-        // println!("nb_proofs {}", proofs.len());
-        // let recursion_machine = RecursionAir::machine(BabyBearPoseidon2::default());
-        // let mut challenger = recursion_machine.config().challenger();
-        // let proof = Proof::<BabyBearPoseidon2> {
-        //     shard_proofs: vec![proofs.into_iter().next().unwrap().proof],
-        // };
-        // recursion_machine
-        //     .verify(&prover.reduce_vk, &proof, &mut challenger)
-        //     .unwrap();
-
-        // exit(0);
 
         let elf =
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -292,11 +353,6 @@ mod tests {
             .collect::<Vec<_>>();
         let n = 2;
         let mut layer = 0;
-
-        // let sp1_challenger = sp1_machine.config().challenger();
-        // let mut reduce_proofs: Vec<ReduceProof> =
-        //     bincode::deserialize(&std::fs::read("1.bin").expect("Failed to read file")).unwrap();
-        // layer = 1;
 
         let start = Instant::now();
         let final_proof: ShardProof<OuterSC> = {
@@ -379,7 +435,7 @@ mod tests {
         )
         .unwrap();
         let prover = SP1ProverImpl::new();
-        let constraints = build_wrap_circuit(prover.reduce_vk_outer, reduce_proof);
+        let constraints = build_wrap_circuit(&prover.reduce_vk_outer, reduce_proof);
 
         let reduce_proof = bincode::deserialize::<ShardProof<BabyBearPoseidon2Outer>>(
             &std::fs::read("final.bin").expect("Failed to read file"),
