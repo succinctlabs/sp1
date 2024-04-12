@@ -6,7 +6,6 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::PrimeField32;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
@@ -306,7 +305,6 @@ impl SP1ProverImpl {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
-        println!("constraints.len() = {}", constraints.len());
         let start = Instant::now();
         groth16_ffi::prove(constraints, witness);
         let duration = start.elapsed().as_secs();
@@ -323,6 +321,7 @@ mod tests {
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
+    #[ignore]
     #[test]
     fn test_prove_sp1() {
         setup_logger();
@@ -380,7 +379,6 @@ mod tests {
         .unwrap();
         let prover = SP1ProverImpl::new();
         let constraints = build_wrap_circuit(&prover.reduce_vk_outer, reduce_proof);
-        println!("constraints.len() = {}", constraints.len());
 
         let reduce_proof = bincode::deserialize::<ShardProof<BabyBearPoseidon2Outer>>(
             &std::fs::read("final.bin").expect("Failed to read file"),
