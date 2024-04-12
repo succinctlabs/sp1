@@ -1,4 +1,4 @@
-use super::{Array, FriFoldInput, MemIndex, Ptr};
+use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
 use super::{Config, Ext, Felt, Usize, Var};
 
 /// An intermeddiate instruction set for implementing programs.
@@ -66,11 +66,27 @@ pub enum DslIr<C: Config> {
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
     // Control flow.
-    For(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, Vec<DslIr<C>>),
-    IfEq(Var<C::N>, Var<C::N>, Vec<DslIr<C>>, Vec<DslIr<C>>),
-    IfNe(Var<C::N>, Var<C::N>, Vec<DslIr<C>>, Vec<DslIr<C>>),
-    IfEqI(Var<C::N>, C::N, Vec<DslIr<C>>, Vec<DslIr<C>>),
-    IfNeI(Var<C::N>, C::N, Vec<DslIr<C>>, Vec<DslIr<C>>),
+    For(
+        Usize<C::N>,
+        Usize<C::N>,
+        C::N,
+        Var<C::N>,
+        TracedVec<DslIr<C>>,
+    ),
+    IfEq(
+        Var<C::N>,
+        Var<C::N>,
+        TracedVec<DslIr<C>>,
+        TracedVec<DslIr<C>>,
+    ),
+    IfNe(
+        Var<C::N>,
+        Var<C::N>,
+        TracedVec<DslIr<C>>,
+        TracedVec<DslIr<C>>,
+    ),
+    IfEqI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfNeI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
     Break,
 
     // Assertions.
@@ -150,4 +166,7 @@ pub enum DslIr<C: Config> {
         Ext<C::F, C::EF>,
     ),
     CircuitExt2Felt([Felt<C::F>; 4], Ext<C::F, C::EF>),
+
+    // Debugging instructions.
+    LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
 }

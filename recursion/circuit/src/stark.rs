@@ -269,6 +269,7 @@ pub(crate) mod tests {
                 true,
             )]
             .repeat(1 << 2),
+            traces: vec![None],
         }
     }
 

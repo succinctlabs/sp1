@@ -358,8 +358,6 @@ pub mod baby_bear_poseidon2 {
 
     use crate::stark::StarkGenericConfig;
 
-    use super::LOG_DEGREE_BOUND;
-
     pub type Val = BabyBear;
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
@@ -450,7 +448,7 @@ pub mod baby_bear_poseidon2 {
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
+            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
 
             Self { pcs, perm }
         }

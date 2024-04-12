@@ -11,6 +11,7 @@ use std::marker::PhantomData;
 use self::opcodes::ConstraintOpcode;
 use crate::ir::Config;
 use crate::ir::DslIr;
+use crate::prelude::TracedVec;
 
 /// A constraint is an operation and a list of nested arguments.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,9 +79,9 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
     }
 
     /// Emit the constraints from a list of operations in the DSL.
-    pub fn emit(&mut self, operations: Vec<DslIr<C>>) -> Vec<Constraint> {
+    pub fn emit(&mut self, operations: TracedVec<DslIr<C>>) -> Vec<Constraint> {
         let mut constraints: Vec<Constraint> = Vec::new();
-        for instruction in operations {
+        for (instruction, _) in operations {
             match instruction {
                 DslIr::ImmV(a, b) => constraints.push(Constraint {
                     opcode: ConstraintOpcode::ImmV,
@@ -367,7 +368,7 @@ mod tests {
             DslIr::PrintE(Ext::new(2)),
         ];
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(program);
+        let constraints = backend.emit(program.into());
         groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 

@@ -1,9 +1,74 @@
+use std::{iter::Zip, vec::IntoIter};
+
 use super::{
     Array, Config, DslIr, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
     SymbolicVar, Usize, Var, Variable,
 };
+use backtrace::Backtrace;
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::PV_BUFFER_MAX_SIZE;
+
+/// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
+/// from another TracedVec, the traces are copied over.
+#[derive(Debug, Clone)]
+pub struct TracedVec<T> {
+    pub vec: Vec<T>,
+    pub traces: Vec<Option<Backtrace>>,
+}
+
+impl<T> Default for TracedVec<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl<T> From<Vec<T>> for TracedVec<T> {
+    fn from(vec: Vec<T>) -> Self {
+        let len = vec.len();
+        Self {
+            vec,
+            traces: vec![None; len],
+        }
+    }
+}
+
+impl<T> TracedVec<T> {
+    pub fn new() -> Self {
+        Self {
+            vec: Vec::new(),
+            traces: Vec::new(),
+        }
+    }
+
+    pub fn push(&mut self, value: T) {
+        self.vec.push(value);
+        self.traces.push(Some(Backtrace::new_unresolved()));
+    }
+
+    pub fn extend<I: IntoIterator<Item = (T, Option<Backtrace>)>>(&mut self, iter: I) {
+        let iter = iter.into_iter();
+        let len = iter.size_hint().0;
+        self.vec.reserve(len);
+        self.traces.reserve(len);
+        for (value, trace) in iter {
+            self.vec.push(value);
+            self.traces.push(trace);
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.vec.is_empty()
+    }
+}
+
+impl<T> IntoIterator for TracedVec<T> {
+    type Item = (T, Option<Backtrace>);
+    type IntoIter = Zip<IntoIter<T>, IntoIter<Option<Backtrace>>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.vec.into_iter().zip(self.traces)
+    }
+}
 
 /// A builder for the DSL.
 ///
@@ -13,7 +78,7 @@ pub struct Builder<C: Config> {
     pub(crate) felt_count: u32,
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
-    pub operations: Vec<DslIr<C>>,
+    pub operations: TracedVec<DslIr<C>>,
     pub nb_public_values: Option<Var<C::N>>,
     pub public_values_buffer: Option<Array<C, Felt<C::F>>>,
     pub witness_var_count: u32,
@@ -31,7 +96,7 @@ impl<C: Config> Builder<C> {
             witness_var_count: 0,
             witness_felt_count: 0,
             witness_ext_count: 0,
-            operations: Vec::new(),
+            operations: Default::default(),
             nb_public_values: None,
             public_values_buffer: None,
         }
@@ -157,6 +222,12 @@ impl<C: Config> Builder<C> {
         rhs: RhsExpr,
     ) {
         self.assert_ne::<Ext<C::F, C::EF>>(lhs, rhs);
+    }
+
+    pub fn lt(&mut self, lhs: Var<C::N>, rhs: Var<C::N>) -> Var<C::N> {
+        let result = self.uninit();
+        self.operations.push(DslIr::LessThan(result, lhs, rhs));
+        result
     }
 
     /// Evaluate a block of operations if two expressions are equal.
@@ -400,19 +471,19 @@ impl<'a, C: Config> IfBuilder<'a, C> {
                 }
             }
             IfCondition::Eq(lhs, rhs) => {
-                let op = DslIr::IfEq(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfEq(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
             IfCondition::EqI(lhs, rhs) => {
-                let op = DslIr::IfEqI(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfEqI(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
             IfCondition::Ne(lhs, rhs) => {
-                let op = DslIr::IfNe(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfNe(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
             IfCondition::NeI(lhs, rhs) => {
-                let op = DslIr::IfNeI(lhs, rhs, then_instructions, Vec::new());
+                let op = DslIr::IfNeI(lhs, rhs, then_instructions, Default::default());
                 self.builder.operations.push(op);
             }
         }
