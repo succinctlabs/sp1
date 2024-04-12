@@ -32,6 +32,11 @@ pub trait Hintable<C: Config> {
     fn read(builder: &mut Builder<C>) -> Self::HintVariable;
 
     fn write(&self) -> Vec<Vec<Block<C::F>>>;
+
+    fn witness(variable: &Self::HintVariable, builder: &mut Builder<C>) {
+        let target = Self::read(builder);
+        builder.assign(variable.clone(), target);
+    }
 }
 
 type C = InnerConfig;
