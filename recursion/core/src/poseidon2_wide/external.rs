@@ -1,24 +1,18 @@
 use core::borrow::Borrow;
 use core::mem::size_of;
-use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
 use p3_matrix::MatrixRowSlices;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
-use sp1_core::utils::poseidon2_instance::RC_16_30_U32;
 use sp1_derive::AlignedBorrow;
-use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use super::{apply_m_4, matmul_internal, MATRIX_DIAG_16_BABYBEAR_U32};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
-pub const NUM_POSEIDON2_WIDE_OPT_COLS: usize = size_of::<Poseidon2WideOptCols<u8>>();
+pub const NUM_POSEIDON2_WIDE_COLS: usize = size_of::<Poseidon2WideCols<u8>>();
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -29,25 +23,25 @@ pub const NUM_ROUNDS: usize = 30;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2WideOptChip;
+pub struct Poseidon2WideChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2WideOptCols<T> {
-    pub dummy_rows: [T; 160],
+pub struct Poseidon2WideCols<T> {
+    pub dummy_cols: [T; 160],
 }
 
-impl<F: PrimeField32> MachineAir<F> for Poseidon2WideOptChip {
+impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Poseidon2".to_string()
+        "Poseidon2Wide".to_string()
     }
 
-    #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all)]
+    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -55,25 +49,25 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideOptChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for event in &input.poseidon2_events {
-            let mut row = [F::one(); NUM_POSEIDON2_WIDE_OPT_COLS];
+        for _event in &input.poseidon2_events {
+            let row = [F::one(); NUM_POSEIDON2_WIDE_COLS];
             rows.push(row);
         }
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_POSEIDON2_WIDE_OPT_COLS,
+            NUM_POSEIDON2_WIDE_COLS,
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_POSEIDON2_WIDE_OPT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<NUM_POSEIDON2_WIDE_COLS, F>(&mut trace.values);
 
-        println!(
-            "poseidon2 wide opt trace dims is width: {:?}, height: {:?}",
-            trace.width(),
-            trace.height()
-        );
+        // println!(
+        //     "poseidon2 wide trace dims is width: {:?}, height: {:?}",
+        //     trace.width(),
+        //     trace.height()
+        // );
 
         trace
     }
@@ -83,23 +77,23 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideOptChip {
     }
 }
 
-impl<F> BaseAir<F> for Poseidon2WideOptChip {
+impl<F> BaseAir<F> for Poseidon2WideChip {
     fn width(&self) -> usize {
-        NUM_POSEIDON2_WIDE_OPT_COLS
+        NUM_POSEIDON2_WIDE_COLS
     }
 }
 
-impl<AB> Air<AB> for Poseidon2WideOptChip
+impl<AB> Air<AB> for Poseidon2WideChip
 where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &Poseidon2WideOptCols<AB::Var> = main.row_slice(0).borrow();
+        let local: &Poseidon2WideCols<AB::Var> = main.row_slice(0).borrow();
 
         builder.assert_eq(
-            local.dummy_rows[0] * local.dummy_rows[0] * local.dummy_rows[0],
-            local.dummy_rows[0] * local.dummy_rows[0] * local.dummy_rows[0],
+            local.dummy_cols[0] * local.dummy_cols[0] * local.dummy_cols[0],
+            local.dummy_cols[0] * local.dummy_cols[0] * local.dummy_cols[0],
         );
 
         // let rounds_f = 8;
@@ -250,36 +244,23 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::BorrowMut;
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_poseidon2::Poseidon2;
-    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::uni_stark_verify;
-    use sp1_core::{
-        air::MachineAir,
-        utils::{uni_stark_prove, BabyBearPoseidon2},
-    };
+    use sp1_core::{air::MachineAir, utils::uni_stark_prove};
 
     use crate::poseidon2::Poseidon2Event;
     use crate::poseidon2_wide::external::WIDTH;
-    use crate::poseidon2_wide_optimized::external::Poseidon2WideOptChip;
-    use crate::stark::config;
-    use crate::stark::config::inner_perm;
     use crate::stark::config::BabyBearPoseidon2Inner;
     use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
-    use p3_symmetric::Permutation;
-
-    use super::{Poseidon2WideOptCols, NUM_POSEIDON2_WIDE_OPT_COLS};
 
     #[test]
     fn generate_trace() {
-        let chip = Poseidon2WideOptChip;
+        let chip = Poseidon2WideChip;
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for _i in 0..108173 {
             input_exec.poseidon2_events.push(Poseidon2Event {
@@ -293,12 +274,10 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        let mut config = BabyBearPoseidon2Inner::new();
-        // let mut config = BabyBearPoseidon2::new();
-        let pcs = config.pcs.borrow_mut();
+        let config = BabyBearPoseidon2Inner::new();
         let mut challenger = config.challenger();
 
-        let chip = Poseidon2WideOptChip;
+        let chip = Poseidon2WideChip;
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for _i in 0..108173 {
@@ -309,23 +288,6 @@ mod tests {
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
 
-        // let gt: Poseidon2<
-        //     BabyBear,
-        //     Poseidon2ExternalMatrixGeneral,
-        //     DiffusionMatrixBabybear,
-        //     16,
-        //     7,
-        // > = inner_perm();
-        // let input = [BabyBear::one(); WIDTH];
-        // let output = gt.permute(input);
-
-        // let mut row: [BabyBear; NUM_POSEIDON2_COLS] = trace.values
-        //     [NUM_POSEIDON2_COLS * 30..(NUM_POSEIDON2_COLS) * 31]
-        //     .try_into()
-        //     .unwrap();
-        // let cols: &mut Poseidon2WideCols<BabyBear> = row.as_mut_slice().borrow_mut();
-        // assert_eq!(cols.output, output);
-
         let start = Instant::now();
         let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
         let duration = start.elapsed().as_secs_f64();
@@ -333,7 +295,7 @@ mod tests {
 
         let mut challenger = config.challenger();
         let start = Instant::now();
-        uni_stark_verify(&config, &chip, &mut challenger, &proof);
+        uni_stark_verify(&config, &chip, &mut challenger, &proof).unwrap();
         let duration = start.elapsed().as_secs_f64();
         println!("verify duration = {:?}", duration);
     }

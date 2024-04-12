@@ -5,7 +5,7 @@ use p3_field::{AbstractField, Field};
 
 pub mod external;
 
-pub use external::Poseidon2WideOptChip;
+pub use external::Poseidon2WideChip;
 
 #[derive(Debug, Clone)]
 pub struct Poseidon2Event<F> {
