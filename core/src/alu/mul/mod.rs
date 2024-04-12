@@ -36,7 +36,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
@@ -281,7 +281,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &MulCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &MulCols<AB::Var> = (*local).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
 
         let zero: AB::Expr = AB::F::zero().into();

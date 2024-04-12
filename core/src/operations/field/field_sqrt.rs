@@ -91,7 +91,7 @@ mod tests {
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::MatrixRowSlices;
+    use p3_matrix::Matrix;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
@@ -184,7 +184,8 @@ mod tests {
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var, P> = main.row_slice(0).borrow();
+            let local = main.row_slice(0);
+            let local: &TestCols<AB::Var, P> = (*local).borrow();
 
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
             local.sqrt.eval::<AB>(builder, &local.a);
