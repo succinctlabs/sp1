@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
@@ -122,7 +123,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 
 pub const PROOF_MAX_NUM_PVS: usize = 64;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub index: usize,
@@ -149,8 +150,16 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
+}
+
+impl<SC: StarkGenericConfig> Debug for Proof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Proof")
+            .field("shard_proofs", &self.shard_proofs.len())
+            .finish()
+    }
 }

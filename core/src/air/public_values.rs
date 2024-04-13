@@ -71,6 +71,12 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
             committed_value_digest.push(Word::from_iter(&mut iter));
         }
 
+        let mut deferred_proofs_digest = Vec::new();
+        for _ in 0..POSEIDON_NUM_WORDS {
+            deferred_proofs_digest.push(Word([F::zero(), F::zero(), F::zero(), F::zero()]));
+            // deferred_proofs_digest.push(Word::from_iter(&mut iter));
+        }
+
         // Collecting the remaining items into a tuple.  Note that it is only getting the first
         // four items, as the rest would be padded values.
         let remaining_items = iter.collect_vec();
@@ -85,6 +91,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
 
         Self {
             committed_value_digest: committed_value_digest.try_into().unwrap(),
+            deferred_proofs_digest: deferred_proofs_digest.try_into().unwrap(),
             shard: shard.to_owned(),
             start_pc: start_pc.to_owned(),
             next_pc: next_pc.to_owned(),
@@ -112,7 +119,7 @@ mod tests {
     fn test_public_values_digest_num_words_consistency_zkvm() {
         assert_eq!(
             public_values::PV_DIGEST_NUM_WORDS,
-            sp1_zkvm::PV_DIGEST_NUM_WORDS
+            sp1_zkvm::syscalls::PV_DIGEST_NUM_WORDS
         );
     }
 }
