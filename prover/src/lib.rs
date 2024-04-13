@@ -141,6 +141,7 @@ impl SP1ProverImpl {
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
         reduce_proofs: &[ReduceProof],
+        deferred_proofs: &[(ReduceProof, &VerifyingKey<SP1SC>)],
     ) -> ShardProof<SC>
     where
         SC::Challenger: Clone,
@@ -195,6 +196,26 @@ impl SP1ProverImpl {
             Vec<TwoAdicMultiplicativeCoset<BabyBear>>,
         ) = get_preprocessed_data(&recursion_machine, &self.reduce_vk_inner);
 
+        let deferred_sorted_indices: Vec<Vec<usize>> = deferred_proofs
+            .iter()
+            .map(|p| match &p.0 {
+                ReduceProof::Recursive(proof) => {
+                    let indices = get_sorted_indices(&recursion_machine, proof);
+                    println!("indices = {:?}", indices);
+                    indices
+                }
+                _ => unreachable!(),
+            })
+            .collect();
+
+        let deferred_proof_vec: Vec<_> = deferred_proofs
+            .iter()
+            .map(|(p, _)| match p {
+                ReduceProof::Recursive(proof) => proof,
+                _ => unreachable!(),
+            })
+            .collect();
+
         // Generate inputs.
         let mut witness_stream = Vec::new();
         witness_stream.extend(is_recursive_flags.write());
@@ -217,6 +238,13 @@ impl SP1ProverImpl {
                 }
                 _ => unreachable!(),
             }
+        }
+        let empty_hash = [BabyBear::zero(); 8].to_vec();
+        witness_stream.extend(Hintable::write(&empty_hash));
+        witness_stream.extend(deferred_sorted_indices.write());
+        witness_stream.extend(deferred_proof_vec.write());
+        for (_, vk) in deferred_proofs.iter() {
+            witness_stream.extend(vk.write());
         }
         println!("witness_stream.len() = {}", witness_stream.len());
 
@@ -264,6 +292,7 @@ impl SP1ProverImpl {
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
         proof: Proof<SP1SC>,
+        // deferred_proofs: &[(ReduceProof, &VerifyingKey<SP1SC>)],
     ) -> ShardProof<InnerSC> {
         let mut reduce_proofs = proof
             .shard_proofs
@@ -284,7 +313,7 @@ impl SP1ProverImpl {
             ReduceProof::Recursive(proof) => proof,
             ReduceProof::SP1(_) => {
                 // If there's only one shard, we still want to wrap it into an inner proof.
-                self.reduce(sp1_vk, sp1_challenger, &[last_proof])
+                self.reduce(sp1_vk, sp1_challenger, &[last_proof], &[])
             }
             _ => unreachable!(),
         }
@@ -326,7 +355,7 @@ impl SP1ProverImpl {
                     .iter()
                     .map(|chunk| {
                         let start = Instant::now();
-                        let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk);
+                        let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk, &[]);
                         let duration = start.elapsed().as_secs();
                         println!("reduce duration = {}", duration);
                         ReduceProof::Recursive(proof)
@@ -444,15 +473,17 @@ mod tests {
     fn test_verify_proof_program() {
         setup_logger();
 
+        let sp1_machine = RiscvAir::machine(SP1SC::default());
+        let fibonacci_io_elf =
+            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
+        let fibonacci_program = Program::from(fibonacci_io_elf);
+        let config = BabyBearPoseidon2::new();
+        let (_, fibonacci_vk) = sp1_machine.setup(&fibonacci_program);
+
         let prover = SP1ProverImpl::new();
         let proof_to_verify = match std::fs::read("inner_proof.bin") {
             Ok(proof) => bincode::deserialize::<Proof<InnerSC>>(&proof).unwrap(),
             Err(_) => {
-                let fibonacci_io_elf = include_bytes!(
-                    "../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf"
-                );
-                let fibonacci_program = Program::from(fibonacci_io_elf);
-                let config = BabyBearPoseidon2::new();
                 let (fibonacci_proof, _) = run_and_prove(
                     fibonacci_program.clone(),
                     &[bincode::serialize::<u32>(&4).unwrap()],
@@ -460,15 +491,14 @@ mod tests {
                 );
                 println!("shards: {:?}", fibonacci_proof.shard_proofs.len());
 
-                let sp1_machine = RiscvAir::machine(SP1SC::default());
-                let (_, vk) = sp1_machine.setup(&fibonacci_program);
                 let mut challenger = sp1_machine.config().challenger();
-                challenger.observe(vk.commit);
+                challenger.observe(fibonacci_vk.commit);
                 for shard_proof in fibonacci_proof.shard_proofs.iter() {
                     challenger.observe(shard_proof.commitment.main_commit);
                     challenger.observe_slice(&shard_proof.public_values.to_vec());
                 }
-                let final_proof = prover.reduce_tree::<2>(&vk, challenger, fibonacci_proof);
+                let final_proof =
+                    prover.reduce_tree::<2>(&fibonacci_vk, challenger, fibonacci_proof);
 
                 let proof = Proof {
                     shard_proofs: vec![final_proof],
@@ -481,7 +511,8 @@ mod tests {
         let verify_proof_elf =
             include_bytes!("../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
         let verify_program = Program::from(verify_proof_elf);
-        let mut runtime = Runtime::new(verify_program);
+        let mut runtime = Runtime::new(verify_program.clone());
+        let (_, verify_vk) = sp1_machine.setup(&verify_program);
 
         let mut pv_digest_raw: [u32; 8] = [0; 8];
         for (i, val) in proof_to_verify.shard_proofs[0].public_values[..8]
@@ -494,7 +525,7 @@ mod tests {
         for (i, val) in prover.reduce_vk_inner.commit.as_ref().iter().enumerate() {
             vk_raw[i] = val.as_canonical_u32();
         }
-        runtime.write_proof(proof_to_verify, prover.reduce_vk_inner);
+        runtime.write_proof(proof_to_verify.clone(), prover.reduce_vk_inner.clone());
         runtime.write_stdin(&vk_raw);
         runtime.write_stdin(&pv_digest_raw);
         // runtime.write_stdin(input)
@@ -502,6 +533,23 @@ mod tests {
         println!("public values: {:?}", runtime.record.public_values);
 
         let config = BabyBearPoseidon2::new();
-        prove_core(config, runtime);
+        let proof = prove_core(config, runtime);
+        println!("shards {:?}", proof.shard_proofs.len());
+
+        let mut challenger = sp1_machine.config().challenger();
+        challenger.observe(verify_vk.commit);
+        for shard_proof in proof.shard_proofs.iter() {
+            challenger.observe(shard_proof.commitment.main_commit);
+            challenger.observe_slice(&shard_proof.public_values.to_vec());
+        }
+        let reduce_proofs = vec![ReduceProof::SP1(proof.shard_proofs[0].clone())];
+        let reduce_proof_to_verify =
+            ReduceProof::Recursive(proof_to_verify.shard_proofs[0].clone());
+        let reduced_proof: ShardProof<InnerSC> = prover.reduce(
+            &verify_vk,
+            challenger,
+            &reduce_proofs,
+            &[(reduce_proof_to_verify, &fibonacci_vk)],
+        );
     }
 }
