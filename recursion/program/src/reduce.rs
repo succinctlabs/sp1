@@ -27,6 +27,7 @@ use p3_symmetric::TruncatedPermutation;
 use sp1_core::air::Word;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
+use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
@@ -183,8 +184,13 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         builder.if_eq(is_recursive, zero).then_or_else(
             // Non-recursive proof
             |builder| {
-                let pv =
-                    PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(proof.public_values.vec());
+                let mut pv_elements = Vec::new();
+                for i in 0..PROOF_MAX_NUM_PVS {
+                    let element = builder.get(&proof.commitment.main_commit, i);
+                    pv_elements.push(element);
+                }
+
+                let pv = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
                 // Verify shard transition.
                 builder.assert_felt_eq(shard_start_pc, pv.start_pc);

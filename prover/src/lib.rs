@@ -2,6 +2,7 @@
 #![feature(generic_const_exprs)]
 #![allow(deprecated)]
 
+use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -195,16 +196,22 @@ impl SP1ProverImpl {
             })
             .collect();
 
-        let start_pc = match reduce_proofs[0] {
-            ReduceProofType::SP1(ref proof) => proof.start_pc,
-            ReduceProofType::Recursive(ref proof) => proof.start_pc,
-            _ => unreachable!(),
-        };
-        let next_pc = match reduce_proofs[0] {
-            ReduceProofType::SP1(ref proof) => proof.next_pc,
-            ReduceProofType::Recursive(ref proof) => proof.next_pc,
-            _ => unreachable!(),
-        };
+        let start_pcs = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.start_pc,
+                ReduceProofType::Recursive(ref proof) => proof.start_pc,
+                _ => unreachable!(),
+            })
+            .collect_vec();
+        let next_pcs = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.next_pc,
+                ReduceProofType::Recursive(ref proof) => proof.next_pc,
+                _ => unreachable!(),
+            })
+            .collect_vec();
 
         let mut reconstruct_challenger = sp1_machine.config().challenger();
         reconstruct_challenger.observe(sp1_vk.commit);
@@ -242,8 +249,8 @@ impl SP1ProverImpl {
                 _ => unreachable!(),
             }
         }
-        witness_stream.extend(Hintable::write(&start_pc));
-        witness_stream.extend(Hintable::write(&next_pc));
+        witness_stream.extend(Hintable::write(&start_pcs));
+        witness_stream.extend(Hintable::write(&next_pcs));
         println!("witness_stream.len() = {}", witness_stream.len());
 
         // Execute runtime to get the memory setup.
@@ -287,8 +294,8 @@ impl SP1ProverImpl {
 
         ReduceProof {
             proof,
-            start_pc,
-            next_pc,
+            start_pc: start_pcs[0],
+            next_pc: next_pcs[next_pcs.len() - 1],
         }
     }
 
