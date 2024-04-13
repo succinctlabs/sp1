@@ -45,7 +45,7 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
         .chain(receives.iter().map(|int| (int, false)))
         .chunks(batch_size);
     let num_chunks = (sends.len() + receives.len() + 1) / batch_size;
-    assert_eq!(num_chunks + 1, row.len());
+    debug_assert_eq!(num_chunks + 1, row.len());
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
     for (value, chunk) in row.iter_mut().zip(interaction_chunks) {
         *value = chunk
