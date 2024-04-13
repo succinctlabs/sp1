@@ -179,7 +179,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         let shard_next_pc = builder.get(&next_pcs, i);
 
         builder.assert_felt_eq(expected_start_pc, shard_start_pc);
-        expected_start_pc = shard_next_pc;
+        builder.assign(expected_start_pc, shard_next_pc);
 
         builder.if_eq(is_recursive, zero).then_or_else(
             // Non-recursive proof
