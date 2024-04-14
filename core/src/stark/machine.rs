@@ -251,8 +251,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     {
         // Observe the preprocessed commitment.
         challenger.observe(vk.commit.clone());
-        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
-        // in a map-reduce recursion setting.
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());

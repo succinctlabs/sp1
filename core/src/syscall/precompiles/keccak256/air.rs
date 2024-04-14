@@ -33,7 +33,7 @@ where
         let local: &KeccakMemCols<AB::Var> = (*local).borrow();
         let next: &KeccakMemCols<AB::Var> = (*next).borrow();
 
-        // Constrain memory in the first and last cycles
+        // Constrain memory in the first and last cycles.
         builder.assert_eq(
             (local.keccak.step_flags[0] + local.keccak.step_flags[23]) * local.is_real,
             local.do_memory_check,

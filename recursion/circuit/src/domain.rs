@@ -94,7 +94,6 @@ where
         }
     }
 
-    // TODO: something is wrong with this function
     fn zp_at_point(
         &self,
         builder: &mut Builder<C>,

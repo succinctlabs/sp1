@@ -10,9 +10,11 @@ use num::Zero;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use serde::Deserialize;
 use serde::Serialize;
+use sp1_derive::AlignedBorrow;
 use typenum::Unsigned;
 use typenum::U32;
 
@@ -46,10 +48,6 @@ use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
-
-use p3_matrix::dense::RowMajorMatrix;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
