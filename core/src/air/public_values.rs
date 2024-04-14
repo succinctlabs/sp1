@@ -1,12 +1,14 @@
-use crate::stark::PROOF_MAX_NUM_PVS;
-
-use super::Word;
 use core::fmt::Debug;
+use std::iter::once;
+
 use itertools::Itertools;
 use p3_field::{AbstractField, PrimeField32};
 use serde::{Deserialize, Serialize};
-use std::iter::once;
 
+use super::Word;
+use crate::stark::PROOF_MAX_NUM_PVS;
+
+/// The number of words needed to represent a public value digest.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 /// The PublicValues struct is used to store all of a shard proof's public values.

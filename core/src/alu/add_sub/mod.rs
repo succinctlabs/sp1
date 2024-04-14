@@ -1,5 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -35,11 +36,6 @@ pub struct AddSubCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
-    /// Boolean to indicate whether the row is for an add operation.
-    pub is_add: T,
-    /// Boolean to indicate whether the row is for a sub operation.
-    pub is_sub: T,
-
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
     pub add_operation: AddOperation<T>,
@@ -49,6 +45,12 @@ pub struct AddSubCols<T> {
 
     /// The second input operand.  This will be `c` for both operations.
     pub operand_2: Word<T>,
+
+    /// Boolean to indicate whether the row is for an add operation.
+    pub is_add: T,
+
+    /// Boolean to indicate whether the row is for a sub operation.
+    pub is_sub: T,
 }
 
 impl<F: PrimeField> MachineAir<F> for AddSubChip {

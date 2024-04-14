@@ -32,6 +32,7 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -287,7 +288,6 @@ where
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
-        // 0xff
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
 
         // Calculate the MSBs.

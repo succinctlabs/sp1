@@ -1,6 +1,10 @@
+use std::iter::once;
+
 use itertools::Itertools;
 use p3_air::{AirBuilder, FilteredAirBuilder};
 use p3_air::{AirBuilderWithPublicValues, PermutationAirBuilder};
+use p3_field::{AbstractField, Field};
+use p3_uni_stark::StarkGenericConfig;
 use p3_uni_stark::{ProverConstraintFolder, SymbolicAirBuilder, VerifierConstraintFolder};
 
 use super::interaction::AirInteraction;
@@ -11,10 +15,6 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
-use p3_field::{AbstractField, Field};
-
-use p3_uni_stark::StarkGenericConfig;
-use std::iter::once;
 
 /// A Builder with the ability to encode the existance of interactions with other AIRs by sending
 /// and receiving messages.
@@ -426,11 +426,11 @@ pub trait AluAirBuilder: BaseAirBuilder {
 
 /// A trait which contains methods related to memory interactions in an AIR.
 pub trait MemoryAirBuilder: BaseAirBuilder {
-    /// Constraints a memory read or write.
+    /// Constrain a memory read or write.
     ///
     /// This method verifies that a memory access timestamp (shard, clk) is greater than the
     /// previous access's timestamp.  It will also add to the memory argument.
-    fn constraint_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
+    fn eval_memory_access<EClk, EShard, Ea, Eb, EVerify, M>(
         &mut self,
         shard: EShard,
         clk: EClk,
@@ -453,7 +453,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         self.assert_bool(do_check.clone());
 
         // Verify that the current memory access time is greater than the previous's.
-        self.verify_mem_access_ts(mem_access, do_check.clone(), shard.clone(), clk.clone());
+        self.eval_memory_access_timestamp(mem_access, do_check.clone(), shard.clone(), clk.clone());
 
         // Add to the memory argument.
         let addr = addr.into();
@@ -485,13 +485,39 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         ));
     }
 
+    /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
+    fn eval_memory_access_slice<EShard, Ea, Eb, EVerify, M>(
+        &mut self,
+        shard: EShard,
+        clk: Self::Expr,
+        initial_addr: Ea,
+        memory_access_slice: &[M],
+        verify_memory_access: EVerify,
+    ) where
+        EShard: Into<Self::Expr> + Copy,
+        Ea: Into<Self::Expr> + Copy,
+        Eb: Into<Self::Expr> + Copy,
+        EVerify: Into<Self::Expr> + Copy,
+        M: MemoryCols<Eb>,
+    {
+        for (i, access_slice) in memory_access_slice.iter().enumerate() {
+            self.eval_memory_access(
+                shard,
+                clk.clone(),
+                initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
+                access_slice,
+                verify_memory_access,
+            );
+        }
+    }
+
     /// Verifies the memory access timestamp.
     ///
-    /// This method verifies that the current memory access happend after the previous one's.  Specifically
-    /// it will ensure that if the current and previous access are in the same shard, then the
-    /// current's clk val is greater than the previous's.  If they are not in the same shard, then
-    /// it will ensure that the current's shard val is greater than the previous's.
-    fn verify_mem_access_ts<Eb, EVerify, EShard, EClk>(
+    /// This method verifies that the current memory access happend after the previous one's.  
+    /// Specifically it will ensure that if the current and previous access are in the same shard,
+    /// then the current's clk val is greater than the previous's.  If they are not in the same
+    /// shard, then it will ensure that the current's shard val is greater than the previous's.
+    fn eval_memory_access_timestamp<Eb, EVerify, EShard, EClk>(
         &mut self,
         mem_access: &MemoryAccessCols<Eb>,
         do_check: EVerify,
@@ -526,15 +552,17 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         // Assert `current_comp_val > prev_comp_val`. We check this by asserting that
         // `0 <= current_comp_val-prev_comp_val-1 < 2^24`.
         //
-        // The equivalence of these statements comes from the fact that if `current_comp_val <= prev_comp_val`,
-        // then `current_comp_val-prev_comp_val-1 < 0` and will underflow in the prime field,
-        // resulting in a value that is `>= 2^24` as long as both `current_comp_val, prev_comp_val` are
-        // range-checked to be `<2^24` and as long as we're working in a field larger than `2 * 2^24`
-        // (which is true of the BabyBear and Mersenne31 prime).
+        // The equivalence of these statements comes from the fact that if
+        // `current_comp_val <= prev_comp_val`, then `current_comp_val-prev_comp_val-1 < 0` and will
+        // underflow in the prime field, resulting in a value that is `>= 2^24` as long as both
+        // `current_comp_val, prev_comp_val` are range-checked to be `<2^24` and as long as we're
+        // working in a field larger than `2 * 2^24` (which is true of the BabyBear and Mersenne31
+        // prime).
         let diff_minus_one = current_comp_val - prev_comp_value - Self::Expr::one();
 
-        // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb + mem_access.ts_diff_8bit_limb * 2^16.
-        self.verify_range_24bits(
+        // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb
+        // + mem_access.ts_diff_8bit_limb * 2^16.
+        self.eval_range_check_24bits(
             diff_minus_one,
             mem_access.diff_16bit_limb.clone(),
             mem_access.diff_8bit_limb.clone(),
@@ -549,7 +577,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
     /// since the memory access timestamp check (see [Self::verify_mem_access_ts]) needs to assume
     /// the clk is within 24 bits.
-    fn verify_range_24bits<EValue, ELimb, EShard, EVerify>(
+    fn eval_range_check_24bits<EValue, ELimb, EShard, EVerify>(
         &mut self,
         value: EValue,
         limb_16: ELimb,
@@ -587,32 +615,6 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             shard.clone(),
             do_check,
         )
-    }
-
-    /// Constraints a memory read or write to a slice of `MemoryAccessCols`.
-    fn constraint_memory_access_slice<EShard, Ea, Eb, EVerify, M>(
-        &mut self,
-        shard: EShard,
-        clk: Self::Expr,
-        initial_addr: Ea,
-        memory_access_slice: &[M],
-        verify_memory_access: EVerify,
-    ) where
-        EShard: Into<Self::Expr> + Copy,
-        Ea: Into<Self::Expr> + Copy,
-        Eb: Into<Self::Expr> + Copy,
-        EVerify: Into<Self::Expr> + Copy,
-        M: MemoryCols<Eb>,
-    {
-        for (i, access_slice) in memory_access_slice.iter().enumerate() {
-            self.constraint_memory_access(
-                shard,
-                clk.clone(),
-                initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
-                access_slice,
-                verify_memory_access,
-            );
-        }
     }
 }
 

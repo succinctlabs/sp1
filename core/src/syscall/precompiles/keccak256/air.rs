@@ -41,7 +41,7 @@ where
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk + local.keccak.step_flags[23], // The clk increments by 1 when step_flags[23] == 1
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),

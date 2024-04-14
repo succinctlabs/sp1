@@ -258,7 +258,7 @@ where
         }
 
         for i in 0..16 {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 row.shard,
                 row.clk, // clk + 0 -> Memory
                 row.q_ptr + AB::F::from_canonical_u32(i * 4),
@@ -267,7 +267,7 @@ where
             );
         }
         for i in 0..16 {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 row.shard,
                 row.clk + AB::F::from_canonical_u32(1), // The clk for p is moved by 1.
                 row.p_ptr + AB::F::from_canonical_u32(i * 4),

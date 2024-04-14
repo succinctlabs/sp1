@@ -143,7 +143,7 @@ impl Blake3CompressInnerChip {
 
         // Read & write the state.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk,
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
@@ -179,7 +179,7 @@ impl Blake3CompressInnerChip {
 
         // Read the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),

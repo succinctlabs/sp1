@@ -197,7 +197,7 @@ impl ShaCompressChip {
     ) {
         let is_initialize = local.octet_num[0];
         let is_finalize = local.octet_num[9];
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + is_finalize,
             local.mem_addr,

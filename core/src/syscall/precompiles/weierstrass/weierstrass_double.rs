@@ -367,7 +367,7 @@ where
             );
         }
 
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk.into(),
             row.p_ptr,

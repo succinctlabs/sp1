@@ -245,7 +245,7 @@ impl<V: Copy> K256DecompressCols<V> {
             .assert_all_eq(self.neg_y.result, y_limbs);
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
@@ -254,7 +254,7 @@ impl<V: Copy> K256DecompressCols<V> {
             );
         }
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),

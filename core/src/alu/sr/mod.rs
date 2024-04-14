@@ -330,6 +330,7 @@ where
                     .when(local.shift_by_n_bits[i])
                     .assert_eq(num_bits_to_shift.clone(), AB::F::from_canonical_usize(i));
             }
+
             // Exactly one of the shift_by_n_bits must be 1.
             builder.assert_eq(
                 local
@@ -343,12 +344,14 @@ where
             // number of bytes to shift.
             let num_bytes_to_shift = local.c_least_sig_byte[3]
                 + local.c_least_sig_byte[4] * AB::F::from_canonical_u32(2);
+
             // If shift_by_n_bytes[i] = 1, then i = num_bytes_to_shift.
             for i in 0..WORD_SIZE {
                 builder
                     .when(local.shift_by_n_bytes[i])
                     .assert_eq(num_bytes_to_shift.clone(), AB::F::from_canonical_usize(i));
             }
+
             // Exactly one of the shift_by_n_bytes must be 1.
             builder.assert_eq(
                 local
@@ -392,6 +395,7 @@ where
                 carry_multiplier +=
                     AB::Expr::from_canonical_u32(1u32 << (8 - i)) * local.shift_by_n_bits[i];
             }
+
             // The 3-bit number represented by the 3 least significant bits of c equals the number
             // of bits to shift.
             let mut num_bits_to_shift = AB::Expr::zero();

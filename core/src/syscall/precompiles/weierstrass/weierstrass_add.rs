@@ -323,14 +323,14 @@ where
                 .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk.into(),
             row.q_ptr,
             &row.q_access,
             row.is_real,
         );
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
             row.p_ptr,
