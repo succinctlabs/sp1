@@ -5,15 +5,14 @@ use p3_field::AbstractField;
 use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, NUM_ROUNDS, U64_LIMBS};
 use p3_matrix::Matrix;
 
+use super::{
+    columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
+    KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE,
+};
 use crate::{
     air::{SP1AirBuilder, SubAirBuilder},
     memory::MemoryCols,
     runtime::SyscallCode,
-};
-
-use super::{
-    columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
-    KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE,
 };
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
