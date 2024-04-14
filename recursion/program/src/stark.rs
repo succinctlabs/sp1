@@ -280,10 +280,12 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Felt;
+    use sp1_recursion_compiler::prelude::Usize;
     use sp1_recursion_compiler::{
         asm::AsmBuilder,
         ir::{Builder, ExtConst},
     };
+
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
@@ -342,9 +344,11 @@ pub(crate) mod tests {
             let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-            let pv_slice = proof
-                .public_values
-                .slice(&mut builder, 0, SP1_PROOF_NUM_PV_ELTS);
+            let pv_slice = proof.public_values.slice(
+                &mut builder,
+                Usize::Const(0),
+                Usize::Const(SP1_PROOF_NUM_PV_ELTS),
+            );
             challenger.observe_slice(&mut builder, pv_slice);
         }
 

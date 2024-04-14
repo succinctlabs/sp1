@@ -8,7 +8,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use sp1_core::stark::{Com, ShardProof};
 use sp1_core::{
-    air::MachineAir,
+    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
     stark::{MachineStark, ShardCommitment, StarkGenericConfig, VerifyingKey},
 };
 use sp1_recursion_compiler::config::OuterConfig;
@@ -270,9 +270,11 @@ pub fn build_wrap_circuit(
     let proof = dummy_proof.read(&mut builder);
     let ShardCommitment { main_commit, .. } = &proof.commitment;
     challenger.observe_commitment(&mut builder, *main_commit);
-    let pv_slice = proof
-        .public_values
-        .slice(&mut builder, 0, SP1_PROOF_NUM_PV_ELEMENTS);
+    let pv_slice = proof.public_values.slice(
+        &mut builder,
+        Usize::Const(0),
+        Usize::Const(SP1_PROOF_NUM_PV_ELTS),
+    );
     challenger.observe_slice(&mut builder, pv_slice);
 
     StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
