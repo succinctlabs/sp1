@@ -403,8 +403,8 @@ impl<C: Config> Builder<C> {
         let nb_public_values = self.nb_public_values.unwrap();
         let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
 
-        self.assign(nb_public_values, nb_public_values + C::N::one());
         self.set(&mut public_values_buffer, nb_public_values, val);
+        self.assign(nb_public_values, nb_public_values + C::N::one());
 
         self.nb_public_values = Some(nb_public_values);
         self.public_values_buffer = Some(public_values_buffer);

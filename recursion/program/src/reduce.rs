@@ -36,6 +36,7 @@ use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Var;
+use sp1_recursion_core::air::PublicValues as RecursionPublicValues;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
@@ -124,9 +125,11 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     let recursion_prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
     let sp1_vk: VerifyingKeyVariable<_> = builder.uninit();
     let recursion_vk: VerifyingKeyVariable<_> = builder.uninit();
-    let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
     let start_pcs: Array<_, Felt<_>> = builder.uninit();
     let next_pcs: Array<_, Felt<_>> = builder.uninit();
+    let start_shards: Array<_, Felt<_>> = builder.uninit();
+    let next_shards: Array<_, Felt<_>> = builder.uninit();
+    let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
 
     // 2) Witness the inputs.
     if setup {
@@ -142,6 +145,8 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         VerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
         Vec::<Val>::witness(&start_pcs, &mut builder);
         Vec::<Val>::witness(&next_pcs, &mut builder);
+        Vec::<Val>::witness(&start_shards, &mut builder);
+        Vec::<Val>::witness(&next_shards, &mut builder);
         let num_proofs = is_recursive_flags.len();
         let mut proofs_target = builder.dyn_array(num_proofs);
         builder.range(0, num_proofs).for_each(|i, builder| {
@@ -154,12 +159,11 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         return builder.compile_program();
     }
 
-    builder.print_debug(99999);
     let num_proofs = is_recursive_flags.len();
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.constant(F::zero());
     let one: Var<_> = builder.constant(F::one());
-    let _one_felt: Felt<_> = builder.constant(F::one());
+    let one_felt: Felt<_> = builder.constant(F::one());
 
     // Setup recursion challenger
     let mut recursion_challenger = DuplexChallengerVariable::new(&mut builder);
@@ -168,7 +172,8 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         recursion_challenger.observe(&mut builder, element);
     }
 
-    let mut expected_start_pc = builder.get(&start_pcs, zero);
+    let expected_start_pc = builder.get(&start_pcs, zero);
+    let expected_start_shard = builder.get(&start_shards, zero);
 
     builder.range(0, num_proofs).for_each(|i, builder| {
         let proof = builder.get(&proofs, i);
@@ -177,24 +182,32 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
 
         let shard_start_pc = builder.get(&start_pcs, i);
         let shard_next_pc = builder.get(&next_pcs, i);
+        let shard_start_shard = builder.get(&start_shards, i);
+        let shard_next_shard = builder.get(&next_shards, i);
 
+        // Verify shard transition
         builder.assert_felt_eq(expected_start_pc, shard_start_pc);
         builder.assign(expected_start_pc, shard_next_pc);
+        builder.assert_felt_eq(expected_start_shard, shard_start_shard);
+        builder.assign(expected_start_shard, shard_next_shard);
 
         builder.if_eq(is_recursive, zero).then_or_else(
             // Non-recursive proof
             |builder| {
                 let mut pv_elements = Vec::new();
                 for i in 0..PROOF_MAX_NUM_PVS {
-                    let element = builder.get(&proof.commitment.main_commit, i);
+                    let element = builder.get(&proof.public_values, i);
                     pv_elements.push(element);
                 }
 
                 let pv = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
-                // Verify shard transition.
+                // Verify witness data
                 builder.assert_felt_eq(shard_start_pc, pv.start_pc);
                 builder.assert_felt_eq(shard_next_pc, pv.next_pc);
+                builder.assert_felt_eq(shard_start_shard, pv.shard);
+                let pv_shard_plus_one: Felt<_> = builder.eval(pv.shard + one_felt);
+                builder.assert_felt_eq(shard_next_shard, pv_shard_plus_one);
 
                 // Need to convert the shard as a felt to a variable, since `if_eq` only handles variables.
                 let shard_f = pv.shard;
@@ -233,7 +246,27 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
             },
             // Recursive proof
             |builder| {
-                // TODO: Verify proof public values
+                let mut pv_elements = Vec::new();
+                for i in 0..PROOF_MAX_NUM_PVS {
+                    let element = builder.get(&proof.public_values, i);
+                    pv_elements.push(element);
+                }
+
+                let proof_pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
+
+                let mut pv = builder.array(4);
+                builder.set(&mut pv, 0, shard_start_pc);
+                builder.set(&mut pv, 1, shard_start_shard);
+                builder.set(&mut pv, 2, shard_next_pc);
+                builder.set(&mut pv, 3, shard_next_shard);
+
+                let pv_digest = builder.poseidon2_hash(&pv);
+
+                for j in 0..DIGEST_SIZE {
+                    let expected_digest_element = proof_pv.committed_value_digest[j];
+                    let digest_element = builder.get(&pv_digest, j);
+                    builder.assert_felt_eq(expected_digest_element, digest_element);
+                }
 
                 // Build recursion challenger
                 let mut current_challenger = recursion_challenger.as_clone(builder);
@@ -278,11 +311,15 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     // after observing pv_digest at the end.
 
     let start_pc = builder.get(&start_pcs, zero);
+    let start_shard = builder.get(&start_shards, zero);
     builder.write_public_value(start_pc);
+    builder.write_public_value(start_shard);
 
     let last_idx: Var<_> = builder.eval(num_proofs - one);
     let next_pc = builder.get(&next_pcs, last_idx);
+    let next_shard = builder.get(&next_shards, last_idx);
     builder.write_public_value(next_pc);
+    builder.write_public_value(next_shard);
 
     builder.commit_public_values();
 

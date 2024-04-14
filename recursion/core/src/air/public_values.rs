@@ -2,7 +2,6 @@ use crate::runtime::DIGEST_SIZE;
 
 use arrayref::array_ref;
 use core::fmt::Debug;
-use p3_field::AbstractField;
 use serde::{Deserialize, Serialize};
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
@@ -14,9 +13,9 @@ pub struct PublicValues<T> {
     pub committed_value_digest: [T; DIGEST_SIZE],
 }
 
-impl<F: AbstractField> PublicValues<F> {
+impl<T: Clone> PublicValues<T> {
     /// Convert a vector of field elements into a PublicValues struct.
-    pub fn from_vec(data: Vec<F>) -> Self {
+    pub fn from_vec(data: Vec<T>) -> Self {
         if data.len() < DIGEST_SIZE {
             panic!("Invalid number of items in the serialized vector.");
         }

@@ -59,6 +59,8 @@ pub struct ReduceProof<SC: StarkGenericConfig> {
     pub proof: ShardProof<SC>,
     pub start_pc: SC::Val,
     pub next_pc: SC::Val,
+    pub start_shard: SC::Val,
+    pub next_shard: SC::Val,
 }
 
 impl Default for SP1ProverImpl {
@@ -204,11 +206,30 @@ impl SP1ProverImpl {
                 _ => unreachable!(),
             })
             .collect_vec();
+
         let next_pcs = reduce_proofs
             .iter()
             .map(|p| match p {
                 ReduceProofType::SP1(ref proof) => proof.next_pc,
                 ReduceProofType::Recursive(ref proof) => proof.next_pc,
+                _ => unreachable!(),
+            })
+            .collect_vec();
+
+        let start_shards = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.start_shard,
+                ReduceProofType::Recursive(ref proof) => proof.start_shard,
+                _ => unreachable!(),
+            })
+            .collect_vec();
+
+        let next_shards = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.next_shard,
+                ReduceProofType::Recursive(ref proof) => proof.next_shard,
                 _ => unreachable!(),
             })
             .collect_vec();
@@ -238,6 +259,10 @@ impl SP1ProverImpl {
         witness_stream.extend(recursion_prep_domains.write());
         witness_stream.extend(sp1_vk.write());
         witness_stream.extend(self.reduce_vk_inner.write());
+        witness_stream.extend(Hintable::write(&start_pcs));
+        witness_stream.extend(Hintable::write(&next_pcs));
+        witness_stream.extend(Hintable::write(&start_shards));
+        witness_stream.extend(Hintable::write(&next_shards));
         for proof in reduce_proofs.iter() {
             match proof {
                 ReduceProofType::SP1(reduce_proof) => {
@@ -249,8 +274,6 @@ impl SP1ProverImpl {
                 _ => unreachable!(),
             }
         }
-        witness_stream.extend(Hintable::write(&start_pcs));
-        witness_stream.extend(Hintable::write(&next_pcs));
         println!("witness_stream.len() = {}", witness_stream.len());
 
         // Execute runtime to get the memory setup.
@@ -296,6 +319,8 @@ impl SP1ProverImpl {
             proof,
             start_pc: start_pcs[0],
             next_pc: next_pcs[next_pcs.len() - 1],
+            start_shard: start_shards[0],
+            next_shard: next_shards[next_shards.len() - 1],
         }
     }
 
@@ -311,10 +336,13 @@ impl SP1ProverImpl {
             .into_iter()
             .map(|proof| {
                 let pv = PublicValues::<Word<SP1F>, SP1F>::from_vec(proof.public_values.clone());
+
                 ReduceProofType::SP1(ReduceProof {
                     proof,
                     start_pc: pv.start_pc,
                     next_pc: pv.next_pc,
+                    start_shard: pv.shard,
+                    next_shard: pv.shard + SP1F::one(), // TODO: handle the case for the last shard.  Next_shard should be 0.
                 })
             })
             .collect::<Vec<_>>();
