@@ -157,28 +157,35 @@ where
             local.operand_2,
             local.add_operation,
             local.shard,
-            is_real,
+            is_real.clone(),
         );
+
+        // Construct the relevant operand based on local.is_add, local.is_sub selectors.
+        let opcode = local.is_add * Opcode::ADD.as_field::<AB::F>()
+            + local.is_sub * Opcode::SUB.as_field::<AB::F>();
+
+        // When receiving from the CPU table, for Opcode::ADD the `a` operand is add_operation.value
+        // and for Opcode::SUB the `a` operand is local.operand_1.
+        let operand_a =
+            builder.select_word(local.is_add, local.add_operation.value, local.operand_1);
+
+        // Similarly, for Opcode::ADD the `b` operand is local.operand_1
+        // and for Opcode::SUB the `b` operand is local.add_operation.value.
+        let operand_b =
+            builder.select_word(local.is_add, local.operand_1, local.add_operation.value);
+
+        // For both add and sub, the `c` operand is always local.operand_2.
+        let operand_c = local.operand_2;
 
         // Receive the arguments.  There are seperate receives for ADD and SUB.
         // For add, `add_operation.value` is `a`, `operand_1` is `b`, and `operand_2` is `c`.
         builder.receive_alu(
-            Opcode::ADD.as_field::<AB::F>(),
-            local.add_operation.value,
-            local.operand_1,
-            local.operand_2,
+            opcode,
+            operand_a,
+            operand_b,
+            operand_c,
             local.shard,
-            local.is_add,
-        );
-
-        // For sub, `operand_1` is `a`, `add_operation.value` is `b`, and `operand_2` is `c`.
-        builder.receive_alu(
-            Opcode::SUB.as_field::<AB::F>(),
-            local.operand_1,
-            local.add_operation.value,
-            local.operand_2,
-            local.shard,
-            local.is_sub,
+            is_real,
         );
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

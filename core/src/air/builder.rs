@@ -240,6 +240,25 @@ pub trait WordAirBuilder: ByteAirBuilder {
         result
     }
 
+    /// Same as `if_else` above, but arguments are `Word` instead of individual expressions.
+    fn select_word<ECond, EA, EB>(
+        &mut self,
+        condition: ECond,
+        a: Word<EA>,
+        b: Word<EB>,
+    ) -> Word<Self::Expr>
+    where
+        ECond: Into<Self::Expr> + Clone,
+        EA: Into<Self::Expr> + Clone,
+        EB: Into<Self::Expr> + Clone,
+    {
+        let mut res = vec![];
+        for i in 0..WORD_SIZE {
+            res.push(self.if_else(condition.clone(), a[i].clone(), b[i].clone()));
+        }
+        Word(res.try_into().unwrap())
+    }
+
     /// Check that each limb of the given slice is a u8.
     fn slice_range_check_u8<
         EWord: Into<Self::Expr> + Clone,
