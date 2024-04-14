@@ -209,6 +209,7 @@ impl<F: PrimeField32> MachineAir<F> for ShaCompressChip {
                 };
 
                 cols.is_real = F::one();
+                cols.is_last_row = cols.octet[7] * cols.octet_num[9];
                 cols.start = cols.is_real * cols.octet_num[0] * cols.octet[0];
 
                 rows.push(row);
