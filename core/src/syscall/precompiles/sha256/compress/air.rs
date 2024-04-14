@@ -158,30 +158,38 @@ impl ShaCompressChip {
                 + local.octet_num[8],
         );
 
-        let is_last_row = local.is_real - (local.octet[7] * local.octet_num[9]);
+        builder.assert_eq(
+            local.is_last_row.into(),
+            local.octet[7] * local.octet_num[9],
+        );
 
         // If this row is real and not the last cycle, then next row should have same inputs
         builder
             .when_transition()
-            .when(is_last_row.clone())
+            .when(local.is_real)
+            .when_not(local.is_last_row)
             .assert_eq(local.shard, next.shard);
         builder
             .when_transition()
-            .when(is_last_row.clone())
+            .when(local.is_real)
+            .when_not(local.is_last_row)
             .assert_eq(local.clk, next.clk);
         builder
             .when_transition()
-            .when(is_last_row.clone())
+            .when(local.is_real)
+            .when_not(local.is_last_row)
             .assert_eq(local.w_ptr, next.w_ptr);
         builder
             .when_transition()
-            .when(is_last_row.clone())
+            .when(local.is_real)
+            .when_not(local.is_last_row)
             .assert_eq(local.h_ptr, next.h_ptr);
 
         // If this row is real and not the last cycle, then next row should also be real.
         builder
             .when_transition()
-            .when(is_last_row)
+            .when(local.is_real)
+            .when_not(local.is_last_row)
             .assert_one(next.is_real);
 
         // Assert that the table ends in nonreal columns. Since each compress ecall is 80 cycles and
