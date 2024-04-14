@@ -1,3 +1,21 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+use num::BigUint;
+use num::Zero;
+use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use sp1_derive::AlignedBorrow;
+use tracing::instrument;
+
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::bytes::ByteLookupEvent;
@@ -21,22 +39,6 @@ use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use tracing::instrument;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 

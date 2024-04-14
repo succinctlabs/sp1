@@ -1,3 +1,23 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::fmt::Debug;
+use std::str::FromStr;
+
+use elliptic_curve::sec1::ToEncodedPoint;
+use elliptic_curve::subtle::Choice;
+use k256::elliptic_curve::point::DecompressPoint;
+use num::BigUint;
+use num::Zero;
+use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use serde::{Deserialize, Serialize};
+use sp1_derive::AlignedBorrow;
+use typenum::U32;
+
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -16,7 +36,6 @@ use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
-
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
@@ -29,25 +48,6 @@ use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use elliptic_curve::sec1::ToEncodedPoint;
-use elliptic_curve::subtle::Choice;
-use k256::elliptic_curve::point::DecompressPoint;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::Matrix;
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use typenum::U32;
-
-use p3_matrix::dense::RowMajorMatrix;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct K256DecompressEvent {

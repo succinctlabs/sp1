@@ -1,3 +1,21 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::marker::PhantomData;
+
+use curve25519_dalek::edwards::CompressedEdwardsY;
+use generic_array::GenericArray;
+use num::BigUint;
+use num::One;
+use num::Zero;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::Matrix;
+use serde::Deserialize;
+use serde::Serialize;
+use typenum::Unsigned;
+use typenum::U32;
+
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -28,22 +46,6 @@ use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use curve25519_dalek::edwards::CompressedEdwardsY;
-use generic_array::GenericArray;
-use num::BigUint;
-use num::One;
-use num::Zero;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::Matrix;
-use serde::Deserialize;
-use serde::Serialize;
-use std::marker::PhantomData;
-use typenum::Unsigned;
-use typenum::U32;
 
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_derive::AlignedBorrow;

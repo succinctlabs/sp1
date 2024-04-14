@@ -1,9 +1,3 @@
-use super::folder::ProverConstraintFolder;
-use super::Chip;
-use super::Domain;
-use super::PackedChallenge;
-use super::PackedVal;
-use super::Val;
 use p3_air::Air;
 use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
@@ -15,7 +9,13 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
 
+use super::folder::ProverConstraintFolder;
+use super::Chip;
+use super::Domain;
+use super::PackedChallenge;
+use super::PackedVal;
 use super::StarkGenericConfig;
+use super::Val;
 
 #[allow(clippy::too_many_arguments)]
 pub fn quotient_values<SC, A, Mat>(

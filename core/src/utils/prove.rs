@@ -2,6 +2,13 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
+pub use baby_bear_blake3::BabyBearBlake3;
+use p3_challenger::CanObserve;
+use p3_field::PrimeField32;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use size::Size;
+
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -14,13 +21,6 @@ use crate::{
 };
 
 use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
-pub use baby_bear_blake3::BabyBearBlake3;
-use p3_challenger::CanObserve;
-
-use p3_field::PrimeField32;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use size::Size;
 
 const LOG_DEGREE_BOUND: usize = 31;
 

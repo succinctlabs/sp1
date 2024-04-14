@@ -1,14 +1,15 @@
+use std::fmt::Debug;
+
+use num::BigUint;
+use p3_field::PrimeField32;
+use sp1_derive::AlignedBorrow;
+
 use super::params::Limbs;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-
-use num::BigUint;
-use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
 ///

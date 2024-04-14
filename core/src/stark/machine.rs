@@ -1,7 +1,18 @@
-use itertools::Itertools;
-use p3_matrix::Dimensions;
 use std::cmp::Reverse;
 use std::collections::HashMap;
+
+use itertools::Itertools;
+use p3_air::Air;
+use p3_challenger::CanObserve;
+use p3_challenger::FieldChallenger;
+use p3_commit::Pcs;
+use p3_field::AbstractField;
+use p3_field::Field;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Dimensions;
+use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::*;
 
 use super::debug_constraints;
 use super::Dom;
@@ -14,17 +25,6 @@ use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
-
-use p3_air::Air;
-use p3_challenger::CanObserve;
-use p3_challenger::FieldChallenger;
-use p3_commit::Pcs;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::*;
 
 use super::Chip;
 use super::Com;

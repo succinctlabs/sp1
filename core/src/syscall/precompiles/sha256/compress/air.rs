@@ -1,5 +1,8 @@
+use core::borrow::Borrow;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
+use p3_matrix::Matrix;
 
 use super::columns::{ShaCompressCols, NUM_SHA_COMPRESS_COLS};
 use super::{ShaCompressChip, SHA_COMPRESS_K};
@@ -10,8 +13,6 @@ use crate::operations::{
     XorOperation,
 };
 use crate::runtime::SyscallCode;
-use core::borrow::Borrow;
-use p3_matrix::Matrix;
 
 impl<F> BaseAir<F> for ShaCompressChip {
     fn width(&self) -> usize {

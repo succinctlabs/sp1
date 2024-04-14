@@ -6,11 +6,10 @@ use std::{
 
 use bincode::{deserialize_from, Error};
 use p3_matrix::dense::RowMajorMatrix;
-use size::Size;
-
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use size::Size;
 use tracing::trace;
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};

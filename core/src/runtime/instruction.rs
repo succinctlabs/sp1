@@ -1,6 +1,7 @@
-use super::Opcode;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
+
+use super::Opcode;
 
 /// An instruction specifies an operation to execute and the operands.
 #[derive(Clone, Copy, Serialize, Deserialize)]

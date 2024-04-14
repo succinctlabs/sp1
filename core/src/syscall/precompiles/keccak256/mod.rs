@@ -1,11 +1,12 @@
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use p3_keccak_air::KeccakAir;
-use serde::{Deserialize, Serialize};
-
 mod air;
 pub mod columns;
 mod execute;
 mod trace;
+
+use p3_keccak_air::KeccakAir;
+use serde::{Deserialize, Serialize};
+
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 
 pub(crate) const STATE_SIZE: usize = 25;
 

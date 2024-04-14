@@ -1,12 +1,12 @@
+use p3_field::PrimeField32;
+
+use super::MachineStark;
 use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
 use crate::memory::MemoryChipType;
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
-use p3_field::PrimeField32;
 pub use riscv_chips::*;
-
-use super::MachineStark;
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
