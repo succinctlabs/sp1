@@ -394,7 +394,8 @@ mod tests {
         sp1_challenger.observe(vk.commit);
         for shard_proof in proof.shard_proofs.iter() {
             sp1_challenger.observe(shard_proof.commitment.main_commit);
-            sp1_challenger.observe_slice(&shard_proof.public_values.to_vec()[0..NUM_PV_ELEMENTS]);
+            sp1_challenger
+                .observe_slice(&shard_proof.public_values.to_vec()[0..SP1_PROOF_NUM_PV_ELEMENTS]);
         }
 
         let start = Instant::now();

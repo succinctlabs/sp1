@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use std::iter::once;
 
 /// The number of non padded elements in the SP1 proofs public values vec.
-pub const SP1_PROOF_NUM_PV_ELEMENTS: usize = size_of::<PublicValues<Word<u8>, u8>>();
+pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<Word<u8>, u8>>();
 
 /// The number of 32 bit words in the SP1 proof's commited value digest.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;

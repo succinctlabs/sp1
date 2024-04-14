@@ -270,7 +270,9 @@ pub fn build_wrap_circuit(
     let proof = dummy_proof.read(&mut builder);
     let ShardCommitment { main_commit, .. } = &proof.commitment;
     challenger.observe_commitment(&mut builder, *main_commit);
-    let pv_slice = proof.public_values.slice(builder, 0, NUM_PV_ELEMENTS);
+    let pv_slice = proof
+        .public_values
+        .slice(&mut builder, 0, SP1_PROOF_NUM_PV_ELEMENTS);
     challenger.observe_slice(&mut builder, pv_slice);
 
     StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(

@@ -171,7 +171,7 @@ mod tests {
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
     use sp1_core::{
-        air::NUM_PV_ELEMENTS,
+        air::SP1_PROOF_NUM_PV_ELTS,
         stark::{
             Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
             ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
@@ -306,7 +306,7 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values[0..NUM_PV_ELEMENTS]);
+            challenger.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
