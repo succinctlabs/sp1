@@ -3,6 +3,7 @@ use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
+use rayon_scan::ScanParallelIterator;
 use std::borrow::Borrow;
 
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
@@ -10,6 +11,7 @@ use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
 /// These elements are used to uniquely fingerprint each interaction.
+#[inline]
 pub fn generate_interaction_rlc_elements<F: Field, AF: AbstractField>(
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
@@ -25,6 +27,7 @@ pub fn generate_interaction_rlc_elements<F: Field, AF: AbstractField>(
     random_element.powers().skip(1).take(n).collect::<Vec<_>>()
 }
 
+#[inline]
 #[allow(clippy::too_many_arguments)]
 pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     row: &mut [EF],
@@ -42,7 +45,7 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
         .chain(receives.iter().map(|int| (int, false)))
         .chunks(batch_size);
     let num_chunks = (sends.len() + receives.len() + 1) / batch_size;
-    assert_eq!(num_chunks + 1, row.len());
+    debug_assert_eq!(num_chunks + 1, row.len());
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
     for (value, chunk) in row.iter_mut().zip(interaction_chunks) {
         *value = chunk
@@ -92,7 +95,6 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     //
     // where f_{i, c_k} is the value at row i for column c_k. The computed value is essentially a
     // fingerprint for the interaction.
-    let chunk_rate = 1 << 8;
     let permutation_trace_width = (sends.len() + receives.len() + 1) / batch_size + 1;
     let height = main.height();
 
@@ -106,91 +108,63 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     match preprocessed {
         Some(prep) => {
             permutation_trace
-                .par_row_chunks_mut(chunk_rate)
-                .zip_eq(prep.clone().par_row_chunks_mut(chunk_rate))
-                .zip_eq(main.par_row_chunks_mut(chunk_rate))
-                .for_each(|((mut chunk, prep_rows_chunk), main_rows_chunk)| {
-                    chunk
-                        .rows_mut()
-                        .zip(prep_rows_chunk.rows())
-                        .zip(main_rows_chunk.rows())
-                        .for_each(|((row, prep_row), main_row)| {
-                            populate_permutation_row(
-                                row,
-                                prep_row.collect::<Vec<_>>().as_slice(),
-                                main_row.collect::<Vec<_>>().as_slice(),
-                                sends,
-                                receives,
-                                &alphas,
-                                betas.clone(),
-                                batch_size,
-                            )
-                        })
+                .par_rows_mut()
+                .zip_eq(prep.par_rows())
+                .zip_eq(main.par_rows())
+                .for_each(|((row, prep_row), main_row)| {
+                    populate_permutation_row(
+                        row,
+                        prep_row.collect::<Vec<_>>().as_slice(),
+                        main_row.collect::<Vec<_>>().as_slice(),
+                        sends,
+                        receives,
+                        &alphas,
+                        betas.clone(),
+                        batch_size,
+                    )
                 });
-            // Compute the permutation trace values for the remainder.
-            let remainder = height % chunk_rate;
-            for i in 0..remainder {
-                let index = height - remainder + i;
-                populate_permutation_row(
-                    permutation_trace.row_mut(index),
-                    &(prep.row_slice(index)),
-                    &(main.row_slice(index)),
-                    sends,
-                    receives,
-                    &alphas,
-                    betas.clone(),
-                    batch_size,
-                );
-            }
         }
         None => {
             permutation_trace
-                .par_row_chunks_mut(chunk_rate)
-                .zip_eq(main.par_row_chunks_mut(chunk_rate))
-                .for_each(|(mut chunk, main_rows_chunk)| {
-                    chunk
-                        .rows_mut()
-                        .zip(main_rows_chunk.rows())
-                        .for_each(|(row, main_row)| {
-                            populate_permutation_row(
-                                row,
-                                &[],
-                                main_row.collect::<Vec<_>>().as_slice(),
-                                sends,
-                                receives,
-                                &alphas,
-                                betas.clone(),
-                                batch_size,
-                            )
-                        })
+                .par_rows_mut()
+                .zip_eq(main.par_rows_mut())
+                .for_each(|(row, main_row)| {
+                    populate_permutation_row(
+                        row,
+                        &[],
+                        main_row,
+                        sends,
+                        receives,
+                        &alphas,
+                        betas.clone(),
+                        batch_size,
+                    )
                 });
-            // Compute the permutation trace values for the remainder.
-            let remainder = height % chunk_rate;
-            for i in 0..remainder {
-                let index = height - remainder + i;
-                populate_permutation_row(
-                    permutation_trace.row_mut(index),
-                    &[],
-                    &(main.row_slice(index)),
-                    sends,
-                    receives,
-                    &alphas,
-                    betas.clone(),
-                    batch_size,
-                );
-            }
         }
     }
 
-    // Write the cumultative sum.
-    let mut cumulative_sum = EF::zero();
-    for permutation_row in permutation_trace.as_view_mut().rows_mut() {
-        cumulative_sum += permutation_row[0..permutation_trace_width - 1]
-            .iter()
-            .copied()
-            .sum::<EF>();
-        *permutation_row.last_mut().unwrap() = cumulative_sum;
-    }
+    let zero = EF::zero();
+    let cumulative_sums = permutation_trace
+        .par_rows_mut()
+        .map(|row| {
+            row[0..permutation_trace_width - 1]
+                .iter()
+                .copied()
+                .sum::<EF>()
+        })
+        .collect::<Vec<_>>();
+
+    let cumulative_sums = cumulative_sums
+        .into_par_iter()
+        .scan(|a, b| *a + *b, zero)
+        .collect::<Vec<_>>();
+
+    permutation_trace
+        .par_rows_mut()
+        .zip_eq(cumulative_sums.into_par_iter())
+        .for_each(|(row, cumulative_sum)| {
+            *row.last_mut().unwrap() = cumulative_sum;
+        });
 
     permutation_trace
 }

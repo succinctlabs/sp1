@@ -3619,6 +3619,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "rayon-scan"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f87cc11a0140b4b0da0ffc889885760c61b13672d80a908920b2c0df078fa14"
+dependencies = [
+ "rayon",
+]
+
+[[package]]
 name = "redox_syscall"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4352,6 +4361,7 @@ dependencies = [
  "p3-util",
  "petgraph",
  "rand",
+ "rayon-scan",
  "rrs-lib",
  "serde",
  "serde_json",
