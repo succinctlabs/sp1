@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
+use crate::air::NUM_PV_ELEMENTS;
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -194,7 +195,7 @@ where
 
         for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
-            challenger.observe_slice(&shard.public_values::<SC::Val>());
+            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..NUM_PV_ELEMENTS]);
         }
     }
 

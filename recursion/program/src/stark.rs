@@ -270,6 +270,7 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
+    use sp1_core::air::NUM_PV_ELEMENTS;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
     use sp1_core::{
@@ -319,7 +320,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(&proof.public_values);
+            challenger_val.observe_slice(&proof.public_values[0..NUM_PV_ELEMENTS]);
         });
 
         let permutation_challenges = (0..2)
@@ -341,7 +342,8 @@ pub(crate) mod tests {
             let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-            challenger.observe_slice(&mut builder, proof.public_values);
+            let pv_slice = proof.public_values.slice(builder, 0, NUM_PV_ELEMENTS);
+            challenger.observe_slice(&mut builder, pv_slice);
         }
 
         // Sample the permutation challenges.

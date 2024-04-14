@@ -5,7 +5,7 @@ use std::collections::HashMap;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::MachineAir;
+use crate::air::{MachineAir, NUM_PV_ELEMENTS};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -256,7 +256,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
-                challenger.observe_slice(&proof.public_values);
+                challenger.observe_slice(&proof.public_values[0..NUM_PV_ELEMENTS]);
             });
         });
 
