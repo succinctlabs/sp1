@@ -1,5 +1,7 @@
+use std::io::Read;
+
 use crate::stark::{Proof, VerifyingKey};
-use crate::utils::{BabyBearPoseidon2, BabyBearPoseidon2Inner};
+use crate::utils::BabyBearPoseidon2Inner;
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;

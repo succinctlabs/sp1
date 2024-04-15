@@ -376,7 +376,7 @@ impl CpuChip {
             ecall_cols.is_hint_len.result
         };
 
-        // Constrain EcallCols.is_commit.result == syscall_id is COMMIT.
+        // Constrain EcallCols.is_commit.result == (syscall_id is COMMIT).
         let is_commit = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
@@ -387,7 +387,7 @@ impl CpuChip {
             ecall_cols.is_commit.result
         };
 
-        // Constrain EcallCols.is_cois_commit_deferred_proofsmmit.result == syscall_id is COMMIT_DEFERRED_PROOFS.
+        // Constrain EcallCols.is_commit_deferred_proofs.result == (syscall_id is COMMIT_DEFERRED_PROOFS).
         let is_commit_deferred_proofs = {
             IsZeroOperation::<AB::F>::eval(
                 builder,

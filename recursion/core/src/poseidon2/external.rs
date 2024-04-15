@@ -339,13 +339,13 @@ mod tests {
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use sp1_core::stark::StarkGenericConfig;
+    use sp1_core::utils::inner_perm;
     use sp1_core::{
         air::MachineAir,
         utils::{uni_stark_prove, BabyBearPoseidon2},
     };
 
     use crate::poseidon2::external::WIDTH;
-    use crate::stark::config::inner_perm;
     use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
     use p3_symmetric::Permutation;
 

@@ -6,8 +6,7 @@ use serde_with::serde_as;
 
 use crate::{
     stark::{Proof, VerifyingKey},
-    utils::{BabyBearPoseidon2, BabyBearPoseidon2Inner},
-    SP1ProofWithIO,
+    utils::BabyBearPoseidon2Inner,
 };
 
 use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
