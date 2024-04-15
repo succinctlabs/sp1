@@ -373,15 +373,15 @@ where
         // Check that the boolean values are indeed boolean values.
         {
             let booleans = [
-                local.is_real,
-                local.is_mul,
-                local.is_mulh,
-                local.is_mulhu,
-                local.is_mulhsu,
                 local.b_msb,
                 local.c_msb,
                 local.b_sign_extend,
                 local.c_sign_extend,
+                local.is_mul,
+                local.is_mulh,
+                local.is_mulhu,
+                local.is_mulhsu,
+                local.is_real,
             ];
             for boolean in booleans.iter() {
                 builder.assert_bool(*boolean);

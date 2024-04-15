@@ -293,6 +293,10 @@ where
             builder.assert_bool(bit);
         }
 
+        // Check that the operation flags are boolean.
+        builder.assert_bool(local.is_slt);
+        builder.assert_bool(local.is_sltu);
+
         // Receive the arguments.
         builder.receive_alu(
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)

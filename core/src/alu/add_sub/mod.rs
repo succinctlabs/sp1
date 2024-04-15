@@ -145,11 +145,6 @@ where
         let local = main.row_slice(0);
         let local: &AddSubCols<AB::Var> = (*local).borrow();
 
-        builder.assert_bool(local.is_add);
-        builder.assert_bool(local.is_sub);
-        let is_real = local.is_add + local.is_sub;
-        builder.assert_bool(is_real.clone());
-
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(
             builder,
@@ -157,7 +152,7 @@ where
             local.operand_2,
             local.add_operation,
             local.shard,
-            is_real,
+            local.is_add + local.is_sub,
         );
 
         // Receive the arguments.  There are seperate receives for ADD and SUB.
@@ -180,6 +175,11 @@ where
             local.shard,
             local.is_sub,
         );
+
+        let is_real = local.is_add + local.is_sub;
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        builder.assert_bool(is_real);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(

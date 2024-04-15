@@ -717,17 +717,18 @@ where
         // Check that the flags are boolean.
         {
             let bool_flags = [
-                local.is_real,
-                local.is_remu,
+                local.is_div,
                 local.is_divu,
                 local.is_rem,
-                local.is_div,
-                local.b_neg,
-                local.rem_neg,
+                local.is_remu,
+                local.is_overflow,
                 local.b_msb,
                 local.rem_msb,
-                local.c_neg,
                 local.c_msb,
+                local.b_neg,
+                local.rem_neg,
+                local.c_neg,
+                local.is_real,
             ];
 
             for flag in bool_flags.iter() {

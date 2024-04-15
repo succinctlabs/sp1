@@ -466,6 +466,11 @@ where
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
+        // Check that the operation flags are boolean.
+        builder.assert_bool(local.is_srl);
+        builder.assert_bool(local.is_sra);
+        builder.assert_bool(local.is_real);
+
         // Receive the arguments.
         builder.receive_alu(
             local.is_srl * AB::F::from_canonical_u32(Opcode::SRL as u32)
