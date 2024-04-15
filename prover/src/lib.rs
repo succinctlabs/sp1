@@ -342,8 +342,8 @@ impl SP1ProverImpl {
                     start_pc: pv.start_pc,
                     next_pc: pv.next_pc,
                     start_shard: pv.shard,
-                    next_shard: if (pv.next_pc == 0) {
-                        0
+                    next_shard: if pv.next_pc == SP1F::zero() {
+                        SP1F::zero()
                     } else {
                         pv.shard + SP1F::one()
                     },

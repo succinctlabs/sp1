@@ -162,6 +162,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     let num_proofs = is_recursive_flags.len();
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.constant(F::zero());
+    let zero_felt: Felt<_> = builder.constant(F::zero());
     let one: Var<_> = builder.constant(F::one());
     let one_felt: Felt<_> = builder.constant(F::one());
 
@@ -295,6 +296,10 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
             },
         );
     });
+
+    // The next_pc and next_shard should be 0.
+    builder.assert_felt_eq(expected_start_pc, zero_felt);
+    builder.assert_felt_eq(expected_start_shard, zero_felt);
 
     // Public values:
     // (
