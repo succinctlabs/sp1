@@ -111,6 +111,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     };
 
     // 1) Allocate inputs to the stack.
+    builder.cycle_tracker("stage-a-setup-inputs");
     let is_recursive_flags: Array<_, Var<_>> = builder.uninit();
     let sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
     let sp1_challenger: DuplexChallengerVariable<_> = builder.uninit();
@@ -147,19 +148,21 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         return builder.compile_program();
     }
 
-    builder.print_debug(99999);
     let num_proofs = is_recursive_flags.len();
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.constant(F::zero());
     let one: Var<_> = builder.constant(F::one());
     let _one_felt: Felt<_> = builder.constant(F::one());
+    builder.cycle_tracker("stage-a-setup-inputs");
 
     // Setup recursion challenger
+    builder.cycle_tracker("stage-b-setup-recursion-challenger");
     let mut recursion_challenger = DuplexChallengerVariable::new(&mut builder);
     for j in 0..DIGEST_SIZE {
         let element = builder.get(&recursion_vk.commitment, j);
         recursion_challenger.observe(&mut builder, element);
     }
+    builder.cycle_tracker("stage-b-setup-recursion-challenger");
 
     builder.range(0, num_proofs).for_each(|i, builder| {
         let proof = builder.get(&proofs, i);

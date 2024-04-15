@@ -429,6 +429,10 @@ impl<C: Config> Builder<C> {
         let pv_hash = self.poseidon2_hash(&pv_buffer);
         self.operations.push(DslIr::Commit(pv_hash.clone()));
     }
+
+    pub fn cycle_tracker(&mut self, name: &str) {
+        self.operations.push(DslIr::CycleTracker(name.to_string()));
+    }
 }
 
 /// A builder for the DSL that handles if statements.
