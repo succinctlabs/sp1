@@ -3,7 +3,7 @@ use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, NUM_ROUNDS, U64_LIMBS};
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 
 use crate::{
     air::{SP1AirBuilder, SubAirBuilder},
@@ -29,8 +29,9 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
 
-        let local: &KeccakMemCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &KeccakMemCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &KeccakMemCols<AB::Var> = (*local).borrow();
+        let next: &KeccakMemCols<AB::Var> = (*next).borrow();
 
         // Constrain memory in the first and last cycles
         builder.assert_eq(

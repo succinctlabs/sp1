@@ -7,7 +7,6 @@ use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
-use p3_matrix::MatrixRowSlices;
 
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
@@ -22,6 +21,7 @@ use crate::memory::MemoryCols;
 use crate::operations::IsZeroOperation;
 use crate::runtime::SyscallCode;
 use crate::runtime::{MemoryAccessPosition, Opcode};
+use p3_matrix::Matrix;
 
 impl<AB> Air<AB> for CpuChip
 where
@@ -30,8 +30,9 @@ where
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &CpuCols<AB::Var> = (*local).borrow();
+        let next: &CpuCols<AB::Var> = (*next).borrow();
 
         let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::from_vec(
             builder

@@ -3,7 +3,7 @@ use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
@@ -89,7 +89,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &Poseidon2WideCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &Poseidon2WideCols<AB::Var> = (*local).borrow();
 
         builder.assert_eq(
             local.dummy_cols[0] * local.dummy_cols[0] * local.dummy_cols[0],

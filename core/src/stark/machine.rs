@@ -6,7 +6,7 @@ use std::fmt::Debug;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::MachineAir;
+use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -25,7 +25,6 @@ use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
 
 use super::Chip;
@@ -265,7 +264,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
-                challenger.observe_slice(&proof.public_values);
+                challenger.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
             });
         });
 
@@ -322,7 +321,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         .map(|index| &pk.traces[*index])
                 })
                 .collect::<Vec<_>>();
-            let traces = chips
+            let mut traces = chips
                 .par_iter()
                 .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
                 .zip(pre_traces)
@@ -341,7 +340,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
                     .par_iter()
-                    .zip(traces.par_iter())
+                    .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
                         let perm_trace = chip.generate_permutation_trace(
                             *pre_trace,

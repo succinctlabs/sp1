@@ -6,10 +6,11 @@ use std::{
 };
 
 use bincode::{deserialize_from, Error};
-use p3_air::TwoRowMatrixView;
 use p3_matrix::dense::RowMajorMatrix;
 use size::Size;
 
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
@@ -121,6 +122,9 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
+/// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
+/// proofs need to pad their public_values vec to this length.  This is required since the recursion
+/// verification program expects the public values vec to be fixed length.
 pub const PROOF_MAX_NUM_PVS: usize = 64;
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -134,9 +138,11 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub public_values: Vec<Val<SC>>,
 }
 
-impl<T> AirOpenedValues<T> {
-    pub fn view(&self) -> TwoRowMatrixView<T> {
-        TwoRowMatrixView::new(&self.local, &self.next)
+impl<T: Send + Sync + Clone> AirOpenedValues<T> {
+    pub fn view(&self) -> VerticalPair<RowMajorMatrixView<'_, T>, RowMajorMatrixView<'_, T>> {
+        let a = RowMajorMatrixView::new_row(&self.local);
+        let b = RowMajorMatrixView::new_row(&self.next);
+        VerticalPair::new(a, b)
     }
 }
 
