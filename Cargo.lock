@@ -4439,6 +4439,7 @@ dependencies = [
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-program",
+ "sp1-sdk",
 ]
 
 [[package]]
