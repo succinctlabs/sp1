@@ -57,9 +57,12 @@ impl ProverClient {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         dotenv::dotenv().ok();
-        let remote_proving = env::var("REMOTE_PROVING").unwrap_or_else(|_| String::from("false"));
+        let remote_proving = env::var("REMOTE_PROVING")
+            .unwrap_or_else(|_| String::from("false"))
+            .parse::<bool>()
+            .unwrap_or(false);
 
-        if remote_proving == "true" {
+        if remote_proving {
             let private_key = env::var("PRIVATE_KEY")
                 .unwrap_or_else(|_| panic!("PRIVATE_KEY must be set for remote proving"));
             Self {
