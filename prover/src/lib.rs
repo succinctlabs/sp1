@@ -357,7 +357,6 @@ impl SP1ProverImpl {
 mod tests {
 
     use super::*;
-    use sp1_core::air::SP1_PROOF_NUM_PV_ELTS;
     use sp1_core::utils::setup_logger;
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
@@ -395,8 +394,7 @@ mod tests {
         sp1_challenger.observe(vk.commit);
         for shard_proof in proof.shard_proofs.iter() {
             sp1_challenger.observe(shard_proof.commitment.main_commit);
-            sp1_challenger
-                .observe_slice(&shard_proof.public_values.to_vec()[0..SP1_PROOF_NUM_PV_ELTS]);
+            sp1_challenger.observe_slice(&shard_proof.public_values.to_vec());
         }
 
         let start = Instant::now();

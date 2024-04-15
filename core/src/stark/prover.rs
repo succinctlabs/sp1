@@ -23,7 +23,7 @@ use super::{quotient_values, MachineStark, PcsProverData, Val};
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
 use super::{ProvingKey, VerifierConstraintFolder};
-use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
+use crate::air::{MachineAir};
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::MachineChip;
@@ -88,8 +88,7 @@ where
                 .zip(shards.iter())
                 .for_each(|(commitment, shard)| {
                     challenger.observe(commitment);
-                    challenger
-                        .observe_slice(&shard.public_values::<SC::Val>()[0..SP1_PROOF_NUM_PV_ELTS]);
+                    challenger.observe_slice(&shard.public_values::<SC::Val>());
                 });
         });
 
