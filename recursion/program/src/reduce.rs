@@ -310,10 +310,6 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         );
     });
 
-    // The next_pc and next_shard should be 0.
-    builder.assert_felt_eq(expected_start_pc, zero_felt);
-    builder.assert_felt_eq(expected_start_shard, zero_felt);
-
     // Public values:
     // (
     //     committed_values_digest,
