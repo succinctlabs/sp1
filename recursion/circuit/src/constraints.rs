@@ -170,12 +170,9 @@ mod tests {
     use p3_commit::{Pcs, PolynomialSpace};
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
-    use sp1_core::{
-        air::SP1_PROOF_NUM_PV_ELTS,
-        stark::{
-            Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
-            ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
-        },
+    use sp1_core::stark::{
+        Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, ShardCommitment,
+        ShardMainData, ShardProof, StarkGenericConfig,
     };
     use sp1_recursion_compiler::{
         config::OuterConfig,
