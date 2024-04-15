@@ -1,9 +1,8 @@
 use p3_field::PrimeField32;
 
 use super::MachineStark;
-use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 pub use crate::air::SP1AirBuilder;
-use crate::memory::MemoryChipKind;
+use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::memory::MemoryChipType;
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
