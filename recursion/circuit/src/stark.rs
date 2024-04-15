@@ -8,7 +8,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use sp1_core::stark::{Com, ShardProof};
 use sp1_core::{
-    air::{MachineAir},
+    air::MachineAir,
     stark::{MachineStark, ShardCommitment, StarkGenericConfig, VerifyingKey},
 };
 use sp1_recursion_compiler::config::OuterConfig;

@@ -16,7 +16,7 @@ use p3_maybe_rayon::prelude::*;
 
 use super::debug_constraints;
 use super::Dom;
-use crate::air::{MachineAir};
+use crate::air::MachineAir;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;

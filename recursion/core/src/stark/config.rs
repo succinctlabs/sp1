@@ -70,9 +70,13 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
+    let num_queries = match std::env::var("FRI_QUERIES") {
+        Ok(value) => value.parse().unwrap(),
+        Err(_) => 33,
+    };
     FriConfig {
         log_blowup: 3,
-        num_queries: 1,
+        num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }
@@ -133,9 +137,13 @@ pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let hash = InnerHash::new(perm.clone());
     let compress = InnerCompress::new(perm.clone());
     let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
+    let num_queries = match std::env::var("FRI_QUERIES") {
+        Ok(value) => value.parse().unwrap(),
+        Err(_) => 100,
+    };
     FriConfig {
         log_blowup: 1,
-        num_queries: 100,
+        num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }
@@ -147,9 +155,13 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let hash = InnerHash::new(perm.clone());
     let compress = InnerCompress::new(perm.clone());
     let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
+    let num_queries = match std::env::var("FRI_QUERIES") {
+        Ok(value) => value.parse().unwrap(),
+        Err(_) => 100,
+    };
     FriConfig {
         log_blowup: 1,
-        num_queries: 100,
+        num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }
