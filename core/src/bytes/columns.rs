@@ -6,6 +6,7 @@ use super::NUM_BYTE_OPS;
 /// The number of main trace columns for `ByteChip`.
 pub const NUM_BYTE_PREPROCESSED_COLS: usize = size_of::<BytePreprocessedCols<u8>>();
 
+/// The number of multiplicity columns for `ByteChip`.
 pub const NUM_BYTE_MULT_COLS: usize = size_of::<ByteMultCols<u8>>();
 
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
@@ -48,7 +49,9 @@ pub struct BytePreprocessedCols<T> {
 #[derive(Debug, Clone, Copy, AlignedBorrow)]
 #[repr(C)]
 pub struct ByteMultCols<T> {
-    pub multiplicities: [T; NUM_BYTE_OPS],
     /// Shard number is tracked so that the multiplicities do not overflow.
     pub shard: T,
+
+    /// The multiplicites of each byte operation.
+    pub multiplicities: [T; NUM_BYTE_OPS],
 }

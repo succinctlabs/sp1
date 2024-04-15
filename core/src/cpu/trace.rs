@@ -1,3 +1,13 @@
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+
+use p3_field::{PrimeField, PrimeField32};
+use p3_matrix::dense::RowMajorMatrix;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
+use tracing::instrument;
+
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
@@ -9,14 +19,6 @@ use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
-use p3_field::{PrimeField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use tracing::instrument;
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;

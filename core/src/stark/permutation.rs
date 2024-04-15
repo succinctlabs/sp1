@@ -1,10 +1,11 @@
+use std::borrow::Borrow;
+
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
 use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
-use std::borrow::Borrow;
 
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 

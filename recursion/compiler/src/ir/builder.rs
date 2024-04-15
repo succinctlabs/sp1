@@ -1,12 +1,13 @@
 use std::{iter::Zip, vec::IntoIter};
 
+use backtrace::Backtrace;
+use p3_field::AbstractField;
+use sp1_recursion_core::runtime::PV_BUFFER_MAX_SIZE;
+
 use super::{
     Array, Config, DslIr, Ext, Felt, FromConstant, SymbolicExt, SymbolicFelt, SymbolicUsize,
     SymbolicVar, Usize, Var, Variable,
 };
-use backtrace::Backtrace;
-use p3_field::AbstractField;
-use sp1_recursion_core::runtime::PV_BUFFER_MAX_SIZE;
 
 /// TracedVec is a Vec wrapper that records a trace whenever an element is pushed. When extending
 /// from another TracedVec, the traces are copied over.

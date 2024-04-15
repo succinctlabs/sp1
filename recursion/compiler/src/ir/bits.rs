@@ -16,7 +16,10 @@ impl<C: Config> Builder<C> {
             self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
         }
 
+        // TODO: There is an edge case where the witnessed bits may slightly overflow and cause
+        // the output to be incorrect. This is a known issue and will be fixed in the future.
         self.assert_var_eq(sum, num);
+
         output
     }
 
@@ -46,7 +49,9 @@ impl<C: Config> Builder<C> {
             });
         }
 
-        // self.assert_felt_eq(sum, num);
+        // TODO: There is an edge case where the witnessed bits may slightly overflow and cause
+        // the output to be incorrect. This is a known issue and will be fixed in the future.
+        self.assert_felt_eq(sum, num);
 
         output
     }

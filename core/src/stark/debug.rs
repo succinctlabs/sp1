@@ -12,9 +12,8 @@ use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
-use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
-
 use super::{MachineChip, StarkGenericConfig, Val};
+use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
