@@ -1,3 +1,4 @@
+use core::fmt::Debug;
 use std::array::IntoIter;
 use std::ops::{Index, IndexMut};
 
@@ -8,8 +9,6 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
-
-use core::fmt::Debug;
 
 use super::SP1AirBuilder;
 

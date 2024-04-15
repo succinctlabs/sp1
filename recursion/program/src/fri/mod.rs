@@ -140,6 +140,7 @@ where
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
+    builder.cycle_tracker("verify-query");
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
     let two_adic_generator_ef: Ext<_, _> = builder.eval(SymbolicExt::Base(
@@ -213,6 +214,7 @@ where
             builder.assign(x, x * x);
         });
 
+    builder.cycle_tracker("verify-query");
     folded_eval
 }
 
@@ -231,6 +233,7 @@ pub fn verify_batch<C: Config, const D: usize>(
     opened_values: Array<C, Array<C, Ext<C::F, C::EF>>>,
     proof: &Array<C, DigestVariable<C>>,
 ) {
+    builder.cycle_tracker("verify-batch");
     // The index of which table to process next.
     let index: Var<C::N> = builder.eval(C::N::zero());
 
@@ -287,6 +290,7 @@ pub fn verify_batch<C: Config, const D: usize>(
         let e2 = builder.get(&root, i);
         builder.assert_felt_eq(e1, e2);
     });
+    builder.cycle_tracker("verify-batch");
 }
 
 #[allow(clippy::type_complexity)]
@@ -297,6 +301,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
     curr_height_padded: Var<C::N>,
     opened_values: &Array<C, Array<C, Ext<C::F, C::EF>>>,
 ) -> Array<C, Felt<C::F>> {
+    builder.cycle_tracker("verify-batch-reduce-fast");
     let nb_opened_values: Var<_> = builder.eval(C::N::zero());
     let mut nested_opened_values: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(8192);
     let start_dim_idx: Var<_> = builder.eval(dim_idx);
@@ -316,7 +321,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
             });
         });
 
-    if D == 1 {
+    let h = if D == 1 {
         let nested_opened_values = match nested_opened_values {
             Array::Dyn(ptr, len) => Array::Dyn(ptr, len),
             _ => unreachable!(),
@@ -326,5 +331,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
     } else {
         nested_opened_values.truncate(builder, Usize::Var(nb_opened_values));
         builder.poseidon2_hash_ext(&nested_opened_values)
-    }
+    };
+    builder.cycle_tracker("verify-batch-reduce-fast");
+    h
 }

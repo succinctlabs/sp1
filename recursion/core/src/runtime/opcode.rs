@@ -59,6 +59,7 @@ pub enum Opcode {
     BNEINC = 40,
     Commit = 41,
     LessThanF = 42,
+    CycleTracker = 43,
 }
 
 impl Opcode {

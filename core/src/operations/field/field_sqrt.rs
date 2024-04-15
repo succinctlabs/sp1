@@ -1,11 +1,13 @@
+use std::fmt::Debug;
+
+use num::BigUint;
+use p3_field::PrimeField32;
+use sp1_derive::AlignedBorrow;
+
 use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use num::BigUint;
-use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
 /// limb lives.

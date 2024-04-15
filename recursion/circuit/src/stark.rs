@@ -307,7 +307,7 @@ pub(crate) mod tests {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         RecursionProgram::<F> {
-            instructions: [Instruction::new(
+            instructions: vec![Instruction::new(
                 Opcode::ADD,
                 F::from_canonical_u32(3),
                 zero,
@@ -316,8 +316,8 @@ pub(crate) mod tests {
                 F::zero(),
                 false,
                 true,
-            )]
-            .repeat(1 << 2),
+                "".to_string(),
+            )],
             traces: vec![None],
         }
     }

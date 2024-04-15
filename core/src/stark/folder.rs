@@ -3,14 +3,15 @@ use std::{
     ops::{Add, Mul, MulAssign, Sub},
 };
 
+use p3_field::{AbstractField, ExtensionField, Field};
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
+
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
 };
-use p3_field::{AbstractField, ExtensionField, Field};
-use p3_matrix::dense::RowMajorMatrixView;
-use p3_matrix::stack::VerticalPair;
 
 /// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {

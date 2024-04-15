@@ -1,5 +1,6 @@
-use super::ByteOpcode;
 use serde::{Deserialize, Serialize};
+
+use super::ByteOpcode;
 
 /// A byte lookup event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
