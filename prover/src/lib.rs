@@ -342,7 +342,11 @@ impl SP1ProverImpl {
                     start_pc: pv.start_pc,
                     next_pc: pv.next_pc,
                     start_shard: pv.shard,
-                    next_shard: pv.shard + SP1F::one(), // TODO: handle the case for the last shard.  Next_shard should be 0.
+                    next_shard: if (pv.next_pc == 0) {
+                        0
+                    } else {
+                        pv.shard + SP1F::one()
+                    },
                 })
             })
             .collect::<Vec<_>>();
