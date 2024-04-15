@@ -73,13 +73,6 @@ impl<C: Config> Builder<C> {
     pub fn poseidon2_hash(&mut self, array: &Array<C, Felt<C::F>>) -> Array<C, Felt<C::F>> {
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
-        self.print_debug(99999);
-        self.range(0, array.len()).for_each(|i, builder| {
-            let element = builder.get(array, i);
-            builder.print_f(element);
-        });
-        self.print_debug(99999);
-
         let break_flag: Var<_> = self.eval(C::N::zero());
         let last_index: Usize<_> = self.eval(array.len() - 1);
         self.range(0, array.len())

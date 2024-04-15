@@ -4434,7 +4434,6 @@ dependencies = [
  "p3-challenger",
  "p3-commit",
  "p3-field",
- "p3-symmetric",
  "rayon",
  "serde",
  "sp1-core",
