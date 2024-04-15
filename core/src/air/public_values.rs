@@ -1,12 +1,13 @@
-use crate::stark::PROOF_MAX_NUM_PVS;
-
-use super::Word;
 use core::fmt::Debug;
 use core::mem::size_of;
+use std::iter::once;
+
 use itertools::Itertools;
 use p3_field::{AbstractField, PrimeField32};
 use serde::{Deserialize, Serialize};
-use std::iter::once;
+
+use super::Word;
+use crate::stark::PROOF_MAX_NUM_PVS;
 
 /// The number of non padded elements in the SP1 proofs public values vec.
 pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<Word<u8>, u8>>();

@@ -1,3 +1,5 @@
+use core::borrow::Borrow;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
@@ -10,8 +12,6 @@ use super::{
 };
 use crate::air::{BaseAirBuilder, SP1AirBuilder, WORD_SIZE};
 use crate::runtime::SyscallCode;
-
-use core::borrow::Borrow;
 
 impl<F> BaseAir<F> for Blake3CompressInnerChip {
     fn width(&self) -> usize {
@@ -143,7 +143,7 @@ impl Blake3CompressInnerChip {
 
         // Read & write the state.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk,
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
@@ -179,7 +179,7 @@ impl Blake3CompressInnerChip {
 
         // Read the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),

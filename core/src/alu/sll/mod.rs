@@ -32,6 +32,7 @@
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -237,6 +238,7 @@ where
 
         // Check shift_by_n_bits[i] is 1 iff i = num_bits_to_shift.
         let mut num_bits_to_shift = zero.clone();
+
         // 3 is the maximum number of bits necessary to represent num_bits_to_shift as
         // num_bits_to_shift is in [0, 7].
         for i in 0..3 {

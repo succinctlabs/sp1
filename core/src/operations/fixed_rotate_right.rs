@@ -1,3 +1,4 @@
+use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
 
@@ -8,7 +9,6 @@ use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;
 use crate::disassembler::WORD_SIZE;
 use crate::runtime::ExecutionRecord;
-use p3_field::AbstractField;
 
 /// A set of columns needed to compute `rotateright` of a word with a fixed offset R.
 ///
