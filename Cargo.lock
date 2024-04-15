@@ -4320,6 +4320,7 @@ name = "sp1-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arrayref",
  "bincode",
  "blake3",
  "blake3-zkvm",
@@ -4428,6 +4429,7 @@ version = "0.1.0"
 dependencies = [
  "backtrace",
  "bincode",
+ "itertools 0.12.1",
  "p3-baby-bear",
  "p3-challenger",
  "p3-commit",
@@ -4504,6 +4506,7 @@ dependencies = [
 name = "sp1-recursion-core"
 version = "0.1.0"
 dependencies = [
+ "arrayref",
  "backtrace",
  "ff 0.13.0",
  "hashbrown 0.14.3",

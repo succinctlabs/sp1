@@ -2,6 +2,7 @@
 #![feature(generic_const_exprs)]
 #![allow(deprecated)]
 
+use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -9,7 +10,7 @@ use p3_field::{AbstractField, PrimeField32};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
-    air::MachineAir,
+    air::{MachineAir, PublicValues, Word},
     runtime::Program,
     stark::{
         Challenger, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, Proof,
@@ -31,6 +32,7 @@ use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark
 use std::time::Instant;
 
 type SP1SC = BabyBearPoseidon2;
+type SP1F = <SP1SC as StarkGenericConfig>::Val;
 type InnerSC = BabyBearPoseidon2Inner;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
 type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
@@ -44,10 +46,21 @@ pub struct SP1ProverImpl {
 }
 
 #[derive(Serialize, Deserialize)]
-pub enum ReduceProof {
-    SP1(ShardProof<SP1SC>),
-    Recursive(ShardProof<InnerSC>),
-    FinalRecursive(ShardProof<OuterSC>),
+pub enum ReduceProofType {
+    SP1(ReduceProof<SP1SC>),
+    Recursive(ReduceProof<InnerSC>),
+    FinalRecursive(ReduceProof<OuterSC>),
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
+pub struct ReduceProof<SC: StarkGenericConfig> {
+    pub proof: ShardProof<SC>,
+    pub start_pc: SC::Val,
+    pub next_pc: SC::Val,
+    pub start_shard: SC::Val,
+    pub next_shard: SC::Val,
 }
 
 impl Default for SP1ProverImpl {
@@ -144,8 +157,8 @@ impl SP1ProverImpl {
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
-        reduce_proofs: &[ReduceProof],
-    ) -> ShardProof<SC>
+        reduce_proofs: &[ReduceProofType],
+    ) -> ReduceProof<SC>
     where
         SC::Challenger: Clone,
         Com<SC>: Send + Sync,
@@ -163,8 +176,8 @@ impl SP1ProverImpl {
         let is_recursive_flags: Vec<usize> = reduce_proofs
             .iter()
             .map(|p| match p {
-                ReduceProof::SP1(_) => 0,
-                ReduceProof::Recursive(_) => 1,
+                ReduceProofType::SP1(_) => 0,
+                ReduceProofType::Recursive(_) => 1,
                 _ => panic!("can't reduce final proof"),
             })
             .collect();
@@ -172,19 +185,55 @@ impl SP1ProverImpl {
         let sorted_indices: Vec<Vec<usize>> = reduce_proofs
             .iter()
             .map(|p| match p {
-                ReduceProof::SP1(proof) => {
-                    let indices = get_sorted_indices(&sp1_machine, proof);
+                ReduceProofType::SP1(reduce_proof) => {
+                    let indices = get_sorted_indices(&sp1_machine, &reduce_proof.proof);
                     println!("indices = {:?}", indices);
                     indices
                 }
-                ReduceProof::Recursive(proof) => {
-                    let indices = get_sorted_indices(&recursion_machine, proof);
+                ReduceProofType::Recursive(reduce_proof) => {
+                    let indices = get_sorted_indices(&recursion_machine, &reduce_proof.proof);
                     println!("indices = {:?}", indices);
                     indices
                 }
                 _ => unreachable!(),
             })
             .collect();
+
+        let start_pcs = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.start_pc,
+                ReduceProofType::Recursive(ref proof) => proof.start_pc,
+                _ => unreachable!(),
+            })
+            .collect_vec();
+
+        let next_pcs = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.next_pc,
+                ReduceProofType::Recursive(ref proof) => proof.next_pc,
+                _ => unreachable!(),
+            })
+            .collect_vec();
+
+        let start_shards = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.start_shard,
+                ReduceProofType::Recursive(ref proof) => proof.start_shard,
+                _ => unreachable!(),
+            })
+            .collect_vec();
+
+        let next_shards = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.next_shard,
+                ReduceProofType::Recursive(ref proof) => proof.next_shard,
+                _ => unreachable!(),
+            })
+            .collect_vec();
 
         let mut reconstruct_challenger = sp1_machine.config().challenger();
         reconstruct_challenger.observe(sp1_vk.commit);
@@ -211,13 +260,17 @@ impl SP1ProverImpl {
         witness_stream.extend(recursion_prep_domains.write());
         witness_stream.extend(sp1_vk.write());
         witness_stream.extend(self.reduce_vk_inner.write());
+        witness_stream.extend(Hintable::write(&start_pcs));
+        witness_stream.extend(Hintable::write(&next_pcs));
+        witness_stream.extend(Hintable::write(&start_shards));
+        witness_stream.extend(Hintable::write(&next_shards));
         for proof in reduce_proofs.iter() {
             match proof {
-                ReduceProof::SP1(proof) => {
-                    witness_stream.extend(proof.write());
+                ReduceProofType::SP1(reduce_proof) => {
+                    witness_stream.extend(reduce_proof.proof.write());
                 }
-                ReduceProof::Recursive(proof) => {
-                    witness_stream.extend(proof.write());
+                ReduceProofType::Recursive(reduce_proof) => {
+                    witness_stream.extend(reduce_proof.proof.write());
                 }
                 _ => unreachable!(),
             }
@@ -259,7 +312,17 @@ impl SP1ProverImpl {
         let duration = start.elapsed().as_secs();
         println!("recursion duration = {}", duration);
 
-        proof.shard_proofs.into_iter().next().unwrap()
+        assert!(proof.shard_proofs.len() == 1);
+
+        let proof = proof.shard_proofs.into_iter().next().unwrap();
+
+        ReduceProof {
+            proof,
+            start_pc: start_pcs[0],
+            next_pc: next_pcs[next_pcs.len() - 1],
+            start_shard: start_shards[0],
+            next_shard: next_shards[next_shards.len() - 1],
+        }
     }
 
     /// Recursively reduce proofs into a single proof using an N-ary tree.
@@ -272,7 +335,21 @@ impl SP1ProverImpl {
         let mut reduce_proofs = proof
             .shard_proofs
             .into_iter()
-            .map(ReduceProof::SP1)
+            .map(|proof| {
+                let pv = PublicValues::<Word<SP1F>, SP1F>::from_vec(proof.public_values.clone());
+
+                ReduceProofType::SP1(ReduceProof {
+                    proof,
+                    start_pc: pv.start_pc,
+                    next_pc: pv.next_pc,
+                    start_shard: pv.shard,
+                    next_shard: if pv.next_pc == SP1F::zero() {
+                        SP1F::zero()
+                    } else {
+                        pv.shard + SP1F::one()
+                    },
+                })
+            })
             .collect::<Vec<_>>();
         let mut layer = 0;
         while reduce_proofs.len() > 1 {
@@ -285,7 +362,7 @@ impl SP1ProverImpl {
         }
         let last_proof = reduce_proofs.into_iter().next().unwrap();
         match last_proof {
-            ReduceProof::FinalRecursive(proof) => proof,
+            ReduceProofType::FinalRecursive(reduce_proof) => reduce_proof.proof,
             _ => unreachable!(),
         }
     }
@@ -295,16 +372,16 @@ impl SP1ProverImpl {
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
-        mut proofs: Vec<ReduceProof>,
-    ) -> Vec<ReduceProof> {
+        mut proofs: Vec<ReduceProofType>,
+    ) -> Vec<ReduceProofType> {
         if proofs.len() <= N {
             // With the last proof, we need to use outer config since the proof will be
             // verified in groth16 circuit.
             let start = Instant::now();
-            let proof: ShardProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
+            let proof: ReduceProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
             let duration = start.elapsed().as_secs();
             println!("final reduce duration = {}", duration);
-            return vec![ReduceProof::FinalRecursive(proof)];
+            return vec![ReduceProofType::FinalRecursive(proof)];
         }
 
         // If there's one proof at the end, just push it to the next layer.
@@ -318,7 +395,7 @@ impl SP1ProverImpl {
 
         // Process at most 4 proofs at once in parallel, due to memory limits.
         let partition_size = std::cmp::max(1, chunks.len() / 4);
-        let mut new_proofs: Vec<ReduceProof> = chunks
+        let mut new_proofs: Vec<ReduceProofType> = chunks
             .into_par_iter()
             .chunks(partition_size)
             .flat_map(|partition| {
@@ -329,7 +406,7 @@ impl SP1ProverImpl {
                         let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk);
                         let duration = start.elapsed().as_secs();
                         println!("reduce duration = {}", duration);
-                        ReduceProof::Recursive(proof)
+                        ReduceProofType::Recursive(proof)
                     })
                     .collect::<Vec<_>>()
             })
