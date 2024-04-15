@@ -2,7 +2,7 @@ use core::ops::{Add, Sub};
 
 use p3_field::Field;
 
-use super::{Builder, Config, DslIR, MemIndex, MemVariable, SymbolicVar, Usize, Var, Variable};
+use super::{Builder, Config, DslIr, MemIndex, MemVariable, SymbolicVar, Usize, Var, Variable};
 
 /// A point to a location in memory.
 #[derive(Debug, Clone, Copy)]
@@ -18,7 +18,7 @@ impl<C: Config> Builder<C> {
     /// Allocates an array on the heap.
     pub(crate) fn alloc(&mut self, len: Usize<C::N>, size: usize) -> Ptr<C::N> {
         let ptr = Ptr::uninit(self);
-        self.push(DslIR::Alloc(ptr, len, size));
+        self.push(DslIr::Alloc(ptr, len, size));
         ptr
     }
 

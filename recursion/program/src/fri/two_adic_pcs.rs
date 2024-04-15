@@ -34,8 +34,10 @@ pub fn verify_two_adic_pcs<C: Config>(
     let blowup = C::N::from_canonical_usize(1 << config.log_blowup);
     let alpha = challenger.sample_ext(builder);
 
+    builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
+    builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");
 
     let commit_phase_commits_len = proof
         .fri_proof
@@ -47,6 +49,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
 
+    builder.cycle_tracker("stage-d-2-fri-fold");
     builder
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
@@ -141,7 +144,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.set_value(&mut input_ptr, 0, input);
 
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {
-                                builder.push(DslIR::FriFold(m, input_ptr.clone()));
+                                builder.push(DslIr::FriFold(m, input_ptr.clone()));
                             });
                         });
                     });
@@ -149,7 +152,9 @@ pub fn verify_two_adic_pcs<C: Config>(
 
             builder.set_value(&mut reduced_openings, i, ro);
         });
+    builder.cycle_tracker("stage-d-2-fri-fold");
 
+    builder.cycle_tracker("stage-d-3-verify-challenges");
     verify_challenges(
         builder,
         config,
@@ -157,6 +162,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         &fri_challenges,
         &reduced_openings,
     );
+    builder.cycle_tracker("stage-d-3-verify-challenges");
 }
 
 impl<C: Config> FromConstant<C> for TwoAdicPcsRoundVariable<C>
@@ -189,16 +195,16 @@ where
             let mut points: Array<_, Ext<_, _>> = builder.dyn_array(points_val.len());
             for (j, point) in points_val.into_iter().enumerate() {
                 let el: Ext<_, _> = builder.eval(point.cons());
-                builder.set(&mut points, j, el);
+                builder.set_value(&mut points, j, el);
             }
             let mut values: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(values_val.len());
             for (j, val) in values_val.into_iter().enumerate() {
                 let mut tmp = builder.dyn_array(val.len());
                 for (k, v) in val.into_iter().enumerate() {
                     let el: Ext<_, _> = builder.eval(v.cons());
-                    builder.set(&mut tmp, k, el);
+                    builder.set_value(&mut tmp, k, el);
                 }
-                builder.set(&mut values, j, tmp);
+                builder.set_value(&mut values, j, tmp);
             }
 
             let mat = TwoAdicPcsMatsVariable {
@@ -206,7 +212,7 @@ where
                 points,
                 values,
             };
-            builder.set(&mut mats, i, mat);
+            builder.set_value(&mut mats, i, mat);
         }
 
         Self {
@@ -274,11 +280,11 @@ pub(crate) mod tests {
     use p3_fri::FriConfig;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
+    use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;
     use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
-    use sp1_recursion_compiler::InnerConfig;
     use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
     use sp1_recursion_core::stark::config::inner_fri_config;
@@ -419,7 +425,7 @@ pub(crate) mod tests {
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
         runtime.witness_stream.extend(proof.write());
         runtime.run();
@@ -537,7 +543,7 @@ pub(crate) mod tests {
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
         let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, perm.clone());
         runtime.witness_stream.extend(proof.write());
         runtime.run();

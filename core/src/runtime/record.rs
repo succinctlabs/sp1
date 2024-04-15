@@ -3,6 +3,10 @@ use std::collections::HashMap;
 use std::mem::take;
 use std::sync::Arc;
 
+use itertools::Itertools;
+use p3_field::AbstractField;
+use serde::{Deserialize, Serialize};
+
 use super::program::Program;
 use super::Opcode;
 use crate::air::PublicValues;
@@ -19,8 +23,6 @@ use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
-use itertools::Itertools;
-use serde::{Deserialize, Serialize};
 
 /// A record of the execution of a program. Contains event data for everything that happened during
 /// the execution of the shard.
@@ -484,8 +486,8 @@ impl MachineRecord for ExecutionRecord {
 
     /// Retrieves the public values.  This method is needed for the `MachineRecord` trait, since
     /// the public values digest is used by the prover.
-    fn public_values(&self) -> PublicValues<u32, u32> {
-        self.public_values
+    fn public_values<F: AbstractField>(&self) -> Vec<F> {
+        self.public_values.to_vec()
     }
 }
 

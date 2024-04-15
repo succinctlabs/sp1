@@ -55,6 +55,7 @@ where
         C::EF: TwoAdicField,
         Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
     {
+        builder.cycle_tracker("stage-c-verify-shard-setup");
         let ShardProofVariable {
             commitment,
             opened_values,
@@ -68,12 +69,14 @@ where
             quotient_commit,
         } = commitment;
 
+        #[allow(unused_variables)]
         let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
         challenger.observe(builder, permutation_commit.clone());
 
+        #[allow(unused_variables)]
         let alpha = challenger.sample_ext(builder);
 
         challenger.observe(builder, quotient_commit.clone());
@@ -105,7 +108,7 @@ where
             builder.dyn_array(num_quotient_mats);
 
         let mut qc_points = builder.dyn_array::<Ext<_, _>>(1);
-        builder.set(&mut qc_points, 0, zeta);
+        builder.set_value(&mut qc_points, 0, zeta);
 
         // Iterate through machine.chips filtered for preprocessed chips.
         for (preprocessed_id, chip_id) in machine.preprocessed_chip_ids().into_iter().enumerate() {
@@ -122,59 +125,59 @@ where
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
             let zeta_next = domain.next_point(builder, zeta);
 
-            builder.set(&mut trace_points, 0, zeta);
-            builder.set(&mut trace_points, 1, zeta_next);
+            builder.set_value(&mut trace_points, 0, zeta);
+            builder.set_value(&mut trace_points, 1, zeta_next);
 
             let mut prep_values = builder.dyn_array::<Array<C, _>>(2);
-            builder.set(&mut prep_values, 0, opening.preprocessed.local);
-            builder.set(&mut prep_values, 1, opening.preprocessed.next);
+            builder.set_value(&mut prep_values, 0, opening.preprocessed.local);
+            builder.set_value(&mut prep_values, 1, opening.preprocessed.next);
             let main_mat = TwoAdicPcsMatsVariable::<C> {
                 domain: domain.clone(),
                 values: prep_values,
                 points: trace_points.clone(),
             };
-            builder.set(&mut prep_mats, preprocessed_sorted_id, main_mat);
+            builder.set_value(&mut prep_mats, preprocessed_sorted_id, main_mat);
         }
 
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
-            builder.set(&mut trace_domains, i, domain.clone());
+            builder.set_value(&mut trace_domains, i, domain.clone());
 
             let log_quotient_size: Usize<_> =
                 builder.eval(opening.log_degree + log_quotient_degree);
             let quotient_domain =
                 domain.create_disjoint_domain(builder, log_quotient_size, Some(pcs.config.clone()));
-            builder.set(&mut quotient_domains, i, quotient_domain.clone());
+            builder.set_value(&mut quotient_domains, i, quotient_domain.clone());
 
             // let trace_opening_points
 
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
             let zeta_next = domain.next_point(builder, zeta);
-            builder.set(&mut trace_points, 0, zeta);
-            builder.set(&mut trace_points, 1, zeta_next);
+            builder.set_value(&mut trace_points, 0, zeta);
+            builder.set_value(&mut trace_points, 1, zeta_next);
 
             // Get the main matrix.
             let mut main_values = builder.dyn_array::<Array<C, _>>(2);
-            builder.set(&mut main_values, 0, opening.main.local);
-            builder.set(&mut main_values, 1, opening.main.next);
+            builder.set_value(&mut main_values, 0, opening.main.local);
+            builder.set_value(&mut main_values, 1, opening.main.next);
             let main_mat = TwoAdicPcsMatsVariable::<C> {
                 domain: domain.clone(),
                 values: main_values,
                 points: trace_points.clone(),
             };
-            builder.set(&mut main_mats, i, main_mat);
+            builder.set_value(&mut main_mats, i, main_mat);
 
             // Get the permutation matrix.
             let mut perm_values = builder.dyn_array::<Array<C, _>>(2);
-            builder.set(&mut perm_values, 0, opening.permutation.local);
-            builder.set(&mut perm_values, 1, opening.permutation.next);
+            builder.set_value(&mut perm_values, 0, opening.permutation.local);
+            builder.set_value(&mut perm_values, 1, opening.permutation.next);
             let perm_mat = TwoAdicPcsMatsVariable::<C> {
                 domain: domain.clone(),
                 values: perm_values,
                 points: trace_points,
             };
-            builder.set(&mut perm_mats, i, perm_mat);
+            builder.set_value(&mut perm_mats, i, perm_mat);
 
             // Get the quotient matrices and values.
 
@@ -183,7 +186,7 @@ where
             for (j, qc_dom) in qc_domains.into_iter().enumerate() {
                 let qc_vals_array = builder.get(&opening.quotient, j);
                 let mut qc_values = builder.dyn_array::<Array<C, _>>(1);
-                builder.set(&mut qc_values, 0, qc_vals_array);
+                builder.set_value(&mut qc_values, 0, qc_vals_array);
                 let qc_mat = TwoAdicPcsMatsVariable::<C> {
                     domain: qc_dom,
                     values: qc_values,
@@ -191,7 +194,7 @@ where
                 };
                 let j_n = C::N::from_canonical_usize(j);
                 let index: Var<_> = builder.eval(i * num_quotient_chunks + j_n);
-                builder.set(&mut quotient_mats, index, qc_mat);
+                builder.set_value(&mut quotient_mats, index, qc_mat);
             }
         });
 
@@ -214,15 +217,19 @@ where
             batch_commit: quotient_commit.clone(),
             mats: quotient_mats,
         };
-        builder.set(&mut rounds, 0, prep_round);
-        builder.set(&mut rounds, 1, main_round);
-        builder.set(&mut rounds, 2, perm_round);
-        builder.set(&mut rounds, 3, quotient_round);
+        builder.set_value(&mut rounds, 0, prep_round);
+        builder.set_value(&mut rounds, 1, main_round);
+        builder.set_value(&mut rounds, 2, perm_round);
+        builder.set_value(&mut rounds, 3, quotient_round);
+        builder.cycle_tracker("stage-c-verify-shard-setup");
 
         // Verify the pcs proof
+        builder.cycle_tracker("stage-d-verify-pcs");
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
+        builder.cycle_tracker("stage-d-verify-pcs");
 
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
+        builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
             let index = builder.get(&chip_sorted_idxs, i);
 
@@ -252,42 +259,44 @@ where
                     );
                 });
         }
+        builder.cycle_tracker("stage-e-verify-constraints");
     }
 }
 
 #[cfg(test)]
 pub(crate) mod tests {
+    use std::time::Instant;
+
     use crate::challenger::CanObserveVariable;
-    use crate::challenger::DuplexChallengerVariable;
     use crate::challenger::FeltChallenger;
     use crate::hints::Hintable;
+    use crate::stark::DuplexChallengerVariable;
     use crate::stark::Ext;
     use crate::types::ShardCommitmentVariable;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::PublicValues;
-    use sp1_core::air::Word;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
     use sp1_core::{
         stark::{RiscvAir, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
     };
+    use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::InnerConfig;
     use sp1_recursion_compiler::{
-        asm::VmBuilder,
+        asm::AsmBuilder,
         ir::{Builder, ExtConst},
     };
+
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
     use sp1_recursion_core::stark::config::InnerChallenge;
     use sp1_recursion_core::stark::config::InnerVal;
+
     use sp1_recursion_core::stark::RecursionAir;
     use sp1_sdk::utils::setup_logger;
-    use sp1_sdk::{SP1Prover, SP1Stdin};
-    use std::time::Instant;
+    use sp1_sdk::{ProverClient, SP1Stdin};
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -305,7 +314,9 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let proofs = SP1Prover::prove_with_config(elf, SP1Stdin::new(), machine.config().clone())
+        let client = ProverClient::new();
+        let proofs = client
+            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
             .unwrap()
             .proof
             .shard_proofs;
@@ -315,8 +326,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            let public_values_field = PublicValues::<Word<F>, F>::new(proof.public_values);
-            challenger_val.observe_slice(&public_values_field.to_vec());
+            challenger_val.observe_slice(&proof.public_values);
         });
 
         let permutation_challenges = (0..2)
@@ -335,12 +345,10 @@ pub(crate) mod tests {
         let mut witness_stream = Vec::new();
         for proof in proofs {
             witness_stream.extend(proof.write());
-            let proof = ShardProof::<_>::read(&mut builder);
+            let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-
-            let public_values_elements = proof.public_values.to_vec(&mut builder);
-            challenger.observe_slice(&mut builder, &public_values_elements);
+            challenger.observe_slice(&mut builder, proof.public_values);
         }
 
         // Sample the permutation challenges.
@@ -355,7 +363,7 @@ pub(crate) mod tests {
             );
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
         runtime.witness_stream = witness_stream;
@@ -372,7 +380,7 @@ pub(crate) mod tests {
         setup_logger();
 
         let time = Instant::now();
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         let a: Felt<_> = builder.eval(F::from_canonical_u32(23));
         let b: Felt<_> = builder.eval(F::from_canonical_u32(17));
@@ -386,7 +394,7 @@ pub(crate) mod tests {
         builder.print_f(a_plus_b);
         builder.print_e(a_plus_b_ext);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
         let elapsed = time.elapsed();
         println!("Building took: {:?}", elapsed);
 

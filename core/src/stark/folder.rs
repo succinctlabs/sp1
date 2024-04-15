@@ -3,19 +3,26 @@ use std::{
     ops::{Add, Mul, MulAssign, Sub},
 };
 
+use p3_field::{AbstractField, ExtensionField, Field};
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
+
 use super::{Challenge, PackedChallenge, PackedVal, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use p3_air::{
     AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder, PermutationAirBuilder,
-    TwoRowMatrixView,
 };
-use p3_field::{AbstractField, ExtensionField, Field};
 
 /// A folder for prover constraints.
 pub struct ProverConstraintFolder<'a, SC: StarkGenericConfig> {
-    pub preprocessed: TwoRowMatrixView<'a, PackedVal<SC>>,
-    pub main: TwoRowMatrixView<'a, PackedVal<SC>>,
-    pub perm: TwoRowMatrixView<'a, PackedChallenge<SC>>,
+    pub preprocessed:
+        VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
+    pub main:
+        VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>,
+    pub perm: VerticalPair<
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
+    >,
     pub perm_challenges: &'a [PackedChallenge<SC>],
     pub cumulative_sum: SC::Challenge,
     pub is_first_row: PackedVal<SC>,
@@ -30,7 +37,8 @@ impl<'a, SC: StarkGenericConfig> AirBuilder for ProverConstraintFolder<'a, SC> {
     type F = Val<SC>;
     type Expr = PackedVal<SC>;
     type Var = PackedVal<SC>;
-    type M = TwoRowMatrixView<'a, PackedVal<SC>>;
+    type M =
+        VerticalPair<RowMajorMatrixView<'a, PackedVal<SC>>, RowMajorMatrixView<'a, PackedVal<SC>>>;
 
     fn main(&self) -> Self::M {
         self.main
@@ -77,7 +85,10 @@ impl<'a, SC: StarkGenericConfig> ExtensionBuilder for ProverConstraintFolder<'a,
 }
 
 impl<'a, SC: StarkGenericConfig> PermutationAirBuilder for ProverConstraintFolder<'a, SC> {
-    type MP = TwoRowMatrixView<'a, PackedChallenge<SC>>;
+    type MP = VerticalPair<
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
+        RowMajorMatrixView<'a, PackedChallenge<SC>>,
+    >;
 
     type RandomVar = PackedChallenge<SC>;
 
@@ -119,9 +130,9 @@ pub type VerifierConstraintFolder<'a, SC> =
 
 /// A folder for verifier constraints.
 pub struct GenericVerifierConstraintFolder<'a, F, EF, Var, Expr> {
-    pub preprocessed: TwoRowMatrixView<'a, Var>,
-    pub main: TwoRowMatrixView<'a, Var>,
-    pub perm: TwoRowMatrixView<'a, Var>,
+    pub preprocessed: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
+    pub main: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
+    pub perm: VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>,
     pub perm_challenges: &'a [Var],
     pub cumulative_sum: Var,
     pub is_first_row: Var,
@@ -156,12 +167,14 @@ where
         + Sub<Expr, Output = Expr>
         + Mul<F, Output = Expr>
         + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
 {
     type F = F;
     type Expr = Expr;
     type Var = Var;
-    type M = TwoRowMatrixView<'a, Var>;
+    type M = VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>;
 
     fn main(&self) -> Self::M {
         self.main
@@ -214,7 +227,9 @@ where
         + Sub<Expr, Output = Expr>
         + Mul<F, Output = Expr>
         + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
 {
     type EF = EF;
     type ExprEF = Expr;
@@ -252,9 +267,11 @@ where
         + Sub<Expr, Output = Expr>
         + Mul<F, Output = Expr>
         + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
 {
-    type MP = TwoRowMatrixView<'a, Var>;
+    type MP = VerticalPair<RowMajorMatrixView<'a, Var>, RowMajorMatrixView<'a, Var>>;
     type RandomVar = Var;
 
     fn permutation(&self) -> Self::MP {
@@ -290,7 +307,9 @@ where
         + Sub<Expr, Output = Expr>
         + Mul<F, Output = Expr>
         + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
 {
     type Sum = Var;
 
@@ -322,7 +341,9 @@ where
         + Sub<Expr, Output = Expr>
         + Mul<F, Output = Expr>
         + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
 {
     fn preprocessed(&self) -> Self::M {
         self.preprocessed
@@ -353,7 +374,9 @@ where
         + Sub<Expr, Output = Expr>
         + Mul<F, Output = Expr>
         + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
 {
 }
 
@@ -381,7 +404,9 @@ where
         + Sub<Expr, Output = Expr>
         + Mul<F, Output = Expr>
         + Mul<Var, Output = Expr>
-        + Mul<Expr, Output = Expr>,
+        + Mul<Expr, Output = Expr>
+        + Send
+        + Sync,
 {
     type PublicVar = Self::F;
 

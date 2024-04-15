@@ -1,8 +1,12 @@
-use crate::air::{AirInteraction, MessageBuilder, PublicValues, Word};
 use p3_air::{AirBuilder, AirBuilderWithPublicValues, PairBuilder, PairCol, VirtualPairCol};
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{Entry, SymbolicExpression, SymbolicVariable};
+
+use crate::{
+    air::{AirInteraction, MessageBuilder},
+    stark::PROOF_MAX_NUM_PVS,
+};
 
 use super::Interaction;
 
@@ -36,14 +40,12 @@ impl<F: Field> InteractionBuilder<F> {
             })
             .collect();
 
-        let public_values = PublicValues::<Word<F>, F>::default().to_vec();
-
         Self {
             preprocessed: RowMajorMatrix::new(prep_values, preprocessed_width),
             main: RowMajorMatrix::new(main_values, main_width),
             sends: vec![],
             receives: vec![],
-            public_values,
+            public_values: vec![F::zero(); PROOF_MAX_NUM_PVS],
         }
     }
 
@@ -146,7 +148,10 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
                 (vec![(PairCol::Preprocessed(v.index), F::one())], F::zero())
             }
             Entry::Main { offset: 0 } => (vec![(PairCol::Main(v.index), F::one())], F::zero()),
-            _ => panic!("Not an affine expression in current row elements"),
+            _ => panic!(
+                "Not an affine expression in current row elements {:?}",
+                v.entry
+            ),
         },
         SymbolicExpression::Add { x, y, .. } => {
             let (v_l, c_l) = eval_symbolic_to_virtual_pair(x);
@@ -192,10 +197,12 @@ fn eval_symbolic_to_virtual_pair<F: Field>(
 
 #[cfg(test)]
 mod tests {
+    use std::borrow::Borrow;
+
     use p3_air::{Air, BaseAir};
     use p3_baby_bear::BabyBear;
     use p3_field::AbstractField;
-    use p3_matrix::MatrixRowSlices;
+    use p3_matrix::Matrix;
 
     use super::*;
     use crate::{air::SP1AirBuilder, lookup::InteractionKind};
@@ -237,6 +244,7 @@ mod tests {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
             let local = main.row_slice(0);
+            let local: &[AB::Var] = (*local).borrow();
 
             let x = local[0];
             let y = local[1];

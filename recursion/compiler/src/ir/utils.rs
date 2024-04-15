@@ -1,7 +1,7 @@
 use p3_field::{AbstractExtensionField, AbstractField};
 use std::ops::{Add, Mul, MulAssign};
 
-use super::{Array, Builder, Config, DslIR, Ext, Felt, SymbolicExt, Usize, Var, Variable};
+use super::{Array, Builder, Config, DslIr, Ext, Felt, SymbolicExt, Usize, Var, Variable};
 
 impl<C: Config> Builder<C> {
     /// The generator for the field.
@@ -14,14 +14,14 @@ impl<C: Config> Builder<C> {
     /// Select a variable based on a condition.
     pub fn select_v(&mut self, cond: Var<C::N>, a: Var<C::N>, b: Var<C::N>) -> Var<C::N> {
         let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectV(cond, a, b, c));
+        self.operations.push(DslIr::CircuitSelectV(cond, a, b, c));
         c
     }
 
     /// Select a felt based on a condition.
     pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
         let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectF(cond, a, b, c));
+        self.operations.push(DslIr::CircuitSelectF(cond, a, b, c));
         c
     }
 
@@ -33,7 +33,7 @@ impl<C: Config> Builder<C> {
         b: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         let c = self.uninit();
-        self.operations.push(DslIR::CircuitSelectE(cond, a, b, c));
+        self.operations.push(DslIr::CircuitSelectE(cond, a, b, c));
         c
     }
 
@@ -116,9 +116,10 @@ impl<C: Config> Builder<C> {
     {
         let result = self.eval(V::Expression::one());
         let power_f: V = self.eval(x);
-        let bit_len = bit_len.into();
-        self.range(0, bit_len).for_each(|i, builder| {
-            let index: Var<C::N> = builder.eval(bit_len - i - C::N::one());
+        let bit_len = bit_len.into().materialize(self);
+        let bit_len_plus_one: Var<_> = self.eval(bit_len + C::N::one());
+        self.range(1, bit_len_plus_one).for_each(|i, builder| {
+            let index: Var<C::N> = builder.eval(bit_len - i);
             let bit = builder.get(power_bits, index);
             builder
                 .if_eq(bit, C::N::one())
@@ -193,7 +194,7 @@ impl<C: Config> Builder<C> {
     /// Converts an ext to a slice of felts.
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);
-        self.operations.push(DslIR::Ext2Felt(result.clone(), value));
+        self.operations.push(DslIr::Ext2Felt(result.clone(), value));
         result
     }
 
@@ -204,7 +205,7 @@ impl<C: Config> Builder<C> {
         let c = self.uninit();
         let d = self.uninit();
         self.operations
-            .push(DslIR::CircuitExt2Felt([a, b, c, d], value));
+            .push(DslIr::CircuitExt2Felt([a, b, c, d], value));
         [a, b, c, d]
     }
 }
@@ -220,8 +221,8 @@ mod tests {
     use p3_field::AbstractField;
 
     use crate::{
-        asm::VmBuilder,
-        prelude::{Felt, Var},
+        asm::AsmBuilder,
+        ir::{Felt, Var},
     };
 
     #[test]
@@ -234,7 +235,7 @@ mod tests {
         let config = SC::default();
 
         // Initialize a builder.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         // Get a random var with `NUM_BITS` bits.
         let num_val: F = rng.gen();
@@ -266,7 +267,7 @@ mod tests {
         let num_felt_back = builder.bits2num_f(&bits_felt);
         builder.assert_felt_eq(num_felt_back, num_felt);
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();
@@ -282,7 +283,7 @@ mod tests {
         let config = SC::default();
 
         // Initialize a builder.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         // Get a random var with `NUM_BITS` bits.
         let x_val: F = rng.gen();
@@ -303,7 +304,7 @@ mod tests {
             builder.assert_usize_eq(value_var, expected_value);
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();

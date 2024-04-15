@@ -1,22 +1,21 @@
-use crate::air::{PublicValues, Word};
+use p3_air::Air;
+use p3_commit::PolynomialSpace;
+use p3_field::AbstractExtensionField;
+use p3_field::AbstractField;
+use p3_field::PackedValue;
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
+use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::*;
+use p3_util::log2_strict_usize;
 
 use super::folder::ProverConstraintFolder;
 use super::Chip;
 use super::Domain;
 use super::PackedChallenge;
 use super::PackedVal;
-use super::Val;
-use p3_air::Air;
-use p3_air::TwoRowMatrixView;
-use p3_commit::PolynomialSpace;
-use p3_field::AbstractExtensionField;
-use p3_field::AbstractField;
-use p3_field::PackedValue;
-use p3_matrix::MatrixGet;
-use p3_maybe_rayon::prelude::*;
-use p3_util::log2_strict_usize;
-
 use super::StarkGenericConfig;
+use super::Val;
 
 #[allow(clippy::too_many_arguments)]
 pub fn quotient_values<SC, A, Mat>(
@@ -29,12 +28,12 @@ pub fn quotient_values<SC, A, Mat>(
     permutation_trace_on_quotient_domain: Mat,
     perm_challenges: &[PackedChallenge<SC>],
     alpha: SC::Challenge,
-    public_values: PublicValues<Word<Val<SC>>, Val<SC>>,
+    public_values: Vec<Val<SC>>,
 ) -> Vec<SC::Challenge>
 where
     A: for<'a> Air<ProverConstraintFolder<'a, SC>>,
     SC: StarkGenericConfig,
-    Mat: MatrixGet<Val<SC>> + Sync,
+    Mat: Matrix<Val<SC>> + Sync,
 {
     let quotient_size = quotient_domain.size();
     let prep_width = preprocessed_trace_on_quotient_domain.width();
@@ -119,18 +118,18 @@ where
             let accumulator = PackedChallenge::<SC>::zero();
             let public_values = public_values.to_vec();
             let mut folder = ProverConstraintFolder {
-                preprocessed: TwoRowMatrixView {
-                    local: &prep_local,
-                    next: &prep_next,
-                },
-                main: TwoRowMatrixView {
-                    local: &local,
-                    next: &next,
-                },
-                perm: TwoRowMatrixView {
-                    local: &perm_local,
-                    next: &perm_next,
-                },
+                preprocessed: VerticalPair::new(
+                    RowMajorMatrixView::new_row(&prep_local),
+                    RowMajorMatrixView::new_row(&prep_next),
+                ),
+                main: VerticalPair::new(
+                    RowMajorMatrixView::new_row(&local),
+                    RowMajorMatrixView::new_row(&next),
+                ),
+                perm: VerticalPair::new(
+                    RowMajorMatrixView::new_row(&perm_local),
+                    RowMajorMatrixView::new_row(&perm_next),
+                ),
                 perm_challenges,
                 cumulative_sum,
                 is_first_row,

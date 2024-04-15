@@ -1,22 +1,23 @@
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, PublicValuesVariable,
-    ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
+    AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
+    ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::stark::VerifyingKey;
-use sp1_core::{
-    air::{PublicValues, Word},
-    stark::{AirOpenedValues, ChipOpenedValues, ShardCommitment, ShardOpenedValues, ShardProof},
+use sp1_core::stark::{
+    AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
 };
+use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
 use sp1_recursion_compiler::{
+    config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
-    InnerConfig,
 };
+use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+use sp1_recursion_core::stark::config::BabyBearPoseidon2Inner;
 use sp1_recursion_core::{
     air::Block,
     stark::config::{
@@ -31,6 +32,11 @@ pub trait Hintable<C: Config> {
     fn read(builder: &mut Builder<C>) -> Self::HintVariable;
 
     fn write(&self) -> Vec<Vec<Block<C::F>>>;
+
+    fn witness(variable: &Self::HintVariable, builder: &mut Builder<C>) {
+        let target = Self::read(builder);
+        builder.assign(variable.clone(), target);
+    }
 }
 
 type C = InnerConfig;
@@ -102,8 +108,23 @@ impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
 trait VecAutoHintable<C: Config>: Hintable<C> {}
 
 impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
+impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2Inner> {}
 impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
+
+impl<I: VecAutoHintable<C>> VecAutoHintable<C> for &I {}
+
+impl<H: Hintable<C>> Hintable<C> for &H {
+    type HintVariable = H::HintVariable;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        H::read(builder)
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        H::write(self)
+    }
+}
 
 impl<I: VecAutoHintable<C>> Hintable<C> for Vec<I> {
     type HintVariable = Array<C, I::HintVariable>;
@@ -321,43 +342,6 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     }
 }
 
-impl Hintable<C> for PublicValues<u32, u32> {
-    type HintVariable = PublicValuesVariable<C>;
-
-    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let committed_values_digest = Vec::<InnerVal>::read(builder);
-        let shard = builder.hint_felt();
-        let start_pc = builder.hint_felt();
-        let next_pc = builder.hint_felt();
-        let exit_code = builder.hint_felt();
-        PublicValuesVariable {
-            committed_values_digest,
-            shard,
-            start_pc,
-            next_pc,
-            exit_code,
-        }
-    }
-
-    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
-        type F = <C as Config>::F;
-
-        let mut stream = Vec::new();
-        stream.extend(
-            self.committed_value_digest
-                .into_iter()
-                .flat_map(|x| Word::from(x).0)
-                .collect::<Vec<F>>()
-                .write(),
-        );
-        stream.extend(F::from_canonical_u32(self.shard).write());
-        stream.extend(F::from_canonical_u32(self.start_pc).write());
-        stream.extend(F::from_canonical_u32(self.next_pc).write());
-        stream.extend(F::from_canonical_u32(self.exit_code).write());
-        stream
-    }
-}
-
 impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
     type HintVariable = DuplexChallengerVariable<C>;
 
@@ -380,14 +364,25 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
         let mut stream = Vec::new();
         stream.extend(self.sponge_state.to_vec().write());
         stream.extend(self.input_buffer.len().write());
-        stream.extend(self.input_buffer.write());
+        let mut input_padded = self.input_buffer.to_vec();
+        input_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
+        stream.extend(input_padded.write());
         stream.extend(self.output_buffer.len().write());
-        stream.extend(self.output_buffer.write());
+        let mut output_padded = self.output_buffer.to_vec();
+        output_padded.resize(PERMUTATION_WIDTH, InnerVal::zero());
+        stream.extend(output_padded.write());
         stream
     }
 }
 
-impl Hintable<C> for VerifyingKey<BabyBearPoseidon2> {
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+        >,
+    > Hintable<C> for VerifyingKey<SC>
+{
     type HintVariable = VerifyingKeyVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -403,7 +398,17 @@ impl Hintable<C> for VerifyingKey<BabyBearPoseidon2> {
     }
 }
 
-impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
+// Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+        >,
+    > Hintable<C> for ShardProof<SC>
+where
+    ShardCommitment<Com<SC>>: Hintable<C>,
+{
     type HintVariable = ShardProofVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
@@ -411,7 +416,7 @@ impl Hintable<C> for ShardProof<BabyBearPoseidon2> {
         let commitment = ShardCommitment::read(builder);
         let opened_values = ShardOpenedValues::read(builder);
         let opening_proof = InnerPcsProof::read(builder);
-        let public_values = PublicValues::read(builder);
+        let public_values = Vec::<InnerVal>::read(builder);
         ShardProofVariable {
             index,
             commitment,

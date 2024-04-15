@@ -1,16 +1,16 @@
 use std::ops::Range;
 
 use p3_air::{AirBuilder, BaseAir};
-use p3_matrix::{Matrix, MatrixRowSlices, MatrixRows};
+use p3_matrix::Matrix;
 
 /// A submatrix of a matrix.  The matrix will contain a subset of the columns of `self.inner`.
-pub struct SubMatrixRowSlices<M: MatrixRowSlices<T>, T> {
+pub struct SubMatrixRowSlices<M: Matrix<T>, T: Send + Sync> {
     inner: M,
     column_range: Range<usize>,
     _phantom: std::marker::PhantomData<T>,
 }
 
-impl<M: MatrixRowSlices<T>, T> SubMatrixRowSlices<M, T> {
+impl<M: Matrix<T>, T: Send + Sync> SubMatrixRowSlices<M, T> {
     pub fn new(inner: M, column_range: Range<usize>) -> Self {
         Self {
             inner,
@@ -21,50 +21,28 @@ impl<M: MatrixRowSlices<T>, T> SubMatrixRowSlices<M, T> {
 }
 
 /// Implement `Matrix` for `SubMatrixRowSlices`.
-impl<M: MatrixRowSlices<T>, T> Matrix<T> for SubMatrixRowSlices<M, T> {
-    fn width(&self) -> usize {
-        self.column_range.end - self.column_range.start
-    }
-
-    fn height(&self) -> usize {
-        self.inner.height()
-    }
-}
-
-/// Implement `MatrixRows` for `SubMatrixRowSlices`.
-impl<M: MatrixRowSlices<T>, T> MatrixRows<T> for SubMatrixRowSlices<M, T> {
+impl<M: Matrix<T>, T: Send + Sync> Matrix<T> for SubMatrixRowSlices<M, T> {
     type Row<'a> = M::Row<'a> where Self: 'a;
 
     fn row(&self, r: usize) -> Self::Row<'_> {
         self.inner.row(r)
     }
 
-    fn row_vec(&self, r: usize) -> Vec<T> {
-        self.inner.row_vec(r)
+    fn row_slice(&self, r: usize) -> impl std::ops::Deref<Target = [T]> {
+        self.inner
+            .row(r)
+            .enumerate()
+            .filter(|(i, _)| self.column_range.contains(i))
+            .map(|(_, el)| el)
+            .collect::<Vec<_>>()
     }
 
-    fn first_row(&self) -> Self::Row<'_> {
-        self.inner.first_row()
+    fn width(&self) -> usize {
+        self.column_range.end - self.column_range.start
     }
 
-    fn last_row(&self) -> Self::Row<'_> {
-        self.inner.last_row()
-    }
-
-    fn to_row_major_matrix(self) -> p3_matrix::dense::RowMajorMatrix<T>
-    where
-        Self: Sized,
-        T: Clone,
-    {
-        self.inner.to_row_major_matrix()
-    }
-}
-
-/// Implement `MatrixRowSlices` for `SubMatrixRowSlices`.
-impl<M: MatrixRowSlices<T>, T> MatrixRowSlices<T> for SubMatrixRowSlices<M, T> {
-    fn row_slice(&self, r: usize) -> &[T] {
-        let entry = self.inner.row_slice(r);
-        &entry[self.column_range.start..self.column_range.end]
+    fn height(&self) -> usize {
+        self.inner.height()
     }
 }
 

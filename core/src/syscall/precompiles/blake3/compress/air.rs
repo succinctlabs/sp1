@@ -1,5 +1,8 @@
+use core::borrow::Borrow;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
+use p3_matrix::Matrix;
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
 use super::g::GOperation;
@@ -9,9 +12,6 @@ use super::{
 };
 use crate::air::{BaseAirBuilder, SP1AirBuilder, WORD_SIZE};
 use crate::runtime::SyscallCode;
-
-use core::borrow::Borrow;
-use p3_matrix::MatrixRowSlices;
 
 impl<F> BaseAir<F> for Blake3CompressInnerChip {
     fn width(&self) -> usize {
@@ -25,8 +25,9 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &Blake3CompressInnerCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &Blake3CompressInnerCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &Blake3CompressInnerCols<AB::Var> = (*local).borrow();
+        let next: &Blake3CompressInnerCols<AB::Var> = (*next).borrow();
 
         self.constrain_control_flow_flags(builder, local, next);
 
@@ -142,7 +143,7 @@ impl Blake3CompressInnerChip {
 
         // Read & write the state.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk,
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
@@ -178,7 +179,7 @@ impl Blake3CompressInnerChip {
 
         // Read the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),

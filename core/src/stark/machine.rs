@@ -1,20 +1,7 @@
-use itertools::Itertools;
-use p3_matrix::Dimensions;
 use std::cmp::Reverse;
 use std::collections::HashMap;
 
-use super::debug_constraints;
-use super::Dom;
-use crate::air::{MachineAir, PublicValues, Word};
-use crate::lookup::debug_interactions_with_all_chips;
-use crate::lookup::InteractionBuilder;
-use crate::lookup::InteractionKind;
-use crate::stark::record::MachineRecord;
-use crate::stark::DebugConstraintBuilder;
-use crate::stark::ProverConstraintFolder;
-use crate::stark::ShardProof;
-use crate::stark::VerifierConstraintFolder;
-
+use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
@@ -23,9 +10,21 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Dimensions;
 use p3_matrix::Matrix;
-use p3_matrix::MatrixRowSlices;
 use p3_maybe_rayon::prelude::*;
+
+use super::debug_constraints;
+use super::Dom;
+use crate::air::MachineAir;
+use crate::lookup::debug_interactions_with_all_chips;
+use crate::lookup::InteractionBuilder;
+use crate::lookup::InteractionKind;
+use crate::stark::record::MachineRecord;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::ShardProof;
+use crate::stark::VerifierConstraintFolder;
 
 use super::Chip;
 use super::Com;
@@ -252,14 +251,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     {
         // Observe the preprocessed commitment.
         challenger.observe(vk.commit.clone());
-        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
-        // in a map-reduce recursion setting.
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
-                let public_values =
-                    PublicValues::<Word<Val<SC>>, Val<SC>>::new(proof.public_values);
-                challenger.observe_slice(&public_values.to_vec());
+                challenger.observe_slice(&proof.public_values);
             });
         });
 
@@ -316,7 +311,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         .map(|index| &pk.traces[*index])
                 })
                 .collect::<Vec<_>>();
-            let traces = chips
+            let mut traces = chips
                 .par_iter()
                 .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
                 .zip(pre_traces)
@@ -335,7 +330,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
                     .par_iter()
-                    .zip(traces.par_iter())
+                    .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
                         let perm_trace = chip.generate_permutation_trace(
                             *pre_trace,
@@ -381,7 +376,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                         &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
-                        PublicValues::<Word<Val<SC>>, Val<SC>>::new(shard.public_values()),
+                        shard.public_values(),
                     );
                 }
             });

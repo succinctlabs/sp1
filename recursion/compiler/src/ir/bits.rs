@@ -1,14 +1,13 @@
 use p3_field::AbstractField;
 use sp1_recursion_core::runtime::NUM_BITS;
 
-use super::{Array, Builder, Config, DslIR, Usize, Var};
-use crate::prelude::Felt;
+use super::{Array, Builder, Config, DslIr, Felt, Usize, Var};
 
 impl<C: Config> Builder<C> {
     /// Converts a variable to bits.
     pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
         let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        self.operations.push(DslIR::HintBitsV(output.clone(), num));
+        self.push(DslIr::HintBitsV(output.clone(), num));
 
         let sum: Var<_> = self.eval(C::N::zero());
         for i in 0..NUM_BITS {
@@ -17,7 +16,10 @@ impl<C: Config> Builder<C> {
             self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
         }
 
+        // TODO: There is an edge case where the witnessed bits may slightly overflow and cause
+        // the output to be incorrect. This is a known issue and will be fixed in the future.
         self.assert_var_eq(sum, num);
+
         output
     }
 
@@ -28,8 +30,7 @@ impl<C: Config> Builder<C> {
             output.push(self.uninit());
         }
 
-        self.operations
-            .push(DslIR::CircuitNum2BitsV(num, bits, output.clone()));
+        self.push(DslIr::CircuitNum2BitsV(num, bits, output.clone()));
 
         output
     }
@@ -37,7 +38,7 @@ impl<C: Config> Builder<C> {
     /// Converts a felt to bits.
     pub fn num2bits_f(&mut self, num: Felt<C::F>) -> Array<C, Var<C::N>> {
         let output = self.dyn_array::<Var<_>>(NUM_BITS);
-        self.operations.push(DslIR::HintBitsF(output.clone(), num));
+        self.push(DslIr::HintBitsF(output.clone(), num));
 
         let sum: Felt<_> = self.eval(C::F::zero());
         for i in 0..NUM_BITS {
@@ -48,7 +49,9 @@ impl<C: Config> Builder<C> {
             });
         }
 
-        // self.assert_felt_eq(sum, num);
+        // TODO: There is an edge case where the witnessed bits may slightly overflow and cause
+        // the output to be incorrect. This is a known issue and will be fixed in the future.
+        self.assert_felt_eq(sum, num);
 
         output
     }
@@ -60,8 +63,7 @@ impl<C: Config> Builder<C> {
             output.push(self.uninit());
         }
 
-        self.operations
-            .push(DslIR::CircuitNum2BitsF(num, output.clone()));
+        self.push(DslIr::CircuitNum2BitsF(num, output.clone()));
 
         output
     }

@@ -7,6 +7,8 @@ use crate::fri::TwoAdicFriPcsVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
+use crate::types::ShardProofVariable;
+use crate::types::VerifyingKeyVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
 use p3_challenger::DuplexChallenger;
@@ -25,16 +27,18 @@ use p3_symmetric::TruncatedPermutation;
 use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
+use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::asm::VmBuilder;
+use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
-use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_core::runtime::Program as RecursionProgram;
+use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
+use sp1_recursion_core::stark::config::sp1_fri_config;
+use sp1_recursion_core::stark::config::BabyBearPoseidon2Inner;
 use sp1_recursion_core::stark::RecursionAir;
 use sp1_sdk::utils::BabyBearPoseidon2;
 
@@ -87,97 +91,160 @@ fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
     builder.get(&arr, 0)
 }
 
-pub fn build_reduce() -> RecursionProgram<Val> {
-    let sp1_machine = RiscvAir::machine(SC::default());
-    let _recursion_machine = RecursionAir::machine(SC::default());
+fn felt_to_var(builder: &mut RecursionBuilder, felt: Felt<BabyBear>) -> Var<BabyBear> {
+    let bits = builder.num2bits_f(felt);
+    builder.bits2num_v(&bits)
+}
+
+pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
+    let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
+    let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
 
     let time = Instant::now();
-    let mut builder = VmBuilder::<F, EF>::default();
-    let config = const_fri_config(&mut builder, inner_fri_config());
-    let pcs = TwoAdicFriPcsVariable { config };
+    let mut builder = AsmBuilder::<F, EF>::default();
+    let sp1_config = const_fri_config(&mut builder, sp1_fri_config());
+    // TODO: this config may change
+    let recursion_config = const_fri_config(&mut builder, inner_fri_config());
+    let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };
+    let recursion_pcs = TwoAdicFriPcsVariable {
+        config: recursion_config,
+    };
 
-    // Read witness inputs
-    let proofs = Vec::<ShardProof<_>>::read(&mut builder);
-    let is_recursive_flags = Vec::<usize>::read(&mut builder);
-    let sorted_indices = Vec::<Vec<usize>>::read(&mut builder);
-    let sp1_challenger = DuplexChallenger::read(&mut builder);
-    let mut reconstruct_challenger = DuplexChallenger::read(&mut builder);
-    // let recursion_challenger = DuplexChallenger::read(&mut builder);
-    let prep_sorted_indices = Vec::<usize>::read(&mut builder);
-    let prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
-    // let recursion_prep_sorted_indices = Vec::<usize>::read(&mut builder);
-    // let recursion_prep_domains = Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::read(&mut builder);
-    let sp1_vk = VerifyingKey::<SC>::read(&mut builder);
-    let _recursion_vk = VerifyingKey::<SC>::read(&mut builder);
-    let num_proofs = proofs.len();
+    // 1) Allocate inputs to the stack.
+    builder.cycle_tracker("stage-a-setup-inputs");
+    let is_recursive_flags: Array<_, Var<_>> = builder.uninit();
+    let sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
+    let sp1_challenger: DuplexChallengerVariable<_> = builder.uninit();
+    let mut reconstruct_challenger: DuplexChallengerVariable<_> = builder.uninit();
+    let prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
+    let prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
+    let recursion_prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
+    let recursion_prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
+    let sp1_vk: VerifyingKeyVariable<_> = builder.uninit();
+    let recursion_vk: VerifyingKeyVariable<_> = builder.uninit();
+    let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
 
-    let _pre_start_challenger = clone(&mut builder, &sp1_challenger);
+    // 2) Witness the inputs.
+    if setup {
+        Vec::<usize>::witness(&is_recursive_flags, &mut builder);
+        Vec::<Vec<usize>>::witness(&sorted_indices, &mut builder);
+        DuplexChallenger::witness(&sp1_challenger, &mut builder);
+        DuplexChallenger::witness(&reconstruct_challenger, &mut builder);
+        Vec::<usize>::witness(&prep_sorted_indices, &mut builder);
+        Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(&prep_domains, &mut builder);
+        Vec::<usize>::witness(&recursion_prep_sorted_indices, &mut builder);
+        Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(&recursion_prep_domains, &mut builder);
+        VerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
+        VerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
+        let num_proofs = is_recursive_flags.len();
+        let mut proofs_target = builder.dyn_array(num_proofs);
+        builder.range(0, num_proofs).for_each(|i, builder| {
+            let proof = ShardProof::<SC>::read(builder);
+            builder.set(&mut proofs_target, i, proof);
+        });
+        builder.assign(proofs.clone(), proofs_target);
+
+        // Compile the program up to this point.
+        return builder.compile_program();
+    }
+
+    let num_proofs = is_recursive_flags.len();
     let _pre_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
     let zero: Var<_> = builder.constant(F::zero());
     let one: Var<_> = builder.constant(F::one());
     let _one_felt: Felt<_> = builder.constant(F::one());
-    builder
-        .range(Usize::Const(0), num_proofs)
-        .for_each(|i, builder| {
-            let proof = builder.get(&proofs, i);
-            let sorted_indices = builder.get(&sorted_indices, i);
-            let is_recursive = builder.get(&is_recursive_flags, i);
-            builder.if_eq(is_recursive, zero).then_or_else(
-                // Non-recursive proof
-                |builder| {
-                    let shard_bits = builder.num2bits_f(proof.public_values.shard);
-                    let shard = builder.bits2num_v(&shard_bits);
-                    builder.if_eq(shard, one).then(|builder| {
-                        // Initialize the current challenger
-                        // let h: [BabyBear; DIGEST_SIZE] = sp1_vk.commit.into();
-                        // let const_commit: DigestVariable<C> = builder.eval_const(h.to_vec());
-                        reconstruct_challenger = DuplexChallengerVariable::new(builder);
-                        reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
+    builder.cycle_tracker("stage-a-setup-inputs");
+
+    // Setup recursion challenger
+    builder.cycle_tracker("stage-b-setup-recursion-challenger");
+    let mut recursion_challenger = DuplexChallengerVariable::new(&mut builder);
+    for j in 0..DIGEST_SIZE {
+        let element = builder.get(&recursion_vk.commitment, j);
+        recursion_challenger.observe(&mut builder, element);
+    }
+    builder.cycle_tracker("stage-b-setup-recursion-challenger");
+
+    builder.range(0, num_proofs).for_each(|i, builder| {
+        let proof = builder.get(&proofs, i);
+        let sorted_indices = builder.get(&sorted_indices, i);
+        let is_recursive = builder.get(&is_recursive_flags, i);
+        builder.if_eq(is_recursive, zero).then_or_else(
+            // Non-recursive proof
+            |builder| {
+                let shard_f = builder.get(&proof.public_values, 32);
+                let shard = felt_to_var(builder, shard_f);
+                // First shard logic
+                builder.if_eq(shard, one).then(|builder| {
+                    // Initialize the current challenger
+                    let empty_challenger = DuplexChallengerVariable::new(builder);
+                    builder.assign(reconstruct_challenger.clone(), empty_challenger);
+                    reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
+                });
+
+                // TODO: more shard transition constraints here
+
+                // Observe current proof commit and public values into reconstruct challenger
+                for j in 0..DIGEST_SIZE {
+                    let element = builder.get(&proof.commitment.main_commit, j);
+                    reconstruct_challenger.observe(builder, element);
+                }
+                // TODO: fix public values observe
+                // let public_values = proof.public_values.to_vec(builder);
+                // reconstruct_challenger.observe_slice(builder, &public_values);
+
+                // Verify proof with copy of witnessed challenger
+                let mut current_challenger = sp1_challenger.as_clone(builder);
+                StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
+                    builder,
+                    &sp1_vk.clone(),
+                    &sp1_pcs,
+                    &sp1_machine,
+                    &mut current_challenger,
+                    &proof,
+                    sorted_indices.clone(),
+                    prep_sorted_indices.clone(),
+                    prep_domains.clone(),
+                );
+            },
+            // Recursive proof
+            |builder| {
+                // TODO: Verify proof public values
+
+                // Build recursion challenger
+                let mut current_challenger = recursion_challenger.as_clone(builder);
+                for j in 0..DIGEST_SIZE {
+                    let element = builder.get(&proof.commitment.main_commit, j);
+                    current_challenger.observe(builder, element);
+                }
+                builder
+                    .range(0, proof.public_values.len())
+                    .for_each(|j, builder| {
+                        let element = builder.get(&proof.public_values, j);
+                        current_challenger.observe(builder, element);
                     });
-                    for j in 0..DIGEST_SIZE {
-                        let element = builder.get(&proof.commitment.main_commit, j);
-                        reconstruct_challenger.observe(builder, element);
-                        // TODO: observe public values
-                        // challenger.observe_slice(&public_values.to_vec());
-                    }
-                    // reconstruct_challenger
-                    //     .observe_slice(builder, &proof.commitment.main_commit.vec());
-                    let mut current_challenger = sp1_challenger.as_clone(builder);
-                    StarkVerifier::<C, SC>::verify_shard(
-                        builder,
-                        &sp1_vk.clone(),
-                        &pcs,
-                        &sp1_machine,
-                        &mut current_challenger,
-                        &proof,
-                        sorted_indices.clone(),
-                        prep_sorted_indices.clone(),
-                        prep_domains.clone(),
-                    );
-                },
-                // Recursive proof
-                |_builder| {
-                    // let mut current_challenger = recursion_challenger.as_clone(builder);
-                    // StarkVerifier::<C, SC>::verify_shard(
-                    //     builder,
-                    //     &recursion_vk.clone(),
-                    //     &pcs,
-                    //     &recursion_machine,
-                    //     &mut current_challenger,
-                    //     &proof,
-                    //     sorted_indices.clone(),
-                    //     prep_sorted_indices.clone(),
-                    //     prep_domains.clone(),
-                    // );
-                },
-            );
-        });
+                // Verify the proof
+                StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
+                    builder,
+                    &recursion_vk.clone(),
+                    &recursion_pcs,
+                    &recursion_machine,
+                    &mut current_challenger,
+                    &proof,
+                    sorted_indices.clone(),
+                    recursion_prep_sorted_indices.clone(),
+                    recursion_prep_domains.clone(),
+                );
+            },
+        );
+    });
 
     // Public values:
     // (
-    //     final current_challenger,
+    //     committed_values_digest,
+    //     start_pc,
+    //     next_pc,
+    //     exit_code,
     //     reconstruct_challenger,
-    //     pre_challenger,
     //     pre_reconstruct_challenger,
     //     verify_start_challenger,
     //     recursion_vk,
@@ -185,7 +252,7 @@ pub fn build_reduce() -> RecursionProgram<Val> {
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
 
-    let program = builder.compile();
+    let program = builder.compile_program();
     let elapsed = time.elapsed();
     println!("Building took: {:?}", elapsed);
     program

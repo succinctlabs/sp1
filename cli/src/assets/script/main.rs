@@ -1,6 +1,6 @@
 //! A simple script to generate and verify the proof of a given program.
 
-use sp1_sdk::{SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{ProverClient, SP1Stdin};
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -9,7 +9,8 @@ fn main() {
     let mut stdin = SP1Stdin::new();
     let n = 186u32;
     stdin.write(&n);
-    let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let mut proof = client.prove(ELF, stdin).expect("proving failed");
 
     // Read output.
     let a = proof.public_values.read::<u128>();
@@ -18,7 +19,7 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof.
-    SP1Verifier::verify(ELF, &proof).expect("verification failed");
+    client.verify(ELF, &proof).expect("verification failed");
 
     // Save proof.
     proof

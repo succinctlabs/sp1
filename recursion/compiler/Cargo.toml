@@ -23,6 +23,7 @@ p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
 serial_test = "3.0.0"
 p3-poseidon2 = { workspace = true }
+backtrace = "0.3.71"
 
 [dev-dependencies]
 p3-challenger = { workspace = true }

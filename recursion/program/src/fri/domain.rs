@@ -139,7 +139,7 @@ where
 pub(crate) mod tests {
 
     use itertools::Itertools;
-    use sp1_recursion_compiler::asm::VmBuilder;
+    use sp1_recursion_compiler::asm::AsmBuilder;
     use sp1_recursion_core::stark::config::inner_fri_config;
 
     use crate::fri::const_fri_config;
@@ -192,7 +192,7 @@ pub(crate) mod tests {
         };
 
         // Initialize a builder.
-        let mut builder = VmBuilder::<F, EF>::default();
+        let mut builder = AsmBuilder::<F, EF>::default();
 
         let config_var = const_fri_config(&mut builder, inner_fri_config());
         for i in 0..5 {
@@ -242,7 +242,7 @@ pub(crate) mod tests {
             }
         }
 
-        let program = builder.compile();
+        let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
         runtime.run();

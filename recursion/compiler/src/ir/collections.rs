@@ -57,6 +57,46 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
             }
         };
     }
+
+    pub fn slice(
+        &self,
+        builder: &mut Builder<C>,
+        start: Usize<C::N>,
+        end: Usize<C::N>,
+    ) -> Array<C, V> {
+        match self {
+            Self::Fixed(vec) => {
+                if let (Usize::Const(start), Usize::Const(end)) = (start, end) {
+                    builder.vec(vec[start..end].to_vec())
+                } else {
+                    panic!("Cannot slice a fixed array with a variable start or end");
+                }
+            }
+            Self::Dyn(_, len) => {
+                if builder.debug {
+                    let start_v = start.materialize(builder);
+                    let end_v = end.materialize(builder);
+                    let valid = builder.lt(start_v, end_v);
+                    builder.assert_var_eq(valid, C::N::one());
+
+                    let len_v = len.materialize(builder);
+                    let len_plus_1_v = builder.eval(len_v + C::N::one());
+                    let valid = builder.lt(end_v, len_plus_1_v);
+                    builder.assert_var_eq(valid, C::N::one());
+                }
+
+                let slice_len: Usize<_> = builder.eval(end - start);
+                let mut slice = builder.dyn_array(slice_len);
+                builder.range(0, slice_len).for_each(|i, builder| {
+                    let idx: Usize<_> = builder.eval(start + i);
+                    let value = builder.get(self, idx);
+                    builder.set(&mut slice, i, value);
+                });
+
+                slice
+            }
+        }
+    }
 }
 
 impl<C: Config> Builder<C> {
@@ -96,7 +136,13 @@ impl<C: Config> Builder<C> {
                     panic!("Cannot index into a fixed slice with a variable size")
                 }
             }
-            Array::Dyn(ptr, _) => {
+            Array::Dyn(ptr, len) => {
+                if self.debug {
+                    let index_v = index.materialize(self);
+                    let len_v = len.materialize(self);
+                    let valid = self.lt(index_v, len_v);
+                    self.assert_var_eq(valid, C::N::one());
+                }
                 let index = MemIndex {
                     index,
                     offset: 0,
@@ -121,7 +167,13 @@ impl<C: Config> Builder<C> {
             Array::Fixed(_) => {
                 todo!()
             }
-            Array::Dyn(ptr, _) => {
+            Array::Dyn(ptr, len) => {
+                if self.debug {
+                    let index_v = index.materialize(self);
+                    let len_v = len.materialize(self);
+                    let valid = self.lt(index_v, len_v);
+                    self.assert_var_eq(valid, C::N::one());
+                }
                 let index = MemIndex {
                     index,
                     offset: 0,

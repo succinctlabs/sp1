@@ -81,19 +81,26 @@ where
     pub fn generate_permutation_trace<EF: ExtensionField<F>>(
         &self,
         preprocessed: Option<&RowMajorMatrix<F>>,
-        main: &RowMajorMatrix<F>,
+        main: &mut RowMajorMatrix<F>,
         random_elements: &[EF],
     ) -> RowMajorMatrix<EF>
     where
         F: PrimeField,
     {
+        let batch_size = self.logup_batch_size();
         generate_permutation_trace(
             &self.sends,
             &self.receives,
             preprocessed,
             main,
             random_elements,
+            batch_size,
         )
+    }
+
+    pub fn logup_batch_size(&self) -> usize {
+        // TODO: calculate by log_quotient_degree.
+        2
     }
 }
 
@@ -156,7 +163,8 @@ where
         // Evaluate the execution trace constraints.
         self.air.eval(builder);
         // Evaluate permutation constraints.
-        eval_permutation_constraints(&self.sends, &self.receives, builder);
+        let batch_size = self.logup_batch_size();
+        eval_permutation_constraints(&self.sends, &self.receives, batch_size, builder);
     }
 }
 

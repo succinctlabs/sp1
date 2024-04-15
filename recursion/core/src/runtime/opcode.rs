@@ -57,6 +57,9 @@ pub enum Opcode {
     Hint = 38,
     Poseidon2Compress = 39,
     BNEINC = 40,
+    Commit = 41,
+    LessThanF = 42,
+    CycleTracker = 43,
 }
 
 impl Opcode {

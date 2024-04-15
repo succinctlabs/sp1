@@ -3,9 +3,12 @@ mod opcode;
 mod program;
 mod record;
 
+use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
+use hashbrown::HashMap;
 pub use instruction::*;
+use itertools::Itertools;
 pub use opcode::*;
 use p3_poseidon2::Poseidon2;
 use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
@@ -17,6 +20,7 @@ pub use record::*;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::memory::MemoryRecord;
+use crate::poseidon2::Poseidon2Event;
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
@@ -31,6 +35,9 @@ pub const HASH_RATE: usize = 8;
 
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
 pub const DIGEST_SIZE: usize = 8;
+
+/// The max size of the public values buffer
+pub const PV_BUFFER_MAX_SIZE: usize = 1024;
 
 pub const NUM_BITS: usize = 31;
 
@@ -49,6 +56,13 @@ pub struct MemoryEntry<F> {
     pub timestamp: F,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct CycleTrackerEntry {
+    pub span_entered: bool,
+    pub span_enter_cycle: usize,
+    pub cumulative_cycles: usize,
+}
+
 pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub timestamp: usize,
 
@@ -61,6 +75,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub nb_base_ops: usize,
 
     pub nb_memory_ops: usize,
+
+    pub nb_branch_ops: usize,
 
     pub nb_print_f: usize,
 
@@ -76,7 +92,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub pc: F,
 
     /// The program.
-    pub program: Program<F>,
+    pub program: RecursionProgram<F>,
 
     /// Memory.
     pub memory: Vec<MemoryEntry<F>>,
@@ -88,6 +104,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub access: CpuRecord<F>,
 
     pub witness_stream: Vec<Vec<Block<F>>>,
+
+    pub cycle_tracker: HashMap<String, CycleTrackerEntry>,
 
     // pub witness_stream: Vec<Witness<F, EF>>,
     perm: Option<
@@ -114,7 +132,7 @@ where
     >: CryptographicPermutation<[F; PERMUTATION_WIDTH]>,
 {
     pub fn new(
-        program: &Program<F>,
+        program: &RecursionProgram<F>,
         perm: Poseidon2<
             F,
             Poseidon2ExternalMatrixGeneral,
@@ -134,6 +152,7 @@ where
             nb_ext_ops: 0,
             nb_base_ops: 0,
             nb_memory_ops: 0,
+            nb_branch_ops: 0,
             nb_print_f: 0,
             nb_print_e: 0,
             clk: F::zero(),
@@ -145,11 +164,12 @@ where
             perm: Some(perm),
             access: CpuRecord::default(),
             witness_stream: vec![],
+            cycle_tracker: HashMap::new(),
             _marker: PhantomData,
         }
     }
 
-    pub fn new_no_perm(program: &Program<F>) -> Self {
+    pub fn new_no_perm(program: &RecursionProgram<F>) -> Self {
         let record = ExecutionRecord::<F> {
             program: Arc::new(program.clone()),
             ..Default::default()
@@ -163,6 +183,7 @@ where
             nb_memory_ops: 0,
             nb_print_f: 0,
             nb_print_e: 0,
+            nb_branch_ops: 0,
             clk: F::zero(),
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
@@ -172,22 +193,22 @@ where
             perm: None,
             access: CpuRecord::default(),
             witness_stream: vec![],
+            cycle_tracker: HashMap::new(),
             _marker: PhantomData,
         }
     }
 
     pub fn print_stats(&self) {
-        println!("Number of cycles: {}", self.timestamp);
-        println!("Number of Poseidon permutes: {}", self.nb_poseidons);
-        println!(
-            "Number of bit decompositions: {}",
-            self.nb_bit_decompositions
-        );
-        println!("Number of base ops: {}", self.nb_base_ops);
-        println!("Number of ext ops: {}", self.nb_ext_ops);
-        println!("Number of memory ops: {}", self.nb_memory_ops);
-        println!("Number of printf ops: {}", self.nb_print_f);
-        println!("Number of printef ops: {}", self.nb_print_e);
+        println!("Total Cycles: {}", self.timestamp);
+        println!("Poseidon Operations: {}", self.nb_poseidons);
+        println!("Field Operations: {}", self.nb_base_ops);
+        println!("Extension Operations: {}", self.nb_ext_ops);
+        println!("Memory Operations: {}", self.nb_memory_ops);
+        println!("Branch Operations: {}", self.nb_branch_ops);
+        println!("\nCycle Tracker Statistics:");
+        for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
+            println!("> {}: {}", name, entry.cumulative_cycles);
+        }
     }
 
     fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
@@ -339,7 +360,7 @@ where
     pub fn run(&mut self) {
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
-            let instruction = self.program.instructions[idx];
+            let instruction = self.program.instructions[idx].clone();
 
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
@@ -358,11 +379,34 @@ where
                     println!("PRINTEF={:?}", a_val);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::CycleTracker => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+
+                    let name = instruction.debug.clone();
+                    let entry = self.cycle_tracker.entry(name).or_default();
+                    if !entry.span_entered {
+                        entry.span_entered = true;
+                        entry.span_enter_cycle = self.timestamp;
+                    } else {
+                        entry.span_entered = false;
+                        entry.cumulative_cycles += self.timestamp - entry.span_enter_cycle;
+                    }
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::ADD => {
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] + c_val.0[0];
+                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
+                Opcode::LessThanF => {
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
+                    let mut a_val = Block::default();
+                    a_val.0[0] = F::from_bool(b_val.0[0] < c_val.0[0]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -453,6 +497,7 @@ where
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
                 Opcode::BEQ => {
+                    self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                     if a.0[0] == b.0[0] {
@@ -460,6 +505,7 @@ where
                     }
                 }
                 Opcode::BNE => {
+                    self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                     if a.0[0] != b.0[0] {
@@ -467,6 +513,7 @@ where
                     }
                 }
                 Opcode::BNEINC => {
+                    self.nb_branch_ops += 1;
                     let (mut a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     a_val.0[0] += F::one();
                     if a_val.0[0] != b_val.0[0] {
@@ -476,6 +523,7 @@ where
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                 }
                 Opcode::EBEQ => {
+                    self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                     if a == b {
@@ -483,6 +531,7 @@ where
                     }
                 }
                 Opcode::EBNE => {
+                    self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                     if a != b {
@@ -490,6 +539,7 @@ where
                     }
                 }
                 Opcode::JAL => {
+                    self.nb_branch_ops += 1;
                     let imm = instruction.op_b[0];
                     let a_ptr = instruction.op_a + self.fp;
                     self.mw(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
@@ -498,6 +548,7 @@ where
                     (a, b, c) = (Block::from(a_ptr), Block::default(), Block::default());
                 }
                 Opcode::JALR => {
+                    self.nb_branch_ops += 1;
                     let imm = instruction.op_c;
                     let b_ptr = instruction.op_b[0] + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
@@ -510,7 +561,14 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
-                    panic!("TRAP instruction encountered")
+                    let trace = self.program.traces[self.pc.as_canonical_u32() as usize].clone();
+                    if let Some(mut trace) = trace {
+                        trace.resolve();
+                        eprintln!("TRAP encountered. Backtrace:\n{:?}", trace);
+                    } else {
+                        eprintln!("TRAP encountered. No backtrace available");
+                    }
+                    exit(1);
                 }
                 Opcode::Ext2Felt => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
@@ -547,6 +605,11 @@ where
                     for (i, value) in result.iter().enumerate() {
                         self.memory[dst + i].value[0] = *value;
                     }
+
+                    self.record
+                        .poseidon2_events
+                        .push(Poseidon2Event { input: array });
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Poseidon2Compress => {
@@ -586,6 +649,10 @@ where
                     for (i, value) in result.iter().enumerate() {
                         self.memory[dst + i].value[0] = *value;
                     }
+
+                    self.record
+                        .poseidon2_events
+                        .push(Poseidon2Event { input: array });
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {
@@ -670,13 +737,26 @@ where
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::Commit => {
+                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+                    let b_val = Block::<F>::default();
+                    let c_val = Block::<F>::default();
+
+                    let hash_ptr = a_val[0].as_canonical_u32() as usize;
+
+                    for i in 0..DIGEST_SIZE {
+                        self.record.public_values_digest[i] = self.memory[hash_ptr + i].value[0];
+                    }
+
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
             };
 
             let event = CpuEvent {
                 clk: self.clk,
                 pc: self.pc,
                 fp: self.fp,
-                instruction,
+                instruction: instruction.clone(),
                 a,
                 a_record: self.access.a.clone(),
                 b,
@@ -716,7 +796,7 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
 
-    use super::{Instruction, Opcode, Program, Runtime};
+    use super::{Instruction, Opcode, RecursionProgram, Runtime};
 
     type SC = BabyBearPoseidon2;
     type F = <SC as StarkGenericConfig>::Val;
@@ -727,7 +807,8 @@ mod tests {
     fn test_witness() {
         let zero = F::zero();
         let zero_block = [F::zero(); 4];
-        let program = Program {
+        let program = RecursionProgram {
+            traces: vec![],
             instructions: vec![
                 Instruction::new(
                     Opcode::HintLen,
@@ -738,6 +819,7 @@ mod tests {
                     zero,
                     false,
                     false,
+                    "".to_string(),
                 ),
                 Instruction::new(
                     Opcode::PrintF,
@@ -748,6 +830,7 @@ mod tests {
                     zero,
                     false,
                     false,
+                    "".to_string(),
                 ),
             ],
         };

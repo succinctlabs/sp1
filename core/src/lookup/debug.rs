@@ -5,10 +5,9 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_field::{Field, PrimeField64};
 use p3_matrix::Matrix;
 
+use super::InteractionKind;
 use crate::air::MachineAir;
 use crate::stark::{MachineChip, MachineStark, ProvingKey, StarkGenericConfig, Val};
-
-use super::InteractionKind;
 
 #[derive(Debug)]
 pub struct InteractionData<F: Field> {

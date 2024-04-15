@@ -2,7 +2,13 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
-use crate::air::{PublicValues, Word};
+pub use baby_bear_blake3::BabyBearBlake3;
+use p3_challenger::CanObserve;
+use p3_field::PrimeField32;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use size::Size;
+
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -15,13 +21,6 @@ use crate::{
 };
 
 use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
-pub use baby_bear_blake3::BabyBearBlake3;
-use p3_challenger::CanObserve;
-
-use p3_field::PrimeField32;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use size::Size;
 
 const LOG_DEGREE_BOUND: usize = 31;
 
@@ -150,7 +149,7 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut public_values: PublicValues<u32, u32> = Default::default();
+    let mut public_values: Vec<SC::Val> = Vec::new();
     let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
@@ -195,8 +194,7 @@ where
 
         for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
-            let public_values = PublicValues::<Word<SC::Val>, SC::Val>::new(shard.public_values());
-            challenger.observe_slice(&public_values.to_vec());
+            challenger.observe_slice(&shard.public_values::<SC::Val>());
         }
     }
 
@@ -360,8 +358,6 @@ pub mod baby_bear_poseidon2 {
 
     use crate::stark::StarkGenericConfig;
 
-    use super::LOG_DEGREE_BOUND;
-
     pub type Val = BabyBear;
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
@@ -446,13 +442,17 @@ pub mod baby_bear_poseidon2 {
 
             let dft = Dft {};
 
+            let num_queries = match std::env::var("FRI_QUERIES") {
+                Ok(value) => value.parse().unwrap(),
+                Err(_) => 100,
+            };
             let fri_config = FriConfig {
                 log_blowup: 1,
-                num_queries: 100,
+                num_queries,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
+            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
 
             Self { pcs, perm }
         }

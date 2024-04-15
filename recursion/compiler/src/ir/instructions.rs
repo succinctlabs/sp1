@@ -1,8 +1,12 @@
-use super::{Array, FriFoldInput, MemIndex, Ptr};
+use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
 use super::{Config, Ext, Felt, Usize, Var};
 
+/// An intermeddiate instruction set for implementing programs.
+///
+/// Programs written in the DSL can compile both to the recursive zkVM and the R1CS or Plonk-ish
+/// circuits.
 #[derive(Debug, Clone)]
-pub enum DslIR<C: Config> {
+pub enum DslIr<C: Config> {
     // Immediates.
     ImmV(Var<C::N>, C::N),
     ImmF(Felt<C::F>, C::F),
@@ -15,9 +19,9 @@ pub enum DslIR<C: Config> {
     AddFI(Felt<C::F>, Felt<C::F>, C::F),
     AddE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
     AddEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
+    AddEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
     AddEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
     AddEFFI(Ext<C::F, C::EF>, Felt<C::F>, C::EF),
-    AddEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
 
     // Subtractions.
     SubV(Var<C::N>, Var<C::N>, Var<C::N>),
@@ -62,11 +66,27 @@ pub enum DslIR<C: Config> {
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
     // Control flow.
-    For(Usize<C::N>, Usize<C::N>, C::N, Var<C::N>, Vec<DslIR<C>>),
-    IfEq(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
-    IfNe(Var<C::N>, Var<C::N>, Vec<DslIR<C>>, Vec<DslIR<C>>),
-    IfEqI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),
-    IfNeI(Var<C::N>, C::N, Vec<DslIR<C>>, Vec<DslIR<C>>),
+    For(
+        Usize<C::N>,
+        Usize<C::N>,
+        C::N,
+        Var<C::N>,
+        TracedVec<DslIr<C>>,
+    ),
+    IfEq(
+        Var<C::N>,
+        Var<C::N>,
+        TracedVec<DslIr<C>>,
+        TracedVec<DslIr<C>>,
+    ),
+    IfNe(
+        Var<C::N>,
+        Var<C::N>,
+        TracedVec<DslIr<C>>,
+        TracedVec<DslIr<C>>,
+    ),
+    IfEqI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    IfNeI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
     Break,
 
     // Assertions.
@@ -131,6 +151,11 @@ pub enum DslIR<C: Config> {
     HintVars(Array<C, Var<C::N>>),
     HintFelts(Array<C, Felt<C::F>>),
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    WitnessVar(Var<C::N>, u32),
+    WitnessFelt(Felt<C::F>, u32),
+    WitnessExt(Ext<C::F, C::EF>, u32),
+    Commit(Array<C, Felt<C::F>>),
+    // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
@@ -141,4 +166,8 @@ pub enum DslIR<C: Config> {
         Ext<C::F, C::EF>,
     ),
     CircuitExt2Felt([Felt<C::F>; 4], Ext<C::F, C::EF>),
+
+    // Debugging instructions.
+    LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
+    CycleTracker(String),
 }
