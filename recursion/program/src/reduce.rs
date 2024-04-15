@@ -208,20 +208,20 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                 let pv = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
                 // Verify witness data
-                // builder.assert_felt_eq(shard_start_pc, pv.start_pc);
-                // builder.assert_felt_eq(shard_next_pc, pv.next_pc);
-                // builder.assert_felt_eq(shard_start_shard, pv.shard);
-                // let pv_shard_plus_one: Felt<_> = builder.eval(pv.shard + one_felt);
+                builder.assert_felt_eq(shard_start_pc, pv.start_pc);
+                builder.assert_felt_eq(shard_next_pc, pv.next_pc);
+                builder.assert_felt_eq(shard_start_shard, pv.shard);
+                let pv_shard_plus_one: Felt<_> = builder.eval(pv.shard + one_felt);
 
-                // let pv_next_pc = felt_to_var(builder, pv.next_pc);
-                // builder.if_eq(pv_next_pc, zero).then_or_else(
-                //     |builder| {
-                //         builder.assert_felt_eq(shard_next_shard, zero_felt);
-                //     },
-                //     |builder| {
-                //         builder.assert_felt_eq(shard_next_shard, pv_shard_plus_one);
-                //     },
-                // );
+                let pv_next_pc = felt_to_var(builder, pv.next_pc);
+                builder.if_eq(pv_next_pc, zero).then_or_else(
+                    |builder| {
+                        builder.assert_felt_eq(shard_next_shard, zero_felt);
+                    },
+                    |builder| {
+                        builder.assert_felt_eq(shard_next_shard, pv_shard_plus_one);
+                    },
+                );
 
                 // Need to convert the shard as a felt to a variable, since `if_eq` only handles variables.
                 let shard_f = pv.shard;
@@ -276,11 +276,11 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
 
                 let pv_digest = builder.poseidon2_hash(&pv);
 
-                // for j in 0..DIGEST_SIZE {
-                //     let expected_digest_element = proof_pv.committed_value_digest[j];
-                //     let digest_element = builder.get(&pv_digest, j);
-                //     builder.assert_felt_eq(expected_digest_element, digest_element);
-                // }
+                for j in 0..DIGEST_SIZE {
+                    let expected_digest_element = proof_pv.committed_value_digest[j];
+                    let digest_element = builder.get(&pv_digest, j);
+                    builder.assert_felt_eq(expected_digest_element, digest_element);
+                }
 
                 // Build recursion challenger
                 let mut current_challenger = recursion_challenger.as_clone(builder);
@@ -311,8 +311,8 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     });
 
     // The next_pc and next_shard should be 0.
-    // builder.assert_felt_eq(expected_start_pc, zero_felt);
-    // builder.assert_felt_eq(expected_start_shard, zero_felt);
+    builder.assert_felt_eq(expected_start_pc, zero_felt);
+    builder.assert_felt_eq(expected_start_shard, zero_felt);
 
     // Public values:
     // (
