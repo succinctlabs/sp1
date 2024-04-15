@@ -274,6 +274,18 @@ pub(crate) mod tests {
     use p3_fri::FriConfig;
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
+    use sp1_core::utils::inner_fri_config;
+    use sp1_core::utils::inner_perm;
+    use sp1_core::utils::InnerChallenge;
+    use sp1_core::utils::InnerChallengeMmcs;
+    use sp1_core::utils::InnerChallenger;
+    use sp1_core::utils::InnerCompress;
+    use sp1_core::utils::InnerDft;
+    use sp1_core::utils::InnerHash;
+    use sp1_core::utils::InnerPcs;
+    use sp1_core::utils::InnerPcsProof;
+    use sp1_core::utils::InnerVal;
+    use sp1_core::utils::InnerValMmcs;
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Builder;
@@ -281,18 +293,6 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::ir::Var;
     use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
-    use sp1_recursion_core::stark::config::inner_fri_config;
-    use sp1_recursion_core::stark::config::inner_perm;
-    use sp1_recursion_core::stark::config::InnerChallenge;
-    use sp1_recursion_core::stark::config::InnerChallengeMmcs;
-    use sp1_recursion_core::stark::config::InnerChallenger;
-    use sp1_recursion_core::stark::config::InnerCompress;
-    use sp1_recursion_core::stark::config::InnerDft;
-    use sp1_recursion_core::stark::config::InnerHash;
-    use sp1_recursion_core::stark::config::InnerPcs;
-    use sp1_recursion_core::stark::config::InnerPcsProof;
-    use sp1_recursion_core::stark::config::InnerVal;
-    use sp1_recursion_core::stark::config::InnerValMmcs;
 
     use crate::commit::PcsVariable;
     use crate::fri::TwoAdicFriPcsVariable;
