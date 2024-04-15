@@ -55,6 +55,7 @@ where
         C::EF: TwoAdicField,
         Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
     {
+        builder.cycle_tracker("stage-c-verify-shard-setup");
         let ShardProofVariable {
             commitment,
             opened_values,
@@ -220,11 +221,15 @@ where
         builder.set_value(&mut rounds, 1, main_round);
         builder.set_value(&mut rounds, 2, perm_round);
         builder.set_value(&mut rounds, 3, quotient_round);
+        builder.cycle_tracker("stage-c-verify-shard-setup");
 
         // Verify the pcs proof
+        builder.cycle_tracker("stage-d-verify-pcs");
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
+        builder.cycle_tracker("stage-d-verify-pcs");
 
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
+        builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
             let index = builder.get(&chip_sorted_idxs, i);
 
@@ -254,6 +259,7 @@ where
                     );
                 });
         }
+        builder.cycle_tracker("stage-e-verify-constraints");
     }
 }
 
@@ -270,7 +276,6 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::SP1_PROOF_NUM_PV_ELTS;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
     use sp1_core::{
@@ -280,7 +285,6 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Felt;
-    use sp1_recursion_compiler::prelude::Usize;
     use sp1_recursion_compiler::{
         asm::AsmBuilder,
         ir::{Builder, ExtConst},
@@ -322,7 +326,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values);
+            challenger_val.observe_slice(&proof.public_values);
         });
 
         let permutation_challenges = (0..2)
@@ -344,7 +348,7 @@ pub(crate) mod tests {
             let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-            challenger.observe_slice(&proof.public_values);
+            challenger.observe_slice(&mut builder, proof.public_values);
         }
 
         // Sample the permutation challenges.

@@ -101,6 +101,7 @@ impl SP1ProverImpl {
             BabyBear::zero(),
             false,
             false,
+            "".to_string(),
         );
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
