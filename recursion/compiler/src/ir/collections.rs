@@ -65,8 +65,12 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
         end: Usize<C::N>,
     ) -> Array<C, V> {
         match self {
-            Self::Fixed(_) => {
-                todo!()
+            Self::Fixed(vec) => {
+                if let (Usize::Const(start), Usize::Const(end)) = (start, end) {
+                    builder.vec(vec[start..end].to_vec())
+                } else {
+                    panic!("Cannot slice a fixed array with a variable start or end");
+                }
             }
             Self::Dyn(_, len) => {
                 if builder.debug {
