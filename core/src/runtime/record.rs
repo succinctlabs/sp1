@@ -309,6 +309,8 @@ impl MachineRecord for ExecutionRecord {
                 // for all of the shards.
                 shard.public_values.committed_value_digest =
                     self.public_values.committed_value_digest;
+                shard.public_values.deferred_proofs_digest =
+                    self.public_values.deferred_proofs_digest;
                 shard.public_values.shard = current_shard_num;
                 shard.public_values.start_pc = shard.cpu_events[0].pc;
                 shard.public_values.next_pc = last_shard_cpu_event.next_pc;

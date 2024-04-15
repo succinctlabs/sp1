@@ -95,6 +95,7 @@ pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     }
 }
 
+/// The recursion config used for recursive reduce circuit.
 #[derive(Deserialize)]
 #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2Inner>")]
 pub struct BabyBearPoseidon2Inner {

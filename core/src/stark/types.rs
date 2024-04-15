@@ -14,6 +14,8 @@ use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use tracing::trace;
 
+use crate::air::SP1_PROOF_NUM_PV_ELTS;
+
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
@@ -125,7 +127,7 @@ pub struct ShardOpenedValues<T: Serialize> {
 /// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
 /// proofs need to pad their public_values vec to this length.  This is required since the recursion
 /// verification program expects the public values vec to be fixed length.
-pub const PROOF_MAX_NUM_PVS: usize = 64;
+pub const PROOF_MAX_NUM_PVS: usize = SP1_PROOF_NUM_PV_ELTS;
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]

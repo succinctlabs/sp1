@@ -494,6 +494,12 @@ mod tests {
                 println!("shards: {:?}", fibonacci_proof.shard_proofs.len());
 
                 let mut challenger = sp1_machine.config().challenger();
+                sp1_machine
+                    .verify(&fibonacci_vk, &fibonacci_proof, &mut challenger)
+                    .unwrap();
+                println!("verified fibonacci");
+
+                let mut challenger = sp1_machine.config().challenger();
                 challenger.observe(fibonacci_vk.commit);
                 for shard_proof in fibonacci_proof.shard_proofs.iter() {
                     challenger.observe(shard_proof.commitment.main_commit);
@@ -510,6 +516,7 @@ mod tests {
                 proof
             }
         };
+
         let verify_proof_elf =
             include_bytes!("../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
         let verify_program = Program::from(verify_proof_elf);
@@ -537,6 +544,12 @@ mod tests {
         let config = BabyBearPoseidon2::new();
         let proof = prove_core(config, runtime);
         println!("shards {:?}", proof.shard_proofs.len());
+
+        let mut challenger = sp1_machine.config().challenger();
+        sp1_machine
+            .verify(&verify_vk, &proof, &mut challenger)
+            .unwrap();
+        println!("verified");
 
         let mut challenger = sp1_machine.config().challenger();
         challenger.observe(verify_vk.commit);

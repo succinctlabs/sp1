@@ -190,7 +190,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         builder.if_eq(is_recursive, zero).then_or_else(
             // Non-recursive proof
             |builder| {
-                let shard_f = builder.get(&proof.public_values, 32);
+                let shard_f = builder.get(&proof.public_values, 64);
                 let shard = felt_to_var(builder, shard_f);
                 // First shard logic
                 builder.if_eq(shard, one).then(|builder| {

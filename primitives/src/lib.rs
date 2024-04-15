@@ -1,10 +1,9 @@
 //! sp1-primtiives contains types and functions that are used in both sp1-core and sp1-zkvm.
-//! Because it is imported in the zkvm entrypoint, it only includes what is necessary.
+//! Because it is imported in the zkvm entrypoint, it should be kept minimal.
 
 use lazy_static::lazy_static;
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
-use p3_field::extension::BinomialExtensionField;
-use p3_field::{AbstractField, Field};
+use p3_field::AbstractField;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 
 lazy_static! {
@@ -1176,8 +1175,3 @@ pub struct ChipOpenedValues<T> {
 pub struct ShardOpenedValues<T> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
-
-// type Val = BabyBear;
-// type Com = [BabyBear; 8];
-// type Challenge = BinomialExtensionField<Val, 4>;
-// type OpeningProof = Vec<<Val as Field>::Packing>;

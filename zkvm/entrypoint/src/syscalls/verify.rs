@@ -36,7 +36,6 @@ pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u32; 8]) {
         let deferred_proofs_digest;
         // SAFETY: we have sole access because zkvm is single threaded.
         unsafe {
-            // hash_input.extend_from_slice(DEFERRED_PROOFS_DIGEST.as_ref().unwrap());
             deferred_proofs_digest = DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
             hash_input.extend_from_slice(deferred_proofs_digest);
         }

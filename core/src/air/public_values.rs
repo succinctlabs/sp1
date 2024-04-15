@@ -48,6 +48,11 @@ impl PublicValues<u32, u32> {
             .committed_value_digest
             .iter()
             .flat_map(|w| Word::<F>::from(*w).into_iter())
+            .chain(
+                self.deferred_proofs_digest
+                    .iter()
+                    .flat_map(|w| Word::<F>::from(*w).into_iter()),
+            )
             .chain(once(F::from_canonical_u32(self.shard)))
             .chain(once(F::from_canonical_u32(self.start_pc)))
             .chain(once(F::from_canonical_u32(self.next_pc)))
@@ -78,8 +83,7 @@ impl<F: AbstractField> PublicValues<Word<F>, F> {
 
         let mut deferred_proofs_digest = Vec::new();
         for _ in 0..POSEIDON_NUM_WORDS {
-            deferred_proofs_digest.push(Word([F::zero(), F::zero(), F::zero(), F::zero()]));
-            // deferred_proofs_digest.push(Word::from_iter(&mut iter));
+            deferred_proofs_digest.push(Word::from_iter(&mut iter));
         }
 
         // Collecting the remaining items into a tuple.  Note that it is only getting the first
