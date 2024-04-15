@@ -30,7 +30,7 @@ use crate::stark::MachineChip;
 use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
 
-use crate::air::MachineAir;
+use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -90,7 +90,8 @@ where
                 .zip(shards.iter())
                 .for_each(|(commitment, shard)| {
                     challenger.observe(commitment);
-                    challenger.observe_slice(&shard.public_values::<SC::Val>());
+                    challenger
+                        .observe_slice(&shard.public_values::<SC::Val>()[0..SP1_PROOF_NUM_PV_ELTS]);
                 });
         });
 
