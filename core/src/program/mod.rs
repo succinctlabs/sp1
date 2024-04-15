@@ -1,11 +1,11 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+use std::collections::HashMap;
+
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use std::collections::HashMap;
-
 use sp1_derive::AlignedBorrow;
 
 use crate::air::MachineAir;
@@ -15,7 +15,10 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::runtime::{ExecutionRecord, Program};
 use crate::utils::pad_to_power_of_two;
 
+/// The number of preprocessed program columns.
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
+
+/// The number of columns for the program multiplicities.
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
 
 /// The column layout for the chip.

@@ -8,7 +8,6 @@ pub mod weierstrass;
 use serde::{Deserialize, Serialize};
 
 use crate::runtime::SyscallContext;
-
 use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 

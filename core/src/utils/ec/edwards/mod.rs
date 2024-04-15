@@ -4,11 +4,10 @@ use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
-use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
-
 use super::field::NumLimbs;
 use super::CurveType;
+use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 pub trait EdwardsParameters: EllipticCurveParameters {
     const D: GenericArray<u8, <Self::BaseField as NumLimbs>::Limbs>;

@@ -6,11 +6,10 @@ use std::{
 
 use bincode::{deserialize_from, Error};
 use p3_matrix::dense::RowMajorMatrix;
-use size::Size;
-
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use size::Size;
 use tracing::trace;
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
@@ -121,6 +120,9 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
+/// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
+/// proofs need to pad their public_values vec to this length.  This is required since the recursion
+/// verification program expects the public values vec to be fixed length.
 pub const PROOF_MAX_NUM_PVS: usize = 64;
 
 #[derive(Serialize, Deserialize)]

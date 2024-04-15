@@ -122,6 +122,7 @@ impl<C: Config> Builder<C> {
         &mut self,
         array: &Array<C, Array<C, Felt<C::F>>>,
     ) -> Array<C, Felt<C::F>> {
+        self.cycle_tracker("poseidon2-hash");
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
         let idx: Var<_> = self.eval(C::N::zero());
@@ -145,6 +146,7 @@ impl<C: Config> Builder<C> {
         });
 
         state.truncate(self, Usize::Const(DIGEST_SIZE));
+        self.cycle_tracker("poseidon2-hash");
         state
     }
 
@@ -152,6 +154,7 @@ impl<C: Config> Builder<C> {
         &mut self,
         array: &Array<C, Array<C, Ext<C::F, C::EF>>>,
     ) -> Array<C, Felt<C::F>> {
+        self.cycle_tracker("poseidon2-hash-ext");
         let mut state: Array<C, Felt<C::F>> = self.dyn_array(PERMUTATION_WIDTH);
 
         let idx: Var<_> = self.eval(C::N::zero());
@@ -179,6 +182,7 @@ impl<C: Config> Builder<C> {
         });
 
         state.truncate(self, Usize::Const(DIGEST_SIZE));
+        self.cycle_tracker("poseidon2-hash-ext");
         state
     }
 }

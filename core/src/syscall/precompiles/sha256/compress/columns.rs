@@ -102,6 +102,7 @@ pub struct ShaCompressCols<T> {
     pub finalize_add: AddOperation<T>,
 
     pub is_compression: T,
+    pub is_last_row: T,
 
     pub is_real: T,
 }
