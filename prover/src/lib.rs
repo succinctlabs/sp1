@@ -28,7 +28,6 @@ use sp1_recursion_core::{
     },
 };
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
-use std::io::Write;
 use std::time::Instant;
 
 type SP1SC = BabyBearPoseidon2;
