@@ -57,10 +57,11 @@ impl ProverClient {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         dotenv::dotenv().ok();
-        let private_key = env::var("PRIVATE_KEY").unwrap_or_default();
-        if private_key.is_empty() {
+        if env::var("REMOTE_PROVING").is_err() {
             Self { client: None }
         } else {
+            let private_key =
+                env::var("PRIVATE_KEY").unwrap_or_else(|_| panic!("PRIVATE_KEY is not set"));
             Self {
                 client: Some(NetworkClient::new(&private_key)),
             }
