@@ -1,10 +1,11 @@
 use p3_field::PrimeField32;
+use serde::{Deserialize, Serialize};
 
 use crate::air::Block;
 
 use super::{Opcode, D};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instruction<F> {
     /// Which operation to execute.
     pub opcode: Opcode,

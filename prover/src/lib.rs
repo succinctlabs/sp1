@@ -89,9 +89,14 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 
 impl SP1ProverImpl {
     pub fn new() -> Self {
-        // TODO: load from serde
-        let reduce_setup_program = build_reduce_program(true);
-        let mut reduce_program = build_reduce_program(false);
+        let reduce_setup_program = match std::fs::read("reduce_setup_program.bin") {
+            Ok(proof) => bincode::deserialize::<RecursionProgram<BabyBear>>(&proof).unwrap(),
+            Err(_) => build_reduce_program(true),
+        };
+        let mut reduce_program = match std::fs::read("reduce_program.bin") {
+            Ok(proof) => bincode::deserialize::<RecursionProgram<BabyBear>>(&proof).unwrap(),
+            Err(_) => build_reduce_program(false),
+        };
         reduce_program.instructions[0] = Instruction::new(
             sp1_recursion_core::runtime::Opcode::ADD,
             BabyBear::zero(),
@@ -355,12 +360,28 @@ impl SP1ProverImpl {
 
 #[cfg(test)]
 mod tests {
-
     use super::*;
     use sp1_core::utils::setup_logger;
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
+
+    #[test]
+    fn test_fibonacci_e2e() {
+        setup_logger();
+        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
+        std::env::set_var("SHARD_SIZE", "1048576");
+        let prover = SP1ProverImpl::new();
+
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let stdin = [bincode::serialize::<u32>(&5000).unwrap()];
+
+        let leaf_proving_start = Instant::now();
+        let proof: Proof<BabyBearPoseidon2> = SP1ProverImpl::prove(elf, &stdin);
+        let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
+        println!("leaf proving time: {}", leaf_proving_duration);
+    }
 
     #[test]
     fn test_prove_sp1() {
