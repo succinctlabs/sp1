@@ -6,7 +6,7 @@ use crate::{
     memory::{MemoryChipKind, MemoryGlobalChip},
     // poseidon2::Poseidon2Chip,
     poseidon2_wide::Poseidon2WideChip,
-    // program::ProgramChip,
+    program::ProgramChip,
 };
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig};
@@ -19,7 +19,7 @@ use crate::runtime::D;
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
-    // Program(ProgramChip),
+    Program(ProgramChip),
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
@@ -38,8 +38,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
 
     pub fn get_all() -> Vec<Self> {
         let mut chips = vec![];
-        // let program = ProgramChip;
-        // chips.push(RecursionAir::Program(program));
+        let program = ProgramChip;
+        chips.push(RecursionAir::Program(program));
         let cpu = CpuChip::default();
         chips.push(RecursionAir::Cpu(cpu));
         let memory_init = MemoryGlobalChip {

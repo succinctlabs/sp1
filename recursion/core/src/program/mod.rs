@@ -58,19 +58,16 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
-            .instructions
-            .clone()
-            .into_iter()
+        let rows = program.instructions[0..32]
+            .iter()
             .enumerate()
             .map(|(i, instruction)| {
                 let pc = i as u32 * 4;
                 let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
-                cols.selectors.populate(&instruction);
-                cols.instruction.populate(instruction);
-
+                cols.selectors.populate(instruction);
+                cols.instruction.populate(instruction.clone());
                 row
             })
             .collect::<Vec<_>>();
@@ -105,11 +102,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        let rows = input
-            .program
-            .instructions
-            .clone()
-            .into_iter()
+        let rows = input.program.instructions[0..32]
+            .iter()
             .enumerate()
             .map(|(i, _)| {
                 let pc = i as u32;

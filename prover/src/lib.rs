@@ -28,6 +28,7 @@ use sp1_recursion_core::{
     },
 };
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
+use std::io::Write;
 use std::time::Instant;
 
 type SP1SC = BabyBearPoseidon2;
@@ -47,7 +48,6 @@ pub struct SP1ProverImpl {
 pub enum ReduceProof {
     SP1(ShardProof<SP1SC>),
     Recursive(ShardProof<InnerSC>),
-    FinalRecursive(ShardProof<OuterSC>),
 }
 
 impl Default for SP1ProverImpl {
@@ -91,11 +91,21 @@ impl SP1ProverImpl {
     pub fn new() -> Self {
         let reduce_setup_program = match std::fs::read("reduce_setup_program.bin") {
             Ok(proof) => bincode::deserialize::<RecursionProgram<BabyBear>>(&proof).unwrap(),
-            Err(_) => build_reduce_program(true),
+            Err(_) => {
+                let program = build_reduce_program(true);
+                let serialized = bincode::serialize(&program).unwrap();
+                std::fs::write("reduce_setup_program.bin", serialized).unwrap();
+                program
+            }
         };
         let mut reduce_program = match std::fs::read("reduce_program.bin") {
             Ok(proof) => bincode::deserialize::<RecursionProgram<BabyBear>>(&proof).unwrap(),
-            Err(_) => build_reduce_program(false),
+            Err(_) => {
+                let program = build_reduce_program(false);
+                let serialized = bincode::serialize(&program).unwrap();
+                std::fs::write("reduce_program.bin", serialized).unwrap();
+                program
+            }
         };
         reduce_program.instructions[0] = Instruction::new(
             sp1_recursion_core::runtime::Opcode::ADD,
@@ -135,10 +145,7 @@ impl SP1ProverImpl {
         let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
         let (_, vk) = machine.setup(&program);
-        let start = Instant::now();
         let (proof, _) = run_and_prove(program, stdin, config);
-        let duration = start.elapsed().as_secs_f64();
-        println!("leaf proving time = {:?}", duration);
         let mut challenger_ver = machine.config().challenger();
         machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
         proof
@@ -170,7 +177,6 @@ impl SP1ProverImpl {
             .map(|p| match p {
                 ReduceProof::SP1(_) => 0,
                 ReduceProof::Recursive(_) => 1,
-                _ => panic!("can't reduce final proof"),
             })
             .collect();
         println!("is_recursive_flags = {:?}", is_recursive_flags);
@@ -187,7 +193,6 @@ impl SP1ProverImpl {
                     println!("indices = {:?}", indices);
                     indices
                 }
-                _ => unreachable!(),
             })
             .collect();
 
@@ -224,7 +229,6 @@ impl SP1ProverImpl {
                 ReduceProof::Recursive(proof) => {
                     witness_stream.extend(proof.write());
                 }
-                _ => unreachable!(),
             }
         }
         println!("witness_stream.len() = {}", witness_stream.len());
@@ -268,12 +272,13 @@ impl SP1ProverImpl {
     }
 
     /// Recursively reduce proofs into a single proof using an N-ary tree.
-    pub fn reduce_tree<const N: usize>(
+    pub fn reduce_tree(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
         proof: Proof<SP1SC>,
-    ) -> ShardProof<OuterSC> {
+        batch_size: usize,
+    ) -> ShardProof<InnerSC> {
         let mut reduce_proofs = proof
             .shard_proofs
             .into_iter()
@@ -283,43 +288,45 @@ impl SP1ProverImpl {
         while reduce_proofs.len() > 1 {
             println!("layer = {}, num_proofs = {}", layer, reduce_proofs.len());
             let start = Instant::now();
-            reduce_proofs = self.reduce_layer::<N>(sp1_vk, sp1_challenger.clone(), reduce_proofs);
+            reduce_proofs =
+                self.reduce_layer(sp1_vk, sp1_challenger.clone(), reduce_proofs, batch_size);
             let duration = start.elapsed().as_secs();
             println!("layer {}, reduce duration = {}", layer, duration);
             layer += 1;
         }
         let last_proof = reduce_proofs.into_iter().next().unwrap();
         match last_proof {
-            ReduceProof::FinalRecursive(proof) => proof,
+            ReduceProof::Recursive(proof) => proof,
             _ => unreachable!(),
         }
     }
 
     /// Reduce a list of proofs in groups of N into a smaller list of proofs.
-    pub fn reduce_layer<const N: usize>(
+    pub fn reduce_layer(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
         mut proofs: Vec<ReduceProof>,
+        batch_size: usize,
     ) -> Vec<ReduceProof> {
-        if proofs.len() <= N {
+        if proofs.len() <= batch_size {
             // With the last proof, we need to use outer config since the proof will be
             // verified in groth16 circuit.
             let start = Instant::now();
-            let proof: ShardProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
+            let proof: ShardProof<InnerSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
             let duration = start.elapsed().as_secs();
             println!("final reduce duration = {}", duration);
-            return vec![ReduceProof::FinalRecursive(proof)];
+            return vec![ReduceProof::Recursive(proof)];
         }
 
         // If there's one proof at the end, just push it to the next layer.
-        let last_proof = if proofs.len() % N == 1 {
+        let last_proof = if proofs.len() % batch_size == 1 {
             Some(proofs.pop().unwrap())
         } else {
             None
         };
 
-        let chunks: Vec<_> = proofs.chunks(N).collect();
+        let chunks: Vec<_> = proofs.chunks(batch_size).collect();
 
         // Process at most 4 proofs at once in parallel, due to memory limits.
         let partition_size = std::cmp::max(1, chunks.len() / 4);
@@ -346,6 +353,19 @@ impl SP1ProverImpl {
         new_proofs
     }
 
+    pub fn bn254_reduce(
+        &self,
+        sp1_vk: &VerifyingKey<SP1SC>,
+        sp1_challenger: Challenger<SP1SC>,
+        proof: ReduceProof,
+    ) -> ShardProof<OuterSC> {
+        let start = Instant::now();
+        let proof: ShardProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &[proof]);
+        let duration = start.elapsed().as_secs();
+        println!("final reduce duration = {}", duration);
+        proof
+    }
+
     /// Wrap an outer recursive proof into a groth16 proof.
     pub fn wrap(&self, proof: ShardProof<OuterSC>) {
         let mut witness = Witness::default();
@@ -360,27 +380,73 @@ impl SP1ProverImpl {
 
 #[cfg(test)]
 mod tests {
+    use std::{fs::File, io::BufWriter};
+
     use super::*;
+    use itertools::iproduct;
     use sp1_core::utils::setup_logger;
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
     #[test]
-    fn test_fibonacci_e2e() {
-        setup_logger();
+    fn sweep_fibonacci() {
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-        std::env::set_var("SHARD_SIZE", "1048576");
+
         let prover = SP1ProverImpl::new();
+        setup_logger();
 
+        // [2^22 cycles, 2^23 cycles]
+        let iterations = [120000u32, 240000u32];
+        let shard_sizes = [1 << 19, 1 << 20, 1 << 21, 1 << 22, 1 << 23];
+        let batch_sizes = [2, 3, 4];
         let elf =
-            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        let stdin = [bincode::serialize::<u32>(&5000).unwrap()];
+            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
 
-        let leaf_proving_start = Instant::now();
-        let proof: Proof<BabyBearPoseidon2> = SP1ProverImpl::prove(elf, &stdin);
-        let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
-        println!("leaf proving time: {}", leaf_proving_duration);
+        let mut lines = vec![
+            "iterations,shard_size,leaf_proving_duration,recursion_proving_duration".to_string(),
+        ];
+
+        #[allow(clippy::never_loop)]
+        for (shard_size, iterations, batch_size) in iproduct!(shard_sizes, iterations, batch_sizes)
+        {
+            println!(
+                "running: shard_size={}, iterations={}, batch_size={}",
+                shard_size, iterations, batch_size
+            );
+            std::env::set_var("SHARD_SIZE", shard_size.to_string());
+
+            let stdin = [bincode::serialize::<u32>(&iterations).unwrap()];
+            let leaf_proving_start = Instant::now();
+            let proof: Proof<BabyBearPoseidon2> = SP1ProverImpl::prove(elf, &stdin);
+            let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
+
+            let sp1_machine = RiscvAir::machine(SP1SC::default());
+            let (_, vk) = sp1_machine.setup(&Program::from(elf));
+            let mut sp1_challenger = sp1_machine.config().challenger();
+            sp1_challenger.observe(vk.commit);
+            for shard_proof in proof.shard_proofs.iter() {
+                sp1_challenger.observe(shard_proof.commitment.main_commit);
+                sp1_challenger.observe_slice(&shard_proof.public_values.to_vec());
+            }
+
+            let recursion_proving_start = Instant::now();
+            let _ = prover.reduce_tree(&vk, sp1_challenger, proof, batch_size);
+            let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
+
+            lines.push(format!(
+                "{},{},{},{}",
+                iterations, shard_size, leaf_proving_duration, recursion_proving_duration
+            ));
+        }
+
+        println!("{:#?}", lines);
+
+        let file = File::create("sweep_fibonacci.txt").unwrap();
+        let mut writer = BufWriter::new(file);
+        for line in lines {
+            writeln!(writer, "{}", line).unwrap();
+        }
     }
 
     #[test]
@@ -419,7 +485,7 @@ mod tests {
         }
 
         let start = Instant::now();
-        let final_proof = prover.reduce_tree::<2>(&vk, sp1_challenger, proof);
+        let final_proof = prover.reduce_tree(&vk, sp1_challenger.clone(), proof, 2);
         let duration = start.elapsed().as_secs();
         println!("full reduce duration = {}", duration);
 
@@ -428,6 +494,8 @@ mod tests {
         std::fs::write("final.bin", serialized).unwrap();
 
         // Wrap the final proof into a groth16 proof
+        let final_proof =
+            prover.bn254_reduce(&vk, sp1_challenger, ReduceProof::Recursive(final_proof));
         prover.wrap(final_proof);
     }
 

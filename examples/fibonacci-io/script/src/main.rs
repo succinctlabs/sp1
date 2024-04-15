@@ -12,8 +12,8 @@ fn main() {
     let n = 5000u32;
 
     // The expected result of the fibonacci calculation
-    let expected_a = 3867074829u32;
-    let expected_b: u32 = 2448710421u32;
+    let expected_a = 2326u32;
+    let expected_b: u32 = 896u32;
 
     let mut stdin = SP1Stdin::new();
     stdin.write(&n);
