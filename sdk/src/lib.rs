@@ -60,8 +60,8 @@ impl ProverClient {
         let remote_proving = env::var("REMOTE_PROVING").unwrap_or_else(|_| String::from("false"));
 
         if remote_proving == "true" {
-            let private_key =
-                env::var("PRIVATE_KEY").unwrap_or_else(|_| panic!("PRIVATE_KEY is not set"));
+            let private_key = env::var("PRIVATE_KEY")
+                .unwrap_or_else(|_| panic!("PRIVATE_KEY must be set for remote proving"));
             Self {
                 client: Some(NetworkClient::new(&private_key)),
             }
