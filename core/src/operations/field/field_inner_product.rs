@@ -15,6 +15,9 @@ use crate::utils::ec::field::FieldParameters;
 /// A set of columns to compute `FieldInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
+///
+/// TODO: There is an issue here here some fields in these columns must be range checked. This is
+/// a known issue and will be fixed in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldInnerProductCols<T, P: FieldParameters> {
