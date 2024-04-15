@@ -165,7 +165,6 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
-        air::SP1_PROOF_NUM_PV_ELTS,
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
@@ -307,7 +306,7 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
+            challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
@@ -435,7 +434,7 @@ mod tests {
 
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
+            challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.

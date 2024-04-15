@@ -270,7 +270,6 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
-    use sp1_core::air::SP1_PROOF_NUM_PV_ELTS;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
     use sp1_core::{
@@ -322,7 +321,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
+            challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
         let permutation_challenges = (0..2)
@@ -347,7 +346,7 @@ pub(crate) mod tests {
             let pv_slice = proof.public_values.slice(
                 &mut builder,
                 Usize::Const(0),
-                Usize::Const(SP1_PROOF_NUM_PV_ELTS),
+                Usize::Const(machine.num_pv_elts()),
             );
             challenger.observe_slice(&mut builder, pv_slice);
         }
