@@ -9,7 +9,6 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
 
-use crate::air::SP1_PROOF_NUM_PV_ELTS;
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -195,7 +194,7 @@ where
 
         for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
-            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..SP1_PROOF_NUM_PV_ELTS]);
+            challenger.observe_slice(&shard.public_values::<SC::Val>());
         }
     }
 

@@ -322,7 +322,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
+            challenger.observe_slice(&proof.public_values);
         });
 
         let permutation_challenges = (0..2)
@@ -344,12 +344,7 @@ pub(crate) mod tests {
             let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-            let pv_slice = proof.public_values.slice(
-                &mut builder,
-                Usize::Const(0),
-                Usize::Const(SP1_PROOF_NUM_PV_ELTS),
-            );
-            challenger.observe_slice(&mut builder, pv_slice);
+            challenger.observe_slice(&proof.public_values);
         }
 
         // Sample the permutation challenges.
