@@ -1,6 +1,3 @@
-use crate::stark::PROOF_MAX_NUM_PVS;
-
-use super::Word;
 use arrayref::array_ref;
 use core::fmt::Debug;
 use core::mem::size_of;
