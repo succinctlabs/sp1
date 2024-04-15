@@ -57,7 +57,7 @@ impl ProverClient {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         dotenv::dotenv().ok();
-        let remote_proving = env::var("REMOTE_PROVING")
+        let remote_proving = env::var("REMOTE_PROVE")
             .unwrap_or_else(|_| String::from("false"))
             .parse::<bool>()
             .unwrap_or(false);
