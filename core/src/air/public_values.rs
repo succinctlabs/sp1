@@ -9,7 +9,6 @@ use serde::{Deserialize, Serialize};
 use super::Word;
 use crate::stark::PROOF_MAX_NUM_PVS;
 
-/// The number of words needed to represent a public value digest.
 /// The number of non padded elements in the SP1 proofs public values vec.
 pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<Word<u8>, u8>>();
 

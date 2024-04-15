@@ -44,11 +44,18 @@ pub struct MachineStark<SC: StarkGenericConfig, A> {
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
     chips: Vec<Chip<Val<SC>, A>>,
+
+    /// The number of public values elements that the machine uses
+    num_pv_elts: usize,
 }
 
 impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
-    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>) -> Self {
-        Self { config, chips }
+    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
+        Self {
+            config,
+            chips,
+            num_pv_elts,
+        }
     }
 }
 
@@ -69,6 +76,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
+    }
+
+    pub fn num_pv_elts(&self) -> usize {
+        self.num_pv_elts
     }
 
     /// Returns the id of all chips in the machine that have preprocessed columns.
@@ -254,7 +265,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
-                challenger.observe_slice(&proof.public_values);
+                challenger.observe_slice(&proof.public_values[0..self.num_pv_elts()]);
             });
         });
 

@@ -216,12 +216,10 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                     let element = builder.get(&proof.commitment.main_commit, j);
                     current_challenger.observe(builder, element);
                 }
-                builder
-                    .range(0, proof.public_values.len())
-                    .for_each(|j, builder| {
-                        let element = builder.get(&proof.public_values, j);
-                        current_challenger.observe(builder, element);
-                    });
+                builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
+                    let element = builder.get(&proof.public_values, j);
+                    current_challenger.observe(builder, element);
+                });
                 // Verify the proof
                 StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                     builder,

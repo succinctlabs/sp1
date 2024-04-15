@@ -1,8 +1,8 @@
 use p3_field::PrimeField32;
 
 use super::MachineStark;
-use crate::air::MachineAir;
 pub use crate::air::SP1AirBuilder;
+use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
 use crate::memory::MemoryChipType;
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
@@ -100,7 +100,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark::new(config, chips)
+        MachineStark::new(config, chips, SP1_PROOF_NUM_PV_ELTS)
     }
 
     /// Get all the different RISC-V AIRs.

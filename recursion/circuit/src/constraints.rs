@@ -303,7 +303,7 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values);
+            challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.
