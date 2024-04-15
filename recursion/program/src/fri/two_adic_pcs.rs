@@ -34,8 +34,10 @@ pub fn verify_two_adic_pcs<C: Config>(
     let blowup = C::N::from_canonical_usize(1 << config.log_blowup);
     let alpha = challenger.sample_ext(builder);
 
+    builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
+    builder.cycle_tracker("stage-d-1-verify-shape-and-sample-challenges");
 
     let commit_phase_commits_len = proof
         .fri_proof
@@ -47,6 +49,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     let mut reduced_openings: Array<C, Array<C, Ext<C::F, C::EF>>> =
         builder.array(proof.query_openings.len());
 
+    builder.cycle_tracker("stage-d-2-fri-fold");
     builder
         .range(0, proof.query_openings.len())
         .for_each(|i, builder| {
@@ -149,7 +152,9 @@ pub fn verify_two_adic_pcs<C: Config>(
 
             builder.set_value(&mut reduced_openings, i, ro);
         });
+    builder.cycle_tracker("stage-d-2-fri-fold");
 
+    builder.cycle_tracker("stage-d-3-verify-challenges");
     verify_challenges(
         builder,
         config,
@@ -157,6 +162,7 @@ pub fn verify_two_adic_pcs<C: Config>(
         &fri_challenges,
         &reduced_openings,
     );
+    builder.cycle_tracker("stage-d-3-verify-challenges");
 }
 
 impl<C: Config> FromConstant<C> for TwoAdicPcsRoundVariable<C>

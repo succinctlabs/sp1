@@ -1,23 +1,8 @@
-use itertools::Itertools;
-use p3_matrix::Dimensions;
-use serde::Deserialize;
-use serde::Serialize;
 use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fmt::Debug;
 
-use super::debug_constraints;
-use super::Dom;
-use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
-use crate::lookup::debug_interactions_with_all_chips;
-use crate::lookup::InteractionBuilder;
-use crate::lookup::InteractionKind;
-use crate::stark::record::MachineRecord;
-use crate::stark::DebugConstraintBuilder;
-use crate::stark::ProverConstraintFolder;
-use crate::stark::ShardProof;
-use crate::stark::VerifierConstraintFolder;
-
+use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
@@ -26,8 +11,21 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Dimensions;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
+
+use super::debug_constraints;
+use super::Dom;
+use crate::air::MachineAir;
+use crate::lookup::debug_interactions_with_all_chips;
+use crate::lookup::InteractionBuilder;
+use crate::lookup::InteractionKind;
+use crate::stark::record::MachineRecord;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::ShardProof;
+use crate::stark::VerifierConstraintFolder;
 
 use super::Chip;
 use super::Com;
@@ -47,11 +45,18 @@ pub struct MachineStark<SC: StarkGenericConfig, A> {
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
     chips: Vec<Chip<Val<SC>, A>>,
+
+    /// The number of public values elements that the machine uses
+    num_pv_elts: usize,
 }
 
 impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
-    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>) -> Self {
-        Self { config, chips }
+    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
+        Self {
+            config,
+            chips,
+            num_pv_elts,
+        }
     }
 }
 
@@ -79,6 +84,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
+    }
+
+    pub fn num_pv_elts(&self) -> usize {
+        self.num_pv_elts
     }
 
     /// Returns the id of all chips in the machine that have preprocessed columns.
@@ -261,12 +270,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     {
         // Observe the preprocessed commitment.
         challenger.observe(vk.commit.clone());
-        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
-        // in a map-reduce recursion setting.
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
-                challenger.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
+                challenger.observe_slice(&proof.public_values[0..self.num_pv_elts()]);
             });
         });
 

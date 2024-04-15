@@ -1,6 +1,7 @@
-use super::Domain;
-use crate::air::MachineAir;
-use crate::stark::MachineChip;
+use core::fmt::Display;
+use std::fmt::Formatter;
+use std::marker::PhantomData;
+
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
@@ -11,16 +12,14 @@ use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
-use std::fmt::Formatter;
-use std::marker::PhantomData;
-
 use super::folder::VerifierConstraintFolder;
 use super::types::*;
+use super::Domain;
 use super::StarkGenericConfig;
 use super::Val;
 use super::VerifyingKey;
-
-use core::fmt::Display;
+use crate::air::MachineAir;
+use crate::stark::MachineChip;
 
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
 

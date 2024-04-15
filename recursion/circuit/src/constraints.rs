@@ -170,12 +170,9 @@ mod tests {
     use p3_commit::{Pcs, PolynomialSpace};
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
-    use sp1_core::{
-        air::SP1_PROOF_NUM_PV_ELTS,
-        stark::{
-            Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData,
-            ShardCommitment, ShardMainData, ShardProof, StarkGenericConfig,
-        },
+    use sp1_core::stark::{
+        Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, ShardCommitment,
+        ShardMainData, ShardProof, StarkGenericConfig,
     };
     use sp1_recursion_compiler::{
         config::OuterConfig,
@@ -306,7 +303,7 @@ mod tests {
         challenger.observe(vk.commit);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values[0..SP1_PROOF_NUM_PV_ELTS]);
+            challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
         // Run the verify inside the DSL and compare it to the calculated value.

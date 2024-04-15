@@ -1,10 +1,10 @@
 use crate::stark::{Proof, VerifyingKey};
 use crate::utils::{BabyBearPoseidon2, BabyBearPoseidon2Inner};
 
-use super::Runtime;
 use serde::de::DeserializeOwned;
 use serde::Serialize;
-use std::io::Read;
+
+use super::Runtime;
 
 impl Read for Runtime {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {

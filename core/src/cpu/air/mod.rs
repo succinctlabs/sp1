@@ -66,7 +66,7 @@ where
             .assert_word_eq(local.op_c_val(), local.instruction.op_c);
 
         // If they are not immediates, read `b` and `c` from memory.
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.instruction.op_b[0],
@@ -77,7 +77,7 @@ where
             .when_not(local.selectors.imm_b)
             .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.instruction.op_c[0],
@@ -94,7 +94,7 @@ where
         builder
             .when(local.instruction.op_a_0)
             .assert_word_zero(*local.op_a_access.value());
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.instruction.op_a[0],
@@ -111,7 +111,7 @@ where
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
         let memory_columns = local.opcode_specific_columns.memory();
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
@@ -463,7 +463,7 @@ impl CpuChip {
             .assert_eq(expected_next_clk.clone(), next.clk);
 
         // Range check that the clk is within 24 bits using it's limb values.
-        builder.verify_range_24bits(
+        builder.eval_range_check_24bits(
             local.clk,
             local.clk_16bit_limb,
             local.clk_8bit_limb,

@@ -32,6 +32,7 @@ mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
@@ -287,7 +288,6 @@ where
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
-        // 0xff
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
 
         // Calculate the MSBs.
@@ -373,15 +373,15 @@ where
         // Check that the boolean values are indeed boolean values.
         {
             let booleans = [
-                local.is_real,
-                local.is_mul,
-                local.is_mulh,
-                local.is_mulhu,
-                local.is_mulhsu,
                 local.b_msb,
                 local.c_msb,
                 local.b_sign_extend,
                 local.c_sign_extend,
+                local.is_mul,
+                local.is_mulh,
+                local.is_mulhu,
+                local.is_mulhsu,
+                local.is_real,
             ];
             for boolean in booleans.iter() {
                 builder.assert_bool(*boolean);

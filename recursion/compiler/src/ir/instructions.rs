@@ -169,4 +169,5 @@ pub enum DslIr<C: Config> {
 
     // Debugging instructions.
     LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
+    CycleTracker(String),
 }

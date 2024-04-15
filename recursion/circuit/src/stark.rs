@@ -8,7 +8,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use sp1_core::stark::{Com, ShardProof};
 use sp1_core::{
-    air::{MachineAir, SP1_PROOF_NUM_PV_ELTS},
+    air::MachineAir,
     stark::{MachineStark, ShardCommitment, StarkGenericConfig, VerifyingKey},
 };
 use sp1_recursion_compiler::config::OuterConfig;
@@ -273,7 +273,7 @@ pub fn build_wrap_circuit(
     let pv_slice = proof.public_values.slice(
         &mut builder,
         Usize::Const(0),
-        Usize::Const(SP1_PROOF_NUM_PV_ELTS),
+        Usize::Const(outer_machine.num_pv_elts()),
     );
     challenger.observe_slice(&mut builder, pv_slice);
 
@@ -312,7 +312,7 @@ pub(crate) mod tests {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
         RecursionProgram::<F> {
-            instructions: [Instruction::new(
+            instructions: vec![Instruction::new(
                 Opcode::ADD,
                 F::from_canonical_u32(3),
                 zero,
@@ -321,8 +321,8 @@ pub(crate) mod tests {
                 F::zero(),
                 false,
                 true,
-            )]
-            .repeat(1 << 2),
+                "".to_string(),
+            )],
             traces: vec![None],
         }
     }

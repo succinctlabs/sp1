@@ -68,9 +68,13 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
+    let num_queries = match std::env::var("FRI_QUERIES") {
+        Ok(value) => value.parse().unwrap(),
+        Err(_) => 33,
+    };
     FriConfig {
         log_blowup: 3,
-        num_queries: 1,
+        num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }
