@@ -1,3 +1,20 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+use generic_array::GenericArray;
+use num::BigUint;
+use num::Zero;
+use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use sp1_derive::AlignedBorrow;
+use typenum::Unsigned;
+
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::memory::MemoryCols;
@@ -21,21 +38,6 @@ use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::Matrix;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use typenum::Unsigned;
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
@@ -323,14 +325,14 @@ where
                 .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
         }
 
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk.into(),
             row.q_ptr,
             &row.q_access,
             row.is_real,
         );
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
             row.p_ptr,

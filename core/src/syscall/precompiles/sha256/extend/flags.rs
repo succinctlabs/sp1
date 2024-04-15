@@ -48,11 +48,17 @@ impl ShaExtendChip {
         let next: &ShaExtendCols<AB::Var> = (*next).borrow();
 
         let one = AB::Expr::from(AB::F::one());
+
         // Generator with order 16 within BabyBear.
         let g = AB::F::from_canonical_u32(BabyBear::two_adic_generator(4).as_canonical_u32());
 
         // First row of the table must have g^1.
         builder.when_first_row().assert_eq(local.cycle_16, g);
+
+        // First row of the table must have i = 16.
+        builder
+            .when_first_row()
+            .assert_eq(local.i, AB::F::from_canonical_u32(16));
 
         // Every row's `cycle_16` must be previous multiplied by `g`.
         builder
@@ -116,6 +122,7 @@ impl ShaExtendChip {
             .when_transition()
             .when(local.cycle_16_end.result * local.cycle_48[2])
             .assert_eq(next.i, AB::F::from_canonical_u32(16));
+
         // When it's not the end of a 16-cycle, the next `i` must be the current plus one.
         builder
             .when_transition()

@@ -20,11 +20,6 @@ pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
-use crate::memory::MemoryInitializeFinalizeEvent;
-use crate::utils::env;
-use crate::{alu::AluEvent, cpu::CpuEvent};
-
-use nohash_hasher::BuildNoHashHasher;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
@@ -32,6 +27,12 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
+
+use nohash_hasher::BuildNoHashHasher;
+
+use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::utils::env;
+use crate::{alu::AluEvent, cpu::CpuEvent};
 
 pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
 

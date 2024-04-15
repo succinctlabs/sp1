@@ -55,6 +55,7 @@ where
         C::EF: TwoAdicField,
         Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
     {
+        builder.cycle_tracker("stage-c-verify-shard-setup");
         let ShardProofVariable {
             commitment,
             opened_values,
@@ -220,11 +221,15 @@ where
         builder.set_value(&mut rounds, 1, main_round);
         builder.set_value(&mut rounds, 2, perm_round);
         builder.set_value(&mut rounds, 3, quotient_round);
+        builder.cycle_tracker("stage-c-verify-shard-setup");
 
         // Verify the pcs proof
+        builder.cycle_tracker("stage-d-verify-pcs");
         pcs.verify(builder, rounds, opening_proof.clone(), challenger);
+        builder.cycle_tracker("stage-d-verify-pcs");
 
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
+        builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
             let index = builder.get(&chip_sorted_idxs, i);
 
@@ -254,6 +259,7 @@ where
                     );
                 });
         }
+        builder.cycle_tracker("stage-e-verify-constraints");
     }
 }
 

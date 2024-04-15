@@ -1,5 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -140,17 +141,26 @@ where
             builder.send_byte(opcode.clone(), a, b, c, local.shard, mult.clone());
         }
 
+        // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.
+        let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>()
+            + local.is_or * Opcode::OR.as_field::<AB::F>()
+            + local.is_and * Opcode::AND.as_field::<AB::F>();
+
         // Receive the arguments.
         builder.receive_alu(
-            local.is_xor * Opcode::XOR.as_field::<AB::F>()
-                + local.is_or * Opcode::OR.as_field::<AB::F>()
-                + local.is_and * Opcode::AND.as_field::<AB::F>(),
+            cpu_opcode,
             local.a,
             local.b,
             local.c,
             local.shard,
             local.is_xor + local.is_or + local.is_and,
         );
+
+        let is_real = local.is_xor + local.is_or + local.is_and;
+        builder.assert_bool(local.is_xor);
+        builder.assert_bool(local.is_or);
+        builder.assert_bool(local.is_and);
+        builder.assert_bool(is_real);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(

@@ -1,6 +1,6 @@
-use crate::air::MachineAir;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
@@ -10,8 +10,8 @@ use p3_maybe_rayon::prelude::*;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
+use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
-
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
@@ -292,6 +292,10 @@ where
         for bit in local.bits.into_iter() {
             builder.assert_bool(bit);
         }
+
+        // Check that the operation flags are boolean.
+        builder.assert_bool(local.is_slt);
+        builder.assert_bool(local.is_sltu);
 
         // Receive the arguments.
         builder.receive_alu(
