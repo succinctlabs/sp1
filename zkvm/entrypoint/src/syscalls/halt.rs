@@ -1,8 +1,10 @@
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use core::arch::asm;
+        use p3_field::PrimeField32;
         use sha2::Digest;
-        use crate::PV_DIGEST_NUM_WORDS;
+        use crate::syscalls::PV_DIGEST_NUM_WORDS;
+        use crate::syscalls::POSEIDON_NUM_WORDS;
         use crate::zkvm;
     }
 }
@@ -33,6 +35,18 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
         // to verify that the provided public values digest matches the one computed by the program.
         for i in 0..PV_DIGEST_NUM_WORDS {
             asm!("ecall", in("t0") crate::syscalls::COMMIT, in("a0") i, in("a1") pv_digest_words[i]);
+        }
+
+        let deferred_proofs_digest;
+        unsafe {
+            deferred_proofs_digest = zkvm::DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
+        }
+        let deferred_proofs_digest_words = deferred_proofs_digest
+            .iter()
+            .map(|baby_bear| baby_bear.as_canonical_u32());
+
+        for i in 0..POSEIDON_NUM_WORDS {
+            asm!("ecall", in("t0") crate::syscalls::COMMIT_DEFERRED_PROOFS, in("a0") i, in("a1") pv_digest_words[i]);
         }
 
         asm!(

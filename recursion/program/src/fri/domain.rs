@@ -139,8 +139,8 @@ where
 pub(crate) mod tests {
 
     use itertools::Itertools;
+    use sp1_core::utils::inner_fri_config;
     use sp1_recursion_compiler::asm::AsmBuilder;
-    use sp1_recursion_core::stark::config::inner_fri_config;
 
     use crate::fri::const_fri_config;
 

@@ -12,18 +12,16 @@ use sp1_core::stark::{
     AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
 };
 use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
+use sp1_core::utils::{
+    BabyBearPoseidon2Inner, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
+    InnerVal,
+};
 use sp1_recursion_compiler::{
     config::InnerConfig,
     ir::{Array, Builder, Config, Ext, Felt, MemVariable, Var},
 };
+use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
-use sp1_recursion_core::stark::config::BabyBearPoseidon2Inner;
-use sp1_recursion_core::{
-    air::Block,
-    stark::config::{
-        InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm, InnerVal,
-    },
-};
 use sp1_sdk::utils::BabyBearPoseidon2;
 
 pub trait Hintable<C: Config> {
