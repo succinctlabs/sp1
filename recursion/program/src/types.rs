@@ -31,6 +31,32 @@ pub struct ReduceProofPublicValuesVariable<C: Config> {
     pub next_shard: Felt<C::F>,
 }
 
+impl<C: Config> ReduceProofPublicValuesVariable<C> {
+    pub fn to_array(&self, builder: &mut Builder<C>) -> Array<C, Felt<C::F>> {
+        let mut array = builder.array(4);
+        builder.set(&mut array, 0, self.start_pc);
+        builder.set(&mut array, 1, self.start_shard);
+        builder.set(&mut array, 2, self.next_pc);
+        builder.set(&mut array, 3, self.next_shard);
+        array
+    }
+
+    pub fn verify_digest(
+        &self,
+        builder: &mut Builder<C>,
+        expected_digest: [Felt<C::F>; DIGEST_SIZE],
+    ) {
+        let elt_array = self.to_array(builder);
+        let pv_digest = builder.poseidon2_hash(&elt_array);
+
+        for j in 0..DIGEST_SIZE {
+            let expected_digest_elt = expected_digest[j];
+            let digest_element = builder.get(&pv_digest, j);
+            builder.assert_felt_eq(expected_digest_elt, digest_element);
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize)]
 #[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
 #[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]

@@ -8,6 +8,8 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
 use crate::types::ReduceProof;
+use crate::types::ReduceProofPublicValues;
+use crate::types::ReduceProofPublicValuesVariable;
 use crate::types::ReduceProofVariable;
 use crate::types::VerifyingKeyVariable;
 use p3_baby_bear::BabyBear;
@@ -252,20 +254,9 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
             // Recursive proof
             |builder| {
                 let expected_pc_digest = proof.get_expected_pv_digest(builder);
-
-                let mut pv = builder.array(4);
-                builder.set(&mut pv, 0, shard_start_pc);
-                builder.set(&mut pv, 1, shard_start_shard);
-                builder.set(&mut pv, 2, shard_next_pc);
-                builder.set(&mut pv, 3, shard_next_shard);
-
-                let pv_digest = builder.poseidon2_hash(&pv);
-
-                for j in 0..DIGEST_SIZE {
-                    let expected_digest_element = expected_pc_digest[j];
-                    let digest_element = builder.get(&pv_digest, j);
-                    builder.assert_felt_eq(expected_digest_element, digest_element);
-                }
+                proof
+                    .public_values
+                    .verify_digest(builder, expected_pc_digest);
 
                 // Build recursion challenger
                 let mut current_challenger = recursion_challenger.as_clone(builder);
@@ -307,17 +298,15 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
 
-    let start_pc = builder.get(&proofs, zero).public_values.start_pc;
-    let start_shard = builder.get(&proofs, zero).public_values.start_shard;
-    builder.write_public_value(start_pc);
-    builder.write_public_value(start_shard);
+    let new_pv = ReduceProofPublicValuesVariable {
+        start_pc: builder.get(&proofs, zero).public_values.start_pc,
+        next_pc: builder.get(&proofs, zero).public_values.next_pc,
+        start_shard: builder.get(&proofs, zero).public_values.start_shard,
+        next_shard: builder.get(&proofs, zero).public_values.next_shard,
+    };
+    let new_pv_array = new_pv.to_array(&mut builder);
 
-    let last_idx: Var<_> = builder.eval(num_proofs - one);
-    let next_pc = builder.get(&proofs, last_idx).public_values.next_pc;
-    let next_shard = builder.get(&proofs, last_idx).public_values.next_shard;
-    builder.write_public_value(next_pc);
-    builder.write_public_value(next_shard);
-
+    builder.write_public_values(&new_pv_array);
     builder.commit_public_values();
 
     let program = builder.compile_program();
