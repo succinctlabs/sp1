@@ -8,7 +8,6 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
 use crate::types::ReduceProof;
-use crate::types::ReduceProofPublicValues;
 use crate::types::ReduceProofPublicValuesVariable;
 use crate::types::ReduceProofVariable;
 use crate::types::VerifyingKeyVariable;
