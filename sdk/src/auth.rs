@@ -58,7 +58,7 @@ impl NetworkAuth {
         *self.wallet.address().0
     }
 
-    /// Signs a message to to request ot create a proof.
+    /// Signs a message to request ot create a proof.
     pub async fn sign_create_proof_message(&self, nonce: u64, deadline: u64) -> Result<Vec<u8>> {
         let domain_seperator = Self::get_domain_separator();
 

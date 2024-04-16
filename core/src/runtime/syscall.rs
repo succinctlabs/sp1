@@ -19,7 +19,7 @@ use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
-/// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
+/// A system call is invoked by the `ecall` instruction with a specific value in register t0.
 /// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
 /// - The first byte is the syscall id.
 /// - The second byte is 0/1 depending on whether the syscall has a separate table. This is used
