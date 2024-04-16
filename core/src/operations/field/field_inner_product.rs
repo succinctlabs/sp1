@@ -10,6 +10,7 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
+use crate::bytes::event::ByteRecord;
 use crate::utils::ec::field::FieldParameters;
 
 /// A set of columns to compute `FieldInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
@@ -29,7 +30,13 @@ pub struct FieldInnerProductCols<T, P: FieldParameters> {
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
-    pub fn populate(&mut self, a: &[BigUint], b: &[BigUint]) -> BigUint {
+    pub fn populate(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        a: &[BigUint],
+        b: &[BigUint],
+    ) -> BigUint {
         let p_a_vec: Vec<Polynomial<F>> = a
             .iter()
             .map(|x| P::to_limbs_field::<F, _>(x).into())
@@ -77,6 +84,28 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
         self.witness_low = Limbs(p_witness_low.try_into().unwrap());
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
+        // Range checks
+        record.add_u8_range_checks(shard, &P::to_limbs(result));
+        record.add_u8_range_checks(shard, &P::to_limbs(carry));
+        record.add_u8_range_checks(
+            shard,
+            &self
+                .witness_low
+                .0
+                .iter()
+                .map(|x| x.as_canonical_u32() as u8)
+                .collect::<Vec<_>>(),
+        );
+        record.add_u8_range_checks(
+            shard,
+            &self
+                .witness_high
+                .0
+                .iter()
+                .map(|x| x.as_canonical_u32() as u8)
+                .collect::<Vec<_>>(),
+        );
+
         result.clone()
     }
 }
@@ -85,12 +114,17 @@ impl<V: Copy, P: FieldParameters> FieldInnerProductCols<V, P>
 where
     Limbs<V, P::Limbs>: Copy,
 {
-    #[allow(unused_variables)]
-    pub fn eval<AB: SP1AirBuilder<Var = V>>(
+    pub fn eval<
+        AB: SP1AirBuilder<Var = V>,
+        EShard: Into<AB::Expr> + Clone,
+        ER: Into<AB::Expr> + Clone,
+    >(
         &self,
         builder: &mut AB,
         a: &[Limbs<AB::Var, P::Limbs>],
         b: &[Limbs<AB::Var, P::Limbs>],
+        shard: EShard,
+        is_real: ER,
     ) where
         V: Into<AB::Expr>,
     {
@@ -111,13 +145,18 @@ where
 
         let p_inner_product_minus_result = &p_inner_product - &p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
-        let p_carry_mul_modulus = &p_carry * &p_limbs;
         let p_vanishing = &p_inner_product_minus_result - &(&p_carry * &p_limbs);
 
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();
 
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+
+        // Range checks for the result, carry, and witness columns.
+        builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_low.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_high.0, shard, is_real);
     }
 }
 
@@ -143,6 +182,7 @@ mod tests {
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
     use rand::thread_rng;
@@ -181,7 +221,7 @@ mod tests {
         fn generate_trace(
             &self,
             _: &ExecutionRecord,
-            _: &mut ExecutionRecord,
+            output: &mut ExecutionRecord,
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
@@ -206,7 +246,7 @@ mod tests {
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a[0] = P::to_limbs_field::<F, _>(&a[0]);
                     cols.b[0] = P::to_limbs_field::<F, _>(&b[0]);
-                    cols.a_ip_b.populate(a, b);
+                    cols.a_ip_b.populate(output, 1, a, b);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -242,7 +282,9 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local.a_ip_b.eval::<AB>(builder, &local.a, &local.b);
+            local
+                .a_ip_b
+                .eval(builder, &local.a, &local.b, AB::F::one(), AB::F::one());
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

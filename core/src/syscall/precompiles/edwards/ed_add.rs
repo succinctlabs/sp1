@@ -78,7 +78,7 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         }
     }
     fn populate_field_ops<F: PrimeField32>(
-        blu_events: &mut Vec<ByteLookupEvent>,
+        record: &mut impl ByteRecord,
         shard: u32,
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
@@ -86,33 +86,37 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         q_x: BigUint,
         q_y: BigUint,
     ) {
-        let x3_numerator = cols
-            .x3_numerator
-            .populate(&[p_x.clone(), q_x.clone()], &[q_y.clone(), p_y.clone()]);
-        let y3_numerator = cols
-            .y3_numerator
-            .populate(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
+        let x3_numerator = cols.x3_numerator.populate(
+            record,
+            shard,
+            &[p_x.clone(), q_x.clone()],
+            &[q_y.clone(), p_y.clone()],
+        );
+        let y3_numerator = cols.y3_numerator.populate(
+            record,
+            shard,
+            &[p_y.clone(), p_x.clone()],
+            &[q_y.clone(), q_x.clone()],
+        );
         let x1_mul_y1 = cols
             .x1_mul_y1
-            .populate(blu_events, shard, &p_x, &p_y, FieldOperation::Mul);
+            .populate(record, shard, &p_x, &p_y, FieldOperation::Mul);
         let x2_mul_y2 = cols
             .x2_mul_y2
-            .populate(blu_events, shard, &q_x, &q_y, FieldOperation::Mul);
-        let f = cols.f.populate(
-            blu_events,
-            shard,
-            &x1_mul_y1,
-            &x2_mul_y2,
-            FieldOperation::Mul,
-        );
+            .populate(record, shard, &q_x, &q_y, FieldOperation::Mul);
+        let f = cols
+            .f
+            .populate(record, shard, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
 
         let d = E::d_biguint();
         let d_mul_f = cols
             .d_mul_f
-            .populate(blu_events, shard, &f, &d, FieldOperation::Mul);
+            .populate(record, shard, &f, &d, FieldOperation::Mul);
 
-        cols.x3_ins.populate(&x3_numerator, &d_mul_f, true);
-        cols.y3_ins.populate(&y3_numerator, &d_mul_f, false);
+        cols.x3_ins
+            .populate(record, shard, &x3_numerator, &d_mul_f, true);
+        cols.y3_ins
+            .populate(record, shard, &y3_numerator, &d_mul_f, false);
     }
 }
 
@@ -246,10 +250,12 @@ where
         let y2 = limbs_from_prev_access(&row.q_access[8..16]);
 
         // x3_numerator = x1 * y2 + x2 * y1.
-        row.x3_numerator.eval::<AB>(builder, &[x1, x2], &[y2, y1]);
+        row.x3_numerator
+            .eval(builder, &[x1, x2], &[y2, y1], row.shard, row.is_real);
 
         // y3_numerator = y1 * y2 + x1 * x2.
-        row.y3_numerator.eval::<AB>(builder, &[y1, x1], &[y2, x2]);
+        row.y3_numerator
+            .eval(builder, &[y1, x1], &[y2, x2], row.shard, row.is_real);
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1.eval(
@@ -296,12 +302,24 @@ where
         let d_mul_f = row.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
-        row.x3_ins
-            .eval(builder, &row.x3_numerator.result, &d_mul_f, true);
+        row.x3_ins.eval(
+            builder,
+            &row.x3_numerator.result,
+            &d_mul_f,
+            true,
+            row.shard,
+            row.is_real,
+        );
 
         // y3 = y3_numerator / (1 - d * f).
-        row.y3_ins
-            .eval(builder, &row.y3_numerator.result, &d_mul_f, false);
+        row.y3_ins.eval(
+            builder,
+            &row.y3_numerator.result,
+            &d_mul_f,
+            false,
+            row.shard,
+            row.is_real,
+        );
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
