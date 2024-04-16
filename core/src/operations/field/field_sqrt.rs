@@ -49,8 +49,12 @@ where
     Limbs<V, P::Limbs>: Copy,
 {
     /// Calculates the square root of `a`.
-    pub fn eval<AB: SP1AirBuilder<Var = V>>(&self, builder: &mut AB, a: &Limbs<AB::Var, P::Limbs>)
-    where
+    pub fn eval<AB: SP1AirBuilder<Var = V>, E: Into<AB::Expr>>(
+        &self,
+        builder: &mut AB,
+        a: &Limbs<AB::Var, P::Limbs>,
+        is_real: E,
+    ) where
         V: Into<AB::Expr>,
     {
         // As a space-saving hack, we store the sqrt of the input in `self.multiplication.result`
@@ -61,11 +65,12 @@ where
         multiplication.result = *a;
 
         // Compute sqrt * sqrt. We pass in P since we want its BaseField to be the mod.
-        multiplication.eval::<AB, Limbs<V, P::Limbs>, Limbs<V, P::Limbs>>(
+        multiplication.eval(
             builder,
             &sqrt,
             &sqrt,
             super::field_op::FieldOperation::Mul,
+            is_real,
         );
     }
 }
@@ -92,6 +97,7 @@ mod tests {
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
     use rand::thread_rng;
@@ -190,7 +196,7 @@ mod tests {
             let local: &TestCols<AB::Var, P> = (*local).borrow();
 
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
-            local.sqrt.eval::<AB>(builder, &local.a);
+            local.sqrt.eval(builder, &local.a, AB::F::one());
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

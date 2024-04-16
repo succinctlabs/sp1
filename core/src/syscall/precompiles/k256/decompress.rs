@@ -196,19 +196,30 @@ impl<V: Copy> K256DecompressCols<V> {
 
         let x: Limbs<V, U32> = limbs_from_prev_access(&self.x_access);
         self.x_2
-            .eval::<AB, _, _>(builder, &x, &x, FieldOperation::Mul);
-        self.x_3
-            .eval::<AB, _, _>(builder, &self.x_2.result, &x, FieldOperation::Mul);
+            .eval(builder, &x, &x, FieldOperation::Mul, self.is_real);
+        self.x_3.eval(
+            builder,
+            &self.x_2.result,
+            &x,
+            FieldOperation::Mul,
+            self.is_real,
+        );
         let b = Secp256k1Parameters::b_int();
         let b_const = Secp256k1BaseField::to_limbs_field::<AB::F, _>(&b);
-        self.x_3_plus_b
-            .eval::<AB, _, _>(builder, &self.x_3.result, &b_const, FieldOperation::Add);
-        self.y.eval::<AB>(builder, &self.x_3_plus_b.result);
-        self.neg_y.eval::<AB, _, _>(
+        self.x_3_plus_b.eval(
+            builder,
+            &self.x_3.result,
+            &b_const,
+            FieldOperation::Add,
+            self.is_real,
+        );
+        self.y.eval(builder, &self.x_3_plus_b.result, self.is_real);
+        self.neg_y.eval(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.y.multiplication.result,
             FieldOperation::Sub,
+            self.is_real,
         );
 
         // Constrain decomposition of least significant byte of Y into `y_least_bits`

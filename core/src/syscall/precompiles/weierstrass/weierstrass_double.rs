@@ -289,36 +289,40 @@ where
             // slope_numerator = a + (p.x * p.x) * 3.
             {
                 row.p_x_squared
-                    .eval::<AB, _, _>(builder, &p_x, &p_x, FieldOperation::Mul);
+                    .eval(builder, &p_x, &p_x, FieldOperation::Mul, row.is_real);
 
-                row.p_x_squared_times_3.eval::<AB, _, _>(
+                row.p_x_squared_times_3.eval(
                     builder,
                     &row.p_x_squared.result,
                     &E::BaseField::to_limbs_field::<AB::Expr, _>(&BigUint::from(3u32)),
                     FieldOperation::Mul,
+                    row.is_real,
                 );
 
-                row.slope_numerator.eval::<AB, _, _>(
+                row.slope_numerator.eval(
                     builder,
                     &a,
                     &row.p_x_squared_times_3.result,
                     FieldOperation::Add,
+                    row.is_real,
                 );
             };
 
             // slope_denominator = 2 * y.
-            row.slope_denominator.eval::<AB, _, _>(
+            row.slope_denominator.eval(
                 builder,
                 &E::BaseField::to_limbs_field::<AB::Expr, _>(&BigUint::from(2u32)),
                 &p_y,
                 FieldOperation::Mul,
+                row.is_real,
             );
 
-            row.slope.eval::<AB, _, _>(
+            row.slope.eval(
                 builder,
                 &row.slope_numerator.result,
                 &row.slope_denominator.result,
                 FieldOperation::Div,
+                row.is_real,
             );
 
             &row.slope.result
@@ -327,14 +331,15 @@ where
         // x = slope * slope - (p.x + p.x).
         let x = {
             row.slope_squared
-                .eval::<AB, _, _>(builder, slope, slope, FieldOperation::Mul);
+                .eval(builder, slope, slope, FieldOperation::Mul, row.is_real);
             row.p_x_plus_p_x
-                .eval::<AB, _, _>(builder, &p_x, &p_x, FieldOperation::Add);
-            row.x3_ins.eval::<AB, _, _>(
+                .eval(builder, &p_x, &p_x, FieldOperation::Add, row.is_real);
+            row.x3_ins.eval(
                 builder,
                 &row.slope_squared.result,
                 &row.p_x_plus_p_x.result,
                 FieldOperation::Sub,
+                row.is_real,
             );
             &row.x3_ins.result
         };
@@ -342,18 +347,20 @@ where
         // y = slope * (p.x - x) - p.y.
         {
             row.p_x_minus_x
-                .eval::<AB, _, _>(builder, &p_x, x, FieldOperation::Sub);
-            row.slope_times_p_x_minus_x.eval::<AB, _, _>(
+                .eval(builder, &p_x, x, FieldOperation::Sub, row.is_real);
+            row.slope_times_p_x_minus_x.eval(
                 builder,
                 slope,
                 &row.p_x_minus_x.result,
                 FieldOperation::Mul,
+                row.is_real,
             );
-            row.y3_ins.eval::<AB, _, _>(
+            row.y3_ins.eval(
                 builder,
                 &row.slope_times_p_x_minus_x.result,
                 &p_y,
                 FieldOperation::Sub,
+                row.is_real,
             );
         }
 

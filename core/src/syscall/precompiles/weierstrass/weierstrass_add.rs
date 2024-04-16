@@ -261,16 +261,17 @@ where
         // slope = (q.y - p.y) / (q.x - p.x).
         let slope = {
             row.slope_numerator
-                .eval::<AB, _, _>(builder, &q_y, &p_y, FieldOperation::Sub);
+                .eval(builder, &q_y, &p_y, FieldOperation::Sub, row.is_real);
 
             row.slope_denominator
-                .eval::<AB, _, _>(builder, &q_x, &p_x, FieldOperation::Sub);
+                .eval(builder, &q_x, &p_x, FieldOperation::Sub, row.is_real);
 
-            row.slope.eval::<AB, _, _>(
+            row.slope.eval(
                 builder,
                 &row.slope_numerator.result,
                 &row.slope_denominator.result,
                 FieldOperation::Div,
+                row.is_real,
             );
 
             &row.slope.result
@@ -279,16 +280,17 @@ where
         // x = slope * slope - self.x - other.x.
         let x = {
             row.slope_squared
-                .eval::<AB, _, _>(builder, slope, slope, FieldOperation::Mul);
+                .eval(builder, slope, slope, FieldOperation::Mul, row.is_real);
 
             row.p_x_plus_q_x
-                .eval::<AB, _, _>(builder, &p_x, &q_x, FieldOperation::Add);
+                .eval(builder, &p_x, &q_x, FieldOperation::Add, row.is_real);
 
-            row.x3_ins.eval::<AB, _, _>(
+            row.x3_ins.eval(
                 builder,
                 &row.slope_squared.result,
                 &row.p_x_plus_q_x.result,
                 FieldOperation::Sub,
+                row.is_real,
             );
 
             &row.x3_ins.result
@@ -297,20 +299,22 @@ where
         // y = slope * (p.x - x_3n) - q.y.
         {
             row.p_x_minus_x
-                .eval::<AB, _, _>(builder, &p_x, x, FieldOperation::Sub);
+                .eval(builder, &p_x, x, FieldOperation::Sub, row.is_real);
 
-            row.slope_times_p_x_minus_x.eval::<AB, _, _>(
+            row.slope_times_p_x_minus_x.eval(
                 builder,
                 slope,
                 &row.p_x_minus_x.result,
                 FieldOperation::Mul,
+                row.is_real,
             );
 
-            row.y3_ins.eval::<AB, _, _>(
+            row.y3_ins.eval(
                 builder,
                 &row.slope_times_p_x_minus_x.result,
                 &p_y,
                 FieldOperation::Sub,
+                row.is_real,
             );
         }
 

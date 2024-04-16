@@ -138,31 +138,44 @@ impl<V: Copy> EdDecompressCols<V> {
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
         self.yy
-            .eval::<AB, _, _>(builder, &y, &y, FieldOperation::Mul);
-        self.u.eval::<AB, _, _>(
+            .eval(builder, &y, &y, FieldOperation::Mul, self.is_real);
+        self.u.eval(
             builder,
             &self.yy.result,
             &[AB::Expr::one()].iter(),
             FieldOperation::Sub,
+            self.is_real,
         );
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::F, _>(&d_biguint);
-        self.dyy
-            .eval::<AB, _, _>(builder, &d_const, &self.yy.result, FieldOperation::Mul);
-        self.v.eval::<AB, _, _>(
+        self.dyy.eval(
+            builder,
+            &d_const,
+            &self.yy.result,
+            FieldOperation::Mul,
+            self.is_real,
+        );
+        self.v.eval(
             builder,
             &[AB::Expr::one()].iter(),
             &self.dyy.result,
             FieldOperation::Add,
+            self.is_real,
         );
-        self.u_div_v
-            .eval::<AB, _, _>(builder, &self.u.result, &self.v.result, FieldOperation::Div);
-        self.x.eval::<AB>(builder, &self.u_div_v.result);
-        self.neg_x.eval::<AB, _, _>(
+        self.u_div_v.eval(
+            builder,
+            &self.u.result,
+            &self.v.result,
+            FieldOperation::Div,
+            self.is_real,
+        );
+        self.x.eval(builder, &self.u_div_v.result, self.is_real);
+        self.neg_x.eval(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.x.multiplication.result,
             FieldOperation::Sub,
+            self.is_real,
         );
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {

@@ -134,12 +134,14 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         AB: SP1AirBuilder<Var = V>,
         A: Into<Polynomial<AB::Expr>> + Clone,
         B: Into<Polynomial<AB::Expr>> + Clone,
+        E: Into<AB::Expr>,
     >(
         &self,
         builder: &mut AB,
         a: &A,
         b: &B,
         op: FieldOperation,
+        is_real: E,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
@@ -162,6 +164,8 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+
+        // Add range checks
     }
 }
 
@@ -189,6 +193,7 @@ mod tests {
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
     use rand::thread_rng;
@@ -297,7 +302,7 @@ mod tests {
             let local: &TestCols<AB::Var, P> = (*local).borrow();
             local
                 .a_op_b
-                .eval::<AB, _, _>(builder, &local.a, &local.b, self.operation);
+                .eval(builder, &local.a, &local.b, self.operation, AB::F::one());
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

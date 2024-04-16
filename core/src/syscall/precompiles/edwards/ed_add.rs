@@ -222,31 +222,36 @@ where
 
         // f = x1 * x2 * y1 * y2.
         row.x1_mul_y1
-            .eval::<AB, _, _>(builder, &x1, &y1, FieldOperation::Mul);
+            .eval(builder, &x1, &y1, FieldOperation::Mul, row.is_real);
         row.x2_mul_y2
-            .eval::<AB, _, _>(builder, &x2, &y2, FieldOperation::Mul);
+            .eval(builder, &x2, &y2, FieldOperation::Mul, row.is_real);
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
-        row.f
-            .eval::<AB, _, _>(builder, &x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+        row.f.eval(
+            builder,
+            &x1_mul_y1,
+            &x2_mul_y2,
+            FieldOperation::Mul,
+            row.is_real,
+        );
 
         // d * f.
         let f = row.f.result;
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::Expr, _>(&d_biguint);
         row.d_mul_f
-            .eval::<AB, _, _>(builder, &f, &d_const, FieldOperation::Mul);
+            .eval(builder, &f, &d_const, FieldOperation::Mul, row.is_real);
 
         let d_mul_f = row.d_mul_f.result;
 
         // x3 = x3_numerator / (1 + d * f).
         row.x3_ins
-            .eval::<AB>(builder, &row.x3_numerator.result, &d_mul_f, true);
+            .eval(builder, &row.x3_numerator.result, &d_mul_f, true);
 
         // y3 = y3_numerator / (1 - d * f).
         row.y3_ins
-            .eval::<AB>(builder, &row.y3_numerator.result, &d_mul_f, false);
+            .eval(builder, &row.y3_numerator.result, &d_mul_f, false);
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
