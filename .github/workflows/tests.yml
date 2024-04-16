@@ -65,8 +65,8 @@ jobs:
       - name: Install sp1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          source ~/.bashrc
-          sp1up
+          source /root/.bashrc
+          $HOME/.sp1/bin/sp1up
 
       - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
