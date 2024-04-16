@@ -100,6 +100,8 @@ impl ProverClient {
     }
 
     // Generate a proof remotely using the Succinct Network in an async context.
+    // TODO: If the simulation of the runtime is expensive for user programs, add an optional flag to skip it. This
+    // shouldn't be the case for the vast majority of user programs.
     pub async fn prove_remote_async(
         &self,
         elf: &[u8],
@@ -114,6 +116,7 @@ impl ProverClient {
         let mut runtime = Runtime::new(Program::from(elf));
         runtime.write_vecs(&stdin.buffer);
         runtime.run();
+        println!("Simulation complete.");
 
         let proof_id = client.create_proof(elf, &stdin).await?;
         println!("proof_id: {:?}", proof_id);
