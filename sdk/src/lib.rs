@@ -100,8 +100,8 @@ impl ProverClient {
     }
 
     // Generate a proof remotely using the Succinct Network in an async context.
-    // TODO: If the simulation of the runtime is expensive for user programs, add an optional flag to skip it. This
-    // shouldn't be the case for the vast majority of user programs.
+    // Note: If the simulation of the runtime is expensive for user programs, we can add an optional
+    // flag to skip it. This shouldn't be the case for the vast majority of user programs.
     pub async fn prove_remote_async(
         &self,
         elf: &[u8],
