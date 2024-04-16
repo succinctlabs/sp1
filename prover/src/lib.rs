@@ -2,7 +2,6 @@
 #![feature(generic_const_exprs)]
 #![allow(deprecated)]
 
-use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -189,51 +188,6 @@ impl SP1ProverImpl {
             })
             .collect();
 
-        let start_pcs = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.public_values.start_pc,
-                ReduceProofType::Recursive(ref proof) => proof.public_values.start_pc,
-                _ => unreachable!(),
-            })
-            .collect_vec();
-
-        let next_pcs = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.public_values.next_pc,
-                ReduceProofType::Recursive(ref proof) => proof.public_values.next_pc,
-                _ => unreachable!(),
-            })
-            .collect_vec();
-
-        let start_shards = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.public_values.start_shard,
-                ReduceProofType::Recursive(ref proof) => proof.public_values.start_shard,
-                _ => unreachable!(),
-            })
-            .collect_vec();
-
-        let next_shards = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.public_values.next_shard,
-                ReduceProofType::Recursive(ref proof) => proof.public_values.next_shard,
-                _ => unreachable!(),
-            })
-            .collect_vec();
-
-        let exit_codes = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.public_values.exit_code,
-                ReduceProofType::Recursive(ref proof) => proof.public_values.exit_code,
-                _ => unreachable!(),
-            })
-            .collect_vec();
-
         let mut reconstruct_challenger = sp1_machine.config().challenger();
         reconstruct_challenger.observe(sp1_vk.commit);
 
@@ -311,14 +265,41 @@ impl SP1ProverImpl {
 
         let shard_proof = proof.shard_proofs.into_iter().next().unwrap();
 
+        let (start_pc, start_shard) = match reduce_proofs[0] {
+            ReduceProofType::SP1(ref proof) => (
+                proof.public_values.start_pc,
+                proof.public_values.start_shard,
+            ),
+            ReduceProofType::Recursive(ref proof) => (
+                proof.public_values.start_pc,
+                proof.public_values.start_shard,
+            ),
+            _ => unreachable!(),
+        };
+
+        let last_proof_idx = reduce_proofs.len() - 1;
+        let (next_pc, next_shard, exit_code) = match reduce_proofs[last_proof_idx] {
+            ReduceProofType::SP1(ref proof) => (
+                proof.public_values.next_pc,
+                proof.public_values.next_shard,
+                proof.public_values.exit_code,
+            ),
+            ReduceProofType::Recursive(ref proof) => (
+                proof.public_values.next_pc,
+                proof.public_values.next_shard,
+                proof.public_values.exit_code,
+            ),
+            _ => unreachable!(),
+        };
+
         ReduceProof {
             shard_proof,
             public_values: ReduceProofPublicValues {
-                start_pc: start_pcs[0],
-                next_pc: next_pcs[next_pcs.len() - 1],
-                start_shard: start_shards[0],
-                next_shard: next_shards[next_shards.len() - 1],
-                exit_code: exit_codes[exit_codes.len() - 1],
+                start_pc,
+                next_pc,
+                start_shard,
+                next_shard,
+                exit_code,
             },
         }
     }

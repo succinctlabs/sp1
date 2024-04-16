@@ -74,9 +74,9 @@ impl<C: Config> ReduceProofVariable<C> {
     pub fn get_expected_pv_digest(&self, builder: &mut Builder<C>) -> [Felt<C::F>; DIGEST_SIZE] {
         let mut expected_digest = Vec::new();
 
-        builder.range(0, DIGEST_SIZE).for_each(|i, builder| {
+        for i in 0..DIGEST_SIZE {
             expected_digest.push(builder.get(&self.shard_proof.public_values, i));
-        });
+        }
 
         expected_digest.try_into().unwrap()
     }
