@@ -146,13 +146,14 @@ where
         let local: &AddSubCols<AB::Var> = (*local).borrow();
 
         // Evaluate the addition operation.
+        let is_real = local.is_add + local.is_sub;
         AddOperation::<AB::F>::eval(
             builder,
             local.operand_1,
             local.operand_2,
             local.add_operation,
             local.shard,
-            local.is_add + local.is_sub,
+            is_real.clone(),
         );
 
         // Receive the arguments.  There are seperate receives for ADD and SUB.
@@ -176,7 +177,6 @@ where
             local.is_sub,
         );
 
-        let is_real = local.is_add + local.is_sub;
         builder.assert_bool(local.is_add);
         builder.assert_bool(local.is_sub);
         builder.assert_bool(is_real);

@@ -200,11 +200,6 @@ where
 
         let one = AB::Expr::one();
 
-        // Dummy degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
-        );
-
         let base_2 = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512].map(AB::F::from_canonical_u32);
         let bit_comp: AB::Expr = local
             .bits
@@ -297,15 +292,18 @@ where
         builder.assert_bool(local.is_slt);
         builder.assert_bool(local.is_sltu);
 
+        let is_real = local.is_slt + local.is_sltu;
+        builder.assert_bool(is_real.clone());
+
+        let opcode = local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
+            + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32);
+
         // Receive the arguments.
-        builder.receive_alu(
-            local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
-                + local.is_sltu * AB::F::from_canonical_u32(Opcode::SLTU as u32),
-            local.a,
-            local.b,
-            local.c,
-            local.shard,
-            local.is_slt + local.is_sltu,
+        builder.receive_alu(opcode, local.a, local.b, local.c, local.shard, is_real);
+
+        // Dummy degree 3 constraint to avoid "OodEvaluationMismatch".
+        builder.assert_zero(
+            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
     }
 }

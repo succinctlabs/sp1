@@ -153,14 +153,13 @@ where
             local.b,
             local.c,
             local.shard,
-            local.is_xor + local.is_or + local.is_and,
+            mult.clone(),
         );
 
-        let is_real = local.is_xor + local.is_or + local.is_and;
         builder.assert_bool(local.is_xor);
         builder.assert_bool(local.is_or);
         builder.assert_bool(local.is_and);
-        builder.assert_bool(is_real);
+        builder.assert_bool(mult);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
