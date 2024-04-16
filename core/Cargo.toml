@@ -35,6 +35,7 @@ rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 sp1-derive = { path = "../derive" }
 
 anyhow = "1.0.79"
+arrayref = "0.3.6"
 blake3 = "1.5"
 blake3-zkvm = { git = "https://github.com/sp1-patches/BLAKE3.git", branch = "patch-blake3_zkvm/v.1.0.0" }
 cfg-if = "1.0.0"

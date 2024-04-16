@@ -72,9 +72,9 @@ impl PublicValues<u32, u32> {
     }
 }
 
-impl<F: AbstractField> PublicValues<Word<F>, F> {
+impl<T: Clone + Debug> PublicValues<Word<T>, T> {
     /// Convert a vector of field elements into a PublicValues struct.
-    pub fn from_vec(data: Vec<F>) -> Self {
+    pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
         let mut committed_value_digest = Vec::new();
