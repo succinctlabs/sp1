@@ -1,4 +1,3 @@
-use arrayref::array_ref;
 use core::fmt::Debug;
 use core::mem::size_of;
 use std::iter::once;
@@ -16,11 +15,18 @@ pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<Word<u8>, u8>>()
 /// The number of 32 bit words in the SP1 proof's commited value digest.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
+pub const POSEIDON_NUM_WORDS: usize = 8;
+
 /// The PublicValues struct is used to store all of a shard proof's public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct PublicValues<W, T> {
     /// The hash of all the bytes that the guest program has written to public values.
     pub committed_value_digest: [W; PV_DIGEST_NUM_WORDS],
+
+    /// The hash of all deferred proofs that have been witnessed in the VM. It will be rebuilt in
+    /// recursive verification as the proofs get verified. The hash itself is a rolling poseidon2
+    /// hash of each proof+vkey hash and the previous hash which is initially zero.
+    pub deferred_proofs_digest: [W; POSEIDON_NUM_WORDS],
 
     /// The shard number.
     pub shard: T,
@@ -43,6 +49,11 @@ impl PublicValues<u32, u32> {
             .committed_value_digest
             .iter()
             .flat_map(|w| Word::<F>::from(*w).into_iter())
+            .chain(
+                self.deferred_proofs_digest
+                    .iter()
+                    .flat_map(|w| Word::<F>::from(*w).into_iter()),
+            )
             .chain(once(F::from_canonical_u32(self.shard)))
             .chain(once(F::from_canonical_u32(self.start_pc)))
             .chain(once(F::from_canonical_u32(self.next_pc)))
@@ -61,7 +72,7 @@ impl PublicValues<u32, u32> {
     }
 }
 
-impl<T: Clone> PublicValues<Word<T>, T> {
+impl<T: Clone + Debug> PublicValues<Word<T>, T> {
     /// Convert a vector of field elements into a PublicValues struct.
     pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
@@ -69,6 +80,11 @@ impl<T: Clone> PublicValues<Word<T>, T> {
         let mut committed_value_digest = Vec::new();
         for _ in 0..PV_DIGEST_NUM_WORDS {
             committed_value_digest.push(Word::from_iter(&mut iter));
+        }
+
+        let mut deferred_proofs_digest = Vec::new();
+        for _ in 0..POSEIDON_NUM_WORDS {
+            deferred_proofs_digest.push(Word::from_iter(&mut iter));
         }
 
         // Collecting the remaining items into a tuple.  Note that it is only getting the first
@@ -84,8 +100,8 @@ impl<T: Clone> PublicValues<Word<T>, T> {
         };
 
         Self {
-            committed_value_digest: array_ref![committed_value_digest, 0, PV_DIGEST_NUM_WORDS]
-                .clone(),
+            committed_value_digest: committed_value_digest.try_into().unwrap(),
+            deferred_proofs_digest: deferred_proofs_digest.try_into().unwrap(),
             shard: shard.to_owned(),
             start_pc: start_pc.to_owned(),
             next_pc: next_pc.to_owned(),
@@ -113,7 +129,7 @@ mod tests {
     fn test_public_values_digest_num_words_consistency_zkvm() {
         assert_eq!(
             public_values::PV_DIGEST_NUM_WORDS,
-            sp1_zkvm::PV_DIGEST_NUM_WORDS
+            sp1_zkvm::syscalls::PV_DIGEST_NUM_WORDS
         );
     }
 }

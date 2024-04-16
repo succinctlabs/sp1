@@ -1,5 +1,6 @@
 use std::cmp::Reverse;
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 use itertools::Itertools;
 use p3_air::Air;
@@ -66,10 +67,17 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
 }
 
+#[derive(Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
+}
+
+impl<SC: StarkGenericConfig> Debug for VerifyingKey<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VerifyingKey").finish()
+    }
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {

@@ -84,4 +84,7 @@ pub mod tests {
 
     pub const SECP256K1_MUL_ELF: &[u8] =
         include_bytes!("../../../tests/secp256k1-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const VERIFY_PROOF_ELF: &[u8] =
+        include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
 }

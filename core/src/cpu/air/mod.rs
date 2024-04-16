@@ -11,6 +11,7 @@ use p3_field::AbstractField;
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
 use crate::air::Word;
+use crate::air::POSEIDON_NUM_WORDS;
 use crate::air::PV_DIGEST_NUM_WORDS;
 use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
@@ -157,7 +158,8 @@ where
         self.auipc_eval(builder, local);
 
         // ECALL instruction.
-        let (num_cycles, is_halt, is_commit) = self.ecall_eval(builder, local);
+        let (num_cycles, is_halt, is_commit, is_commit_deferred_proofs) =
+            self.ecall_eval(builder, local);
 
         builder.send_alu(
             local.instruction.opcode,
@@ -182,7 +184,9 @@ where
             builder,
             local,
             is_commit,
+            is_commit_deferred_proofs,
             public_values.committed_value_digest.clone(),
+            public_values.deferred_proofs_digest.clone(),
         );
 
         self.halt_unimpl_eval(builder, local, next, is_halt.clone());
@@ -312,7 +316,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-    ) -> (AB::Expr, AB::Expr, AB::Expr) {
+    ) -> (AB::Expr, AB::Expr, AB::Expr, AB::Expr) {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
         // The syscall code is the read-in value of op_a at the start of the instruction.
@@ -372,7 +376,7 @@ impl CpuChip {
             ecall_cols.is_hint_len.result
         };
 
-        // Constrain EcallCols.is_commit.result == syscall_id is COMMIT.
+        // Constrain EcallCols.is_commit.result == (syscall_id is COMMIT).
         let is_commit = {
             IsZeroOperation::<AB::F>::eval(
                 builder,
@@ -381,6 +385,20 @@ impl CpuChip {
                 is_ecall_instruction.clone(),
             );
             ecall_cols.is_commit.result
+        };
+
+        // Constrain EcallCols.is_commit_deferred_proofs.result == (syscall_id is COMMIT_DEFERRED_PROOFS).
+        let is_commit_deferred_proofs = {
+            IsZeroOperation::<AB::F>::eval(
+                builder,
+                syscall_id
+                    - AB::Expr::from_canonical_u32(
+                        SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id(),
+                    ),
+                ecall_cols.is_commit_deferred_proofs,
+                is_ecall_instruction.clone(),
+            );
+            ecall_cols.is_commit_deferred_proofs.result
         };
 
         // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
@@ -397,8 +415,9 @@ impl CpuChip {
 
         (
             num_cycles * is_ecall_instruction.clone(),
-            is_halt * is_ecall_instruction.clone(),
-            is_commit * is_ecall_instruction,
+            is_halt * is_ecall_instruction,
+            is_commit.into(),
+            is_commit_deferred_proofs.into(),
         )
     }
 
@@ -492,24 +511,59 @@ impl CpuChip {
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
     }
 
-    /// Constraints related to the commit instruction.
+    /// Constraints related to the COMMIT and COMMIT_DEFERRED_PROOFS instructions.
     pub(crate) fn commit_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         is_commit: AB::Expr,
+        is_commit_deferred_proofs: AB::Expr,
         commit_digest: [Word<AB::Expr>; PV_DIGEST_NUM_WORDS],
+        deferred_proofs_digest: [Word<AB::Expr>; POSEIDON_NUM_WORDS],
     ) {
         // Get the ecall specific columns.
         let ecall_columns = local.opcode_specific_columns.ecall();
 
         // Verify the index bitmap.
         let mut bitmap_sum = AB::Expr::zero();
+        // They should all be bools.
         for bit in ecall_columns.index_bitmap.iter() {
             builder.when(local.selectors.is_ecall).assert_bool(*bit);
             bitmap_sum += (*bit).into();
         }
-        builder.when(is_commit.clone()).assert_one(bitmap_sum);
+        // When the syscall is COMMIT or COMMIT_DEFERRED_PROOFS, there should be one set bit.
+        builder
+            .when(
+                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
+            )
+            .assert_one(bitmap_sum.clone());
+        // When it's some other syscall, there should be no set bits.
+        builder
+            .when(
+                local.selectors.is_ecall
+                    * (AB::Expr::one() - (is_commit.clone() + is_commit_deferred_proofs.clone())),
+            )
+            .assert_zero(bitmap_sum);
+
+        // Verify that word_idx corresponds to the set bit in index bitmap.
+        for (i, bit) in ecall_columns.index_bitmap.iter().enumerate() {
+            builder.when(*bit * local.selectors.is_ecall).assert_eq(
+                local.op_b_access.prev_value()[0],
+                AB::Expr::from_canonical_u32(i as u32),
+            );
+        }
+        // Verify that the 3 upper bytes of the word_idx are 0.
+        for i in 0..3 {
+            builder
+                .when(
+                    local.selectors.is_ecall
+                        * (is_commit.clone() + is_commit_deferred_proofs.clone()),
+                )
+                .assert_eq(
+                    local.op_b_access.prev_value()[i + 1],
+                    AB::Expr::from_canonical_u32(0),
+                );
+        }
 
         // Retrieve the expected public values digest word to check against the one passed into the
         // commit ecall. Note that for the interaction builder, it will not have any digest words, since
@@ -519,10 +573,30 @@ impl CpuChip {
         let expected_pv_digest_word =
             builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
+        let digest_word = local.op_c_access.prev_value();
+        // Verify b and c do not change during commit syscall.
+        builder
+            .when(
+                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
+            )
+            .assert_word_eq(*local.op_b_access.value(), *local.op_b_access.prev_value());
+        builder
+            .when(
+                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
+            )
+            .assert_word_eq(*local.op_c_access.value(), *local.op_c_access.prev_value());
+
         // Verify the public_values_digest_word.
         builder
-            .when(is_commit)
-            .assert_word_eq(expected_pv_digest_word, ecall_columns.digest_word);
+            .when(local.selectors.is_ecall * is_commit)
+            .assert_word_eq(expected_pv_digest_word, *digest_word);
+
+        let expected_deferred_proofs_digest_word =
+            builder.index_word_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
+
+        builder
+            .when(local.selectors.is_ecall * is_commit_deferred_proofs)
+            .assert_word_eq(expected_deferred_proofs_digest_word, *digest_word);
     }
 
     /// Constraint related to the halt and unimpl instruction.

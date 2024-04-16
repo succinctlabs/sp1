@@ -40,8 +40,11 @@ pub fn build_program(path: &str) {
         current_datetime()
     );
 
-    execute_build_cmd(&program_dir)
+    let status = execute_build_cmd(&program_dir)
         .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
+    if !status.success() {
+        panic!("Failed to build `{}`.", root_package_name);
+    }
 }
 
 /// Executes the `cargo prove build` command in the program directory
