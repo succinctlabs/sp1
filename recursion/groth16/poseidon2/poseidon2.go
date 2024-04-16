@@ -15,7 +15,7 @@ type Poseidon2Chip struct {
 	zero, one             frontend.Variable
 }
 
-func NewPoseidon2Chip(api frontend.API) *Poseidon2Chip {
+func NewChip(api frontend.API) *Poseidon2Chip {
 	return &Poseidon2Chip{
 		api: api,
 		internal_linear_layer: [WIDTH]frontend.Variable{

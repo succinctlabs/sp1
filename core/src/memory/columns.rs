@@ -28,6 +28,7 @@ pub struct MemoryReadWriteCols<T> {
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MemoryAccessCols<T> {
+    /// The value of the memory access.
     pub value: Word<T>,
 
     /// The previous shard and timestamp that this memory access is being read from.

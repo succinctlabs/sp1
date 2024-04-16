@@ -1,14 +1,16 @@
-use super::utils::biguint_from_limbs;
-use crate::operations::field::params::{Limbs, NB_BITS_PER_LIMB};
+use std::fmt::Debug;
+use std::ops::Div;
+
 use generic_array::sequence::GenericSequence;
 use generic_array::{ArrayLength, GenericArray};
 use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
-use std::ops::Div;
 use typenum::Unsigned;
 use typenum::{U2, U4};
+
+use super::utils::biguint_from_limbs;
+use crate::operations::field::params::{Limbs, NB_BITS_PER_LIMB};
 
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned + NumLimbs

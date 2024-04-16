@@ -1,5 +1,5 @@
 //! A program that takes a number `n` as input, and writes if `n` is prime as an output.
-use sp1_sdk::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -14,11 +14,13 @@ fn main() {
     stdin.write(&n);
 
     // Generate and verify the proof
-    let mut proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let mut proof = client.prove(ELF, stdin).unwrap();
+
     let is_prime = proof.stdout.read::<bool>();
     println!("Is 29 prime? {}", is_prime);
 
-    SP1Verifier::verify(ELF, &proof).expect("verification failed");
+    client.verify(ELF, &proof).expect("verification failed");
 
     // Save the proof
     proof

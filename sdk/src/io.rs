@@ -152,7 +152,7 @@ pub mod proof_serde {
 
         use crate::{
             utils::{setup_logger, BabyBearPoseidon2},
-            SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier,
+            ProverClient, SP1ProofWithIO, SP1Stdin,
         };
 
         pub const FIBONACCI_IO_ELF: &[u8] =
@@ -163,10 +163,11 @@ pub mod proof_serde {
         fn test_json_roundtrip() {
             let mut stdin = SP1Stdin::new();
             stdin.write(&3u32);
-            let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
+            let client = ProverClient::new();
+            let proof = client.prove(FIBONACCI_IO_ELF, stdin).unwrap();
             let json = serde_json::to_string(&proof).unwrap();
             let output = serde_json::from_str::<SP1ProofWithIO<BabyBearPoseidon2>>(&json).unwrap();
-            SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
+            client.verify(FIBONACCI_IO_ELF, &output).unwrap();
         }
 
         /// Tests serialization with a binary encoding
@@ -175,11 +176,33 @@ pub mod proof_serde {
             setup_logger();
             let mut stdin = SP1Stdin::new();
             stdin.write(&3u32);
-            let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
+            let client = ProverClient::new();
+            let proof = client.prove(FIBONACCI_IO_ELF, stdin).unwrap();
             let serialized = bincode::serialize(&proof).unwrap();
             let output =
                 bincode::deserialize::<SP1ProofWithIO<BabyBearPoseidon2>>(&serialized).unwrap();
-            SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
+            client.verify(FIBONACCI_IO_ELF, &output).unwrap();
+        }
+
+        /// Tests bincode roundtrip serialization of `SP1Stdin`.
+        #[test]
+        fn test_bincode_sp1_stdin() {
+            setup_logger();
+            // From the Chess example.
+            let mut stdin = SP1Stdin::new();
+
+            // FEN representation of a chessboard in its initial state
+            let fen = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1".to_string();
+            stdin.write(&fen);
+
+            // SAN representation Queen's pawn opening
+            let san = "d4".to_string();
+            stdin.write(&san);
+
+            let serialized = bincode::serialize(&stdin).unwrap();
+            let output = bincode::deserialize::<SP1Stdin>(&serialized).unwrap();
+
+            assert_eq!(stdin.buffer, output.buffer);
         }
     }
 }

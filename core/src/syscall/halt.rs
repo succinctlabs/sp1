@@ -19,6 +19,7 @@ impl Syscall for SyscallHalt {
             );
         }
         ctx.set_next_pc(0);
+        ctx.set_exit_code(exit_code);
         None
     }
 }

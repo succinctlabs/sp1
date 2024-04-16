@@ -1,9 +1,10 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
@@ -32,10 +33,8 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
-    /// Boolean to indicate whether the row is for an add operation.
-    pub is_add: T,
-    /// Boolean to indicate whether the row is for a sub operation.
-    pub is_sub: T,
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
@@ -46,6 +45,12 @@ pub struct AddSubCols<T> {
 
     /// The second input operand.  This will be `c` for both operations.
     pub operand_2: Word<T>,
+
+    /// Boolean to indicate whether the row is for an add operation.
+    pub is_add: T,
+
+    /// Boolean to indicate whether the row is for a sub operation.
+    pub is_sub: T,
 }
 
 impl<F: PrimeField> MachineAir<F> for AddSubChip {
@@ -84,6 +89,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let mut row = [F::zero(); NUM_ADD_SUB_COLS];
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let is_add = event.opcode == Opcode::ADD;
+                        cols.shard = F::from_canonical_u32(event.shard);
                         cols.is_add = F::from_bool(is_add);
                         cols.is_sub = F::from_bool(!is_add);
 
@@ -91,7 +97,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let operand_2 = event.c;
 
                         cols.add_operation
-                            .populate(&mut record, operand_1, operand_2);
+                            .populate(&mut record, event.shard, operand_1, operand_2);
                         cols.operand_1 = Word::from(operand_1);
                         cols.operand_2 = Word::from(operand_2);
                         row
@@ -136,12 +142,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &AddSubCols<AB::Var> = main.row_slice(0).borrow();
-
-        builder.assert_bool(local.is_add);
-        builder.assert_bool(local.is_sub);
-        let is_real = local.is_add + local.is_sub;
-        builder.assert_bool(is_real.clone());
+        let local = main.row_slice(0);
+        let local: &AddSubCols<AB::Var> = (*local).borrow();
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(
@@ -149,7 +151,8 @@ where
             local.operand_1,
             local.operand_2,
             local.add_operation,
-            is_real,
+            local.shard,
+            local.is_add + local.is_sub,
         );
 
         // Receive the arguments.  There are seperate receives for ADD and SUB.
@@ -159,6 +162,7 @@ where
             local.add_operation.value,
             local.operand_1,
             local.operand_2,
+            local.shard,
             local.is_add,
         );
 
@@ -168,8 +172,14 @@ where
             local.operand_1,
             local.add_operation.value,
             local.operand_2,
+            local.shard,
             local.is_sub,
         );
+
+        let is_real = local.is_add + local.is_sub;
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        builder.assert_bool(is_real);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
@@ -201,7 +211,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.add_events = vec![AluEvent::new(0, Opcode::ADD, 14, 8, 6)];
+        shard.add_events = vec![AluEvent::new(0, 0, Opcode::ADD, 14, 8, 6)];
         let chip = AddSubChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -218,17 +228,27 @@ mod tests {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_add(operand_2);
-            shard
-                .add_events
-                .push(AluEvent::new(0, Opcode::ADD, result, operand_1, operand_2));
+            shard.add_events.push(AluEvent::new(
+                0,
+                0,
+                Opcode::ADD,
+                result,
+                operand_1,
+                operand_2,
+            ));
         }
         for _ in 0..1000 {
             let operand_1 = thread_rng().gen_range(0..u32::MAX);
             let operand_2 = thread_rng().gen_range(0..u32::MAX);
             let result = operand_1.wrapping_sub(operand_2);
-            shard
-                .add_events
-                .push(AluEvent::new(0, Opcode::SUB, result, operand_1, operand_2));
+            shard.add_events.push(AluEvent::new(
+                0,
+                0,
+                Opcode::SUB,
+                result,
+                operand_1,
+                operand_2,
+            ));
         }
 
         let chip = AddSubChip::default();

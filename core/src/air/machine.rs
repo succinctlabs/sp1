@@ -6,12 +6,12 @@ use crate::stark::MachineRecord;
 
 pub use sp1_derive::MachineAir;
 
-/// An AIR that is part of a Risc-V AIR arithmetization.
+/// An AIR that is part of a multi table AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> {
     /// The execution record containing events for producing the air trace.
     type Record: MachineRecord;
 
-    type Program;
+    type Program: Send + Sync;
 
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
@@ -31,13 +31,13 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     /// Whether this execution record contains events for this air.
     fn included(&self, shard: &Self::Record) -> bool;
 
+    /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {
         0
     }
 
     /// Generate the preprocessed trace given a specific program.
-    #[allow(unused_variables)]
-    fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         None
     }
 }

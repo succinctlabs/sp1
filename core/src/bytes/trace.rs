@@ -1,8 +1,10 @@
+use std::borrow::BorrowMut;
+
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
 use super::{
-    columns::{NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
+    columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
     ByteChip,
 };
 use crate::{
@@ -26,9 +28,15 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
     }
 
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let (trace, _) = Self::trace_and_map();
+        // TODO: We should be able to make this a constant. Also, trace / map should be separate.
+        // Since we only need the trace and not the map, we can just pass 0 as the shard.
+        let (trace, _) = Self::trace_and_map(0);
 
         Some(trace)
+    }
+
+    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+        // Do nothing since this chip has no dependencies.
     }
 
     fn generate_trace(
@@ -36,18 +44,23 @@ impl<F: Field> MachineAir<F> for ByteChip<F> {
         input: &ExecutionRecord,
         _output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let (_, event_map) = Self::trace_and_map();
+        let shard = input.index;
+        let (_, event_map) = Self::trace_and_map(shard);
 
         let mut trace = RowMajorMatrix::new(
             vec![F::zero(); NUM_BYTE_MULT_COLS * NUM_ROWS],
             NUM_BYTE_MULT_COLS,
         );
 
-        for (lookup, mult) in input.byte_lookups.iter() {
+        for (lookup, mult) in input.byte_lookups[&shard].iter() {
             let (row, index) = event_map[lookup];
+            let cols: &mut ByteMultCols<F> = trace.row_mut(row).borrow_mut();
 
             // Update the trace multiplicity
-            trace.row_mut(row)[index] += F::from_canonical_usize(*mult);
+            cols.multiplicities[index] += F::from_canonical_usize(*mult);
+
+            // Set the shard column as the current shard.
+            cols.shard = F::from_canonical_u32(shard);
         }
 
         trace

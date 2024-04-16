@@ -2,7 +2,13 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use std::time::Instant;
 
-use crate::air::{PublicValuesDigest, Word};
+pub use baby_bear_blake3::BabyBearBlake3;
+use p3_challenger::CanObserve;
+use p3_field::PrimeField32;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use size::Size;
+
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
@@ -15,13 +21,6 @@ use crate::{
 };
 
 use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
-pub use baby_bear_blake3::BabyBearBlake3;
-use p3_challenger::CanObserve;
-
-use p3_field::PrimeField32;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use size::Size;
 
 const LOG_DEGREE_BOUND: usize = 31;
 
@@ -61,6 +60,7 @@ pub fn run_test(
     run_test_core(runtime)
 }
 
+#[allow(unused_variables)]
 pub fn run_test_core(
     runtime: Runtime,
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
@@ -70,8 +70,12 @@ pub fn run_test_core(
     let mut challenger = machine.config().challenger();
 
     #[cfg(feature = "debug")]
-    let record_clone = runtime.record.clone();
-
+    {
+        let mut challenger_clone = machine.config().challenger();
+        let record_clone = runtime.record.clone();
+        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
+        log::debug!("debug_constraints done");
+    }
     let start = Instant::now();
     let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
@@ -79,9 +83,6 @@ pub fn run_test_core(
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    #[cfg(feature = "debug")]
-    machine.debug_constraints(&pk, record_clone, &mut challenger);
 
     let mut challenger = machine.config().challenger();
     machine.verify(&vk, &proof, &mut challenger)?;
@@ -112,7 +113,7 @@ fn reset_seek(file: &mut File) {
 
 pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
-    stdin: SP1Stdin,
+    stdin: &[Vec<u8>],
     config: SC,
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
@@ -127,7 +128,7 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
-    runtime.write_vecs(&stdin.buffer);
+    runtime.write_vecs(stdin);
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
@@ -148,8 +149,8 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut public_values_digest: PublicValuesDigest<u32> = Default::default();
-    let public_values = tracing::info_span!("runtime.state").in_scope(|| loop {
+    let mut public_values: Vec<SC::Val> = Vec::new();
+    let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
         let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
@@ -162,7 +163,7 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            public_values_digest = runtime.record.public_values_digest();
+            public_values = runtime.record.public_values();
             return std::mem::take(&mut runtime.state.public_values_stream);
         }
     });
@@ -188,16 +189,14 @@ where
         shard_main_datas.push(commit_data);
 
         if reuse_shards {
-            all_shards = Some(shards);
+            all_shards = Some(shards.clone());
         }
-        for commitment in commitments {
+
+        for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
+            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
         }
     }
-
-    let pv_digest_field_elms: Vec<SC::Val> =
-        PublicValuesDigest::<Word<SC::Val>>::new(public_values_digest).into();
-    challenger.observe_slice(&pv_digest_field_elms);
 
     // For each checkpoint, generate events and shard again, then prove the shards.
     let mut shard_proofs = Vec::<ShardProof<SC>>::new();
@@ -224,10 +223,7 @@ where
         shard_proofs.append(&mut new_proofs);
     }
 
-    let proof = crate::stark::Proof::<SC> {
-        shard_proofs,
-        public_values_digest,
-    };
+    let proof = crate::stark::Proof::<SC> { shard_proofs };
 
     // Prove the program.
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
@@ -240,7 +236,7 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    (proof, public_values)
+    (proof, public_values_stream)
 }
 
 pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
@@ -356,18 +352,17 @@ pub mod baby_bear_poseidon2 {
     use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
 
     use crate::stark::StarkGenericConfig;
 
-    use super::LOG_DEGREE_BOUND;
-
     pub type Val = BabyBear;
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
@@ -418,7 +413,24 @@ pub mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            const ROUNDS_F: usize = 8;
+            const ROUNDS_P: usize = 22;
+            let mut round_constants = RC_16_30.to_vec();
+            let internal_start = ROUNDS_F / 2;
+            let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+            let internal_round_constants = round_constants
+                .drain(internal_start..internal_end)
+                .map(|vec| vec[0])
+                .collect::<Vec<_>>();
+            let external_round_constants = round_constants;
+            let perm = Perm::new(
+                ROUNDS_F,
+                external_round_constants,
+                Poseidon2ExternalMatrixGeneral,
+                ROUNDS_P,
+                internal_round_constants,
+                DiffusionMatrixBabybear,
+            );
 
             let hash = MyHash::new(perm.clone());
 
@@ -430,13 +442,17 @@ pub mod baby_bear_poseidon2 {
 
             let dft = Dft {};
 
+            let num_queries = match std::env::var("FRI_QUERIES") {
+                Ok(value) => value.parse().unwrap(),
+                Err(_) => 100,
+            };
             let fri_config = FriConfig {
                 log_blowup: 1,
-                num_queries: 100,
+                num_queries,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
+            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
 
             Self { pcs, perm }
         }

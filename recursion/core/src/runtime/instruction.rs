@@ -28,6 +28,9 @@ pub struct Instruction<F> {
 
     /// Whether the third operand is an immediate value.
     pub imm_c: bool,
+
+    /// A debug string for the instruction.
+    pub debug: String,
 }
 
 impl<F: PrimeField32> Instruction<F> {
@@ -41,6 +44,7 @@ impl<F: PrimeField32> Instruction<F> {
         size_imm: F,
         imm_b: bool,
         imm_c: bool,
+        debug: String,
     ) -> Self {
         Self {
             opcode,
@@ -51,6 +55,7 @@ impl<F: PrimeField32> Instruction<F> {
             size_imm,
             imm_b,
             imm_c,
+            debug,
         }
     }
 

@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use strum_macros::EnumIter;
+
 use crate::runtime::{Register, Runtime};
-use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -14,9 +18,6 @@ use crate::syscall::{
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
-use std::collections::HashMap;
-use std::rc::Rc;
-use strum_macros::EnumIter;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 /// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
@@ -146,6 +147,8 @@ pub struct SyscallContext<'a> {
     pub clk: u32,
 
     pub(crate) next_pc: u32,
+    /// This is the exit_code used for the HALT syscall
+    pub(crate) exit_code: u32,
     pub(crate) rt: &'a mut Runtime,
 }
 
@@ -157,6 +160,7 @@ impl<'a> SyscallContext<'a> {
             current_shard,
             clk,
             next_pc: runtime.state.pc.wrapping_add(4),
+            exit_code: 0,
             rt: runtime,
         }
     }
@@ -223,6 +227,10 @@ impl<'a> SyscallContext<'a> {
     pub fn set_next_pc(&mut self, next_pc: u32) {
         self.next_pc = next_pc;
     }
+
+    pub fn set_exit_code(&mut self, exit_code: u32) {
+        self.exit_code = exit_code;
+    }
 }
 
 pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
@@ -264,10 +272,6 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(WeierstrassDoubleAssignChip::<Bn254>::new()),
     );
     syscall_map.insert(
-        SyscallCode::BLAKE3_COMPRESS_INNER,
-        Rc::new(Blake3CompressInnerChip::new()),
-    );
-    syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
         Rc::new(SyscallEnterUnconstrained::new()),
     );
@@ -292,6 +296,10 @@ mod tests {
     fn test_syscalls_in_default_map() {
         let default_syscall_map = default_syscall_map();
         for code in SyscallCode::iter() {
+            if code == SyscallCode::BLAKE3_COMPRESS_INNER {
+                // Blake3 is currently disabled.
+                continue;
+            }
             default_syscall_map.get(&code).unwrap();
         }
     }

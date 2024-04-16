@@ -11,7 +11,8 @@ fn main() {
     let stdin = SP1Stdin::new();
 
     // Generate the proof for the given program.
-    let proof = SP1Prover::prove(ELF, stdin).expect("proving failed");
+    let client = SP1Prover::new();
+    let proof = client.prove(ELF, stdin).expect("proving failed");
 
     // Verify proof.
     SP1Verifier::verify(ELF, &proof).expect("verification failed");
