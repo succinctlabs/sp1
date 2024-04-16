@@ -110,6 +110,11 @@ impl ProverClient {
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
 
+        // Execute the ELF with the given stdin before creating the proof.
+        let mut runtime = Runtime::new(program);
+        runtime.write_vecs(&stdin.buffer);
+        runtime.run();
+
         let proof_id = client.create_proof(elf, &stdin).await?;
         println!("proof_id: {:?}", proof_id);
 
