@@ -1,5 +1,8 @@
 use std::io::Read;
 
+use crate::stark::{Proof, VerifyingKey};
+use crate::utils::BabyBearPoseidon2Inner;
+
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 
@@ -27,6 +30,14 @@ impl Runtime {
         for input in inputs {
             self.state.input_stream.push(input.clone());
         }
+    }
+
+    pub fn write_proof(
+        &mut self,
+        proof: Proof<BabyBearPoseidon2Inner>,
+        vk: VerifyingKey<BabyBearPoseidon2Inner>,
+    ) {
+        self.state.proof_stream.push((proof, vk));
     }
 
     pub fn read_public_values<T: DeserializeOwned>(&mut self) -> T {

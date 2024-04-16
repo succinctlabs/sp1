@@ -1,11 +1,10 @@
-use p3_field::PrimeField32;
-
 use super::MachineStark;
 pub use crate::air::SP1AirBuilder;
 use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
-use crate::memory::MemoryChipType;
+use crate::memory::{MemoryChipType, MemoryProgramChip};
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
+use p3_field::PrimeField32;
 pub use riscv_chips::*;
 
 /// A module for importing all the different RISC-V chips.
@@ -69,7 +68,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A table for finalizing the memory state.
     MemoryFinal(MemoryChip),
     /// A table for initializing the program memory.
-    ProgramMemory(MemoryChip),
+    ProgramMemory(MemoryProgramChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -151,7 +150,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::MemoryInit(memory_init));
         let memory_finalize = MemoryChip::new(MemoryChipType::Finalize);
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
-        let program_memory_init = MemoryChip::new(MemoryChipType::Program);
+        let program_memory_init = MemoryProgramChip::new();
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));
