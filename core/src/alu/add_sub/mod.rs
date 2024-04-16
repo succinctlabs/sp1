@@ -1,9 +1,10 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
@@ -35,11 +36,6 @@ pub struct AddSubCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
-    /// Boolean to indicate whether the row is for an add operation.
-    pub is_add: T,
-    /// Boolean to indicate whether the row is for a sub operation.
-    pub is_sub: T,
-
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
     pub add_operation: AddOperation<T>,
@@ -49,6 +45,12 @@ pub struct AddSubCols<T> {
 
     /// The second input operand.  This will be `c` for both operations.
     pub operand_2: Word<T>,
+
+    /// Boolean to indicate whether the row is for an add operation.
+    pub is_add: T,
+
+    /// Boolean to indicate whether the row is for a sub operation.
+    pub is_sub: T,
 }
 
 impl<F: PrimeField> MachineAir<F> for AddSubChip {
@@ -140,12 +142,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &AddSubCols<AB::Var> = main.row_slice(0).borrow();
-
-        builder.assert_bool(local.is_add);
-        builder.assert_bool(local.is_sub);
-        let is_real = local.is_add + local.is_sub;
-        builder.assert_bool(is_real.clone());
+        let local = main.row_slice(0);
+        let local: &AddSubCols<AB::Var> = (*local).borrow();
 
         // Evaluate the addition operation.
         AddOperation::<AB::F>::eval(
@@ -154,7 +152,7 @@ where
             local.operand_2,
             local.add_operation,
             local.shard,
-            is_real,
+            local.is_add + local.is_sub,
         );
 
         // Receive the arguments.  There are seperate receives for ADD and SUB.
@@ -177,6 +175,11 @@ where
             local.shard,
             local.is_sub,
         );
+
+        let is_real = local.is_add + local.is_sub;
+        builder.assert_bool(local.is_add);
+        builder.assert_bool(local.is_sub);
+        builder.assert_bool(is_real);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(

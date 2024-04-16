@@ -4,7 +4,7 @@ use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use std::collections::BTreeMap;
 
 use sp1_derive::AlignedBorrow;
@@ -150,9 +150,10 @@ where
         let main = builder.main();
         let preprocessed = builder.preprocessed();
 
-        let prep_local: &MemoryProgramPreprocessedCols<AB::Var> =
-            preprocessed.row_slice(0).borrow();
-        let mult_local: &MemoryProgramMultCols<AB::Var> = main.row_slice(0).borrow();
+        let prep_local = preprocessed.row_slice(0);
+        let prep_local: &MemoryProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
+        let mult_local = main.row_slice(0);
+        let mult_local: &MemoryProgramMultCols<AB::Var> = (*mult_local).borrow();
 
         builder.assert_bool(mult_local.used);
 

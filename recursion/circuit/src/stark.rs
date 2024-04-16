@@ -1,20 +1,23 @@
 use std::marker::PhantomData;
 
-use crate::types::OuterDigest;
+use crate::types::OuterDigestVariable;
+use crate::witness::Witnessable;
 use p3_air::Air;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
-use sp1_core::stark::Com;
+use sp1_core::stark::{Com, ShardProof};
 use sp1_core::{
     air::MachineAir,
     stark::{MachineStark, ShardCommitment, StarkGenericConfig, VerifyingKey},
 };
-use sp1_recursion_compiler::ir::ExtConst;
-use sp1_recursion_compiler::ir::Usize;
+use sp1_recursion_compiler::config::OuterConfig;
+use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::stark::config::outer_fri_config;
+use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
+use sp1_recursion_core::stark::RecursionAir;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
 
@@ -43,7 +46,8 @@ where
         machine: &MachineStark<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
         proof: &RecursionShardProofVariable<C>,
-        permutation_challenges: &[C::EF],
+        sorted_chips: Vec<String>,
+        sorted_indices: Vec<usize>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -54,8 +58,6 @@ where
         let RecursionShardProofVariable {
             commitment,
             opened_values,
-            sorted_chips,
-            sorted_indices,
             ..
         } = proof;
 
@@ -65,16 +67,9 @@ where
             quotient_commit,
         } = commitment;
 
-        let permutation_challenges_var = (0..2)
+        let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
-
-        for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
-            );
-        }
 
         challenger.observe_commitment(builder, *permutation_commit);
 
@@ -107,7 +102,7 @@ where
             let index = sorted_indices[chip_idx];
             let opening = &opened_values.chips[index];
 
-            let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.eval_const(*domain);
+            let domain_var: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*domain);
 
             let mut trace_points = Vec::new();
             let zeta_next = domain_var.next_point(builder, zeta);
@@ -185,7 +180,7 @@ where
 
         let mut rounds = Vec::new();
         let prep_commit_val: [Bn254Fr; 1] = vk.commit.clone().into();
-        let prep_commit: OuterDigest<C> = [builder.eval(prep_commit_val[0])];
+        let prep_commit: OuterDigestVariable<C> = [builder.eval(prep_commit_val[0])];
         let prep_round = TwoAdicPcsRoundVariable {
             batch_commit: prep_commit,
             mats: prep_mats,
@@ -221,12 +216,12 @@ where
                         builder,
                         chip,
                         values,
-                        proof.public_values_digest,
+                        proof.public_values.clone(),
                         trace_domain.clone(),
                         qc_domains,
                         zeta,
                         alpha,
-                        permutation_challenges,
+                        &permutation_challenges,
                     );
                 }
             }
@@ -234,117 +229,90 @@ where
     }
 }
 
+type OuterSC = BabyBearPoseidon2Outer;
+type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
+type OuterC = OuterConfig;
+
+pub fn build_wrap_circuit(
+    vk: &VerifyingKey<OuterSC>,
+    dummy_proof: ShardProof<OuterSC>,
+) -> Vec<Constraint> {
+    let outer_config = OuterSC::new();
+    let outer_machine = RecursionAir::<OuterF>::machine(outer_config);
+
+    let mut builder = Builder::<OuterConfig>::default();
+    let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
+
+    let preprocessed_commit_val: [Bn254Fr; 1] = vk.commit.into();
+    let preprocessed_commit: OuterDigestVariable<OuterC> =
+        [builder.eval(preprocessed_commit_val[0])];
+    challenger.observe_commitment(&mut builder, preprocessed_commit);
+
+    let chips = outer_machine
+        .shard_chips_ordered(&dummy_proof.chip_ordering)
+        .map(|chip| chip.name())
+        .collect::<Vec<_>>();
+
+    let sorted_indices = outer_machine
+        .chips()
+        .iter()
+        .map(|chip| {
+            dummy_proof
+                .chip_ordering
+                .get(&chip.name())
+                .copied()
+                .unwrap_or(usize::MAX)
+        })
+        .collect::<Vec<_>>();
+
+    let mut witness = Witness::default();
+    dummy_proof.write(&mut witness);
+    let proof = dummy_proof.read(&mut builder);
+    let ShardCommitment { main_commit, .. } = &proof.commitment;
+    challenger.observe_commitment(&mut builder, *main_commit);
+    let pv_slice = proof.public_values.slice(
+        &mut builder,
+        Usize::Const(0),
+        Usize::Const(outer_machine.num_pv_elts()),
+    );
+    challenger.observe_slice(&mut builder, pv_slice);
+
+    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+        &mut builder,
+        vk,
+        &outer_machine,
+        &mut challenger.clone(),
+        &proof,
+        chips,
+        sorted_indices,
+    );
+
+    let mut backend = ConstraintCompiler::<OuterConfig>::default();
+    backend.emit(builder.operations)
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use crate::{
-        challenger::MultiField32ChallengerVariable, fri::tests::const_two_adic_pcs_proof,
-        stark::StarkVerifierCircuit,
-    };
+    use crate::stark::build_wrap_circuit;
+    use crate::witness::Witnessable;
     use p3_baby_bear::DiffusionMatrixBabybear;
-    use p3_bn254_fr::Bn254Fr;
-    use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
     use serial_test::serial;
-    use sp1_core::{
-        air::{MachineAir, PublicValuesDigest, Word},
-        stark::{LocalProver, MachineStark, ShardCommitment, ShardProof, StarkGenericConfig},
-    };
-    use sp1_recursion_compiler::{
-        constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, Config, Felt},
-        OuterConfig,
-    };
+    use sp1_core::stark::{LocalProver, StarkGenericConfig};
+    use sp1_recursion_compiler::ir::Witness;
+    use sp1_recursion_compiler::{config::OuterConfig, constraints::groth16_ffi};
     use sp1_recursion_core::{
         cpu::Instruction,
-        runtime::{Opcode, Program, Runtime},
+        runtime::{Opcode, RecursionProgram, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
 
-    use crate::types::{
-        ChipOpenedValuesVariable, OuterDigest, RecursionShardOpenedValuesVariable,
-        RecursionShardProofVariable,
-    };
-
-    type SC = BabyBearPoseidon2Outer;
-    type F = <SC as StarkGenericConfig>::Val;
-    type EF = <SC as StarkGenericConfig>::Challenge;
-    type C = OuterConfig;
-    type A = RecursionAir<F>;
-
-    pub(crate) fn const_proof(
-        builder: &mut Builder<C>,
-        machine: &MachineStark<SC, A>,
-        proof: ShardProof<SC>,
-    ) -> RecursionShardProofVariable<C>
-    where
-        C: Config<F = F, EF = EF>,
-    {
-        // Set up the public values digest.
-        let public_values_digest = PublicValuesDigest::from(core::array::from_fn(|i| {
-            let word_val = proof.public_values_digest[i];
-            Word::<Felt<_>>(core::array::from_fn(|j| builder.eval(word_val[j])))
-        }));
-
-        // Set up the commitments.
-        let main_commit: [Bn254Fr; 1] = proof.commitment.main_commit.into();
-        let permutation_commit: [Bn254Fr; 1] = proof.commitment.permutation_commit.into();
-        let quotient_commit: [Bn254Fr; 1] = proof.commitment.quotient_commit.into();
-        let main_commit: OuterDigest<C> = [builder.eval(main_commit[0])];
-        let permutation_commit: OuterDigest<C> = [builder.eval(permutation_commit[0])];
-        let quotient_commit: OuterDigest<C> = [builder.eval(quotient_commit[0])];
-
-        let commitment = ShardCommitment {
-            main_commit,
-            permutation_commit,
-            quotient_commit,
-        };
-
-        // Set up the opened values.
-        let mut opened_values = Vec::new();
-        for values in proof.opened_values.chips.iter() {
-            let values: ChipOpenedValuesVariable<_> = builder.eval_const(values.clone());
-            opened_values.push(values);
-        }
-        let opened_values = RecursionShardOpenedValuesVariable {
-            chips: opened_values,
-        };
-
-        let opening_proof = const_two_adic_pcs_proof(builder, proof.opening_proof);
-
-        let chips = machine
-            .shard_chips_ordered(&proof.chip_ordering)
-            .map(|chip| chip.name())
-            .collect::<Vec<_>>();
-
-        let sorted_indices = machine
-            .chips()
-            .iter()
-            .map(|chip| {
-                proof
-                    .chip_ordering
-                    .get(&chip.name())
-                    .copied()
-                    .unwrap_or(usize::MAX)
-            })
-            .collect::<Vec<_>>();
-
-        RecursionShardProofVariable {
-            index: proof.index,
-            commitment,
-            opened_values,
-            opening_proof,
-            sorted_chips: chips,
-            public_values_digest,
-            sorted_indices,
-        }
-    }
-
-    pub fn basic_program<F: PrimeField32>() -> Program<F> {
+    pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
-        Program::<F> {
-            instructions: [Instruction::new(
+        RecursionProgram::<F> {
+            instructions: vec![Instruction::new(
                 Opcode::ADD,
                 F::from_canonical_u32(3),
                 zero,
@@ -353,8 +321,9 @@ pub(crate) mod tests {
                 F::zero(),
                 false,
                 true,
-            )]
-            .repeat(1 << 2),
+                "".to_string(),
+            )],
+            traces: vec![None],
         }
     }
 
@@ -374,71 +343,19 @@ pub(crate) mod tests {
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
-        let proofs = machine
+        let mut proofs = machine
             .prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger)
             .shard_proofs;
 
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
         runtime.run();
-        let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-        let mut challenger = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
 
-        let mut challenger_val = machine.config().challenger();
-        challenger_val.observe(vk.commit);
-        proofs.iter().for_each(|proof| {
-            challenger_val.observe(proof.commitment.main_commit);
-        });
+        let mut witness = Witness::default();
+        let proof = proofs.pop().unwrap();
+        proof.write(&mut witness);
 
-        // Observe the public input digest
-        let pv_digest_field_elms: Vec<F> =
-            PublicValuesDigest::<Word<F>>::new(proof.public_values_digest).into();
-        challenger_val.observe_slice(&pv_digest_field_elms);
+        let constraints = build_wrap_circuit(&vk, proof);
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
-
-        let mut builder = Builder::<OuterConfig>::default();
-        let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
-
-        let preprocessed_commit_val: [Bn254Fr; 1] = vk.commit.into();
-        let preprocessed_commit: OuterDigest<C> = [builder.eval(preprocessed_commit_val[0])];
-        challenger.observe_commitment(&mut builder, preprocessed_commit);
-
-        let mut shard_proofs = vec![];
-        for proof_val in proofs {
-            let proof = const_proof(&mut builder, &machine, proof_val);
-            let ShardCommitment { main_commit, .. } = &proof.commitment;
-            challenger.observe_commitment(&mut builder, *main_commit);
-            shard_proofs.push(proof);
-        }
-
-        // Observe the public input digest
-        let pv_digest_felt: Vec<Felt<F>> = pv_digest_field_elms
-            .iter()
-            .map(|x| builder.eval(*x))
-            .collect();
-        pv_digest_felt
-            .iter()
-            .for_each(|x| challenger.observe(&mut builder, *x));
-
-        #[allow(clippy::never_loop)]
-        for proof in shard_proofs {
-            StarkVerifierCircuit::<C, SC>::verify_shard(
-                &mut builder,
-                &vk,
-                &machine,
-                &mut challenger.clone(),
-                &proof,
-                &permutation_challenges,
-            );
-            break;
-        }
-
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, witness);
     }
 }

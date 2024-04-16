@@ -1,32 +1,44 @@
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+use p3_baby_bear::BabyBear;
 use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
-use p3_challenger::{DuplexChallenger, MultiField32Challenger};
+use p3_challenger::MultiField32Challenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
-use p3_field::{extension::BinomialExtensionField, Field};
+use p3_field::extension::BinomialExtensionField;
+use p3_fri::BatchOpening;
+use p3_fri::CommitPhaseProofStep;
+use p3_fri::QueryProof;
 use p3_fri::{FriConfig, FriProof, TwoAdicFriPcs, TwoAdicFriPcsProof};
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
-use p3_symmetric::{MultiField32PaddingFreeSponge, PaddingFreeSponge, TruncatedPermutation};
+use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+use p3_symmetric::Hash;
+use p3_symmetric::{MultiField32PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
-use sp1_core::{stark::StarkGenericConfig, utils::poseidon2_instance::RC_16_30};
+use sp1_core::stark::StarkGenericConfig;
 
 use super::poseidon2::bn254_poseidon2_rc3;
 
 /// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
 pub type OuterChallenge = BinomialExtensionField<OuterVal, 4>;
-pub type OuterPerm = Poseidon2<Bn254Fr, DiffusionMatrixBN254, 3, 5>;
+pub type OuterPerm = Poseidon2<Bn254Fr, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBN254, 3, 5>;
 pub type OuterHash = MultiField32PaddingFreeSponge<OuterVal, Bn254Fr, OuterPerm, 3, 8, 1>;
+pub type OuterDigestHash = Hash<Bn254Fr, Bn254Fr, 1>;
+pub type OuterDigest = [Bn254Fr; 1];
 pub type OuterCompress = TruncatedPermutation<OuterPerm, 2, 1, 3>;
 pub type OuterValMmcs = FieldMerkleTreeMmcs<BabyBear, Bn254Fr, OuterHash, OuterCompress, 1>;
 pub type OuterChallengeMmcs = ExtensionMmcs<OuterVal, OuterChallenge, OuterValMmcs>;
 pub type OuterDft = Radix2DitParallel;
 pub type OuterChallenger = MultiField32Challenger<OuterVal, Bn254Fr, OuterPerm, 3>;
 pub type OuterPcs = TwoAdicFriPcs<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
+
+pub type OuterQueryProof = QueryProof<OuterChallenge, OuterChallengeMmcs>;
+pub type OuterCommitPhaseStep = CommitPhaseProofStep<OuterChallenge, OuterChallengeMmcs>;
 pub type OuterFriProof = FriProof<OuterChallenge, OuterChallengeMmcs, OuterVal>;
-pub type OuterPcsProof = TwoAdicFriPcsProof<OuterVal, OuterDft, OuterValMmcs, OuterChallengeMmcs>;
+pub type OuterBatchOpening = BatchOpening<OuterVal, OuterValMmcs>;
+pub type OuterPcsProof =
+    TwoAdicFriPcsProof<OuterVal, OuterChallenge, OuterValMmcs, OuterChallengeMmcs>;
 
 /// The permutation for outer recursion.
 pub fn outer_perm() -> OuterPerm {
@@ -43,6 +55,7 @@ pub fn outer_perm() -> OuterPerm {
     OuterPerm::new(
         ROUNDS_F,
         external_round_constants,
+        Poseidon2ExternalMatrixGeneral,
         ROUNDS_P,
         internal_round_constants,
         DiffusionMatrixBN254,
@@ -55,64 +68,13 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
+    let num_queries = match std::env::var("FRI_QUERIES") {
+        Ok(value) => value.parse().unwrap(),
+        Err(_) => 33,
+    };
     FriConfig {
         log_blowup: 3,
-        num_queries: 1,
-        proof_of_work_bits: 16,
-        mmcs: challenge_mmcs,
-    }
-}
-
-/// A configuration for inner recursion.
-pub type InnerVal = BabyBear;
-pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
-pub type InnerPerm = Poseidon2<InnerVal, DiffusionMatrixBabybear, 16, 7>;
-pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
-pub type InnerCompress = TruncatedPermutation<InnerPerm, 2, 8, 16>;
-pub type InnerValMmcs = FieldMerkleTreeMmcs<
-    <InnerVal as Field>::Packing,
-    <InnerVal as Field>::Packing,
-    InnerHash,
-    InnerCompress,
-    8,
->;
-pub type InnerChallengeMmcs = ExtensionMmcs<InnerVal, InnerChallenge, InnerValMmcs>;
-pub type InnerChallenger = DuplexChallenger<InnerVal, InnerPerm, 16>;
-pub type InnerDft = Radix2DitParallel;
-pub type InnerPcs = TwoAdicFriPcs<InnerVal, InnerDft, InnerValMmcs, InnerChallengeMmcs>;
-pub type InnerFriProof = FriProof<InnerChallenge, InnerChallengeMmcs, InnerVal>;
-pub type InnerPcsProof = TwoAdicFriPcsProof<InnerVal, InnerDft, InnerValMmcs, InnerChallengeMmcs>;
-
-/// The permutation for inner recursion.
-pub fn inner_perm() -> InnerPerm {
-    const ROUNDS_F: usize = 8;
-    const ROUNDS_P: usize = 22;
-    let mut round_constants = RC_16_30.to_vec();
-    let internal_start = ROUNDS_F / 2;
-    let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
-    let internal_round_constants = round_constants
-        .drain(internal_start..internal_end)
-        .map(|vec| vec[0])
-        .collect::<Vec<_>>();
-    let external_round_constants = round_constants;
-    InnerPerm::new(
-        ROUNDS_F,
-        external_round_constants,
-        ROUNDS_P,
-        internal_round_constants,
-        DiffusionMatrixBabybear,
-    )
-}
-
-/// The FRI config for inner recursion.
-pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
-    let perm = inner_perm();
-    let hash = InnerHash::new(perm.clone());
-    let compress = InnerCompress::new(perm.clone());
-    let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
-    FriConfig {
-        log_blowup: 1,
-        num_queries: 100,
+        num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
     }

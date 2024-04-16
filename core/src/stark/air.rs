@@ -1,12 +1,13 @@
-use crate::air::MachineAir;
-pub use crate::air::SP1AirBuilder;
-use crate::memory::{MemoryChipKind, MemoryProgramChip};
-use crate::stark::Chip;
-use crate::StarkGenericConfig;
-use p3_field::PrimeField32;
-pub use riscv_chips::*;
 
+use p3_field::PrimeField32;
+
+pub use crate::air::SP1AirBuilder;
+use crate::memory::{MemoryChipType, MemoryProgramChip};
+use crate::StarkGenericConfig;
 use super::MachineStark;
+use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
+use crate::stark::Chip;
+pub use riscv_chips::*;
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
@@ -19,7 +20,7 @@ pub(crate) mod riscv_chips {
     pub use crate::alu::ShiftRightChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::memory::MemoryGlobalChip;
+    pub use crate::memory::MemoryChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
@@ -65,9 +66,9 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// A table for initializing the memory state.
-    MemoryInit(MemoryGlobalChip),
+    MemoryInit(MemoryChip),
     /// A table for finalizing the memory state.
-    MemoryFinal(MemoryGlobalChip),
+    MemoryFinal(MemoryChip),
     /// A table for initializing the program memory.
     ProgramMemory(MemoryProgramChip),
     /// A precompile for sha256 extend.
@@ -100,7 +101,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark::new(config, chips)
+        MachineStark::new(config, chips, SP1_PROOF_NUM_PV_ELTS)
     }
 
     /// Get all the different RISC-V AIRs.
@@ -147,9 +148,9 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ShiftLeft(shift_left));
         let lt = LtChip::default();
         chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Initialize);
+        let memory_init = MemoryChip::new(MemoryChipType::Initialize);
         chips.push(RiscvAir::MemoryInit(memory_init));
-        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        let memory_finalize = MemoryChip::new(MemoryChipType::Finalize);
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
         let program_memory_init = MemoryProgramChip::new();
         chips.push(RiscvAir::ProgramMemory(program_memory_init));

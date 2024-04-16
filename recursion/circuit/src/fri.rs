@@ -13,7 +13,7 @@ use crate::mmcs::verify_batch;
 use crate::types::FriChallenges;
 use crate::types::FriProofVariable;
 use crate::types::FriQueryProofVariable;
-use crate::types::OuterDigest;
+use crate::types::OuterDigestVariable;
 use crate::types::TwoAdicPcsProofVariable;
 use crate::types::TwoAdicPcsRoundVariable;
 use crate::{challenger::MultiField32ChallengerVariable, DIGEST_SIZE};
@@ -112,7 +112,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     let two_adic_generator: Felt<_> =
                         builder.eval(C::F::two_adic_generator(log_height));
                     let two_adic_generator_exp =
-                        builder.exp_usize_f_bits(two_adic_generator, rev_reduced_index);
+                        builder.exp_f_bits(two_adic_generator, rev_reduced_index);
                     let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
@@ -168,7 +168,7 @@ pub fn verify_challenges<C: Config>(
 
 pub fn verify_query<C: Config>(
     builder: &mut Builder<C>,
-    commit_phase_commits: Vec<OuterDigest<C>>,
+    commit_phase_commits: Vec<OuterDigestVariable<C>>,
     index: Var<C::N>,
     proof: FriQueryProofVariable<C>,
     betas: Vec<Ext<C::F, C::EF>>,
@@ -181,7 +181,7 @@ pub fn verify_query<C: Config>(
     )));
     let index_bits = builder.num2bits_v_circuit(index, 256);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
-    let mut x = builder.exp_usize_ef_bits(two_adic_generator, rev_reduced_index);
+    let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 
     let mut offset = 0;
     for (log_folded_height, commit, step, beta) in izip!(
@@ -244,9 +244,9 @@ pub mod tests {
     use rand::rngs::OsRng;
     use serial_test::serial;
     use sp1_recursion_compiler::{
-        constraints::{gnark_ffi, ConstraintBackend},
-        ir::{Builder, Ext, Felt, SymbolicExt, Var},
-        OuterConfig,
+        config::OuterConfig,
+        constraints::{groth16_ffi, ConstraintCompiler},
+        ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
         outer_fri_config, outer_perm, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
@@ -258,8 +258,8 @@ pub mod tests {
         challenger::MultiField32ChallengerVariable,
         fri::FriQueryProofVariable,
         types::{
-            BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable, OuterDigest,
-            TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
+            BatchOpeningVariable, FriCommitPhaseProofStepVariable, FriProofVariable,
+            OuterDigestVariable, TwoAdicPcsMatsVariable, TwoAdicPcsProofVariable,
         },
         DIGEST_SIZE,
     };
@@ -364,10 +364,10 @@ pub mod tests {
             Vec<(OuterChallenge, Vec<OuterChallenge>)>,
         )>,
     ) -> (
-        OuterDigest<OuterConfig>,
+        OuterDigestVariable<OuterConfig>,
         Vec<TwoAdicPcsRoundVariable<OuterConfig>>,
     ) {
-        let commit: OuterDigest<OuterConfig> = [builder.eval(commit[0])];
+        let commit: OuterDigestVariable<OuterConfig> = [builder.eval(commit[0])];
 
         let mut mats = Vec::new();
         for (domain, poly) in os.into_iter() {
@@ -483,9 +483,9 @@ pub mod tests {
             );
         }
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -557,8 +557,8 @@ pub mod tests {
         challenger.sample_ext(&mut builder);
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
-        let mut backend = ConstraintBackend::<OuterConfig>::default();
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        gnark_ffi::test_circuit(constraints);
+        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
     }
 }

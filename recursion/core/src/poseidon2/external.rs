@@ -5,16 +5,16 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
-use sp1_core::utils::poseidon2_instance::RC_16_30_U32;
 use sp1_derive::AlignedBorrow;
+use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
 use super::{apply_m_4, matmul_internal, MATRIX_DIAG_16_BABYBEAR_U32};
-use crate::runtime::{ExecutionRecord, Program};
+use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
@@ -44,7 +44,7 @@ pub struct Poseidon2Cols<T> {
 impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     type Record = ExecutionRecord<F>;
 
-    type Program = Program<F>;
+    type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
         "Poseidon2".to_string()
@@ -53,22 +53,25 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
-        _: &ExecutionRecord<F>,
+        input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let mut input = [F::one(); WIDTH];
-        let rows = (0..1048576)
-            .map(|i| {
+        let mut rows = Vec::new();
+
+        let rounds_f = 8;
+        let rounds_p = 22;
+        let rounds = rounds_f + rounds_p;
+        let rounds_f_beginning = rounds_f / 2;
+        let p_end = rounds_f_beginning + rounds_p;
+
+        for poseidon2_event in input.poseidon2_events.iter() {
+            let mut round_input = poseidon2_event.input;
+
+            for r in 0..rounds {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
-                cols.input = input;
 
-                let r = i % 31;
-                let rounds_f = 8;
-                let rounds_p = 22;
-                let rounds = rounds_f + rounds_p;
-                let rounds_f_beginning = rounds_f / 2;
-                let p_end = rounds_f_beginning + rounds_p;
+                cols.input = round_input;
 
                 cols.rounds[r] = F::one();
                 let is_initial_layer = r == 0;
@@ -140,11 +143,11 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 // Copy the state to the output.
                 cols.output.copy_from_slice(&state);
 
-                input = cols.output;
+                round_input = cols.output;
 
-                row
-            })
-            .collect::<Vec<_>>();
+                rows.push(row);
+            }
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(
@@ -158,8 +161,8 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         trace
     }
 
-    fn included(&self, _: &Self::Record) -> bool {
-        true
+    fn included(&self, record: &Self::Record) -> bool {
+        !record.poseidon2_events.is_empty()
     }
 }
 
@@ -175,7 +178,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &Poseidon2Cols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
 
         let rounds_f = 8;
         let rounds_p = 22;
@@ -333,14 +337,15 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use sp1_core::stark::StarkGenericConfig;
+    use sp1_core::utils::inner_perm;
     use sp1_core::{
         air::MachineAir,
         utils::{uni_stark_prove, BabyBearPoseidon2},
     };
 
     use crate::poseidon2::external::WIDTH;
-    use crate::stark::config::inner_perm;
     use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
     use p3_symmetric::Permutation;
 
@@ -368,7 +373,13 @@ mod tests {
             &mut ExecutionRecord::<BabyBear>::default(),
         );
 
-        let gt: Poseidon2<BabyBear, DiffusionMatrixBabybear, 16, 7> = inner_perm();
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabybear,
+            16,
+            7,
+        > = inner_perm();
         let input = [BabyBear::one(); WIDTH];
         let output = gt.permute(input);
 

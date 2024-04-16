@@ -1,3 +1,13 @@
+use std::borrow::BorrowMut;
+use std::collections::HashMap;
+
+use p3_field::{PrimeField, PrimeField32};
+use p3_matrix::dense::RowMajorMatrix;
+use p3_maybe_rayon::prelude::IntoParallelRefIterator;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
+use tracing::instrument;
+
 use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
@@ -9,14 +19,6 @@ use crate::disassembler::WORD_SIZE;
 use crate::memory::MemoryCols;
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::runtime::{MemoryRecordEnum, SyscallCode};
-use p3_field::{PrimeField, PrimeField32};
-use p3_matrix::dense::RowMajorMatrix;
-use p3_maybe_rayon::prelude::IntoParallelRefIterator;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use std::borrow::BorrowMut;
-use std::collections::HashMap;
-use tracing::instrument;
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip {
     type Record = ExecutionRecord;
@@ -138,6 +140,7 @@ impl CpuChip {
 
         // Populate basic fields.
         cols.pc = F::from_canonical_u32(event.pc);
+        cols.next_pc = F::from_canonical_u32(event.next_pc);
         cols.instruction.populate(event.instruction);
         cols.selectors.populate(event.instruction);
         *cols.op_a_access.value_mut() = event.a.into();
@@ -169,7 +172,15 @@ impl CpuChip {
         self.populate_branch(cols, event, &mut new_alu_events);
         self.populate_jump(cols, event, &mut new_alu_events);
         self.populate_auipc(cols, event, &mut new_alu_events);
-        self.populate_ecall(cols, event);
+        let is_halt = self.populate_ecall(cols, event);
+
+        if !event.instruction.is_branch_instruction()
+            && !event.instruction.is_jump_instruction()
+            && !event.instruction.is_ecall_instruction()
+            && !is_halt
+        {
+            cols.is_sequential_instr = F::one();
+        }
 
         // Assert that the instruction is not a no-op.
         cols.is_real = F::one();
@@ -522,7 +533,9 @@ impl CpuChip {
     }
 
     /// Populate columns related to ECALL.
-    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) {
+    fn populate_ecall<F: PrimeField>(&self, cols: &mut CpuCols<F>, _: CpuEvent) -> bool {
+        let mut is_halt = false;
+
         if cols.selectors.is_ecall == F::one() {
             // The send_to_table column is the 1st entry of the op_a_access column prev_value field.
             // Look at `ecall_eval` in cpu/air/mod.rs for the corresponding constraint and explanation.
@@ -558,22 +571,31 @@ impl CpuChip {
                 syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
             );
 
-            // If the syscall is a `COMMIT`, set the index bitmap and digest word.
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()) {
+            // Populate `is_commit_deferred_proofs`.
+            ecall_cols
+                .is_commit_deferred_proofs
+                .populate_from_field_element(
+                    syscall_id
+                        - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
+                );
+
+            // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and digest word.
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
+                || syscall_id
+                    == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
                 let digest_idx = cols.op_b_access.value().to_u32() as usize;
                 ecall_cols.index_bitmap[digest_idx] = F::one();
-                ecall_cols.digest_word = *cols.op_c_access.value();
             }
+
+            is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
         }
+
+        is_halt
     }
 
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
-        let len: usize = values.len();
         let n_real_rows = values.len() / NUM_CPU_COLS;
-        let last_row = &values[len - NUM_CPU_COLS..];
-        let pc = last_row[CPU_COL_MAP.pc];
-        let shard = last_row[CPU_COL_MAP.shard];
-        let clk = last_row[CPU_COL_MAP.clk];
 
         values.resize(n_real_rows.next_power_of_two() * NUM_CPU_COLS, F::zero());
 
@@ -586,9 +608,6 @@ impl CpuChip {
         };
 
         rows[n_real_rows..].iter_mut().for_each(|padded_row| {
-            padded_row[CPU_COL_MAP.pc] = pc;
-            padded_row[CPU_COL_MAP.shard] = shard;
-            padded_row[CPU_COL_MAP.clk] = clk;
             padded_row[CPU_COL_MAP.selectors.imm_b] = F::one();
             padded_row[CPU_COL_MAP.selectors.imm_c] = F::one();
         });
@@ -611,6 +630,7 @@ mod tests {
             shard: 1,
             clk: 6,
             pc: 1,
+            next_pc: 5,
             instruction: Instruction {
                 opcode: Opcode::ADD,
                 op_a: 0,
@@ -627,6 +647,7 @@ mod tests {
             c_record: None,
             memory: None,
             memory_record: None,
+            exit_code: 0,
         }];
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =

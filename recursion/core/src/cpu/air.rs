@@ -1,7 +1,7 @@
 use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
 use crate::cpu::CpuChip;
-use crate::runtime::Program;
+use crate::runtime::RecursionProgram;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -10,7 +10,6 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use p3_matrix::MatrixRowSlices;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
 use sp1_core::air::MachineAir;
@@ -21,6 +20,7 @@ use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::mem::transmute;
+use tracing::instrument;
 
 use super::columns::CpuCols;
 use crate::runtime::ExecutionRecord;
@@ -36,12 +36,13 @@ pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
 impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
-    type Program = Program<F>;
+    type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
         "CPU".to_string()
     }
 
+    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -154,8 +155,9 @@ where
         //   and the clock.
 
         let main = builder.main();
-        let local: &CpuCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &CpuCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &CpuCols<AB::Var> = (*local).borrow();
+        let next: &CpuCols<AB::Var> = (*next).borrow();
 
         // Increment clk by 4 every cycle..
         builder

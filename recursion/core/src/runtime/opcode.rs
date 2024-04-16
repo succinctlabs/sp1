@@ -51,6 +51,15 @@ pub enum Opcode {
     PrintF = 33,
     PrintE = 34,
     Ext2Felt = 35,
+
+    FRIFold = 36,
+    HintLen = 37,
+    Hint = 38,
+    Poseidon2Compress = 39,
+    BNEINC = 40,
+    Commit = 41,
+    LessThanF = 42,
+    CycleTracker = 43,
 }
 
 impl Opcode {

@@ -3,17 +3,16 @@ use core::borrow::Borrow;
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_keccak_air::{KeccakAir, NUM_KECCAK_COLS, NUM_ROUNDS, U64_LIMBS};
-use p3_matrix::MatrixRowSlices;
-
-use crate::{
-    air::{SP1AirBuilder, SubAirBuilder},
-    memory::MemoryCols,
-    runtime::SyscallCode,
-};
+use p3_matrix::Matrix;
 
 use super::{
     columns::{KeccakMemCols, NUM_KECCAK_MEM_COLS},
     KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE,
+};
+use crate::{
+    air::{SP1AirBuilder, SubAirBuilder},
+    memory::MemoryCols,
+    runtime::SyscallCode,
 };
 
 impl<F> BaseAir<F> for KeccakPermuteChip {
@@ -29,10 +28,11 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
 
-        let local: &KeccakMemCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &KeccakMemCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &KeccakMemCols<AB::Var> = (*local).borrow();
+        let next: &KeccakMemCols<AB::Var> = (*next).borrow();
 
-        // Constrain memory in the first and last cycles
+        // Constrain memory in the first and last cycles.
         builder.assert_eq(
             (local.keccak.step_flags[0] + local.keccak.step_flags[23]) * local.is_real,
             local.do_memory_check,
@@ -40,7 +40,7 @@ where
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 local.shard,
                 local.clk + local.keccak.step_flags[23], // The clk increments by 1 when step_flags[23] == 1
                 local.state_addr + AB::Expr::from_canonical_u32(i * 4),
@@ -138,11 +138,11 @@ where
 
 #[cfg(test)]
 mod test {
-    use crate::SP1Stdin;
-    use crate::{
-        utils::{setup_logger, tests::KECCAK256_ELF},
-        SP1Prover, SP1Verifier,
-    };
+    use crate::runtime::Program;
+    use crate::stark::{RiscvAir, StarkGenericConfig};
+    use crate::utils::{run_and_prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
+    use crate::{SP1PublicValues, SP1Stdin};
+
     use rand::Rng;
     use rand::SeedableRng;
     use tiny_keccak::Hasher;
@@ -173,12 +173,22 @@ mod test {
             stdin.write(&input);
         }
 
-        let mut proof = SP1Prover::prove(KECCAK256_ELF, stdin).unwrap();
-        SP1Verifier::verify(KECCAK256_ELF, &proof).unwrap();
+        let config = BabyBearPoseidon2::new();
+
+        let program = Program::from(KECCAK256_ELF);
+        let (proof, public_values) = run_and_prove(program, &stdin.buffer, config);
+        let mut public_values = SP1PublicValues::from(&public_values);
+
+        let config = BabyBearPoseidon2::new();
+        let mut challenger = config.challenger();
+        let machine = RiscvAir::machine(config);
+        let (_, vk) = machine.setup(&Program::from(KECCAK256_ELF));
+        let _ =
+            tracing::info_span!("verify").in_scope(|| machine.verify(&vk, &proof, &mut challenger));
 
         for i in 0..NUM_TEST_CASES {
             let expected = outputs.get(i).unwrap();
-            let actual = proof.public_values.read::<[u8; 32]>();
+            let actual = public_values.read::<[u8; 32]>();
             assert_eq!(expected, &actual);
         }
     }

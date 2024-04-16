@@ -137,36 +137,4 @@ pub mod proof_serde {
             Proof::<SC>::deserialize(deserializer)
         }
     }
-
-    #[cfg(test)]
-    mod tests {
-        use crate::{
-            utils::{setup_logger, tests::FIBONACCI_IO_ELF, BabyBearPoseidon2},
-            SP1ProofWithIO, SP1Prover, SP1Stdin, SP1Verifier,
-        };
-
-        /// Tests serialization with a human-readable encoding
-        #[test]
-        fn test_json_roundtrip() {
-            let mut stdin = SP1Stdin::new();
-            stdin.write(&3u32);
-            let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
-            let json = serde_json::to_string(&proof).unwrap();
-            let output = serde_json::from_str::<SP1ProofWithIO<BabyBearPoseidon2>>(&json).unwrap();
-            SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
-        }
-
-        /// Tests serialization with a binary encoding
-        #[test]
-        fn test_bincode_roundtrip() {
-            setup_logger();
-            let mut stdin = SP1Stdin::new();
-            stdin.write(&3u32);
-            let proof = SP1Prover::prove(FIBONACCI_IO_ELF, stdin).unwrap();
-            let serialized = bincode::serialize(&proof).unwrap();
-            let output =
-                bincode::deserialize::<SP1ProofWithIO<BabyBearPoseidon2>>(&serialized).unwrap();
-            SP1Verifier::verify(FIBONACCI_IO_ELF, &output).unwrap();
-        }
-    }
 }

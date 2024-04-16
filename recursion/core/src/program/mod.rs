@@ -3,7 +3,7 @@ use core::mem::size_of;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_core::air::{AirInteraction, MachineAir, SP1AirBuilder};
 use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::pad_to_power_of_two;
@@ -13,7 +13,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
-use crate::runtime::{ExecutionRecord, Program};
+use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_PROGRAM_PREPROCESSED_COLS: usize = size_of::<ProgramPreprocessedCols<u8>>();
 pub const NUM_PROGRAM_MULT_COLS: usize = size_of::<ProgramMultiplicityCols<u8>>();
@@ -47,7 +47,7 @@ impl ProgramChip {
 impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     type Record = ExecutionRecord<F>;
 
-    type Program = Program<F>;
+    type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
         "Program".to_string()
@@ -152,8 +152,10 @@ where
         let main = builder.main();
         let preprocessed = builder.preprocessed();
 
-        let prep_local: &ProgramPreprocessedCols<AB::Var> = preprocessed.row_slice(0).borrow();
-        let mult_local: &ProgramMultiplicityCols<AB::Var> = main.row_slice(0).borrow();
+        let prep_local = preprocessed.row_slice(0);
+        let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
+        let mult_local = main.row_slice(0);
+        let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
         // Dummy constraint of degree 3.
         builder.assert_eq(

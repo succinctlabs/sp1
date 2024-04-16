@@ -1,18 +1,19 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
 
 use bincode::{deserialize_from, Error};
-use p3_air::TwoRowMatrixView;
 use p3_matrix::dense::RowMajorMatrix;
-use size::Size;
-
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use size::Size;
 use tracing::trace;
 
-use crate::air::{PublicValuesDigest, Word};
+use crate::air::SP1_PROOF_NUM_PV_ELTS;
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
@@ -27,7 +28,7 @@ pub struct ShardMainData<SC: StarkGenericConfig> {
     pub main_data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub index: usize,
-    pub public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+    pub public_values: Vec<SC::Val>,
 }
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
@@ -37,7 +38,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
         main_data: PcsProverData<SC>,
         chip_ordering: HashMap<String, usize>,
         index: usize,
-        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+        public_values: Vec<Val<SC>>,
     ) -> Self {
         Self {
             traces,
@@ -45,7 +46,7 @@ impl<SC: StarkGenericConfig> ShardMainData<SC> {
             main_data,
             chip_ordering,
             index,
-            public_values_digest,
+            public_values,
         }
     }
 
@@ -122,7 +123,12 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
-#[derive(Serialize, Deserialize)]
+/// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
+/// proofs need to pad their public_values vec to this length.  This is required since the recursion
+/// verification program expects the public values vec to be fixed length.
+pub const PROOF_MAX_NUM_PVS: usize = SP1_PROOF_NUM_PV_ELTS;
+
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub index: usize,
@@ -130,12 +136,14 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
-    pub public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+    pub public_values: Vec<Val<SC>>,
 }
 
-impl<T> AirOpenedValues<T> {
-    pub fn view(&self) -> TwoRowMatrixView<T> {
-        TwoRowMatrixView::new(&self.local, &self.next)
+impl<T: Send + Sync + Clone> AirOpenedValues<T> {
+    pub fn view(&self) -> VerticalPair<RowMajorMatrixView<'_, T>, RowMajorMatrixView<'_, T>> {
+        let a = RowMajorMatrixView::new_row(&self.local);
+        let b = RowMajorMatrixView::new_row(&self.next);
+        VerticalPair::new(a, b)
     }
 }
 
@@ -149,9 +157,16 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
-    pub public_values_digest: PublicValuesDigest<u32>,
+}
+
+impl<SC: StarkGenericConfig> Debug for Proof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Proof")
+            .field("shard_proofs", &self.shard_proofs.len())
+            .finish()
+    }
 }

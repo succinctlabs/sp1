@@ -1,6 +1,7 @@
-use super::Domain;
-use crate::air::{MachineAir, PublicValuesDigest, Word};
-use crate::stark::MachineChip;
+use core::fmt::Display;
+use std::fmt::Formatter;
+use std::marker::PhantomData;
+
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
@@ -11,16 +12,14 @@ use p3_commit::PolynomialSpace;
 use p3_field::AbstractExtensionField;
 use p3_field::AbstractField;
 
-use std::fmt::Formatter;
-use std::marker::PhantomData;
-
 use super::folder::VerifierConstraintFolder;
 use super::types::*;
+use super::Domain;
 use super::StarkGenericConfig;
 use super::Val;
 use super::VerifyingKey;
-
-use core::fmt::Display;
+use crate::air::MachineAir;
+use crate::stark::MachineChip;
 
 pub struct Verifier<SC, A>(PhantomData<SC>, PhantomData<A>);
 
@@ -185,7 +184,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
-                proof.public_values_digest,
+                proof.public_values.clone(),
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -201,7 +200,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+        public_values: Vec<Val<SC>>,
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -215,7 +214,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             &sels,
             alpha,
             permutation_challenges,
-            public_values_digest,
+            public_values,
         );
 
         // Check that the constraints match the quotient, i.e.
@@ -232,7 +231,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values_digest: PublicValuesDigest<Word<Val<SC>>>,
+        public_values: Vec<Val<SC>>,
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -255,7 +254,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let public_values: Vec<Val<SC>> = public_values_digest.into();
+        let public_values = public_values.to_vec();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
@@ -270,6 +269,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             public_values: &public_values,
             _marker: PhantomData,
         };
+
         chip.eval(&mut folder);
 
         folder.accumulator

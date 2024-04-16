@@ -1,0 +1,10 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "verify-proof"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+hex-literal = "0.4.1"
+hex = "0.4.3"

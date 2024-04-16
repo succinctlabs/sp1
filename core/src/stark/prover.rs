@@ -6,7 +6,6 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::Instant;
 
 use itertools::Itertools;
-
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::Pcs;
@@ -15,7 +14,7 @@ use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::{Matrix, MatrixRowSlices};
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
@@ -24,12 +23,12 @@ use super::{quotient_values, MachineStark, PcsProverData, Val};
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
 use super::{ProvingKey, VerifierConstraintFolder};
+use crate::air::MachineAir;
 use crate::lookup::InteractionBuilder;
 use crate::stark::record::MachineRecord;
 use crate::stark::MachineChip;
+use crate::stark::PackedChallenge;
 use crate::stark::ProverConstraintFolder;
-
-use crate::air::{MachineAir, PublicValuesDigest, Word};
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -84,21 +83,15 @@ where
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
+            shard_commits
+                .into_iter()
+                .zip(shards.iter())
+                .for_each(|(commitment, shard)| {
+                    challenger.observe(commitment);
+                    challenger
+                        .observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
+                });
         });
-
-        let public_values_digest = shards
-            .last()
-            .expect("at least one shard")
-            .public_values_digest();
-
-        // Observe the public input digest.
-
-        let pv_digest_field_elms: Vec<Val<SC>> =
-            PublicValuesDigest::<Word<Val<SC>>>::new(public_values_digest).into();
-        challenger.observe_slice(&pv_digest_field_elms);
 
         let finished = AtomicU32::new(0);
         let total = shards.len() as u32;
@@ -154,10 +147,7 @@ where
                 .collect::<Vec<_>>()
         });
 
-        Proof {
-            shard_proofs,
-            public_values_digest,
-        }
+        Proof { shard_proofs }
     }
 }
 
@@ -226,9 +216,7 @@ where
             main_data,
             chip_ordering,
             index,
-            public_values_digest: PublicValuesDigest::<Word<Val<SC>>>::new(
-                shard.public_values_digest(),
-            ),
+            public_values: shard.public_values(),
         }
     }
 
@@ -237,7 +225,7 @@ where
         config: &SC,
         pk: &ProvingKey<SC>,
         chips: &[&MachineChip<SC, A>],
-        shard_data: ShardMainData<SC>,
+        mut shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
     where
@@ -249,7 +237,7 @@ where
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Get the traces.
-        let traces = &shard_data.traces;
+        let traces = &mut shard_data.traces;
 
         let degrees = traces
             .iter()
@@ -277,6 +265,10 @@ where
         for _ in 0..2 {
             permutation_challenges.push(challenger.sample_ext_element());
         }
+        let packed_perm_challenges = permutation_challenges
+            .iter()
+            .map(|c| PackedChallenge::<SC>::from_f(*c))
+            .collect::<Vec<_>>();
 
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
@@ -284,7 +276,7 @@ where
         tracing::debug_span!("generate permutation traces").in_scope(|| {
             chips
                 .par_iter()
-                .zip(traces.par_iter())
+                .zip(traces.par_iter_mut())
                 .map(|(chip, main_trace)| {
                     let preprocessed_trace = pk
                         .chip_ordering
@@ -362,14 +354,17 @@ where
                         .get(&chips[i].name())
                         .map(|&index| {
                             pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
+                                .to_row_major_matrix()
                         })
                         .unwrap_or_else(|| {
                             RowMajorMatrix::new_col(vec![SC::Val::zero(); quotient_domain.size()])
                         });
-                    let main_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain);
-                    let permutation_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&permutation_data, i, *quotient_domain);
+                    let main_trace_on_quotient_domains = pcs
+                        .get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain)
+                        .to_row_major_matrix();
+                    let permutation_trace_on_quotient_domains = pcs
+                        .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
+                        .to_row_major_matrix();
                     quotient_values(
                         chips[i],
                         cumulative_sums[i],
@@ -378,9 +373,9 @@ where
                         preprocessed_trace_on_quotient_domains,
                         main_trace_on_quotient_domains,
                         permutation_trace_on_quotient_domains,
-                        &permutation_challenges,
+                        &packed_perm_challenges,
                         alpha,
-                        shard_data.public_values_digest,
+                        shard_data.public_values.clone(),
                     )
                 })
                 .collect::<Vec<_>>()
@@ -455,6 +450,7 @@ where
                 AirOpenedValues { local, next }
             })
             .collect::<Vec<_>>();
+
         let main_opened_values = main_values
             .into_iter()
             .map(|op| {
@@ -520,7 +516,7 @@ where
             },
             opening_proof,
             chip_ordering: shard_data.chip_ordering,
-            public_values_digest: shard_data.public_values_digest,
+            public_values: shard_data.public_values,
         }
     }
 
