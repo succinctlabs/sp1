@@ -527,6 +527,7 @@ mod tests {
         // reduce steps to prove that the witnessed challenger was correct.
         let mut sp1_challenger = sp1_machine.config().challenger();
         sp1_challenger.observe(vk.commit);
+        sp1_challenger.observe(vk.pc_start);
         for shard_proof in proof.shard_proofs.iter() {
             sp1_challenger.observe(shard_proof.commitment.main_commit);
             sp1_challenger
@@ -603,6 +604,7 @@ mod tests {
 
                 let mut challenger = sp1_machine.config().challenger();
                 challenger.observe(fibonacci_vk.commit);
+                challenger.observe(fibonacci_vk.pc_start);
                 for shard_proof in fibonacci_proof.shard_proofs.iter() {
                     challenger.observe(shard_proof.commitment.main_commit);
                     challenger.observe_slice(&shard_proof.public_values.to_vec());
@@ -655,6 +657,7 @@ mod tests {
 
         let mut challenger = sp1_machine.config().challenger();
         challenger.observe(verify_vk.commit);
+        challenger.observe(verify_vk.pc_start);
         for shard_proof in proof.shard_proofs.iter() {
             challenger.observe(shard_proof.commitment.main_commit);
             challenger.observe_slice(&shard_proof.public_values.to_vec());

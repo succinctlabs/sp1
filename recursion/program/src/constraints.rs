@@ -304,6 +304,7 @@ mod tests {
         println!("Proof generated successfully");
 
         challenger.observe(vk.commit);
+        challenger.observe(vk.pc_start);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
             challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
@@ -431,7 +432,7 @@ mod tests {
         println!("Proof generated and verified successfully");
 
         challenger.observe(vk.commit);
-
+        challenger.observe(vk.pc_start);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
             challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);

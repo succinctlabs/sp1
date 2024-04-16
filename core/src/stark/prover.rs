@@ -78,6 +78,7 @@ where
     {
         // Observe the preprocessed commitment.
         challenger.observe(pk.commit.clone());
+        challenger.observe(pk.pc_start);
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 

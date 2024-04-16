@@ -18,6 +18,9 @@ use p3_maybe_rayon::prelude::*;
 use super::debug_constraints;
 use super::Dom;
 use crate::air::MachineAir;
+use crate::air::MachineProgram;
+use crate::air::PublicValues;
+use crate::air::POSEIDON_NUM_WORDS;
 use crate::air::PV_DIGEST_NUM_WORDS;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
@@ -63,6 +66,7 @@ impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
 
 pub struct ProvingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
+    pub pc_start: Val<SC>,
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
@@ -71,6 +75,7 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
 #[derive(Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
+    pub pc_start: Val<SC>,
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
 }
@@ -191,15 +196,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .map(|(_, trace)| trace)
             .collect::<Vec<_>>();
 
+        let pc_start = program.pc_start();
+
         (
             ProvingKey {
                 commit: commit.clone(),
+                pc_start,
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
             },
             VerifyingKey {
                 commit,
+                pc_start,
                 chip_information,
                 chip_ordering,
             },
@@ -263,16 +272,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     pub fn verify(
         &self,
         vk: &VerifyingKey<SC>,
-        claimed_digest: &[u32; PV_DIGEST_NUM_WORDS],
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
-    ) -> Result<(), ProgramVerificationError>
+    ) -> Result<([u32; PV_DIGEST_NUM_WORDS], [u32; POSEIDON_NUM_WORDS]), ProgramVerificationError>
     where
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Observe the preprocessed commitment.
         challenger.observe(vk.commit.clone());
+        challenger.observe(vk.pc_start);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
@@ -282,45 +291,66 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
+        let mut result = None;
+        if proof.shard_proofs.len() == 0 {
+            return Err(ProgramVerificationError::InvalidShardTransition);
+        }
         for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
+                let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
                 // Verify shard transitions
                 if i == 0 {
                     // If it's the first shard, index should be 1.
-                    if shard_proof.public_values.shard != 1 {
+                    if public_values.shard != SC::Val::one() {
                         return Err(ProgramVerificationError::InvalidShardTransition);
                     }
-                    // TODO: `shard_proof.public_values.first_row_pc` should be the pc_base.
+                    if public_values.start_pc != vk.pc_start {
+                        return Err(ProgramVerificationError::InvalidShardTransition);
+                    }
+                    let pv_digest = public_values
+                        .committed_value_digest
+                        .iter()
+                        .map(|w| w.to_u32())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    let deferred_proofs_digest = public_values
+                        .deferred_proofs_digest
+                        .iter()
+                        .map(|w| w.to_u32())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    result = Some((pv_digest, deferred_proofs_digest));
                 } else {
                     let prev_shard_proof = &proof.shard_proofs[i - 1];
-                    // TODO: some of these checks will need to only apply to shards with cpu chip.
+                    let prev_public_values =
+                        PublicValues::from_vec(prev_shard_proof.public_values.clone());
                     // For non-first shards, the index should be the previous index + 1.
-                    if shard_proof.public_values.shard != prev_shard_proof.public_values.shard - 1 {
+                    if public_values.shard != prev_public_values.shard - SC::Val::one() {
                         return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                     // Next pc should be what the next pc declared in the previous shard was.
-                    if shard_proof.public_values.start_pc != prev_shard_proof.public_values.next_pc
-                    {
+                    if public_values.start_pc != prev_public_values.next_pc {
                         return Err(ProgramVerificationError::InvalidShardTransition);
                     }
-                    // Digest and exit code should be the same in all shards.
-                    if shard_proof.public_values.committed_value_digest
-                        != prev_shard_proof.public_values.committed_value_digest
-                        || shard_proof.public_values.exit_code
-                            != prev_shard_proof.public_values.exit_code
+                    // Digests and exit code should be the same in all shards.
+                    if public_values.committed_value_digest
+                        != prev_public_values.committed_value_digest
+                        || public_values.deferred_proofs_digest
+                            != prev_public_values.deferred_proofs_digest
+                        || public_values.exit_code != prev_public_values.exit_code
                     {
                         return Err(ProgramVerificationError::InvalidShardTransition);
-                    }
-                    // Digest should be the same as the claimed digest.
-                    if shard_proof.public_values.committed_value_digest != *claimed_digest {
-                        return Err(ProgramVerificationError::InvalidPublicValuesDigest);
                     }
                     // The last shard should be halted. Halt is signaled with next_pc == 0.
-                    if i == proof.shard_proofs.len() - 1 && shard_proof.public_values.next_pc != 0 {
+                    if i == proof.shard_proofs.len() - 1 && public_values.next_pc != SC::Val::zero()
+                    {
                         return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                     // All non-last shards should not be halted.
-                    if i != proof.shard_proofs.len() - 1 && shard_proof.public_values.next_pc == 0 {
+                    if i != proof.shard_proofs.len() - 1 && public_values.next_pc == SC::Val::zero()
+                    {
                         return Err(ProgramVerificationError::InvalidShardTransition);
                     }
                 }
@@ -347,7 +377,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             sum += proof.cumulative_sum();
         }
         match sum.is_zero() {
-            true => Ok(()),
+            true => Ok(result.unwrap()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
         }
     }
