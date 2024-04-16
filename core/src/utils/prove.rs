@@ -342,7 +342,6 @@ use p3_uni_stark::Proof;
 
 pub mod baby_bear_poseidon2 {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
