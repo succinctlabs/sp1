@@ -19,6 +19,7 @@ impl SyscallVerifySP1Proof {
 }
 
 impl Syscall for SyscallVerifySP1Proof {
+    #[allow(unused_variables, unused_mut)]
     fn execute(&self, ctx: &mut SyscallContext, vkey_ptr: u32, pv_digest_ptr: u32) -> Option<u32> {
         let rt = &mut ctx.rt;
 

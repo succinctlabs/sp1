@@ -1,9 +1,9 @@
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+use p3_baby_bear::BabyBear;
 use p3_bn254_fr::{Bn254Fr, DiffusionMatrixBN254};
-use p3_challenger::{DuplexChallenger, MultiField32Challenger};
+use p3_challenger::MultiField32Challenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
-use p3_field::{extension::BinomialExtensionField, Field};
+use p3_field::extension::BinomialExtensionField;
 use p3_fri::BatchOpening;
 use p3_fri::CommitPhaseProofStep;
 use p3_fri::QueryProof;
@@ -12,10 +12,10 @@ use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::Poseidon2;
 use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::Hash;
-use p3_symmetric::{MultiField32PaddingFreeSponge, PaddingFreeSponge, TruncatedPermutation};
+use p3_symmetric::{MultiField32PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
-use sp1_core::{stark::StarkGenericConfig, utils::poseidon2_instance::RC_16_30};
+use sp1_core::stark::StarkGenericConfig;
 
 use super::poseidon2::bn254_poseidon2_rc3;
 

@@ -4,7 +4,6 @@ use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
     ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
-use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;

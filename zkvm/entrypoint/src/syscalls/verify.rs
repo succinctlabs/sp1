@@ -17,6 +17,7 @@ cfg_if::cfg_if! {
 }
 
 #[no_mangle]
+#[allow(unused_variables)]
 pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u32; 8]) {
     #[cfg(target_os = "zkvm")]
     {
