@@ -18,6 +18,7 @@ use tracing::instrument;
 
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
+use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadCols;
@@ -77,6 +78,8 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         }
     }
     fn populate_field_ops<F: PrimeField32>(
+        blu_events: &mut Vec<ByteLookupEvent>,
+        shard: u32,
         cols: &mut EdAddAssignCols<F>,
         p_x: BigUint,
         p_y: BigUint,
@@ -89,12 +92,24 @@ impl<E: EllipticCurve + EdwardsParameters> EdAddAssignChip<E> {
         let y3_numerator = cols
             .y3_numerator
             .populate(&[p_y.clone(), p_x.clone()], &[q_y.clone(), q_x.clone()]);
-        let x1_mul_y1 = cols.x1_mul_y1.populate(&p_x, &p_y, FieldOperation::Mul);
-        let x2_mul_y2 = cols.x2_mul_y2.populate(&q_x, &q_y, FieldOperation::Mul);
-        let f = cols.f.populate(&x1_mul_y1, &x2_mul_y2, FieldOperation::Mul);
+        let x1_mul_y1 = cols
+            .x1_mul_y1
+            .populate(blu_events, shard, &p_x, &p_y, FieldOperation::Mul);
+        let x2_mul_y2 = cols
+            .x2_mul_y2
+            .populate(blu_events, shard, &q_x, &q_y, FieldOperation::Mul);
+        let f = cols.f.populate(
+            blu_events,
+            shard,
+            &x1_mul_y1,
+            &x2_mul_y2,
+            FieldOperation::Mul,
+        );
 
         let d = E::d_biguint();
-        let d_mul_f = cols.d_mul_f.populate(&f, &d, FieldOperation::Mul);
+        let d_mul_f = cols
+            .d_mul_f
+            .populate(blu_events, shard, &f, &d, FieldOperation::Mul);
 
         cols.x3_ins.populate(&x3_numerator, &d_mul_f, true);
         cols.y3_ins.populate(&y3_numerator, &d_mul_f, false);
@@ -153,10 +168,18 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 cols.p_ptr = F::from_canonical_u32(event.p_ptr);
                 cols.q_ptr = F::from_canonical_u32(event.q_ptr);
 
-                Self::populate_field_ops(cols, p_x, p_y, q_x, q_y);
+                let mut new_byte_lookup_events = Vec::new();
+                Self::populate_field_ops(
+                    &mut new_byte_lookup_events,
+                    event.shard,
+                    cols,
+                    p_x,
+                    p_y,
+                    q_x,
+                    q_y,
+                );
 
                 // Populate the memory access columns.
-                let mut new_byte_lookup_events = Vec::new();
                 for i in 0..16 {
                     cols.q_access[i]
                         .populate(event.q_memory_records[i], &mut new_byte_lookup_events);
@@ -178,7 +201,15 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
             let mut row = [F::zero(); NUM_ED_ADD_COLS];
             let cols: &mut EdAddAssignCols<F> = row.as_mut_slice().borrow_mut();
             let zero = BigUint::zero();
-            Self::populate_field_ops(cols, zero.clone(), zero.clone(), zero.clone(), zero);
+            Self::populate_field_ops(
+                &mut vec![],
+                0,
+                cols,
+                zero.clone(),
+                zero.clone(),
+                zero.clone(),
+                zero,
+            );
             row
         });
 
@@ -221,10 +252,22 @@ where
         row.y3_numerator.eval::<AB>(builder, &[y1, x1], &[y2, x2]);
 
         // f = x1 * x2 * y1 * y2.
-        row.x1_mul_y1
-            .eval(builder, &x1, &y1, FieldOperation::Mul, row.is_real);
-        row.x2_mul_y2
-            .eval(builder, &x2, &y2, FieldOperation::Mul, row.is_real);
+        row.x1_mul_y1.eval(
+            builder,
+            &x1,
+            &y1,
+            FieldOperation::Mul,
+            row.shard,
+            row.is_real,
+        );
+        row.x2_mul_y2.eval(
+            builder,
+            &x2,
+            &y2,
+            FieldOperation::Mul,
+            row.shard,
+            row.is_real,
+        );
 
         let x1_mul_y1 = row.x1_mul_y1.result;
         let x2_mul_y2 = row.x2_mul_y2.result;
@@ -233,6 +276,7 @@ where
             &x1_mul_y1,
             &x2_mul_y2,
             FieldOperation::Mul,
+            row.shard,
             row.is_real,
         );
 
@@ -240,8 +284,14 @@ where
         let f = row.f.result;
         let d_biguint = E::d_biguint();
         let d_const = E::BaseField::to_limbs_field::<AB::Expr, _>(&d_biguint);
-        row.d_mul_f
-            .eval(builder, &f, &d_const, FieldOperation::Mul, row.is_real);
+        row.d_mul_f.eval(
+            builder,
+            &f,
+            &d_const,
+            FieldOperation::Mul,
+            row.shard,
+            row.is_real,
+        );
 
         let d_mul_f = row.d_mul_f.result;
 

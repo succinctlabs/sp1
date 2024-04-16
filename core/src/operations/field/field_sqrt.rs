@@ -7,6 +7,7 @@ use sp1_derive::AlignedBorrow;
 use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
+use crate::bytes::ByteLookupEvent;
 use crate::utils::ec::field::FieldParameters;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
@@ -25,13 +26,23 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
     /// Populates the trace.
     ///
     /// `P` is the parameter of the field that each limb lives in.
-    pub fn populate(&mut self, a: &BigUint, sqrt_fn: impl Fn(&BigUint) -> BigUint) -> BigUint {
+    pub fn populate(
+        &mut self,
+        blu_events: &mut Vec<ByteLookupEvent>,
+        shard: u32,
+        a: &BigUint,
+        sqrt_fn: impl Fn(&BigUint) -> BigUint,
+    ) -> BigUint {
         let sqrt = sqrt_fn(a);
 
         // Use FieldOpCols to compute result * result.
-        let sqrt_squared =
-            self.multiplication
-                .populate(&sqrt, &sqrt, super::field_op::FieldOperation::Mul);
+        let sqrt_squared = self.multiplication.populate(
+            blu_events,
+            shard,
+            &sqrt,
+            &sqrt,
+            super::field_op::FieldOperation::Mul,
+        );
 
         // If the result is indeed the square root of a, then result * result = a.
         assert_eq!(sqrt_squared, a.clone());
@@ -49,11 +60,16 @@ where
     Limbs<V, P::Limbs>: Copy,
 {
     /// Calculates the square root of `a`.
-    pub fn eval<AB: SP1AirBuilder<Var = V>, E: Into<AB::Expr>>(
+    pub fn eval<
+        AB: SP1AirBuilder<Var = V>,
+        ER: Into<AB::Expr> + Clone,
+        EShard: Into<AB::Expr> + Clone,
+    >(
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var, P::Limbs>,
-        is_real: E,
+        shard: EShard,
+        is_real: ER,
     ) where
         V: Into<AB::Expr>,
     {
@@ -70,6 +86,7 @@ where
             &sqrt,
             &sqrt,
             super::field_op::FieldOperation::Mul,
+            shard,
             is_real,
         );
     }
@@ -85,6 +102,7 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::bytes::event::ByteRecord;
     use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
@@ -135,7 +153,7 @@ mod tests {
         fn generate_trace(
             &self,
             _: &ExecutionRecord,
-            _: &mut ExecutionRecord,
+            output: &mut ExecutionRecord,
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
@@ -155,10 +173,12 @@ mod tests {
             let rows = operands
                 .iter()
                 .map(|a| {
+                    let mut blu_events = Vec::new();
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
-                    cols.sqrt.populate(a, ed25519_sqrt);
+                    cols.sqrt.populate(&mut blu_events, 1, a, ed25519_sqrt);
+                    output.add_byte_lookup_events(blu_events);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -196,7 +216,9 @@ mod tests {
             let local: &TestCols<AB::Var, P> = (*local).borrow();
 
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
-            local.sqrt.eval(builder, &local.a, AB::F::one());
+            local
+                .sqrt
+                .eval(builder, &local.a, AB::F::one(), AB::F::one());
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

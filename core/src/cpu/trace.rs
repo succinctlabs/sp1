@@ -12,6 +12,7 @@ use super::columns::{CPU_COL_MAP, NUM_CPU_COLS};
 use super::{CpuChip, CpuEvent};
 use crate::air::MachineAir;
 use crate::alu::{self, AluEvent};
+use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::cpu::columns::CpuCols;
 use crate::cpu::trace::ByteOpcode::{U16Range, U8Range};

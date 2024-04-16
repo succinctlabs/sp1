@@ -10,6 +10,7 @@ use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
+use crate::bytes::event::ByteRecord;
 use crate::utils::ec::field::FieldParameters;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -37,7 +38,14 @@ pub struct FieldOpCols<T, P: FieldParameters> {
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
-    pub fn populate(&mut self, a: &BigUint, b: &BigUint, op: FieldOperation) -> BigUint {
+    pub fn populate(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        a: &BigUint,
+        b: &BigUint,
+        op: FieldOperation,
+    ) -> BigUint {
         if b == &BigUint::zero() && op == FieldOperation::Div {
             // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
             assert_eq!(
@@ -57,7 +65,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             // to contain the result by the user.
             // Note that this reversal means we have to flip result, a correspondingly in
             // the `eval` function.
-            self.populate(&result, b, FieldOperation::Add);
+            self.populate(record, shard, &result, b, FieldOperation::Add);
             self.result = P::to_limbs_field::<F, _>(&result);
             return result;
         }
@@ -74,7 +82,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             // multiplication because those columns are expected to contain the result by the user.
             // Note that this reversal means we have to flip result, a correspondingly in the `eval`
             // function.
-            self.populate(&result, b, FieldOperation::Mul);
+            self.populate(record, shard, &result, b, FieldOperation::Mul);
             self.result = P::to_limbs_field::<F, _>(&result);
             return result;
         }
@@ -124,24 +132,47 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         self.witness_low = Limbs(p_witness_low.try_into().unwrap());
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
+        // Range checks
+        record.add_u8_range_checks(shard, &P::to_limbs(&result));
+        record.add_u8_range_checks(shard, &P::to_limbs(&carry));
+        record.add_u8_range_checks(
+            shard,
+            &self
+                .witness_low
+                .0
+                .iter()
+                .map(|x| x.as_canonical_u32() as u8)
+                .collect::<Vec<_>>(),
+        );
+        record.add_u8_range_checks(
+            shard,
+            &self
+                .witness_high
+                .0
+                .iter()
+                .map(|x| x.as_canonical_u32() as u8)
+                .collect::<Vec<_>>(),
+        );
+
         result
     }
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
-    #[allow(unused_variables)]
     pub fn eval<
         AB: SP1AirBuilder<Var = V>,
         A: Into<Polynomial<AB::Expr>> + Clone,
         B: Into<Polynomial<AB::Expr>> + Clone,
-        E: Into<AB::Expr>,
+        EShard: Into<AB::Expr> + Clone,
+        ER: Into<AB::Expr> + Clone,
     >(
         &self,
         builder: &mut AB,
         a: &A,
         b: &B,
         op: FieldOperation,
-        is_real: E,
+        shard: EShard,
+        is_real: ER,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
@@ -165,7 +196,11 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         let p_witness_high = self.witness_high.0.iter().into();
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
 
-        // Add range checks
+        // Range checks for the result, carry, and witness columns.
+        builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_low.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.witness_high.0, shard, is_real);
     }
 }
 
@@ -179,6 +214,7 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::bytes::event::ByteRecord;
     use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
@@ -235,7 +271,7 @@ mod tests {
         fn generate_trace(
             &self,
             _: &ExecutionRecord,
-            _: &mut ExecutionRecord,
+            output: &mut ExecutionRecord,
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
@@ -260,11 +296,14 @@ mod tests {
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
+                    let mut blu_events = Vec::new();
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_op_b.populate(a, b, self.operation);
+                    cols.a_op_b
+                        .populate(&mut blu_events, 1, a, b, self.operation);
+                    output.add_byte_lookup_events(blu_events);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -300,9 +339,14 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local
-                .a_op_b
-                .eval(builder, &local.a, &local.b, self.operation, AB::F::one());
+            local.a_op_b.eval(
+                builder,
+                &local.a,
+                &local.b,
+                self.operation,
+                AB::F::one(),
+                AB::F::one(),
+            );
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

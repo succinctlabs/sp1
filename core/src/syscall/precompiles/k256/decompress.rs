@@ -22,6 +22,8 @@ use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
+use crate::bytes::event::ByteRecord;
+use crate::bytes::ByteLookupEvent;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
@@ -162,22 +164,38 @@ impl<F: PrimeField32> K256DecompressCols<F> {
         }
 
         let x = &BigUint::from_bytes_le(&event.x_bytes);
-        self.populate_field_ops(x);
+        self.populate_field_ops(&mut new_byte_lookup_events, event.shard, x);
 
         record.add_byte_lookup_events(new_byte_lookup_events);
     }
 
-    fn populate_field_ops(&mut self, x: &BigUint) {
+    fn populate_field_ops(
+        &mut self,
+        blu_events: &mut Vec<ByteLookupEvent>,
+        shard: u32,
+        x: &BigUint,
+    ) {
         // Y = sqrt(x^3 + b)
-        let x_2 = self
-            .x_2
-            .populate(&x.clone(), &x.clone(), FieldOperation::Mul);
-        let x_3 = self.x_3.populate(&x_2, x, FieldOperation::Mul);
+        let x_2 = self.x_2.populate(
+            blu_events,
+            shard,
+            &x.clone(),
+            &x.clone(),
+            FieldOperation::Mul,
+        );
+        let x_3 = self
+            .x_3
+            .populate(blu_events, shard, &x_2, x, FieldOperation::Mul);
         let b = Secp256k1Parameters::b_int();
-        let x_3_plus_b = self.x_3_plus_b.populate(&x_3, &b, FieldOperation::Add);
-        let y = self.y.populate(&x_3_plus_b, secp256k1_sqrt);
+        let x_3_plus_b = self
+            .x_3_plus_b
+            .populate(blu_events, shard, &x_3, &b, FieldOperation::Add);
+        let y = self
+            .y
+            .populate(blu_events, shard, &x_3_plus_b, secp256k1_sqrt);
         let zero = BigUint::zero();
-        self.neg_y.populate(&zero, &y, FieldOperation::Sub);
+        self.neg_y
+            .populate(blu_events, shard, &zero, &y, FieldOperation::Sub);
         // Decompose bits of least significant Y byte
         let y_bytes = y.to_bytes_le();
         let y_lsb = if y_bytes.is_empty() { 0 } else { y_bytes[0] };
@@ -195,13 +213,20 @@ impl<V: Copy> K256DecompressCols<V> {
         builder.assert_bool(self.is_odd);
 
         let x: Limbs<V, U32> = limbs_from_prev_access(&self.x_access);
-        self.x_2
-            .eval(builder, &x, &x, FieldOperation::Mul, self.is_real);
+        self.x_2.eval(
+            builder,
+            &x,
+            &x,
+            FieldOperation::Mul,
+            self.shard,
+            self.is_real,
+        );
         self.x_3.eval(
             builder,
             &self.x_2.result,
             &x,
             FieldOperation::Mul,
+            self.shard,
             self.is_real,
         );
         let b = Secp256k1Parameters::b_int();
@@ -211,14 +236,17 @@ impl<V: Copy> K256DecompressCols<V> {
             &self.x_3.result,
             &b_const,
             FieldOperation::Add,
+            self.shard,
             self.is_real,
         );
-        self.y.eval(builder, &self.x_3_plus_b.result, self.is_real);
+        self.y
+            .eval(builder, &self.x_3_plus_b.result, self.shard, self.is_real);
         self.neg_y.eval(
             builder,
             &[AB::Expr::zero()].iter(),
             &self.y.multiplication.result,
             FieldOperation::Sub,
+            self.shard,
             self.is_real,
         );
 
@@ -331,7 +359,7 @@ impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
                     .unwrap();
                 cols.x_access[i].access.value = Word(word_bytes);
             }
-            cols.populate_field_ops(&dummy_value);
+            cols.populate_field_ops(&mut vec![], 0, &dummy_value);
             row
         });
 
