@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 use sp1_core::{
-    air::MachineAir,
+    air::{MachineAir, PublicValues, Word},
     stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardProof, StarkGenericConfig},
 };
 use sp1_recursion_compiler::prelude::*;
@@ -62,6 +62,28 @@ impl<C: Config> ReduceProofPublicValuesVariable<C> {
 pub struct ReduceProof<SC: StarkGenericConfig> {
     pub shard_proof: ShardProof<SC>,
     pub public_values: ReduceProofPublicValues<SC>,
+}
+
+impl<SC: StarkGenericConfig> From<ShardProof<SC>> for ReduceProof<SC> {
+    fn from(shard_proof: ShardProof<SC>) -> Self {
+        let pv =
+            PublicValues::<Word<SC::Val>, SC::Val>::from_vec(shard_proof.public_values.clone());
+
+        ReduceProof {
+            shard_proof,
+            public_values: ReduceProofPublicValues {
+                start_pc: pv.start_pc,
+                next_pc: pv.next_pc,
+                start_shard: pv.shard,
+                next_shard: if pv.next_pc == SC::Val::zero() {
+                    SC::Val::zero()
+                } else {
+                    pv.shard + SC::Val::one()
+                },
+                exit_code: pv.exit_code,
+            },
+        }
+    }
 }
 
 #[derive(DslVariable, Clone)]

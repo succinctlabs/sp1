@@ -55,17 +55,6 @@ impl From<ShardProof<SP1SC>> for ReduceProofType {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
-#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
-pub struct ReduceProof<SC: StarkGenericConfig> {
-    pub proof: ShardProof<SC>,
-    pub start_pc: SC::Val,
-    pub next_pc: SC::Val,
-    pub start_shard: SC::Val,
-    pub next_shard: SC::Val,
-}
-
 impl Default for SP1ProverImpl {
     fn default() -> Self {
         Self::new()
@@ -379,8 +368,7 @@ impl SP1ProverImpl {
         }
         let last_proof = reduce_proofs.into_iter().next().unwrap();
         match last_proof {
-            ReduceProofType::FinalRecursive(reduce_proof) => reduce_proof.shard_proof,
-            ReduceProofType::Recursive(proof) => reduce_proof.shard_proof,
+            ReduceProofType::Recursive(reduce_proof) => reduce_proof,
             ReduceProofType::SP1(_) => {
                 // If there's only one shard, we still want to wrap it into an inner proof.
                 self.reduce(sp1_vk, sp1_challenger, &[last_proof], &[])
@@ -444,7 +432,7 @@ impl SP1ProverImpl {
             &[ReduceProofType::Recursive(reduce_proof)],
             &[],
         )
-        .proof
+        .shard_proof
     }
 
     /// Wrap an outer recursive proof into a groth16 proof.
@@ -520,7 +508,7 @@ mod tests {
         std::fs::write("final.bin", serialized).unwrap();
 
         // Wrap into outer proof
-        let outer_proof = prover.wrap_into_outer(&vk, sp1_challenger, final_proof.proof);
+        let outer_proof = prover.wrap_into_outer(&vk, sp1_challenger, final_proof.shard_proof);
 
         // Wrap the final proof into a groth16 proof
         prover.wrap_into_groth16(outer_proof);
@@ -588,7 +576,7 @@ mod tests {
                     prover.reduce_tree::<2>(&fibonacci_vk, challenger, fibonacci_proof);
 
                 let proof = Proof {
-                    shard_proofs: vec![final_proof.proof],
+                    shard_proofs: vec![final_proof.shard_proof],
                 };
                 let serialized = bincode::serialize(&proof).unwrap();
                 std::fs::write("inner_proof.bin", serialized).unwrap();

@@ -10,6 +10,7 @@ use crate::stark::StarkVerifier;
 use crate::types::ReduceProof;
 use crate::types::ReduceProofPublicValuesVariable;
 use crate::types::ReduceProofVariable;
+use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
 use p3_baby_bear::BabyBear;
 use p3_baby_bear::DiffusionMatrixBabybear;
@@ -27,6 +28,7 @@ use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
 use p3_symmetric::PaddingFreeSponge;
 use p3_symmetric::TruncatedPermutation;
 use sp1_core::air::Word;
+use sp1_core::stark::ShardProof;
 use sp1_core::stark::VerifyingKey;
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, StarkGenericConfig};
@@ -133,7 +135,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     let num_deferred_proofs: Var<_> = builder.uninit();
     let deferred_proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
     let deferred_vks: Array<_, VerifyingKeyVariable<_>> = builder.uninit();
-  
+
     // 2) Witness the inputs.
     if setup {
         Vec::<usize>::witness(&is_recursive_flags, &mut builder);
