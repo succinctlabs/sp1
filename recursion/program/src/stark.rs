@@ -366,7 +366,7 @@ pub(crate) mod tests {
         let program = builder.compile_program();
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.witness_stream = witness_stream;
+        runtime.witness_stream = witness_stream.into();
         runtime.run();
         println!(
             "The program executed successfully, number of cycles: {}",

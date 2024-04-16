@@ -28,7 +28,7 @@ use sp1_recursion_core::{
     },
 };
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
-use std::time::Instant;
+use std::{collections::VecDeque, time::Instant};
 
 type SP1SC = BabyBearPoseidon2;
 type InnerSC = BabyBearPoseidon2Inner;
@@ -88,24 +88,8 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 
 impl SP1ProverImpl {
     pub fn new() -> Self {
-        let reduce_setup_program = match std::fs::read("reduce_setup_program.bin") {
-            Ok(proof) => bincode::deserialize::<RecursionProgram<BabyBear>>(&proof).unwrap(),
-            Err(_) => {
-                let program = build_reduce_program(true);
-                let serialized = bincode::serialize(&program).unwrap();
-                std::fs::write("reduce_setup_program.bin", serialized).unwrap();
-                program
-            }
-        };
-        let mut reduce_program = match std::fs::read("reduce_program.bin") {
-            Ok(proof) => bincode::deserialize::<RecursionProgram<BabyBear>>(&proof).unwrap(),
-            Err(_) => {
-                let program = build_reduce_program(false);
-                let serialized = bincode::serialize(&program).unwrap();
-                std::fs::write("reduce_program.bin", serialized).unwrap();
-                program
-            }
-        };
+        let reduce_setup_program = build_reduce_program(true);
+        let mut reduce_program = build_reduce_program(false);
         reduce_program.instructions[0] = Instruction::new(
             sp1_recursion_core::runtime::Opcode::ADD,
             BabyBear::zero(),
@@ -141,12 +125,9 @@ impl SP1ProverImpl {
         <SC as StarkGenericConfig>::Val: PrimeField32,
     {
         let config = SC::default();
-        let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
-        let (_, vk) = machine.setup(&program);
-        let (proof, _) = run_and_prove(program, stdin, config);
-        let mut challenger_ver = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
+        let (proof, _) =
+            tracing::info_span!("prove").in_scope(|| run_and_prove(program, stdin, config));
         proof
     }
 
@@ -169,8 +150,6 @@ impl SP1ProverImpl {
         let recursion_config = InnerSC::default();
         let recursion_machine = RecursionAir::machine(recursion_config.clone());
 
-        println!("nb_proofs {}", reduce_proofs.len());
-
         let is_recursive_flags: Vec<usize> = reduce_proofs
             .iter()
             .map(|p| match p {
@@ -178,20 +157,12 @@ impl SP1ProverImpl {
                 ReduceProof::Recursive(_) => 1,
             })
             .collect();
-        println!("is_recursive_flags = {:?}", is_recursive_flags);
+
         let sorted_indices: Vec<Vec<usize>> = reduce_proofs
             .iter()
             .map(|p| match p {
-                ReduceProof::SP1(proof) => {
-                    let indices = get_sorted_indices(&sp1_machine, proof);
-                    println!("indices = {:?}", indices);
-                    indices
-                }
-                ReduceProof::Recursive(proof) => {
-                    let indices = get_sorted_indices(&recursion_machine, proof);
-                    println!("indices = {:?}", indices);
-                    indices
-                }
+                ReduceProof::SP1(proof) => get_sorted_indices(&sp1_machine, proof),
+                ReduceProof::Recursive(proof) => get_sorted_indices(&recursion_machine, proof),
             })
             .collect();
 
@@ -209,7 +180,7 @@ impl SP1ProverImpl {
         ) = get_preprocessed_data(&recursion_machine, &self.reduce_vk_inner);
 
         // Generate inputs.
-        let mut witness_stream = Vec::new();
+        let mut witness_stream = VecDeque::new();
         witness_stream.extend(is_recursive_flags.write());
         witness_stream.extend(sorted_indices.write());
         witness_stream.extend(sp1_challenger.write());
@@ -230,42 +201,44 @@ impl SP1ProverImpl {
                 }
             }
         }
-        println!("witness_stream.len() = {}", witness_stream.len());
 
         // Execute runtime to get the memory setup.
-        println!("setting up memory for recursion");
-        let machine = RecursionAir::machine(recursion_config.clone());
-        let mut runtime = Runtime::<InnerF, InnerEF, _>::new(
-            &self.reduce_setup_program,
-            machine.config().perm.clone(),
-        );
-        runtime.witness_stream = witness_stream;
-        runtime.run();
-        let mut checkpoint = runtime.memory.clone();
-        runtime.print_stats();
+        let mut checkpoint = tracing::info_span!("setup").in_scope(|| {
+            let machine = RecursionAir::machine(recursion_config.clone());
+            let mut runtime = Runtime::<InnerF, InnerEF, _>::new(
+                &self.reduce_setup_program,
+                machine.config().perm.clone(),
+            );
+            runtime.witness_stream = witness_stream;
+            runtime.run();
+            tracing::info!("took {} cycles", runtime.timestamp);
+            runtime.memory
+        });
 
         // Execute runtime.
-        println!("executing recursion");
-        let machine = RecursionAir::machine(recursion_config);
-        let mut runtime =
-            Runtime::<InnerF, InnerEF, _>::new(&self.reduce_program, machine.config().perm.clone());
-        checkpoint.iter_mut().for_each(|e| {
-            e.timestamp = BabyBear::zero();
+        let record = tracing::info_span!("execute").in_scope(|| {
+            let machine = RecursionAir::machine(recursion_config);
+            let mut runtime = Runtime::<InnerF, InnerEF, _>::new(
+                &self.reduce_program,
+                machine.config().perm.clone(),
+            );
+            checkpoint.iter_mut().for_each(|e| {
+                e.1.timestamp = BabyBear::zero();
+            });
+            runtime.memory = checkpoint;
+            runtime.run();
+            tracing::info!("took {} cycles", runtime.timestamp);
+            runtime.record
         });
-        runtime.memory = checkpoint;
-        runtime.run();
-        runtime.print_stats();
 
         // Generate proof.
-        let config = SC::default();
-        let machine = RecursionAir::machine(config);
-        let (pk, _) = machine.setup(&self.reduce_program);
-
-        let start = Instant::now();
-        let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-        let duration = start.elapsed().as_secs();
-        println!("recursion duration = {}", duration);
+        let proof = tracing::info_span!("prove").in_scope(|| {
+            let config = SC::default();
+            let machine = RecursionAir::machine(config);
+            let (pk, _) = machine.setup(&self.reduce_program);
+            let mut challenger = machine.config().challenger();
+            machine.prove::<LocalProver<_, _>>(&pk, record, &mut challenger)
+        });
 
         proof.shard_proofs.into_iter().next().unwrap()
     }
@@ -283,15 +256,13 @@ impl SP1ProverImpl {
             .into_iter()
             .map(ReduceProof::SP1)
             .collect::<Vec<_>>();
-        let mut layer = 0;
-        while reduce_proofs.len() > 1 {
-            println!("layer = {}, num_proofs = {}", layer, reduce_proofs.len());
-            let start = Instant::now();
-            reduce_proofs =
-                self.reduce_layer(sp1_vk, sp1_challenger.clone(), reduce_proofs, batch_size);
-            let duration = start.elapsed().as_secs();
-            println!("layer {}, reduce duration = {}", layer, duration);
-            layer += 1;
+        let mut first = true;
+        while first || reduce_proofs.len() > 1 {
+            reduce_proofs = tracing::info_span!("reduce layer", proofs = reduce_proofs.len())
+                .in_scope(|| {
+                    self.reduce_layer(sp1_vk, sp1_challenger.clone(), reduce_proofs, batch_size)
+                });
+            first = false;
         }
         let last_proof = reduce_proofs.into_iter().next().unwrap();
         match last_proof {
@@ -308,13 +279,10 @@ impl SP1ProverImpl {
         mut proofs: Vec<ReduceProof>,
         batch_size: usize,
     ) -> Vec<ReduceProof> {
+        // With the last proof, we need to use outer config since the proof will be
+        // verified in groth16 circuit.
         if proofs.len() <= batch_size {
-            // With the last proof, we need to use outer config since the proof will be
-            // verified in groth16 circuit.
-            let start = Instant::now();
             let proof: ShardProof<InnerSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
-            let duration = start.elapsed().as_secs();
-            println!("final reduce duration = {}", duration);
             return vec![ReduceProof::Recursive(proof)];
         }
 
@@ -325,24 +293,13 @@ impl SP1ProverImpl {
             None
         };
 
-        let chunks: Vec<_> = proofs.chunks(batch_size).collect();
-
         // Process at most 4 proofs at once in parallel, due to memory limits.
-        let partition_size = std::cmp::max(1, chunks.len() / 4);
+        let chunks: Vec<_> = proofs.chunks(batch_size).collect();
         let mut new_proofs: Vec<ReduceProof> = chunks
             .into_par_iter()
-            .chunks(partition_size)
-            .flat_map(|partition| {
-                partition
-                    .iter()
-                    .map(|chunk| {
-                        let start = Instant::now();
-                        let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk);
-                        let duration = start.elapsed().as_secs();
-                        println!("reduce duration = {}", duration);
-                        ReduceProof::Recursive(proof)
-                    })
-                    .collect::<Vec<_>>()
+            .map(|partition| {
+                let proof = self.reduce(sp1_vk, sp1_challenger.clone(), partition);
+                ReduceProof::Recursive(proof)
             })
             .collect();
 
@@ -379,74 +336,12 @@ impl SP1ProverImpl {
 
 #[cfg(test)]
 mod tests {
-    use std::{fs::File, io::BufWriter};
 
     use super::*;
-    use itertools::iproduct;
     use sp1_core::utils::setup_logger;
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-
-    #[test]
-    fn sweep_fibonacci() {
-        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-
-        let prover = SP1ProverImpl::new();
-        setup_logger();
-
-        // [2^22 cycles, 2^23 cycles]
-        let iterations = [120000u32, 240000u32];
-        let shard_sizes = [1 << 19, 1 << 20, 1 << 21, 1 << 22, 1 << 23];
-        let batch_sizes = [2, 3, 4];
-        let elf =
-            include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
-
-        let mut lines = vec![
-            "iterations,shard_size,leaf_proving_duration,recursion_proving_duration".to_string(),
-        ];
-
-        #[allow(clippy::never_loop)]
-        for (shard_size, iterations, batch_size) in iproduct!(shard_sizes, iterations, batch_sizes)
-        {
-            println!(
-                "running: shard_size={}, iterations={}, batch_size={}",
-                shard_size, iterations, batch_size
-            );
-            std::env::set_var("SHARD_SIZE", shard_size.to_string());
-
-            let stdin = [bincode::serialize::<u32>(&iterations).unwrap()];
-            let leaf_proving_start = Instant::now();
-            let proof: Proof<BabyBearPoseidon2> = SP1ProverImpl::prove(elf, &stdin);
-            let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
-
-            let sp1_machine = RiscvAir::machine(SP1SC::default());
-            let (_, vk) = sp1_machine.setup(&Program::from(elf));
-            let mut sp1_challenger = sp1_machine.config().challenger();
-            sp1_challenger.observe(vk.commit);
-            for shard_proof in proof.shard_proofs.iter() {
-                sp1_challenger.observe(shard_proof.commitment.main_commit);
-                sp1_challenger.observe_slice(&shard_proof.public_values.to_vec());
-            }
-
-            let recursion_proving_start = Instant::now();
-            let _ = prover.reduce_tree(&vk, sp1_challenger, proof, batch_size);
-            let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
-
-            lines.push(format!(
-                "{},{},{},{}",
-                iterations, shard_size, leaf_proving_duration, recursion_proving_duration
-            ));
-        }
-
-        println!("{:#?}", lines);
-
-        let file = File::create("sweep_fibonacci.txt").unwrap();
-        let mut writer = BufWriter::new(file);
-        for line in lines {
-            writeln!(writer, "{}", line).unwrap();
-        }
-    }
 
     #[test]
     fn test_prove_sp1() {
