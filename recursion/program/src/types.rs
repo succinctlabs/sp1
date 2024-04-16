@@ -48,10 +48,9 @@ impl<C: Config> ReduceProofPublicValuesVariable<C> {
         let elt_array = self.to_array(builder);
         let pv_digest = builder.poseidon2_hash(&elt_array);
 
-        for j in 0..DIGEST_SIZE {
-            let expected_digest_elt = expected_digest[j];
+        for (j, expected_digest_elt) in expected_digest.iter().enumerate().take(DIGEST_SIZE) {
             let digest_element = builder.get(&pv_digest, j);
-            builder.assert_felt_eq(expected_digest_elt, digest_element);
+            builder.assert_felt_eq(*expected_digest_elt, digest_element);
         }
     }
 }
