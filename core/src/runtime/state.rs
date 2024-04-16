@@ -4,6 +4,11 @@ use nohash_hasher::BuildNoHashHasher;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
+use crate::{
+    stark::{Proof, VerifyingKey},
+    utils::BabyBearPoseidon2Inner,
+};
+
 use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
 
 /// Holds data describing the current state of a program's execution.
@@ -37,6 +42,16 @@ pub struct ExecutionState {
     /// A ptr to the current position in the input stream incremented by HINT_READ opcode.
     pub input_stream_ptr: usize,
 
+    /// A stream of proofs inputted to the program.
+    #[serde(skip)] // TODO: fix serialization for VerifyingKey
+    pub proof_stream: Vec<(
+        Proof<BabyBearPoseidon2Inner>,
+        VerifyingKey<BabyBearPoseidon2Inner>,
+    )>,
+
+    /// A ptr to the current position in the proof stream, incremented after verifying a proof.
+    pub proof_stream_ptr: usize,
+
     /// A stream of public values from the program (global to entire program).
     pub public_values_stream: Vec<u8>,
 
@@ -58,6 +73,8 @@ impl ExecutionState {
             input_stream_ptr: 0,
             public_values_stream: Vec::new(),
             public_values_stream_ptr: 0,
+            proof_stream: Vec::new(),
+            proof_stream_ptr: 0,
         }
     }
 }

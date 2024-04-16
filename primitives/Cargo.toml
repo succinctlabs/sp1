@@ -1,0 +1,14 @@
+[package]
+name = "sp1-primitives"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+lazy_static = "1.4.0"
+p3-field = { workspace = true }
+p3-baby-bear = { workspace = true }
+p3-poseidon2 = { workspace = true }
+p3-symmetric = { workspace = true }
+itertools = "0.12.1"

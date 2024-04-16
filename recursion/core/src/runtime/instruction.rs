@@ -20,6 +20,7 @@ pub struct Instruction<F> {
 
     // The offset imm operand.
     pub offset_imm: F,
+
     // The size imm operand.
     pub size_imm: F,
 
