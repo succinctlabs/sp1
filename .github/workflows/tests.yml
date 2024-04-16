@@ -15,7 +15,7 @@ on:
 jobs:
   test:
     name: CI Test Suite
-    runs-on: [warp-ubuntu-latest-arm64-16x, buildjet-32vcpu-ubuntu-2204-arm]
+    runs-on: warp-ubuntu-latest-arm64-16x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -130,7 +130,7 @@ jobs:
 
   lints:
     name: Formatting & Clippy
-    runs-on: [warp-ubuntu-latest-arm64-16x, buildjet-32vcpu-ubuntu-2204-arm]
+    runs-on: warp-ubuntu-latest-arm64-16x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
