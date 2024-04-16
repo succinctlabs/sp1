@@ -456,11 +456,13 @@ impl<
         let next_pc = builder.hint_felt();
         let start_shard = builder.hint_felt();
         let next_shard = builder.hint_felt();
+        let exit_code = builder.hint_felt();
         ReduceProofPublicValuesVariable {
             start_pc,
             next_pc,
             start_shard,
             next_shard,
+            exit_code,
         }
     }
 
@@ -470,6 +472,7 @@ impl<
         stream.extend(self.next_pc.write());
         stream.extend(self.start_shard.write());
         stream.extend(self.next_shard.write());
+        stream.extend(self.exit_code.write());
 
         stream
     }

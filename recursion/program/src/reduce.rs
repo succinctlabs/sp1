@@ -38,6 +38,7 @@ use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Var;
+use sp1_recursion_compiler::prelude::Usize;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
@@ -174,14 +175,14 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     let expected_start_shard = builder.get(&proofs, zero).public_values.start_shard;
 
     builder.range(0, num_proofs).for_each(|i, builder| {
-        let proof = builder.get(&proofs, i);
+        let reduce_proof = builder.get(&proofs, i);
         let sorted_indices = builder.get(&sorted_indices, i);
         let is_recursive = builder.get(&is_recursive_flags, i);
 
-        let shard_start_pc = proof.public_values.start_pc;
-        let shard_next_pc = proof.public_values.next_pc;
-        let shard_start_shard = proof.public_values.start_shard;
-        let shard_next_shard = proof.public_values.next_shard;
+        let shard_start_pc = reduce_proof.public_values.start_pc;
+        let shard_next_pc = reduce_proof.public_values.next_pc;
+        let shard_start_shard = reduce_proof.public_values.start_shard;
+        let shard_next_shard = reduce_proof.public_values.next_shard;
 
         // Verify shard transition
         builder.assert_felt_eq(expected_start_pc, shard_start_pc);
@@ -193,8 +194,9 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
             // Non-recursive proof
             |builder| {
                 let mut pv_elements = Vec::new();
+
                 for i in 0..PROOF_MAX_NUM_PVS {
-                    let element = builder.get(&proof.shard_proof.public_values, i);
+                    let element = builder.get(&reduce_proof.shard_proof.public_values, i);
                     pv_elements.push(element);
                 }
 
@@ -205,7 +207,6 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                 builder.assert_felt_eq(shard_next_pc, pv.next_pc);
                 builder.assert_felt_eq(shard_start_shard, pv.shard);
                 let pv_shard_plus_one: Felt<_> = builder.eval(pv.shard + one_felt);
-
                 let pv_next_pc = felt_to_var(builder, pv.next_pc);
                 builder.if_eq(pv_next_pc, zero).then_or_else(
                     |builder| {
@@ -215,6 +216,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                         builder.assert_felt_eq(shard_next_shard, pv_shard_plus_one);
                     },
                 );
+                builder.assert_felt_eq(reduce_proof.public_values.exit_code, pv.exit_code);
 
                 // Need to convert the shard as a felt to a variable, since `if_eq` only handles variables.
                 let shard_f = pv.shard;
@@ -230,12 +232,9 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
 
                 // Observe current proof commit and public values into reconstruct challenger
                 for j in 0..DIGEST_SIZE {
-                    let element = builder.get(&proof.shard_proof.commitment.main_commit, j);
+                    let element = builder.get(&reduce_proof.shard_proof.commitment.main_commit, j);
                     reconstruct_challenger.observe(builder, element);
                 }
-                // TODO: fix public values observe
-                // let public_values = proof.public_values.to_vec(builder);
-                // reconstruct_challenger.observe_slice(builder, &public_values);
 
                 // Verify proof with copy of witnessed challenger
                 let mut current_challenger = sp1_challenger.as_clone(builder);
@@ -245,7 +244,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                     &sp1_pcs,
                     &sp1_machine,
                     &mut current_challenger,
-                    &proof.shard_proof,
+                    &reduce_proof.shard_proof,
                     sorted_indices.clone(),
                     prep_sorted_indices.clone(),
                     prep_domains.clone(),
@@ -253,19 +252,19 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
             },
             // Recursive proof
             |builder| {
-                let expected_pc_digest = proof.get_expected_pv_digest(builder);
-                proof
+                let expected_pc_digest = reduce_proof.get_expected_pv_digest(builder);
+                reduce_proof
                     .public_values
                     .verify_digest(builder, expected_pc_digest);
 
                 // Build recursion challenger
                 let mut current_challenger = recursion_challenger.as_clone(builder);
                 for j in 0..DIGEST_SIZE {
-                    let element = builder.get(&proof.shard_proof.commitment.main_commit, j);
+                    let element = builder.get(&reduce_proof.shard_proof.commitment.main_commit, j);
                     current_challenger.observe(builder, element);
                 }
                 builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
-                    let element = builder.get(&proof.shard_proof.public_values, j);
+                    let element = builder.get(&reduce_proof.shard_proof.public_values, j);
                     current_challenger.observe(builder, element);
                 });
                 // Verify the proof
@@ -275,7 +274,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                     &recursion_pcs,
                     &recursion_machine,
                     &mut current_challenger,
-                    &proof.shard_proof,
+                    &reduce_proof.shard_proof,
                     sorted_indices.clone(),
                     recursion_prep_sorted_indices.clone(),
                     recursion_prep_domains.clone(),
@@ -298,11 +297,16 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
 
+    let left_most_proof = builder.get(&proofs, zero);
+    let last_proof_idx = Usize::Var(builder.eval(num_proofs - one));
+    let right_most_proof = builder.get(&proofs, last_proof_idx);
+
     let new_pv = ReduceProofPublicValuesVariable {
-        start_pc: builder.get(&proofs, zero).public_values.start_pc,
-        next_pc: builder.get(&proofs, zero).public_values.next_pc,
-        start_shard: builder.get(&proofs, zero).public_values.start_shard,
-        next_shard: builder.get(&proofs, zero).public_values.next_shard,
+        start_pc: left_most_proof.public_values.start_pc,
+        next_pc: right_most_proof.public_values.next_pc,
+        start_shard: left_most_proof.public_values.start_shard,
+        next_shard: right_most_proof.public_values.next_shard,
+        exit_code: right_most_proof.public_values.exit_code,
     };
     let new_pv_array = new_pv.to_array(&mut builder);
 

@@ -21,6 +21,7 @@ pub struct ReduceProofPublicValues<SC: StarkGenericConfig> {
     pub next_pc: SC::Val,
     pub start_shard: SC::Val,
     pub next_shard: SC::Val,
+    pub exit_code: SC::Val,
 }
 
 #[derive(DslVariable, Clone)]
@@ -29,6 +30,7 @@ pub struct ReduceProofPublicValuesVariable<C: Config> {
     pub next_pc: Felt<C::F>,
     pub start_shard: Felt<C::F>,
     pub next_shard: Felt<C::F>,
+    pub exit_code: Felt<C::F>,
 }
 
 impl<C: Config> ReduceProofPublicValuesVariable<C> {

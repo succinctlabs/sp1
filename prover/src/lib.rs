@@ -225,6 +225,15 @@ impl SP1ProverImpl {
             })
             .collect_vec();
 
+        let exit_codes = reduce_proofs
+            .iter()
+            .map(|p| match p {
+                ReduceProofType::SP1(ref proof) => proof.public_values.exit_code,
+                ReduceProofType::Recursive(ref proof) => proof.public_values.exit_code,
+                _ => unreachable!(),
+            })
+            .collect_vec();
+
         let mut reconstruct_challenger = sp1_machine.config().challenger();
         reconstruct_challenger.observe(sp1_vk.commit);
 
@@ -309,6 +318,7 @@ impl SP1ProverImpl {
                 next_pc: next_pcs[next_pcs.len() - 1],
                 start_shard: start_shards[0],
                 next_shard: next_shards[next_shards.len() - 1],
+                exit_code: exit_codes[exit_codes.len() - 1],
             },
         }
     }
@@ -338,6 +348,7 @@ impl SP1ProverImpl {
                         } else {
                             pv.shard + SP1F::one()
                         },
+                        exit_code: pv.exit_code,
                     },
                 })
             })
