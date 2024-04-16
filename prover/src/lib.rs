@@ -419,16 +419,6 @@ impl SP1ProverImpl {
         sp1_challenger: Challenger<SP1SC>,
         mut proofs: Vec<ReduceProofType>,
     ) -> Vec<ReduceProofType> {
-        // if proofs.len() <= N {
-        //     // With the last proof, we need to use outer config since the proof will be
-        //     // verified in groth16 circuit.
-        //     let start = Instant::now();
-        //     let proof: ShardProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &proofs);
-        //     let duration = start.elapsed().as_secs();
-        //     println!("final reduce duration = {}", duration);
-        //     return vec![ReduceProof::FinalRecursive(proof)];
-        // }
-
         // If there's one proof at the end, just push it to the next layer.
         let last_proof = if proofs.len() % N == 1 {
             Some(proofs.pop().unwrap())
