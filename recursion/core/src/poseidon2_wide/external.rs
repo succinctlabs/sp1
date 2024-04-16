@@ -29,7 +29,7 @@ pub struct Poseidon2WideChip;
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2WideCols<T> {
-    pub dummy_cols: [T; 160],
+    pub dummy_cols: [T; 320],
 }
 
 impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {

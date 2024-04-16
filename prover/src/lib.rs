@@ -6,7 +6,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32};
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
