@@ -62,11 +62,11 @@ jobs:
           toolchain: nightly-2024-01-25
           override: true
 
-      - name: Install cargo-prove
-        uses: actions-rs/cargo@v1
-        with:
-          command: install
-          args: --locked --path cli
+      - name: Install sp1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          source ~/.bashrc
+          sp1up
 
       - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
