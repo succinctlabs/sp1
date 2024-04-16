@@ -20,6 +20,7 @@ use tracing_subscriber::{fmt::format::FmtSpan, util::SubscriberInitExt};
 fn main() {
     // Setup tracer.
     let default_filter = "off";
+    let log_appender = tracing_appender::rolling::never("scripts/results", "fibonacci_groth16.log");
     let env_filter = EnvFilter::try_from_default_env()
         .unwrap_or_else(|_| EnvFilter::new(default_filter))
         .add_directive("p3_keccak_air=off".parse().unwrap())
@@ -34,6 +35,7 @@ fn main() {
         .with_thread_names(false)
         .with_env_filter(env_filter)
         .with_span_events(FmtSpan::CLOSE)
+        .with_writer(log_appender)
         .finish()
         .init();
 

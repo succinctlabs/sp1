@@ -2,63 +2,19 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/succinctlabs/sp1-recursion-groth16/babybear"
 )
 
 func TestMain(t *testing.T) {
-	assert := test.NewAssert(t)
-
-	// // Initialize the circuit.
-	// var circuit Circuit
-
-	// // Compile the circuit.
-	// builder := r1cs.NewBuilder
-	// r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
-
-	// // Run the dummy setup.
-	// var pk groth16.ProvingKey
-	// var vk groth16.VerifyingKey
-	// pk, err = groth16.DummySetup(r1cs)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// // Generate the witness.
-	// assignment := Circuit{
-	// 	X: 0,
-	// 	Y: 0,
-	// }
-	// witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-	// publicWitness, err := witness.Public()
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// // Generate the proof.
-	// proof, err := groth16.Prove(r1cs, pk, witness)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
-	// // Verify the proof.
-	// err = groth16.Verify(proof, vk, publicWitness)
-	// if err != nil {
-	// 	t.Fatal(err)
-	// }
-
 	// Get the file name from an environment variable.
 	fileName := os.Getenv("WITNESS_JSON")
 	if fileName == "" {
@@ -97,5 +53,41 @@ func TestMain(t *testing.T) {
 		Felts: felts,
 		Exts:  exts,
 	}
-	assert.ProverSucceeded(&circuit, &circuit, test.WithCurves(ecc.BN254))
+
+	// Compile the circuit.
+	start := time.Now()
+	builder := r1cs.NewBuilder
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	if err != nil {
+		t.Fatal(err)
+	}
+	elapsed := time.Since(start)
+	fmt.Printf("compilation took %s\n", elapsed)
+	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
+
+	// Generate the witness.
+	start = time.Now()
+	assignment, err := frontend.NewWitness(&circuit, ecc.BN254.ScalarField())
+	if err != nil {
+		t.Fatal(err)
+	}
+	elapsed = time.Since(start)
+	fmt.Printf("witness gen took %s\n", elapsed)
+
+	// Run the dummy setup.
+	var pk groth16.ProvingKey
+	pk, err = groth16.DummySetup(r1cs)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Generate the proof.
+	start = time.Now()
+	proof, err := groth16.Prove(r1cs, pk, assignment)
+	if err != nil {
+		t.Fatal(err)
+	}
+	elapsed = time.Since(start)
+	fmt.Printf("proving took %s\n", elapsed)
+	fmt.Println(proof)
 }
