@@ -1,4 +1,4 @@
-//! sp1-primtiives contains types and functions that are used in both sp1-core and sp1-zkvm.
+//! sp1-primitives contains types and functions that are used in both sp1-core and sp1-zkvm.
 //! Because it is imported in the zkvm entrypoint, it should be kept minimal.
 
 use lazy_static::lazy_static;
@@ -1127,7 +1127,6 @@ pub fn poseidon2_hash(input: Vec<BabyBear>) -> [BabyBear; 8] {
     POSEIDON2_HASHER.hash_iter(input)
 }
 
-// TODO: RATE may be wrong for recursion
 pub fn poseidon2_hasher() -> PaddingFreeSponge<
     Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
     16,
@@ -1150,28 +1149,4 @@ lazy_static! {
         8,
         8,
     > = poseidon2_hasher();
-}
-
-pub struct ShardCommitment<C> {
-    pub main_commit: C,
-    pub permutation_commit: C,
-    pub quotient_commit: C,
-}
-
-pub struct AirOpenedValues<T> {
-    pub local: Vec<T>,
-    pub next: Vec<T>,
-}
-
-pub struct ChipOpenedValues<T> {
-    pub preprocessed: AirOpenedValues<T>,
-    pub main: AirOpenedValues<T>,
-    pub permutation: AirOpenedValues<T>,
-    pub quotient: Vec<Vec<T>>,
-    pub cumulative_sum: T,
-    pub log_degree: usize,
-}
-
-pub struct ShardOpenedValues<T> {
-    pub chips: Vec<ChipOpenedValues<T>>,
 }

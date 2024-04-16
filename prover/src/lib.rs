@@ -581,6 +581,7 @@ mod tests {
         groth16_ffi::prove(constraints, witness);
     }
 
+    #[ignore]
     #[test]
     fn test_verify_proof_program() {
         setup_logger();

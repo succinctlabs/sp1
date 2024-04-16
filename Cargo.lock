@@ -4370,6 +4370,7 @@ dependencies = [
  "serial_test",
  "size",
  "sp1-derive",
+ "sp1-primitives",
  "sp1-zkvm",
  "strum",
  "strum_macros",
@@ -4540,6 +4541,7 @@ dependencies = [
  "serde_with",
  "sp1-core",
  "sp1-derive",
+ "sp1-primitives",
  "tracing",
  "zkhash",
 ]

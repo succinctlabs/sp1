@@ -1,4 +1,4 @@
-use crate::{stark::StarkGenericConfig, utils::poseidon2_instance::RC_16_30};
+use crate::stark::StarkGenericConfig;
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
@@ -15,6 +15,7 @@ use p3_symmetric::Hash;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
+use sp1_primitives::RC_16_30;
 
 const DIGEST_SIZE: usize = 8;
 

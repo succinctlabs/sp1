@@ -33,6 +33,7 @@ p3-uni-stark = { workspace = true }
 p3-util = { workspace = true }
 rrs-lib = { git = "https://github.com/GregAC/rrs.git" }
 sp1-derive = { path = "../derive" }
+sp1-primitives = { path = "../primitives" }
 
 anyhow = "1.0.79"
 arrayref = "0.3.6"

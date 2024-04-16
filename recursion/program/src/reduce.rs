@@ -352,12 +352,6 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             });
-            // builder
-            //     .range(0, proof.public_values.len())
-            //     .for_each(|j, builder| {
-            //         let element = builder.get(&proof.public_values, j);
-            //         challenger.observe(builder, element);
-            //     });
             StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                 builder,
                 &recursion_vk.clone(),
@@ -369,7 +363,10 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                 recursion_prep_sorted_indices.clone(),
                 recursion_prep_domains.clone(),
             );
+
             // TODO: verify inner proof's public values (it must be complete)
+
+            // Update deferred proof digest
             // poseidon2( prev_digest || vk.commit || proof.pv_digest )
             let mut poseidon_inputs = builder.array(24);
             builder.range(0, 8).for_each(|j, builder| {

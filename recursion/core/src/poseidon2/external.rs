@@ -8,8 +8,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
-use sp1_core::utils::poseidon2_instance::RC_16_30_U32;
 use sp1_derive::AlignedBorrow;
+use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
