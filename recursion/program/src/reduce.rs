@@ -36,7 +36,6 @@ use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_core::air::PublicValues as RecursionPublicValues;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::config::inner_fri_config;
@@ -252,16 +251,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
             },
             // Recursive proof
             |builder| {
-                let mut pv_elements = Vec::new();
-                for i in 0..PROOF_MAX_NUM_PVS {
-                    let element = builder.get(&proof.shard_proof.public_values, i);
-                    pv_elements.push(element);
-                }
-
-                let proof_pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
-                let expected_pv_digest = proof_pv.committed_value_digest;
-
-                proof.public_values.verify_digest(builder);
+                let expected_pc_digest = proof.get_expected_pv_digest(builder);
 
                 let mut pv = builder.array(4);
                 builder.set(&mut pv, 0, shard_start_pc);
@@ -272,7 +262,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                 let pv_digest = builder.poseidon2_hash(&pv);
 
                 for j in 0..DIGEST_SIZE {
-                    let expected_digest_element = proof_pv.committed_value_digest[j];
+                    let expected_digest_element = expected_pc_digest[j];
                     let digest_element = builder.get(&pv_digest, j);
                     builder.assert_felt_eq(expected_digest_element, digest_element);
                 }

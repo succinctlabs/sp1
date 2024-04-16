@@ -3,9 +3,13 @@ use p3_field::{AbstractExtensionField, AbstractField};
 use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
-    stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardProof, StarkGenericConfig},
+    stark::{
+        AirOpenedValues, Chip, ChipOpenedValues, ShardProof, StarkGenericConfig, PROOF_MAX_NUM_PVS,
+    },
 };
 use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_core::air::PublicValues as RecursionPublicValues;
+use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};
@@ -39,6 +43,21 @@ pub struct ReduceProof<SC: StarkGenericConfig> {
 pub struct ReduceProofVariable<C: Config> {
     pub shard_proof: ShardProofVariable<C>,
     pub public_values: ReduceProofPublicValuesVariable<C>,
+}
+
+impl<C: Config> ReduceProofVariable<C> {
+    pub fn get_expected_pv_digest(&self, builder: &mut Builder<C>) -> [Felt<C::F>; DIGEST_SIZE] {
+        let mut pv_elements = Vec::new();
+        for i in 0..PROOF_MAX_NUM_PVS {
+            let element = builder.get(&self.shard_proof.public_values, i);
+            pv_elements.push(element);
+        }
+
+        let proof_pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
+        let expected_pv_digest = proof_pv.committed_value_digest;
+
+        expected_pv_digest
+    }
 }
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
