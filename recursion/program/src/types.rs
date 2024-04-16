@@ -1,14 +1,45 @@
 use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
+use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::MachineAir,
-    stark::{AirOpenedValues, Chip, ChipOpenedValues},
+    stark::{AirOpenedValues, Chip, ChipOpenedValues, ShardProof, StarkGenericConfig},
 };
 use sp1_recursion_compiler::prelude::*;
 
 use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
+
+#[derive(Serialize, Deserialize)]
+pub struct ReduceProofPublicValues<SC: StarkGenericConfig> {
+    pub start_pc: SC::Val,
+    pub next_pc: SC::Val,
+    pub start_shard: SC::Val,
+    pub next_shard: SC::Val,
+}
+
+#[derive(DslVariable, Clone)]
+pub struct ReduceProofPublicValuesVariable<C: Config> {
+    pub start_pc: Felt<C::F>,
+    pub next_pc: Felt<C::F>,
+    pub start_shard: Felt<C::F>,
+    pub next_shard: Felt<C::F>,
+}
+
+#[derive(Serialize, Deserialize)]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
+pub struct ReduceProof<SC: StarkGenericConfig> {
+    pub shard_proof: ShardProof<SC>,
+    pub public_values: ReduceProofPublicValues<SC>,
+}
+
+#[derive(DslVariable, Clone)]
+pub struct ReduceProofVariable<C: Config> {
+    pub shard_proof: ShardProofVariable<C>,
+    pub public_values: ReduceProofPublicValuesVariable<C>,
+}
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
 #[derive(DslVariable, Clone)]

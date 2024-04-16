@@ -1,7 +1,8 @@
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
+    AirOpenedValuesVariable, ChipOpenedValuesVariable, ReduceProof, ReduceProofPublicValues,
+    ReduceProofPublicValuesVariable, ReduceProofVariable, ShardCommitmentVariable,
     ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
 use p3_challenger::DuplexChallenger;
@@ -432,6 +433,72 @@ where
         stream.extend(self.commitment.write());
         stream.extend(self.opened_values.write());
         stream.extend(self.opening_proof.write());
+        stream.extend(self.public_values.write());
+
+        stream
+    }
+}
+
+// Implement Hintable<C> for ReduceProofPublicValues where SC is equivalent to BabyBearPoseidon2
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+            Val = InnerVal,
+        >,
+    > Hintable<C> for ReduceProofPublicValues<SC>
+{
+    type HintVariable = ReduceProofPublicValuesVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let start_pc = builder.hint_felt();
+        let next_pc = builder.hint_felt();
+        let start_shard = builder.hint_felt();
+        let next_shard = builder.hint_felt();
+        ReduceProofPublicValuesVariable {
+            start_pc,
+            next_pc,
+            start_shard,
+            next_shard,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+        stream.extend(self.start_pc.write());
+        stream.extend(self.next_pc.write());
+        stream.extend(self.start_shard.write());
+        stream.extend(self.next_shard.write());
+
+        stream
+    }
+}
+
+// Implement Hintable<C> for ReduceProof where SC is equivalent to BabyBearPoseidon2
+impl<
+        SC: StarkGenericConfig<
+            Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
+            Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
+            Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
+            Val = InnerVal,
+        >,
+    > Hintable<C> for ReduceProof<SC>
+{
+    type HintVariable = ReduceProofVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let shard_proof = ShardProof::<SC>::read(builder);
+        let public_values = ReduceProofPublicValues::<SC>::read(builder);
+        ReduceProofVariable {
+            shard_proof,
+            public_values,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+        stream.extend(self.shard_proof.write());
         stream.extend(self.public_values.write());
 
         stream

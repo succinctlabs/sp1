@@ -28,6 +28,7 @@ use sp1_recursion_core::{
         RecursionAir,
     },
 };
+use sp1_recursion_program::types::{ReduceProof, ReduceProofPublicValues};
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
 use std::time::Instant;
 
@@ -50,17 +51,6 @@ pub enum ReduceProofType {
     SP1(ReduceProof<SP1SC>),
     Recursive(ReduceProof<InnerSC>),
     FinalRecursive(ReduceProof<OuterSC>),
-}
-
-#[derive(Serialize, Deserialize)]
-#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
-#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
-pub struct ReduceProof<SC: StarkGenericConfig> {
-    pub proof: ShardProof<SC>,
-    pub start_pc: SC::Val,
-    pub next_pc: SC::Val,
-    pub start_shard: SC::Val,
-    pub next_shard: SC::Val,
 }
 
 impl Default for SP1ProverImpl {
@@ -186,12 +176,12 @@ impl SP1ProverImpl {
             .iter()
             .map(|p| match p {
                 ReduceProofType::SP1(reduce_proof) => {
-                    let indices = get_sorted_indices(&sp1_machine, &reduce_proof.proof);
+                    let indices = get_sorted_indices(&sp1_machine, &reduce_proof.shard_proof);
                     println!("indices = {:?}", indices);
                     indices
                 }
                 ReduceProofType::Recursive(reduce_proof) => {
-                    let indices = get_sorted_indices(&recursion_machine, &reduce_proof.proof);
+                    let indices = get_sorted_indices(&recursion_machine, &reduce_proof.shard_proof);
                     println!("indices = {:?}", indices);
                     indices
                 }
@@ -202,8 +192,8 @@ impl SP1ProverImpl {
         let start_pcs = reduce_proofs
             .iter()
             .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.start_pc,
-                ReduceProofType::Recursive(ref proof) => proof.start_pc,
+                ReduceProofType::SP1(ref proof) => proof.public_values.start_pc,
+                ReduceProofType::Recursive(ref proof) => proof.public_values.start_pc,
                 _ => unreachable!(),
             })
             .collect_vec();
@@ -211,8 +201,8 @@ impl SP1ProverImpl {
         let next_pcs = reduce_proofs
             .iter()
             .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.next_pc,
-                ReduceProofType::Recursive(ref proof) => proof.next_pc,
+                ReduceProofType::SP1(ref proof) => proof.public_values.next_pc,
+                ReduceProofType::Recursive(ref proof) => proof.public_values.next_pc,
                 _ => unreachable!(),
             })
             .collect_vec();
@@ -220,8 +210,8 @@ impl SP1ProverImpl {
         let start_shards = reduce_proofs
             .iter()
             .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.start_shard,
-                ReduceProofType::Recursive(ref proof) => proof.start_shard,
+                ReduceProofType::SP1(ref proof) => proof.public_values.start_shard,
+                ReduceProofType::Recursive(ref proof) => proof.public_values.start_shard,
                 _ => unreachable!(),
             })
             .collect_vec();
@@ -229,8 +219,8 @@ impl SP1ProverImpl {
         let next_shards = reduce_proofs
             .iter()
             .map(|p| match p {
-                ReduceProofType::SP1(ref proof) => proof.next_shard,
-                ReduceProofType::Recursive(ref proof) => proof.next_shard,
+                ReduceProofType::SP1(ref proof) => proof.public_values.next_shard,
+                ReduceProofType::Recursive(ref proof) => proof.public_values.next_shard,
                 _ => unreachable!(),
             })
             .collect_vec();
@@ -260,17 +250,13 @@ impl SP1ProverImpl {
         witness_stream.extend(recursion_prep_domains.write());
         witness_stream.extend(sp1_vk.write());
         witness_stream.extend(self.reduce_vk_inner.write());
-        witness_stream.extend(Hintable::write(&start_pcs));
-        witness_stream.extend(Hintable::write(&next_pcs));
-        witness_stream.extend(Hintable::write(&start_shards));
-        witness_stream.extend(Hintable::write(&next_shards));
         for proof in reduce_proofs.iter() {
             match proof {
                 ReduceProofType::SP1(reduce_proof) => {
-                    witness_stream.extend(reduce_proof.proof.write());
+                    witness_stream.extend(reduce_proof.write());
                 }
                 ReduceProofType::Recursive(reduce_proof) => {
-                    witness_stream.extend(reduce_proof.proof.write());
+                    witness_stream.extend(reduce_proof.write());
                 }
                 _ => unreachable!(),
             }
@@ -314,14 +300,16 @@ impl SP1ProverImpl {
 
         assert!(proof.shard_proofs.len() == 1);
 
-        let proof = proof.shard_proofs.into_iter().next().unwrap();
+        let shard_proof = proof.shard_proofs.into_iter().next().unwrap();
 
         ReduceProof {
-            proof,
-            start_pc: start_pcs[0],
-            next_pc: next_pcs[next_pcs.len() - 1],
-            start_shard: start_shards[0],
-            next_shard: next_shards[next_shards.len() - 1],
+            shard_proof,
+            public_values: ReduceProofPublicValues {
+                start_pc: start_pcs[0],
+                next_pc: next_pcs[next_pcs.len() - 1],
+                start_shard: start_shards[0],
+                next_shard: next_shards[next_shards.len() - 1],
+            },
         }
     }
 
@@ -335,18 +323,21 @@ impl SP1ProverImpl {
         let mut reduce_proofs = proof
             .shard_proofs
             .into_iter()
-            .map(|proof| {
-                let pv = PublicValues::<Word<SP1F>, SP1F>::from_vec(proof.public_values.clone());
+            .map(|shard_proof| {
+                let pv =
+                    PublicValues::<Word<SP1F>, SP1F>::from_vec(shard_proof.public_values.clone());
 
                 ReduceProofType::SP1(ReduceProof {
-                    proof,
-                    start_pc: pv.start_pc,
-                    next_pc: pv.next_pc,
-                    start_shard: pv.shard,
-                    next_shard: if pv.next_pc == SP1F::zero() {
-                        SP1F::zero()
-                    } else {
-                        pv.shard + SP1F::one()
+                    shard_proof,
+                    public_values: ReduceProofPublicValues {
+                        start_pc: pv.start_pc,
+                        next_pc: pv.next_pc,
+                        start_shard: pv.shard,
+                        next_shard: if pv.next_pc == SP1F::zero() {
+                            SP1F::zero()
+                        } else {
+                            pv.shard + SP1F::one()
+                        },
                     },
                 })
             })
@@ -362,7 +353,7 @@ impl SP1ProverImpl {
         }
         let last_proof = reduce_proofs.into_iter().next().unwrap();
         match last_proof {
-            ReduceProofType::FinalRecursive(reduce_proof) => reduce_proof.proof,
+            ReduceProofType::FinalRecursive(reduce_proof) => reduce_proof.shard_proof,
             _ => unreachable!(),
         }
     }
