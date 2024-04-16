@@ -315,11 +315,7 @@ impl SP1ProverImpl {
         sp1_challenger: Challenger<SP1SC>,
         proof: ReduceProof,
     ) -> ShardProof<OuterSC> {
-        let start = Instant::now();
-        let proof: ShardProof<OuterSC> = self.reduce(sp1_vk, sp1_challenger.clone(), &[proof]);
-        let duration = start.elapsed().as_secs();
-        println!("final reduce duration = {}", duration);
-        proof
+        self.reduce(sp1_vk, sp1_challenger.clone(), &[proof])
     }
 
     /// Wrap an outer recursive proof into a groth16 proof.
