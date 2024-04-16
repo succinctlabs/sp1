@@ -464,12 +464,24 @@ impl SP1ProverImpl {
     }
 
     /// Wrap a recursive proof into an outer recursive proof that can be verified in groth16.
-    pub fn wrap(&self, proof: ShardProof<InnerSC>) -> ShardProof<OuterSC> {
-        todo!()
+    pub fn wrap_into_outer(
+        &self,
+        sp1_vk: &VerifyingKey<SP1SC>, // TODO: we could read these from proof public values
+        sp1_challenger: Challenger<SP1SC>,
+        proof: ShardProof<InnerSC>,
+    ) -> ShardProof<OuterSC> {
+        let reduce_proof = proof.into();
+        self.reduce(
+            sp1_vk,
+            sp1_challenger,
+            &[ReduceProofType::Recursive(reduce_proof)],
+            &[],
+        )
+        .proof
     }
 
     /// Wrap an outer recursive proof into a groth16 proof.
-    pub fn groth16(&self, proof: ShardProof<OuterSC>) {
+    pub fn wrap_into_groth16(&self, proof: ShardProof<OuterSC>) {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
@@ -532,7 +544,7 @@ mod tests {
         }
 
         let start = Instant::now();
-        let final_proof = prover.reduce_tree::<2>(&vk, sp1_challenger, proof);
+        let final_proof = prover.reduce_tree::<2>(&vk, sp1_challenger.clone(), proof);
         let duration = start.elapsed().as_secs();
         println!("full reduce duration = {}", duration);
 
@@ -540,13 +552,17 @@ mod tests {
         let serialized = bincode::serialize(&final_proof).unwrap();
         std::fs::write("final.bin", serialized).unwrap();
 
+        // Wrap into outer proof
+        let outer_proof = prover.wrap_into_outer(&vk, sp1_challenger, final_proof.proof);
+
         // Wrap the final proof into a groth16 proof
-        prover.wrap(final_proof.proof);
+        prover.wrap_into_groth16(outer_proof);
     }
 
     #[ignore]
     #[test]
     fn test_gnark_final() {
+        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
         let reduce_proof = bincode::deserialize::<ShardProof<BabyBearPoseidon2Outer>>(
             &std::fs::read("final.bin").expect("Failed to read file"),
         )
@@ -568,6 +584,7 @@ mod tests {
     #[test]
     fn test_verify_proof_program() {
         setup_logger();
+        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
         let sp1_machine = RiscvAir::machine(SP1SC::default());
         let fibonacci_io_elf =
@@ -653,13 +670,12 @@ mod tests {
         }
         let reduce_proofs = vec![proof.shard_proofs[0].clone().into()];
         let reduce_proof_to_verify = proof_to_verify.shard_proofs[0].clone();
-        let reduced_proof: ShardProof<InnerSC> = prover
-            .reduce(
-                &verify_vk,
-                challenger,
-                &reduce_proofs,
-                &[(reduce_proof_to_verify, &fibonacci_vk)],
-            )
-            .proof;
+
+        prover.reduce::<InnerSC>(
+            &verify_vk,
+            challenger,
+            &reduce_proofs,
+            &[(reduce_proof_to_verify, &fibonacci_vk)],
+        );
     }
 }
