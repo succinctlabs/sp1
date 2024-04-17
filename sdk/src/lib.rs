@@ -28,7 +28,7 @@ use anyhow::{Context, Ok, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::stark::{Com, DeferredDigest, PcsProverData, PublicValuesDigest, RiscvAir};
+use sp1_core::stark::{Com, DeferredDigest, PcsProverData, RiscvAir};
 use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
