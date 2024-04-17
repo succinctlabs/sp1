@@ -37,7 +37,7 @@ jobs:
         run: |
           curl -L https://sp1.succinct.xyz | bash
           echo "/root/.sp1/bin" >> $GITHUB_PATH
-          /root/.sp1/bin/sp1up
+          sudo /root/.sp1/bin/sp1up
 
       - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
@@ -45,7 +45,7 @@ jobs:
           command: run
           args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
@@ -56,7 +56,7 @@ jobs:
           command: test
           args: -p sp1-core --release
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
@@ -68,7 +68,7 @@ jobs:
           command: test
           args: -p sp1-recursion-compiler --release
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
@@ -80,7 +80,7 @@ jobs:
           command: test
           args: -p sp1-recursion-program --release
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
