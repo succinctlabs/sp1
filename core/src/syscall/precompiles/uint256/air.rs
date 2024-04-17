@@ -1,8 +1,8 @@
 use crate::air::{MachineAir, SP1AirBuilder};
-use crate::memory::{MemoryCols, MemoryReadCols, MemoryWriteCols};
+use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::Limbs;
-use crate::runtime::{ExecutionRecord, Syscall, SyscallCode};
+use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::SyscallContext;
@@ -14,7 +14,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
@@ -72,6 +72,7 @@ pub struct Uint256MulCols<T> {
 
 impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     type Record = ExecutionRecord;
+    type Program = Program;
 
     fn name(&self) -> String {
         "Uint256Mul".to_string()
@@ -232,7 +233,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &Uint256MulCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &Uint256MulCols<AB::Var> = (*local).borrow();
 
         let x = limbs_from_prev_access(&local.x_memory);
         let y = limbs_from_prev_access(&local.y_memory);
@@ -255,7 +257,7 @@ where
         }
 
         // Constraint the memory reads for the x and y values.
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             local.shard,
             local.clk.into(),
             local.y_ptr,
@@ -263,7 +265,7 @@ where
             local.is_real,
         );
 
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             local.shard,
             local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
             local.x_ptr,

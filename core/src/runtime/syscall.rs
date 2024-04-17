@@ -4,6 +4,7 @@ use std::rc::Rc;
 use strum_macros::EnumIter;
 
 use crate::runtime::{Register, Runtime};
+use crate::stark::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;

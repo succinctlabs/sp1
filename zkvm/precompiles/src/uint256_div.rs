@@ -29,11 +29,9 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
                 io::hint_slice(&remainder_bytes);
             };
 
-            let mut quotient_bytes = [0_u8; 32];
-            io::read_slice(&mut quotient_bytes);
+            let mut quotient_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
 
-            let mut remainder_bytes = [0_u8; 32];
-            io::read_slice(&mut remainder_bytes);
+            let mut remainder_bytes: [u8; 32] = io::read_vec().try_into().unwrap();
 
             let remainder = BigUint::from_bytes_le(&remainder_bytes);
 

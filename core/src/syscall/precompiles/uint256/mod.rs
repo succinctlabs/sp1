@@ -6,24 +6,28 @@ pub use air::*;
 mod tests {
 
     use crate::{
+        runtime::Program,
         utils::{
             self,
             ec::{field::FieldParameters, uint256::U256Field, utils::biguint_from_limbs},
+            run_test_io,
             tests::{UINT256_DIV, UINT256_MUL},
         },
-        SP1Prover, SP1Stdin,
+        SP1Stdin,
     };
 
     #[test]
     fn test_uint256_mul() {
         utils::setup_logger();
-        SP1Prover::prove(UINT256_MUL, SP1Stdin::new()).unwrap();
+        let program = Program::from(UINT256_MUL);
+        run_test_io(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]
     fn test_uint256_div() {
         utils::setup_logger();
-        SP1Prover::prove(UINT256_DIV, SP1Stdin::new()).unwrap();
+        let program = Program::from(UINT256_DIV);
+        run_test_io(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]
