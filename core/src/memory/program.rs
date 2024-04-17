@@ -163,6 +163,7 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &MemoryProgramMultCols<AB::Var> = (*mult_local).borrow();
 
+        // Get shard from public values and evaluate whether it is the first shard.
         let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::from_vec(
             builder
                 .public_values()
@@ -170,14 +171,12 @@ where
                 .map(|elm| (*elm).into())
                 .collect::<Vec<_>>(),
         );
-
         IsZeroOperation::<AB::F>::eval(
             builder,
             public_values.shard - AB::Expr::one(),
             mult_local.is_first_shard,
             prep_local.is_real.into(),
         );
-
         let is_first_shard = mult_local.is_first_shard.result;
 
         // Multiplicity must be either 0 or 1.
