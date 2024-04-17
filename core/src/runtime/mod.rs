@@ -28,8 +28,6 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use nohash_hasher::BuildNoHashHasher;
-
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
@@ -967,16 +965,6 @@ impl Runtime {
         }
 
         // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
-
-        // Program Memory is the global constants of the program. We need to mark which of these
-        // addresses are used by the program, as some invocations might not touch all addresses.
-        // program_memory_map maps an addr to its value and whether it was touched during the program.
-        let mut program_memory_map = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
-
-        for (key, value) in &self.program.memory_image {
-            program_memory_map.insert(key, (*value, true));
-        }
-
         let memory_finalize_events = &mut self.record.memory_finalize_events;
 
         // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
@@ -1002,30 +990,11 @@ impl Runtime {
             }
 
             let record = *self.state.memory.get(addr).unwrap();
-            if record.shard == 0 && record.timestamp == 0 {
-                // This means that we never accessed this memory location throughout our entire program.
-                // The only way this can happen is if this was in the program memory image.
-                // We mark this (addr, value) as not touched in the `program_memory_map` map.
-                program_memory_map.insert(addr, (record.value, false));
-                continue;
-            }
 
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
                 *addr, &record,
             ));
         }
-
-        let mut program_memory_events = program_memory_map
-            .into_iter()
-            .map(|(addr, (value, used))| {
-                MemoryInitializeFinalizeEvent::initialize(*addr, value, used)
-            })
-            .collect::<Vec<MemoryInitializeFinalizeEvent>>();
-        // Sort the program_memory_events by addr to create a canonical ordering for the
-        // preprocessed table, as this is part of the vkey.
-        program_memory_events.sort_by_key(|event| event.addr);
-
-        self.record.program_memory_events = program_memory_events;
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {

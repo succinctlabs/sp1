@@ -292,8 +292,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         // Verify the segment proofs.
         tracing::info!("verifying shard proofs");
         let mut result = None;
-        if proof.shard_proofs.len() == 0 {
-            return Err(ProgramVerificationError::InvalidShardTransition);
+        if proof.shard_proofs.is_empty() {
+            return Err(ProgramVerificationError::InvalidShardTransition(
+                "no shards",
+            ));
         }
         for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
@@ -302,10 +304,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 if i == 0 {
                     // If it's the first shard, index should be 1.
                     if public_values.shard != SC::Val::one() {
-                        return Err(ProgramVerificationError::InvalidShardTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "first shard not 1",
+                        ));
                     }
                     if public_values.start_pc != vk.pc_start {
-                        return Err(ProgramVerificationError::InvalidShardTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "wrong pc_start",
+                        ));
                     }
                     let pv_digest = public_values
                         .committed_value_digest
@@ -327,12 +333,16 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     let prev_public_values =
                         PublicValues::from_vec(prev_shard_proof.public_values.clone());
                     // For non-first shards, the index should be the previous index + 1.
-                    if public_values.shard != prev_public_values.shard - SC::Val::one() {
-                        return Err(ProgramVerificationError::InvalidShardTransition);
+                    if public_values.shard != prev_public_values.shard + SC::Val::one() {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "non incremental shard index",
+                        ));
                     }
                     // Next pc should be what the next pc declared in the previous shard was.
                     if public_values.start_pc != prev_public_values.next_pc {
-                        return Err(ProgramVerificationError::InvalidShardTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "pc mismatch",
+                        ));
                     }
                     // Digests and exit code should be the same in all shards.
                     if public_values.committed_value_digest
@@ -341,17 +351,23 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                             != prev_public_values.deferred_proofs_digest
                         || public_values.exit_code != prev_public_values.exit_code
                     {
-                        return Err(ProgramVerificationError::InvalidShardTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "digest or exit code mismatch",
+                        ));
                     }
                     // The last shard should be halted. Halt is signaled with next_pc == 0.
                     if i == proof.shard_proofs.len() - 1 && public_values.next_pc != SC::Val::zero()
                     {
-                        return Err(ProgramVerificationError::InvalidShardTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "last shard isn't halted",
+                        ));
                     }
                     // All non-last shards should not be halted.
                     if i != proof.shard_proofs.len() - 1 && public_values.next_pc == SC::Val::zero()
                     {
-                        return Err(ProgramVerificationError::InvalidShardTransition);
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "non-last shard is halted",
+                        ));
                     }
                 }
 
@@ -498,7 +514,7 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
-    InvalidShardTransition,
+    InvalidShardTransition(&'static str),
     InvalidPublicValuesDigest,
     DebugInteractionsFailed,
 }

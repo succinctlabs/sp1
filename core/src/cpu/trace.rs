@@ -621,7 +621,7 @@ mod tests {
     use super::*;
 
     use crate::runtime::{tests::simple_program, Instruction, Runtime};
-    use crate::utils::run_test;
+    use crate::utils::{run_test, setup_logger};
 
     #[test]
     fn generate_trace() {
@@ -671,6 +671,7 @@ mod tests {
 
     #[test]
     fn prove_trace() {
+        setup_logger();
         let program = simple_program();
         run_test(program).unwrap();
     }
