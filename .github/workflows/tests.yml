@@ -19,8 +19,8 @@ concurrency:
 
 jobs:
   test:
-    name: Test core, recursion-compiler, recursion-program
-    runs-on: warp-ubuntu-2204-x64-32x
+    name: Test
+    runs-on: warp-ubuntu-latest-arm64-32x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -107,10 +107,10 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
-          
+
   lints:
     name: Formatting & Clippy
-    runs-on: warp-ubuntu-latest-x64-32x
+    runs-on: warp-ubuntu-latest-arm64-8x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
