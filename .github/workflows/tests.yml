@@ -54,7 +54,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-core sp1-recursion-compiler sp1-recursion-program sp1-recursion-circuit --release
+          args: -p sp1-core -p sp1-recursion-compiler -p sp1-recursion-program -p sp1-recursion-circuit --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
@@ -67,7 +67,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
+          args: -p sp1-core --release --no-default-features --features debug -- cpu::trace::tests::generate_trace
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
