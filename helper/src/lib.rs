@@ -51,13 +51,13 @@ pub fn build_program(path: &str) {
 fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
-    // Check if RUSTC_WORKSPACE_WRAPPER is set to **clippy-driver
+    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
+    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
     let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
         .map(|val| val.contains("clippy-driver"))
         .unwrap_or(false);
-
     if is_clippy_driver {
-        println!("cargo:warning=Skipping build due to clippy invocation");
+        println!("cargo:warning=Skipping build due to clippy invocation.");
         return Ok(std::process::ExitStatus::default());
     }
 
