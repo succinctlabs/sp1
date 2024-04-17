@@ -7,7 +7,7 @@ use sp1_derive::AlignedBorrow;
 use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
-use crate::bytes::ByteLookupEvent;
+use crate::bytes::event::ByteRecord;
 use crate::utils::ec::field::FieldParameters;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
@@ -28,7 +28,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
     /// `P` is the parameter of the field that each limb lives in.
     pub fn populate(
         &mut self,
-        blu_events: &mut Vec<ByteLookupEvent>,
+        record: &mut impl ByteRecord,
         shard: u32,
         a: &BigUint,
         sqrt_fn: impl Fn(&BigUint) -> BigUint,
@@ -37,7 +37,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
 
         // Use FieldOpCols to compute result * result.
         let sqrt_squared = self.multiplication.populate(
-            blu_events,
+            record,
             shard,
             &sqrt,
             &sqrt,

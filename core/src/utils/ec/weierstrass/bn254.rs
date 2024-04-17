@@ -26,7 +26,7 @@ impl FieldParameters for Bn254BaseField {
     ];
 
     // A rough witness-offset estimate given the size of the limbs and the size of the field.
-    const WITNESS_OFFSET: usize = 1usize << 13;
+    const WITNESS_OFFSET: usize = 1usize << 14;
 
     // The modulus has been taken from py_ecc python library by Ethereum Foundation.
     // https://github.com/ethereum/py_pairing/blob/5f609da/py_ecc/bn128/bn128_field_elements.py#L10-L11
