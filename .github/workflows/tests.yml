@@ -20,7 +20,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: warp-ubuntu-latest-arm64-32x
+    runs-on: [warp-ubuntu-latest-arm64-32x, buildjet-32vcpu-ubuntu-2204-arm, benchmarkers]
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
