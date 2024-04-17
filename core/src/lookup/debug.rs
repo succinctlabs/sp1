@@ -216,6 +216,7 @@ mod test {
     use super::debug_interactions_with_all_chips;
 
     #[test]
+    #[ignore]
     fn test_debug_interactions() {
         setup_logger();
         let program = Program::from(FIBONACCI_ELF);

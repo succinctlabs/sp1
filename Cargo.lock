@@ -893,11 +893,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "blake3-zkvm"
-version = "0.1.0"
-source = "git+https://github.com/sp1-patches/BLAKE3.git?branch=patch-blake3_zkvm/v.1.0.0#bac2d59f9122b07a4d91475560b4c3214ae62444"
-
-[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1672,12 +1667,6 @@ dependencies = [
  "rustc-hex",
  "static_assertions",
 ]
-
-[[package]]
-name = "fixedbitset"
-version = "0.4.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0ce7134b9999ecaf8bcd65542e436736ef32ddca1b3e06094cb6ec5755203b80"
 
 [[package]]
 name = "flate2"
@@ -3055,22 +3044,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "p3-goldilocks"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
-dependencies = [
- "num-bigint 0.4.4",
- "p3-dft",
- "p3-field",
- "p3-mds",
- "p3-poseidon2",
- "p3-symmetric",
- "p3-util",
- "rand",
- "serde",
-]
-
-[[package]]
 name = "p3-interpolation"
 version = "0.1.0"
 source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
@@ -3310,16 +3283,6 @@ dependencies = [
  "memchr",
  "thiserror",
  "ucd-trie",
-]
-
-[[package]]
-name = "petgraph"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1d3afd2628e69da2be385eb6f2fd57c8ac7977ceeff6dc166ff1657b0e386a9"
-dependencies = [
- "fixedbitset",
- "indexmap 2.2.6",
 ]
 
 [[package]]
@@ -4356,21 +4319,14 @@ dependencies = [
  "anyhow",
  "arrayref",
  "bincode",
- "blake3",
- "blake3-zkvm",
- "cfg-if",
- "clap",
  "criterion",
  "curve25519-dalek",
  "elf",
  "elliptic-curve",
- "flate2",
  "generic-array 1.0.0",
- "hashbrown 0.14.3",
  "hex",
  "itertools 0.12.1",
  "k256",
- "lazy_static",
  "log",
  "nohash-hasher",
  "num",
@@ -4383,25 +4339,20 @@ dependencies = [
  "p3-dft",
  "p3-field",
  "p3-fri",
- "p3-goldilocks",
  "p3-keccak",
  "p3-keccak-air",
  "p3-matrix",
  "p3-maybe-rayon",
- "p3-mds",
  "p3-merkle-tree",
  "p3-poseidon2",
  "p3-symmetric",
  "p3-uni-stark",
  "p3-util",
- "petgraph",
  "rand",
  "rayon-scan",
  "rrs-lib",
  "serde",
- "serde_json",
  "serde_with",
- "serial_test",
  "size",
  "snowbridge-amcl",
  "sp1-derive",
@@ -4413,7 +4364,6 @@ dependencies = [
  "tiny-keccak",
  "tracing",
  "tracing-forest",
- "tracing-log",
  "tracing-subscriber",
  "typenum",
 ]

@@ -670,9 +670,13 @@ pub(super) mod baby_bear_blake3 {
 
             let dft = Dft {};
 
+            let num_queries = match std::env::var("FRI_QUERIES") {
+                Ok(value) => value.parse().unwrap(),
+                Err(_) => 100,
+            };
             let fri_config = FriConfig {
                 log_blowup: 1,
-                num_queries: 100,
+                num_queries,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
