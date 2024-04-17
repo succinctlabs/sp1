@@ -1,5 +1,6 @@
 use core::borrow::Borrow;
 use core::mem::size_of;
+use std::borrow::BorrowMut;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -7,8 +8,10 @@ use p3_matrix::Matrix;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
+use sp1_primitives::RC_16_30_U32;
 use tracing::instrument;
 
+use crate::poseidon2::{apply_m_4, external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
@@ -17,9 +20,9 @@ pub const NUM_POSEIDON2_WIDE_COLS: usize = size_of::<Poseidon2WideCols<u8>>();
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
 
-pub const NUM_FULL_ROUNDS: usize = 8;
-pub const NUM_PARTIAL_ROUNDS: usize = 22;
-pub const NUM_ROUNDS: usize = 30;
+pub const NUM_EXTERNAL_ROUNDS: usize = 8;
+pub const NUM_INTERNAL_ROUNDS: usize = 22;
+pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
@@ -29,7 +32,28 @@ pub struct Poseidon2WideChip;
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2WideCols<T> {
-    pub dummy_cols: [T; 160],
+    pub input: [T; WIDTH],
+    pub output: [T; WIDTH],
+    pub external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
+    pub internal_rounds: [Poseidon2WideInternalRoundCols<T>; NUM_INTERNAL_ROUNDS],
+}
+
+// Columns required for external rounds
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+struct Poseidon2WideExternalRoundCols<T> {
+    state: [T; WIDTH],
+    sbox_deg_3: [T; WIDTH],
+    sbox_deg_7: [T; WIDTH],
+}
+
+// Columns required for internal rounds
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+struct Poseidon2WideInternalRoundCols<T> {
+    state: [T; WIDTH],
+    sbox_deg_3: T,
+    sbox_deg_7: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
@@ -49,8 +73,30 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        for _event in &input.poseidon2_events {
-            let row = [F::one(); NUM_POSEIDON2_WIDE_COLS];
+        for event in &input.poseidon2_events {
+            let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];
+            let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
+
+            cols.input = event.input;
+
+            // apply initial round
+            external_linear_layer(&cols.input, &mut cols.external_rounds[0].state);
+
+            // apply first half of external rounds 
+            for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+                Self::generate_external_round(cols, r);
+            }
+
+            // apply internal rounds
+            for r in 0..NUM_INTERNAL_ROUNDS {
+                Self::generate_internal_round(cols, r);
+            }
+
+            // apply second half of external rounds
+            for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+                Self::generate_external_round(cols, r);
+            }
+
             rows.push(row);
         }
 
@@ -77,6 +123,64 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
     }
 }
 
+impl Poseidon2WideChip {
+    fn generate_external_round<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>, r: usize) {
+        let round_cols = cols.external_rounds[r].borrow();
+
+        // rc
+        // we don't need columns for the result of adding rc since the constraint is 
+        // degree 1, so we can absorb this into the constraint for the x^3 part of the sbox
+        let mut add_rc = round_cols.state.clone();
+        for j in 0..WIDTH {
+            add_rc[j] += F::from_wrapped_u32(RC_16_30_U32[r][j]);
+        }
+
+        // sbox
+        for j in 0..WIDTH {
+            round_cols.sbox_deg_3[j] = add_rc[j] * add_rc[j] * add_rc[j];
+            round_cols.sbox_deg_7[j] = round_cols.sbox_deg_3[j] * round_cols.sbox_deg_3[j] * add_rc[j];
+        }
+
+        // write output of the round directly into the next state,
+        // or the output if this is the last round
+        let next_state_cols = if r == (NUM_EXTERNAL_ROUNDS / 2) - 1 {
+            &mut cols.internal_rounds[0].state
+        } else if r == NUM_EXTERNAL_ROUNDS - 1 {
+            &mut cols.output
+        } else {
+            &mut cols.external_rounds[r + 1].state
+        };
+
+        // apply linear layer
+        external_linear_layer(&round_cols.sbox_deg_7, next_state_cols);
+    }
+
+    fn generate_internal_round<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>, r: usize) {
+        let round_cols = cols.internal_rounds[r].borrow();
+
+        // rc
+        // we don't need columns for the result of adding rc since the constraint is 
+        // degree 1, so we can absorb this into the constraint for the x^3 part of the sbox
+        let add_rc = round_cols.state[0] + F::from_wrapped_u32(RC_16_30_U32[r][0]);
+
+        // sbox
+        round_cols.sbox_deg_3 = add_rc * add_rc * add_rc;
+        round_cols.sbox_deg_7 = round_cols.sbox_deg_3 * round_cols.sbox_deg_3 * add_rc;
+
+        // write output of the round directly into the next state,
+        let next_state_cols = if r == NUM_INTERNAL_ROUNDS - 1 {
+            &mut cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state
+        } else {
+            &mut cols.internal_rounds[r + 1].state
+        };
+
+        // apply linear layer
+        let mut linear_layer_input = round_cols.state.clone();
+        linear_layer_input[0] = round_cols.sbox_deg_7;
+        internal_linear_layer(&linear_layer_input, next_state_cols);
+    }
+}
+
 impl<F> BaseAir<F> for Poseidon2WideChip {
     fn width(&self) -> usize {
         NUM_POSEIDON2_WIDE_COLS
@@ -90,7 +194,7 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let local = main.row_slice(0);
-        let local: &Poseidon2WideCols<AB::Var> = (*local).borrow();
+        let local: &Poseidon2WideCols s<AB::Var> = (*local).borrow();
 
         builder.assert_eq(
             local.dummy_cols[0] * local.dummy_cols[0] * local.dummy_cols[0],

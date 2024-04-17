@@ -13,7 +13,10 @@ use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use super::{apply_m_4, matmul_internal, MATRIX_DIAG_16_BABYBEAR_U32};
+use super::{
+    apply_m_4, external_linear_layer, internal_linear_layer, matmul_internal,
+    MATRIX_DIAG_16_BABYBEAR_U32,
+};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
@@ -121,27 +124,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
                 // Apply either the external or internal linear layer.
                 if cols.is_initial == F::one() || cols.is_external == F::one() {
-                    for j in (0..WIDTH).step_by(4) {
-                        apply_m_4(&mut state[j..j + 4]);
-                    }
-                    let sums: [F; 4] = core::array::from_fn(|k| {
-                        (0..WIDTH).step_by(4).map(|j| state[j + k]).sum::<F>()
-                    });
-                    for j in 0..WIDTH {
-                        state[j] += sums[j % 4];
-                    }
+                    external_linear_layer(&state, &mut cols.output);
                 } else if cols.is_internal == F::one() {
-                    let matmul_constants: [F; WIDTH] = MATRIX_DIAG_16_BABYBEAR_U32
-                        .iter()
-                        .map(|x| F::from_wrapped_u32(*x))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    matmul_internal(&mut state, matmul_constants);
+                    internal_linear_layer(&state, &mut cols.output)
                 }
-
-                // Copy the state to the output.
-                cols.output.copy_from_slice(&state);
 
                 round_input = cols.output;
 
