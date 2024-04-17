@@ -1,4 +1,5 @@
 use crate::air::{MachineAir, SP1AirBuilder};
+use crate::memory::MemoryCols;
 use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::Limbs;

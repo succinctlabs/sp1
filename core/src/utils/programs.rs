@@ -91,6 +91,9 @@ pub mod tests {
     pub const UINT256_DIV: &[u8] =
         include_bytes!("../../../tests/uint256-div/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const BLS12381_DECOMPRESS_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-decompress/elf/riscv32im-succinct-zkvm-elf");
+
     pub const VERIFY_PROOF_ELF: &[u8] =
         include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
 }

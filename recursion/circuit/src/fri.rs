@@ -249,7 +249,7 @@ pub mod tests {
         ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
-        outer_fri_config, outer_perm, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
+        outer_perm, test_fri_config, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
         OuterCompress, OuterDft, OuterFriProof, OuterHash, OuterPcs, OuterVal, OuterValMmcs,
     };
 
@@ -407,7 +407,7 @@ pub mod tests {
         let mut rng = &mut OsRng;
         let log_degrees = &[16, 9, 7, 4, 2];
         let perm = outer_perm();
-        let fri_config = outer_fri_config();
+        let fri_config = test_fri_config();
         let hash = OuterHash::new(perm.clone()).unwrap();
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
@@ -450,7 +450,7 @@ pub mod tests {
         challenger.observe(commit);
         let _: OuterChallenge = challenger.sample();
         let fri_challenges_gt = verifier::verify_shape_and_sample_challenges(
-            &outer_fri_config(),
+            &test_fri_config(),
             &proof.fri_proof,
             &mut challenger,
         )
@@ -458,7 +458,7 @@ pub mod tests {
 
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
-        let config = outer_fri_config();
+        let config = test_fri_config();
         let fri_proof = const_fri_proof(&mut builder, proof.fri_proof);
 
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
@@ -494,7 +494,7 @@ pub mod tests {
         let mut rng = &mut OsRng;
         let log_degrees = &[19, 19];
         let perm = outer_perm();
-        let fri_config = outer_fri_config();
+        let fri_config = test_fri_config();
         let hash = OuterHash::new(perm.clone()).unwrap();
         let compress = OuterCompress::new(perm.clone());
         let val_mmcs = OuterValMmcs::new(hash, compress);
@@ -549,7 +549,7 @@ pub mod tests {
 
         // Define circuit.
         let mut builder = Builder::<OuterConfig>::default();
-        let config = outer_fri_config();
+        let config = test_fri_config();
         let proof = const_two_adic_pcs_proof(&mut builder, proof);
         let (commit, rounds) = const_two_adic_pcs_rounds(&mut builder, commit.into(), os);
         let mut challenger = MultiField32ChallengerVariable::new(&mut builder);

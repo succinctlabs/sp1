@@ -13,6 +13,7 @@
     incomplete_features
 )]
 #![feature(generic_const_exprs)]
+#![warn(unused_extern_crates)]
 
 extern crate alloc;
 

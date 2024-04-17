@@ -1,4 +1,5 @@
 mod blake3_compress;
+mod bls12381;
 mod bn254;
 mod ed25519;
 mod halt;
@@ -13,6 +14,7 @@ mod uint256_mul;
 mod unconstrained;
 mod verify;
 
+pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;
 pub use halt::*;
@@ -75,7 +77,6 @@ pub const BN254_ADD: u32 = 0x00_01_01_0E;
 /// Executes `BN254_DOUBLE`.
 pub const BN254_DOUBLE: u32 = 0x00_00_01_0F;
 
-
 /// Executes the `COMMIT` precompile.
 pub const COMMIT: u32 = 0x00_00_00_10;
 
@@ -93,3 +94,6 @@ pub const HINT_READ: u32 = 0x00_00_00_F1;
 
 /// Executes the `UINT256_MUL` precompile.
 pub const UINT256_MUL: u32 = 0x00_01_01_1D;
+
+/// Executes `BLS12381_DECOMPRESS`.
+pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
