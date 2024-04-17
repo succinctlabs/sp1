@@ -60,6 +60,7 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
+          FRI_QUERIES: 1
 
       - name: Run cargo test on sp1-recursion-compiler
         uses: actions-rs/cargo@v1
@@ -71,6 +72,7 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
+          FRI_QUERIES: 1
 
       - name: Run cargo test on sp1-recursion-program
         uses: actions-rs/cargo@v1
@@ -82,6 +84,7 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
+          FRI_QUERIES: 1
 
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
@@ -129,6 +132,7 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
           RUST_LOG: 1
           RUST_BACKTRACE: 1
+          FRI_QUERIES: 1
 
   lints:
     name: Formatting & Clippy
