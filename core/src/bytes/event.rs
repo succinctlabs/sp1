@@ -27,9 +27,12 @@ pub struct ByteLookupEvent {
     pub c: u32,
 }
 
+/// A type that can record byte lookup events.
 pub trait ByteRecord {
+    /// Adds a new `ByteLookupEvent` to the record.
     fn add_byte_lookup_event(&mut self, blu_event: ByteLookupEvent);
 
+    /// Adds a list of `ByteLookupEvent`s to the record.
     fn add_byte_lookup_events(&mut self, blu_events: Vec<ByteLookupEvent>) {
         for blu_event in blu_events.iter() {
             self.add_byte_lookup_event(*blu_event);
@@ -61,22 +64,23 @@ pub trait ByteRecord {
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.
-    fn add_u8_range_checks(&mut self, shard: u32, ls: &[u8]) {
+    fn add_u8_range_checks(&mut self, shard: u32, bytes: &[u8]) {
         let mut index = 0;
-        while index + 1 < ls.len() {
-            self.add_u8_range_check(shard, ls[index], ls[index + 1]);
+        while index + 1 < bytes.len() {
+            self.add_u8_range_check(shard, bytes[index], bytes[index + 1]);
             index += 2;
         }
-        if index < ls.len() {
+        if index < bytes.len() {
             // If the input slice's length is odd, we need to add a check for the last byte.
-            self.add_u8_range_check(shard, ls[index], 0);
+            self.add_u8_range_check(shard, bytes[index], 0);
         }
     }
 
-    fn add_u8_range_checks_field<F: PrimeField32>(&mut self, shard: u32, ls: &[F]) {
+    fn add_u8_range_checks_field<F: PrimeField32>(&mut self, shard: u32, field_values: &[F]) {
         self.add_u8_range_checks(
             shard,
-            &ls.iter()
+            &field_values
+                .iter()
                 .map(|x| x.as_canonical_u32() as u8)
                 .collect::<Vec<_>>(),
         );
