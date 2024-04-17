@@ -574,17 +574,6 @@ impl CpuChip {
             builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
         let digest_word = local.op_c_access.prev_value();
-        // Verify b and c do not change during commit syscall.
-        builder
-            .when(
-                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-            )
-            .assert_word_eq(*local.op_b_access.value(), *local.op_b_access.prev_value());
-        builder
-            .when(
-                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-            )
-            .assert_word_eq(*local.op_c_access.value(), *local.op_c_access.prev_value());
 
         // Verify the public_values_digest_word.
         builder
