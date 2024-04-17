@@ -10,13 +10,13 @@ use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
 use crate::utils::ec::uint256::U256Field;
 use crate::utils::{bytes_to_words_le, limbs_from_prev_access, pad_rows, words_to_bytes_le};
+
 use num::{BigUint, One};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
@@ -33,9 +33,9 @@ pub struct Uint256MulEvent {
     pub shard: u32,
     pub clk: u32,
     pub x_ptr: u32,
-    pub x: [u32; NUM_WORDS],
+    // pub x: [u32; NUM_WORDS],
     pub y_ptr: u32,
-    pub y: [u32; NUM_WORDS],
+    // pub y: [u32; NUM_WORDS],
     pub x_memory_records: [MemoryWriteRecord; NUM_WORDS],
     pub y_memory_records: [MemoryReadRecord; NUM_WORDS],
 }
@@ -84,14 +84,12 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // compute the number of events to process in each chunk.
-        let chunk_size = std::cmp::max(input.uint256_mul_events.len() / num_cpus::get(), 1);
-
         // Generate the trace rows & corresponding records for each chunk of events concurrently.
         let rows_and_records = input
             .uint256_mul_events
-            .par_chunks(chunk_size)
+            .chunks(1)
             .map(|events| {
+                println!("row");
                 let mut records = ExecutionRecord::default();
                 let mut new_byte_lookup_events = Vec::new();
 
@@ -101,18 +99,18 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
-                        // Decode uint256 points
-                        let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
-                        let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
+                        // // Decode uint256 points
+                        // let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
+                        // let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
 
-                        // Assign basic values to the columns.
-                        {
-                            cols.is_real = F::one();
-                            cols.shard = F::from_canonical_u32(event.shard);
-                            cols.clk = F::from_canonical_u32(event.clk);
-                            cols.x_ptr = F::from_canonical_u32(event.x_ptr);
-                            cols.y_ptr = F::from_canonical_u32(event.y_ptr);
-                        }
+                        // // Assign basic values to the columns.
+                        // {
+                        cols.is_real = F::one();
+                        cols.shard = F::from_canonical_u32(event.shard);
+                        cols.clk = F::from_canonical_u32(event.clk);
+                        cols.x_ptr = F::from_canonical_u32(event.x_ptr);
+                        cols.y_ptr = F::from_canonical_u32(event.y_ptr);
+                        // }
 
                         // Memory columns.
                         {
@@ -131,8 +129,8 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             }
                         }
 
-                        // Populate the output columns for Uint256 multiplication.
-                        cols.output.populate(&x, &y, FieldOperation::Mul);
+                        // println!("x={} y={}", x, y);
+                        // cols.output.populate(&x, &y, FieldOperation::Mul);
 
                         row
                     })
@@ -162,11 +160,10 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
 impl Syscall for Uint256MulChip {
     fn num_extra_cycles(&self) -> u32 {
-        1
+        0
     }
 
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
-        let start_clk = rt.clk;
         let x_ptr = arg1;
         if x_ptr % 4 != 0 {
             panic!();
@@ -185,35 +182,32 @@ impl Syscall for Uint256MulChip {
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&x));
         let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&y));
 
-        // Create a mask for the 256 bit number.
+        // // Create a mask for the 256 bit number.
         let mask = BigUint::one() << 256;
 
-        // Perform the multiplication and take the result modulo the mask.
+        // // Perform the multiplication and take the result modulo the mask.
         let result: BigUint = (uint256_x * uint256_y) % mask;
-
-        // Increment the clock since x and y could be the same and therefore we read them at different
-        // clocks.
-        rt.clk += 1;
 
         let mut result_bytes = result.to_bytes_le();
         result_bytes.resize(32, 0u8);
 
-        // Convert the result to low endian u32 words.
+        // // Convert the result to low endian u32 words.
         let result = bytes_to_words_le::<NUM_WORDS>(&result_bytes);
 
         // write the state
-        let state_memory_records = rt.mw_slice(x_ptr, &result).try_into().unwrap();
+        assert_eq!(result.len(), NUM_WORDS);
+        let x_memory_records = rt.mw_slice(x_ptr, &result).try_into().unwrap();
 
         let shard = rt.current_shard();
-
+        let clk = rt.clk;
         rt.record_mut().uint256_mul_events.push(Uint256MulEvent {
             shard,
-            clk: start_clk,
+            clk,
             x_ptr,
-            x,
+            // x,
             y_ptr,
-            y,
-            x_memory_records: state_memory_records,
+            // y,
+            x_memory_records,
             y_memory_records,
         });
 
@@ -268,7 +262,7 @@ where
 
         builder.eval_memory_access_slice(
             local.shard,
-            local.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
+            local.clk.into(),
             local.x_ptr,
             &local.x_memory,
             local.is_real,

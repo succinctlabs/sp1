@@ -18,7 +18,7 @@ pub trait FieldParameters:
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize = Self::Limbs::USIZE;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-    const WITNESS_OFFSET: usize = 1usize << 13;
+    const WITNESS_OFFSET: usize = 1usize << 16;
     const MODULUS: &'static [u8];
 
     fn modulus() -> BigUint {

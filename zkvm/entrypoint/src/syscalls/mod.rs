@@ -93,7 +93,7 @@ pub const HINT_LEN: u32 = 0x00_00_00_F0;
 pub const HINT_READ: u32 = 0x00_00_00_F1;
 
 /// Executes the `UINT256_MUL` precompile.
-pub const UINT256_MUL: u32 = 0x00_01_01_1D;
+pub const UINT256_MUL: u32 = 0x00_00_01_1D;
 
 /// Executes `BLS12381_DECOMPRESS`.
 pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;

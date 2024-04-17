@@ -420,16 +420,6 @@ impl MachineRecord for ExecutionRecord {
             shard.keccak_permute_events.extend_from_slice(keccak_chunk);
         }
 
-        // Uint256 mul arithmetic events.
-        for (uint256_mul_chunk, shard) in take(&mut self.uint256_mul_events)
-            .chunks_mut(config.uint256_mul_len)
-            .zip(shards.iter_mut())
-        {
-            shard
-                .uint256_mul_events
-                .extend_from_slice(uint256_mul_chunk);
-        }
-
         // secp256k1 curve add events.
         for (secp256k1_add_chunk, shard) in take(&mut self.secp256k1_add_events)
             .chunks_mut(config.secp256k1_add_len)
@@ -491,9 +481,6 @@ impl MachineRecord for ExecutionRecord {
 
         // Uint256 mul arithmetic events.
         first.uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
-
-        // Put all byte lookups in the first shard (as the table size is fixed)
-        first.byte_lookups = std::mem::take(&mut self.byte_lookups);
 
         // Bls12-381 decompress events .
         first.bls12381_decompress_events = std::mem::take(&mut self.bls12381_decompress_events);

@@ -95,7 +95,7 @@ pub enum SyscallCode {
     HINT_READ = 0x00_00_00_F1,
 
     /// Executes the `UINT256_MUL` precompile.
-    UINT256_MUL = 0x00_01_01_1D,
+    UINT256_MUL = 0x00_00_01_1D,
 }
 
 impl SyscallCode {
@@ -122,7 +122,7 @@ impl SyscallCode {
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
-            0x00_01_01_1D => SyscallCode::UINT256_MUL,
+            0x00_00_01_1D => SyscallCode::UINT256_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
@@ -319,6 +319,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::BLS12381_DECOMPRESS,
         Rc::new(WeierstrassDecompressChip::<Bls12381>::new()),
     );
+    syscall_map.insert(SyscallCode::UINT256_MUL, Rc::new(Uint256MulChip::new()));
 
     syscall_map
 }
