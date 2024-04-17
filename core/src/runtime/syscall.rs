@@ -85,7 +85,7 @@ pub enum SyscallCode {
     VERIFY_SP1_PROOF = 0x00_00_00_1B,
 
     /// Executes the `BLS12381_DECOMPRESS` precompile.
-    BLS12381_DECOMPRESS = 0x00_00_01_1C,
+    BLS12381_DECOMPRESS = 0x00_01_01_1C,
 
     /// Executes the `HINT_LEN` precompile.
     HINT_LEN = 0x00_00_00_F0,
@@ -118,7 +118,7 @@ impl SyscallCode {
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
-            0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
+            0x00_01_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
