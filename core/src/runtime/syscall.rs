@@ -134,10 +134,6 @@ impl SyscallCode {
     pub fn num_cycles(&self) -> u32 {
         (*self as u32).to_le_bytes()[2].into()
     }
-
-    pub fn is_halt(&self) -> u32 {
-        (*self as u32).to_le_bytes()[3].into()
-    }
 }
 
 pub trait Syscall {

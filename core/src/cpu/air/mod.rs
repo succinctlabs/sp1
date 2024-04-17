@@ -73,9 +73,6 @@ where
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
-        builder
-            .when_not(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.eval_memory_access(
             local.shard,
@@ -84,9 +81,6 @@ where
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
-        builder
-            .when_not(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.
@@ -407,10 +401,10 @@ impl CpuChip {
             .when(is_ecall_instruction.clone() * is_enter_unconstrained)
             .assert_word_eq(local.op_a_val(), zero_word);
 
-        // When the syscall is not one of ENTER_UNCONSTRAINED, HINT_LEN, or HALT, op_a shouldn't change.
+        // When the syscall is not one of ENTER_UNCONSTRAINED or HINT_LEN, op_a shouldn't change.
         builder
             .when(is_ecall_instruction.clone())
-            .when_not(is_enter_unconstrained + is_hint_len + is_halt)
+            .when_not(is_enter_unconstrained + is_hint_len)
             .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
 
         (
@@ -574,17 +568,6 @@ impl CpuChip {
             builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
 
         let digest_word = local.op_c_access.prev_value();
-        // Verify b and c do not change during commit syscall.
-        builder
-            .when(
-                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-            )
-            .assert_word_eq(*local.op_b_access.value(), *local.op_b_access.prev_value());
-        builder
-            .when(
-                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-            )
-            .assert_word_eq(*local.op_c_access.value(), *local.op_c_access.prev_value());
 
         // Verify the public_values_digest_word.
         builder

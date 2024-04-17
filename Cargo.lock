@@ -4590,6 +4590,7 @@ dependencies = [
  "reqwest-middleware",
  "serde",
  "serde_json",
+ "sha2",
  "sp1-core",
  "tokio",
  "tracing",
