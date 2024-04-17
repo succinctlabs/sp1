@@ -50,52 +50,17 @@ jobs:
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
 
-      - name: Run cargo test on sp1-core
+      - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-core --release
+          args: -p sp1-core sp1-recursion-compiler sp1-recursion-program sp1-recursion-circuit --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
-          FRI_QUERIES: 1
-
-      - name: Run cargo test on sp1-recursion-compiler
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: -p sp1-recursion-compiler --release
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
-          FRI_QUERIES: 1
-
-      - name: Run cargo test on sp1-recursion-program
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: -p sp1-recursion-program --release
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
-          FRI_QUERIES: 1
-
-      - name: Run cargo test on sp1-recursion-circuit
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: -p sp1-recursion-circuit --release
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          FRI_QUERIES: 1
+          FRI_QUERIES: 1 
 
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1

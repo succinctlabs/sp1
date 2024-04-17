@@ -8,8 +8,8 @@ fn main() {
     // Setup a tracer for logging.
     utils::setup_tracer();
 
-    // Create an input stream and write '5000' to it.
-    let n = 5000u32;
+    // Create an input stream and write '500' to it.
+    let n = 500u32;
 
     // The expected result of the fibonacci calculation
     let expected_a = 3867074829u32;
