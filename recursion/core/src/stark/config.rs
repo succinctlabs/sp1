@@ -152,7 +152,7 @@ pub fn test_fri_config() -> FriConfig<OuterChallengeMmcs> {
     FriConfig {
         log_blowup: 1,
         num_queries: 1,
-        proof_of_work_bits: 16,
+        proof_of_work_bits: 1,
         mmcs: challenge_mmcs,
     }
 }
