@@ -83,7 +83,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        1
+        0
     }
 }
 
