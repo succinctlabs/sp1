@@ -3824,6 +3824,7 @@ dependencies = [
  "serial_test",
  "size",
  "sp1-derive",
+ "sp1-primitives",
  "strum",
  "strum_macros",
  "tempfile",
@@ -3850,6 +3851,18 @@ version = "0.1.0"
 dependencies = [
  "cargo_metadata",
  "chrono",
+]
+
+[[package]]
+name = "sp1-primitives"
+version = "0.1.0"
+dependencies = [
+ "itertools 0.12.1",
+ "lazy_static",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
 ]
 
 [[package]]

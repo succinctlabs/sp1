@@ -87,6 +87,22 @@ impl ProverClient {
         Ok(SP1PublicValues::from(&runtime.state.public_values_stream))
     }
 
+    /// Simulate the execution of the given ELF with the given inputs and return the public values.
+    pub fn mock_prove(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<SP1ProofWithIO<BabyBearPoseidon2>> {
+        let public_values = ProverClient::execute(elf, stdin.clone())?;
+        Ok(SP1ProofWithIO {
+            proof: Proof {
+                shard_proofs: vec![],
+            },
+            stdin,
+            public_values,
+        })
+    }
+
     /// Generate a proof for the execution of the ELF with the given public inputs. If a
     /// NetworkClient is configured, it uses remote proving, otherwise, it proves locally.
     pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<BabyBearPoseidon2>> {
