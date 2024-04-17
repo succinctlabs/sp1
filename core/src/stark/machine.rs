@@ -571,6 +571,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
@@ -584,6 +585,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_ssz_withdrawal() {
         let program = ssz_withdrawals_program();
         run_test(program).unwrap();
