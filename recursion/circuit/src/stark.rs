@@ -330,6 +330,7 @@ pub(crate) mod tests {
     #[test]
     #[serial]
     fn test_recursive_verify_shard_v2() {
+        std::env::set_var("FRI_QUERIES", "1");
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;

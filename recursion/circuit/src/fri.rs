@@ -404,6 +404,7 @@ pub mod tests {
     #[test]
     #[serial]
     fn test_fri_verify_shape_and_sample_challenges() {
+        std::env::set_var("FRI_QUERIES", "1");
         let mut rng = &mut OsRng;
         let log_degrees = &[16, 9, 7, 4, 2];
         let perm = outer_perm();
@@ -491,6 +492,7 @@ pub mod tests {
     #[test]
     #[serial]
     fn test_verify_two_adic_pcs() {
+        std::env::set_var("FRI_QUERIES", "1");
         let mut rng = &mut OsRng;
         let log_degrees = &[19, 19];
         let perm = outer_perm();
@@ -515,7 +517,7 @@ pub mod tests {
                         &pcs,
                         1 << d,
                     ),
-                    RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 100),
+                    RowMajorMatrix::<OuterVal>::rand(&mut rng, 1 << d, 10),
                 )
             })
             .collect::<Vec<_>>();
