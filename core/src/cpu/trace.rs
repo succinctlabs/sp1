@@ -546,7 +546,6 @@ impl CpuChip {
             let syscall_id = cols.op_a_access.prev_value[0];
             // let send_to_table = cols.op_a_access.prev_value[1];
             // let num_cycles = cols.op_a_access.prev_value[2];
-            // let is_halt = cols.op_a_access.prev_value[3];
 
             // Populate `is_enter_unconstrained`.
             ecall_cols
