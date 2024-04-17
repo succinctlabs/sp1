@@ -261,7 +261,7 @@ impl ShaCompressChip {
         // During compression, verify that memory is read only and does not change.
         builder
             .when(local.is_compression)
-            .assert_word_eq(local.mem.prev_value(), local.mem.value());
+            .assert_word_eq(*local.mem.prev_value(), *local.mem.value());
 
         // In the finalize phase, verify that the correct value is written to memory.
         builder
