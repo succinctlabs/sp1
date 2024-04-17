@@ -73,9 +73,6 @@ where
             &local.op_b_access,
             AB::Expr::one() - local.selectors.imm_b,
         );
-        builder
-            .when_not(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
 
         builder.eval_memory_access(
             local.shard,
@@ -84,9 +81,6 @@ where
             &local.op_c_access,
             AB::Expr::one() - local.selectors.imm_c,
         );
-        builder
-            .when_not(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
 
         // Write the `a` or the result to the first register described in the instruction unless
         // we are performing a branch or a store.

@@ -16,6 +16,7 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 
 use super::debug_constraints;
+use super::Challenger;
 use super::DeferredDigest;
 use super::Dom;
 use super::PublicValuesDigest;
@@ -72,12 +73,26 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
 }
 
+impl<SC: StarkGenericConfig> ProvingKey<SC> {
+    pub fn observe_into(&self, challenger: &mut SC::Challenger) {
+        challenger.observe(self.commit.clone());
+        challenger.observe(self.pc_start);
+    }
+}
+
 #[derive(Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub pc_start: Val<SC>,
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
+}
+
+impl<SC: StarkGenericConfig> VerifyingKey<SC> {
+    pub fn observe_into(&self, challenger: &mut SC::Challenger) {
+        challenger.observe(self.commit.clone());
+        challenger.observe(self.pc_start);
+    }
 }
 
 impl<SC: StarkGenericConfig> Debug for VerifyingKey<SC> {
@@ -280,8 +295,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Observe the preprocessed commitment.
-        challenger.observe(vk.commit.clone());
-        challenger.observe(vk.pc_start);
+        vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
@@ -289,7 +303,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             });
         });
 
-        // Verify the segment proofs.
+        // Verify the shard proofs.
         tracing::info!("verifying shard proofs");
         let mut result = None;
         if proof.shard_proofs.is_empty() {

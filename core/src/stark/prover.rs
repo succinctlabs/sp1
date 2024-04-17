@@ -77,8 +77,7 @@ where
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Observe the preprocessed commitment.
-        challenger.observe(pk.commit.clone());
-        challenger.observe(pk.pc_start);
+        pk.observe_into(challenger);
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
