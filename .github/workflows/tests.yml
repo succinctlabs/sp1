@@ -8,7 +8,7 @@ on:
       - "**"
     paths:
       - "core/**"
-      - "recursion/**"
+      - "recursion/**"a
       - "sdk/**"
       - "examples/fibonacci-io/**"
       - ".github/workflows/**"
@@ -20,7 +20,7 @@ concurrency:
 jobs:
   test:
     name: Test core, recursion-compiler, recursion-program
-    runs-on: warp-ubuntu-latest-arm64-16x
+    runs-on: warp-ubuntu-2204-x64-32x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -99,7 +99,7 @@ jobs:
 
   test-recursion-circuit:
     name: Test recursion-circuit
-    runs-on: warp-ubuntu-latest-arm64-16x
+    runs-on: warp-ubuntu-2204-x64-32x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -125,7 +125,7 @@ jobs:
 
   lints:
     name: Formatting & Clippy
-    runs-on: warp-ubuntu-latest-arm64-16x
+    runs-on: warp-ubuntu-latest-x64-32x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
