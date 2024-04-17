@@ -8,7 +8,7 @@ on:
       - "**"
     paths:
       - "core/**"
-      - "recursion/**"a
+      - "recursion/**"
       - "sdk/**"
       - "examples/fibonacci-io/**"
       - ".github/workflows/**"
