@@ -1,7 +1,7 @@
+pub mod bls12381;
 pub mod bn254;
 pub mod io;
 pub mod secp256k1;
-pub mod bls12381;
 pub mod unconstrained;
 pub mod utils;
 pub mod verify;

@@ -27,13 +27,13 @@ pub(crate) mod riscv_chips {
     pub use crate::syscall::precompiles::sha256::ShaCompressChip;
     pub use crate::syscall::precompiles::sha256::ShaExtendChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
-    pub use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
+    pub use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
     pub use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
     pub use crate::utils::ec::edwards::EdwardsCurve;
+    pub use crate::utils::ec::weierstrass::bls12_381::Bls12381Parameters;
     pub use crate::utils::ec::weierstrass::bn254::Bn254Parameters;
     pub use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
-    pub use crate::utils::ec::weierstrass::bls12_381::Bls12381Parameters;
     pub use crate::utils::ec::weierstrass::SwCurve;
 }
 
