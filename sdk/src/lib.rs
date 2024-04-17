@@ -15,6 +15,8 @@ pub mod utils {
     };
 }
 
+use sha2::Digest;
+use sha2::Sha256;
 pub use sp1_core::air::PublicValues;
 
 pub use crate::io::*;
@@ -252,7 +254,7 @@ impl ProverClient {
         &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<BabyBearPoseidon2>,
-    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError> {
+    ) -> Result<DeferredDigest, ProgramVerificationError> {
         self.verify_with_config(elf, proof, BabyBearPoseidon2::new())
     }
 
@@ -261,7 +263,7 @@ impl ProverClient {
         elf: &[u8],
         proof: &SP1ProofWithIO<SC>,
         config: SC,
-    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError>
+    ) -> Result<DeferredDigest, ProgramVerificationError>
     where
         SC: StarkGenericConfig,
         SC::Challenger: Clone,
@@ -275,7 +277,14 @@ impl ProverClient {
         let machine = RiscvAir::machine(config);
 
         let (_, vk) = machine.setup(&Program::from(elf));
-        machine.verify(&vk, &proof.proof, &mut challenger)
+        let (pv_digest, deferred_digest) = machine.verify(&vk, &proof.proof, &mut challenger)?;
+
+        let recomputed_hash = Sha256::digest(&proof.public_values.buffer.data);
+        if recomputed_hash.as_slice() != pv_digest.0.as_slice() {
+            return Err(ProgramVerificationError::InvalidPublicValuesDigest);
+        }
+
+        Result::Ok(deferred_digest)
     }
 }
 
