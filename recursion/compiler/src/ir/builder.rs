@@ -43,7 +43,14 @@ impl<T> TracedVec<T> {
 
     pub fn push(&mut self, value: T) {
         self.vec.push(value);
-        self.traces.push(Some(Backtrace::new_unresolved()));
+        match std::env::var("SP1_DEBUG") {
+            Ok(_) => {
+                self.traces.push(Some(Backtrace::new_unresolved()));
+            }
+            Err(_) => {
+                self.traces.push(None);
+            }
+        };
     }
 
     pub fn extend<I: IntoIterator<Item = (T, Option<Backtrace>)>>(&mut self, iter: I) {

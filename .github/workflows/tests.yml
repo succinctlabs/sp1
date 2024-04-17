@@ -80,7 +80,7 @@ jobs:
           command: test
           args: -p sp1-recursion-program --release
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
@@ -92,7 +92,7 @@ jobs:
           command: test
           args: -p sp1-recursion-circuit --release
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           FRI_QUERIES: 1
@@ -103,7 +103,7 @@ jobs:
           command: test
           args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
