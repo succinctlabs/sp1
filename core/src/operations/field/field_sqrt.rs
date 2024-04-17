@@ -1,11 +1,13 @@
+use std::fmt::Debug;
+
+use num::BigUint;
+use p3_field::PrimeField32;
+use sp1_derive::AlignedBorrow;
+
 use super::field_op::FieldOpCols;
 use super::params::Limbs;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-use num::BigUint;
-use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
 /// limb lives.
@@ -78,6 +80,7 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
     use crate::utils::ec::field::FieldParameters;
@@ -90,7 +93,7 @@ mod tests {
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::MatrixRowSlices;
+    use p3_matrix::Matrix;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
@@ -116,6 +119,8 @@ mod tests {
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for EdSqrtChip<P> {
         type Record = ExecutionRecord;
+
+        type Program = Program;
 
         fn name(&self) -> String {
             "EdSqrtChip".to_string()
@@ -181,7 +186,8 @@ mod tests {
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var, P> = main.row_slice(0).borrow();
+            let local = main.row_slice(0);
+            let local: &TestCols<AB::Var, P> = (*local).borrow();
 
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
             local.sqrt.eval::<AB>(builder, &local.a);

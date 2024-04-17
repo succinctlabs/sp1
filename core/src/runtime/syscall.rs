@@ -1,5 +1,9 @@
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use strum_macros::EnumIter;
+
 use crate::runtime::{Register, Runtime};
-use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
 use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::k256::K256DecompressChip;
@@ -8,15 +12,13 @@ use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
 use crate::syscall::{
-    SyscallEnterUnconstrained, SyscallExitUnconstrained, SyscallHalt, SyscallLWA, SyscallWrite,
+    SyscallCommit, SyscallCommitDeferred, SyscallEnterUnconstrained, SyscallExitUnconstrained,
+    SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
 use crate::utils::ec::weierstrass::bls12_381::Bls12381;
 use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
-use std::collections::HashMap;
-use std::rc::Rc;
-use strum_macros::EnumIter;
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
 /// The syscall number is a 32-bit integer, with the following layout (in litte-endian format)
@@ -24,15 +26,11 @@ use strum_macros::EnumIter;
 /// - The second byte is 0/1 depending on whether the syscall has a separate table. This is used
 /// in the CPU table to determine whether to lookup the syscall using the syscall interaction.
 /// - The third byte is the number of additional cycles the syscall uses.
-/// - The fourth byte is 0/1 depending on whether the syscall is the HALT syscall.
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash, EnumIter)]
 #[allow(non_camel_case_types)]
 pub enum SyscallCode {
     /// Halts the program.
-    HALT = 0x01_00_00_00,
-
-    /// Loads a word supplied from the prover.
-    LWA = 0x00_00_00_01,
+    HALT = 0x00_00_00_00,
 
     /// Write to the output buffer.
     WRITE = 0x00_00_00_02,
@@ -75,6 +73,21 @@ pub enum SyscallCode {
 
     /// Executes the `BN254_DOUBLE` precompile.
     BN254_DOUBLE = 0x00_00_01_0F,
+ 
+    /// Executes the `COMMIT` precompile.
+    COMMIT = 0x00_00_00_10,
+
+    /// Executes the `COMMIT_DEFERRED_PROOFS` precompile.
+    COMMIT_DEFERRED_PROOFS = 0x00_00_00_1A,
+
+    /// Executes the `VERIFY_SP1_PROOF` precompile.
+    VERIFY_SP1_PROOF = 0x00_00_00_1B,
+
+    /// Executes the `HINT_LEN` precompile.
+    HINT_LEN = 0x00_00_00_F0,
+
+    /// Executes the `HINT_READ` precompile.
+    HINT_READ = 0x00_00_00_F1,
 
     /// Executes the `BLS12381_ADD` precompile.
     BLS12381_ADD = 0x00_01_01_11,
@@ -87,8 +100,7 @@ impl SyscallCode {
     /// Create a syscall from a u32.
     pub fn from_u32(value: u32) -> Self {
         match value {
-            0x01_00_00_00 => SyscallCode::HALT,
-            0x00_00_00_01 => SyscallCode::LWA,
+            0x00_00_00_00 => SyscallCode::HALT,
             0x00_00_00_02 => SyscallCode::WRITE,
             0x00_00_00_03 => SyscallCode::ENTER_UNCONSTRAINED,
             0x00_00_00_04 => SyscallCode::EXIT_UNCONSTRAINED,
@@ -103,8 +115,16 @@ impl SyscallCode {
             0x00_38_01_0D => SyscallCode::BLAKE3_COMPRESS_INNER,
             0x00_01_01_0E => SyscallCode::BN254_ADD,
             0x00_00_01_0F => SyscallCode::BN254_DOUBLE,
+<<<<<<< HEAD
             0x00_01_01_11 => SyscallCode::BLS12381_ADD,
             0x00_00_01_12 => SyscallCode::BLS12381_DOUBLE,
+=======
+            0x00_00_00_10 => SyscallCode::COMMIT,
+            0x00_00_00_1A => SyscallCode::COMMIT_DEFERRED_PROOFS,
+            0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
+            0x00_00_00_F0 => SyscallCode::HINT_LEN,
+            0x00_00_00_F1 => SyscallCode::HINT_READ,
+>>>>>>> main
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -129,7 +149,7 @@ impl SyscallCode {
 pub trait Syscall {
     /// Execute the syscall and return the resulting value of register a0. `arg1` and `arg2` are the
     /// values in registers X10 and X11, respectively. While not a hard requirement, the convention
-    /// is that the return value is only for system calls such as `LWA`. Most precompiles use `arg1`
+    /// is that the return value is only for system calls such as `HALT`. Most precompiles use `arg1`
     /// and `arg2` to denote the addresses of the input data, and write the result to the memory at
     /// `arg1`.
     fn execute(&self, ctx: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32>;
@@ -147,6 +167,8 @@ pub struct SyscallContext<'a> {
     pub clk: u32,
 
     pub(crate) next_pc: u32,
+    /// This is the exit_code used for the HALT syscall
+    pub(crate) exit_code: u32,
     pub(crate) rt: &'a mut Runtime,
 }
 
@@ -158,6 +180,7 @@ impl<'a> SyscallContext<'a> {
             current_shard,
             clk,
             next_pc: runtime.state.pc.wrapping_add(4),
+            exit_code: 0,
             rt: runtime,
         }
     }
@@ -224,12 +247,15 @@ impl<'a> SyscallContext<'a> {
     pub fn set_next_pc(&mut self, next_pc: u32) {
         self.next_pc = next_pc;
     }
+
+    pub fn set_exit_code(&mut self, exit_code: u32) {
+        self.exit_code = exit_code;
+    }
 }
 
 pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
     let mut syscall_map = HashMap::<SyscallCode, Rc<dyn Syscall>>::default();
     syscall_map.insert(SyscallCode::HALT, Rc::new(SyscallHalt {}));
-    syscall_map.insert(SyscallCode::LWA, Rc::new(SyscallLWA::new()));
     syscall_map.insert(SyscallCode::SHA_EXTEND, Rc::new(ShaExtendChip::new()));
     syscall_map.insert(SyscallCode::SHA_COMPRESS, Rc::new(ShaCompressChip::new()));
     syscall_map.insert(
@@ -266,6 +292,7 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(WeierstrassDoubleAssignChip::<Bn254>::new()),
     );
     syscall_map.insert(
+<<<<<<< HEAD
         SyscallCode::BLAKE3_COMPRESS_INNER,
         Rc::new(Blake3CompressInnerChip::new()),
     );
@@ -278,6 +305,8 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(WeierstrassDoubleAssignChip::<Bls12381>::new()),
     );
     syscall_map.insert(
+=======
+>>>>>>> main
         SyscallCode::ENTER_UNCONSTRAINED,
         Rc::new(SyscallEnterUnconstrained::new()),
     );
@@ -286,6 +315,17 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(SyscallExitUnconstrained::new()),
     );
     syscall_map.insert(SyscallCode::WRITE, Rc::new(SyscallWrite::new()));
+    syscall_map.insert(SyscallCode::COMMIT, Rc::new(SyscallCommit::new()));
+    syscall_map.insert(
+        SyscallCode::COMMIT_DEFERRED_PROOFS,
+        Rc::new(SyscallCommitDeferred::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::VERIFY_SP1_PROOF,
+        Rc::new(SyscallVerifySP1Proof::new()),
+    );
+    syscall_map.insert(SyscallCode::HINT_LEN, Rc::new(SyscallHintLen::new()));
+    syscall_map.insert(SyscallCode::HINT_READ, Rc::new(SyscallHintRead::new()));
 
     syscall_map
 }
@@ -299,6 +339,10 @@ mod tests {
     fn test_syscalls_in_default_map() {
         let default_syscall_map = default_syscall_map();
         for code in SyscallCode::iter() {
+            if code == SyscallCode::BLAKE3_COMPRESS_INNER {
+                // Blake3 is currently disabled.
+                continue;
+            }
             default_syscall_map.get(&code).unwrap();
         }
     }
@@ -324,7 +368,6 @@ mod tests {
         for code in SyscallCode::iter() {
             match code {
                 SyscallCode::HALT => assert_eq!(code as u32, sp1_zkvm::syscalls::HALT),
-                SyscallCode::LWA => assert_eq!(code as u32, sp1_zkvm::syscalls::LWA),
                 SyscallCode::WRITE => assert_eq!(code as u32, sp1_zkvm::syscalls::WRITE),
                 SyscallCode::ENTER_UNCONSTRAINED => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::ENTER_UNCONSTRAINED)
@@ -365,6 +408,15 @@ mod tests {
                 SyscallCode::BN254_DOUBLE => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_DOUBLE)
                 }
+                SyscallCode::COMMIT => assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT),
+                SyscallCode::COMMIT_DEFERRED_PROOFS => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::COMMIT_DEFERRED_PROOFS)
+                }
+                SyscallCode::VERIFY_SP1_PROOF => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::VERIFY_SP1_PROOF)
+                }
+                SyscallCode::HINT_LEN => assert_eq!(code as u32, sp1_zkvm::syscalls::HINT_LEN),
+                SyscallCode::HINT_READ => assert_eq!(code as u32, sp1_zkvm::syscalls::HINT_READ),
             }
         }
     }

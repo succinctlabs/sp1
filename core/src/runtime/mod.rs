@@ -20,11 +20,6 @@ pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
-use crate::memory::MemoryInitializeFinalizeEvent;
-use crate::utils::env;
-use crate::{alu::AluEvent, cpu::CpuEvent};
-
-use nohash_hasher::BuildNoHashHasher;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::fs::File;
@@ -32,6 +27,12 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
+
+use nohash_hasher::BuildNoHashHasher;
+
+use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::utils::env;
+use crate::{alu::AluEvent, cpu::CpuEvent};
 
 pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
 
@@ -210,8 +211,25 @@ impl Runtime {
                 .or_insert(record.copied());
         }
 
-        // If it's the first time accessing this address, initialize previous values as zero.
-        let record = entry.or_default();
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+                // Do not emit memory initialize events for address 0 as that is done in initialize.
+                if addr != 0 {
+                    self.record
+                        .memory_initialize_events
+                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
+                }
+                entry.insert(MemoryRecord {
+                    value,
+                    shard: 0,
+                    timestamp: 0,
+                })
+            }
+        };
         let value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
@@ -240,8 +258,25 @@ impl Runtime {
                 .or_insert(record.copied());
         }
 
-        // If it's the first time accessing this address, initialize previous values as zero.
-        let record = entry.or_default();
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+                // Do not emit memory initialize events for address 0 as that is done in initialize.
+                if addr != 0 {
+                    self.record
+                        .memory_initialize_events
+                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
+                }
+                entry.insert(MemoryRecord {
+                    value,
+                    shard: 0,
+                    timestamp: 0,
+                })
+            }
+        };
         let prev_value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
@@ -335,17 +370,20 @@ impl Runtime {
         shard: u32,
         clk: u32,
         pc: u32,
+        next_pc: u32,
         instruction: Instruction,
         a: u32,
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
+        exit_code: u32,
     ) {
         let cpu_event = CpuEvent {
             shard,
             clk,
             pc,
+            next_pc,
             instruction,
             a,
             a_record: record.a,
@@ -355,13 +393,16 @@ impl Runtime {
             c_record: record.c,
             memory: memory_store_value,
             memory_record: record.memory,
+            exit_code,
         };
+
         self.record.cpu_events.push(cpu_event);
     }
 
     /// Emit an ALU event.
     fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
         let event = AluEvent {
+            shard: self.shard(),
             clk,
             opcode,
             a,
@@ -466,6 +507,8 @@ impl Runtime {
     fn execute_instruction(&mut self, instruction: Instruction) {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
+        let mut exit_code = 0u32;
+
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
@@ -681,11 +724,10 @@ impl Runtime {
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                let (precompile_next_pc, precompile_cycles) =
+                let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
                         // If it returns None, we just keep the syscall_id in t0.
-                        // Only the "LWA" syscall actually writes to t0, most syscalls don't return a value.
                         let res = syscall_impl.execute(&mut precompile_rt, b, c);
                         if let Some(val) = res {
                             a = val;
@@ -693,7 +735,11 @@ impl Runtime {
                             // Default to syscall_id if no value is returned from syscall execution.
                             a = syscall_id;
                         }
-                        (precompile_rt.next_pc, syscall_impl.num_extra_cycles())
+                        (
+                            precompile_rt.next_pc,
+                            syscall_impl.num_extra_cycles(),
+                            precompile_rt.exit_code,
+                        )
                     } else {
                         panic!("Unsupported syscall: {:?}", syscall);
                     };
@@ -705,6 +751,7 @@ impl Runtime {
                 self.rw(t0, a);
                 next_pc = precompile_next_pc;
                 self.state.clk += precompile_cycles;
+                exit_code = returned_exit_code;
             }
 
             Opcode::EBREAK => {
@@ -786,12 +833,14 @@ impl Runtime {
                 self.shard(),
                 clk,
                 pc,
+                next_pc,
                 instruction,
                 a,
                 b,
                 c,
                 memory_store_value,
                 self.memory_accesses,
+                exit_code,
             );
         }
     }
@@ -851,6 +900,11 @@ impl Runtime {
                 },
             );
         }
+
+        // Create init event for register 0 because it needs to be the first row in MemoryInit.
+        self.record
+            .memory_initialize_events
+            .push(MemoryInitializeFinalizeEvent::initialize(0, 0, true));
 
         tracing::info!("starting execution");
     }
@@ -923,11 +977,10 @@ impl Runtime {
             program_memory_map.insert(key, (*value, true));
         }
 
-        let mut memory_initialize_events = Vec::new();
-        let mut memory_finalize_events = Vec::new();
+        let memory_finalize_events = &mut self.record.memory_finalize_events;
 
-        // We handle the addr = 0 case separately, as we constraint it to be 0 in the first row
-        // of the memory initialize/finalize table so it must be first in the array of events.
+        // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
+        // of the memory finalize table so it must be first in the array of events.
         let addr_0_record = self.state.memory.get(&0u32);
 
         let addr_0_final_record = match addr_0_record {
@@ -938,8 +991,6 @@ impl Runtime {
                 timestamp: 0,
             },
         };
-
-        memory_initialize_events.push(MemoryInitializeFinalizeEvent::intialize(0, 0, true));
         memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
             0,
             addr_0_final_record,
@@ -959,14 +1010,6 @@ impl Runtime {
                 continue;
             }
 
-            // If the memory addr was accessed, we only add it to "memory_initialize_events" if it was
-            // not in the program_memory_image, otherwise it'll be accounted from the
-            // program_memory_image table.
-            if !self.program.memory_image.contains_key(addr) {
-                memory_initialize_events
-                    .push(MemoryInitializeFinalizeEvent::intialize(*addr, 0, true));
-            }
-
             memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
                 *addr, &record,
             ));
@@ -975,15 +1018,13 @@ impl Runtime {
         let mut program_memory_events = program_memory_map
             .into_iter()
             .map(|(addr, (value, used))| {
-                MemoryInitializeFinalizeEvent::intialize(*addr, value, used)
+                MemoryInitializeFinalizeEvent::initialize(*addr, value, used)
             })
             .collect::<Vec<MemoryInitializeFinalizeEvent>>();
         // Sort the program_memory_events by addr to create a canonical ordering for the
         // preprocessed table, as this is part of the vkey.
         program_memory_events.sort_by_key(|event| event.addr);
 
-        self.record.memory_initialize_events = memory_initialize_events;
-        self.record.memory_finalize_events = memory_finalize_events;
         self.record.program_memory_events = program_memory_events;
     }
 
@@ -1000,7 +1041,7 @@ pub mod tests {
         utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
-    use super::{Instruction, Opcode, Program, Runtime, SyscallCode};
+    use super::{Instruction, Opcode, Program, Runtime};
 
     pub fn simple_program() -> Program {
         let instructions = vec![
@@ -1017,14 +1058,6 @@ pub mod tests {
 
     pub fn ssz_withdrawals_program() -> Program {
         Program::from(SSZ_WITHDRAWALS_ELF)
-    }
-
-    pub fn ecall_lwa_program() -> Program {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 5, 0, SyscallCode::LWA as u32, false, true),
-            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
-        ];
-        Program::new(instructions, 0, 0)
     }
 
     #[test]

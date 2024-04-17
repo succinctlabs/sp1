@@ -1,15 +1,16 @@
+use std::fmt::Debug;
+
+use num::{BigUint, Zero};
+use p3_air::AirBuilder;
+use p3_field::PrimeField32;
+use sp1_derive::AlignedBorrow;
+
 use super::params::Limbs;
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::utils::ec::field::FieldParameters;
-
-use num::{BigUint, Zero};
-use p3_air::AirBuilder;
-use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FieldOperation {
@@ -22,6 +23,9 @@ pub enum FieldOperation {
 /// A set of columns to compute `FieldOperation(a, b)` where a, b are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
+///
+/// TODO: There is an issue here here some fields in these columns must be range checked. This is
+/// a known issue and will be fixed in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldOpCols<T, P: FieldParameters> {
@@ -171,6 +175,7 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
     use crate::utils::ec::field::FieldParameters;
@@ -185,7 +190,7 @@ mod tests {
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
     use p3_matrix::dense::RowMajorMatrix;
-    use p3_matrix::MatrixRowSlices;
+    use p3_matrix::Matrix;
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
     use std::mem::size_of;
@@ -215,6 +220,8 @@ mod tests {
 
     impl<F: PrimeField32, P: FieldParameters> MachineAir<F> for FieldOpChip<P> {
         type Record = ExecutionRecord;
+
+        type Program = Program;
 
         fn name(&self) -> String {
             format!("FieldOp{:?}", self.operation)
@@ -286,7 +293,8 @@ mod tests {
     {
         fn eval(&self, builder: &mut AB) {
             let main = builder.main();
-            let local: &TestCols<AB::Var, P> = main.row_slice(0).borrow();
+            let local = main.row_slice(0);
+            let local: &TestCols<AB::Var, P> = (*local).borrow();
             local
                 .a_op_b
                 .eval::<AB, _, _>(builder, &local.a, &local.b, self.operation);

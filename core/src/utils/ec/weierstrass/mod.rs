@@ -2,6 +2,8 @@ use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
+use super::field::NumLimbs;
+use super::CurveType;
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::utils::biguint_to_bits_le;
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};

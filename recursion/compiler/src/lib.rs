@@ -1,10 +1,11 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::needless_range_loop)]
-#![allow(clippy::type_complexity)]
+
 extern crate alloc;
 
 pub mod asm;
-pub mod gnark;
+pub mod config;
+pub mod constraints;
 pub mod ir;
 pub mod util;
 

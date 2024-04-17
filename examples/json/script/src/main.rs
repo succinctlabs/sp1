@@ -1,7 +1,7 @@
 //! A simple script to generate and verify the proof of a given program.
 
 use lib::{Account, Transaction};
-use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 const JSON_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -45,20 +45,23 @@ fn main() {
     stdin.write(&initial_account_state);
     stdin.write(&transactions);
 
-    let mut proof = SP1Prover::prove(JSON_ELF, stdin).expect("proving failed");
+    let client = ProverClient::new();
+    let mut proof = client.prove(JSON_ELF, stdin).expect("proving failed");
 
     // Read output.
-    let val = proof.stdout.read::<String>();
+    let val = proof.public_values.read::<String>();
     println!("Value of {} is {}", key, val);
 
-    let account_state = proof.stdout.read::<Account>();
+    let account_state = proof.public_values.read::<Account>();
     println!(
         "Final account state: {}",
         serde_json::to_string(&account_state).unwrap()
     );
 
     // Verify proof.
-    SP1Verifier::verify(JSON_ELF, &proof).expect("verification failed");
+    client
+        .verify(JSON_ELF, &proof)
+        .expect("verification failed");
 
     // Save proof.
     proof

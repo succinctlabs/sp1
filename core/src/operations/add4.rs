@@ -35,6 +35,7 @@ impl<F: Field> Add4Operation<F> {
     pub fn populate(
         &mut self,
         record: &mut ExecutionRecord,
+        shard: u32,
         a_u32: u32,
         b_u32: u32,
         c_u32: u32,
@@ -69,31 +70,33 @@ impl<F: Field> Add4Operation<F> {
 
         // Range check.
         {
-            record.add_u8_range_checks(&a);
-            record.add_u8_range_checks(&b);
-            record.add_u8_range_checks(&c);
-            record.add_u8_range_checks(&d);
-            record.add_u8_range_checks(&expected.to_le_bytes());
+            record.add_u8_range_checks(shard, &a);
+            record.add_u8_range_checks(shard, &b);
+            record.add_u8_range_checks(shard, &c);
+            record.add_u8_range_checks(shard, &d);
+            record.add_u8_range_checks(shard, &expected.to_le_bytes());
         }
         expected
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         c: Word<AB::Var>,
         d: Word<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Var,
         cols: Add4Operation<AB::Var>,
     ) {
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, is_real);
-            builder.slice_range_check_u8(&b.0, is_real);
-            builder.slice_range_check_u8(&c.0, is_real);
-            builder.slice_range_check_u8(&d.0, is_real);
-            builder.slice_range_check_u8(&cols.value.0, is_real);
+            builder.slice_range_check_u8(&a.0, shard, is_real);
+            builder.slice_range_check_u8(&b.0, shard, is_real);
+            builder.slice_range_check_u8(&c.0, shard, is_real);
+            builder.slice_range_check_u8(&d.0, shard, is_real);
+            builder.slice_range_check_u8(&cols.value.0, shard, is_real);
         }
 
         builder.assert_bool(is_real);

@@ -1,9 +1,11 @@
-use crate::air::Polynomial;
-use generic_array::{ArrayLength, GenericArray};
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 use std::slice::Iter;
 use std::usize;
+
+use generic_array::{ArrayLength, GenericArray};
+
+use crate::air::Polynomial;
 
 pub const NB_BITS_PER_LIMB: usize = 8;
 

@@ -14,9 +14,11 @@ fn main() {
 
     println!("cycle-tracker-start: io");
     println!("cycle-tracker-start: reading bytes");
-    let encoded_1 = sp1_zkvm::io::read::<Vec<u8>>();
-    let encoded_2 = sp1_zkvm::io::read::<Vec<u8>>();
+    let encoded_1 = sp1_zkvm::io::read_vec();
+    let encoded_2 = sp1_zkvm::io::read_vec();
     println!("cycle-tracker-end: reading bytes");
+    println!("first 10 bytes: {:?}", &encoded_1[..10]);
+    println!("first 10 bytes: {:?}", &encoded_2[..10]);
 
     println!("cycle-tracker-start: serde");
     let light_block_1: LightBlock = serde_cbor::from_slice(&encoded_1).unwrap();
@@ -33,6 +35,16 @@ fn main() {
         light_block_2.validators.validators().len()
     );
 
+    println!("cycle-tracker-start: header hash");
+    let header_hash_1 = light_block_1.signed_header.header.hash();
+    let header_hash_2 = light_block_2.signed_header.header.hash();
+    println!("cycle-tracker-end: header hash");
+
+    println!("cycle-tracker-start: public input headers");
+    sp1_zkvm::io::commit_slice(header_hash_1.as_bytes());
+    sp1_zkvm::io::commit_slice(header_hash_2.as_bytes());
+    println!("cycle-tracker-end: public input headers");
+
     println!("cycle-tracker-start: verify");
     let vp = ProdVerifier::default();
     let opt = Options {
@@ -48,6 +60,11 @@ fn main() {
         verify_time.unwrap(),
     );
     println!("cycle-tracker-end: verify");
+
+    println!("cycle-tracker-start: public inputs verdict");
+    let verdict_encoded = serde_cbor::to_vec(&verdict).unwrap();
+    sp1_zkvm::io::commit_slice(verdict_encoded.as_slice());
+    println!("cycle-tracker-end: public inputs verdict");
 
     match verdict {
         Verdict::Success => {

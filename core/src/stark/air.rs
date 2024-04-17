@@ -1,12 +1,11 @@
-use crate::air::MachineAir;
+use super::MachineStark;
 pub use crate::air::SP1AirBuilder;
-use crate::memory::MemoryChipKind;
+use crate::air::{MachineAir, SP1_PROOF_NUM_PV_ELTS};
+use crate::memory::{MemoryChipType, MemoryProgramChip};
 use crate::stark::Chip;
 use crate::StarkGenericConfig;
 use p3_field::PrimeField32;
 pub use riscv_chips::*;
-
-use super::MachineStark;
 
 /// A module for importing all the different RISC-V chips.
 pub(crate) mod riscv_chips {
@@ -19,7 +18,7 @@ pub(crate) mod riscv_chips {
     pub use crate::alu::ShiftRightChip;
     pub use crate::bytes::ByteChip;
     pub use crate::cpu::CpuChip;
-    pub use crate::memory::MemoryGlobalChip;
+    pub use crate::memory::MemoryChip;
     pub use crate::program::ProgramChip;
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
@@ -66,11 +65,11 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A lookup table for byte operations.
     ByteLookup(ByteChip<F>),
     /// A table for initializing the memory state.
-    MemoryInit(MemoryGlobalChip),
+    MemoryInit(MemoryChip),
     /// A table for finalizing the memory state.
-    MemoryFinal(MemoryGlobalChip),
+    MemoryFinal(MemoryChip),
     /// A table for initializing the program memory.
-    ProgramMemory(MemoryGlobalChip),
+    ProgramMemory(MemoryProgramChip),
     /// A precompile for sha256 extend.
     Sha256Extend(ShaExtendChip),
     /// A precompile for sha256 compress.
@@ -87,7 +86,7 @@ pub enum RiscvAir<F: PrimeField32> {
     Secp256k1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for the Keccak permutation.
     KeccakP(KeccakPermuteChip),
-    /// A precompile for the Blake3 compression function.
+    /// A precompile for the Blake3 compression function. (Disabled by default.)
     Blake3Compress(Blake3CompressInnerChip),
     /// A precompile for addition on the Elliptic curve bn254.
     Bn254Add(WeierstrassAddAssignChip<SwCurve<Bn254Parameters>>),
@@ -105,7 +104,7 @@ impl<F: PrimeField32> RiscvAir<F> {
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark::new(config, chips)
+        MachineStark::new(config, chips, SP1_PROOF_NUM_PV_ELTS)
     }
 
     /// Get all the different RISC-V AIRs.
@@ -134,8 +133,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Secp256k1Double(secp256k1_double_assign));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
-        let blake3_compress_inner = Blake3CompressInnerChip::new();
-        chips.push(RiscvAir::Blake3Compress(blake3_compress_inner));
         let bn254_add_assign = WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new();
         chips.push(RiscvAir::Bn254Add(bn254_add_assign));
         let bn254_double_assign = WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new();
@@ -158,11 +155,11 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::ShiftLeft(shift_left));
         let lt = LtChip::default();
         chips.push(RiscvAir::Lt(lt));
-        let memory_init = MemoryGlobalChip::new(MemoryChipKind::Initialize);
+        let memory_init = MemoryChip::new(MemoryChipType::Initialize);
         chips.push(RiscvAir::MemoryInit(memory_init));
-        let memory_finalize = MemoryGlobalChip::new(MemoryChipKind::Finalize);
+        let memory_finalize = MemoryChip::new(MemoryChipType::Finalize);
         chips.push(RiscvAir::MemoryFinal(memory_finalize));
-        let program_memory_init = MemoryGlobalChip::new(MemoryChipKind::Program);
+        let program_memory_init = MemoryProgramChip::new();
         chips.push(RiscvAir::ProgramMemory(program_memory_init));
         let byte = ByteChip::default();
         chips.push(RiscvAir::ByteLookup(byte));

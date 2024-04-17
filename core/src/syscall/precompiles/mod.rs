@@ -6,12 +6,12 @@ pub mod sha256;
 pub mod weierstrass;
 use crate::runtime::SyscallContext;
 use crate::utils::ec::field::NumWords;
+use crate::utils::ec::{AffinePoint, EllipticCurve};
+use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
+
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
 use typenum::Unsigned;
-
-use crate::utils::ec::{AffinePoint, EllipticCurve};
-use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]

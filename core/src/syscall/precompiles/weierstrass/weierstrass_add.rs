@@ -1,3 +1,20 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+use generic_array::GenericArray;
+use num::BigUint;
+use num::Zero;
+use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use sp1_derive::AlignedBorrow;
+use typenum::Unsigned;
+
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::memory::MemoryCols;
@@ -7,6 +24,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
@@ -20,21 +38,6 @@ use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use typenum::Unsigned;
 
 pub const fn num_weierstrass_add_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassAddAssignCols<u8, P>>()
@@ -146,6 +149,7 @@ where
     [(); num_weierstrass_add_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
+    type Program = Program;
 
     fn name(&self) -> String {
         match E::CURVE_TYPE {
@@ -246,7 +250,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &WeierstrassAddAssignCols<AB::Var, E::BaseField> = (*row).borrow();
 
         let num_words_field_element = <E::BaseField as NumLimbs>::Limbs::USIZE / 4;
 
@@ -324,14 +329,14 @@ where
             );
         }
 
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk.into(),
             row.q_ptr,
             &row.q_access,
             row.is_real,
         );
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk + AB::F::from_canonical_u32(1), // We read p at +1 since p, q could be the same.
             row.p_ptr,

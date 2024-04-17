@@ -1,18 +1,18 @@
-use crate::air::MachineAir;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
+use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
-
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `LtChip`.
@@ -26,6 +26,9 @@ pub struct LtChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -76,6 +79,8 @@ impl LtCols<u32> {
 impl<F: PrimeField> MachineAir<F> for LtChip {
     type Record = ExecutionRecord;
 
+    type Program = Program;
+
     fn name(&self) -> String {
         "Lt".to_string()
     }
@@ -99,6 +104,7 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
+                cols.shard = F::from_canonical_u32(event.shard);
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
@@ -189,7 +195,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &LtCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &LtCols<AB::Var> = (*local).borrow();
 
         let one = AB::Expr::one();
 
@@ -286,6 +293,10 @@ where
             builder.assert_bool(bit);
         }
 
+        // Check that the operation flags are boolean.
+        builder.assert_bool(local.is_slt);
+        builder.assert_bool(local.is_sltu);
+
         // Receive the arguments.
         builder.receive_alu(
             local.is_slt * AB::F::from_canonical_u32(Opcode::SLT as u32)
@@ -293,6 +304,7 @@ where
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_slt + local.is_sltu,
         );
     }
@@ -320,7 +332,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.lt_events = vec![AluEvent::new(0, Opcode::SLT, 0, 3, 2)];
+        shard.lt_events = vec![AluEvent::new(0, 0, Opcode::SLT, 0, 3, 2)];
         let chip = LtChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -348,21 +360,21 @@ mod tests {
         const NEG_4: u32 = 0b11111111111111111111111111111100;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, Opcode::SLT, 0, 3, 2),
+            AluEvent::new(0, 0, Opcode::SLT, 0, 3, 2),
             // 1 == 2 < 3
-            AluEvent::new(1, Opcode::SLT, 1, 2, 3),
+            AluEvent::new(0, 1, Opcode::SLT, 1, 2, 3),
             // 0 == 5 < -3
-            AluEvent::new(3, Opcode::SLT, 0, 5, NEG_3),
+            AluEvent::new(0, 3, Opcode::SLT, 0, 5, NEG_3),
             // 1 == -3 < 5
-            AluEvent::new(2, Opcode::SLT, 1, NEG_3, 5),
+            AluEvent::new(0, 2, Opcode::SLT, 1, NEG_3, 5),
             // 0 == -3 < -4
-            AluEvent::new(4, Opcode::SLT, 0, NEG_3, NEG_4),
+            AluEvent::new(0, 4, Opcode::SLT, 0, NEG_3, NEG_4),
             // 1 == -4 < -3
-            AluEvent::new(4, Opcode::SLT, 1, NEG_4, NEG_3),
+            AluEvent::new(0, 4, Opcode::SLT, 1, NEG_4, NEG_3),
             // 0 == 3 < 3
-            AluEvent::new(5, Opcode::SLT, 0, 3, 3),
+            AluEvent::new(0, 5, Opcode::SLT, 0, 3, 3),
             // 0 == -3 < -3
-            AluEvent::new(5, Opcode::SLT, 0, NEG_3, NEG_3),
+            AluEvent::new(0, 5, Opcode::SLT, 0, NEG_3, NEG_3),
         ];
 
         prove_babybear_template(&mut shard);
@@ -375,17 +387,17 @@ mod tests {
         const LARGE: u32 = 0b11111111111111111111111111111101;
         shard.lt_events = vec![
             // 0 == 3 < 2
-            AluEvent::new(0, Opcode::SLTU, 0, 3, 2),
+            AluEvent::new(0, 0, Opcode::SLTU, 0, 3, 2),
             // 1 == 2 < 3
-            AluEvent::new(1, Opcode::SLTU, 1, 2, 3),
+            AluEvent::new(0, 1, Opcode::SLTU, 1, 2, 3),
             // 0 == LARGE < 5
-            AluEvent::new(2, Opcode::SLTU, 0, LARGE, 5),
+            AluEvent::new(0, 2, Opcode::SLTU, 0, LARGE, 5),
             // 1 == 5 < LARGE
-            AluEvent::new(3, Opcode::SLTU, 1, 5, LARGE),
+            AluEvent::new(0, 3, Opcode::SLTU, 1, 5, LARGE),
             // 0 == 0 < 0
-            AluEvent::new(5, Opcode::SLTU, 0, 0, 0),
+            AluEvent::new(0, 5, Opcode::SLTU, 0, 0, 0),
             // 0 == LARGE < LARGE
-            AluEvent::new(5, Opcode::SLTU, 0, LARGE, LARGE),
+            AluEvent::new(0, 5, Opcode::SLTU, 0, LARGE, LARGE),
         ];
 
         prove_babybear_template(&mut shard);

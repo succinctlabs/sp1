@@ -2,13 +2,16 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::{runtime::Program, stark::MachineRecord};
+use crate::stark::MachineRecord;
 
 pub use sp1_derive::MachineAir;
 
-/// An AIR that is part of a Risc-V AIR arithmetization.
+/// An AIR that is part of a multi table AIR arithmetization.
 pub trait MachineAir<F: Field>: BaseAir<F> {
+    /// The execution record containing events for producing the air trace.
     type Record: MachineRecord;
+
+    type Program: Send + Sync;
 
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
@@ -25,15 +28,16 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
         self.generate_trace(input, output);
     }
 
-    /// The number of preprocessed columns in the trace.
+    /// Whether this execution record contains events for this air.
+    fn included(&self, shard: &Self::Record) -> bool;
+
+    /// The width of the preprocessed trace.
     fn preprocessed_width(&self) -> usize {
         0
     }
 
-    #[allow(unused_variables)]
-    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
+    /// Generate the preprocessed trace given a specific program.
+    fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         None
     }
-
-    fn included(&self, shard: &Self::Record) -> bool;
 }

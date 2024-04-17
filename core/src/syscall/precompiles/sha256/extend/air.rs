@@ -1,4 +1,6 @@
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::AbstractField;
+use p3_matrix::Matrix;
 
 use super::{ShaExtendChip, ShaExtendCols, NUM_SHA_EXTEND_COLS};
 use crate::air::{BaseAirBuilder, SP1AirBuilder};
@@ -8,8 +10,6 @@ use crate::operations::{
 };
 use crate::runtime::SyscallCode;
 use core::borrow::Borrow;
-use p3_field::AbstractField;
-use p3_matrix::MatrixRowSlices;
 
 impl<F> BaseAir<F> for ShaExtendChip {
     fn width(&self) -> usize {
@@ -24,8 +24,9 @@ where
     fn eval(&self, builder: &mut AB) {
         // Initialize columns.
         let main = builder.main();
-        let local: &ShaExtendCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &ShaExtendCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &ShaExtendCols<AB::Var> = (*local).borrow();
+        let next: &ShaExtendCols<AB::Var> = (*next).borrow();
         let i_start = AB::F::from_canonical_u32(16);
         let nb_bytes_in_word = AB::F::from_canonical_u32(4);
 
@@ -47,7 +48,7 @@ where
             .assert_eq(local.w_ptr, next.w_ptr);
 
         // Read w[i-15].
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(15)) * nb_bytes_in_word,
@@ -56,7 +57,7 @@ where
         );
 
         // Read w[i-2].
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(2)) * nb_bytes_in_word,
@@ -65,7 +66,7 @@ where
         );
 
         // Read w[i-16].
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(16)) * nb_bytes_in_word,
@@ -74,7 +75,7 @@ where
         );
 
         // Read w[i-7].
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + (local.i - AB::F::from_canonical_u32(7)) * nb_bytes_in_word,
@@ -89,6 +90,7 @@ where
             *local.w_i_minus_15.value(),
             7,
             local.w_i_minus_15_rr_7,
+            local.shard,
             local.is_real,
         );
         // w[i-15] rightrotate 18.
@@ -97,6 +99,7 @@ where
             *local.w_i_minus_15.value(),
             18,
             local.w_i_minus_15_rr_18,
+            local.shard,
             local.is_real,
         );
         // w[i-15] rightshift 3.
@@ -105,6 +108,7 @@ where
             *local.w_i_minus_15.value(),
             3,
             local.w_i_minus_15_rs_3,
+            local.shard,
             local.is_real,
         );
         // (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18)
@@ -113,6 +117,7 @@ where
             local.w_i_minus_15_rr_7.value,
             local.w_i_minus_15_rr_18.value,
             local.s0_intermediate,
+            local.shard,
             local.is_real,
         );
         // s0 := (w[i-15] rightrotate 7) xor (w[i-15] rightrotate 18) xor (w[i-15] rightshift 3)
@@ -121,6 +126,7 @@ where
             local.s0_intermediate.value,
             local.w_i_minus_15_rs_3.value,
             local.s0,
+            local.shard,
             local.is_real,
         );
 
@@ -131,6 +137,7 @@ where
             *local.w_i_minus_2.value(),
             17,
             local.w_i_minus_2_rr_17,
+            local.shard,
             local.is_real,
         );
         // w[i-2] rightrotate 19.
@@ -139,6 +146,7 @@ where
             *local.w_i_minus_2.value(),
             19,
             local.w_i_minus_2_rr_19,
+            local.shard,
             local.is_real,
         );
         // w[i-2] rightshift 10.
@@ -147,6 +155,7 @@ where
             *local.w_i_minus_2.value(),
             10,
             local.w_i_minus_2_rs_10,
+            local.shard,
             local.is_real,
         );
         // (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19)
@@ -155,6 +164,7 @@ where
             local.w_i_minus_2_rr_17.value,
             local.w_i_minus_2_rr_19.value,
             local.s1_intermediate,
+            local.shard,
             local.is_real,
         );
         // s1 := (w[i-2] rightrotate 17) xor (w[i-2] rightrotate 19) xor (w[i-2] rightshift 10)
@@ -163,6 +173,7 @@ where
             local.s1_intermediate.value,
             local.w_i_minus_2_rs_10.value,
             local.s1,
+            local.shard,
             local.is_real,
         );
 
@@ -173,12 +184,13 @@ where
             local.s0.value,
             *local.w_i_minus_7.value(),
             local.s1.value,
+            local.shard,
             local.is_real,
             local.s2,
         );
 
         // Write `s2` to `w[i]`.
-        builder.constraint_memory_access(
+        builder.eval_memory_access(
             local.shard,
             local.clk + (local.i - i_start),
             local.w_ptr + local.i * nb_bytes_in_word,
