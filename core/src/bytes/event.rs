@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use p3_field::PrimeField32;
 use serde::{Deserialize, Serialize};
 
 use super::ByteOpcode;
@@ -70,6 +71,15 @@ pub trait ByteRecord {
             // If the input slice's length is odd, we need to add a check for the last byte.
             self.add_u8_range_check(shard, ls[index], 0);
         }
+    }
+
+    fn add_u8_range_checks_field<F: PrimeField32>(&mut self, shard: u32, ls: &[F]) {
+        self.add_u8_range_checks(
+            shard,
+            &ls.iter()
+                .map(|x| x.as_canonical_u32() as u8)
+                .collect::<Vec<_>>(),
+        );
     }
 
     /// Adds `ByteLookupEvent`s to verify that all the bytes in the input slice are indeed bytes.

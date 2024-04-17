@@ -85,26 +85,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldInnerProductCols<F, P> {
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
         // Range checks
-        record.add_u8_range_checks(shard, &P::to_limbs(result));
-        record.add_u8_range_checks(shard, &P::to_limbs(carry));
-        record.add_u8_range_checks(
-            shard,
-            &self
-                .witness_low
-                .0
-                .iter()
-                .map(|x| x.as_canonical_u32() as u8)
-                .collect::<Vec<_>>(),
-        );
-        record.add_u8_range_checks(
-            shard,
-            &self
-                .witness_high
-                .0
-                .iter()
-                .map(|x| x.as_canonical_u32() as u8)
-                .collect::<Vec<_>>(),
-        );
+        record.add_u8_range_checks_field(shard, &self.result.0);
+        record.add_u8_range_checks_field(shard, &self.carry.0);
+        record.add_u8_range_checks_field(shard, &self.witness_low.0);
+        record.add_u8_range_checks_field(shard, &self.witness_high.0);
 
         result.clone()
     }

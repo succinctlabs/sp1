@@ -38,55 +38,12 @@ pub struct FieldOpCols<T, P: FieldParameters> {
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
-    pub fn populate(
+    pub fn populate_carry_and_witness(
         &mut self,
-        record: &mut impl ByteRecord,
-        shard: u32,
         a: &BigUint,
         b: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        if b == &BigUint::zero() && op == FieldOperation::Div {
-            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
-            assert_eq!(
-                *a,
-                BigUint::zero(),
-                "division by zero is allowed only when dividing zero"
-            );
-        }
-
-        let modulus = P::modulus();
-
-        // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
-        if op == FieldOperation::Sub {
-            let result = (modulus.clone() + a - b) % &modulus;
-            // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
-            // But we populate `result` with the actual result of the subtraction because those columns are expected
-            // to contain the result by the user.
-            // Note that this reversal means we have to flip result, a correspondingly in
-            // the `eval` function.
-            self.populate(record, shard, &result, b, FieldOperation::Add);
-            self.result = P::to_limbs_field::<F, _>(&result);
-            return result;
-        }
-
-        // a / b = result is equivalent to a = result * b.
-        if op == FieldOperation::Div {
-            // As modulus is prime, we can use Fermat's little theorem to compute the
-            // inverse.
-            let result =
-                (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
-
-            // We populate the carry, witness_low, witness_high as if we were doing a multiplication
-            // with result * b. But we populate `result` with the actual result of the
-            // multiplication because those columns are expected to contain the result by the user.
-            // Note that this reversal means we have to flip result, a correspondingly in the `eval`
-            // function.
-            self.populate(record, shard, &result, b, FieldOperation::Mul);
-            self.result = P::to_limbs_field::<F, _>(&result);
-            return result;
-        }
-
         let p_a: Polynomial<F> = P::to_limbs_field::<F, _>(a).into();
         let p_b: Polynomial<F> = P::to_limbs_field::<F, _>(b).into();
 
@@ -132,27 +89,65 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         self.witness_low = Limbs(p_witness_low.try_into().unwrap());
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
+        result
+    }
+
+    pub fn populate(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        a: &BigUint,
+        b: &BigUint,
+        op: FieldOperation,
+    ) -> BigUint {
+        if b == &BigUint::zero() && op == FieldOperation::Div {
+            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
+            assert_eq!(
+                *a,
+                BigUint::zero(),
+                "division by zero is allowed only when dividing zero"
+            );
+        }
+
+        let modulus = P::modulus();
+
+        let result = match op {
+            // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
+            FieldOperation::Sub => {
+                let result = (modulus.clone() + a - b) % &modulus;
+                // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
+                // But we populate `result` with the actual result of the subtraction because those columns are expected
+                // to contain the result by the user.
+                // Note that this reversal means we have to flip result, a correspondingly in
+                // the `eval` function.
+                self.populate_carry_and_witness(&result, b, FieldOperation::Add);
+                self.result = P::to_limbs_field::<F, _>(&result);
+                result
+            }
+            // a / b = result is equivalent to a = result * b.
+            FieldOperation::Div => {
+                // As modulus is prime, we can use Fermat's little theorem to compute the
+                // inverse.
+                let result =
+                    (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
+
+                // We populate the carry, witness_low, witness_high as if we were doing a multiplication
+                // with result * b. But we populate `result` with the actual result of the
+                // multiplication because those columns are expected to contain the result by the user.
+                // Note that this reversal means we have to flip result, a correspondingly in the `eval`
+                // function.
+                self.populate_carry_and_witness(&result, b, FieldOperation::Mul);
+                self.result = P::to_limbs_field::<F, _>(&result);
+                result
+            }
+            _ => self.populate_carry_and_witness(a, b, op),
+        };
+
         // Range checks
-        record.add_u8_range_checks(shard, &P::to_limbs(&result));
-        record.add_u8_range_checks(shard, &P::to_limbs(&carry));
-        record.add_u8_range_checks(
-            shard,
-            &self
-                .witness_low
-                .0
-                .iter()
-                .map(|x| x.as_canonical_u32() as u8)
-                .collect::<Vec<_>>(),
-        );
-        record.add_u8_range_checks(
-            shard,
-            &self
-                .witness_high
-                .0
-                .iter()
-                .map(|x| x.as_canonical_u32() as u8)
-                .collect::<Vec<_>>(),
-        );
+        record.add_u8_range_checks_field(shard, &self.result.0);
+        record.add_u8_range_checks_field(shard, &self.carry.0);
+        record.add_u8_range_checks_field(shard, &self.witness_low.0);
+        record.add_u8_range_checks_field(shard, &self.witness_high.0);
 
         result
     }
@@ -189,7 +184,7 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
             FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
             FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
         };
-        let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
+        let p_op_minus_result: Polynomial<AB::Expr> = p_op - &p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
         let p_vanishing = p_op_minus_result - &(&p_carry * &p_limbs);
         let p_witness_low = self.witness_low.0.iter().into();
@@ -199,8 +194,8 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         // Range checks for the result, carry, and witness columns.
         builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
         builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(&self.witness_low.0, shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(&self.witness_high.0, shard, is_real);
+        builder.slice_range_check_u8(p_witness_low.coefficients(), shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(p_witness_high.coefficients(), shard, is_real);
     }
 }
 
