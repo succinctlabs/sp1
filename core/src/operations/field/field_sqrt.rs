@@ -20,6 +20,16 @@ pub struct FieldSqrtCols<T, P: FieldParameters> {
     /// In order to save space, we actually store the sqrt of the input in `multiplication.result`
     /// since we'll receive the input again in the `eval` function.
     pub multiplication: FieldOpCols<T, P>,
+
+    /// Byte flags for range-checking the square root.
+    ///
+    ///  Indicates the most significant byte that is smaller than the corresponding byte of the
+    /// modoules. This is used for range checking that the square root is indeed a value in
+    /// the range 0...{modulus - 1}.
+    pub byte_flags: Limbs<T, P::Limbs>,
+
+    // The least significant bit of the square root.
+    pub lsb: T,
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
@@ -89,6 +99,10 @@ where
             shard,
             is_real,
         );
+
+        // Assert that the square root is the positive one, i.e., with least significant bit 0.
+        // This is done by computing LSB = least_significant_byte & 1.
+        builder.assert_zero(self.lsb);
     }
 }
 
@@ -121,7 +135,7 @@ mod tests {
     use rand::thread_rng;
     use sp1_derive::AlignedBorrow;
 
-    #[derive(AlignedBorrow, Debug, Clone)]
+    #[derive(AlignedBorrow, Debug)]
     pub struct TestCols<T, P: FieldParameters> {
         pub a: Limbs<T, P::Limbs>,
         pub sqrt: FieldSqrtCols<T, P>,
