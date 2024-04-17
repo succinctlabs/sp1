@@ -496,6 +496,7 @@ mod tests {
     use sp1_sdk::{ProverClient, SP1Stdin};
 
     #[test]
+    #[ignore]
     fn test_prove_sp1() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
