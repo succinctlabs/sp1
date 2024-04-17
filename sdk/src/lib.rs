@@ -33,6 +33,7 @@ use sp1_core::stark::{
 use sp1_core::utils::run_and_prove;
 use std::env;
 use std::fs;
+use std::marker::PhantomData;
 use std::time::Duration;
 use tokio::runtime;
 use tokio::time::sleep;
@@ -40,17 +41,87 @@ use util::StageProgressBar;
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
 #[derive(Serialize, Deserialize)]
-pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
+pub struct SP1ProofWithIO<P> {
     #[serde(with = "proof_serde")]
-    pub proof: Proof<SC>,
+    pub proof: P,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
+}
+
+pub struct ProofStatistics {
+    pub cycle_count: u64,
+    pub cost: u64,
+    pub total_time: u64,
+    pub latency: u64,
+}
+
+type SP1DefaultProof = Proof<BabyBearPoseidon2>;
+type SP1CompressedProof = ReduceProofType::Recursive;
+type SP1Groth16Proof = ReduceProofType::Groth16;
+
+pub enum SP1ProofWithIO {
+    Mock(SP1ProofWithIO<PhantomData>),
+    Default(SP1ProofWithIO<SP1DefaultProof>),
+    Compressed(SP1ProofWithIO<SP1CompressedProof>),
+    Groth16(SP1ProofWithIO<SP1Groth16Proof>),
+}
+
+impl SP1ProofWithIO {
+    pub fn read() -> Self;
+    pub fn save() -> Result<()>;
+
+    pub fn statistics() -> ProofStatistics;
+    pub fn stdin() -> SP1Stdin;
+    pub fn public_values() -> SP1PublicValues;
 }
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {
     /// An optional Succinct prover network client used for remote operations.
     pub client: Option<NetworkClient>,
+}
+
+pub enum ProverMode {
+    Default,
+    Compressed,
+    Groth16,
+}
+
+pub struct NetworkProver {
+    pub mode: ProverMode,
+}
+
+impl NetworkProver {
+    pub fn new() -> Self {
+        Self {
+            mode: ProverMode::Default,
+        }
+    }
+
+    pub fn with_mode(mut self, mode: ProverMode) -> Self {
+        self.mode = mode;
+        self
+    }
+
+    pub fn prove() -> Result<SP1ProofWithIO> {
+        unimplemented!()
+    }
+}
+
+pub struct LocalProver {
+    pub mode: ProverMode,
+}
+
+pub struct MockProver {}
+
+pub enum Prover {
+    Network(NetworkProver),
+    Local(LocalProver),
+    Mock(MockProver),
+}
+
+struct ProverClient {
+    prover: Prover,
 }
 
 impl ProverClient {

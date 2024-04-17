@@ -153,3 +153,19 @@ pub async fn fetch_light_block(
         Id::new(peer_id),
     ))
 }
+
+fn verify_blocks(light_block_1: LightBlock, light_block_2: LightBlock) -> Verdict {
+    let vp = ProdVerifier::default();
+    let opt = Options {
+        trust_threshold: Default::default(),
+        trusting_period: Duration::from_secs(500),
+        clock_drift: Default::default(),
+    };
+    let verify_time = light_block_2.time() + Duration::from_secs(20);
+    vp.verify_update_header(
+        light_block_2.as_untrusted_state(),
+        light_block_1.as_trusted_state(),
+        &opt,
+        verify_time.unwrap(),
+    )
+}

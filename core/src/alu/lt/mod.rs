@@ -23,6 +23,8 @@ pub const NUM_LT_COLS: usize = size_of::<LtCols<u8>>();
 pub struct LtChip;
 
 /// The column layout for the chip.
+/// OPT: In the future we can potentially save columns by using the byte lookup table.
+/// See an work in progress implementation here: https://github.com/succinctlabs/sp1/pull/105/files
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
