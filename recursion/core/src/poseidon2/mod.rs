@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::poseidon2::external::WIDTH;
-use p3_field::{AbstractField, Field, PrimeField32};
+use p3_field::{AbstractField, Field};
 
 mod external;
 
@@ -41,30 +41,6 @@ pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
         state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
         state[i] += sum.clone();
     }
-}
-
-pub(crate) fn external_linear_layer<F: PrimeField32>(input: &[F; WIDTH], output: &mut [F; WIDTH]) {
-    output.copy_from_slice(input);
-    for j in (0..WIDTH).step_by(4) {
-        apply_m_4(&mut output[j..j + 4]);
-    }
-    let sums: [F; 4] =
-        core::array::from_fn(|k| (0..WIDTH).step_by(4).map(|j| output[j + k]).sum::<F>());
-
-    for j in 0..WIDTH {
-        output[j] += sums[j % 4];
-    }
-}
-
-pub(crate) fn internal_linear_layer<F: PrimeField32>(input: &[F; WIDTH], output: &mut [F; WIDTH]) {
-    output.copy_from_slice(input);
-    let matmul_constants: [F; WIDTH] = MATRIX_DIAG_16_BABYBEAR_U32
-        .iter()
-        .map(|x| F::from_wrapped_u32(*x))
-        .collect::<Vec<_>>()
-        .try_into()
-        .unwrap();
-    matmul_internal(output, matmul_constants);
 }
 
 pub const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [

@@ -17,18 +17,16 @@ pub fn apply_m_4<AF>(x: &mut [AF])
 where
     AF: AbstractField,
 {
-    let t0 = x[0].clone() + x[1].clone();
-    let t1 = x[2].clone() + x[3].clone();
-    let t2 = x[1].clone() + x[1].clone() + t1.clone();
-    let t3 = x[3].clone() + x[3].clone() + t0.clone();
-    let t4 = t1.clone() + t1.clone() + t1.clone() + t1 + t3.clone();
-    let t5 = t0.clone() + t0.clone() + t0.clone() + t0 + t2.clone();
-    let t6 = t3 + t5.clone();
-    let t7 = t2 + t4.clone();
-    x[0] = t6;
-    x[1] = t5;
-    x[2] = t7;
-    x[3] = t4;
+    let t01 = x[0].clone() + x[1].clone();
+    let t23 = x[2].clone() + x[3].clone();
+    let t0123 = t01.clone() + t23.clone();
+    let t01123 = t0123.clone() + x[1].clone();
+    let t01233 = t0123.clone() + x[3].clone();
+    // The order here is important. Need to overwrite x[0] and x[2] after x[1] and x[3].
+    x[3] = t01233.clone() + x[0].double(); // 3*x[0] + x[1] + x[2] + 2*x[3]
+    x[1] = t01123.clone() + x[2].double(); // x[0] + 2*x[1] + 3*x[2] + x[3]
+    x[0] = t01123 + t01; // 2*x[0] + 3*x[1] + x[2] + x[3]
+    x[2] = t01233 + t23; // x[0] + x[1] + 2*x[2] + 3*x[3]
 }
 
 // TODO: Make this public inside Plonky3 and import directly.
@@ -41,6 +39,33 @@ pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
         state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
         state[i] += sum.clone();
     }
+}
+pub(crate) fn external_linear_layer<F: AbstractField>(input: &[F; WIDTH], output: &mut [F; WIDTH]) {
+    output.clone_from_slice(input);
+    for j in (0..WIDTH).step_by(4) {
+        apply_m_4(&mut output[j..j + 4]);
+    }
+    let sums: [F; 4] = core::array::from_fn(|k| {
+        (0..WIDTH)
+            .step_by(4)
+            .map(|j| output[j + k].clone())
+            .sum::<F>()
+    });
+
+    for j in 0..WIDTH {
+        output[j] += sums[j % 4].clone();
+    }
+}
+
+pub(crate) fn internal_linear_layer<F: AbstractField>(input: &[F; WIDTH], output: &mut [F; WIDTH]) {
+    output.clone_from_slice(input);
+    let matmul_constants: [<F as AbstractField>::F; WIDTH] = MATRIX_DIAG_16_BABYBEAR_U32
+        .iter()
+        .map(|x| <F as AbstractField>::F::from_wrapped_u32(*x))
+        .collect::<Vec<_>>()
+        .try_into()
+        .unwrap();
+    matmul_internal(output, matmul_constants);
 }
 
 pub const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [
