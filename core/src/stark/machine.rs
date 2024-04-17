@@ -16,7 +16,6 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 
 use super::debug_constraints;
-use super::Challenger;
 use super::DeferredDigest;
 use super::Dom;
 use super::PublicValuesDigest;
