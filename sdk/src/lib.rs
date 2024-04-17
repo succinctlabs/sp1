@@ -26,7 +26,7 @@ use anyhow::{Context, Ok, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::stark::{Com, PcsProverData, RiscvAir};
+use sp1_core::stark::{Com, PcsProverData, RiscvAir, VerifyingKey};
 use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
@@ -262,6 +262,26 @@ impl ProverClient {
         proof: &SP1ProofWithIO<BabyBearPoseidon2>,
     ) -> Result<(), ProgramVerificationError> {
         self.verify_with_config(elf, proof, BabyBearPoseidon2::new())
+    }
+
+    pub fn verify_with_vk<SC: StarkGenericConfig>(
+        &self,
+        vk: VerifyingKey<SC>,
+        proof: &SP1ProofWithIO<SC>,
+        config: SC,
+    ) -> Result<(), ProgramVerificationError>
+    where
+        SC: StarkGenericConfig,
+        SC::Challenger: Clone,
+        OpeningProof<SC>: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+        SC::Val: p3_field::PrimeField32,
+    {
+        let mut verify_challenger = config.challenger();
+        let machine = RiscvAir::machine(config);
+        machine.verify(&vk, &proof.proof, &mut verify_challenger)
     }
 
     pub fn verify_with_config<SC: StarkGenericConfig>(
