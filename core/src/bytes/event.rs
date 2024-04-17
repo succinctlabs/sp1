@@ -76,6 +76,8 @@ pub trait ByteRecord {
         }
     }
 
+    /// Adds `ByteLookupEvent`s to verify that all the field elements in the input slice are indeed
+    /// bytes.
     fn add_u8_range_checks_field<F: PrimeField32>(&mut self, shard: u32, field_values: &[F]) {
         self.add_u8_range_checks(
             shard,
