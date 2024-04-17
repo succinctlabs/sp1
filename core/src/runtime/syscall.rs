@@ -8,8 +8,10 @@ use crate::syscall::precompiles::edwards::EdAddAssignChip;
 use crate::syscall::precompiles::edwards::EdDecompressChip;
 use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
 use crate::syscall::precompiles::sha256::{ShaCompressChip, ShaExtendChip};
-use crate::syscall::precompiles::weierstrass::{WeierstrassAddAssignChip, WeierstrassDecompressChip};
 use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
+use crate::syscall::precompiles::weierstrass::{
+    WeierstrassAddAssignChip, WeierstrassDecompressChip,
+};
 use crate::syscall::{
     SyscallCommit, SyscallCommitDeferred, SyscallEnterUnconstrained, SyscallExitUnconstrained,
     SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
@@ -82,14 +84,14 @@ pub enum SyscallCode {
     /// Executes the `VERIFY_SP1_PROOF` precompile.
     VERIFY_SP1_PROOF = 0x00_00_00_1B,
 
+    /// Executes the `BLS12381_DECOMPRESS` precompile.
+    BLS12381_DECOMPRESS = 0x00_00_01_1C,
+
     /// Executes the `HINT_LEN` precompile.
     HINT_LEN = 0x00_00_00_F0,
 
     /// Executes the `HINT_READ` precompile.
     HINT_READ = 0x00_00_00_F1,
-
-    /// Executes the `BLS12381_DECOMPRESS` precompile.
-    BLS12381_DECOMPRESS = 0x00_00_01_F2,
 }
 
 impl SyscallCode {
@@ -116,7 +118,7 @@ impl SyscallCode {
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
             0x00_00_00_F0 => SyscallCode::HINT_LEN,
             0x00_00_00_F1 => SyscallCode::HINT_READ,
-            0x00_00_01_F2 => SyscallCode::BLS12381_DECOMPRESS,
+            0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
     }

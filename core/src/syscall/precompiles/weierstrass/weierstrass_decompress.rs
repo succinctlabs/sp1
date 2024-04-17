@@ -327,7 +327,7 @@ where
 mod tests {
     use crate::Program;
     use crate::{
-        utils::{self, tests::BLS_DECOMPRESS_ELF},
+        utils::{self, tests::BLS12381_DECOMPRESS_ELF},
         SP1Stdin,
     };
     use amcl::bls381::bls381::basic::key_pair_generate_g2;
@@ -346,7 +346,7 @@ mod tests {
         let (_, compressed) = key_pair_generate_g2(&mut RAND::new());
 
         let inputs = SP1Stdin::from(&compressed);
-        let mut proof = run_test_io(Program::from(BLS_DECOMPRESS_ELF), inputs).unwrap();
+        let mut proof = run_test_io(Program::from(BLS12381_DECOMPRESS_ELF), inputs).unwrap();
 
         let mut result = [0; 96];
         proof.public_values.read_slice(&mut result);
