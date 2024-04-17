@@ -33,12 +33,6 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
-      - name: Install sp1 toolchain
-        run: |
-          curl -L https://sp1.succinct.xyz | bash
-          echo "/root/.sp1/bin" >> $GITHUB_PATH
-          /root/.sp1/bin/sp1up
-
       - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
         with:
