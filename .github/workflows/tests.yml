@@ -20,7 +20,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: [warp-ubuntu-latest-arm64-32x, buildjet-32vcpu-ubuntu-2204-arm, benchmarkers]
+    runs-on: warp-ubuntu-latest-arm64-32x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -60,7 +60,8 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
-          FRI_QUERIES: 1 
+          FRI_QUERIES: 1
+ 
 
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
