@@ -91,8 +91,6 @@ pub struct ExecutionRecord {
 
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
-    pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
-
     pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
     /// The public values.
@@ -272,8 +270,6 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.memory_initialize_events);
         self.memory_finalize_events
             .append(&mut other.memory_finalize_events);
-        self.program_memory_events
-            .append(&mut other.program_memory_events);
     }
 
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
@@ -479,9 +475,6 @@ impl MachineRecord for ExecutionRecord {
         last_shard
             .memory_finalize_events
             .extend_from_slice(&self.memory_finalize_events);
-        last_shard
-            .program_memory_events
-            .extend_from_slice(&self.program_memory_events);
 
         shards
     }

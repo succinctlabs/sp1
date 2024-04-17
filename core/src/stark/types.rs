@@ -170,3 +170,29 @@ impl<SC: StarkGenericConfig> Debug for Proof<SC> {
             .finish()
     }
 }
+
+/// PublicValuesDigest is a hash of all the public values that a zkvm program has committed to.
+pub struct PublicValuesDigest(pub [u8; 32]);
+
+impl From<[u32; 8]> for PublicValuesDigest {
+    fn from(arr: [u32; 8]) -> Self {
+        let mut bytes = [0u8; 32];
+        for (i, word) in arr.iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+        PublicValuesDigest(bytes)
+    }
+}
+
+/// DeferredDigest is a hash of all the deferred proofs that have been witnessed in the VM.
+pub struct DeferredDigest(pub [u8; 32]);
+
+impl From<[u32; 8]> for DeferredDigest {
+    fn from(arr: [u32; 8]) -> Self {
+        let mut bytes = [0u8; 32];
+        for (i, word) in arr.iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+        DeferredDigest(bytes)
+    }
+}

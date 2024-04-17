@@ -300,7 +300,7 @@ mod tests {
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
 
         let mut challenger = machine.config().challenger();
-        challenger.observe(vk.commit);
+        vk.observe_into(&mut challenger);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);
             challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
