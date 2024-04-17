@@ -27,6 +27,7 @@ pub enum CurveType {
     Secp256k1,
     Bn254,
     Ed25519,
+    Bls12381,
 }
 
 impl Display for CurveType {
@@ -35,6 +36,7 @@ impl Display for CurveType {
             CurveType::Secp256k1 => write!(f, "Secp256k1"),
             CurveType::Bn254 => write!(f, "Bn254"),
             CurveType::Ed25519 => write!(f, "Ed25519"),
+            CurveType::Bls12381 => write!(f, "Bls12381"),
         }
     }
 }
