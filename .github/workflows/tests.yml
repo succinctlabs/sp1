@@ -37,7 +37,7 @@ jobs:
         run: |
           curl -L https://sp1.succinct.xyz | bash
           echo "/root/.sp1/bin" >> $GITHUB_PATH
-          sudo /root/.sp1/bin/sp1up
+          /root/.sp1/bin/sp1up
 
       - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
@@ -86,32 +86,6 @@ jobs:
           CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
 
-      - name: Run cargo test with no default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
-
-  test-recursion-circuit:
-    name: Test recursion-circuit
-    runs-on: warp-ubuntu-2204-x64-32x
-    if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PULL_TOKEN }}
-
       - name: Run cargo test on sp1-recursion-circuit
         uses: actions-rs/cargo@v1
         with:
@@ -123,6 +97,17 @@ jobs:
           RUST_BACKTRACE: 1
           FRI_QUERIES: 1
 
+      - name: Run cargo test with no default features
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
+          
   lints:
     name: Formatting & Clippy
     runs-on: warp-ubuntu-latest-x64-32x
