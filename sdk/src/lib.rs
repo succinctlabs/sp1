@@ -26,7 +26,7 @@ use anyhow::{Context, Ok, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::stark::{Com, PcsProverData, RiscvAir};
+use sp1_core::stark::{Com, DeferredDigest, PcsProverData, PublicValuesDigest, RiscvAir};
 use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
@@ -252,7 +252,7 @@ impl ProverClient {
         &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<BabyBearPoseidon2>,
-    ) -> Result<(), ProgramVerificationError> {
+    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError> {
         self.verify_with_config(elf, proof, BabyBearPoseidon2::new())
     }
 
@@ -261,7 +261,7 @@ impl ProverClient {
         elf: &[u8],
         proof: &SP1ProofWithIO<SC>,
         config: SC,
-    ) -> Result<(), ProgramVerificationError>
+    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError>
     where
         SC: StarkGenericConfig,
         SC::Challenger: Clone,

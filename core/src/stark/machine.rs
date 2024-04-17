@@ -16,12 +16,12 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 
 use super::debug_constraints;
+use super::DeferredDigest;
 use super::Dom;
+use super::PublicValuesDigest;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
 use crate::air::PublicValues;
-use crate::air::POSEIDON_NUM_WORDS;
-use crate::air::PV_DIGEST_NUM_WORDS;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -274,7 +274,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
-    ) -> Result<([u32; PV_DIGEST_NUM_WORDS], [u32; POSEIDON_NUM_WORDS]), ProgramVerificationError>
+    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError>
     where
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -313,21 +313,21 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                             "wrong pc_start",
                         ));
                     }
-                    let pv_digest = public_values
+                    let pv_digest: [u32; 8] = public_values
                         .committed_value_digest
                         .iter()
                         .map(|w| w.to_u32())
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
-                    let deferred_proofs_digest = public_values
+                    let deferred_proofs_digest: [u32; 8] = public_values
                         .deferred_proofs_digest
                         .iter()
                         .map(|w| w.to_u32())
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
-                    result = Some((pv_digest, deferred_proofs_digest));
+                    result = Some((pv_digest.into(), deferred_proofs_digest.into()));
                 } else {
                     let prev_shard_proof = &proof.shard_proofs[i - 1];
                     let prev_public_values =

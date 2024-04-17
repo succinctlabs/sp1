@@ -42,7 +42,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     }
 }
 
-pub trait MachineProgram<F: Field>: Send + Sync {
+pub trait MachineProgram<F>: Send + Sync {
     fn pc_start(&self) -> F;
 }
 
