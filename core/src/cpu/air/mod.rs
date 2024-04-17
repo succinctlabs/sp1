@@ -1,5 +1,7 @@
 pub mod branch;
+pub mod ecall;
 pub mod memory;
+pub mod register;
 
 use core::borrow::Borrow;
 use itertools::Itertools;
@@ -57,56 +59,8 @@ where
             local.is_real,
         );
 
-        // Load immediates into b and c, if the immediate flags are on.
-        builder
-            .when(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), local.instruction.op_b);
-        builder
-            .when(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), local.instruction.op_c);
-
-        // If they are not immediates, read `b` and `c` from memory.
-        builder.eval_memory_access(
-            local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
-            local.instruction.op_b[0],
-            &local.op_b_access,
-            AB::Expr::one() - local.selectors.imm_b,
-        );
-        builder
-            .when_not(local.selectors.imm_b)
-            .assert_word_eq(local.op_b_val(), *local.op_b_access.prev_value());
-
-        builder.eval_memory_access(
-            local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
-            local.instruction.op_c[0],
-            &local.op_c_access,
-            AB::Expr::one() - local.selectors.imm_c,
-        );
-        builder
-            .when_not(local.selectors.imm_c)
-            .assert_word_eq(local.op_c_val(), *local.op_c_access.prev_value());
-
-        // Write the `a` or the result to the first register described in the instruction unless
-        // we are performing a branch or a store.
-        // If we are writing to register 0, then the new value should be zero.
-        builder
-            .when(local.instruction.op_a_0)
-            .assert_word_zero(*local.op_a_access.value());
-        builder.eval_memory_access(
-            local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
-            local.instruction.op_a[0],
-            &local.op_a_access,
-            local.is_real,
-        );
-
-        // If we are performing a branch or a store, then the value of `a` is the previous value.
-        // Also, if op_a is register 0, then ensure that its value is 0.
-        builder
-            .when(is_branch_instruction.clone() + self.is_store_instruction::<AB>(&local.selectors))
-            .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
+        // Register constraints.
+        self.eval_registers::<AB>(builder, local);
 
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
@@ -144,9 +98,20 @@ where
             is_memory_instruction.clone(),
         );
 
-        // Memory handling.
+        // Memory instructions.
+        self.eval_memory_address_and_acccess::<AB>(builder, local, is_memory_instruction.clone());
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
+
+        // ALU instruction.
+        builder.send_alu(
+            local.instruction.opcode,
+            local.op_a_val(),
+            local.op_b_val(),
+            local.op_c_val(),
+            local.shard,
+            is_alu_instruction,
+        );
 
         // Branch instructions.
         self.branch_ops_eval::<AB>(builder, is_branch_instruction.clone(), local, next);
@@ -161,25 +126,7 @@ where
         let (num_cycles, is_halt, is_commit, is_commit_deferred_proofs) =
             self.ecall_eval(builder, local);
 
-        builder.send_alu(
-            local.instruction.opcode,
-            local.op_a_val(),
-            local.op_b_val(),
-            local.op_c_val(),
-            local.shard,
-            is_alu_instruction,
-        );
-
-        self.shard_clk_eval(builder, local, next, num_cycles);
-
-        self.pc_eval(
-            builder,
-            local,
-            next,
-            is_branch_instruction.clone(),
-            is_halt.clone(),
-        );
-
+        // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
         self.commit_eval(
             builder,
             local,
@@ -189,9 +136,26 @@ where
             public_values.deferred_proofs_digest.clone(),
         );
 
+        // HALT ecall and UNIMPL instruction.
         self.halt_unimpl_eval(builder, local, next, is_halt.clone());
 
+        // Check that the shard and clk is updated correctly.
+        self.shard_clk_eval(builder, local, next, num_cycles);
+
+        // Check that the pc is updated correctly.
+        self.pc_eval(
+            builder,
+            local,
+            next,
+            is_branch_instruction.clone(),
+            is_halt.clone(),
+        );
+
+        // Check public values constraints.
         self.public_values_eval(builder, local, next, &public_values);
+
+        // Check that the is_real flag is correct.
+        self.is_real_eval();
 
         // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
         // change value.
@@ -201,12 +165,6 @@ where
             .when_transition()
             .when_not(local.is_real)
             .assert_zero(next.is_real);
-
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            local.pc * local.pc * local.pc,
-            local.pc * local.pc * local.pc,
-        );
     }
 }
 
@@ -217,14 +175,6 @@ impl CpuChip {
         opcode_selectors: &OpcodeSelectorCols<AB::Var>,
     ) -> AB::Expr {
         opcode_selectors.is_alu.into()
-    }
-
-    /// Whether the instruction is an ECALL instruction.
-    pub(crate) fn is_ecall_instruction<AB: SP1AirBuilder>(
-        &self,
-        opcode_selectors: &OpcodeSelectorCols<AB::Var>,
-    ) -> AB::Expr {
-        opcode_selectors.is_ecall.into()
     }
 
     /// Constraints related to jump operations.
@@ -309,116 +259,6 @@ impl CpuChip {
             local.shard,
             local.selectors.is_auipc,
         );
-    }
-
-    /// Constraints related to the ECALL opcode.
-    pub(crate) fn ecall_eval<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-    ) -> (AB::Expr, AB::Expr, AB::Expr, AB::Expr) {
-        let ecall_cols = local.opcode_specific_columns.ecall();
-        let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
-        // The syscall code is the read-in value of op_a at the start of the instruction.
-        let syscall_code = local.op_a_access.prev_value();
-        // We interpret the syscall_code as little-endian bytes and interpret each byte as a u8
-        // with different information. Read more about the format in runtime::syscall::SyscallCode.
-        let syscall_id = syscall_code[0];
-        let send_to_table = syscall_code[1]; // Does the syscall have a table that should be sent.
-        let num_cycles = syscall_code[2]; // How many extra cycles to increment the clk for the syscall.
-
-        // Check that the ecall_mul_send_to_table column is equal to send_to_table * is_ecall_instruction.
-        // This is a separate column because it is used as a multiplicity in an interaction which
-        // requires degree 1 columns.
-        builder
-            .when(is_ecall_instruction.clone())
-            .assert_eq(send_to_table, local.ecall_mul_send_to_table);
-        builder.send_syscall(
-            local.shard,
-            local.clk,
-            syscall_id,
-            local.op_b_val().reduce::<AB>(),
-            local.op_c_val().reduce::<AB>(),
-            local.ecall_mul_send_to_table,
-        );
-
-        // Constrain EcallCols.is_enter_unconstrained.result == syscall_id is ENTER_UNCONSTRAINED.
-        let is_enter_unconstrained = {
-            IsZeroOperation::<AB::F>::eval(
-                builder,
-                syscall_id
-                    - AB::Expr::from_canonical_u32(SyscallCode::ENTER_UNCONSTRAINED.syscall_id()),
-                ecall_cols.is_enter_unconstrained,
-                is_ecall_instruction.clone(),
-            );
-            ecall_cols.is_enter_unconstrained.result
-        };
-
-        // Constrain EcallCols.is_halt.result == syscall_id is HALT.
-        let is_halt = {
-            IsZeroOperation::<AB::F>::eval(
-                builder,
-                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HALT.syscall_id()),
-                ecall_cols.is_halt,
-                is_ecall_instruction.clone(),
-            );
-            ecall_cols.is_halt.result
-        };
-
-        // Constrain EcallCols.is_hint_len.result == syscall_id is HINT_LEN.
-        let is_hint_len = {
-            IsZeroOperation::<AB::F>::eval(
-                builder,
-                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::HINT_LEN.syscall_id()),
-                ecall_cols.is_hint_len,
-                is_ecall_instruction.clone(),
-            );
-            ecall_cols.is_hint_len.result
-        };
-
-        // Constrain EcallCols.is_commit.result == (syscall_id is COMMIT).
-        let is_commit = {
-            IsZeroOperation::<AB::F>::eval(
-                builder,
-                syscall_id - AB::Expr::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
-                ecall_cols.is_commit,
-                is_ecall_instruction.clone(),
-            );
-            ecall_cols.is_commit.result
-        };
-
-        // Constrain EcallCols.is_commit_deferred_proofs.result == (syscall_id is COMMIT_DEFERRED_PROOFS).
-        let is_commit_deferred_proofs = {
-            IsZeroOperation::<AB::F>::eval(
-                builder,
-                syscall_id
-                    - AB::Expr::from_canonical_u32(
-                        SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id(),
-                    ),
-                ecall_cols.is_commit_deferred_proofs,
-                is_ecall_instruction.clone(),
-            );
-            ecall_cols.is_commit_deferred_proofs.result
-        };
-
-        // When syscall_id is ENTER_UNCONSTRAINED, the new value of op_a should be 0.
-        let zero_word = Word::<AB::F>::from(0);
-        builder
-            .when(is_ecall_instruction.clone() * is_enter_unconstrained)
-            .assert_word_eq(local.op_a_val(), zero_word);
-
-        // When the syscall is not one of ENTER_UNCONSTRAINED, HINT_LEN, or HALT, op_a shouldn't change.
-        builder
-            .when(is_ecall_instruction.clone())
-            .when_not(is_enter_unconstrained + is_hint_len + is_halt)
-            .assert_word_eq(local.op_a_val(), local.op_a_access.prev_value);
-
-        (
-            num_cycles * is_ecall_instruction.clone(),
-            is_halt * is_ecall_instruction,
-            is_commit.into(),
-            is_commit_deferred_proofs.into(),
-        )
     }
 
     /// Constraints related to the shard and clk.
@@ -509,111 +349,6 @@ impl CpuChip {
             .when(local.is_real)
             .when(local.is_sequential_instr)
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
-    }
-
-    /// Constraints related to the COMMIT and COMMIT_DEFERRED_PROOFS instructions.
-    pub(crate) fn commit_eval<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        is_commit: AB::Expr,
-        is_commit_deferred_proofs: AB::Expr,
-        commit_digest: [Word<AB::Expr>; PV_DIGEST_NUM_WORDS],
-        deferred_proofs_digest: [Word<AB::Expr>; POSEIDON_NUM_WORDS],
-    ) {
-        // Get the ecall specific columns.
-        let ecall_columns = local.opcode_specific_columns.ecall();
-
-        // Verify the index bitmap.
-        let mut bitmap_sum = AB::Expr::zero();
-        // They should all be bools.
-        for bit in ecall_columns.index_bitmap.iter() {
-            builder.when(local.selectors.is_ecall).assert_bool(*bit);
-            bitmap_sum += (*bit).into();
-        }
-        // When the syscall is COMMIT or COMMIT_DEFERRED_PROOFS, there should be one set bit.
-        builder
-            .when(
-                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-            )
-            .assert_one(bitmap_sum.clone());
-        // When it's some other syscall, there should be no set bits.
-        builder
-            .when(
-                local.selectors.is_ecall
-                    * (AB::Expr::one() - (is_commit.clone() + is_commit_deferred_proofs.clone())),
-            )
-            .assert_zero(bitmap_sum);
-
-        // Verify that word_idx corresponds to the set bit in index bitmap.
-        for (i, bit) in ecall_columns.index_bitmap.iter().enumerate() {
-            builder.when(*bit * local.selectors.is_ecall).assert_eq(
-                local.op_b_access.prev_value()[0],
-                AB::Expr::from_canonical_u32(i as u32),
-            );
-        }
-        // Verify that the 3 upper bytes of the word_idx are 0.
-        for i in 0..3 {
-            builder
-                .when(
-                    local.selectors.is_ecall
-                        * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-                )
-                .assert_eq(
-                    local.op_b_access.prev_value()[i + 1],
-                    AB::Expr::from_canonical_u32(0),
-                );
-        }
-
-        // Retrieve the expected public values digest word to check against the one passed into the
-        // commit ecall. Note that for the interaction builder, it will not have any digest words, since
-        // it's used during AIR compilation time to parse for all send/receives. Since that interaction
-        // builder will ignore the other constraints of the air, it is safe to not include the
-        // verification check of the expected public values digest word.
-        let expected_pv_digest_word =
-            builder.index_word_array(&commit_digest, &ecall_columns.index_bitmap);
-
-        let digest_word = local.op_c_access.prev_value();
-        // Verify b and c do not change during commit syscall.
-        builder
-            .when(
-                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-            )
-            .assert_word_eq(*local.op_b_access.value(), *local.op_b_access.prev_value());
-        builder
-            .when(
-                local.selectors.is_ecall * (is_commit.clone() + is_commit_deferred_proofs.clone()),
-            )
-            .assert_word_eq(*local.op_c_access.value(), *local.op_c_access.prev_value());
-
-        // Verify the public_values_digest_word.
-        builder
-            .when(local.selectors.is_ecall * is_commit)
-            .assert_word_eq(expected_pv_digest_word, *digest_word);
-
-        let expected_deferred_proofs_digest_word =
-            builder.index_word_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
-
-        builder
-            .when(local.selectors.is_ecall * is_commit_deferred_proofs)
-            .assert_word_eq(expected_deferred_proofs_digest_word, *digest_word);
-    }
-
-    /// Constraint related to the halt and unimpl instruction.
-    pub(crate) fn halt_unimpl_eval<AB: SP1AirBuilder>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        next: &CpuCols<AB::Var>,
-        is_halt: AB::Expr,
-    ) {
-        // If we're halting and it's a transition, then the next.is_real should be 0.
-        builder
-            .when_transition()
-            .when(is_halt.clone() + local.selectors.is_unimpl)
-            .assert_zero(next.is_real);
-
-        builder.when(is_halt.clone()).assert_zero(local.next_pc);
     }
 
     /// Constraint related to the public values.
