@@ -1,6 +1,10 @@
+//! sp1-primitives contains types and functions that are used in both sp1-core and sp1-zkvm.
+//! Because it is imported in the zkvm entrypoint, it should be kept minimal.
+
 use lazy_static::lazy_static;
-use p3_baby_bear::BabyBear;
+use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
 use p3_field::AbstractField;
+use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 
 lazy_static! {
     // These constants are created by a RNG.
@@ -1093,4 +1097,56 @@ lazy_static! {
             (3799795076),
         ]
     ];
+}
+
+pub fn poseidon2_init(
+) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7> {
+    const ROUNDS_F: usize = 8;
+    const ROUNDS_P: usize = 22;
+    let mut round_constants = RC_16_30.to_vec();
+    let internal_start = ROUNDS_F / 2;
+    let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+    let internal_round_constants = round_constants
+        .drain(internal_start..internal_end)
+        .map(|vec| vec[0])
+        .collect::<Vec<_>>();
+    let external_round_constants = round_constants;
+    Poseidon2::new(
+        ROUNDS_F,
+        external_round_constants,
+        Poseidon2ExternalMatrixGeneral,
+        ROUNDS_P,
+        internal_round_constants,
+        DiffusionMatrixBabybear,
+    )
+}
+
+use p3_symmetric::{CryptographicHasher, PaddingFreeSponge};
+
+pub fn poseidon2_hash(input: Vec<BabyBear>) -> [BabyBear; 8] {
+    POSEIDON2_HASHER.hash_iter(input)
+}
+
+pub fn poseidon2_hasher() -> PaddingFreeSponge<
+    Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+    16,
+    8,
+    8,
+> {
+    let hasher = poseidon2_init();
+    PaddingFreeSponge::<
+        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+        16,
+        8,
+        8,
+    >::new(hasher)
+}
+
+lazy_static! {
+    pub static ref POSEIDON2_HASHER: PaddingFreeSponge::<
+        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+        16,
+        8,
+        8,
+    > = poseidon2_hasher();
 }

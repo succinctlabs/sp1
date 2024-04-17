@@ -8,7 +8,7 @@ use typenum::{U48, U94};
 
 use super::{SwCurve, WeierstrassParameters};
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
-use crate::utils::ec::{AffinePoint, EllipticCurveParameters, CurveType, EllipticCurve};
+use crate::utils::ec::{AffinePoint, CurveType, EllipticCurve, EllipticCurveParameters};
 
 // Serialization flags
 const COMPRESION_FLAG: u8 = 0b_1000_0000;
@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(&Bls12381BaseField::MODULUS),
+            biguint_from_limbs(Bls12381BaseField::MODULUS),
             Bls12381BaseField::modulus()
         );
     }
@@ -164,10 +164,10 @@ mod tests {
                 let y_neg = Bls12381BaseField::modulus() - y.clone();
 
                 // Set flags
-                let mut is_odd = 0;
+                let mut is_odd = 1;
                 if y > y_neg {
                     result[0] += Y_IS_ODD_FLAG;
-                    is_odd = 1;
+                    is_odd = 0;
                 }
                 result[0] += COMPRESION_FLAG;
 
@@ -189,12 +189,7 @@ mod tests {
             let x = rng.gen_biguint(256) % Bls12381BaseField::modulus();
             let x_2 = (&x * &x) % Bls12381BaseField::modulus();
             let sqrt = bls12381_sqrt(&x_2);
-            if sqrt > x_2 {
-                println!("wtf");
-            }
-
             let sqrt_2 = (&sqrt * &sqrt) % Bls12381BaseField::modulus();
-
             assert_eq!(sqrt_2, x_2);
         }
     }

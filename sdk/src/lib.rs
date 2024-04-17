@@ -57,13 +57,19 @@ impl ProverClient {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         dotenv::dotenv().ok();
-        let private_key = env::var("PRIVATE_KEY").unwrap_or_default();
-        if private_key.is_empty() {
-            Self { client: None }
-        } else {
+        let remote_proving = env::var("REMOTE_PROVE")
+            .unwrap_or_else(|_| String::from("false"))
+            .parse::<bool>()
+            .unwrap_or(false);
+
+        if remote_proving {
+            let private_key = env::var("PRIVATE_KEY")
+                .unwrap_or_else(|_| panic!("PRIVATE_KEY must be set for remote proving"));
             Self {
                 client: Some(NetworkClient::new(&private_key)),
             }
+        } else {
+            Self { client: None }
         }
     }
 
@@ -94,6 +100,8 @@ impl ProverClient {
     }
 
     // Generate a proof remotely using the Succinct Network in an async context.
+    // Note: If the simulation of the runtime is expensive for user programs, we can add an optional
+    // flag to skip it. This shouldn't be the case for the vast majority of user programs.
     pub async fn prove_remote_async(
         &self,
         elf: &[u8],
@@ -103,6 +111,12 @@ impl ProverClient {
             .client
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
+
+        // Execute the runtime before creating the proof request.
+        let mut runtime = Runtime::new(Program::from(elf));
+        runtime.write_vecs(&stdin.buffer);
+        runtime.run();
+        println!("Simulation complete.");
 
         let proof_id = client.create_proof(elf, &stdin).await?;
         println!("proof_id: {:?}", proof_id);

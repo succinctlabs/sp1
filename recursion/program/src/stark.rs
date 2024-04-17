@@ -278,6 +278,8 @@ pub(crate) mod tests {
     use rand::Rng;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
+    use sp1_core::utils::InnerChallenge;
+    use sp1_core::utils::InnerVal;
     use sp1_core::{
         stark::{RiscvAir, ShardProof, StarkGenericConfig},
         utils::BabyBearPoseidon2,
@@ -285,14 +287,13 @@ pub(crate) mod tests {
     use sp1_recursion_compiler::config::InnerConfig;
     use sp1_recursion_compiler::ir::Array;
     use sp1_recursion_compiler::ir::Felt;
+    use sp1_recursion_compiler::prelude::Usize;
     use sp1_recursion_compiler::{
         asm::AsmBuilder,
         ir::{Builder, ExtConst},
     };
 
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
-    use sp1_recursion_core::stark::config::InnerChallenge;
-    use sp1_recursion_core::stark::config::InnerVal;
 
     use sp1_recursion_core::stark::RecursionAir;
     use sp1_sdk::utils::setup_logger;
@@ -326,7 +327,7 @@ pub(crate) mod tests {
 
         proofs.iter().for_each(|proof| {
             challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(&proof.public_values);
+            challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
         });
 
         let permutation_challenges = (0..2)
@@ -348,7 +349,12 @@ pub(crate) mod tests {
             let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
             let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
             challenger.observe(&mut builder, main_commit);
-            challenger.observe_slice(&mut builder, proof.public_values);
+            let pv_slice = proof.public_values.slice(
+                &mut builder,
+                Usize::Const(0),
+                Usize::Const(machine.num_pv_elts()),
+            );
+            challenger.observe_slice(&mut builder, pv_slice);
         }
 
         // Sample the permutation challenges.

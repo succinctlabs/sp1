@@ -1367,7 +1367,6 @@ dependencies = [
  "rand_core",
  "sec1",
  "subtle",
- "tap",
  "zeroize",
 ]
 
@@ -1437,7 +1436,6 @@ version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ded41244b729663b1e574f1b4fb731469f69f79c17667b5d776b16cda0479449"
 dependencies = [
- "bitvec",
  "rand_core",
  "subtle",
 ]
@@ -2540,7 +2538,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2549,7 +2547,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "num-bigint",
  "p3-field",
@@ -2563,7 +2561,7 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -2572,7 +2570,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -2584,7 +2582,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -2597,7 +2595,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2609,7 +2607,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint",
@@ -2622,7 +2620,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -2640,7 +2638,7 @@ dependencies = [
 [[package]]
 name = "p3-goldilocks"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "num-bigint",
  "p3-dft",
@@ -2656,7 +2654,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2666,7 +2664,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -2675,7 +2673,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "p3-air",
  "p3-field",
@@ -2687,7 +2685,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -2701,7 +2699,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "rayon",
 ]
@@ -2709,7 +2707,7 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.11.0",
  "p3-dft",
@@ -2723,7 +2721,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -2739,7 +2737,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "gcd",
  "p3-field",
@@ -2751,7 +2749,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -2761,7 +2759,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -2779,7 +2777,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#cbbcbe1c1353f742782323676af55e59b4318d94"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#d379375a75417ddfd0a059ce7db63e162ec52c69"
 dependencies = [
  "serde",
 ]
@@ -3132,6 +3130,15 @@ checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
+]
+
+[[package]]
+name = "rayon-scan"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f87cc11a0140b4b0da0ffc889885760c61b13672d80a908920b2c0df078fa14"
+dependencies = [
+ "rayon",
 ]
 
 [[package]]
@@ -3768,6 +3775,7 @@ name = "sp1-core"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "arrayref",
  "bincode",
  "blake3",
  "blake3-zkvm",
@@ -3807,6 +3815,7 @@ dependencies = [
  "p3-uni-stark",
  "p3-util",
  "petgraph",
+ "rayon-scan",
  "rrs-lib",
  "serde",
  "serde_json",
@@ -3814,7 +3823,7 @@ dependencies = [
  "serial_test",
  "size",
  "sp1-derive",
- "sp1-zkvm",
+ "sp1-primitives",
  "strum",
  "strum_macros",
  "tempfile",
@@ -3844,16 +3853,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-precompiles"
+name = "sp1-primitives"
 version = "0.1.0"
 dependencies = [
- "anyhow",
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "rand",
- "serde",
+ "itertools 0.12.1",
+ "lazy_static",
+ "p3-baby-bear",
+ "p3-field",
+ "p3-poseidon2",
+ "p3-symmetric",
 ]
 
 [[package]]
@@ -3883,22 +3891,6 @@ dependencies = [
  "tokio",
  "tracing",
  "twirp",
-]
-
-[[package]]
-name = "sp1-zkvm"
-version = "0.1.0"
-dependencies = [
- "bincode",
- "cfg-if",
- "getrandom",
- "k256",
- "libm",
- "once_cell",
- "rand",
- "serde",
- "sha2",
- "sp1-precompiles",
 ]
 
 [[package]]

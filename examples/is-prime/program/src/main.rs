@@ -6,7 +6,7 @@ pub fn main() {
 
     let is_prime = is_prime(n);
 
-    sp1_zkvm::io::write(&is_prime);
+    sp1_zkvm::io::commit(&is_prime);
 }
 
 // Returns if divisible via immediate checks than 6k ± 1.

@@ -13,7 +13,6 @@ use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
 use crate::utils::env::shard_batch_size;
-use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
@@ -194,7 +193,7 @@ where
 
         for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
-            challenger.observe_slice(&shard.public_values::<SC::Val>());
+            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
         }
     }
 
@@ -343,7 +342,6 @@ use p3_uni_stark::Proof;
 
 pub mod baby_bear_poseidon2 {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -355,6 +353,7 @@ pub mod baby_bear_poseidon2 {
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
+    use sp1_primitives::RC_16_30;
 
     use crate::stark::StarkGenericConfig;
 

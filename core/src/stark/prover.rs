@@ -88,7 +88,8 @@ where
                 .zip(shards.iter())
                 .for_each(|(commitment, shard)| {
                     challenger.observe(commitment);
-                    challenger.observe_slice(&shard.public_values::<SC::Val>());
+                    challenger
+                        .observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
                 });
         });
 

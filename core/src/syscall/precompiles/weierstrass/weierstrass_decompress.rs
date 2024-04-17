@@ -46,10 +46,8 @@ pub const fn num_weierstrass_decompress_cols<P: FieldParameters + NumWords>() ->
     size_of::<WeierstrassDecompressCols<u8, P>>()
 }
 
-/// A set of columns to compute `WeierstrassAdd` that add two points on a Weierstrass curve.
-///
-/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed or
-/// made generic in the future.
+/// A set of columns to compute `WeierstrassDecompress` that decompresses a point on a Weierstrass
+/// curve.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
@@ -85,7 +83,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassDecompressChip<E> {
     }
 
     fn num_extra_cycles(&self) -> u32 {
-        0
+        1
     }
 }
 

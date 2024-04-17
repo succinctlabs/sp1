@@ -18,7 +18,7 @@ pub fn decompress_pubkey(compressed_key: &[u8; 48]) -> Result<[u8; 96]> {
 
             Ok(decompressed_key)
         } else {
-            let point = deserialize_g1(&compressed_key.as_slice()).unwrap();
+            let point = deserialize_g1(compressed_key.as_slice()).unwrap();
             let x = point.getx().to_string();
             let y = point.gety().to_string();
 
@@ -30,4 +30,3 @@ pub fn decompress_pubkey(compressed_key: &[u8; 48]) -> Result<[u8; 96]> {
         }
     }
 }
-
