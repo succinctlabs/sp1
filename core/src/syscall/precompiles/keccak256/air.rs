@@ -10,7 +10,7 @@ use super::{
     KeccakPermuteChip, STATE_NUM_WORDS, STATE_SIZE,
 };
 use crate::{
-    air::{SP1AirBuilder, SubAirBuilder},
+    air::{SP1AirBuilder, SubAirBuilder, WordAirBuilder},
     memory::MemoryCols,
     runtime::SyscallCode,
 };
@@ -40,6 +40,14 @@ where
 
         // Constrain memory
         for i in 0..STATE_NUM_WORDS as u32 {
+            // At the first cycle, verify that the memory has not changed since it's a memory read.
+            builder
+                .when(local.keccak.step_flags[0] * local.is_real)
+                .assert_word_eq(
+                    *local.state_mem[i as usize].value(),
+                    *local.state_mem[i as usize].prev_value(),
+                );
+
             builder.eval_memory_access(
                 local.shard,
                 local.clk + local.keccak.step_flags[23], // The clk increments by 1 when step_flags[23] == 1
