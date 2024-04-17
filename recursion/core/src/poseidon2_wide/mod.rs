@@ -40,16 +40,19 @@ pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
         state[i] += sum.clone();
     }
 }
-pub(crate) fn external_linear_layer<F: AbstractField>(input: &[F; WIDTH], output: &mut [F; WIDTH]) {
+pub(crate) fn external_linear_layer<AF: AbstractField>(
+    input: &[AF; WIDTH],
+    output: &mut [AF; WIDTH],
+) {
     output.clone_from_slice(input);
     for j in (0..WIDTH).step_by(4) {
         apply_m_4(&mut output[j..j + 4]);
     }
-    let sums: [F; 4] = core::array::from_fn(|k| {
+    let sums: [AF; 4] = core::array::from_fn(|k| {
         (0..WIDTH)
             .step_by(4)
             .map(|j| output[j + k].clone())
-            .sum::<F>()
+            .sum::<AF>()
     });
 
     for j in 0..WIDTH {
