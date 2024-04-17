@@ -1,3 +1,4 @@
+use super::ShaCompressChip;
 use crate::{
     runtime::Syscall,
     syscall::precompiles::{
@@ -5,8 +6,6 @@ use crate::{
         SyscallContext,
     },
 };
-
-use super::ShaCompressChip;
 
 impl Syscall for ShaCompressChip {
     fn num_extra_cycles(&self) -> u32 {

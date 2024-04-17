@@ -1,9 +1,22 @@
-use std::marker::PhantomData;
+use std::cmp::Reverse;
+use std::collections::HashMap;
+use std::fmt::Debug;
 
 use itertools::Itertools;
-use std::collections::HashMap;
+use p3_air::Air;
+use p3_challenger::CanObserve;
+use p3_challenger::FieldChallenger;
+use p3_commit::Pcs;
+use p3_field::AbstractField;
+use p3_field::Field;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Dimensions;
+use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::*;
 
 use super::debug_constraints;
+use super::Dom;
 use crate::air::MachineAir;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
@@ -11,18 +24,12 @@ use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
+use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
-use p3_air::Air;
-use p3_challenger::CanObserve;
-use p3_challenger::FieldChallenger;
-use p3_field::AbstractField;
-use p3_field::Field;
-use p3_field::PrimeField32;
-use p3_matrix::Matrix;
-use p3_matrix::MatrixRowSlices;
-use p3_maybe_rayon::prelude::*;
 
 use super::Chip;
+use super::Com;
+use super::PcsProverData;
 use super::Proof;
 use super::Prover;
 use super::StarkGenericConfig;
@@ -38,30 +45,59 @@ pub struct MachineStark<SC: StarkGenericConfig, A> {
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
     chips: Vec<Chip<Val<SC>, A>>,
+
+    /// The number of public values elements that the machine uses
+    num_pv_elts: usize,
 }
 
 impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
-    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>) -> Self {
-        Self { config, chips }
+    pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
+        Self {
+            config,
+            chips,
+            num_pv_elts,
+        }
     }
 }
 
-#[derive(Debug, Clone)]
 pub struct ProvingKey<SC: StarkGenericConfig> {
-    //TODO
-    marker: std::marker::PhantomData<SC>,
+    pub commit: Com<SC>,
+    pub traces: Vec<RowMajorMatrix<Val<SC>>>,
+    pub data: PcsProverData<SC>,
+    pub chip_ordering: HashMap<String, usize>,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
-    // TODO:
-    marker: std::marker::PhantomData<SC>,
+    pub commit: Com<SC>,
+    pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
+    pub chip_ordering: HashMap<String, usize>,
+}
+
+impl<SC: StarkGenericConfig> Debug for VerifyingKey<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("VerifyingKey").finish()
+    }
 }
 
 impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
+    }
+
+    pub fn num_pv_elts(&self) -> usize {
+        self.num_pv_elts
+    }
+
+    /// Returns the id of all chips in the machine that have preprocessed columns.
+    pub fn preprocessed_chip_ids(&self) -> Vec<usize> {
+        self.chips
+            .iter()
+            .enumerate()
+            .filter(|(_, chip)| chip.preprocessed_width() > 0)
+            .map(|(i, _)| i)
+            .collect()
     }
 
     pub fn shard_chips<'a, 'b>(
@@ -87,17 +123,84 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .sorted_by_key(|chip| chip_ordering.get(&chip.name()))
     }
 
+    pub fn chips_sorted_indices(&self, proof: &ShardProof<SC>) -> Vec<Option<usize>> {
+        self.chips()
+            .iter()
+            .map(|chip| proof.chip_ordering.get(&chip.name()).cloned())
+            .collect()
+    }
+
     /// The setup preprocessing phase.
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    pub fn setup<P>(&self, _program: &P) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+    pub fn setup(&self, program: &A::Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+        let mut named_preprocessed_traces = self
+            .chips()
+            .iter()
+            .map(|chip| {
+                let prep_trace = chip.generate_preprocessed_trace(program);
+                // Assert that the chip width data is correct.
+                let expected_width = prep_trace.as_ref().map(|t| t.width()).unwrap_or(0);
+                assert_eq!(
+                    expected_width,
+                    chip.preprocessed_width(),
+                    "Incorrect number of preprocessed columns for chip {}",
+                    chip.name()
+                );
+
+                (chip.name(), prep_trace)
+            })
+            .filter(|(_, prep_trace)| prep_trace.is_some())
+            .map(|(name, prep_trace)| {
+                let prep_trace = prep_trace.unwrap();
+                (name, prep_trace)
+            })
+            .collect::<Vec<_>>();
+
+        // Order the chips and traces by trace size (biggest first), and get the ordering map.
+        named_preprocessed_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
+
+        let pcs = self.config.pcs();
+
+        let (chip_information, domains_and_traces): (Vec<_>, Vec<_>) = named_preprocessed_traces
+            .iter()
+            .map(|(name, trace)| {
+                let domain = pcs.natural_domain_for_degree(trace.height());
+                (
+                    (name.to_owned(), domain, trace.dimensions()),
+                    (domain, trace.to_owned()),
+                )
+            })
+            .unzip();
+
+        // Commit to the batch of traces.
+        let (commit, data) = pcs.commit(domains_and_traces);
+
+        // Get the chip ordering.
+        let chip_ordering = named_preprocessed_traces
+            .iter()
+            .enumerate()
+            .map(|(i, (name, _))| (name.to_owned(), i))
+            .collect::<HashMap<_, _>>();
+
+        // Get the preprocessed traces
+        let traces = named_preprocessed_traces
+            .into_iter()
+            .map(|(_, trace)| trace)
+            .collect::<Vec<_>>();
+
         (
             ProvingKey {
-                marker: PhantomData,
+                commit: commit.clone(),
+                traces,
+                data,
+                chip_ordering: chip_ordering.clone(),
             },
             VerifyingKey {
-                marker: PhantomData,
+                commit,
+                chip_information,
+                chip_ordering,
             },
         )
     }
@@ -157,7 +260,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn verify(
         &self,
-        _vk: &VerifyingKey<SC>,
+        vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
     ) -> Result<(), ProgramVerificationError>
@@ -165,12 +268,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
-        // TODO: Observe the challenges in a tree-like structure for easily verifiable reconstruction
-        // in a map-reduce recursion setting.
-        #[cfg(feature = "perf")]
+        // Observe the preprocessed commitment.
+        challenger.observe(vk.commit.clone());
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
+                challenger.observe_slice(&proof.public_values[0..self.num_pv_elts()]);
             });
         });
 
@@ -181,12 +284,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                 let chips = self
                     .shard_chips_ordered(&proof.chip_ordering)
                     .collect::<Vec<_>>();
-                Verifier::verify_shard(&self.config, &chips, &mut challenger.clone(), proof)
+                Verifier::verify_shard(&self.config, vk, &chips, &mut challenger.clone(), proof)
                     .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
-        tracing::info!("success");
+        tracing::info!("verifying individual shards succeeded");
 
+        tracing::info!("verifying cumulative sum is 0");
         // Verify the cumulative sum is 0.
         let mut sum = SC::Challenge::zero();
         for proof in proof.shard_proofs.iter() {
@@ -200,7 +304,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn debug_constraints(
         &self,
-        _pk: &ProvingKey<SC>,
+        pk: &ProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
     ) where
@@ -208,7 +312,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         A: for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
         tracing::debug!("sharding the execution record");
-        let mut shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
+        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
 
         tracing::debug!("checking constraints for each shard");
 
@@ -218,9 +322,18 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             let chips = self.shard_chips(shard).collect::<Vec<_>>();
 
             // Generate the main trace for each chip.
-            let traces = chips
+            let pre_traces = chips
+                .iter()
+                .map(|chip| {
+                    pk.chip_ordering
+                        .get(&chip.name())
+                        .map(|index| &pk.traces[*index])
+                })
+                .collect::<Vec<_>>();
+            let mut traces = chips
                 .par_iter()
                 .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+                .zip(pre_traces)
                 .collect::<Vec<_>>();
 
             // Get a permutation challenge.
@@ -236,10 +349,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             tracing::debug_span!("generate permutation traces").in_scope(|| {
                 chips
                     .par_iter()
-                    .zip(traces.par_iter())
-                    .map(|(chip, main_trace)| {
+                    .zip(traces.par_iter_mut())
+                    .map(|(chip, (main_trace, pre_trace))| {
                         let perm_trace = chip.generate_permutation_trace(
-                            &None,
+                            *pre_trace,
                             main_trace,
                             &permutation_challenges,
                         );
@@ -257,27 +370,32 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
             // Compute some statistics.
             for i in 0..chips.len() {
-                let trace_width = traces[i].width();
+                let trace_width = traces[i].0.width();
                 let permutation_width = permutation_traces[i].width();
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
                 "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
                 chips[i].name(),
                 total_width,
-                traces[i].height(),
-                total_width * traces[i].height(),
+                traces[i].0.height(),
+                total_width * traces[i].0.height(),
                 (100f32 * trace_width as f32) / total_width as f32,
                 (100f32 * permutation_width as f32) / total_width as f32);
             }
 
             tracing::info_span!("debug constraints").in_scope(|| {
                 for i in 0..chips.len() {
+                    let permutation_trace = pk
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|index| &pk.traces[*index]);
                     debug_constraints::<SC, A>(
                         chips[i],
-                        None,
-                        &traces[i],
+                        permutation_trace,
+                        &traces[i].0,
                         &permutation_traces[i],
                         &permutation_challenges,
+                        shard.public_values(),
                     );
                 }
             });
@@ -285,14 +403,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
         // If the cumulative sum is not zero, debug the interactions.
         if !cumulative_sum.is_zero() {
-            // Get the total record
-            let mut record = A::Record::default();
-            for shard in shards.iter_mut() {
-                record.append(shard);
-            }
             debug_interactions_with_all_chips::<SC, A>(
-                self.chips(),
-                &record,
+                self,
+                pk,
+                &shards,
                 InteractionKind::all_kinds(),
             );
         }
@@ -311,7 +425,6 @@ pub enum ProgramVerificationError {
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use crate::runtime::tests::ecall_lwa_program;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
@@ -327,13 +440,6 @@ pub mod tests {
     fn test_simple_prove() {
         utils::setup_logger();
         let program = simple_program();
-        run_test(program).unwrap();
-    }
-
-    #[test]
-    fn test_ecall_lwa_prove() {
-        utils::setup_logger();
-        let program = ecall_lwa_program();
         run_test(program).unwrap();
     }
 
@@ -411,6 +517,7 @@ pub mod tests {
 
     #[test]
     fn test_lt_prove() {
+        setup_logger();
         let less_than = [Opcode::SLT, Opcode::SLTU];
         for lt_op in less_than.iter() {
             let instructions = vec![
@@ -425,6 +532,7 @@ pub mod tests {
 
     #[test]
     fn test_bitwise_prove() {
+        setup_logger();
         let bitwise_opcodes = [Opcode::XOR, Opcode::OR, Opcode::AND];
 
         for bitwise_op in bitwise_opcodes.iter() {
@@ -440,6 +548,7 @@ pub mod tests {
 
     #[test]
     fn test_divrem_prove() {
+        setup_logger();
         let div_rem_ops = [Opcode::DIV, Opcode::DIVU, Opcode::REM, Opcode::REMU];
         let operands = [
             (1, 1),

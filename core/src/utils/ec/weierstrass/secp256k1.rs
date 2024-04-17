@@ -4,6 +4,9 @@
 use std::str::FromStr;
 
 use generic_array::GenericArray;
+use k256::FieldElement;
+use num::traits::FromBytes;
+use num::traits::ToBytes;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
@@ -13,9 +16,6 @@ use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
-use k256::FieldElement;
-use num::traits::FromBytes;
-use num::traits::ToBytes;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 curve parameter

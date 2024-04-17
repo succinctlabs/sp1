@@ -1,8 +1,10 @@
-use p3_field::Field;
-
-use super::{Builder, Config, DslIR, MemVariable, SymbolicVar, Usize, Var, Variable};
 use core::ops::{Add, Sub};
 
+use p3_field::Field;
+
+use super::{Builder, Config, DslIr, MemIndex, MemVariable, SymbolicVar, Usize, Var, Variable};
+
+/// A point to a location in memory.
 #[derive(Debug, Clone, Copy)]
 pub struct Ptr<N> {
     pub address: Var<N>,
@@ -13,20 +15,21 @@ pub struct SymbolicPtr<N> {
 }
 
 impl<C: Config> Builder<C> {
-    pub(crate) fn alloc(&mut self, len: Usize<C::N>) -> Ptr<C::N> {
+    /// Allocates an array on the heap.
+    pub(crate) fn alloc(&mut self, len: Usize<C::N>, size: usize) -> Ptr<C::N> {
         let ptr = Ptr::uninit(self);
-        self.push(DslIR::Alloc(ptr, len));
+        self.push(DslIr::Alloc(ptr, len, size));
         ptr
     }
 
-    pub fn load<V: MemVariable<C>, P: Into<SymbolicPtr<C::N>>>(&mut self, var: V, ptr: P) {
-        let load_ptr = self.eval(ptr);
-        var.load(load_ptr, self);
+    /// Loads a value from memory.
+    pub fn load<V: MemVariable<C>>(&mut self, var: V, ptr: Ptr<C::N>, index: MemIndex<C::N>) {
+        var.load(ptr, index, self);
     }
 
-    pub fn store<V: MemVariable<C>, P: Into<SymbolicPtr<C::N>>>(&mut self, ptr: P, value: V) {
-        let store_ptr = self.eval(ptr);
-        value.store(store_ptr, self);
+    /// Stores a value to memory.
+    pub fn store<V: MemVariable<C>>(&mut self, ptr: Ptr<C::N>, index: MemIndex<C::N>, value: V) {
+        value.store(ptr, index, self);
     }
 }
 
@@ -65,12 +68,12 @@ impl<C: Config> MemVariable<C> for Ptr<C::N> {
         1
     }
 
-    fn load(&self, ptr: Ptr<C::N>, builder: &mut Builder<C>) {
-        self.address.load(ptr, builder);
+    fn load(&self, ptr: Ptr<C::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        self.address.load(ptr, index, builder);
     }
 
-    fn store(&self, ptr: Ptr<<C as Config>::N>, builder: &mut Builder<C>) {
-        self.address.store(ptr, builder);
+    fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
+        self.address.store(ptr, index, builder);
     }
 }
 

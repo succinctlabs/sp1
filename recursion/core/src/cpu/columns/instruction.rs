@@ -20,6 +20,8 @@ impl<F: PrimeField> InstructionCols<F> {
         self.op_a = instruction.op_a;
         self.op_b = instruction.op_b;
         self.op_c = instruction.op_c;
+        self.imm_b = F::from_bool(instruction.imm_b);
+        self.imm_c = F::from_bool(instruction.imm_c)
     }
 }
 

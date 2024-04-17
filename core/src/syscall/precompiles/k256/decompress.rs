@@ -1,3 +1,23 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::fmt::Debug;
+use std::str::FromStr;
+
+use elliptic_curve::sec1::ToEncodedPoint;
+use elliptic_curve::subtle::Choice;
+use k256::elliptic_curve::point::DecompressPoint;
+use num::BigUint;
+use num::Zero;
+use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use serde::{Deserialize, Serialize};
+use sp1_derive::AlignedBorrow;
+use typenum::U32;
+
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -11,11 +31,11 @@ use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le;
-
 use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
@@ -28,25 +48,6 @@ use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use elliptic_curve::sec1::ToEncodedPoint;
-use elliptic_curve::subtle::Choice;
-use k256::elliptic_curve::point::DecompressPoint;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::MatrixRowSlices;
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use typenum::U32;
-
-use p3_matrix::dense::RowMajorMatrix;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct K256DecompressEvent {
@@ -244,7 +245,7 @@ impl<V: Copy> K256DecompressCols<V> {
             .assert_all_eq(self.neg_y.result, y_limbs);
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
@@ -253,7 +254,7 @@ impl<V: Copy> K256DecompressCols<V> {
             );
         }
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
@@ -275,6 +276,8 @@ impl<V: Copy> K256DecompressCols<V> {
 
 impl<F: PrimeField32> MachineAir<F> for K256DecompressChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "K256Decompress".to_string()
@@ -344,7 +347,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &K256DecompressCols<AB::Var> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &K256DecompressCols<AB::Var> = (*row).borrow();
         row.eval::<AB>(builder);
     }
 }
@@ -380,7 +384,7 @@ pub mod tests {
 
             let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
             let mut result = [0; 65];
-            proof.stdout.read_slice(&mut result);
+            proof.public_values.read_slice(&mut result);
             assert_eq!(result, decompressed);
         }
     }

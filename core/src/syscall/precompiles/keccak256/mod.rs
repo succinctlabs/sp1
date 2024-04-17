@@ -1,16 +1,17 @@
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use p3_keccak_air::KeccakAir;
-use serde::{Deserialize, Serialize};
-
 mod air;
 pub mod columns;
 mod execute;
 mod trace;
 
-const STATE_SIZE: usize = 25;
+use p3_keccak_air::KeccakAir;
+use serde::{Deserialize, Serialize};
+
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+
+pub(crate) const STATE_SIZE: usize = 25;
 
 // The permutation state is 25 u64's.  Our word size is 32 bits, so it is 50 words.
-const STATE_NUM_WORDS: usize = 25 * 2;
+const STATE_NUM_WORDS: usize = STATE_SIZE * 2;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct KeccakPermuteEvent {
