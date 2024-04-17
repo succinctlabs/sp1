@@ -21,7 +21,7 @@ pub fn build_program(path: &str) {
         program_dir.join("Cargo.lock"),
     ];
     for dir in dirs {
-        println!("cargo:rerun-if-changed={}", dir.display());
+        println!("cargo::rerun-if-changed={}", dir.display());
     }
 
     // Print a message so the user knows that their program was built. Cargo caches warnings emitted
