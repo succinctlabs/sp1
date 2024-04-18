@@ -210,11 +210,7 @@ mod test {
         lookup::InteractionKind,
         runtime::{Program, Runtime, ShardingConfig},
         stark::RiscvAir,
-        utils::{
-            setup_logger,
-            tests::{FIBONACCI_ELF, UINT256_MUL},
-            BabyBearPoseidon2,
-        },
+        utils::{setup_logger, tests::UINT256_MUL, BabyBearPoseidon2},
     };
 
     use super::debug_interactions_with_all_chips;

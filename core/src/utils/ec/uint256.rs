@@ -1,4 +1,4 @@
-use typenum::{U32, U62};
+use typenum::{U36, U70};
 
 use crate::utils::ec::field::{FieldParameters, NumLimbs};
 use num::{BigUint, One};
@@ -27,6 +27,6 @@ impl FieldParameters for U256Field {
 }
 
 impl NumLimbs for U256Field {
-    type Limbs = U32;
-    type Witness = U62;
+    type Limbs = U36;
+    type Witness = U70;
 }

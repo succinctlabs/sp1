@@ -111,8 +111,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         let p_vanishing: Polynomial<F> = &p_op - &p_result - &p_carry * &p_modulus;
         debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
-        println!("vanishing={:?}", p_vanishing);
-        println!("constants: {} {}", P::WITNESS_OFFSET, P::NB_BITS_PER_LIMB);
         let p_witness = compute_root_quotient_and_shift(
             &p_vanishing,
             P::WITNESS_OFFSET,

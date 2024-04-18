@@ -23,10 +23,8 @@ fn main() {
     for _ in 0..100 {
         // Test with random numbers.
         let mut rng = rand::thread_rng();
-        let mut x: [u8; 32] = [0; 32];
-        x[0] = 1;
-        let mut y: [u8; 32] = [0; 32];
-        y[0] = 2;
+        let mut x: [u8; 32] = rng.gen();
+        let mut y: [u8; 32] = rng.gen();
 
         // Convert byte arrays to BigUint
         let x_big = BigUint::from_bytes_le(&x);
@@ -39,7 +37,7 @@ fn main() {
 
         let result_syscall = BigUint::from_bytes_le(&result_bytes);
 
-        // assert_eq!(result, result_syscall);
+        assert_eq!(result, result_syscall);
     }
 
     // // Test with random numbers.
