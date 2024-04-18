@@ -15,6 +15,6 @@ pub fn main() {
     let sig = hex!("45c0b7f8c09a9e1f1cea0c25785594427b6bf8f9f878a8af0b1abbb48e16d0920d8becd0c220f67c51217eecfd7184ef0732481c843857e6bc7fc095c4f6b78801");
 
     let pubkey = ecrecover(&sig, &msg_hash).unwrap();
-    io::write_slice(&pubkey);
+    io::commit_slice(&pubkey);
     println!("pubkey: {:?}", pubkey);
 }

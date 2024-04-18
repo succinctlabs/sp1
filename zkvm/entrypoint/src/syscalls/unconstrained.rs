@@ -10,7 +10,7 @@ pub fn syscall_enter_unconstrained() -> bool {
         asm!(
             "ecall",
             in("t0") crate::syscalls::ENTER_UNCONSTRAINED,
-            out("a0") continue_unconstrained,
+            lateout("t0") continue_unconstrained,
         );
     }
 
@@ -31,6 +31,7 @@ pub fn syscall_exit_unconstrained() {
             "ecall",
             in("t0") crate::syscalls::EXIT_UNCONSTRAINED,
         );
+        unreachable!()
     }
 
     #[cfg(not(target_os = "zkvm"))]

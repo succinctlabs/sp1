@@ -1,5 +1,8 @@
+use core::borrow::Borrow;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
+use p3_matrix::Matrix;
 
 use super::columns::{Blake3CompressInnerCols, NUM_BLAKE3_COMPRESS_INNER_COLS};
 use super::g::GOperation;
@@ -8,9 +11,7 @@ use super::{
     NUM_STATE_WORDS_PER_CALL, OPERATION_COUNT, ROUND_COUNT,
 };
 use crate::air::{BaseAirBuilder, SP1AirBuilder, WORD_SIZE};
-
-use core::borrow::Borrow;
-use p3_matrix::MatrixRowSlices;
+use crate::runtime::SyscallCode;
 
 impl<F> BaseAir<F> for Blake3CompressInnerChip {
     fn width(&self) -> usize {
@@ -24,14 +25,26 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &Blake3CompressInnerCols<AB::Var> = main.row_slice(0).borrow();
-        let next: &Blake3CompressInnerCols<AB::Var> = main.row_slice(1).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &Blake3CompressInnerCols<AB::Var> = (*local).borrow();
+        let next: &Blake3CompressInnerCols<AB::Var> = (*next).borrow();
 
         self.constrain_control_flow_flags(builder, local, next);
 
         self.constrain_memory(builder, local);
 
         self.constrain_g_operation(builder, local);
+
+        // TODO: constraint ecall_receive column.
+        // TODO: constraint clk column to increment by 1 within same invocation of syscall.
+        builder.receive_syscall(
+            local.shard,
+            local.clk,
+            AB::F::from_canonical_u32(SyscallCode::BLAKE3_COMPRESS_INNER.syscall_id()),
+            local.state_ptr,
+            local.message_ptr,
+            local.ecall_receive,
+        );
     }
 }
 
@@ -130,8 +143,8 @@ impl Blake3CompressInnerChip {
 
         // Read & write the state.
         for i in 0..NUM_STATE_WORDS_PER_CALL {
-            builder.constraint_memory_access(
-                local.segment,
+            builder.eval_memory_access(
+                local.shard,
                 local.clk,
                 local.state_ptr + local.state_index[i] * AB::F::from_canonical_usize(WORD_SIZE),
                 &local.state_reads_writes[i],
@@ -166,8 +179,8 @@ impl Blake3CompressInnerChip {
 
         // Read the message.
         for i in 0..NUM_MSG_WORDS_PER_CALL {
-            builder.constraint_memory_access(
-                local.segment,
+            builder.eval_memory_access(
+                local.shard,
                 local.clk,
                 local.message_ptr + local.msg_schedule[i] * AB::F::from_canonical_usize(WORD_SIZE),
                 &local.message_reads[i],
@@ -196,7 +209,7 @@ impl Blake3CompressInnerChip {
             ];
 
             // Call the g function.
-            GOperation::<AB::F>::eval(builder, input, local.g, local.is_real);
+            GOperation::<AB::F>::eval(builder, input, local.g, local.shard, local.is_real);
 
             // Finally, the results of the g function should be written to the memory.
             for i in 0..NUM_STATE_WORDS_PER_CALL {

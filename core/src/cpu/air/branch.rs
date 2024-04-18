@@ -1,10 +1,8 @@
-use core::borrow::Borrow;
-
 use p3_air::AirBuilder;
 use p3_field::AbstractField;
 
 use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
-use crate::cpu::columns::{BranchCols, CpuCols, OpcodeSelectorCols, NUM_BRANCH_COLS};
+use crate::cpu::columns::{CpuCols, OpcodeSelectorCols};
 use crate::{cpu::CpuChip, runtime::Opcode};
 
 impl CpuChip {
@@ -37,8 +35,7 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
     ) {
         // Get the branch specific columns.
-        let branch_cols: BranchCols<AB::Var> =
-            *local.opcode_specific_columns[..NUM_BRANCH_COLS].borrow();
+        let branch_cols = local.opcode_specific_columns.branch();
 
         // Evaluate program counter constraints.
         {
@@ -47,11 +44,18 @@ impl CpuChip {
                 .when(local.branching)
                 .assert_eq(branch_cols.pc.reduce::<AB>(), local.pc);
 
-            // When we are branching, assert that local.pc <==> branch_columns.next_pc as Word.
+            // When we are branching, assert that next.pc <==> branch_columns.next_pc as Word.
             builder
                 .when_transition()
+                .when(next.is_real)
                 .when(local.branching)
                 .assert_eq(branch_cols.next_pc.reduce::<AB>(), next.pc);
+
+            // When the current row is real and local.branching, assert that local.next_pc <==> branch_columns.next_pc as Word.
+            builder
+                .when(local.is_real)
+                .when(local.branching)
+                .assert_eq(branch_cols.next_pc.reduce::<AB>(), local.next_pc);
 
             // When we are branching, calculate branch_cols.next_pc <==> branch_cols.pc + c.
             builder.send_alu(
@@ -59,15 +63,25 @@ impl CpuChip {
                 branch_cols.next_pc,
                 branch_cols.pc,
                 local.op_c_val(),
+                local.shard,
                 local.branching,
             );
 
             // When we are not branching, assert that local.pc + 4 <==> next.pc.
             builder
-                .when(local.not_branching)
                 .when_transition()
                 .when(next.is_real)
+                .when(local.not_branching)
                 .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), next.pc);
+
+            // When local.not_branching is true, assert that local.is_real is true.
+            builder.when(local.not_branching).assert_one(local.is_real);
+
+            // When the last row is real and local.not_branching, assert that local.pc + 4 <==> local.next_pc.
+            builder
+                .when(local.is_real)
+                .when(local.not_branching)
+                .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
         }
 
         // Evaluate branching value constraints.
@@ -140,6 +154,7 @@ impl CpuChip {
             Word::extend_var::<AB>(branch_cols.a_lt_b),
             local.op_a_val(),
             local.op_b_val(),
+            local.shard,
             is_branch_instruction.clone(),
         );
 
@@ -150,6 +165,7 @@ impl CpuChip {
             Word::extend_var::<AB>(branch_cols.a_gt_b),
             local.op_b_val(),
             local.op_a_val(),
+            local.shard,
             is_branch_instruction.clone(),
         );
     }

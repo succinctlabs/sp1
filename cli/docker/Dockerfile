@@ -6,9 +6,6 @@ RUN curl --proto '=https' --tlsv1.2 --retry 10 --retry-connrefused -fsSL 'https:
 ENV PATH="/root/.cargo/bin:${PATH}"
 RUN curl -L https://sp1.succinct.xyz | bash && ~/.sp1/bin/sp1up
 
-# Hack to fix openssl issue, will not be needed when toolchain is compiled with newer openssl
-RUN curl -L http://archive.ubuntu.com/ubuntu/pool/main/o/openssl/libssl1.1_1.1.1f-1ubuntu2.21_amd64.deb -o libssl.deb && yes | dpkg -i libssl.deb
-
 WORKDIR /root/program
 
 ENV CARGO_TERM_COLOR=always

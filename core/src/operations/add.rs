@@ -1,15 +1,11 @@
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
-use p3_air::AirBuilder;
-use p3_field::Field;
-use sp1_derive::AlignedBorrow;
-use std::mem::size_of;
-
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
-
 use crate::runtime::ExecutionRecord;
+
+use p3_air::AirBuilder;
 use p3_field::AbstractField;
+use p3_field::Field;
+use sp1_derive::AlignedBorrow;
 
 /// A set of columns needed to compute the add of two words.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
@@ -23,7 +19,13 @@ pub struct AddOperation<T> {
 }
 
 impl<F: Field> AddOperation<F> {
-    pub fn populate(&mut self, record: &mut ExecutionRecord, a_u32: u32, b_u32: u32) -> u32 {
+    pub fn populate(
+        &mut self,
+        record: &mut ExecutionRecord,
+        shard: u32,
+        a_u32: u32,
+        b_u32: u32,
+    ) -> u32 {
         let expected = a_u32.wrapping_add(b_u32);
         self.value = Word::from(expected);
         let a = a_u32.to_le_bytes();
@@ -51,9 +53,9 @@ impl<F: Field> AddOperation<F> {
 
         // Range check
         {
-            record.add_u8_range_checks(&a);
-            record.add_u8_range_checks(&b);
-            record.add_u8_range_checks(&expected.to_le_bytes());
+            record.add_u8_range_checks(shard, &a);
+            record.add_u8_range_checks(shard, &b);
+            record.add_u8_range_checks(shard, &expected.to_le_bytes());
         }
         expected
     }
@@ -63,12 +65,13 @@ impl<F: Field> AddOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AddOperation<AB::Var>,
-        is_real: AB::Var,
+        shard: AB::Var,
+        is_real: AB::Expr,
     ) {
         let one = AB::Expr::one();
         let base = AB::F::from_canonical_u32(256);
 
-        let mut builder_is_real = builder.when(is_real);
+        let mut builder_is_real = builder.when(is_real.clone());
 
         // For each limb, assert that difference between the carried result and the non-carried
         // result is either zero or the base.
@@ -95,13 +98,13 @@ impl<F: Field> AddOperation<F> {
         builder_is_real.assert_bool(cols.carry[0]);
         builder_is_real.assert_bool(cols.carry[1]);
         builder_is_real.assert_bool(cols.carry[2]);
-        builder_is_real.assert_bool(is_real);
+        builder_is_real.assert_bool(is_real.clone());
 
         // Range check each byte.
         {
-            builder.slice_range_check_u8(&a.0, is_real);
-            builder.slice_range_check_u8(&b.0, is_real);
-            builder.slice_range_check_u8(&cols.value.0, is_real);
+            builder.slice_range_check_u8(&a.0, shard, is_real.clone());
+            builder.slice_range_check_u8(&b.0, shard, is_real.clone());
+            builder.slice_range_check_u8(&cols.value.0, shard, is_real);
         }
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".

@@ -3,16 +3,24 @@
 
 use std::str::FromStr;
 
-use num::{BigUint, Zero};
-use serde::{Deserialize, Serialize};
-
-use super::{SwCurve, WeierstrassParameters};
-use crate::operations::field::params::{NB_BITS_PER_LIMB, NUM_LIMBS};
-use crate::utils::ec::field::{FieldParameters, MAX_NB_LIMBS};
-use crate::utils::ec::EllipticCurveParameters;
+use elliptic_curve::sec1::ToEncodedPoint;
+use elliptic_curve::subtle::Choice;
+use generic_array::GenericArray;
+use k256::elliptic_curve::point::DecompressPoint;
 use k256::FieldElement;
 use num::traits::FromBytes;
 use num::traits::ToBytes;
+use num::{BigUint, Zero};
+use serde::{Deserialize, Serialize};
+use typenum::{U32, U62};
+
+use super::{SwCurve, WeierstrassParameters};
+use crate::utils::ec::field::FieldParameters;
+use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::AffinePoint;
+use crate::utils::ec::CurveType;
+use crate::utils::ec::EllipticCurve;
+use crate::utils::ec::EllipticCurveParameters;
 
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 /// Secp256k1 curve parameter
@@ -25,13 +33,7 @@ pub type Secp256k1 = SwCurve<Secp256k1Parameters>;
 pub struct Secp256k1BaseField;
 
 impl FieldParameters for Secp256k1BaseField {
-    const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
-
-    const NB_LIMBS: usize = NUM_LIMBS;
-
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-
-    const MODULUS: [u8; MAX_NB_LIMBS] = [
+    const MODULUS: &'static [u8] = &[
         0x2f, 0xfc, 0xff, 0xff, 0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff,
         0xff, 0xff,
@@ -41,24 +43,30 @@ impl FieldParameters for Secp256k1BaseField {
     const WITNESS_OFFSET: usize = 1usize << 14;
 
     fn modulus() -> BigUint {
-        BigUint::from_bytes_le(&Self::MODULUS)
+        BigUint::from_bytes_le(Self::MODULUS)
     }
+}
+
+impl NumLimbs for Secp256k1BaseField {
+    type Limbs = U32;
+    type Witness = U62;
 }
 
 impl EllipticCurveParameters for Secp256k1Parameters {
     type BaseField = Secp256k1BaseField;
+    const CURVE_TYPE: CurveType = CurveType::Secp256k1;
 }
 
 impl WeierstrassParameters for Secp256k1Parameters {
-    const A: [u16; MAX_NB_LIMBS] = [
+    const A: GenericArray<u8, U32> = GenericArray::from_array([
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
 
-    const B: [u16; MAX_NB_LIMBS] = [
+    const B: GenericArray<u8, U32> = GenericArray::from_array([
         7, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0,
-    ];
+    ]);
     fn generator() -> (BigUint, BigUint) {
         let x = BigUint::from_str(
             "55066263022277343669578718895168534326250603453777594175500187360389116729240",
@@ -87,6 +95,16 @@ impl WeierstrassParameters for Secp256k1Parameters {
     }
 }
 
+pub fn secp256k1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> AffinePoint<E> {
+    let computed_point =
+        k256::AffinePoint::decompress(bytes_be.into(), Choice::from(sign as u8)).unwrap();
+    let point = computed_point.to_encoded_point(false);
+
+    let x = BigUint::from_bytes_be(point.x().unwrap());
+    let y = BigUint::from_bytes_be(point.y().unwrap());
+    AffinePoint::<E>::new(x, y)
+}
+
 pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
     let be_bytes = n.to_be_bytes();
     let mut bytes = [0_u8; 32];
@@ -107,7 +125,7 @@ mod tests {
     #[test]
     fn test_weierstrass_biguint_scalar_mul() {
         assert_eq!(
-            biguint_from_limbs(&Secp256k1BaseField::MODULUS),
+            biguint_from_limbs(Secp256k1BaseField::MODULUS),
             Secp256k1BaseField::modulus()
         );
     }

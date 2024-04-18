@@ -1,16 +1,17 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `BitwiseChip`.
@@ -22,7 +23,11 @@ pub struct BitwiseChip;
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Copy)]
+#[repr(C)]
 pub struct BitwiseCols<T> {
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -43,11 +48,15 @@ pub struct BitwiseCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for BitwiseChip {
+    type Record = ExecutionRecord;
+
+    type Program = Program;
+
     fn name(&self) -> String {
         "Bitwise".to_string()
     }
 
-    #[instrument(name = "generate bitwise trace", skip_all)]
+    #[instrument(name = "generate bitwise trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -64,6 +73,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                 let b = event.b.to_le_bytes();
                 let c = event.c.to_le_bytes();
 
+                cols.shard = F::from_canonical_u32(event.shard);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
@@ -74,6 +84,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
                 for ((b_a, b_b), b_c) in a.into_iter().zip(b).zip(c) {
                     let byte_event = ByteLookupEvent {
+                        shard: event.shard,
                         opcode: ByteOpcode::from(event.opcode),
                         a1: b_a as u32,
                         a2: 0,
@@ -98,6 +109,10 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.bitwise_events.is_empty()
+    }
 }
 
 impl<F> BaseAir<F> for BitwiseChip {
@@ -112,7 +127,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &BitwiseCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &BitwiseCols<AB::Var> = (*local).borrow();
 
         // Get the opcode for the operation.
         let opcode = local.is_xor * ByteOpcode::XOR.as_field::<AB::F>()
@@ -122,19 +138,29 @@ where
         // Get a multiplicity of `1` only for a true row.
         let mult = local.is_xor + local.is_or + local.is_and;
         for ((a, b), c) in local.a.into_iter().zip(local.b).zip(local.c) {
-            builder.send_byte(opcode.clone(), a, b, c, mult.clone());
+            builder.send_byte(opcode.clone(), a, b, c, local.shard, mult.clone());
         }
+
+        // Get the cpu opcode, which corresponds to the opcode being sent in the CPU table.
+        let cpu_opcode = local.is_xor * Opcode::XOR.as_field::<AB::F>()
+            + local.is_or * Opcode::OR.as_field::<AB::F>()
+            + local.is_and * Opcode::AND.as_field::<AB::F>();
 
         // Receive the arguments.
         builder.receive_alu(
-            local.is_xor * Opcode::XOR.as_field::<AB::F>()
-                + local.is_or * Opcode::OR.as_field::<AB::F>()
-                + local.is_and * Opcode::AND.as_field::<AB::F>(),
+            cpu_opcode,
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_xor + local.is_or + local.is_and,
         );
+
+        let is_real = local.is_xor + local.is_or + local.is_and;
+        builder.assert_bool(local.is_xor);
+        builder.assert_bool(local.is_or);
+        builder.assert_bool(local.is_and);
+        builder.assert_bool(is_real);
 
         // Degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
@@ -149,17 +175,18 @@ mod tests {
     use p3_matrix::dense::RowMajorMatrix;
 
     use crate::air::MachineAir;
+    use crate::stark::StarkGenericConfig;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
 
     use super::BitwiseChip;
     use crate::alu::AluEvent;
     use crate::runtime::{ExecutionRecord, Opcode};
-    use crate::utils::{BabyBearPoseidon2, StarkUtils};
+    use crate::utils::BabyBearPoseidon2;
 
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.bitwise_events = vec![AluEvent::new(0, Opcode::XOR, 25, 10, 19)];
+        shard.bitwise_events = vec![AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19)];
         let chip = BitwiseChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -173,9 +200,9 @@ mod tests {
 
         let mut shard = ExecutionRecord::default();
         shard.bitwise_events = [
-            AluEvent::new(0, Opcode::XOR, 25, 10, 19),
-            AluEvent::new(0, Opcode::OR, 27, 10, 19),
-            AluEvent::new(0, Opcode::AND, 2, 10, 19),
+            AluEvent::new(0, 0, Opcode::XOR, 25, 10, 19),
+            AluEvent::new(0, 0, Opcode::OR, 27, 10, 19),
+            AluEvent::new(0, 0, Opcode::AND, 2, 10, 19),
         ]
         .repeat(1000);
         let chip = BitwiseChip::default();

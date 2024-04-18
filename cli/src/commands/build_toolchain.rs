@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
 use std::{path::PathBuf, process::Command};
 
@@ -71,7 +71,9 @@ impl BuildToolchainCmd {
         } else {
             include_str!("config.toml")
         };
-        std::fs::write(rust_dir.join("config.toml"), config_toml)?;
+        let config_file = rust_dir.join("config.toml");
+        std::fs::write(&config_file, config_toml)
+            .with_context(|| format!("while writing configuration to {:?}", config_file))?;
 
         // Build the toolchain (stage 1).
         Command::new("python3")
@@ -98,7 +100,7 @@ impl BuildToolchainCmd {
             .args(["toolchain", "remove", RUSTUP_TOOLCHAIN_NAME])
             .run()
         {
-            Ok(_) => println!("Succesfully removed existing toolchain."),
+            Ok(_) => println!("Successfully removed existing toolchain."),
             Err(_) => println!("No existing toolchain to remove."),
         }
 
@@ -132,7 +134,7 @@ impl BuildToolchainCmd {
             .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
             .arg(&toolchain_dir)
             .run()?;
-        println!("Succesfully linked the toolchain to rustup.");
+        println!("Successfully linked the toolchain to rustup.");
 
         // Compressing toolchain directory to tar.gz.
         let target = get_target();
@@ -150,7 +152,7 @@ impl BuildToolchainCmd {
                 ".",
             ])
             .run()?;
-        println!("Succesfully compressed the toolchain to {}.", tar_gz_path);
+        println!("Successfully compressed the toolchain to {}.", tar_gz_path);
 
         Ok(())
     }

@@ -1,7 +1,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// A buffer of serializable/deserializable objects.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Buffer {
     pub data: Vec<u8>,
     #[serde(skip)]
@@ -23,7 +23,7 @@ impl Buffer {
         }
     }
 
-    /// Set the position ptr to the beggining of the buffer.
+    /// Set the position ptr to the beginning of the buffer.
     pub fn head(&mut self) {
         self.ptr = 0;
     }
@@ -52,5 +52,11 @@ impl Buffer {
     /// Write the slice of bytes to the buffer.
     pub fn write_slice(&mut self, slice: &[u8]) {
         self.data.extend_from_slice(slice);
+    }
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
     }
 }

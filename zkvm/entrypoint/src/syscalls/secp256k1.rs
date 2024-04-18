@@ -33,6 +33,7 @@ pub extern "C" fn syscall_secp256k1_double(p: *mut u32) {
             "ecall",
             in("t0") crate::syscalls::SECP256K1_DOUBLE,
             in("a0") p,
+            in("a1") 0
         );
     }
 
@@ -51,13 +52,13 @@ pub extern "C" fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: boo
     {
         // Memory system/FpOps are little endian so we'll just flip the whole array before/after
         point.reverse();
-        point[0] = is_odd as u8;
         let p = point.as_mut_ptr();
         unsafe {
             asm!(
                 "ecall",
                 in("t0") crate::syscalls::SECP256K1_DECOMPRESS,
                 in("a0") p,
+                in("a1") is_odd as u8
             );
         }
         point.reverse();

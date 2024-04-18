@@ -3,9 +3,11 @@
 SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through sp1up or
 build the toolchain and CLI from source.
 
-Make sure you have [Rust](https://www.rust-lang.org/tools/install) and OpenSSL 1.1 (`brew install openssl@1.1` or use this [guide](https://askubuntu.com/questions/1102803/how-to-upgrade-openssl-1-1-0-to-1-1-1-in-ubuntu-18-04)) installed.
+Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
 ## Option 1: Prebuilt Binaries (Recommended)
+
+Currently our prebuilt binaries are built on Ubuntu 20.04 (22.04 on ARM) and macOS. If your OS uses an older GLIBC version, it's possible these may not work and you will need to [build the toolchain from source](#option-2-building-from-source).
 
 sp1up is the SP1 toolchain installer. Open your terminal and run the following command and follow the instructions:
 
@@ -22,7 +24,7 @@ sp1up
 ```
 
 This will install support for the `riscv32im-succinct-zkvm-elf` compilation target within your Rust compiler
-and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness. 
+and a `cargo prove` CLI tool that will let you compile provable programs and then prove their correctness.
 
 You can verify the installation by running `cargo prove --version`:
 
@@ -50,7 +52,7 @@ rm ~/.sp1/bin/cargo-prove
 
 Make sure you have installed the [dependencies](https://github.com/rust-lang/rust/blob/master/INSTALL.md#dependencies) needed to build the rust toolchain from source.
 
-Clone the `sp1` repository and navigate to the root directory. 
+Clone the `sp1` repository and navigate to the root directory.
 
 ```bash
 git clone git@github.com:succinctlabs/sp1.git
@@ -62,6 +64,7 @@ cargo prove build-toolchain
 ```
 
 Building the toolchain can take a while, ranging from 30 mins to an hour depending on your machine. If you're on a machine that we have prebuilt binaries for (ARM Mac or x86 or ARM Linux), you can use the following to download a prebuilt version.
+
 ```bash
 cargo prove install-toolchain
 ```
@@ -76,4 +79,29 @@ You can delete your existing installation of the toolchain with:
 
 ```bash
 rustup toolchain remove succinct
+```
+
+## Option 3: Using Docker
+
+SP1 can also be used entirely within a Docker container. If you don't have it, Docker can be
+installed directly from [Docker's website](https://docs.docker.com/get-docker/).
+
+Then you can use:
+
+```bash
+cargo prove --docker
+```
+
+to automatically use the latest image of SP1 in a container.
+
+Alternatively, it is possible to build the docker image locally by running:
+
+```bash
+docker build -t succinctlabs/sp1:latest ./cli/docker
+```
+
+You can then run the `cargo prove` command by mounting your program directory into the container:
+
+```bash
+docker run -v "$(pwd):/root/program" -it succinctlabs/sp1:latest prove build
 ```

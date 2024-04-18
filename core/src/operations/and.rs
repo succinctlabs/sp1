@@ -1,9 +1,6 @@
-use core::borrow::Borrow;
-use core::borrow::BorrowMut;
 use p3_field::AbstractField;
 use p3_field::Field;
 use sp1_derive::AlignedBorrow;
-use std::mem::size_of;
 
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
@@ -21,7 +18,7 @@ pub struct AndOperation<T> {
 }
 
 impl<F: Field> AndOperation<F> {
-    pub fn populate(&mut self, record: &mut ExecutionRecord, x: u32, y: u32) -> u32 {
+    pub fn populate(&mut self, record: &mut ExecutionRecord, shard: u32, x: u32, y: u32) -> u32 {
         let expected = x & y;
         let x_bytes = x.to_le_bytes();
         let y_bytes = y.to_le_bytes();
@@ -30,6 +27,7 @@ impl<F: Field> AndOperation<F> {
             self.value[i] = F::from_canonical_u8(and);
 
             let byte_event = ByteLookupEvent {
+                shard,
                 opcode: ByteOpcode::AND,
                 a1: and as u32,
                 a2: 0,
@@ -47,6 +45,7 @@ impl<F: Field> AndOperation<F> {
         a: Word<AB::Var>,
         b: Word<AB::Var>,
         cols: AndOperation<AB::Var>,
+        shard: AB::Var,
         is_real: AB::Var,
     ) {
         for i in 0..WORD_SIZE {
@@ -55,6 +54,7 @@ impl<F: Field> AndOperation<F> {
                 cols.value[i],
                 a[i],
                 b[i],
+                shard,
                 is_real,
             );
         }
