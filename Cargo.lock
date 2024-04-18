@@ -4406,6 +4406,7 @@ dependencies = [
  "getrandom",
  "hex",
  "k256",
+ "num",
  "rand",
  "serde",
  "snowbridge-amcl",
