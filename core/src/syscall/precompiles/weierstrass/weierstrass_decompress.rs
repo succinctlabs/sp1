@@ -362,8 +362,7 @@ mod tests {
     use amcl::bls381::bls381::utils::deserialize_g1;
     use amcl::rand::RAND;
     use elliptic_curve::sec1::ToEncodedPoint;
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
+    use rand::{thread_rng, Rng};
 
     use crate::utils::run_test_io;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
@@ -371,6 +370,12 @@ mod tests {
     #[test]
     fn test_weierstrass_bls_decompress() {
         utils::setup_logger();
+        let mut rng = thread_rng();
+        let mut rand = RAND::new();
+
+        let len = 100;
+        let random_slice = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>();
+        rand.seed(len, &random_slice);
         let (_, compressed) = key_pair_generate_g2(&mut RAND::new());
 
         let inputs = SP1Stdin::from(&compressed);
@@ -390,7 +395,7 @@ mod tests {
     fn test_weierstrass_k256_decompress() {
         utils::setup_logger();
 
-        let mut rng = StdRng::seed_from_u64(2);
+        let mut rng = thread_rng();
 
         let secret_key = k256::SecretKey::random(&mut rng);
         let public_key = secret_key.public_key();

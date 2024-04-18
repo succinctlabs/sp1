@@ -262,7 +262,7 @@ mod tests {
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
             local
                 .sqrt
-                .eval(builder, &local.a, true, AB::F::one(), AB::F::one());
+                .eval(builder, &local.a, false, AB::F::one(), AB::F::one());
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(
