@@ -79,6 +79,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => rt.record_mut().secp256k1_add_events.push(event),
             CurveType::Bn254 => rt.record_mut().bn254_add_events.push(event),
+            CurveType::Bls12381 => rt.record_mut().bls12381_add_events.push(event),
             _ => panic!("Unsupported curve"),
         }
         None
@@ -154,6 +155,7 @@ where
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
             CurveType::Bn254 => "Bn254AddAssign".to_string(),
+            CurveType::Bls12381 => "Bls12381AddAssign".to_string(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -163,10 +165,10 @@ where
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        // collects the events based on the curve type.
         let events = match E::CURVE_TYPE {
             CurveType::Secp256k1 => &input.secp256k1_add_events,
             CurveType::Bn254 => &input.bn254_add_events,
+            CurveType::Bls12381 => &input.bls12381_add_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -229,6 +231,7 @@ where
         match E::CURVE_TYPE {
             CurveType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_add_events.is_empty(),
+            CurveType::Bls12381 => !shard.bls12381_add_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -320,9 +323,10 @@ where
             builder
                 .when(row.is_real)
                 .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
-            builder
-                .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
+            builder.when(row.is_real).assert_eq(
+                row.y3_ins.result[i],
+                row.p_access[num_words_field_element + i / 4].value()[i % 4],
+            );
         }
 
         builder.eval_memory_access_slice(
@@ -341,18 +345,21 @@ where
         );
 
         // Fetch the syscall id for the curve type.
-        let syscall_id_fe = match E::CURVE_TYPE {
+        let syscall_id_felt = match E::CURVE_TYPE {
             CurveType::Secp256k1 => {
                 AB::F::from_canonical_u32(SyscallCode::SECP256K1_ADD.syscall_id())
             }
             CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_ADD.syscall_id()),
+            CurveType::Bls12381 => {
+                AB::F::from_canonical_u32(SyscallCode::BLS12381_ADD.syscall_id())
+            }
             _ => panic!("Unsupported curve"),
         };
 
         builder.receive_syscall(
             row.shard,
             row.clk,
-            syscall_id_fe,
+            syscall_id_felt,
             row.p_ptr,
             row.q_ptr,
             row.is_real,
@@ -367,7 +374,10 @@ mod tests {
         runtime::Program,
         utils::{
             run_test, setup_logger,
-            tests::{BN254_ADD_ELF, BN254_MUL_ELF, SECP256K1_ADD_ELF, SECP256K1_MUL_ELF},
+            tests::{
+                BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF,
+                BN254_MUL_ELF, SECP256K1_ADD_ELF, SECP256K1_MUL_ELF,
+            },
         },
     };
 
@@ -396,6 +406,27 @@ mod tests {
     fn test_secp256k1_mul_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_MUL_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_bls12381_add_simple() {
+        setup_logger();
+        let program = Program::from(BLS12381_ADD_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_bls12381_double_simple() {
+        setup_logger();
+        let program = Program::from(BLS12381_DOUBLE_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_bls12381_mul_simple() {
+        setup_logger();
+        let program = Program::from(BLS12381_MUL_ELF);
         run_test(program).unwrap();
     }
 }

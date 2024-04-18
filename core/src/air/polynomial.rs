@@ -197,7 +197,7 @@ impl<T: AbstractField> Mul for Polynomial<T> {
     type Output = Self;
 
     fn mul(self, other: Self) -> Self {
-        let mut result = vec![T::zero(); self.coefficients.len() + self.coefficients.len() - 1];
+        let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.into_iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
                 result[i + j] = result[i + j].clone() + a.clone() * b.clone();
@@ -211,7 +211,7 @@ impl<T: AbstractField> Mul for &Polynomial<T> {
     type Output = Polynomial<T>;
 
     fn mul(self, other: Self) -> Polynomial<T> {
-        let mut result = vec![T::zero(); self.coefficients.len() + self.coefficients.len() - 1];
+        let mut result = vec![T::zero(); self.coefficients.len() + other.coefficients.len() - 1];
         for (i, a) in self.coefficients.iter().enumerate() {
             for (j, b) in other.coefficients.iter().enumerate() {
                 result[i + j] = result[i + j].clone() + a.clone() * b.clone();
