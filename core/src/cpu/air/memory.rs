@@ -161,6 +161,8 @@ impl CpuChip {
 
         // Get the memory offset flags.
         self.eval_offset_value_flags(builder, memory_columns, local);
+        // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
+        // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
             - memory_columns.offset_is_two
@@ -220,7 +222,7 @@ impl CpuChip {
         let mem_val = *memory_columns.memory_access.value();
 
         // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
-        // method `eval_memory_address_and_access`.
+        // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
             - memory_columns.offset_is_two
