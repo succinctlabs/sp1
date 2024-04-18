@@ -24,6 +24,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::Limbs;
+use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::Syscall;
@@ -59,6 +60,7 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub is_odd: T,
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadWriteCols<T>, P::WordsFieldElement>,
+    pub(crate) range_x: FieldRangeCols<T, P>,
     pub(crate) x_2: FieldOpCols<T, P>,
     pub(crate) x_3: FieldOpCols<T, P>,
     pub(crate) x_3_plus_b: FieldOpCols<T, P>,
@@ -101,6 +103,7 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
+        cols.range_x.populate(record, shard, &x);
         let x_2 = cols
             .x_2
             .populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
@@ -238,6 +241,7 @@ where
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&row.x_access);
+        row.range_x.eval(builder, &x, row.shard, row.is_real);
         row.x_2
             .eval(builder, &x, &x, FieldOperation::Mul, row.shard, row.is_real);
         row.x_3.eval(

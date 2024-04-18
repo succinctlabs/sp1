@@ -29,6 +29,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
 use crate::operations::field::params::Limbs;
+use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
@@ -84,6 +85,7 @@ pub struct EdDecompressCols<T> {
         GenericArray<MemoryWriteCols<T>, <Ed25519BaseField as NumWords>::WordsFieldElement>,
     pub y_access:
         GenericArray<MemoryReadCols<T>, <Ed25519BaseField as NumWords>::WordsFieldElement>,
+    pub(crate) y_range: FieldRangeCols<T, Ed25519BaseField>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) dyy: FieldOpCols<T, Ed25519BaseField>,
@@ -123,6 +125,7 @@ impl<F: PrimeField32> EdDecompressCols<F> {
         y: &BigUint,
     ) {
         let one = BigUint::one();
+        self.y_range.populate(blu_events, shard, y);
         let yy = self
             .yy
             .populate(blu_events, shard, y, y, FieldOperation::Mul);
@@ -154,6 +157,7 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.assert_bool(self.sign);
 
         let y: Limbs<V, U32> = limbs_from_prev_access(&self.y_access);
+        self.y_range.eval(builder, &y, self.shard, self.is_real);
         self.yy.eval(
             builder,
             &y,
