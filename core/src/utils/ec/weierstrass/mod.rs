@@ -8,9 +8,6 @@ use crate::utils::ec::field::FieldParameters;
 use crate::utils::ec::utils::biguint_to_bits_le;
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
-use super::field::NumLimbs;
-use super::CurveType;
-
 pub mod bls12_381;
 pub mod bn254;
 pub mod secp256k1;
