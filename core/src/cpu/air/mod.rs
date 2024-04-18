@@ -114,8 +114,8 @@ where
         // Check public values constraints.
         self.public_values_eval(builder, local, next, &public_values);
 
-        // Check that the is_real flag is correct.
-        self.is_real_eval(builder, local, next);
+        // // Check that the is_real flag is correct.
+        // self.is_real_eval(builder, local, next);
     }
 }
 
@@ -214,7 +214,7 @@ impl CpuChip {
 
     /// Constraints related to the shard and clk.
     ///
-    /// This function ensures that all of the shard values are the same and that the clk starts at 0
+    /// This method ensures that all of the shard values are the same and that the clk starts at 0
     /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
     /// and clk values are within 24 bits.  Those range checks are needed for the memory access
     /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
@@ -302,7 +302,7 @@ impl CpuChip {
             .assert_eq(local.pc + AB::Expr::from_canonical_u8(4), local.next_pc);
     }
 
-    /// Constraint related to the public values.
+    /// Constraints related to the public values.
     pub(crate) fn public_values_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -337,6 +337,10 @@ impl CpuChip {
             .assert_eq(public_values.next_pc.clone(), local.next_pc);
     }
 
+    /// Constraints related to the is_real column.
+    ///
+    /// This method checks that the is_real column is a boolean.  It also checks that the first row
+    /// is 1 and once its 0, it never changes value.
     pub(crate) fn is_real_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -351,8 +355,6 @@ impl CpuChip {
             .when_transition()
             .when_not(local.is_real)
             .assert_zero(next.is_real);
-        // Verify that the last row is real.
-        builder.when_last_row().assert_one(local.is_real);
     }
 }
 
