@@ -12,18 +12,15 @@ use p3_field::AbstractField;
 
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
+use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::air::POSEIDON_NUM_WORDS;
 use crate::air::PV_DIGEST_NUM_WORDS;
-use crate::air::{SP1AirBuilder, WordAirBuilder};
 use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
-use crate::memory::MemoryCols;
-use crate::operations::IsZeroOperation;
-use crate::runtime::SyscallCode;
-use crate::runtime::{MemoryAccessPosition, Opcode};
+use crate::runtime::Opcode;
 use p3_matrix::Matrix;
 
 impl<AB> Air<AB> for CpuChip
@@ -36,7 +33,6 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
-
         let public_values = PublicValues::<Word<AB::Expr>, AB::Expr>::from_vec(
             builder
                 .public_values()
@@ -44,11 +40,6 @@ where
                 .map(|elm| (*elm).into())
                 .collect_vec(),
         );
-
-        // Compute some flags for which type of instruction we are dealing with.
-        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
-        let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
-        let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Program constraints.
         builder.send_program(
@@ -59,47 +50,16 @@ where
             local.is_real,
         );
 
+        // Compute some flags for which type of instruction we are dealing with.
+        let is_memory_instruction: AB::Expr = self.is_memory_instruction::<AB>(&local.selectors);
+        let is_branch_instruction: AB::Expr = self.is_branch_instruction::<AB>(&local.selectors);
+        let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
+
         // Register constraints.
-        self.eval_registers::<AB>(builder, local);
-
-        // For operations that require reading from memory (not registers), we need to read the
-        // value into the memory columns.
-        let memory_columns = local.opcode_specific_columns.memory();
-        builder.eval_memory_access(
-            local.shard,
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
-            memory_columns.addr_aligned,
-            &memory_columns.memory_access,
-            is_memory_instruction.clone(),
-        );
-
-        // Check that reduce(addr_word) == addr_aligned + addr_offset.
-        builder
-            .when(is_memory_instruction.clone())
-            .assert_eq::<AB::Expr, AB::Expr>(
-                memory_columns.addr_aligned + memory_columns.addr_offset,
-                memory_columns.addr_word.reduce::<AB>(),
-            );
-
-        // Check that each addr_word element is a byte.
-        builder.slice_range_check_u8(
-            &memory_columns.addr_word.0,
-            local.shard,
-            is_memory_instruction.clone(),
-        );
-
-        // Send to the ALU table to verify correct calculation of addr_word.
-        builder.send_alu(
-            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
-            memory_columns.addr_word,
-            local.op_b_val(),
-            local.op_c_val(),
-            local.shard,
-            is_memory_instruction.clone(),
-        );
+        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
 
         // Memory instructions.
-        self.eval_memory_address_and_acccess::<AB>(builder, local, is_memory_instruction.clone());
+        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
         self.eval_memory_load::<AB>(builder, local);
         self.eval_memory_store::<AB>(builder, local);
 
@@ -155,16 +115,7 @@ where
         self.public_values_eval(builder, local, next, &public_values);
 
         // Check that the is_real flag is correct.
-        self.is_real_eval();
-
-        // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
-        // change value.
-        builder.assert_bool(local.is_real);
-        builder.when_first_row().assert_one(local.is_real);
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .assert_zero(next.is_real);
+        self.is_real_eval(builder, local, next);
     }
 }
 
@@ -384,6 +335,24 @@ impl CpuChip {
             .when_last_row()
             .when(local.is_real)
             .assert_eq(public_values.next_pc.clone(), local.next_pc);
+    }
+
+    pub(crate) fn is_real_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) {
+        // Check the is_real flag.  It should be 1 for the first row.  Once its 0, it should never
+        // change value.
+        builder.assert_bool(local.is_real);
+        builder.when_first_row().assert_one(local.is_real);
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
+        // Verify that the last row is real.
+        builder.when_last_row().assert_one(local.is_real);
     }
 }
 

@@ -5,7 +5,7 @@ use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
-use crate::runtime::Opcode;
+use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -43,7 +43,12 @@ impl CpuChip {
         opcode_selectors.is_sb + opcode_selectors.is_sh + opcode_selectors.is_sw
     }
 
-    pub(crate) fn eval_memory_address_and_acccess<AB: SP1AirBuilder>() {
+    pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        is_memory_instruction: AB::Expr,
+    ) {
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
         let memory_columns = local.opcode_specific_columns.memory();

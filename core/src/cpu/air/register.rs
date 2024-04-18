@@ -1,10 +1,18 @@
+use crate::air::WordAirBuilder;
+use crate::cpu::columns::CpuCols;
+use crate::memory::MemoryCols;
+use crate::runtime::MemoryAccessPosition;
+use crate::stark::{CpuChip, SP1AirBuilder};
+use p3_field::AbstractField;
+
 impl CpuChip {
     /// Computes whether the opcode is a branch instruction.
     pub(crate) fn eval_registers<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
-    ) -> AB::Expr {
+        is_branch_instruction: AB::Expr,
+    ) {
         // Load immediates into b and c, if the immediate flags are on.
         builder
             .when(local.selectors.imm_b)
