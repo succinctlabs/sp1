@@ -651,14 +651,14 @@ pub trait ProgramAirBuilder: BaseAirBuilder {
         EPc: Into<Self::Expr>,
         EInst: Into<Self::Expr> + Copy,
         ESel: Into<Self::Expr> + Copy,
-        EShard: Into<Self::Expr> + Copy,
+        EShard: Into<Self::Expr> + Clone,
         EMult: Into<Self::Expr>,
     {
         let values = once(pc.into())
             .chain(once(instruction.opcode.into()))
             .chain(instruction.into_iter().map(|x| x.into()))
             .chain(selectors.into_iter().map(|x| x.into()))
-            .chain(once(shard.into()))
+            .chain(once(shard.clone().into()))
             .collect();
 
         self.send(AirInteraction::new(

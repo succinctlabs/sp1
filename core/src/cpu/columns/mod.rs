@@ -33,9 +33,6 @@ pub const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct CpuCols<T: Copy> {
-    /// The current shard.
-    pub shard: T,
-
     /// The clock cycle value.  This should be within 24 bits.
     pub clk: T,
     /// The least significant 16 bit limb of clk.

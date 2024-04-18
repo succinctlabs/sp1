@@ -54,6 +54,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
+        shard: AB::Expr,
         is_memory_instruction: AB::Expr,
     ) {
         // Get the memory specific columns.
@@ -65,14 +66,14 @@ impl CpuChip {
             memory_columns.addr_word,
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
+            shard.clone(),
             is_memory_instruction.clone(),
         );
 
         // Check that each addr_word element is a byte.
         builder.slice_range_check_u8(
             &memory_columns.addr_word.0,
-            local.shard,
+            shard.clone(),
             is_memory_instruction.clone(),
         );
 
@@ -90,7 +91,7 @@ impl CpuChip {
         // For operations that require reading from memory (not registers), we need to read the
         // value into the memory columns.
         builder.eval_memory_access(
-            local.shard,
+            shard,
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             memory_columns.addr_aligned,
             &memory_columns.memory_access,
@@ -103,6 +104,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
+        shard: AB::Expr,
     ) {
         // Get the memory specific columns.
         let memory_columns = local.opcode_specific_columns.memory();
@@ -139,7 +141,7 @@ impl CpuChip {
             local.op_a_val(),
             local.unsigned_mem_val,
             signed_value,
-            local.shard,
+            shard,
             local.mem_value_is_neg,
         );
 

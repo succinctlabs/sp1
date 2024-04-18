@@ -17,7 +17,6 @@ use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::air::POSEIDON_NUM_WORDS;
 use crate::air::PV_DIGEST_NUM_WORDS;
-use crate::bytes::ByteOpcode;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
@@ -40,13 +39,14 @@ where
                 .map(|elm| (*elm).into())
                 .collect_vec(),
         );
+        let shard = public_values.shard.clone();
 
         // Program constraints.
         builder.send_program(
             local.pc,
             local.instruction,
             local.selectors,
-            local.shard,
+            shard.clone(),
             local.is_real,
         );
 
@@ -56,11 +56,16 @@ where
         let is_alu_instruction: AB::Expr = self.is_alu_instruction::<AB>(&local.selectors);
 
         // Register constraints.
-        self.eval_registers::<AB>(builder, local, is_branch_instruction.clone());
+        self.eval_registers::<AB>(builder, local, shard.clone(), is_branch_instruction.clone());
 
         // Memory instructions.
-        self.eval_memory_address_and_access::<AB>(builder, local, is_memory_instruction.clone());
-        self.eval_memory_load::<AB>(builder, local);
+        self.eval_memory_address_and_access::<AB>(
+            builder,
+            local,
+            shard.clone(),
+            is_memory_instruction.clone(),
+        );
+        self.eval_memory_load::<AB>(builder, local, shard.clone());
         self.eval_memory_store::<AB>(builder, local);
 
         // ALU instruction.
@@ -69,22 +74,28 @@ where
             local.op_a_val(),
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
+            shard.clone(),
             is_alu_instruction,
         );
 
         // Branch instructions.
-        self.branch_ops_eval::<AB>(builder, is_branch_instruction.clone(), local, next);
+        self.branch_ops_eval::<AB>(
+            builder,
+            is_branch_instruction.clone(),
+            local,
+            next,
+            shard.clone(),
+        );
 
         // Jump instructions.
-        self.jump_ops_eval::<AB>(builder, local, next);
+        self.jump_ops_eval::<AB>(builder, local, next, shard.clone());
 
         // AUIPC instruction.
-        self.auipc_eval(builder, local);
+        self.auipc_eval(builder, local, shard.clone());
 
         // ECALL instruction.
         let (num_cycles, is_halt, is_commit, is_commit_deferred_proofs) =
-            self.ecall_eval(builder, local);
+            self.ecall_eval(builder, local, shard.clone());
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
         self.commit_eval(
@@ -99,8 +110,8 @@ where
         // HALT ecall and UNIMPL instruction.
         self.halt_unimpl_eval(builder, local, next, is_halt.clone());
 
-        // Check that the shard and clk is updated correctly.
-        self.shard_clk_eval(builder, local, next, num_cycles);
+        // Check that the clk is updated correctly.
+        self.clk_eval(builder, local, next, shard, num_cycles);
 
         // Check that the pc is updated correctly.
         self.pc_eval(
@@ -134,6 +145,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        shard: AB::Expr,
     ) {
         // Get the jump specific columns
         let jump_columns = local.opcode_specific_columns.jump();
@@ -176,7 +188,7 @@ impl CpuChip {
             jump_columns.next_pc,
             jump_columns.pc,
             local.op_b_val(),
-            local.shard,
+            shard.clone(),
             local.selectors.is_jal,
         );
 
@@ -186,13 +198,18 @@ impl CpuChip {
             jump_columns.next_pc,
             local.op_b_val(),
             local.op_c_val(),
-            local.shard,
+            shard,
             local.selectors.is_jalr,
         );
     }
 
     /// Constraints related to the AUIPC opcode.
-    pub(crate) fn auipc_eval<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &CpuCols<AB::Var>) {
+    pub(crate) fn auipc_eval<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        shard: AB::Expr,
+    ) {
         // Get the auipc specific columns.
         let auipc_columns = local.opcode_specific_columns.auipc();
 
@@ -207,7 +224,7 @@ impl CpuChip {
             local.op_a_val(),
             auipc_columns.pc,
             local.op_b_val(),
-            local.shard,
+            shard,
             local.selectors.is_auipc,
         );
     }
@@ -218,29 +235,14 @@ impl CpuChip {
     /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
     /// and clk values are within 24 bits.  Those range checks are needed for the memory access
     /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
-    pub(crate) fn shard_clk_eval<AB: SP1AirBuilder>(
+    pub(crate) fn clk_eval<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        shard: AB::Expr,
         num_cycles: AB::Expr,
     ) {
-        // Verify that all shard values are the same.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.shard, next.shard);
-
-        // Verify that the shard value is within 16 bits.
-        builder.send_byte(
-            AB::Expr::from_canonical_u8(ByteOpcode::U16Range as u8),
-            local.shard,
-            AB::Expr::zero(),
-            AB::Expr::zero(),
-            local.shard,
-            local.is_real,
-        );
-
         // Verify that the first row has a clk value of 0.
         builder.when_first_row().assert_zero(local.clk);
 
@@ -258,7 +260,7 @@ impl CpuChip {
             local.clk,
             local.clk_16bit_limb,
             local.clk_8bit_limb,
-            local.shard,
+            shard,
             local.is_real,
         );
     }
@@ -310,11 +312,6 @@ impl CpuChip {
         next: &CpuCols<AB::Var>,
         public_values: &PublicValues<Word<AB::Expr>, AB::Expr>,
     ) {
-        // Verify the public value's shard.
-        builder
-            .when(local.is_real)
-            .assert_eq(public_values.shard.clone(), local.shard);
-
         // Verify the public value's start pc.
         builder
             .when_first_row()

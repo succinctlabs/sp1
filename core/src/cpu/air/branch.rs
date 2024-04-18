@@ -33,6 +33,7 @@ impl CpuChip {
         is_branch_instruction: AB::Expr,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
+        shard: AB::Expr,
     ) {
         // Get the branch specific columns.
         let branch_cols = local.opcode_specific_columns.branch();
@@ -63,7 +64,7 @@ impl CpuChip {
                 branch_cols.next_pc,
                 branch_cols.pc,
                 local.op_c_val(),
-                local.shard,
+                shard.clone(),
                 local.branching,
             );
 
@@ -154,7 +155,7 @@ impl CpuChip {
             Word::extend_var::<AB>(branch_cols.a_lt_b),
             local.op_a_val(),
             local.op_b_val(),
-            local.shard,
+            shard.clone(),
             is_branch_instruction.clone(),
         );
 
@@ -165,7 +166,7 @@ impl CpuChip {
             Word::extend_var::<AB>(branch_cols.a_gt_b),
             local.op_b_val(),
             local.op_a_val(),
-            local.shard,
+            shard,
             is_branch_instruction.clone(),
         );
     }

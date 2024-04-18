@@ -23,6 +23,7 @@ impl CpuChip {
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
+        shard: AB::Expr,
     ) -> (AB::Expr, AB::Expr, AB::Expr, AB::Expr) {
         let ecall_cols = local.opcode_specific_columns.ecall();
         let is_ecall_instruction = self.is_ecall_instruction::<AB>(&local.selectors);
@@ -41,7 +42,7 @@ impl CpuChip {
             .when(is_ecall_instruction.clone())
             .assert_eq(send_to_table, local.ecall_mul_send_to_table);
         builder.send_syscall(
-            local.shard,
+            shard,
             local.clk,
             syscall_id,
             local.op_b_val().reduce::<AB>(),
