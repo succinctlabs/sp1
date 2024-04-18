@@ -196,8 +196,13 @@ impl<V: Copy> EdDecompressCols<V> {
             self.shard,
             self.is_real,
         );
-        self.x
-            .eval(builder, &self.u_div_v.result, self.shard, self.is_real);
+        self.x.eval(
+            builder,
+            &self.u_div_v.result,
+            AB::F::zero(),
+            self.shard,
+            self.is_real,
+        );
         self.neg_x.eval(
             builder,
             &[AB::Expr::zero()].iter(),

@@ -64,7 +64,6 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub(crate) x_3_plus_b: FieldOpCols<T, P>,
     pub(crate) y: FieldSqrtCols<T, P>,
     pub(crate) neg_y: FieldOpCols<T, P>,
-    pub(crate) y_least_bits: [T; 8],
 }
 
 #[derive(Default)]
@@ -123,12 +122,6 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
         let zero = BigUint::zero();
         cols.neg_y
             .populate(record, shard, &zero, &y, FieldOperation::Sub);
-        // Decompose bits of least significant Y byte
-        let y_bytes = y.to_bytes_le();
-        let y_lsb = if y_bytes.is_empty() { 0 } else { y_bytes[0] };
-        for i in 0..8 {
-            cols.y_least_bits[i] = F::from_canonical_u32(((y_lsb >> i) & 1) as u32);
-        }
     }
 }
 
@@ -265,8 +258,7 @@ where
             row.shard,
             row.is_real,
         );
-        row.y
-            .eval(builder, &row.x_3_plus_b.result, row.shard, row.is_real);
+
         row.neg_y.eval(
             builder,
             &[AB::Expr::zero()].iter(),
@@ -276,24 +268,16 @@ where
             row.is_real,
         );
 
-        // Constrain decomposition of least significant byte of Y into `y_least_bits`
-        for i in 0..8 {
-            builder.when(row.is_real).assert_bool(row.y_least_bits[i]);
-        }
-        let y_least_byte = row.y.multiplication.result.0[0];
-        let powers_of_two = [1, 2, 4, 8, 16, 32, 64, 128].map(AB::F::from_canonical_u32);
-        let recomputed_byte: AB::Expr = row
-            .y_least_bits
-            .iter()
-            .zip(powers_of_two)
-            .map(|(p, b)| (*p).into() * b)
-            .sum();
-        builder
-            .when(row.is_real)
-            .assert_eq(recomputed_byte, y_least_byte);
-
         // Interpret the lowest bit of Y as whether it is odd or not.
-        let y_is_odd = row.y_least_bits[0];
+        let y_is_odd = row.y.lsb;
+
+        row.y.eval(
+            builder,
+            &row.x_3_plus_b.result,
+            row.y.lsb,
+            row.shard,
+            row.is_real,
+        );
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&row.y_access);
@@ -392,7 +376,7 @@ mod tests {
 
         let mut rng = thread_rng();
 
-        let num_tests = 2;
+        let num_tests = 10;
 
         for _ in 0..num_tests {
             let secret_key = k256::SecretKey::random(&mut rng);
