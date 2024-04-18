@@ -3,7 +3,6 @@ use serde::Serialize;
 use std::cmp::Reverse;
 use std::marker::PhantomData;
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::time::Instant;
 
 use itertools::Itertools;
 use p3_air::Air;
@@ -18,6 +17,7 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
+use web_time::Instant;
 
 use super::{quotient_values, MachineStark, PcsProverData, Val};
 use super::{types::*, StarkGenericConfig};

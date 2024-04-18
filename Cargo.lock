@@ -893,6 +893,11 @@ dependencies = [
 ]
 
 [[package]]
+name = "blake3-zkvm"
+version = "0.1.0"
+source = "git+https://github.com/sp1-patches/BLAKE3.git?branch=patch-blake3_zkvm/v.1.0.0#bac2d59f9122b07a4d91475560b4c3214ae62444"
+
+[[package]]
 name = "block-buffer"
 version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1832,6 +1837,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fe739944a5406424e080edccb6add95685130b9f160d5407c639c7df0c5836b0"
 dependencies = [
+ "serde",
  "typenum",
 ]
 
@@ -4319,6 +4325,9 @@ dependencies = [
  "anyhow",
  "arrayref",
  "bincode",
+ "blake3",
+ "blake3-zkvm",
+ "cfg-if",
  "criterion",
  "curve25519-dalek",
  "elf",
@@ -4366,6 +4375,7 @@ dependencies = [
  "tracing-forest",
  "tracing-subscriber",
  "typenum",
+ "web-time",
 ]
 
 [[package]]
@@ -4406,6 +4416,7 @@ dependencies = [
  "getrandom",
  "hex",
  "k256",
+ "num",
  "rand",
  "serde",
  "snowbridge-amcl",
@@ -5365,6 +5376,16 @@ name = "web-sys"
 version = "0.3.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77afa9a11836342370f4817622a2f0f418b134426d91a82dfb48f532d2ec13ef"
+dependencies = [
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "web-time"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5a6580f308b1fad9207618087a65c04e7a10bc77e02c8e84e9b00dd4b12fa0bb"
 dependencies = [
  "js-sys",
  "wasm-bindgen",

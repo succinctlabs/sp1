@@ -17,23 +17,25 @@ use k256::{PublicKey, Scalar, Secp256k1};
 use crate::io;
 use crate::unconstrained;
 
+const NUM_WORDS: usize = 16;
+
 #[derive(Copy, Clone)]
 pub struct Secp256k1Operations;
 
-impl CurveOperations for Secp256k1Operations {
+impl CurveOperations<NUM_WORDS> for Secp256k1Operations {
     // The values are taken from https://en.bitcoin.it/wiki/Secp256k1.
-    const GENERATOR: [u32; 16] = [
+    const GENERATOR: [u32; NUM_WORDS] = [
         385357720, 1509065051, 768485593, 43777243, 3464956679, 1436574357, 4191992748, 2042521214,
         4212184248, 2621952143, 2793755673, 4246189128, 235997352, 1571093500, 648266853,
         1211816567,
     ];
-    fn add_assign(limbs: &mut [u32; 16], other: &[u32; 16]) {
+    fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]) {
         unsafe {
             syscall_secp256k1_add(limbs.as_mut_ptr(), other.as_ptr());
         }
     }
 
-    fn double(limbs: &mut [u32; 16]) {
+    fn double(limbs: &mut [u32; NUM_WORDS]) {
         unsafe {
             syscall_secp256k1_double(limbs.as_mut_ptr());
         }
@@ -91,9 +93,9 @@ pub fn verify_signature(
             pubkey_y_le_bytes.reverse();
 
             // Convert the public key to an affine point
-            let affine = AffinePoint::<Secp256k1Operations>::from(pubkey_x_le_bytes.into(), pubkey_y_le_bytes.into());
+            let affine = AffinePoint::<Secp256k1Operations, NUM_WORDS>::from(pubkey_x_le_bytes.into(), pubkey_y_le_bytes.into());
 
-            const GENERATOR: AffinePoint<Secp256k1Operations> = AffinePoint::<Secp256k1Operations>::generator_in_affine();
+            const GENERATOR: AffinePoint<Secp256k1Operations, NUM_WORDS> = AffinePoint::<Secp256k1Operations, NUM_WORDS>::generator_in_affine();
 
             let field = bits2field::<Secp256k1>(msg_hash);
             if field.is_err() {
@@ -149,11 +151,11 @@ pub fn verify_signature(
 #[allow(non_snake_case)]
 fn double_and_add_base(
     a: &Scalar,
-    A: &AffinePoint<Secp256k1Operations>,
+    A: &AffinePoint<Secp256k1Operations, NUM_WORDS>,
     b: &Scalar,
-    B: &AffinePoint<Secp256k1Operations>,
-) -> Option<AffinePoint<Secp256k1Operations>> {
-    let mut res: Option<AffinePoint<Secp256k1Operations>> = None;
+    B: &AffinePoint<Secp256k1Operations, NUM_WORDS>,
+) -> Option<AffinePoint<Secp256k1Operations, NUM_WORDS>> {
+    let mut res: Option<AffinePoint<Secp256k1Operations, NUM_WORDS>> = None;
     let mut temp_A = *A;
     let mut temp_B = *B;
 
