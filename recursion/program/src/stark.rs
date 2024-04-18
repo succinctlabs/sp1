@@ -278,6 +278,7 @@ pub(crate) mod tests {
     use rand::Rng;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
+    use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
     use sp1_core::{
@@ -296,8 +297,6 @@ pub(crate) mod tests {
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
 
     use sp1_recursion_core::stark::RecursionAir;
-    use sp1_sdk::utils::setup_logger;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;

@@ -173,7 +173,6 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;

@@ -13,8 +13,8 @@ use sp1_core::stark::{
 };
 use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
 use sp1_core::utils::{
-    BabyBearPoseidon2Inner, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
-    InnerVal,
+    BabyBearPoseidon2, BabyBearPoseidon2Inner, InnerChallenge, InnerDigest, InnerDigestHash,
+    InnerPcsProof, InnerPerm, InnerVal,
 };
 use sp1_recursion_compiler::{
     config::InnerConfig,
@@ -22,7 +22,6 @@ use sp1_recursion_compiler::{
 };
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
-use sp1_sdk::utils::BabyBearPoseidon2;
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;
