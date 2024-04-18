@@ -265,8 +265,13 @@ where
             row.shard,
             row.is_real,
         );
-        row.y
-            .eval(builder, &row.x_3_plus_b.result, row.shard, row.is_real);
+        row.y.eval(
+            builder,
+            &row.x_3_plus_b.result,
+            true,
+            row.shard,
+            row.is_real,
+        );
         row.neg_y.eval(
             builder,
             &[AB::Expr::zero()].iter(),
