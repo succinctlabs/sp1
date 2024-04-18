@@ -455,6 +455,7 @@ where
 #[cfg(test)]
 mod tests {
     use core::borrow::Borrow;
+    use std::time::Instant;
 
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
@@ -464,20 +465,12 @@ mod tests {
     use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
     use p3_symmetric::Permutation;
     use sp1_core::air::MachineAir;
-    use sp1_core::utils::inner_perm;
+    use sp1_core::stark::StarkGenericConfig;
+    use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2Inner};
 
     use crate::poseidon2::Poseidon2Event;
     use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
     use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
-
-    #[cfg(release)]
-    use sp1_core::utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2Inner};
-
-    #[cfg(release)]
-    use sp1_core::stark::StarkGenericConfig;
-
-    #[cfg(release)]
-    use std::time::Instant;
 
     #[test]
     fn generate_trace() {
@@ -521,7 +514,7 @@ mod tests {
 
     // test proving 2^10 permuations
     #[test]
-    #[cfg(release)]
+    #[ignore]
     fn prove_babybear() {
         let config = BabyBearPoseidon2Inner::new();
         let mut challenger = config.challenger();
