@@ -83,33 +83,24 @@ where
         self.eval_auipc(builder, local);
 
         // ECALL instruction.
-        let (num_extra_cycles, is_halt, is_commit, is_commit_deferred_proofs) =
-            self.eval_ecall(builder, local);
+        self.eval_ecall(builder, local);
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
         self.eval_commit(
             builder,
             local,
-            is_commit,
-            is_commit_deferred_proofs,
             public_values.committed_value_digest.clone(),
             public_values.deferred_proofs_digest.clone(),
         );
 
         // HALT ecall and UNIMPL instruction.
-        self.eval_halt_unimpl(builder, local, next, is_halt.clone());
+        self.eval_halt_unimpl(builder, local, next);
 
         // Check that the shard and clk is updated correctly.
-        self.eval_shard_clk(builder, local, next, num_extra_cycles);
+        self.eval_shard_clk(builder, local, next);
 
         // Check that the pc is updated correctly.
-        self.eval_pc(
-            builder,
-            local,
-            next,
-            is_branch_instruction.clone(),
-            is_halt.clone(),
-        );
+        self.eval_pc(builder, local, next, is_branch_instruction.clone());
 
         // Check public values constraints.
         self.eval_public_values(builder, local, next, &public_values);
@@ -223,7 +214,6 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
-        num_extra_cycles: AB::Expr,
     ) {
         // Verify that all shard values are the same.
         builder
@@ -246,6 +236,7 @@ impl CpuChip {
 
         // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
+        let num_extra_cycles = self.get_num_extra_ecall_cycles::<AB>(local);
         let expected_next_clk =
             local.clk + AB::Expr::from_canonical_u32(4) + num_extra_cycles.clone();
 
@@ -274,7 +265,6 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
-        is_halt: AB::Expr,
     ) {
         // Verify that if is_sequential_instr is true, assert that local.is_real is true.
         // This is needed for the following constraint, which is already degree 3.
@@ -284,6 +274,7 @@ impl CpuChip {
 
         // When is_sequential_instr is true, assert that instruction is not branch, jump, or halt.
         // Note that the condition `when(local_is_real)` is implied from the previous constraint.
+        let is_halt = self.is_halt_syscall::<AB>(builder, local);
         builder.when(local.is_sequential_instr).assert_zero(
             is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
         );
