@@ -1,14 +1,16 @@
-use super::utils::biguint_from_limbs;
-use crate::operations::field::params::{Limbs, NB_BITS_PER_LIMB};
+use std::fmt::Debug;
+use std::ops::Div;
+
 use generic_array::sequence::GenericSequence;
 use generic_array::{ArrayLength, GenericArray};
 use num::BigUint;
 use p3_field::Field;
 use serde::{de::DeserializeOwned, Serialize};
-use std::fmt::Debug;
-use std::ops::Div;
 use typenum::Unsigned;
 use typenum::{U2, U4};
+
+use super::utils::biguint_from_limbs;
+use crate::operations::field::params::{Limbs, NB_BITS_PER_LIMB};
 
 pub trait FieldParameters:
     Send + Sync + Copy + 'static + Debug + Serialize + DeserializeOwned + NumLimbs
@@ -16,7 +18,7 @@ pub trait FieldParameters:
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize = Self::Limbs::USIZE;
     const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
-    const WITNESS_OFFSET: usize = 1usize << 13;
+    const WITNESS_OFFSET: usize = 1usize << 16;
     const MODULUS: &'static [u8];
 
     fn modulus() -> BigUint {

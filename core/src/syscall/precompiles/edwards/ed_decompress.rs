@@ -1,3 +1,23 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::marker::PhantomData;
+
+use curve25519_dalek::edwards::CompressedEdwardsY;
+use generic_array::GenericArray;
+use num::BigUint;
+use num::One;
+use num::Zero;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use serde::Deserialize;
+use serde::Serialize;
+use sp1_derive::AlignedBorrow;
+use typenum::Unsigned;
+use typenum::U32;
+
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -10,6 +30,7 @@ use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
 use crate::runtime::MemoryWriteRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::SyscallContext;
@@ -27,26 +48,6 @@ use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use curve25519_dalek::edwards::CompressedEdwardsY;
-use generic_array::GenericArray;
-use num::BigUint;
-use num::One;
-use num::Zero;
-use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::MatrixRowSlices;
-use serde::Deserialize;
-use serde::Serialize;
-use std::marker::PhantomData;
-use typenum::Unsigned;
-use typenum::U32;
-
-use p3_matrix::dense::RowMajorMatrix;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
@@ -165,7 +166,7 @@ impl<V: Copy> EdDecompressCols<V> {
         );
 
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
@@ -174,7 +175,7 @@ impl<V: Copy> EdDecompressCols<V> {
             );
         }
         for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.constraint_memory_access(
+            builder.eval_memory_access(
                 self.shard,
                 self.clk,
                 self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
@@ -183,6 +184,7 @@ impl<V: Copy> EdDecompressCols<V> {
             );
         }
 
+        // Constrain that the correct result is written into x.
         let x_limbs: Limbs<V, U32> = limbs_from_access(&self.x_access);
         builder
             .when(self.is_real)
@@ -278,6 +280,8 @@ impl<E: EdwardsParameters> EdDecompressChip<E> {
 impl<F: PrimeField32, E: EdwardsParameters> MachineAir<F> for EdDecompressChip<E> {
     type Record = ExecutionRecord;
 
+    type Program = Program;
+
     fn name(&self) -> String {
         "EdDecompress".to_string()
     }
@@ -329,7 +333,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &EdDecompressCols<AB::Var> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &EdDecompressCols<AB::Var> = (*row).borrow();
         row.eval::<AB, E::BaseField, E>(builder);
     }
 }

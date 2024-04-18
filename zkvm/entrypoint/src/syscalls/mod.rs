@@ -1,4 +1,6 @@
 mod blake3_compress;
+mod bls12381;
+mod bn254;
 mod ed25519;
 mod halt;
 mod io;
@@ -8,8 +10,12 @@ mod secp256k1;
 mod sha_compress;
 mod sha_extend;
 mod sys;
+mod uint256_mul;
 mod unconstrained;
+mod verify;
 
+pub use bls12381::*;
+pub use bn254::*;
 pub use ed25519::*;
 pub use halt::*;
 pub use io::*;
@@ -19,16 +25,15 @@ pub use secp256k1::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
+pub use uint256_mul::*;
 pub use unconstrained::*;
+pub use verify::*;
 
 /// These codes MUST match the codes in `core/src/runtime/syscall.rs`. There is a derived test
 /// that checks that the enum is consistent with the syscalls.
 
 /// Halts the program.
-pub const HALT: u32 = 0x01_00_00_00;
-
-/// Loads a word supplied from the prover.
-pub const LWA: u32 = 0x00_00_00_01;
+pub const HALT: u32 = 0x00_00_00_00;
 
 /// Writes to a file descriptor. Currently only used for `STDOUT/STDERR`.
 pub const WRITE: u32 = 0x00_00_00_02;
@@ -65,3 +70,30 @@ pub const SECP256K1_DECOMPRESS: u32 = 0x00_00_01_0C;
 
 /// Executes `BLAKE3_COMPRESS_INNER`.
 pub const BLAKE3_COMPRESS_INNER: u32 = 0x00_38_01_0D;
+
+/// Executes `BN254_ADD`.
+pub const BN254_ADD: u32 = 0x00_01_01_0E;
+
+/// Executes `BN254_DOUBLE`.
+pub const BN254_DOUBLE: u32 = 0x00_00_01_0F;
+
+/// Executes the `COMMIT` precompile.
+pub const COMMIT: u32 = 0x00_00_00_10;
+
+/// Executes the `COMMIT_DEFERRED_PROOFS` precompile.
+pub const COMMIT_DEFERRED_PROOFS: u32 = 0x00_00_00_1A;
+
+/// Executes the `VERIFY_SP1_PROOF` precompile.
+pub const VERIFY_SP1_PROOF: u32 = 0x00_00_00_1B;
+
+/// Executes `HINT_LEN`.
+pub const HINT_LEN: u32 = 0x00_00_00_F0;
+
+/// Executes `HINT_READ`.
+pub const HINT_READ: u32 = 0x00_00_00_F1;
+
+/// Executes the `UINT256_MUL` precompile.
+pub const UINT256_MUL: u32 = 0x00_00_01_1D;
+
+/// Executes `BLS12381_DECOMPRESS`.
+pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;

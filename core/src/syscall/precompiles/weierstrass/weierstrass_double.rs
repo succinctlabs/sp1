@@ -1,3 +1,22 @@
+use core::borrow::{Borrow, BorrowMut};
+use core::mem::size_of;
+use std::fmt::Debug;
+use std::marker::PhantomData;
+
+use generic_array::GenericArray;
+use num::BigUint;
+use num::Zero;
+use p3_air::AirBuilder;
+use p3_air::{Air, BaseAir};
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use p3_maybe_rayon::prelude::ParallelIterator;
+use p3_maybe_rayon::prelude::ParallelSlice;
+use sp1_derive::AlignedBorrow;
+use tracing::instrument;
+
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::memory::MemoryCols;
@@ -6,6 +25,7 @@ use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::Limbs;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::stark::MachineRecord;
@@ -16,27 +36,11 @@ use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::field::NumWords;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
+use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
-use core::borrow::{Borrow, BorrowMut};
-use core::mem::size_of;
-use generic_array::GenericArray;
-use num::BigUint;
-use num::Zero;
-use p3_air::AirBuilder;
-use p3_air::{Air, BaseAir};
-use p3_field::AbstractField;
-use p3_field::PrimeField32;
-use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
-use p3_maybe_rayon::prelude::ParallelIterator;
-use p3_maybe_rayon::prelude::ParallelSlice;
-use sp1_derive::AlignedBorrow;
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use tracing::instrument;
 
 pub const fn num_weierstrass_double_cols<P: FieldParameters + NumWords>() -> usize {
     size_of::<WeierstrassDoubleAssignCols<u8, P>>()
@@ -75,7 +79,11 @@ pub struct WeierstrassDoubleAssignChip<E> {
 impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssignChip<E> {
     fn execute(&self, rt: &mut SyscallContext, arg1: u32, arg2: u32) -> Option<u32> {
         let event = create_ec_double_event::<E>(rt, arg1, arg2);
-        rt.record_mut().weierstrass_double_events.push(event);
+        match E::CURVE_TYPE {
+            CurveType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event),
+            CurveType::Bn254 => rt.record_mut().bn254_double_events.push(event),
+            _ => panic!("Unsupported curve"),
+        }
         None
     }
 
@@ -151,9 +159,14 @@ where
     [(); num_weierstrass_double_cols::<E::BaseField>()]:,
 {
     type Record = ExecutionRecord;
+    type Program = Program;
 
     fn name(&self) -> String {
-        "WeierstrassDoubleAssign".to_string()
+        match E::CURVE_TYPE {
+            CurveType::Secp256k1 => "Secp256k1DoubleAssign".to_string(),
+            CurveType::Bn254 => "Bn254DoubleAssign".to_string(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 
     #[instrument(
@@ -166,11 +179,17 @@ where
         input: &ExecutionRecord,
         output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
-        let chunk_size = std::cmp::max(input.weierstrass_double_events.len() / num_cpus::get(), 1);
+        // collects the events based on the curve type.
+        let events = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => &input.secp256k1_double_events,
+            CurveType::Bn254 => &input.bn254_double_events,
+            _ => panic!("Unsupported curve"),
+        };
+
+        let chunk_size = std::cmp::max(events.len() / num_cpus::get(), 1);
 
         // Generate the trace rows & corresponding records for each chunk of events in parallel.
-        let rows_and_records = input
-            .weierstrass_double_events
+        let rows_and_records = events
             .par_chunks(chunk_size)
             .map(|events| {
                 let mut record = ExecutionRecord::default();
@@ -233,7 +252,11 @@ where
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.weierstrass_double_events.is_empty()
+        match E::CURVE_TYPE {
+            CurveType::Secp256k1 => !shard.secp256k1_double_events.is_empty(),
+            CurveType::Bn254 => !shard.bn254_double_events.is_empty(),
+            _ => panic!("Unsupported curve"),
+        }
     }
 }
 
@@ -250,7 +273,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let row: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = main.row_slice(0).borrow();
+        let row = main.row_slice(0);
+        let row: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = (*row).borrow();
 
         let num_words_field_element = E::BaseField::NB_LIMBS / 4;
         let p_x = limbs_from_prev_access(&row.p_access[0..num_words_field_element]);
@@ -345,7 +369,7 @@ where
             );
         }
 
-        builder.constraint_memory_access_slice(
+        builder.eval_memory_access_slice(
             row.shard,
             row.clk.into(),
             row.p_ptr,
@@ -353,10 +377,19 @@ where
             row.is_real,
         );
 
+        // Fetch the syscall id for the curve type.
+        let syscall_id_fe = match E::CURVE_TYPE {
+            CurveType::Secp256k1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id())
+            }
+            CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_DOUBLE.syscall_id()),
+            _ => panic!("Unsupported curve"),
+        };
+
         builder.receive_syscall(
             row.shard,
             row.clk,
-            AB::F::from_canonical_u32(SyscallCode::SECP256K1_DOUBLE.syscall_id()),
+            syscall_id_fe,
             row.p_ptr,
             AB::Expr::zero(),
             row.is_real,
@@ -369,13 +402,20 @@ pub mod tests {
 
     use crate::{
         runtime::Program,
-        utils::{run_test, setup_logger, tests::SECP256K1_DOUBLE_ELF},
+        utils::{run_test, setup_logger, tests::BN254_DOUBLE_ELF, tests::SECP256K1_DOUBLE_ELF},
     };
 
     #[test]
     fn test_secp256k1_double_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_DOUBLE_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_bn254_double_simple() {
+        setup_logger();
+        let program = Program::from(BN254_DOUBLE_ELF);
         run_test(program).unwrap();
     }
 }

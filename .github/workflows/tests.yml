@@ -9,77 +9,98 @@ on:
     paths:
       - "core/**"
       - "recursion/**"
+      - "sdk/**"
+      - "examples/fibonacci-io/**"
+      - ".github/workflows/**"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
-    name: CI Test Suite
-    runs-on: warp-ubuntu-latest-arm64-16x
-    if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
+    name: Core
+    runs-on: warp-ubuntu-latest-arm64-32x
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Set up git private repo access
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-core -p sp1-recursion-compiler -p sp1-recursion-program -p sp1-recursion-circuit --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
+          FRI_QUERIES: 1
+  e2e:
+    name: E2E
+    runs-on: warp-ubuntu-latest-arm64-8x
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
+
+      - name: Install sp1 toolchain
         run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
+          curl -L https://sp1.succinct.xyz | bash
+          echo "/root/.sp1/bin" >> $GITHUB_PATH
+          /root/.sp1/bin/sp1up
 
-      - name: rust-cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: test-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-nightly-2024-01-25-
-
-      - name: Install nightly toolchain
-        id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly-2024-01-25
-          override: true
-
-      - name: Run cargo test on sp1-core
+      - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
         with:
-          command: test
-          args: -p sp1-core --release
+          command: run
+          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
 
-      - name: Run cargo test on sp1-recursion-compiler
-        uses: actions-rs/cargo@v1
+  misc:
+    name: Miscellaneous
+    runs-on: warp-ubuntu-latest-arm64-8x
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
         with:
-          command: test
-          args: -p sp1-recursion-compiler --release
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-
+          pull_token: ${{ secrets.PULL_TOKEN }}
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-core --profile fast --no-default-features --features debug -- cpu::trace::tests::generate_trace
+          args: -p sp1-core --release --no-default-features --features debug -- cpu::trace::tests::generate_trace
         env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
 
   lints:
     name: Formatting & Clippy
-    runs-on: warp-ubuntu-latest-arm64-16x
+    runs-on: warp-ubuntu-latest-arm64-8x
     if: "! contains(toJSON(github.event.commits.*.message), '[skip-ci]')"
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -87,32 +108,10 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Set up git private repo access
-        run: |
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com/".insteadOf ssh://git@github.com
-          git config --global url."https://${{ secrets.PRIVATE_PULL_TOKEN }}@github.com".insteadOf https://github.com
-
-      - name: rust-cache
-        uses: actions/cache@v3
+      - name: Setup CI
+        uses: ./.github/actions/setup
         with:
-          path: |
-            ~/.cargo/bin/
-            ~/.cargo/registry/index/
-            ~/.cargo/registry/cache/
-            ~/.cargo/git/db/
-            target/
-            ~/.rustup/
-          key: clippy-rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
-          restore-keys: rust-nightly-2024-01-25-
-
-      - name: Install nightly toolchain
-        id: rustc-toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: nightly-2024-01-25
-          override: true
-          components: rustfmt, clippy
+          pull_token: ${{ secrets.PULL_TOKEN }}
 
       - name: Run cargo fmt
         uses: actions-rs/cargo@v1

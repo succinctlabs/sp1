@@ -1,6 +1,7 @@
 use p3_field::Field;
 
 /// An implementation of `batch_multiplicative_inverse` that operates in place.
+#[allow(dead_code)]
 pub fn batch_multiplicative_inverse_inplace<F: Field>(values: &mut [F]) {
     // Check if values are zero and construct a new vector with only nonzero values.
     let mut nonzero_values = Vec::with_capacity(values.len());

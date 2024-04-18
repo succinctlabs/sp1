@@ -2,24 +2,24 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use web_time::Instant;
 
+pub use baby_bear_blake3::BabyBearBlake3;
+use p3_challenger::CanObserve;
+use p3_field::PrimeField32;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use size::Size;
+
 use crate::runtime::{ExecutionRecord, ShardingConfig};
 use crate::stark::MachineRecord;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
 use crate::utils::env::shard_batch_size;
-use crate::utils::poseidon2_instance::RC_16_30;
 use crate::{
     runtime::{Program, Runtime},
     stark::StarkGenericConfig,
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
-use crate::{SP1ProofWithIO, SP1Stdin, SP1Stdout};
-pub use baby_bear_blake3::BabyBearBlake3;
-use p3_challenger::CanObserve;
 
-use p3_field::PrimeField32;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use size::Size;
+use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
 
 const LOG_DEGREE_BOUND: usize = 31;
 
@@ -35,16 +35,16 @@ pub fn run_test_io(
 ) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_stdin_slice(&inputs.buffer.data);
+        runtime.write_vecs(&inputs.buffer);
         runtime.run();
         runtime
     });
-    let stdout = SP1Stdout::from(&runtime.state.output_stream);
+    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
     let proof = run_test_core(runtime)?;
     Ok(SP1ProofWithIO {
         proof,
         stdin: inputs,
-        stdout,
+        public_values,
     })
 }
 
@@ -59,6 +59,7 @@ pub fn run_test(
     run_test_core(runtime)
 }
 
+#[allow(unused_variables)]
 pub fn run_test_core(
     runtime: Runtime,
 ) -> Result<crate::stark::Proof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
@@ -67,6 +68,13 @@ pub fn run_test_core(
     let (pk, vk) = machine.setup(runtime.program.as_ref());
     let mut challenger = machine.config().challenger();
 
+    #[cfg(feature = "debug")]
+    {
+        let mut challenger_clone = machine.config().challenger();
+        let record_clone = runtime.record.clone();
+        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
+        log::debug!("debug_constraints done");
+    }
     let start = Instant::now();
     let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
@@ -104,7 +112,7 @@ fn reset_seek(file: &mut File) {
 
 pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
-    stdin: &[u8],
+    stdin: &[Vec<u8>],
     config: SC,
 ) -> (crate::stark::Proof<SC>, Vec<u8>)
 where
@@ -119,24 +127,29 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
-
-    runtime.write_stdin_slice(stdin);
+    runtime.write_vecs(stdin);
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
     // If we don't need to batch, we can just run the program normally and prove it.
     if !should_batch {
         runtime.run();
-        let stdout = std::mem::take(&mut runtime.state.output_stream);
+        #[cfg(feature = "debug")]
+        {
+            let record_clone = runtime.record.clone();
+            machine.debug_constraints(&pk, record_clone, &mut challenger);
+        }
+        let public_values = std::mem::take(&mut runtime.state.public_values_stream);
         let proof = prove_core(machine.config().clone(), runtime);
-        return (proof, stdout);
+        return (proof, public_values);
     }
 
     // Execute the program, saving checkpoints at the start of every `shard_batch_size` cycle range.
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let stdout = tracing::info_span!("runtime.state").in_scope(|| loop {
+    let mut public_values: Vec<SC::Val> = Vec::new();
+    let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
         // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
         let (state, done) = runtime.execute_state();
         let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
@@ -149,7 +162,8 @@ where
             .expect("failed to seek to start of tempfile");
         checkpoints.push(tempfile);
         if done {
-            return std::mem::take(&mut runtime.state.output_stream);
+            public_values = runtime.record.public_values();
+            return std::mem::take(&mut runtime.state.public_values_stream);
         }
     });
 
@@ -174,10 +188,12 @@ where
         shard_main_datas.push(commit_data);
 
         if reuse_shards {
-            all_shards = Some(shards);
+            all_shards = Some(shards.clone());
         }
-        for commitment in commitments {
+
+        for (commitment, shard) in commitments.into_iter().zip(shards.iter()) {
             challenger.observe(commitment);
+            challenger.observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
         }
     }
 
@@ -219,7 +235,7 @@ where
         Size::from_bytes(nb_bytes),
     );
 
-    (proof, stdout)
+    (proof, public_values_stream)
 }
 
 pub fn prove_core<SC: StarkGenericConfig>(config: SC, runtime: Runtime) -> crate::stark::Proof<SC>
@@ -326,7 +342,6 @@ use p3_uni_stark::Proof;
 
 pub mod baby_bear_poseidon2 {
 
-    use crate::utils::prove::RC_16_30;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
@@ -335,18 +350,18 @@ pub mod baby_bear_poseidon2 {
     use p3_fri::{FriConfig, TwoAdicFriPcs};
     use p3_merkle_tree::FieldMerkleTreeMmcs;
     use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
+    use sp1_primitives::RC_16_30;
 
     use crate::stark::StarkGenericConfig;
-
-    use super::LOG_DEGREE_BOUND;
 
     pub type Val = BabyBear;
 
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, DiffusionMatrixBabybear, 16, 7>;
+    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
 
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
@@ -397,7 +412,24 @@ pub mod baby_bear_poseidon2 {
 
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
-            let perm = Perm::new(8, 22, RC_16_30.to_vec(), DiffusionMatrixBabybear);
+            const ROUNDS_F: usize = 8;
+            const ROUNDS_P: usize = 22;
+            let mut round_constants = RC_16_30.to_vec();
+            let internal_start = ROUNDS_F / 2;
+            let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+            let internal_round_constants = round_constants
+                .drain(internal_start..internal_end)
+                .map(|vec| vec[0])
+                .collect::<Vec<_>>();
+            let external_round_constants = round_constants;
+            let perm = Perm::new(
+                ROUNDS_F,
+                external_round_constants,
+                Poseidon2ExternalMatrixGeneral,
+                ROUNDS_P,
+                internal_round_constants,
+                DiffusionMatrixBabybear,
+            );
 
             let hash = MyHash::new(perm.clone());
 
@@ -409,13 +441,17 @@ pub mod baby_bear_poseidon2 {
 
             let dft = Dft {};
 
+            let num_queries = match std::env::var("FRI_QUERIES") {
+                Ok(value) => value.parse().unwrap(),
+                Err(_) => 100,
+            };
             let fri_config = FriConfig {
                 log_blowup: 1,
-                num_queries: 100,
+                num_queries,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };
-            let pcs = Pcs::new(LOG_DEGREE_BOUND, dft, val_mmcs, fri_config);
+            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
 
             Self { pcs, perm }
         }
@@ -634,9 +670,13 @@ pub(super) mod baby_bear_blake3 {
 
             let dft = Dft {};
 
+            let num_queries = match std::env::var("FRI_QUERIES") {
+                Ok(value) => value.parse().unwrap(),
+                Err(_) => 100,
+            };
             let fri_config = FriConfig {
                 log_blowup: 1,
-                num_queries: 100,
+                num_queries,
                 proof_of_work_bits: 16,
                 mmcs: challenge_mmcs,
             };

@@ -115,9 +115,6 @@ pub mod compress_tests {
     use crate::runtime::Opcode;
     use crate::runtime::Register;
     use crate::runtime::SyscallCode;
-    use crate::utils::run_test;
-    use crate::utils::setup_logger;
-    use crate::utils::tests::BLAKE3_COMPRESS_ELF;
     use crate::Program;
 
     use super::MSG_SIZE;
@@ -164,17 +161,18 @@ pub mod compress_tests {
         Program::new(instructions, 0, 0)
     }
 
-    #[test]
-    fn prove_babybear() {
-        setup_logger();
-        let program = blake3_compress_internal_program();
-        run_test(program).unwrap();
-    }
+    // Tests disabled because syscall is not enabled in default runtime/chip configs.
+    // #[test]
+    // fn prove_babybear() {
+    //     setup_logger();
+    //     let program = blake3_compress_internal_program();
+    //     run_test(program).unwrap();
+    // }
 
-    #[test]
-    fn test_blake3_compress_inner_elf() {
-        setup_logger();
-        let program = Program::from(BLAKE3_COMPRESS_ELF);
-        run_test(program).unwrap();
-    }
+    // #[test]
+    // fn test_blake3_compress_inner_elf() {
+    //     setup_logger();
+    //     let program = Program::from(BLAKE3_COMPRESS_ELF);
+    //     run_test(program).unwrap();
+    // }
 }

@@ -1,10 +1,11 @@
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use serde::{Deserialize, Serialize};
-
 mod air;
 mod columns;
 mod execute;
 mod trace;
+
+use serde::{Deserialize, Serialize};
+
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 
 pub const SHA_COMPRESS_K: [u32; 64] = [
     0x428a2f98, 0x71374491, 0xb5c0fbcf, 0xe9b5dba5, 0x3956c25b, 0x59f111f1, 0x923f82a4, 0xab1c5ed5,
@@ -30,6 +31,13 @@ pub struct ShaCompressEvent {
     pub h_write_records: [MemoryWriteRecord; 8],
 }
 
+/// Implements the SHA compress operation which loops over 0 = [0, 63] and modifies A-H in each
+/// iteration. The inputs to the syscall are a pointer to the 64 word array W and a pointer to the 8
+/// word array H.
+///
+/// In the AIR, each SHA compress syscall takes up 80 rows. The first and last 8 rows are for
+/// initialization and finalize respectively. The middle 64 rows are for compression. Each row
+/// operates over a single memory word.
 #[derive(Default)]
 pub struct ShaCompressChip;
 
@@ -44,7 +52,7 @@ pub mod compress_tests {
 
     use crate::{
         runtime::{Instruction, Opcode, Program, SyscallCode},
-        utils::{run_test, setup_logger},
+        utils::{run_test, setup_logger, tests::SHA_COMPRESS_ELF},
     };
 
     pub fn sha_compress_program() -> Program {
@@ -83,6 +91,13 @@ pub mod compress_tests {
     fn prove_babybear() {
         setup_logger();
         let program = sha_compress_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_sha_compress_program() {
+        setup_logger();
+        let program = Program::from(SHA_COMPRESS_ELF);
         run_test(program).unwrap();
     }
 }

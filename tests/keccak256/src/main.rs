@@ -11,6 +11,6 @@ pub fn main() {
         hasher.update(&input);
         let mut output = [0u8; 32];
         hasher.finalize(&mut output);
-        sp1_zkvm::io::write(&output);
+        sp1_zkvm::io::commit(&output);
     }
 }

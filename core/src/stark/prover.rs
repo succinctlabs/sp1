@@ -1,31 +1,34 @@
-use super::{quotient_values, MachineStark, PcsProverData, Val};
-use super::{ProvingKey, VerifierConstraintFolder};
-use crate::lookup::InteractionBuilder;
-use crate::stark::record::MachineRecord;
-use crate::stark::DebugConstraintBuilder;
-use crate::stark::MachineChip;
-use crate::stark::ProverConstraintFolder;
+use serde::de::DeserializeOwned;
+use serde::Serialize;
+use std::cmp::Reverse;
+use std::marker::PhantomData;
+use std::sync::atomic::{AtomicU32, Ordering};
+
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::Pcs;
 use p3_commit::PolynomialSpace;
+use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::{Matrix, MatrixRowSlices};
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_ceil_usize;
 use p3_util::log2_strict_usize;
-use serde::de::DeserializeOwned;
-use serde::Serialize;
-use std::marker::PhantomData;
-use std::sync::atomic::{AtomicU32, Ordering};
 use web_time::Instant;
 
+use super::{quotient_values, MachineStark, PcsProverData, Val};
 use super::{types::*, StarkGenericConfig};
 use super::{Com, OpeningProof};
+use super::{ProvingKey, VerifierConstraintFolder};
 use crate::air::MachineAir;
+use crate::lookup::InteractionBuilder;
+use crate::stark::record::MachineRecord;
+use crate::stark::MachineChip;
+use crate::stark::PackedChallenge;
+use crate::stark::ProverConstraintFolder;
 use crate::utils::env;
 
 fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
@@ -48,8 +51,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>;
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>;
 }
 
 impl<SC, A> Prover<SC, A> for LocalProver<SC, A>
@@ -72,17 +74,23 @@ where
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
+        // Observe the preprocessed commitment.
+        pk.observe_into(challenger);
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
-            shard_commits.into_iter().for_each(|commitment| {
-                challenger.observe(commitment);
-            });
+            shard_commits
+                .into_iter()
+                .zip(shards.iter())
+                .for_each(|(commitment, shard)| {
+                    challenger.observe(commitment);
+                    challenger
+                        .observe_slice(&shard.public_values::<SC::Val>()[0..machine.num_pv_elts()]);
+                });
         });
 
         let finished = AtomicU32::new(0);
@@ -114,7 +122,8 @@ where
                                 data.materialize()
                                     .expect("failed to materialize shard main data")
                             };
-                            let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
+                            let ordering = data.chip_ordering.clone();
+                            let chips = machine.shard_chips_ordered(&ordering).collect::<Vec<_>>();
                             let proof = Self::prove_shard(
                                 config,
                                 pk,
@@ -160,19 +169,27 @@ where
         index: usize,
     ) -> ShardMainData<SC> {
         // Filter the chips based on what is used.
-        let filtered_chips = machine.shard_chips(shard).collect::<Vec<_>>();
+        let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
-        let traces = filtered_chips
+        let mut named_traces = shard_chips
             .par_iter()
-            .map(|chip| chip.generate_trace(shard, &mut A::Record::default()))
+            .map(|chip| {
+                (
+                    chip.name(),
+                    chip.generate_trace(shard, &mut A::Record::default()),
+                )
+            })
             .collect::<Vec<_>>();
+
+        // Order the chips and traces by trace size (biggest first), and get the ordering map.
+        named_traces.sort_by_key(|(_, trace)| Reverse(trace.height()));
 
         let pcs = config.pcs();
 
-        let domains_and_traces = traces
+        let domains_and_traces = named_traces
             .iter()
-            .map(|trace| {
+            .map(|(_, trace)| {
                 let domain = pcs.natural_domain_for_degree(trace.height());
                 (domain, trace.to_owned())
             })
@@ -181,27 +198,34 @@ where
         // Commit to the batch of traces.
         let (main_commit, main_data) = pcs.commit(domains_and_traces);
 
-        // Get the filtered chip ids.
-        let chip_ids = filtered_chips
+        // Get the chip ordering.
+        let chip_ordering = named_traces
             .iter()
-            .map(|chip| chip.name())
+            .enumerate()
+            .map(|(i, (name, _))| (name.to_owned(), i))
+            .collect();
+
+        let traces = named_traces
+            .into_iter()
+            .map(|(_, trace)| trace)
             .collect::<Vec<_>>();
 
         ShardMainData {
             traces,
             main_commit,
             main_data,
-            chip_ids,
+            chip_ordering,
             index,
+            public_values: shard.public_values(),
         }
     }
 
     /// Prove the program for the given shard and given a commitment to the main data.
     pub fn prove_shard(
         config: &SC,
-        _pk: &ProvingKey<SC>,
+        pk: &ProvingKey<SC>,
         chips: &[&MachineChip<SC, A>],
-        shard_data: ShardMainData<SC>,
+        mut shard_data: ShardMainData<SC>,
         challenger: &mut SC::Challenger,
     ) -> ShardProof<SC>
     where
@@ -210,11 +234,10 @@ where
         ShardMainData<SC>: DeserializeOwned,
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+            + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Get the traces.
-        let traces = &shard_data.traces;
+        let traces = &mut shard_data.traces;
 
         let degrees = traces
             .iter()
@@ -242,6 +265,10 @@ where
         for _ in 0..2 {
             permutation_challenges.push(challenger.sample_ext_element());
         }
+        let packed_perm_challenges = permutation_challenges
+            .iter()
+            .map(|c| PackedChallenge::<SC>::from_f(*c))
+            .collect::<Vec<_>>();
 
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
@@ -249,10 +276,17 @@ where
         tracing::debug_span!("generate permutation traces").in_scope(|| {
             chips
                 .par_iter()
-                .zip(traces.par_iter())
+                .zip(traces.par_iter_mut())
                 .map(|(chip, main_trace)| {
-                    let perm_trace =
-                        chip.generate_permutation_trace(&None, main_trace, &permutation_challenges);
+                    let preprocessed_trace = pk
+                        .chip_ordering
+                        .get(&chip.name())
+                        .map(|&index| &pk.traces[index]);
+                    let perm_trace = chip.generate_permutation_trace(
+                        preprocessed_trace,
+                        main_trace,
+                        &permutation_challenges,
+                    );
                     let cumulative_sum = perm_trace
                         .row_slice(main_trace.height() - 1)
                         .last()
@@ -315,19 +349,33 @@ where
                 .into_par_iter()
                 .enumerate()
                 .map(|(i, quotient_domain)| {
-                    let main_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain);
-                    let permutation_trace_on_quotient_domains =
-                        pcs.get_evaluations_on_domain(&permutation_data, i, *quotient_domain);
+                    let preprocessed_trace_on_quotient_domains = pk
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|&index| {
+                            pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
+                                .to_row_major_matrix()
+                        })
+                        .unwrap_or_else(|| {
+                            RowMajorMatrix::new_col(vec![SC::Val::zero(); quotient_domain.size()])
+                        });
+                    let main_trace_on_quotient_domains = pcs
+                        .get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain)
+                        .to_row_major_matrix();
+                    let permutation_trace_on_quotient_domains = pcs
+                        .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
+                        .to_row_major_matrix();
                     quotient_values(
                         chips[i],
                         cumulative_sums[i],
                         trace_domains[i],
                         *quotient_domain,
+                        preprocessed_trace_on_quotient_domains,
                         main_trace_on_quotient_domains,
                         permutation_trace_on_quotient_domains,
-                        &permutation_challenges,
+                        &packed_perm_challenges,
                         alpha,
+                        shard_data.public_values.clone(),
                     )
                 })
                 .collect::<Vec<_>>()
@@ -355,6 +403,17 @@ where
         // Compute the quotient argument.
         let zeta: SC::Challenge = challenger.sample_ext_element();
 
+        let preprocessed_opening_points =
+            tracing::debug_span!("compute preprocessed opening points").in_scope(|| {
+                pk.traces
+                    .iter()
+                    .map(|trace| {
+                        let domain = pcs.natural_domain_for_degree(trace.height());
+                        vec![zeta, domain.next_point(zeta).unwrap()]
+                    })
+                    .collect::<Vec<_>>()
+            });
+
         let trace_opening_points =
             tracing::debug_span!("compute trace opening points").in_scope(|| {
                 trace_domains
@@ -371,6 +430,7 @@ where
         let (openings, opening_proof) = tracing::debug_span!("open multi batches").in_scope(|| {
             pcs.open(
                 vec![
+                    (&pk.data, preprocessed_opening_points),
                     (&shard_data.main_data, trace_opening_points.clone()),
                     (&permutation_data, trace_opening_points),
                     (&quotient_data, quotient_opening_points),
@@ -380,8 +440,17 @@ where
         });
 
         // Collect the opened values for each chip.
-        let [main_values, permutation_values, mut quotient_values] = openings.try_into().unwrap();
+        let [preprocessed_values, main_values, permutation_values, mut quotient_values] =
+            openings.try_into().unwrap();
         assert!(main_values.len() == chips.len());
+        let preprocessed_opened_values = preprocessed_values
+            .into_iter()
+            .map(|op| {
+                let [local, next] = op.try_into().unwrap();
+                AirOpenedValues { local, next }
+            })
+            .collect::<Vec<_>>();
+
         let main_opened_values = main_values
             .into_iter()
             .map(|op| {
@@ -412,13 +481,19 @@ where
             .zip_eq(quotient_opened_values)
             .zip_eq(cumulative_sums)
             .zip_eq(log_degrees.iter())
+            .enumerate()
             .map(
-                |((((main, permutation), quotient), cumulative_sum), log_degree)| {
-                    ChipOpenedValues {
-                        preprocessed: AirOpenedValues {
+                |(i, ((((main, permutation), quotient), cumulative_sum), log_degree))| {
+                    let preprocessed = pk
+                        .chip_ordering
+                        .get(&chips[i].name())
+                        .map(|&index| preprocessed_opened_values[index].clone())
+                        .unwrap_or(AirOpenedValues {
                             local: vec![],
                             next: vec![],
-                        },
+                        });
+                    ChipOpenedValues {
+                        preprocessed,
                         main,
                         permutation,
                         quotient,
@@ -440,7 +515,8 @@ where
                 chips: opened_values,
             },
             opening_proof,
-            chip_ids: chips.iter().map(|chip| chip.name()).collect::<Vec<_>>(),
+            chip_ordering: shard_data.chip_ordering,
+            public_values: shard_data.public_values,
         }
     }
 
@@ -507,24 +583,6 @@ where
                     .into_iter()
                     .unzip()
             });
-
-        #[cfg(not(feature = "perf"))]
-        {
-            let bytes_written = shard_main_data
-                .iter()
-                .map(|data| match data {
-                    ShardMainDataWrapper::InMemory(_) => 0,
-                    ShardMainDataWrapper::TempFile(_, bytes_written) => *bytes_written,
-                    ShardMainDataWrapper::Empty() => 0,
-                })
-                .sum::<u64>();
-            if bytes_written > 0 {
-                tracing::debug!(
-                    "total main data written to disk: {}",
-                    size::Size::from_bytes(bytes_written)
-                );
-            }
-        }
 
         (commitments, shard_main_data)
     }

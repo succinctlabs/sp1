@@ -12,10 +12,12 @@ pub use alu::*;
 pub use instruction::*;
 pub use opcode::*;
 
+use self::opcode_specific::OpcodeSpecificCols;
+
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Debug)]
 #[repr(C)]
-pub struct CpuCols<T> {
+pub struct CpuCols<T: Copy> {
     pub clk: T,
     pub pc: T,
     pub fp: T,
@@ -27,7 +29,7 @@ pub struct CpuCols<T> {
     pub b: MemoryReadWriteCols<T>,
     pub c: MemoryReadWriteCols<T>,
 
-    pub alu: AluCols<T>,
+    pub opcode_specific: OpcodeSpecificCols<T>,
 
     // result = operand_1 == operand_2;
     pub eq_1_2: IsExtZeroOperation<T>,

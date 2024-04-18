@@ -9,20 +9,11 @@ pub struct AluCols<T> {
     pub ext_b: Block<T>,
 
     // c = a + b;
-    pub add_scratch: T,
+    pub add_scratch: Block<T>,
 
     // c = a - b;
-    pub sub_scratch: T,
+    pub sub_scratch: Block<T>,
 
     // c = a * b;
-    pub mul_scratch: T,
-
-    // ext(c) = ext(a) + ext(b);
-    pub add_ext_scratch: Block<T>,
-
-    // ext(c) = ext(a) - ext(b);
-    pub sub_ext_scratch: Block<T>,
-
-    // ext(c) = ext(a) * ext(b);
-    pub mul_ext_scratch: Block<T>,
+    pub mul_scratch: Block<T>,
 }
