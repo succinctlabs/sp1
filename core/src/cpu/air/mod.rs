@@ -9,6 +9,7 @@ use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
+use p3_matrix::Matrix;
 
 use crate::air::BaseAirBuilder;
 use crate::air::PublicValues;
@@ -21,7 +22,6 @@ use crate::cpu::columns::OpcodeSelectorCols;
 use crate::cpu::columns::{CpuCols, NUM_CPU_COLS};
 use crate::cpu::CpuChip;
 use crate::runtime::Opcode;
-use p3_matrix::Matrix;
 
 impl<AB> Air<AB> for CpuChip
 where
