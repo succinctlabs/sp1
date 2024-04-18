@@ -11,6 +11,7 @@ use crate::utils::ec::field::{FieldParameters, NumLimbs};
 use crate::utils::ec::uint256::U256Field;
 use crate::utils::{bytes_to_words_le, limbs_from_prev_access, pad_rows, words_to_bytes_le};
 
+use num::Zero;
 use num::{BigUint, One};
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
@@ -129,7 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             }
                         }
 
-                        // println!("x={} y={}", x, y);
+                        println!("x={} y={}", x, y);
                         cols.output.populate(&x, &y, FieldOperation::Mul);
 
                         row
@@ -147,7 +148,16 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
             output.append(&mut record);
         }
 
-        pad_rows(&mut rows, || [F::zero(); NUM_COLS]);
+        pad_rows(&mut rows, || {
+            let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
+            let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
+
+            let x = BigUint::zero();
+            let y = BigUint::zero();
+            cols.output.populate(&x, &y, FieldOperation::Mul);
+
+            row
+        });
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_COLS)
@@ -240,9 +250,9 @@ where
         builder.assert_bool(is_real);
 
         // Evaluate the uint256 multiplication
-        // local
-        //     .output
-        //     .eval::<AB, _, _>(builder, &x, &y, FieldOperation::Mul);
+        local
+            .output
+            .eval::<AB, _, _>(builder, &x, &y, FieldOperation::Mul);
 
         // Assert that the output is equal to whats written to the memory record.
         for i in 0..32 {
