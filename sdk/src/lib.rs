@@ -8,6 +8,8 @@ pub mod proto {
 pub mod auth;
 pub mod client;
 mod io;
+pub mod types;
+
 mod util;
 pub mod utils {
     pub use sp1_core::utils::{

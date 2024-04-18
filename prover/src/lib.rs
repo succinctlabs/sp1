@@ -2,6 +2,8 @@
 #![feature(generic_const_exprs)]
 #![allow(deprecated)]
 
+use ark_bn254::Bn254;
+use ark_groth16::Proof as Groth16Proof;
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
@@ -34,6 +36,31 @@ type InnerSC = BabyBearPoseidon2Inner;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
 type InnerEF = <InnerSC as StarkGenericConfig>::Challenge;
 type OuterSC = BabyBearPoseidon2Outer;
+
+pub type SP1DefaultProof = Proof<BabyBearPoseidon2>;
+// Note: Should be a recursive proof without the BN254 config. Useful for measuring recursion time.
+pub type SP1CompressedProof = ReduceProof<InnerSC>;
+
+/// The SP1 representation of the Groth16 SNARK.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SP1Groth16Proof {
+    /// The `A` element in `G1` represented as a list of 2 byte arrays.
+    pub a: Vec<Vec<u8>>,
+    /// The `B` element in `G2` represented as a 2 x 2 matrix of byte arrays.
+    pub b: Vec<Vec<Vec<u8>>>,
+    /// The `C` element in `G1` represented as a list of 2 byte arrays.
+    pub c: Vec<Vec<u8>>,
+}
+
+impl Default for SP1Groth16Proof {
+    fn default() -> Self {
+        Self {
+            a: vec![vec![0u8; 32]; 16],
+            b: vec![vec![vec![0u8; 32]; 16]; 16],
+            c: vec![vec![0u8; 32]; 16],
+        }
+    }
+}
 
 pub struct SP1ProverImpl {
     pub reduce_program: RecursionProgram<BabyBear>,
@@ -471,7 +498,8 @@ impl SP1ProverImpl {
     }
 
     /// Wrap an outer recursive proof into a groth16 proof.
-    pub fn wrap_into_groth16(&self, proof: ShardProof<OuterSC>) {
+    /// This should be a groth16 proof.
+    pub fn wrap_into_groth16(&self, proof: ShardProof<OuterSC>) -> SP1Groth16Proof {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
@@ -479,6 +507,9 @@ impl SP1ProverImpl {
         groth16_ffi::prove(constraints, witness);
         let duration = start.elapsed().as_secs();
         println!("wrap duration = {}", duration);
+
+        // TODO: For now, return the default type. Change this to the type outputted by groth16_ffi when ready.
+        SP1Groth16Proof::default()
     }
 }
 
