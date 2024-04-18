@@ -7,7 +7,6 @@ pub mod weierstrass;
 
 use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
-use std::usize;
 use typenum::Unsigned;
 
 use field::FieldParameters;

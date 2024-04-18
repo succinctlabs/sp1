@@ -23,11 +23,7 @@ pub(crate) struct BuildArgs {
         env = "SP1_DOCKER"
     )]
     pub(crate) docker: bool,
-    #[clap(
-        long,
-        action,
-        help = "Ignore Rust version check.",
-    )]
+    #[clap(long, action, help = "Ignore Rust version check.")]
     pub(crate) ignore_rust_version: bool,
 }
 
