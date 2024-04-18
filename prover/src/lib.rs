@@ -2,6 +2,9 @@
 #![feature(generic_const_exprs)]
 #![allow(deprecated)]
 
+pub mod io;
+use crate::io::{SP1ProofWithIO, SP1PublicValues};
+
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
@@ -19,11 +22,9 @@ use sp1_core::{
         ShardProof, StarkGenericConfig, Val, VerifyingKey,
     },
     utils::{run_and_prove, BabyBearPoseidon2, BabyBearPoseidon2Inner},
-    SP1ProofWithIO,
 };
 
 use sp1_core::runtime::Runtime;
-pub use sp1_core::{SP1PublicValues, SP1Stdin};
 
 use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};

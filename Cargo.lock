@@ -4310,6 +4310,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-core",
+ "sp1-prover",
  "sp1-sdk",
  "tar",
  "target-lexicon",
@@ -4441,6 +4442,7 @@ version = "0.1.0"
 dependencies = [
  "backtrace",
  "bincode",
+ "hex",
  "itertools 0.12.1",
  "p3-baby-bear",
  "p3-challenger",
