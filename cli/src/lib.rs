@@ -2,7 +2,7 @@ mod build;
 pub mod commands;
 mod util;
 
-use anyhow::Result;
+use anyhow::{Context, Result};
 use futures_util::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
@@ -23,8 +23,8 @@ impl CommandExecutor for Command {
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())
             .output()
-            .unwrap();
-        Ok(())
+            .with_context(|| format!("while executing `{:?}`", &self))
+            .map(|_| ())
     }
 }
 
