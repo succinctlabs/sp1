@@ -561,11 +561,22 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
-                    let trace = self.program.traces[self.pc.as_canonical_u32() as usize].clone();
+                    let trap_pc = self.pc.as_canonical_u32() as usize;
+                    let trace = self.program.traces[trap_pc].clone();
                     if let Some(mut trace) = trace {
                         trace.resolve();
                         eprintln!("TRAP encountered. Backtrace:\n{:?}", trace);
                     } else {
+                        for nearby_pc in (0..trap_pc).rev() {
+                            let trace = self.program.traces[nearby_pc].clone();
+                            if let Some(mut trace) = trace {
+                                trace.resolve();
+                                eprintln!(
+                                    "TRAP encountered at pc={}. Nearest trace at pc={}: {:?}",
+                                    trap_pc, nearby_pc, trace
+                                );
+                            }
+                        }
                         eprintln!("TRAP encountered. No backtrace available");
                     }
                     exit(1);
