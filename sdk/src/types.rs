@@ -7,6 +7,7 @@ use sp1_prover::{
     ReduceProof, ReduceProofType, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof,
     SP1ProverImpl,
 };
+use twirp::unimplemented;
 
 use crate::{proof_serde, SP1PublicValues, SP1Stdin};
 
@@ -54,9 +55,24 @@ impl<P: Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
             _ => None,
         }
     }
-    pub fn as_default() -> Option<&SP1DefaultProof>;
-    pub fn as_compressed() -> Option<&SP1CompressedProof>;
-    pub fn as_mock() -> Option<&PhantomData>;
+    pub fn as_default(&self) -> Option<&SP1DefaultProof> {
+        match self.proof {
+            SP1DefaultProof(ref p) => Some(p),
+            _ => None,
+        }
+    }
+    pub fn as_compressed(&self) -> Option<&SP1CompressedProof> {
+        match self.proof {
+            SP1CompressedProof(ref p) => Some(p),
+            _ => None,
+        }
+    }
+    pub fn as_mock(&self) -> Option<&PhantomData> {
+        match self.proof {
+            PhantomData(ref p) => Some(p),
+            _ => None,
+        }
+    }
 
     pub fn statistics(&self) -> ProofStatistics {
         unimplemented!()
@@ -79,6 +95,14 @@ pub enum ProofMode {
 
 pub trait Prover {
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Proof>;
+    fn verify(&self, elf: &[u8], proof: &SP1Proof) {
+        match proof {
+            SP1Proof::Groth16(ref p) => {
+                let proof = p.proof;
+            }
+            _ => unimplemented!(),
+        }
+    }
 }
 
 pub struct NetworkProver {
@@ -97,13 +121,14 @@ impl Prover for NetworkProver {
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Proof> {
         match self.mode {
             ProofMode::Default => {
-                let proof = SP1ProverImpl::prove(elf, &stdin.buffer);
-                Ok(SP1Proof::Default(SP1ProofWithMetadata {
-                    proof,
-                    stdin: stdin.clone(),
-                    // TODO: SP1ProverImpl::prove should output the public values as well.
-                    public_values: ProverClient::execute(elf, stdin)?,
-                }))
+                // TODO: Generate remote proof.
+                unimplemented!()
+                // Ok(SP1Proof::Default(SP1ProofWithMetadata {
+                //     proof,
+                //     stdin: stdin.clone(),
+                //     // TODO: SP1ProverImpl::prove should output the public values as well.
+                //     public_values: ProverClient::execute(elf, stdin)?,
+                // }))
             }
             // TODO: Add this when there's a nice API for local proving to fully recursed.
             ProofMode::Compressed => unimplemented!(),
@@ -256,5 +281,8 @@ impl ProverClient {
     pub fn get_program_hash(elf: &[u8]) -> bytes32 {}
 
     /// Gets the Groth16 verification key for the given ELF.
-    pub fn get_vkey(elf: &[u8]) -> Vkey {}
+    pub fn get_vkey(elf: &[u8]) -> VerificationKey {
+        // TODO: We should return the Groth16 verification key here.
+        unimplemented!()
+    }
 }

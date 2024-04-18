@@ -169,7 +169,7 @@ impl ProverClient {
     }
 
     // Generate a proof locally for the execution of the ELF with the given public inputs.
-    pub fn prove_local<SC>(
+    pub fn prove_local<SC: StarkGenericConfig>(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
@@ -267,7 +267,7 @@ impl ProverClient {
         self.verify_with_config(elf, proof, BabyBearPoseidon2::new())
     }
 
-    pub fn verify_with_config<SC>(
+    pub fn verify_with_config<SC: StarkGenericConfig>(
         &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<SC>,

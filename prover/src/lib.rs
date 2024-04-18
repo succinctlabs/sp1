@@ -547,8 +547,13 @@ mod tests {
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         type SC = BabyBearPoseidon2;
+        type F = <SC as StarkGenericConfig>::Val;
+        type A = RiscvAir<F>;
 
         let proof = SP1ProverImpl::prove::<SC>(elf, &SP1Stdin::new().buffer);
+
+        let machine = A::machine(SC::default());
+        let (_, vk) = machine.setup(&Program::from(elf));
 
         let prover = SP1ProverImpl::new();
         let sp1_challenger = prover.initialize_challenger(&vk, &proof.shard_proofs);
