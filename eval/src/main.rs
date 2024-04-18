@@ -4,9 +4,10 @@ use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::utils::{get_cycles, prove_core};
-use sp1_sdk::utils::{BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
-use sp1_sdk::{ProverClient, SP1ProofWithIO, SP1PublicValues, SP1Stdin};
+use sp1_core::utils::{get_cycles, prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
+use sp1_core::{SP1ProofWithIO, SP1PublicValues};
+use sp1_prover::SP1ProverImpl;
+use sp1_prover::SP1Stdin;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io;
@@ -131,7 +132,7 @@ fn main() {
 }
 
 fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64, f64) {
-    let client = ProverClient::new();
+    let prover = SP1ProverImpl::new();
     match hashfn {
         HashFnId::Blake3 => {
             let mut runtime = Runtime::new(program.clone());
@@ -150,7 +151,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
             };
 
             let verify_start = Instant::now();
-            client.verify_with_config(elf, &proof, config).unwrap();
+            prover.verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)
@@ -172,7 +173,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
             };
 
             let verify_start = Instant::now();
-            client.verify_with_config(elf, &proof, config).unwrap();
+            prover.verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)
@@ -194,7 +195,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
             };
 
             let verify_start = Instant::now();
-            client.verify_with_config(elf, &proof, config).unwrap();
+            prover.verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)

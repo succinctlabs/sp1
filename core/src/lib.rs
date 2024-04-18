@@ -22,7 +22,7 @@ pub mod alu;
 pub mod bytes;
 pub mod cpu;
 pub mod disassembler;
-#[deprecated(note = "Import from sp1_sdk instead of sp1_core")]
+// #[deprecated(note = "Import from sp1_sdk instead of sp1_core")]
 pub mod io;
 pub mod lookup;
 pub mod memory;
@@ -44,7 +44,7 @@ use stark::StarkGenericConfig;
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
 #[derive(Serialize, Deserialize)]
-#[deprecated(note = "Import from sp1_sdk instead of sp1_core")]
+// #[deprecated(note = "Import from sp1_sdk instead of sp1_core")]
 pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
     #[serde(with = "proof_serde")]
     pub proof: Proof<SC>,

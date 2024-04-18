@@ -9,25 +9,36 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use sp1_core::{
     air::{MachineAir, PublicValues, Word},
     runtime::Program,
     stark::{
-        Challenger, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, Proof,
-        Prover, RiscvAir, ShardMainData, ShardProof, StarkGenericConfig, Val, VerifyingKey,
+        Challenger, Com, DeferredDigest, Dom, LocalProver, MachineStark, OpeningProof,
+        PcsProverData, ProgramVerificationError, Proof, Prover, RiscvAir, ShardMainData,
+        ShardProof, StarkGenericConfig, Val, VerifyingKey,
     },
     utils::{run_and_prove, BabyBearPoseidon2, BabyBearPoseidon2Inner},
+    SP1ProofWithIO,
 };
+
+use sp1_core::runtime::Runtime;
+pub use sp1_core::{SP1PublicValues, SP1Stdin};
+
 use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
 use sp1_recursion_core::{
-    runtime::{RecursionProgram, Runtime},
+    runtime::{RecursionProgram, Runtime as RecursionRuntime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
 use std::time::Instant;
 
-type SP1SC = BabyBearPoseidon2;
+// Re-export SP1 proof with IO as the public type tied to the SP1SC.
+pub type ProdSP1ProofWithIO = SP1ProofWithIO<SP1SC>;
+pub type SP1Proof = Proof<SP1SC>;
+pub type SP1SC = BabyBearPoseidon2;
+
 type SP1F = <SP1SC as StarkGenericConfig>::Val;
 type InnerSC = BabyBearPoseidon2Inner;
 type InnerF = <InnerSC as StarkGenericConfig>::Val;
@@ -134,6 +145,15 @@ impl SP1ProverImpl {
             reduce_vk_inner,
             reduce_vk_outer,
         }
+    }
+
+    /// Generate a proof of an SP1 program with the specified inputs.
+    pub fn execute(elf: &[u8], stdin: &[Vec<u8>]) -> SP1PublicValues {
+        let program = Program::from(elf);
+        let mut runtime = Runtime::new(program);
+        runtime.write_vecs(stdin);
+        runtime.run();
+        SP1PublicValues::from(&runtime.state.public_values_stream)
     }
 
     /// Generate an SP1 core proof of a program and its inputs.
@@ -306,7 +326,7 @@ impl SP1ProverImpl {
         // Execute runtime to get the memory setup.
         println!("setting up memory for recursion");
         let machine = RecursionAir::machine(recursion_config.clone());
-        let mut runtime = Runtime::<InnerF, InnerEF, _>::new(
+        let mut runtime = RecursionRuntime::<InnerF, InnerEF, _>::new(
             &self.reduce_setup_program,
             machine.config().perm.clone(),
         );
@@ -318,8 +338,10 @@ impl SP1ProverImpl {
         // Execute runtime.
         println!("executing recursion");
         let machine = RecursionAir::machine(recursion_config);
-        let mut runtime =
-            Runtime::<InnerF, InnerEF, _>::new(&self.reduce_program, machine.config().perm.clone());
+        let mut runtime = RecursionRuntime::<InnerF, InnerEF, _>::new(
+            &self.reduce_program,
+            machine.config().perm.clone(),
+        );
         checkpoint.iter_mut().for_each(|e| {
             e.timestamp = BabyBear::zero();
         });
@@ -504,6 +526,35 @@ impl SP1ProverImpl {
         let (_, vk) = machine.setup(&program);
         let mut challenger_ver = machine.config().challenger();
         machine.verify(&vk, proof, &mut challenger_ver).unwrap();
+    }
+
+    pub fn verify_with_config<SC>(
+        &self,
+        elf: &[u8],
+        proof: &SP1ProofWithIO<SC>,
+        config: SC,
+    ) -> Result<DeferredDigest, ProgramVerificationError>
+    where
+        SC: StarkGenericConfig,
+        SC::Challenger: Clone,
+        OpeningProof<SC>: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+        SC::Val: p3_field::PrimeField32,
+    {
+        let mut challenger = config.challenger();
+        let machine = RiscvAir::machine(config);
+
+        let (_, vk) = machine.setup(&Program::from(elf));
+        let (pv_digest, deferred_digest) = machine.verify(&vk, &proof.proof, &mut challenger)?;
+
+        let recomputed_hash = Sha256::digest(&proof.public_values.buffer.data);
+        if recomputed_hash.as_slice() != pv_digest.0.as_slice() {
+            return Err(ProgramVerificationError::InvalidPublicValuesDigest);
+        }
+
+        Result::Ok(deferred_digest)
     }
 
     /// Verify a Groth16 proof.

@@ -1,6 +1,6 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
-use crate::utils::Buffer;
+use crate::{stark::StarkGenericConfig, utils::Buffer, SP1ProofWithIO};
 
 /// Standard input for the prover.
 #[derive(Serialize, Deserialize, Clone)]

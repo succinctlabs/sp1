@@ -1,7 +1,8 @@
 use anstyle::*;
 use anyhow::Result;
 use clap::Parser;
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_core::{utils, SP1Stdin};
+use sp1_sdk::ProverClient;
 use std::time::Instant;
 use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr};
 
