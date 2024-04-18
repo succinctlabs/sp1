@@ -20,18 +20,19 @@ pub use state::*;
 pub use syscall::*;
 pub use utils::*;
 
-use self::state::ExecutionState;
-use crate::utils::env;
-use crate::{alu::AluEvent, cpu::CpuEvent};
-
-use hashbrown::hash_map::Entry;
-use hashbrown::HashMap;
-use nohash_hasher::BuildNoHashHasher;
+use std::collections::hash_map::Entry;
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
+
+use crate::memory::MemoryInitializeFinalizeEvent;
+use crate::utils::env;
+use crate::{alu::AluEvent, cpu::CpuEvent};
+
+pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
 
 /// An implementation of a runtime for the SP1 VM.
 ///
@@ -56,8 +57,10 @@ pub struct Runtime {
     /// The maximum size of each shard.
     pub shard_size: u32,
 
+    pub shard_batch_size: u32,
+
     /// A counter for the number of cycles that have been executed in certain functions.
-    pub cycle_tracker: HashMap<String, (u32, u32)>,
+    pub cycle_tracker: HashMap<String, (u64, u32)>,
 
     /// A buffer for stdout and stderr IO.
     pub io_buf: HashMap<u32, String>,
@@ -76,6 +79,10 @@ pub struct Runtime {
     pub(crate) unconstrained_state: ForkState,
 
     pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
+
+    pub max_syscall_cycles: u32,
+
+    pub emit_events: bool,
 }
 
 impl Runtime {
@@ -98,20 +105,44 @@ impl Runtime {
             None
         };
 
+        let syscall_map = default_syscall_map();
+        // Determine the maximum number of cycles for any syscall.
+        let max_syscall_cycles = syscall_map
+            .values()
+            .map(|syscall| syscall.num_extra_cycles())
+            .max()
+            .unwrap_or(0);
+
+        let shard_size = env::shard_size() as u32;
+
         Self {
             record,
             state: ExecutionState::new(program.pc_start),
             program,
             memory_accesses: MemoryAccessRecord::default(),
-            shard_size: env::shard_size() as u32 * 4,
+            shard_size: shard_size * 4,
+            shard_batch_size: env::shard_batch_size() as u32 * shard_size,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
             fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
-            syscall_map: default_syscall_map(),
+            syscall_map,
+            emit_events: true,
+            max_syscall_cycles,
         }
+    }
+
+    /// Recover runtime state from a program and existing execution state.
+    pub fn recover(program: Program, state: ExecutionState) -> Self {
+        let mut runtime = Self::new(program);
+        runtime.state = state;
+        let index: u32 = (runtime.state.global_clk / (runtime.shard_size / 4) as u64)
+            .try_into()
+            .unwrap();
+        runtime.record.index = index;
+        runtime
     }
 
     /// Get the current values of the registers.
@@ -178,8 +209,25 @@ impl Runtime {
                 .or_insert(record.copied());
         }
 
-        // If it's the first time accessing this address, initialize previous values as zero.
-        let record = entry.or_default();
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+                // Do not emit memory initialize events for address 0 as that is done in initialize.
+                if addr != 0 {
+                    self.record
+                        .memory_initialize_events
+                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
+                }
+                entry.insert(MemoryRecord {
+                    value,
+                    shard: 0,
+                    timestamp: 0,
+                })
+            }
+        };
         let value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
@@ -187,13 +235,7 @@ impl Runtime {
         record.timestamp = timestamp;
 
         // Construct the memory read record.
-        MemoryReadRecord {
-            value,
-            shard,
-            timestamp,
-            prev_shard,
-            prev_timestamp,
-        }
+        MemoryReadRecord::new(value, shard, timestamp, prev_shard, prev_timestamp)
     }
 
     /// Write a word to memory and create an access record.
@@ -214,8 +256,25 @@ impl Runtime {
                 .or_insert(record.copied());
         }
 
-        // If it's the first time accessing this address, initialize previous values as zero.
-        let record = entry.or_default();
+        // If it's the first time accessing this address, initialize previous values.
+        let record: &mut MemoryRecord = match entry {
+            Entry::Occupied(entry) => entry.into_mut(),
+            Entry::Vacant(entry) => {
+                // If addr has a specific value to be initialized with, use that, otherwise 0.
+                let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+                // Do not emit memory initialize events for address 0 as that is done in initialize.
+                if addr != 0 {
+                    self.record
+                        .memory_initialize_events
+                        .push(MemoryInitializeFinalizeEvent::initialize(addr, value, true));
+                }
+                entry.insert(MemoryRecord {
+                    value,
+                    shard: 0,
+                    timestamp: 0,
+                })
+            }
+        };
         let prev_value = record.value;
         let prev_shard = record.shard;
         let prev_timestamp = record.timestamp;
@@ -224,14 +283,14 @@ impl Runtime {
         record.timestamp = timestamp;
 
         // Construct the memory write record.
-        MemoryWriteRecord {
+        MemoryWriteRecord::new(
             value,
-            prev_value,
             shard,
             timestamp,
+            prev_value,
             prev_shard,
             prev_timestamp,
-        }
+        )
     }
 
     /// Read from memory, assuming that all addresses are aligned.
@@ -243,7 +302,7 @@ impl Runtime {
         let record = self.mr(addr, self.shard(), self.timestamp(&position));
 
         // If we're not in unconstrained mode, record the access for the current cycle.
-        if !self.unconstrained {
+        if !self.unconstrained && self.emit_events {
             match position {
                 MemoryAccessPosition::A => self.memory_accesses.a = Some(record.into()),
                 MemoryAccessPosition::B => self.memory_accesses.b = Some(record.into()),
@@ -292,14 +351,14 @@ impl Runtime {
 
     /// Write to a register.
     pub fn rw(&mut self, register: Register, value: u32) {
-        // We don't write to %x0. See 2.6 Load and Store Instruction on
-        // P.18 of the RISC-V spec.
-        if register == Register::X0 {
-            return;
-        }
-
         // The only time we are writing to a register is when it is in operand A.
-        self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
+        // Register %x0 should always be 0. See 2.6 Load and Store Instruction on
+        // P.18 of the RISC-V spec. We always write 0 to %x0.
+        if register == Register::X0 {
+            self.mw_cpu(register as u32, 0, MemoryAccessPosition::A);
+        } else {
+            self.mw_cpu(register as u32, value, MemoryAccessPosition::A)
+        }
     }
 
     /// Emit a CPU event.
@@ -309,17 +368,20 @@ impl Runtime {
         shard: u32,
         clk: u32,
         pc: u32,
+        next_pc: u32,
         instruction: Instruction,
         a: u32,
         b: u32,
         c: u32,
         memory_store_value: Option<u32>,
         record: MemoryAccessRecord,
+        exit_code: u32,
     ) {
         let cpu_event = CpuEvent {
             shard,
             clk,
             pc,
+            next_pc,
             instruction,
             a,
             a_record: record.a,
@@ -329,13 +391,16 @@ impl Runtime {
             c_record: record.c,
             memory: memory_store_value,
             memory_record: record.memory,
+            exit_code,
         };
+
         self.record.cpu_events.push(cpu_event);
     }
 
     /// Emit an ALU event.
     fn emit_alu(&mut self, clk: u32, opcode: Opcode, a: u32, b: u32, c: u32) {
         let event = AluEvent {
+            shard: self.shard(),
             clk,
             opcode,
             a,
@@ -396,7 +461,9 @@ impl Runtime {
     /// Set the destination register with the result and emit an ALU event.
     fn alu_rw(&mut self, instruction: Instruction, rd: Register, a: u32, b: u32, c: u32) {
         self.rw(rd, a);
-        self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        if self.emit_events {
+            self.emit_alu(self.state.clk, instruction.opcode, a, b, c);
+        }
     }
 
     /// Fetch the input operand values for a load instruction.
@@ -435,8 +502,11 @@ impl Runtime {
     }
 
     /// Execute the given instruction over the current state of the runtime.
-    fn execute(&mut self, instruction: Instruction) {
-        let pc = self.state.pc;
+    fn execute_instruction(&mut self, instruction: Instruction) {
+        let mut pc = self.state.pc;
+        let mut clk = self.state.clk;
+        let mut exit_code = 0u32;
+
         let mut next_pc = self.state.pc.wrapping_add(4);
 
         let rd: Register;
@@ -642,28 +712,44 @@ impl Runtime {
             // System instructions.
             Opcode::ECALL => {
                 let t0 = Register::X5;
-                let a0 = Register::X10;
+                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this register
+                // is that we write to it later.
                 let syscall_id = self.register(t0);
+                c = self.rr(Register::X11, MemoryAccessPosition::C);
+                b = self.rr(Register::X10, MemoryAccessPosition::B);
                 let syscall = SyscallCode::from_u32(syscall_id);
 
-                let init_clk = self.state.clk;
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
 
-                if let Some(syscall_impl) = syscall_impl {
-                    a = syscall_impl.execute(&mut precompile_rt);
-                    next_pc = precompile_rt.next_pc;
-                    self.state.clk = precompile_rt.clk;
-                    assert_eq!(init_clk + syscall_impl.num_extra_cycles(), self.state.clk);
-                } else {
-                    panic!("Unsupported syscall: {:?}", syscall);
-                }
+                let (precompile_next_pc, precompile_cycles, returned_exit_code) =
+                    if let Some(syscall_impl) = syscall_impl {
+                        // Executing a syscall optionally returns a value to write to the t0 register.
+                        // If it returns None, we just keep the syscall_id in t0.
+                        let res = syscall_impl.execute(&mut precompile_rt, b, c);
+                        if let Some(val) = res {
+                            a = val;
+                        } else {
+                            // Default to syscall_id if no value is returned from syscall execution.
+                            a = syscall_id;
+                        }
+                        (
+                            precompile_rt.next_pc,
+                            syscall_impl.num_extra_cycles(),
+                            precompile_rt.exit_code,
+                        )
+                    } else {
+                        panic!("Unsupported syscall: {:?}", syscall);
+                    };
 
-                // We have to do this AFTER the precompile execution because the CPU event
-                // gets emitted at the end of this loop with the incremented clock.
-                // TODO: fix this.
-                self.rw(a0, a);
-                (b, c) = (self.rr(t0, MemoryAccessPosition::B), 0);
+                // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
+                clk = self.state.clk;
+                pc = self.state.pc;
+
+                self.rw(t0, a);
+                next_pc = precompile_next_pc;
+                self.state.clk += precompile_cycles;
+                exit_code = returned_exit_code;
             }
 
             Opcode::EBREAK => {
@@ -736,25 +822,70 @@ impl Runtime {
 
         // Update the program counter.
         self.state.pc = next_pc;
+        // Update the clk to the next cycle.
+        self.state.clk += 4;
 
         // Emit the CPU event for this cycle.
-        self.emit_cpu(
-            self.shard(),
-            self.state.clk,
-            pc,
-            instruction,
-            a,
-            b,
-            c,
-            memory_store_value,
-            self.memory_accesses,
-        );
+        if self.emit_events {
+            self.emit_cpu(
+                self.shard(),
+                clk,
+                pc,
+                next_pc,
+                instruction,
+                a,
+                b,
+                c,
+                memory_store_value,
+                self.memory_accesses,
+                exit_code,
+            );
+        }
     }
 
-    /// Execute the program.
-    pub fn run(&mut self) {
-        let max_syscall_cycles = self.max_syscall_cycles();
-        self.state.clk = 1;
+    /// Executes one cycle of the program, returning whether the program has finished.
+    #[inline]
+    fn execute_cycle(&mut self) -> bool {
+        // Fetch the instruction at the current program counter.
+        let instruction = self.fetch();
+
+        // Log the current state of the runtime.
+        self.log(&instruction);
+
+        // Execute the instruction.
+        self.execute_instruction(instruction);
+
+        // Increment the clock.
+        self.state.global_clk += 1;
+
+        // If there's not enough cycles left for another instruction, move to the next shard.
+        // We multiply by 4 because clk is incremented by 4 for each normal instruction.
+        if !self.unconstrained && self.max_syscall_cycles + self.state.clk >= self.shard_size {
+            self.state.current_shard += 1;
+            self.state.clk = 0;
+        }
+
+        self.state.pc.wrapping_sub(self.program.pc_base)
+            >= (self.program.instructions.len() * 4) as u32
+    }
+
+    /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
+    pub fn execute_record(&mut self) -> (ExecutionRecord, bool) {
+        self.emit_events = true;
+        let done = self.execute();
+        (std::mem::take(&mut self.record), done)
+    }
+
+    /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
+    pub fn execute_state(&mut self) -> (ExecutionState, bool) {
+        self.emit_events = false;
+        let state = self.state.clone();
+        let done = self.execute();
+        (state, done)
+    }
+
+    fn initialize(&mut self) {
+        self.state.clk = 0;
 
         tracing::info!("loading memory image");
         for (addr, value) in self.program.memory_image.iter() {
@@ -768,40 +899,51 @@ impl Runtime {
             );
         }
 
+        // Create init event for register 0 because it needs to be the first row in MemoryInit.
+        self.record
+            .memory_initialize_events
+            .push(MemoryInitializeFinalizeEvent::initialize(0, 0, true));
+
         tracing::info!("starting execution");
-        while self.state.pc.wrapping_sub(self.program.pc_base)
-            < (self.program.instructions.len() * 4) as u32
-        {
-            // Fetch the instruction at the current program counter.
-            let instruction = self.fetch();
+    }
 
-            // Log the current state of the runtime.
-            self.log(&instruction);
+    pub fn run(&mut self) {
+        self.emit_events = true;
+        while !self.execute() {}
+    }
 
-            // Execute the instruction.
-            self.execute(instruction);
+    /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
+    fn execute(&mut self) -> bool {
+        if self.state.global_clk == 0 {
+            self.initialize();
+        }
 
-            // Increment the clock.
-            self.state.global_clk += 1;
-            self.state.clk += 4;
-
-            // If there's not enough cycles left for another instruction, move to the next shard.
-            // We multiply by 4 because clk is incremented by 4 for each normal instruction.
-            if !self.unconstrained && max_syscall_cycles + self.state.clk >= self.shard_size * 4 {
-                self.state.current_shard += 1;
-                self.state.clk = 0;
+        let mut cycles = 0_u64;
+        let mut done = false;
+        // Loop until we've executed the maximum number of cycles or the program has finished.
+        while self.shard_batch_size == 0 || cycles < self.shard_batch_size as u64 {
+            if self.execute_cycle() {
+                done = true;
+                break;
+            }
+            if !self.unconstrained {
+                cycles += 1;
             }
         }
 
+        if done {
+            self.postprocess();
+        }
+
+        done
+    }
+
+    fn postprocess(&mut self) {
         tracing::info!(
             "finished execution clk = {} pc = 0x{:x?}",
             self.state.global_clk,
             self.state.pc
         );
-
-        if let Some(ref mut buf) = self.trace_buf {
-            buf.flush().unwrap();
-        }
         // Flush remaining stdout/stderr
         for (fd, buf) in self.io_buf.iter() {
             if !buf.is_empty() {
@@ -817,88 +959,46 @@ impl Runtime {
             }
         }
 
-        // Call postprocess to set up all variables needed for global accounts, like memory
-        // argument or any other deferred tables.
-        self.postprocess();
-    }
-
-    fn postprocess(&mut self) {
-        let mut program_memory_used = HashMap::with_hasher(BuildNoHashHasher::<u32>::default());
-        for (key, value) in &self.program.memory_image {
-            // By default we assume that the program_memory is used.
-            program_memory_used.insert(*key, (*value, 1));
+        // Flush trace buf
+        if let Some(ref mut buf) = self.trace_buf {
+            buf.flush().unwrap();
         }
 
-        let mut first_memory_record = Vec::new();
-        let mut last_memory_record = Vec::new();
+        // SECTION: Set up all MemoryInitializeFinalizeEvents needed for memory argument.
+        let memory_finalize_events = &mut self.record.memory_finalize_events;
 
-        let memory_keys = self.state.memory.keys().cloned().collect::<Vec<u32>>();
-        for addr in memory_keys {
-            let record = *self.state.memory.get(&addr).unwrap();
-            if record.shard == 0 && record.timestamp == 0 {
-                // This means that we never accessed this memory location throughout our entire program.
-                // The only way this can happen is if this was in the program memory image.
-                // We mark this (addr, value) as not used in the `program_memory_used` map.
-                program_memory_used.insert(addr, (record.value, 0));
-                continue;
-            }
-            // If the memory addr was accessed, we only add it to "first_memory_record" if it was
-            // not in the program_memory_image, otherwise we'll add to the memory argument from
-            // the program_memory_image table.
-            if !self.program.memory_image.contains_key(&addr) {
-                first_memory_record.push((
-                    addr,
-                    MemoryRecord {
-                        value: 0,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    1,
-                ));
+        // We handle the addr = 0 case separately, as we constrain it to be 0 in the first row
+        // of the memory finalize table so it must be first in the array of events.
+        let addr_0_record = self.state.memory.get(&0u32);
+
+        let addr_0_final_record = match addr_0_record {
+            Some(record) => record,
+            None => &MemoryRecord {
+                value: 0,
+                shard: 0,
+                timestamp: 0,
+            },
+        };
+        memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+            0,
+            addr_0_final_record,
+        ));
+
+        for addr in self.state.memory.keys() {
+            if addr == &0 {
+                continue; // We handle addr = 0 separately above.
             }
 
-            last_memory_record.push((
-                addr,
-                MemoryRecord {
-                    value: record.value,
-                    shard: record.shard,
-                    timestamp: record.timestamp,
-                },
-                1,
+            let record = *self.state.memory.get(addr).unwrap();
+
+            memory_finalize_events.push(MemoryInitializeFinalizeEvent::finalize_from_record(
+                *addr, &record,
             ));
         }
-
-        let mut program_memory_record = program_memory_used
-            .iter()
-            .map(|(&addr, &(value, used))| {
-                (
-                    addr,
-                    MemoryRecord {
-                        value,
-                        shard: 0,
-                        timestamp: 0,
-                    },
-                    used,
-                )
-            })
-            .collect::<Vec<(u32, MemoryRecord, u32)>>();
-        program_memory_record.sort_by_key(|&(addr, _, _)| addr);
-
-        self.record.first_memory_record = first_memory_record;
-        self.record.last_memory_record = last_memory_record;
-        self.record.program_memory_record = program_memory_record;
     }
 
     fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
         self.syscall_map.get(&code)
-    }
-
-    fn max_syscall_cycles(&self) -> u32 {
-        self.syscall_map
-            .values()
-            .map(|syscall| syscall.num_extra_cycles())
-            .max()
-            .unwrap_or(0)
     }
 }
 
@@ -927,14 +1027,6 @@ pub mod tests {
 
     pub fn ssz_withdrawals_program() -> Program {
         Program::from(SSZ_WITHDRAWALS_ELF)
-    }
-
-    pub fn ecall_lwa_program() -> Program {
-        let instructions = vec![
-            Instruction::new(Opcode::ADD, 5, 0, 101, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
-        ];
-        Program::new(instructions, 0, 0)
     }
 
     #[test]

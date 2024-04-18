@@ -83,6 +83,7 @@ impl CpuChip {
             local.op_a_val(),
             local.unsigned_mem_val,
             signed_value,
+            local.shard,
             local.mem_value_is_neg,
         );
 

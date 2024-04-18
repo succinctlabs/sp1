@@ -1,9 +1,13 @@
+mod builder;
 mod code;
 mod compiler;
-mod heap;
+mod config;
 mod instruction;
+mod utils;
 
+pub use builder::*;
 pub use code::*;
 pub use compiler::*;
-pub use heap::*;
+pub use config::*;
 pub use instruction::*;
+pub use utils::*;

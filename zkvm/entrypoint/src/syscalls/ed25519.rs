@@ -33,13 +33,13 @@ pub extern "C" fn syscall_ed_decompress(point: &mut [u8; 64]) {
     {
         let sign = point[63] >> 7;
         point[63] &= 0b0111_1111;
-        point[31] = sign;
         let p = point.as_mut_ptr() as *mut u8;
         unsafe {
             asm!(
                 "ecall",
                 in("t0") crate::syscalls::ED_DECOMPRESS,
                 in("a0") p,
+                in("a1") sign
             );
         }
     }

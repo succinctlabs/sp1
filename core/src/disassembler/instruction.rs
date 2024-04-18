@@ -324,11 +324,11 @@ impl InstructionProcessor for InstructionTranspiler {
     fn process_ecall(&mut self) -> Self::InstructionResult {
         Instruction::new(
             Opcode::ECALL,
-            Register::X10 as u32,
             Register::X5 as u32,
-            0,
+            Register::X10 as u32,
+            Register::X11 as u32,
             false,
-            true,
+            false,
         )
     }
 

@@ -2,7 +2,7 @@ use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_core::air::{AirInteraction, SP1AirBuilder};
 use sp1_core::lookup::InteractionKind;
 use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
@@ -12,7 +12,7 @@ use super::columns::MemoryInitCols;
 use crate::air::Block;
 use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
-use crate::runtime::ExecutionRecord;
+use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub(crate) const NUM_MEMORY_INIT_COLS: usize = size_of::<MemoryInitCols<u8>>();
 
@@ -25,12 +25,12 @@ impl MemoryGlobalChip {
 
 impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     type Record = ExecutionRecord<F>;
+    type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
         match self.kind {
             MemoryChipKind::Init => "MemoryInit".to_string(),
             MemoryChipKind::Finalize => "MemoryFinalize".to_string(),
-            MemoryChipKind::Program => "MemoryProgram".to_string(),
         }
     }
 
@@ -69,7 +69,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     row
                 })
                 .collect::<Vec<_>>(),
-            _ => unreachable!(),
         };
 
         let mut trace = RowMajorMatrix::new(
@@ -86,8 +85,6 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         match self.kind {
             MemoryChipKind::Init => !shard.first_memory_record.is_empty(),
             MemoryChipKind::Finalize => !shard.last_memory_record.is_empty(),
-            _ => unreachable!(),
-            // MemoryChipKind::Program => !shard.program_memory_record.is_empty(),
         }
     }
 }
@@ -104,7 +101,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &MemoryInitCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &MemoryInitCols<AB::Var> = (*local).borrow();
 
         match self.kind {
             MemoryChipKind::Init => {
@@ -135,7 +133,6 @@ where
                     InteractionKind::Memory,
                 ));
             }
-            _ => unreachable!(),
         };
 
         // Dummy constraint of degree 3.

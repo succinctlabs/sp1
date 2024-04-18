@@ -1,24 +1,24 @@
 use std::borrow::BorrowMut;
 
-use crate::runtime::ExecutionRecord;
-use crate::runtime::MemoryRecordEnum;
-use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
-use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
-use crate::utils::pad_rows;
-
-use p3_field::PrimeField;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
-
-use crate::air::MachineAir;
 
 use super::columns::Blake3CompressInnerCols;
 use super::{
     G_INDEX, G_INPUT_SIZE, MSG_SCHEDULE, NUM_MSG_WORDS_PER_CALL, NUM_STATE_WORDS_PER_CALL,
     OPERATION_COUNT,
 };
+use crate::air::MachineAir;
+use crate::runtime::ExecutionRecord;
+use crate::runtime::MemoryRecordEnum;
+use crate::runtime::Program;
+use crate::syscall::precompiles::blake3::compress::columns::NUM_BLAKE3_COMPRESS_INNER_COLS;
+use crate::syscall::precompiles::blake3::{Blake3CompressInnerChip, ROUND_COUNT};
+use crate::utils::pad_rows;
 
-impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
+impl<F: PrimeField32> MachineAir<F> for Blake3CompressInnerChip {
     type Record = ExecutionRecord;
+    type Program = Program;
 
     fn name(&self) -> String {
         "Blake3CompressInner".to_string()
@@ -31,11 +31,11 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        let mut new_field_events = Vec::new();
+        let mut new_byte_lookup_events = Vec::new();
 
         for i in 0..input.blake3_compress_inner_events.len() {
             let event = input.blake3_compress_inner_events[i].clone();
-
+            let shard = event.shard;
             let mut clk = event.clk;
             for round in 0..ROUND_COUNT {
                 for operation in 0..OPERATION_COUNT {
@@ -44,7 +44,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
 
                     // Assign basic values to the columns.
                     {
-                        cols.segment = F::from_canonical_u32(event.shard);
+                        cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(clk);
 
                         cols.round_index = F::from_canonical_u32(round as u32);
@@ -61,6 +61,10 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                             cols.msg_schedule[i] =
                                 F::from_canonical_usize(MSG_SCHEDULE[round][2 * operation + i]);
                         }
+
+                        if round == 0 && operation == 0 {
+                            cols.ecall_receive = F::one();
+                        }
                     }
 
                     // Memory columns.
@@ -69,7 +73,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                         for i in 0..NUM_MSG_WORDS_PER_CALL {
                             cols.message_reads[i].populate(
                                 event.message_reads[round][operation][i],
-                                &mut new_field_events,
+                                &mut new_byte_lookup_events,
                             );
                         }
 
@@ -77,7 +81,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                         for i in 0..NUM_STATE_WORDS_PER_CALL {
                             cols.state_reads_writes[i].populate(
                                 MemoryRecordEnum::Write(event.state_writes[round][operation][i]),
-                                &mut new_field_events,
+                                &mut new_byte_lookup_events,
                             );
                         }
                     }
@@ -93,10 +97,10 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
                             event.message_reads[round][operation][1].value,
                         ];
 
-                        cols.g.populate(output, input);
+                        cols.g.populate(output, shard, input);
                     }
 
-                    clk += 4;
+                    clk += 1;
 
                     cols.is_real = F::one();
 
@@ -105,7 +109,7 @@ impl<F: PrimeField> MachineAir<F> for Blake3CompressInnerChip {
             }
         }
 
-        output.add_field_events(&new_field_events);
+        output.add_byte_lookup_events(new_byte_lookup_events);
 
         pad_rows(&mut rows, || [F::zero(); NUM_BLAKE3_COMPRESS_INNER_COLS]);
 

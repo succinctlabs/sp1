@@ -21,7 +21,7 @@ pub fn build_program(path: &str) {
         program_dir.join("Cargo.lock"),
     ];
     for dir in dirs {
-        println!("cargo:rerun-if-changed={}", dir.display());
+        println!("cargo::rerun-if-changed={}", dir.display());
     }
 
     // Print a message so the user knows that their program was built. Cargo caches warnings emitted
@@ -40,14 +40,27 @@ pub fn build_program(path: &str) {
         current_datetime()
     );
 
-    execute_build_cmd(&program_dir)
+    let status = execute_build_cmd(&program_dir)
         .unwrap_or_else(|_| panic!("Failed to build `{}`.", root_package_name));
+    if !status.success() {
+        panic!("Failed to build `{}`.", root_package_name);
+    }
 }
 
 /// Executes the `cargo prove build` command in the program directory
 fn execute_build_cmd(
     program_dir: &impl AsRef<std::path::Path>,
 ) -> Result<std::process::ExitStatus, std::io::Error> {
+    // Check if RUSTC_WORKSPACE_WRAPPER is set to clippy-driver (i.e. if `cargo clippy` is the current
+    // compiler). If so, don't execute `cargo prove build` because it breaks rust-analyzer's `cargo clippy` feature.
+    let is_clippy_driver = std::env::var("RUSTC_WORKSPACE_WRAPPER")
+        .map(|val| val.contains("clippy-driver"))
+        .unwrap_or(false);
+    if is_clippy_driver {
+        println!("cargo:warning=Skipping build due to clippy invocation.");
+        return Ok(std::process::ExitStatus::default());
+    }
+
     let mut cmd = Command::new("cargo");
     cmd.current_dir(program_dir)
         .args(["prove", "build"])

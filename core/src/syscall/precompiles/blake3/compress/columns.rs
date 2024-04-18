@@ -16,8 +16,9 @@ pub const NUM_BLAKE3_COMPRESS_INNER_COLS: usize = size_of::<Blake3CompressInnerC
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct Blake3CompressInnerCols<T> {
-    pub segment: T,
+    pub shard: T,
     pub clk: T,
+    pub ecall_receive: T,
 
     /// The pointer to the state.
     pub state_ptr: T,

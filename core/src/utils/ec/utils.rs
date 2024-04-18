@@ -1,7 +1,5 @@
 use num::BigUint;
 
-use crate::operations::field::params::NUM_LIMBS;
-
 pub fn biguint_to_bits_le(integer: &BigUint, num_bits: usize) -> Vec<bool> {
     let byte_vec = integer.to_bytes_le();
     let mut bits = Vec::new();
@@ -18,14 +16,11 @@ pub fn biguint_to_bits_le(integer: &BigUint, num_bits: usize) -> Vec<bool> {
     bits
 }
 
-pub fn biguint_to_limbs(integer: &BigUint) -> [u8; NUM_LIMBS] {
+pub fn biguint_to_limbs<const N: usize>(integer: &BigUint) -> [u8; N] {
     let mut bytes = integer.to_bytes_le();
-    debug_assert!(
-        bytes.len() <= NUM_LIMBS,
-        "Number too large to fit in {NUM_LIMBS} limbs"
-    );
-    bytes.resize(NUM_LIMBS, 0u8);
-    let mut limbs = [0u8; NUM_LIMBS];
+    debug_assert!(bytes.len() <= N, "Number too large to fit in {N} limbs");
+    bytes.resize(N, 0u8);
+    let mut limbs = [0u8; N];
     limbs.copy_from_slice(&bytes);
     limbs
 }

@@ -1,28 +1,34 @@
-use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::borrow::Borrow;
+use std::panic::{self, AssertUnwindSafe};
+use std::process::exit;
 
 use p3_air::{
-    Air, AirBuilder, ExtensionBuilder, PairBuilder, PermutationAirBuilder, TwoRowMatrixView,
+    Air, AirBuilder, AirBuilderWithPublicValues, ExtensionBuilder, PairBuilder,
+    PermutationAirBuilder,
 };
 use p3_field::{AbstractField, PrimeField32};
 use p3_field::{ExtensionField, Field};
-use p3_matrix::{dense::RowMajorMatrix, Matrix, MatrixRowSlices};
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
+use p3_matrix::{dense::RowMajorMatrix, Matrix};
 
+use super::{MachineChip, StarkGenericConfig, Val};
 use crate::air::{EmptyMessageBuilder, MachineAir, MultiTableAirBuilder};
-
-use super::{MachineChip, StarkGenericConfig};
 
 /// Checks that the constraints of the given AIR are satisfied, including the permutation trace.
 ///
 /// Note that this does not actually verify the proof.
-pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+pub fn debug_constraints<SC, A>(
     chip: &MachineChip<SC, A>,
-    preprocessed: Option<&RowMajorMatrix<SC::Val>>,
-    main: &RowMajorMatrix<SC::Val>,
+    preprocessed: Option<&RowMajorMatrix<Val<SC>>>,
+    main: &RowMajorMatrix<Val<SC>>,
     perm: &RowMajorMatrix<SC::Challenge>,
     perm_challenges: &[SC::Challenge],
+    public_values: Vec<Val<SC>>,
 ) where
-    SC::Val: PrimeField32,
-    A: for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>,
+    SC: StarkGenericConfig,
+    Val<SC>: PrimeField32,
+    A: MachineAir<Val<SC>> + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
 {
     assert_eq!(main.height(), perm.height());
     let height = main.height();
@@ -37,55 +43,74 @@ pub fn debug_constraints<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
         let i_next = (i + 1) % height;
 
         let main_local = main.row_slice(i);
+        let main_local = &(*main_local);
         let main_next = main.row_slice(i_next);
-        let preprocessed_local = if preprocessed.is_some() {
-            preprocessed.as_ref().unwrap().row_slice(i)
+        let main_next = &(*main_next);
+        let preprocessed_local = if let Some(preprocessed) = preprocessed {
+            let row = preprocessed.row_slice(i);
+            let row: &[_] = (*row).borrow();
+            row.to_vec()
         } else {
-            &[]
+            Vec::new()
         };
-        let preprocessed_next = if preprocessed.is_some() {
-            preprocessed.as_ref().unwrap().row_slice(i_next)
+        let preprocessed_next = if let Some(preprocessed) = preprocessed {
+            let row = preprocessed.row_slice(i_next);
+            let row: &[_] = (*row).borrow();
+            row.to_vec()
         } else {
-            &[]
+            Vec::new()
         };
         let perm_local = perm.row_slice(i);
+        let perm_local = &(*perm_local);
         let perm_next = perm.row_slice(i_next);
+        let perm_next = &(*perm_next);
 
+        let public_values = public_values.to_vec();
         let mut builder = DebugConstraintBuilder {
-            preprocessed: TwoRowMatrixView {
-                local: preprocessed_local,
-                next: preprocessed_next,
-            },
-            main: TwoRowMatrixView {
-                local: main_local,
-                next: main_next,
-            },
-            perm: TwoRowMatrixView {
-                local: perm_local,
-                next: perm_next,
-            },
+            preprocessed: VerticalPair::new(
+                RowMajorMatrixView::new_row(&preprocessed_local),
+                RowMajorMatrixView::new_row(&preprocessed_next),
+            ),
+            main: VerticalPair::new(
+                RowMajorMatrixView::new_row(main_local),
+                RowMajorMatrixView::new_row(main_next),
+            ),
+            perm: VerticalPair::new(
+                RowMajorMatrixView::new_row(perm_local),
+                RowMajorMatrixView::new_row(perm_next),
+            ),
             perm_challenges,
             cumulative_sum,
-            is_first_row: SC::Val::zero(),
-            is_last_row: SC::Val::zero(),
-            is_transition: SC::Val::one(),
+            is_first_row: Val::<SC>::zero(),
+            is_last_row: Val::<SC>::zero(),
+            is_transition: Val::<SC>::one(),
+            public_values: &public_values,
         };
         if i == 0 {
-            builder.is_first_row = SC::Val::one();
+            builder.is_first_row = Val::<SC>::one();
         }
         if i == height - 1 {
-            builder.is_last_row = SC::Val::one();
-            builder.is_transition = SC::Val::zero();
+            builder.is_last_row = Val::<SC>::one();
+            builder.is_transition = Val::<SC>::zero();
         }
-        let result = catch_unwind(AssertUnwindSafe(|| {
+        let result = catch_unwind_silent(AssertUnwindSafe(|| {
             chip.eval(&mut builder);
         }));
         if result.is_err() {
-            println!("local: {:?}", main_local);
-            println!("next:  {:?}", main_next);
-            panic!("failed at row {} of chip {}", i, chip.name());
+            eprintln!("local: {:?}", main_local);
+            eprintln!("next:  {:?}", main_next);
+            eprintln!("failed at row {} of chip {}", i, chip.name());
+            exit(1);
         }
     });
+}
+
+fn catch_unwind_silent<F: FnOnce() -> R + panic::UnwindSafe, R>(f: F) -> std::thread::Result<R> {
+    let prev_hook = panic::take_hook();
+    panic::set_hook(Box::new(|_| {}));
+    let result = panic::catch_unwind(f);
+    panic::set_hook(prev_hook);
+    result
 }
 
 /// Checks that all the interactions between the chips has been satisfied.
@@ -101,14 +126,15 @@ pub fn debug_cumulative_sums<F: Field, EF: ExtensionField<F>>(perms: &[RowMajorM
 
 /// A builder for debugging constraints.
 pub struct DebugConstraintBuilder<'a, F: Field, EF: ExtensionField<F>> {
-    pub(crate) preprocessed: TwoRowMatrixView<'a, F>,
-    pub(crate) main: TwoRowMatrixView<'a, F>,
-    pub(crate) perm: TwoRowMatrixView<'a, EF>,
+    pub(crate) preprocessed: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
+    pub(crate) main: VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>,
+    pub(crate) perm: VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>,
     pub(crate) cumulative_sum: EF,
     pub(crate) perm_challenges: &'a [EF],
     pub(crate) is_first_row: F,
     pub(crate) is_last_row: F,
     pub(crate) is_transition: F,
+    pub(crate) public_values: &'a [F],
 }
 
 impl<'a, F, EF> ExtensionBuilder for DebugConstraintBuilder<'a, F, EF>
@@ -133,7 +159,9 @@ where
     F: Field,
     EF: ExtensionField<F>,
 {
-    type MP = TwoRowMatrixView<'a, EF>;
+    type MP = VerticalPair<RowMajorMatrixView<'a, EF>, RowMajorMatrixView<'a, EF>>;
+
+    type RandomVar = EF;
 
     fn permutation(&self) -> Self::MP {
         self.perm
@@ -154,6 +182,21 @@ where
     }
 }
 
+impl<'a, F, EF> DebugConstraintBuilder<'a, F, EF>
+where
+    F: Field,
+    EF: ExtensionField<F>,
+{
+    #[inline]
+    fn debug_constraint(&self, x: F, y: F) {
+        if x != y {
+            let backtrace = std::backtrace::Backtrace::force_capture();
+            eprintln!("constraint failed: {:?} != {:?}\n{}", x, y, backtrace);
+            panic!();
+        }
+    }
+}
+
 impl<'a, F, EF> AirBuilder for DebugConstraintBuilder<'a, F, EF>
 where
     F: Field,
@@ -162,7 +205,7 @@ where
     type F = F;
     type Expr = F;
     type Var = F;
-    type M = TwoRowMatrixView<'a, F>;
+    type M = VerticalPair<RowMajorMatrixView<'a, F>, RowMajorMatrixView<'a, F>>;
 
     fn is_first_row(&self) -> Self::Expr {
         self.is_first_row
@@ -185,10 +228,24 @@ where
     }
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
-        let f: F = x.into();
-        if f != F::zero() {
+        self.debug_constraint(x.into(), F::zero());
+    }
+
+    fn assert_one<I: Into<Self::Expr>>(&mut self, x: I) {
+        self.debug_constraint(x.into(), F::one());
+    }
+
+    fn assert_eq<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(&mut self, x: I1, y: I2) {
+        self.debug_constraint(x.into(), y.into());
+    }
+
+    /// Assert that `x` is a boolean, i.e. either 0 or 1.
+    fn assert_bool<I: Into<Self::Expr>>(&mut self, x: I) {
+        let x = x.into();
+        if x != F::zero() && x != F::one() {
             let backtrace = std::backtrace::Backtrace::force_capture();
-            panic!("constraint failed: {}", backtrace);
+            eprintln!("constraint failed: {:?} is not a bool\n{}", x, backtrace);
+            panic!();
         }
     }
 }
@@ -208,4 +265,14 @@ where
 impl<'a, F: Field, EF: ExtensionField<F>> EmptyMessageBuilder
     for DebugConstraintBuilder<'a, F, EF>
 {
+}
+
+impl<'a, F: Field, EF: ExtensionField<F>> AirBuilderWithPublicValues
+    for DebugConstraintBuilder<'a, F, EF>
+{
+    type PublicVar = F;
+
+    fn public_values(&self) -> &[Self::PublicVar] {
+        self.public_values
+    }
 }

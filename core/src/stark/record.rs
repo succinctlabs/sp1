@@ -1,4 +1,6 @@
-use hashbrown::HashMap;
+use std::collections::HashMap;
+
+use p3_field::AbstractField;
 
 pub trait MachineRecord: Default + Sized + Send + Sync {
     type Config: Default;
@@ -12,4 +14,6 @@ pub trait MachineRecord: Default + Sized + Send + Sync {
     fn append(&mut self, other: &mut Self);
 
     fn shard(self, config: &Self::Config) -> Vec<Self>;
+
+    fn public_values<F: AbstractField>(&self) -> Vec<F>;
 }

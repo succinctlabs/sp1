@@ -4,7 +4,7 @@ use p3_field::Field;
 use serde::{Deserialize, Serialize};
 
 /// An opcode specifies which operation to execute.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, PartialOrd, Ord)]
 #[allow(non_camel_case_types)]
 pub enum Opcode {
     // Arithmetic instructions.

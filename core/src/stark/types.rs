@@ -1,35 +1,21 @@
 use std::{
+    collections::HashMap,
+    fmt::Debug,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
 
 use bincode::{deserialize_from, Error};
-use p3_air::TwoRowMatrixView;
-use p3_commit::{OpenedValues, Pcs};
-use p3_field::ExtensionField;
-use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
-use size::Size;
-
+use p3_matrix::dense::RowMajorMatrixView;
+use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use size::Size;
 use tracing::trace;
 
-use super::StarkGenericConfig;
+use crate::air::SP1_PROOF_NUM_PV_ELTS;
 
-pub type Val<SC> = <SC as StarkGenericConfig>::Val;
-pub type PackedVal<SC> = <<SC as StarkGenericConfig>::Val as Field>::Packing;
-pub type PackedChallenge<SC> = <Challenge<SC> as ExtensionField<Val<SC>>>::ExtensionPacking;
-pub type OpeningProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
-pub type OpeningError<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Error;
-pub type Challenge<SC> = <SC as StarkGenericConfig>::Challenge;
-pub type Challenger<SC> = <SC as StarkGenericConfig>::Challenger;
-#[allow(dead_code)]
-type ChallengeMat<SC> = RowMajorMatrix<Challenge<SC>>;
-type ValMat<SC> = RowMajorMatrix<Val<SC>>;
-pub type Com<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Commitment;
-pub type PcsProverData<SC> =
-    <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::ProverData;
-pub type PcsProof<SC> = <<SC as StarkGenericConfig>::Pcs as Pcs<Val<SC>, ValMat<SC>>>::Proof;
+use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;
 
@@ -37,27 +23,30 @@ pub type QuotientOpenedValues<T> = Vec<T>;
 #[serde(bound(serialize = "PcsProverData<SC>: Serialize"))]
 #[serde(bound(deserialize = "PcsProverData<SC>: Deserialize<'de>"))]
 pub struct ShardMainData<SC: StarkGenericConfig> {
-    pub traces: Vec<ValMat<SC>>,
+    pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub main_commit: Com<SC>,
     pub main_data: PcsProverData<SC>,
-    pub chip_ids: Vec<String>,
+    pub chip_ordering: HashMap<String, usize>,
     pub index: usize,
+    pub public_values: Vec<SC::Val>,
 }
 
 impl<SC: StarkGenericConfig> ShardMainData<SC> {
     pub fn new(
-        traces: Vec<ValMat<SC>>,
+        traces: Vec<RowMajorMatrix<Val<SC>>>,
         main_commit: Com<SC>,
         main_data: PcsProverData<SC>,
-        chip_ids: Vec<String>,
+        chip_ordering: HashMap<String, usize>,
         index: usize,
+        public_values: Vec<Val<SC>>,
     ) -> Self {
         Self {
             traces,
             main_commit,
             main_data,
-            chip_ids,
+            chip_ordering,
             index,
+            public_values,
         }
     }
 
@@ -124,7 +113,7 @@ pub struct ChipOpenedValues<T: Serialize> {
     pub preprocessed: AirOpenedValues<T>,
     pub main: AirOpenedValues<T>,
     pub permutation: AirOpenedValues<T>,
-    pub quotient: Vec<T>,
+    pub quotient: Vec<Vec<T>>,
     pub cumulative_sum: T,
     pub log_degree: usize,
 }
@@ -134,57 +123,30 @@ pub struct ShardOpenedValues<T: Serialize> {
     pub chips: Vec<ChipOpenedValues<T>>,
 }
 
-#[cfg(feature = "perf")]
-#[derive(Serialize, Deserialize)]
+/// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
+/// proofs need to pad their public_values vec to this length.  This is required since the recursion
+/// verification program expects the public values vec to be fixed length.
+pub const PROOF_MAX_NUM_PVS: usize = SP1_PROOF_NUM_PV_ELTS;
+
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub index: usize,
     pub commitment: ShardCommitment<Com<SC>>,
     pub opened_values: ShardOpenedValues<Challenge<SC>>,
     pub opening_proof: OpeningProof<SC>,
-    pub chip_ids: Vec<String>,
+    pub chip_ordering: HashMap<String, usize>,
+    pub public_values: Vec<Val<SC>>,
 }
 
-#[cfg(not(feature = "perf"))]
-#[derive(Serialize, Deserialize)]
-pub struct ShardProof<SC: StarkGenericConfig> {
-    pub main_commit: Com<SC>,
-    pub traces: Vec<ValMat<SC>>,
-    pub permutation_traces: Vec<ChallengeMat<SC>>,
-    pub chip_ids: Vec<String>,
-}
-
-impl<T: Serialize> ShardOpenedValues<T> {
-    pub fn into_values(self) -> OpenedValues<T> {
-        let mut main_vals = vec![];
-        let mut permutation_vals = vec![];
-        let mut quotient_vals = vec![];
-
-        let to_values = |values: AirOpenedValues<T>| vec![values.local, values.next];
-        for chip_values in self.chips {
-            let ChipOpenedValues {
-                main,
-                permutation,
-                quotient,
-                ..
-            } = chip_values;
-
-            main_vals.push(to_values(main));
-            permutation_vals.push(to_values(permutation));
-            quotient_vals.push(vec![quotient]);
-        }
-
-        vec![main_vals, permutation_vals, quotient_vals]
+impl<T: Send + Sync + Clone> AirOpenedValues<T> {
+    pub fn view(&self) -> VerticalPair<RowMajorMatrixView<'_, T>, RowMajorMatrixView<'_, T>> {
+        let a = RowMajorMatrixView::new_row(&self.local);
+        let b = RowMajorMatrixView::new_row(&self.next);
+        VerticalPair::new(a, b)
     }
 }
 
-#[cfg(feature = "perf")]
-impl<T> AirOpenedValues<T> {
-    pub fn view(&self) -> TwoRowMatrixView<T> {
-        TwoRowMatrixView::new(&self.local, &self.next)
-    }
-}
-
-#[cfg(feature = "perf")]
 impl<SC: StarkGenericConfig> ShardProof<SC> {
     pub fn cumulative_sum(&self) -> Challenge<SC> {
         self.opened_values
@@ -195,7 +157,42 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
+#[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
+}
+
+impl<SC: StarkGenericConfig> Debug for Proof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Proof")
+            .field("shard_proofs", &self.shard_proofs.len())
+            .finish()
+    }
+}
+
+/// PublicValuesDigest is a hash of all the public values that a zkvm program has committed to.
+pub struct PublicValuesDigest(pub [u8; 32]);
+
+impl From<[u32; 8]> for PublicValuesDigest {
+    fn from(arr: [u32; 8]) -> Self {
+        let mut bytes = [0u8; 32];
+        for (i, word) in arr.iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+        PublicValuesDigest(bytes)
+    }
+}
+
+/// DeferredDigest is a hash of all the deferred proofs that have been witnessed in the VM.
+pub struct DeferredDigest(pub [u8; 32]);
+
+impl From<[u32; 8]> for DeferredDigest {
+    fn from(arr: [u32; 8]) -> Self {
+        let mut bytes = [0u8; 32];
+        for (i, word) in arr.iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+        DeferredDigest(bytes)
+    }
 }

@@ -27,6 +27,6 @@ fn main() {
             new_account_state.balance += tx.amount;
         }
     }
-    sp1_zkvm::io::write(&val);
-    sp1_zkvm::io::write(&new_account_state);
+    sp1_zkvm::io::commit(&val);
+    sp1_zkvm::io::commit(&new_account_state);
 }

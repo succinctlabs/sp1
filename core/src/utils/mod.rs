@@ -1,13 +1,14 @@
 mod buffer;
+mod config;
 pub mod ec;
 pub mod env;
 mod logger;
-mod poseidon2_instance;
 mod programs;
 mod prove;
 mod tracer;
 
 pub use buffer::*;
+pub use config::*;
 pub use logger::*;
 pub use prove::*;
 pub use tracer::*;
@@ -16,6 +17,7 @@ pub use tracer::*;
 pub use programs::*;
 
 use crate::{memory::MemoryCols, operations::field::params::Limbs};
+use generic_array::ArrayLength;
 
 pub const fn indices_arr<const N: usize>() -> [usize; N] {
     let mut indices_arr = [0; N];
@@ -36,7 +38,9 @@ pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<
     values.resize(n_real_rows.next_power_of_two() * N, T::default());
 }
 
-pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
+pub fn limbs_from_prev_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(
+    cols: &[M],
+) -> Limbs<T, N> {
     let vec = cols
         .iter()
         .flat_map(|access| access.prev_value().0)
@@ -48,7 +52,7 @@ pub fn limbs_from_prev_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T>
     Limbs(sized)
 }
 
-pub fn limbs_from_access<T: Copy, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T> {
+pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) -> Limbs<T, N> {
     let vec = cols
         .iter()
         .flat_map(|access| access.value().0)
@@ -73,7 +77,7 @@ pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl F
     rows.resize(padded_nb_rows, dummy_row);
 }
 
-/// Converts a slice of words to a byte array in little endian.
+/// Converts a slice of words to a slice of bytes in little endian.
 pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
     debug_assert_eq!(words.len() * 4, B);
     words
@@ -82,6 +86,14 @@ pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
         .collect::<Vec<_>>()
         .try_into()
         .unwrap()
+}
+
+/// Converts a slice of words to a byte vector in little endian.
+pub fn words_to_bytes_le_vec(words: &[u32]) -> Vec<u8> {
+    words
+        .iter()
+        .flat_map(|word| word.to_le_bytes().to_vec())
+        .collect::<Vec<_>>()
 }
 
 /// Converts a byte array in little endian to a slice of words.
@@ -95,8 +107,16 @@ pub fn bytes_to_words_le<const W: usize>(bytes: &[u8]) -> [u32; W] {
         .unwrap()
 }
 
-/// Converts a u32 to a string with commas every 3 digits.
-pub fn u32_to_comma_separated(value: u32) -> String {
+/// Converts a byte array in little endian to a vector of words.
+pub fn bytes_to_words_le_vec(bytes: &[u8]) -> Vec<u32> {
+    bytes
+        .chunks_exact(4)
+        .map(|chunk| u32::from_le_bytes(chunk.try_into().unwrap()))
+        .collect::<Vec<_>>()
+}
+
+/// Converts a num to a string with commas every 3 digits.
+pub fn num_to_comma_separated<T: ToString>(value: T) -> String {
     value
         .to_string()
         .chars()
@@ -119,4 +139,11 @@ pub fn chunk_vec<T>(mut vec: Vec<T>, chunk_size: usize) -> Vec<Vec<T>> {
         result.push(current_chunk);
     }
     result
+}
+
+#[inline]
+pub fn log2_strict_usize(n: usize) -> usize {
+    let res = n.trailing_zeros();
+    assert_eq!(n.wrapping_shr(res), 1, "Not a power of two: {n}");
+    res as usize
 }

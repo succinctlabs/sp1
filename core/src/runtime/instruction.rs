@@ -1,6 +1,7 @@
-use super::Opcode;
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
+
+use super::Opcode;
 
 /// An instruction specifies an operation to execute and the operands.
 #[derive(Clone, Copy, Serialize, Deserialize)]
@@ -49,6 +50,11 @@ impl Instruction {
                 | Opcode::REM
                 | Opcode::REMU
         )
+    }
+
+    /// Returns if the instruction is a ecall instruction.
+    pub fn is_ecall_instruction(&self) -> bool {
+        self.opcode == Opcode::ECALL
     }
 
     /// Returns if the instruction is a memory instruction.

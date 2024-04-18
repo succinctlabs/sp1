@@ -4,8 +4,9 @@ mod instruction;
 pub use elf::*;
 pub use instruction::*;
 
-use crate::runtime::{Instruction, Program};
 use std::{collections::BTreeMap, fs::File, io::Read};
+
+use crate::runtime::{Instruction, Program};
 
 impl Program {
     /// Create a new program.

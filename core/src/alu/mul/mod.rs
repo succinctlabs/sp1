@@ -1,37 +1,43 @@
-//! Implementation to check that b * c = product (no `mod N`, no truncation).
+//! Implementation to check that b * c = product.
 //!
-//! Decompose b, c, product into u8's. Perform the appropriate range checks.
+//! We first extend the operands to 64 bits. We sign-extend them if the op code is signed. Then we
+//! calculate the un-carried product and propagate the carry. Finally, we check that the appropriate
+//! bits of the product match the result.
 //!
-//! 1. Use m[i] to denote the convolution
-//!     (i.e., b[i]c[0] + b[i - 1]c[1] + ... + b[1]c[i - 1] + b[0]c[i]).
-//! 2. carry[i]: "overflow" from calculating the i-th term. More specifically,
-//!     carry[i] = floor((m[i] + carry[i - 1]) / 256).
-//
-//! local.product[i] = m[i] + carry[i - 1] (mod 256)
-//! <=> local.product[i] = m[i] + carry[i - 1] - 256K for some integer K
-//! <=> local.product[i]
-//!    = m[i] + carry[i - 1] - 256 * floor((m[i] + carry[i - 1]) / 256)
-//
-//! Conveniently, this value of K is equivalent to carry[i].
+//! b_64 = sign_extend(b) if signed operation else b
+//! c_64 = sign_extend(c) if signed operation else c
 //!
-//! Finally, we verify that the result `a` matches the appropriate bits (e.g., For MUL, `a` matches
-//! the low word of `local.product`).
+//! m = []
+//! # 64-bit integers have 8 limbs.
+//! # Calculate un-carried product.
+//! for i in 0..8:
+//!     for j in 0..8:
+//!         if i + j < 8:
+//!             m[i + j] += b_64[i] * c_64[j]
 //!
-//! For signed multiplication, we only need to extend the sign from 32 bits to 64 bits. This is done
-//! by sign extending the multiplicands. The actual multiplication can be done as usual since RISC-V
-//! uses two's complement. More specifically, when the sign is extended, the value "-n" is
-//! represented as (2^64 - n) in the bit representation. Therefore, when multiplied, unnecessary
-//! terms all disappear mod 2^64.
+//! # Propagate carry
+//! for i in 0..8:
+//!     x = m[i]
+//!     if i > 0:
+//!         x += carry[i - 1]
+//!     carry[i] = x / 256
+//!     m[i] = x % 256
+//!
+//! if upper_half:
+//!     assert_eq(a, m[4..8])
+//! if lower_half:
+//!     assert_eq(a, m[0..4])
 
 mod utils;
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
@@ -42,7 +48,7 @@ use crate::air::{SP1AirBuilder, Word};
 use crate::alu::mul::utils::get_msb;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::stark::MachineRecord;
 use crate::utils::pad_to_power_of_two;
 
@@ -59,7 +65,7 @@ const BYTE_SIZE: usize = 8;
 /// The mask for a byte.
 const BYTE_MASK: u8 = 0xff;
 
-/// A chip that implements addition for the opcodes MUL.
+/// A chip that implements multiplication for the multiplication opcodes.
 #[derive(Default)]
 pub struct MulChip;
 
@@ -67,6 +73,9 @@ pub struct MulChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -79,31 +88,31 @@ pub struct MulCols<T> {
     /// Trace.
     pub carry: [T; PRODUCT_SIZE],
 
-    /// `product` stores the actual product of b * c without truncating.
+    /// An array storing the product of `b * c` after the carry propagation.
     pub product: [T; PRODUCT_SIZE],
 
-    /// The most significant bit of b.
+    /// The most significant bit of `b`.
     pub b_msb: T,
 
-    /// The most significant bit of c.
+    /// The most significant bit of `c`.
     pub c_msb: T,
 
-    /// The sign extension of b.
+    /// The sign extension of `b`.
     pub b_sign_extend: T,
 
-    /// The sign extension of c.
+    /// The sign extension of `c`.
     pub c_sign_extend: T,
 
-    /// If the opcode is MUL (u32 x u32).
+    /// Flag indicating whether the opcode is `MUL` (`u32 x u32`).
     pub is_mul: T,
 
-    /// If the opcode is MULH (i32 x i32, upper half).
+    /// Flag indicating whether the opcode is `MULH` (`i32 x i32`, upper half).
     pub is_mulh: T,
 
-    /// If the opcode is MULHU (u32 x u32, upper half).
+    /// Flag indicating whether the opcode is `MULHU` (`u32 x u32`, upper half).
     pub is_mulhu: T,
 
-    /// If the opcode is MULHSU (i32 x u32, upper half).
+    /// Flag indicating whether the opcode is `MULHSU` (`i32 x u32`, upper half).
     pub is_mulhsu: T,
 
     /// Selector to know whether this row is enabled.
@@ -112,6 +121,8 @@ pub struct MulCols<T> {
 
 impl<F: PrimeField> MachineAir<F> for MulChip {
     type Record = ExecutionRecord;
+
+    type Program = Program;
 
     fn name(&self) -> String {
         "Mul".to_string()
@@ -180,6 +191,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                                 for word in words.iter() {
                                     let most_significant_byte = word[WORD_SIZE - 1];
                                     blu_events.push(ByteLookupEvent {
+                                        shard: event.shard,
                                         opcode: ByteOpcode::MSB,
                                         a1: get_msb(*word) as u32,
                                         a2: 0,
@@ -222,11 +234,12 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         cols.is_mulh = F::from_bool(event.opcode == Opcode::MULH);
                         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
                         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
+                        cols.shard = F::from_canonical_u32(event.shard);
 
                         // Range check.
                         {
-                            record.add_u16_range_checks(&carry);
-                            record.add_u8_range_checks(&product.map(|x| x as u8));
+                            record.add_u16_range_checks(event.shard, &carry);
+                            record.add_u8_range_checks(event.shard, &product.map(|x| x as u8));
                         }
                         row
                     })
@@ -269,16 +282,16 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &MulCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &MulCols<AB::Var> = (*local).borrow();
         let base = AB::F::from_canonical_u32(1 << 8);
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
-        // 0xff
         let byte_mask = AB::F::from_canonical_u8(BYTE_MASK);
 
-        // The MSB's are correct.
-        {
+        // Calculate the MSBs.
+        let (b_msb, c_msb) = {
             let msb_pairs = [
                 (local.b_msb, local.b[WORD_SIZE - 1]),
                 (local.c_msb, local.c[WORD_SIZE - 1]),
@@ -287,30 +300,38 @@ where
             for msb_pair in msb_pairs.iter() {
                 let msb = msb_pair.0;
                 let byte = msb_pair.1;
-                builder.send_byte(opcode, msb, byte, zero.clone(), local.is_real);
+                builder.send_byte(opcode, msb, byte, zero.clone(), local.shard, local.is_real);
             }
-        }
+            (local.b_msb, local.c_msb)
+        };
 
-        // MULH or MULHSU
-        let is_b_i32 = local.is_mulh + local.is_mulhsu - local.is_mulh * local.is_mulhsu;
+        // Calculate whether to extend b and c's sign.
+        let (b_sign_extend, c_sign_extend) = {
+            // MULH or MULHSU
+            let is_b_i32 = local.is_mulh + local.is_mulhsu - local.is_mulh * local.is_mulhsu;
 
-        let is_c_i32 = local.is_mulh;
+            let is_c_i32 = local.is_mulh;
 
-        builder.assert_eq(local.b_sign_extend, is_b_i32 * local.b_msb);
-        builder.assert_eq(local.c_sign_extend, is_c_i32 * local.c_msb);
+            builder.assert_eq(local.b_sign_extend, is_b_i32 * b_msb);
+            builder.assert_eq(local.c_sign_extend, is_c_i32 * c_msb);
+            (local.b_sign_extend, local.c_sign_extend)
+        };
 
         // Sign extend local.b and local.c whenever appropriate.
-        let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-        let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
-        for i in 0..PRODUCT_SIZE {
-            if i < WORD_SIZE {
-                b[i] = local.b[i].into();
-                c[i] = local.c[i].into();
-            } else {
-                b[i] = local.b_sign_extend * byte_mask;
-                c[i] = local.c_sign_extend * byte_mask;
+        let (b, c) = {
+            let mut b: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
+            let mut c: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
+            for i in 0..PRODUCT_SIZE {
+                if i < WORD_SIZE {
+                    b[i] = local.b[i].into();
+                    c[i] = local.c[i].into();
+                } else {
+                    b[i] = b_sign_extend * byte_mask;
+                    c[i] = c_sign_extend * byte_mask;
+                }
             }
-        }
+            (b, c)
+        };
 
         // Compute the uncarried product b(x) * c(x) = m(x).
         let mut m: Vec<AB::Expr> = vec![AB::F::zero().into(); PRODUCT_SIZE];
@@ -322,47 +343,50 @@ where
             }
         }
 
-        // Compute the carried product by decomposing each coefficient of m(x)
-        // into some carry and product. Note that we must assume that the carry
-        // is range checked to avoid underflow.
-        for i in 0..PRODUCT_SIZE {
-            if i == 0 {
-                // When i = 0, there is no carry from the previous term as
-                // there is no previous term.
-                builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
-            } else {
-                // When 0 < i < PRODUCT_SIZE, there is a carry from the
-                // previous term, and there's a carry from this term. This is
-                // true even for the highest term due to the possible sign bits.
-                builder.assert_eq(
-                    local.product[i],
-                    m[i].clone() + local.carry[i - 1] - local.carry[i] * base,
-                );
+        // Propagate carry.
+        let product = {
+            for i in 0..PRODUCT_SIZE {
+                if i == 0 {
+                    builder.assert_eq(local.product[i], m[i].clone() - local.carry[i] * base);
+                } else {
+                    builder.assert_eq(
+                        local.product[i],
+                        m[i].clone() + local.carry[i - 1] - local.carry[i] * base,
+                    );
+                }
+            }
+            local.product
+        };
+
+        // Compare the product's appropriate bytes with that of the result.
+        {
+            let is_lower = local.is_mul;
+            let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
+            for i in 0..WORD_SIZE {
+                builder.when(is_lower).assert_eq(product[i], local.a[i]);
+                builder
+                    .when(is_upper.clone())
+                    .assert_eq(product[i + WORD_SIZE], local.a[i]);
             }
         }
 
-        // Assert that the upper or lower half word of the product matches the result.
-        let is_lower = local.is_mul;
-        let is_upper = local.is_mulh + local.is_mulhu + local.is_mulhsu;
-        for i in 0..WORD_SIZE {
-            builder
-                .when(is_lower)
-                .assert_eq(local.product[i], local.a[i]);
-            builder
-                .when(is_upper.clone())
-                .assert_eq(local.product[i + WORD_SIZE], local.a[i]);
+        // Check that the boolean values are indeed boolean values.
+        {
+            let booleans = [
+                local.b_msb,
+                local.c_msb,
+                local.b_sign_extend,
+                local.c_sign_extend,
+                local.is_mul,
+                local.is_mulh,
+                local.is_mulhu,
+                local.is_mulhsu,
+                local.is_real,
+            ];
+            for boolean in booleans.iter() {
+                builder.assert_bool(*boolean);
+            }
         }
-
-        // There are 9 members that are bool, check them all here.
-        builder.assert_bool(local.is_real);
-        builder.assert_bool(local.is_mul);
-        builder.assert_bool(local.is_mulh);
-        builder.assert_bool(local.is_mulhu);
-        builder.assert_bool(local.is_mulhsu);
-        builder.assert_bool(local.b_msb);
-        builder.assert_bool(local.c_msb);
-        builder.assert_bool(local.b_sign_extend);
-        builder.assert_bool(local.c_sign_extend);
 
         // If signed extended, the MSB better be 1.
         builder
@@ -372,7 +396,7 @@ where
             .when(local.c_sign_extend)
             .assert_eq(local.c_msb, one.clone());
 
-        // Some opcodes don't allow sign extension.
+        // If the opcode doesn't allow sign extension for an operand, we must not extend their sign.
         builder
             .when(local.is_mul + local.is_mulhu)
             .assert_zero(local.b_sign_extend + local.c_sign_extend);
@@ -380,12 +404,13 @@ where
             .when(local.is_mul + local.is_mulhsu + local.is_mulhsu)
             .assert_zero(local.c_sign_extend);
 
-        // Exactly one of the op codes must be on.
-        builder
-            .when(local.is_real)
-            .assert_one(local.is_mul + local.is_mulh + local.is_mulhu + local.is_mulhsu);
-
+        // Calculate the opcode.
         let opcode = {
+            // Exactly one of the op codes must be on.
+            builder
+                .when(local.is_real)
+                .assert_one(local.is_mul + local.is_mulh + local.is_mulhu + local.is_mulhsu);
+
             let mul: AB::Expr = AB::F::from_canonical_u32(Opcode::MUL as u32).into();
             let mulh: AB::Expr = AB::F::from_canonical_u32(Opcode::MULH as u32).into();
             let mulhu: AB::Expr = AB::F::from_canonical_u32(Opcode::MULHU as u32).into();
@@ -401,13 +426,20 @@ where
             // Ensure that the carry is at most 2^16. This ensures that
             // product_before_carry_propagation - carry * base + last_carry never overflows or
             // underflows enough to "wrap" around to create a second solution.
-            builder.slice_range_check_u16(&local.carry, local.is_real);
+            builder.slice_range_check_u16(&local.carry, local.shard, local.is_real);
 
-            builder.slice_range_check_u8(&local.product, local.is_real);
+            builder.slice_range_check_u8(&local.product, local.shard, local.is_real);
         }
 
         // Receive the arguments.
-        builder.receive_alu(opcode, local.a, local.b, local.c, local.is_real);
+        builder.receive_alu(
+            opcode,
+            local.a,
+            local.b,
+            local.c,
+            local.shard,
+            local.is_real,
+        );
 
         // A dummy constraint to keep the degree at least 3.
         builder.assert_zero(
@@ -421,6 +453,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -429,7 +462,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        utils::BabyBearPoseidon2,
     };
 
     use super::MulChip;
@@ -442,6 +475,7 @@ mod tests {
         let mut mul_events: Vec<AluEvent> = Vec::new();
         for _ in 0..10i32.pow(7) {
             mul_events.push(AluEvent::new(
+                0,
                 0,
                 Opcode::MULHSU,
                 0x80004000,
@@ -516,12 +550,12 @@ mod tests {
             (Opcode::MULH, 0xffffffff, 0x00000001, 0xffffffff),
         ];
         for t in mul_instructions.iter() {
-            mul_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            mul_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - mul_instructions.len()) {
-            mul_events.push(AluEvent::new(0, Opcode::MUL, 1, 1, 1));
+            mul_events.push(AluEvent::new(0, 0, Opcode::MUL, 1, 1, 1));
         }
 
         shard.mul_events = mul_events;

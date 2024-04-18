@@ -8,13 +8,9 @@ use p3_util::log2_ceil_usize;
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder},
-    runtime::Program,
 };
 
-use super::{
-    eval_permutation_constraints, generate_permutation_trace, DebugConstraintBuilder,
-    ProverConstraintFolder, StarkGenericConfig, VerifierConstraintFolder,
-};
+use super::{eval_permutation_constraints, generate_permutation_trace};
 
 /// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
@@ -52,29 +48,6 @@ impl<F: PrimeField32, A: MachineAir<F>> Chip<F, A> {
     }
 }
 
-/// A trait for AIRs that can be used with STARKs.
-///
-/// This trait is for specifying a trait bound for explicit types of builders used in the stark
-/// proving system. It is automatically implemented on any type that implements `Air<AB>` with
-/// `AB: SP1AirBuilder`. Users should not need to implement this trait manually.
-pub trait StarkAir<SC: StarkGenericConfig>:
-    MachineAir<SC::Val>
-    + Air<InteractionBuilder<SC::Val>>
-    + for<'a> Air<ProverConstraintFolder<'a, SC>>
-    + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-    + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
-{
-}
-
-impl<SC: StarkGenericConfig, T> StarkAir<SC> for T where
-    T: MachineAir<SC::Val>
-        + Air<InteractionBuilder<SC::Val>>
-        + for<'a> Air<ProverConstraintFolder<'a, SC>>
-        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-        + for<'a> Air<DebugConstraintBuilder<'a, SC::Val, SC::Challenge>>
-{
-}
-
 impl<F, A> Chip<F, A>
 where
     F: Field,
@@ -82,9 +55,10 @@ where
     /// Records the interactions and constraint degree from the air and crates a new chip.
     pub fn new(air: A) -> Self
     where
-        A: Air<InteractionBuilder<F>>,
+        A: MachineAir<F> + Air<InteractionBuilder<F>>,
     {
-        let mut builder = InteractionBuilder::new(air.width());
+        // Todo: correct values
+        let mut builder = InteractionBuilder::new(air.preprocessed_width(), air.width());
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
 
@@ -106,20 +80,27 @@ where
 
     pub fn generate_permutation_trace<EF: ExtensionField<F>>(
         &self,
-        preprocessed: &Option<RowMajorMatrix<F>>,
-        main: &RowMajorMatrix<F>,
+        preprocessed: Option<&RowMajorMatrix<F>>,
+        main: &mut RowMajorMatrix<F>,
         random_elements: &[EF],
     ) -> RowMajorMatrix<EF>
     where
         F: PrimeField,
     {
+        let batch_size = self.logup_batch_size();
         generate_permutation_trace(
             &self.sends,
             &self.receives,
             preprocessed,
             main,
             random_elements,
+            batch_size,
         )
+    }
+
+    pub fn logup_batch_size(&self) -> usize {
+        // TODO: calculate by log_quotient_degree.
+        2
     }
 }
 
@@ -133,7 +114,7 @@ where
     }
 
     fn preprocessed_trace(&self) -> Option<RowMajorMatrix<F>> {
-        self.air.preprocessed_trace()
+        panic!("Chip should not use the `BaseAir` method, but the `MachineAir` method.")
     }
 }
 
@@ -144,15 +125,18 @@ where
 {
     type Record = A::Record;
 
+    type Program = A::Program;
+
     fn name(&self) -> String {
         self.air.name()
     }
-    fn generate_preprocessed_trace(&self, program: &Program) -> Option<RowMajorMatrix<F>> {
-        <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
-    }
 
     fn preprocessed_width(&self) -> usize {
-        self.air.preprocessed_width()
+        <A as MachineAir<F>>::preprocessed_width(&self.air)
+    }
+
+    fn generate_preprocessed_trace(&self, program: &A::Program) -> Option<RowMajorMatrix<F>> {
+        <A as MachineAir<F>>::generate_preprocessed_trace(&self.air, program)
     }
 
     fn generate_trace(&self, input: &A::Record, output: &mut A::Record) -> RowMajorMatrix<F> {
@@ -179,7 +163,8 @@ where
         // Evaluate the execution trace constraints.
         self.air.eval(builder);
         // Evaluate permutation constraints.
-        eval_permutation_constraints(&self.sends, &self.receives, builder);
+        let batch_size = self.logup_batch_size();
+        eval_permutation_constraints(&self.sends, &self.receives, batch_size, builder);
     }
 }
 
