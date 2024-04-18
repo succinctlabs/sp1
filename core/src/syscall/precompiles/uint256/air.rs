@@ -280,8 +280,8 @@ where
             &Polynomial::new(x_limbs),
             &Polynomial::new(y_limbs),
             FieldOperation::Mul,
-            AB::F::one(),
-            AB::F::one(),
+            local.shard,
+            local.is_real,
         );
 
         // Assert that the output is equal to whats written to the memory record.
