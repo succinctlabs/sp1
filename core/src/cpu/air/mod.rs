@@ -108,7 +108,7 @@ where
         self.eval_halt_unimpl(builder, local, next);
 
         // Check that the shard and clk is updated correctly.
-        self.eval_shard_clk(builder, local, next, shard);
+        self.eval_clk(builder, local, next, shard);
 
         // Check that the pc is updated correctly.
         self.eval_pc(builder, local, next, is_branch_instruction.clone());
@@ -222,9 +222,8 @@ impl CpuChip {
 
     /// Constraints related to the shard and clk.
     ///
-    /// This method ensures that all of the shard values are the same and that the clk starts at 0
-    /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
-    /// and clk values are within 24 bits.  Those range checks are needed for the memory access
+    /// This method ensures the clk starts at 0 and is transitioned apporpriately.  It will also check
+    /// that the clk values are within 24 bits.  Those range checks are needed for the memory access
     /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
     pub(crate) fn eval_clk<AB: SP1AirBuilder>(
         &self,
