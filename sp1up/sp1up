@@ -172,7 +172,7 @@ EOF
   # Install by cloning the repo with the provided branch/tag
   else
     need_cmd cargo
-    SP1UP_BRANCH=${SP1UP_BRANCH:-master}
+    SP1UP_BRANCH=${SP1UP_BRANCH:-main}
     REPO_PATH="$SP1_DIR/$SP1UP_REPO"
 
     # If repo path does not exist, grab the author from the repo, make a directory in .foundry, cd to it and clone.

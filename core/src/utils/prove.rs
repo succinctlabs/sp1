@@ -1,6 +1,6 @@
 use std::fs::File;
 use std::io::{Seek, Write};
-use std::time::Instant;
+use web_time::Instant;
 
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;

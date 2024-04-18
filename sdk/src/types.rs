@@ -39,12 +39,21 @@ pub enum SP1Proof {
     Groth16(SP1ProofWithMetadata<SP1Groth16Proof>),
 }
 
-impl<P> SP1ProofWithMetadata<P> {
-    pub fn read() -> Self;
-    pub fn save(&self) -> Result<()>;
+impl<P: Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
+    pub fn read() -> Self {
+        unimplemented!()
+    }
+    pub fn save(&self) -> Result<()> {
+        unimplemented!()
+    }
 
     // Return none if the proof is not of the correct type.
-    pub fn as_groth16() -> Option<&SP1Groth16Proof>;
+    pub fn as_groth16(&self) -> Option<&SP1Groth16Proof> {
+        match self.proof {
+            SP1Groth16Proof(ref p) => Some(p),
+            _ => None,
+        }
+    }
     pub fn as_default() -> Option<&SP1DefaultProof>;
     pub fn as_compressed() -> Option<&SP1CompressedProof>;
     pub fn as_mock() -> Option<&PhantomData>;
@@ -92,6 +101,7 @@ impl Prover for NetworkProver {
                 Ok(SP1Proof::Default(SP1ProofWithMetadata {
                     proof,
                     stdin: stdin.clone(),
+                    // TODO: SP1ProverImpl::prove should output the public values as well.
                     public_values: ProverClient::execute(elf, stdin)?,
                 }))
             }
@@ -163,6 +173,8 @@ pub struct ProverClient {
     pub prover: Box<dyn Prover>,
 }
 
+/// Initialize a ProverClient with a mode: {Default, Compressed, Groth16} and it will generate the
+/// corresponding proof. Additionally, a ProverClient will
 impl ProverClient {
     pub fn new(mode: ProofMode) -> Self {
         // Read environment variables.
@@ -201,7 +213,7 @@ impl ProverClient {
         unimplemented!()
     }
 
-    pub fn verify(
+    pub fn verify_groth16(
         &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<BabyBearPoseidon2>,
@@ -209,7 +221,7 @@ impl ProverClient {
         self.verify_with_config(elf, proof, BabyBearPoseidon2::new())
     }
 
-    pub fn verify_with_config<SC: StarkGenericConfig>(
+    pub fn verify_<SC: StarkGenericConfig>(
         &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<SC>,

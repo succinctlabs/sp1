@@ -55,7 +55,6 @@ impl<E: EdwardsParameters> EdwardsParameters for EdwardsCurve<E> {
 
 impl<E: EdwardsParameters> EllipticCurveParameters for EdwardsCurve<E> {
     type BaseField = E::BaseField;
-
     const CURVE_TYPE: CurveType = E::CURVE_TYPE;
 }
 
