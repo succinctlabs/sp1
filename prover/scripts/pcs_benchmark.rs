@@ -88,10 +88,9 @@ fn main() {
     let mut challenger = InnerChallenger::new(perm.clone());
     challenger.observe(commit);
     challenger.sample_ext_element::<InnerChallenge>();
-    let os: Vec<(
-        TwoAdicMultiplicativeCoset<InnerVal>,
-        Vec<(InnerChallenge, Vec<InnerChallenge>)>,
-    )> = domains_and_polys
+    type U = Vec<(InnerChallenge, Vec<InnerChallenge>)>;
+    type T = TwoAdicMultiplicativeCoset<InnerVal>;
+    let os: Vec<(T, U)> = domains_and_polys
         .iter()
         .zip(&opening[0])
         .map(|((domain, _), mat_openings)| (*domain, vec![(zeta, mat_openings[0].clone())]))
