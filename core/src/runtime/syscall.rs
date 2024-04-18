@@ -96,6 +96,12 @@ pub enum SyscallCode {
 
     /// Executes the `UINT256_MUL` precompile.
     UINT256_MUL = 0x00_00_01_1D,
+
+    /// Executes the `BLS12381_ADD` precompile.
+    BLS12381_ADD = 0x00_01_01_1E,
+
+    /// Executes the `BLS12381_DOUBLE` precompile.
+    BLS12381_DOUBLE = 0x00_00_01_1F,
 }
 
 impl SyscallCode {
@@ -117,6 +123,8 @@ impl SyscallCode {
             0x00_38_01_0D => SyscallCode::BLAKE3_COMPRESS_INNER,
             0x00_01_01_0E => SyscallCode::BN254_ADD,
             0x00_00_01_0F => SyscallCode::BN254_DOUBLE,
+            0x00_01_01_1E => SyscallCode::BLS12381_ADD,
+            0x00_00_01_1F => SyscallCode::BLS12381_DOUBLE,
             0x00_00_00_10 => SyscallCode::COMMIT,
             0x00_00_00_1A => SyscallCode::COMMIT_DEFERRED_PROOFS,
             0x00_00_00_1B => SyscallCode::VERIFY_SP1_PROOF,
@@ -290,6 +298,18 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         SyscallCode::BLAKE3_COMPRESS_INNER,
         Rc::new(Blake3CompressInnerChip::new()),
     );
+    syscall_map.insert(
+        SyscallCode::BLS12381_ADD,
+        Rc::new(WeierstrassAddAssignChip::<Bls12381>::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::BLS12381_DOUBLE,
+        Rc::new(WeierstrassDoubleAssignChip::<Bls12381>::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::BLAKE3_COMPRESS_INNER,
+        Rc::new(Blake3CompressInnerChip::new()),
+    );
     syscall_map.insert(SyscallCode::UINT256_MUL, Rc::new(Uint256MulChip::new()));
     syscall_map.insert(
         SyscallCode::ENTER_UNCONSTRAINED,
@@ -384,6 +404,12 @@ mod tests {
                 }
                 SyscallCode::BLAKE3_COMPRESS_INNER => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLAKE3_COMPRESS_INNER)
+                }
+                SyscallCode::BLS12381_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_ADD)
+                }
+                SyscallCode::BLS12381_DOUBLE => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::BLS12381_DOUBLE)
                 }
                 SyscallCode::SECP256K1_DECOMPRESS => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)

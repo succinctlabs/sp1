@@ -92,8 +92,14 @@ pub const HINT_LEN: u32 = 0x00_00_00_F0;
 /// Executes `HINT_READ`.
 pub const HINT_READ: u32 = 0x00_00_00_F1;
 
+/// Executes `BLS12381_DECOMPRESS`.
+pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
+
 /// Executes the `UINT256_MUL` precompile.
 pub const UINT256_MUL: u32 = 0x00_00_01_1D;
 
-/// Executes `BLS12381_DECOMPRESS`.
-pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
+/// Executes the `BLS12381_ADD` precompile.
+pub const BLS12381_ADD: u32 = 0x00_01_01_1E;
+
+/// Executes the `BLS12381_DOUBLE` precompile.
+pub const BLS12381_DOUBLE: u32 = 0x00_00_01_1F;

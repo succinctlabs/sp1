@@ -4,18 +4,19 @@ pub mod keccak256;
 pub mod sha256;
 pub mod uint256;
 pub mod weierstrass;
-
-use serde::{Deserialize, Serialize};
-
 use crate::runtime::SyscallContext;
-
 use crate::utils::ec::field::NumLimbs;
+use crate::utils::ec::field::NumWords;
 use crate::utils::ec::weierstrass::bls12_381::bls12381_decompress;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_decompress;
-use crate::utils::ec::{AffinePoint, CurveType, EllipticCurve};
+use crate::utils::ec::CurveType;
+use crate::utils::ec::{AffinePoint, EllipticCurve};
 use crate::utils::{bytes_to_words_le_vec, words_to_bytes_le_vec};
 use crate::{runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 use typenum::Unsigned;
+
+use core::fmt::Debug;
+use serde::{Deserialize, Serialize};
 
 /// Elliptic curve add event.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -23,13 +24,17 @@ pub struct ECAddEvent {
     pub shard: u32,
     pub clk: u32,
     pub p_ptr: u32,
-    pub p: [u32; 16],
+    pub p: Vec<u32>,
     pub q_ptr: u32,
-    pub q: [u32; 16],
-    pub p_memory_records: [MemoryWriteRecord; 16],
-    pub q_memory_records: [MemoryReadRecord; 16],
+    pub q: Vec<u32>,
+    pub p_memory_records: Vec<MemoryWriteRecord>,
+    pub q_memory_records: Vec<MemoryReadRecord>,
 }
 
+/// Create an elliptic curve add event. It takes two pointers to memory locations, reads the points
+/// from memory, adds them together, and writes the result back to the first memory location.
+/// The generic parameter `N` is the number of u32 words in the point representation. For example, for
+/// the secp256k1 curve, `N` would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
 pub fn create_ec_add_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,
@@ -45,19 +50,22 @@ pub fn create_ec_add_event<E: EllipticCurve>(
         panic!();
     }
 
-    let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
-    let (q_memory_records_vec, q_vec) = rt.mr_slice(q_ptr, 16);
-    let q_memory_records = q_memory_records_vec.try_into().unwrap();
-    let q: [u32; 16] = q_vec.try_into().unwrap();
+    let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+
+    let p = rt.slice_unsafe(p_ptr, num_words);
+
+    let (q_memory_records, q) = rt.mr_slice(q_ptr, num_words);
+
     // When we write to p, we want the clk to be incremented because p and q could be the same.
     rt.clk += 1;
 
     let p_affine = AffinePoint::<E>::from_words_le(&p);
     let q_affine = AffinePoint::<E>::from_words_le(&q);
     let result_affine = p_affine + q_affine;
+
     let result_words = result_affine.to_words_le();
 
-    let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
+    let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     ECAddEvent {
         shard: rt.current_shard(),
@@ -77,10 +85,14 @@ pub struct ECDoubleEvent {
     pub shard: u32,
     pub clk: u32,
     pub p_ptr: u32,
-    pub p: [u32; 16],
-    pub p_memory_records: [MemoryWriteRecord; 16],
+    pub p: Vec<u32>,
+    pub p_memory_records: Vec<MemoryWriteRecord>,
 }
 
+/// Create an elliptic curve double event. It takes a pointer to a memory location, reads the point
+/// from memory, doubles it, and writes the result back to the memory location. The generic parameter
+/// `N` is the number of u32 words in the point representation. For example, for the secp256k1 curve, `N`
+/// would be 16 (64 bytes) because the x and y coordinates are 32 bytes each.
 pub fn create_ec_double_event<E: EllipticCurve>(
     rt: &mut SyscallContext,
     arg1: u32,
@@ -92,11 +104,17 @@ pub fn create_ec_double_event<E: EllipticCurve>(
         panic!();
     }
 
-    let p: [u32; 16] = rt.slice_unsafe(p_ptr, 16).try_into().unwrap();
+    let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+
+    let p = rt.slice_unsafe(p_ptr, num_words);
+
     let p_affine = AffinePoint::<E>::from_words_le(&p);
+
     let result_affine = E::ec_double(&p_affine);
+
     let result_words = result_affine.to_words_le();
-    let p_memory_records = rt.mw_slice(p_ptr, &result_words).try_into().unwrap();
+
+    let p_memory_records = rt.mw_slice(p_ptr, &result_words);
 
     ECDoubleEvent {
         shard: rt.current_shard(),
