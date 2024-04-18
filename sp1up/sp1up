@@ -128,7 +128,6 @@ main() {
 
     # Compute the URL of the release tarball in the sp1 repository.
     RELEASE_URL="https://github.com/${SP1UP_REPO}/releases/download/${SP1UP_TAG}/"
-    RELEASE_URL="https://pub-e4d9616fb885415597ff4c4d2b476ffb.r2.dev/"
     BIN_ARCHIVE_URL="${RELEASE_URL}cargo_prove_${SP1UP_VERSION}_${PLATFORM}_${ARCHITECTURE}.$EXT"
     MAN_TARBALL_URL="${RELEASE_URL}cargo_prove_man_${SP1UP_VERSION}.tar.gz"
 

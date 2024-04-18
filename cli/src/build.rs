@@ -10,7 +10,8 @@ use std::{
 
 fn get_docker_image() -> String {
     // Get the docker image name from the environment variable
-    std::env::var("SP1_DOCKER_IMAGE").unwrap_or_else(|_| "succinctlabs/sp1:latest".to_string())
+    std::env::var("SP1_DOCKER_IMAGE")
+        .unwrap_or_else(|_| "ghcr.io/succinctlabs/sp1:latest".to_string())
 }
 
 #[derive(Parser)]

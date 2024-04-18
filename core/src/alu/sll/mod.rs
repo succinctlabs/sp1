@@ -32,18 +32,19 @@
 
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
+
 use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
-use p3_matrix::MatrixRowSlices;
+use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
 use crate::disassembler::WORD_SIZE;
-use crate::runtime::{ExecutionRecord, Opcode};
+use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
 /// The number of main trace columns for `ShiftLeft`.
@@ -60,6 +61,9 @@ pub struct ShiftLeft;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftLeftCols<T> {
+    /// The shard number, used for byte lookup table.
+    pub shard: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -91,11 +95,15 @@ pub struct ShiftLeftCols<T> {
 }
 
 impl<F: PrimeField> MachineAir<F> for ShiftLeft {
+    type Record = ExecutionRecord;
+
+    type Program = Program;
+
     fn name(&self) -> String {
         "ShiftLeft".to_string()
     }
 
-    #[instrument(name = "generate sll trace", skip_all)]
+    #[instrument(name = "generate sll trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
@@ -110,6 +118,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             let a = event.a.to_le_bytes();
             let b = event.b.to_le_bytes();
             let c = event.c.to_le_bytes();
+            cols.shard = F::from_canonical_u32(event.shard);
             cols.a = Word(a.map(F::from_canonical_u8));
             cols.b = Word(b.map(F::from_canonical_u8));
             cols.c = Word(c.map(F::from_canonical_u8));
@@ -148,8 +157,8 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
 
             // Range checks.
             {
-                output.add_u8_range_checks(&bit_shift_result);
-                output.add_u8_range_checks(&bit_shift_result_carry);
+                output.add_u8_range_checks(event.shard, &bit_shift_result);
+                output.add_u8_range_checks(event.shard, &bit_shift_result_carry);
             }
 
             // Sanity check.
@@ -189,6 +198,10 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
 
         trace
     }
+
+    fn included(&self, shard: &Self::Record) -> bool {
+        !shard.shift_left_events.is_empty()
+    }
 }
 
 impl<F> BaseAir<F> for ShiftLeft {
@@ -203,7 +216,8 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let local: &ShiftLeftCols<AB::Var> = main.row_slice(0).borrow();
+        let local = main.row_slice(0);
+        let local: &ShiftLeftCols<AB::Var> = (*local).borrow();
 
         let zero: AB::Expr = AB::F::zero().into();
         let one: AB::Expr = AB::F::one().into();
@@ -224,6 +238,7 @@ where
 
         // Check shift_by_n_bits[i] is 1 iff i = num_bits_to_shift.
         let mut num_bits_to_shift = zero.clone();
+
         // 3 is the maximum number of bits necessary to represent num_bits_to_shift as
         // num_bits_to_shift is in [0, 7].
         for i in 0..3 {
@@ -300,8 +315,8 @@ where
 
         // Range check.
         {
-            builder.slice_range_check_u8(&local.bit_shift_result, local.is_real);
-            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result, local.shard, local.is_real);
+            builder.slice_range_check_u8(&local.bit_shift_result_carry, local.shard, local.is_real);
         }
 
         for shift in local.shift_by_n_bytes.iter() {
@@ -324,6 +339,7 @@ where
             local.a,
             local.b,
             local.c,
+            local.shard,
             local.is_real,
         );
 
@@ -339,6 +355,7 @@ mod tests {
 
     use crate::{
         air::MachineAir,
+        stark::StarkGenericConfig,
         utils::{uni_stark_prove as prove, uni_stark_verify as verify},
     };
     use p3_baby_bear::BabyBear;
@@ -347,7 +364,7 @@ mod tests {
     use crate::{
         alu::AluEvent,
         runtime::{ExecutionRecord, Opcode},
-        utils::{BabyBearPoseidon2, StarkUtils},
+        utils::BabyBearPoseidon2,
     };
 
     use super::ShiftLeft;
@@ -355,7 +372,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let mut shard = ExecutionRecord::default();
-        shard.shift_left_events = vec![AluEvent::new(0, Opcode::SLL, 16, 8, 1)];
+        shard.shift_left_events = vec![AluEvent::new(0, 0, Opcode::SLL, 16, 8, 1)];
         let chip = ShiftLeft::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&shard, &mut ExecutionRecord::default());
@@ -390,12 +407,12 @@ mod tests {
             (Opcode::SLL, 0x00000000, 0x21212120, 0xffffffff),
         ];
         for t in shift_instructions.iter() {
-            shift_events.push(AluEvent::new(0, t.0, t.1, t.2, t.3));
+            shift_events.push(AluEvent::new(0, 0, t.0, t.1, t.2, t.3));
         }
 
         // Append more events until we have 1000 tests.
         for _ in 0..(1000 - shift_instructions.len()) {
-            //shift_events.push(AluEvent::new(0, Opcode::SLL, 14, 8, 6));
+            //shift_events.push(AluEvent::new(0, 0, Opcode::SLL, 14, 8, 6));
         }
 
         let mut shard = ExecutionRecord::default();

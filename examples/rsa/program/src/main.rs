@@ -28,15 +28,15 @@ pub fn main() {
         Ok(_) => {
             println!("Signature verified successfully.");
             true
-        },
+        }
         Err(e) => {
             println!("Failed to verify signature: {:?}", e);
             false
-        },
+        }
     };
 
     // Write the output of the program.
     //
     // Behind the scenes, this also compiles down to a custom system call which handles writing
-    sp1_zkvm::io::write(&verified);
+    sp1_zkvm::io::commit(&verified);
 }

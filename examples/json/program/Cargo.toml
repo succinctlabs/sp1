@@ -5,5 +5,7 @@ name = "json-program"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../../zkvm" }
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
 serde_json = "1.0.113"
+serde = "1.0.197"
+lib = { path = "../lib" }

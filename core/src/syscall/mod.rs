@@ -1,10 +1,14 @@
+mod commit;
 mod halt;
-mod lwa;
+mod hint;
 pub mod precompiles;
 mod unconstrained;
+mod verify;
 mod write;
 
+pub use commit::*;
 pub use halt::*;
-pub use lwa::*;
+pub use hint::*;
 pub use unconstrained::*;
+pub use verify::*;
 pub use write::*;

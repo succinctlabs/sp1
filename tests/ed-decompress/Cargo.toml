@@ -5,5 +5,5 @@ name = "ed-decompress-test"
 edition = "2021"
 
 [dependencies]
-sp1-zkvm = { path = "../../zkvm" }
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
 hex-literal = "0.4.1"

@@ -1,9 +1,9 @@
-use sp1_core::{utils, SP1Prover, SP1Stdin, SP1Verifier};
 use rsa::PublicKey;
 use rsa::{
     pkcs8::{DecodePrivateKey, DecodePublicKey},
     RsaPrivateKey, RsaPublicKey,
 };
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 use std::vec;
 
 /// The ELF we want to execute inside the zkVM.
@@ -53,18 +53,18 @@ fn main() {
     // let verified = stdout.read::<bool>();
 
     // Generate the proof for the given program and input.
-    let mut proof = SP1Prover::prove(REGEX_IO_ELF, stdin).expect("proving failed");
-
-    let verified = proof.stdout.read::<bool>();
-    println!("signature verified: {}", verified);
+    let client = ProverClient::new();
+    let proof = client.prove(REGEX_IO_ELF, stdin).expect("proving failed");
 
     // Verify proof.
-    SP1Verifier::verify(REGEX_IO_ELF, &proof).expect("verification failed");
+    client
+        .verify(REGEX_IO_ELF, &proof)
+        .expect("verification failed");
 
     // Save the proof.
     proof
         .save("proof-with-pis.json")
         .expect("saving proof failed");
 
-    println!("succesfully generated and verified proof for the program!")
+    println!("successfully generated and verified proof for the program!")
 }

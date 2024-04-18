@@ -1,9 +1,10 @@
-use crate::runtime::Instruction;
+use serde::{Deserialize, Serialize};
 
-use super::memory::MemoryRecordEnum;
+use crate::runtime::Instruction;
+use crate::runtime::MemoryRecordEnum;
 
 /// A standard format for describing CPU operations that need to be proven.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct CpuEvent {
     /// The current shard.
     pub shard: u32,
@@ -13,6 +14,10 @@ pub struct CpuEvent {
 
     /// The current program counter.
     pub pc: u32,
+
+    /// The value of the next instruction's program counter. This value needs to be made public for
+    /// the last row of each shard.
+    pub next_pc: u32,
 
     /// The current instruction.
     pub instruction: Instruction,
@@ -40,4 +45,7 @@ pub struct CpuEvent {
 
     /// The memory access record for the memory value.
     pub memory_record: Option<MemoryRecordEnum>,
+
+    /// Exit code called with halt.
+    pub exit_code: u32,
 }

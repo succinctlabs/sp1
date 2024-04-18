@@ -1,0 +1,52 @@
+name: Test setup
+inputs:
+  pull_token:
+    description: "Token to use for private repo access"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Set up git private repo access
+      shell: bash
+      run: |
+        git config --global url."https://${{ inputs.pull_token }}@github.com/".insteadOf ssh://git@github.com
+        git config --global url."https://${{ inputs.pull_token }}@github.com".insteadOf https://github.com
+
+    - name: Install Go 1.22
+      uses: actions/setup-go@v5
+      with:
+        go-version: "1.22"
+        cache-dependency-path: "**/go.sum"
+
+    - name: Print go version
+      shell: bash
+      run: go version
+
+    - name: Setup GCC
+      uses: Dup4/actions-setup-gcc@v1
+      with:
+        version: latest
+
+    - name: rust-cache
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cargo/bin/
+          ~/.cargo/registry/index/
+          ~/.cargo/registry/cache/
+          ~/.cargo/git/db/
+          target/
+          ~/.rustup/
+        key: rust-nightly-2024-01-25-${{ hashFiles('**/Cargo.toml') }}
+        restore-keys: rust-nightly-2024-01-25-
+
+    - name: Setup toolchain
+      id: rustc-toolchain
+      shell: bash
+      run: |
+        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain none -y
+        source $HOME/.cargo/env
+        rustup set profile minimal
+        rustup component add rustfmt clippy
+        rustup show
+        echo "$HOME/.cargo/bin" >> $GITHUB_PATH

@@ -72,7 +72,7 @@ pub fn eval_abs_value<AB>(
             .assert_eq(value[i] + abs_value[i], exp_sum_if_negative.clone());
 
         builder
-            .when(AB::Expr::one() - *is_negative)
+            .when_not(*is_negative)
             .assert_eq(value[i], abs_value[i]);
     }
 }

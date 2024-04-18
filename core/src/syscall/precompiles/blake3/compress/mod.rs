@@ -25,7 +25,9 @@ mod columns;
 mod execute;
 mod g;
 mod trace;
-use crate::cpu::{MemoryReadRecord, MemoryWriteRecord};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+
+use serde::{Deserialize, Serialize};
 
 /// The number of `Word`s in the message of the compress inner operation.
 pub(crate) const MSG_SIZE: usize = 16;
@@ -88,7 +90,7 @@ pub(crate) fn g_func(input: [u32; 6]) -> [u32; 4] {
     [a, b, c, d]
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Blake3CompressInnerEvent {
     pub clk: u32,
     pub shard: u32,
@@ -113,9 +115,6 @@ pub mod compress_tests {
     use crate::runtime::Opcode;
     use crate::runtime::Register;
     use crate::runtime::SyscallCode;
-    use crate::utils::run_test;
-    use crate::utils::setup_logger;
-    use crate::utils::tests::BLAKE3_COMPRESS_ELF;
     use crate::Program;
 
     use super::MSG_SIZE;
@@ -157,22 +156,23 @@ pub mod compress_tests {
             ),
             Instruction::new(Opcode::ADD, Register::X10 as u32, 0, state_ptr, false, true),
             Instruction::new(Opcode::ADD, Register::X11 as u32, 0, msg_ptr, false, true),
-            Instruction::new(Opcode::ECALL, 10, 5, 0, false, true),
+            Instruction::new(Opcode::ECALL, 5, 10, 11, false, false),
         ]);
         Program::new(instructions, 0, 0)
     }
 
-    #[test]
-    fn prove_babybear() {
-        setup_logger();
-        let program = blake3_compress_internal_program();
-        run_test(program).unwrap();
-    }
+    // Tests disabled because syscall is not enabled in default runtime/chip configs.
+    // #[test]
+    // fn prove_babybear() {
+    //     setup_logger();
+    //     let program = blake3_compress_internal_program();
+    //     run_test(program).unwrap();
+    // }
 
-    #[test]
-    fn test_blake3_compress_inner_elf() {
-        setup_logger();
-        let program = Program::from(BLAKE3_COMPRESS_ELF);
-        run_test(program).unwrap();
-    }
+    // #[test]
+    // fn test_blake3_compress_inner_elf() {
+    //     setup_logger();
+    //     let program = Program::from(BLAKE3_COMPRESS_ELF);
+    //     run_test(program).unwrap();
+    // }
 }

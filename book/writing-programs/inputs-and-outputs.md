@@ -1,6 +1,7 @@
 # Inputs and Outputs
 
 In real world applications of zero-knowledge proofs, you almost always want to verify your proof in the context of some inputs and outputs. For example:
+
 - **Rollups**: Given a list of transactions, prove the new state of the blockchain.
 - **Coprocessors**: Given a block header, prove the historical state of some storage slot inside a smart contract.
 - **Attested Images**: Given a signed image, prove that you made a restricted set of image transformations.
@@ -17,11 +18,10 @@ let b = sp1_zkvm::io::read::<u64>();
 let c = sp1_zkvm::io::read::<String>();
 ```
 
-Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` trait. If you want to read bytes directly, you can also use the `sp1_zkvm::io::read_slice` method.
+Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` trait. If you want to read bytes directly, you can also use the `sp1_zkvm::io::read_vec` method.
 
 ```rust,noplayground
-let mut my_slice = [0_u8; 32];
-sp1_zkvm::io::read_slice(&mut my_slice);
+let my_vec = sp1_zkvm::io::read_vec();
 ```
 
 ## Writing Data
@@ -34,7 +34,7 @@ sp1_zkvm::io::write::<u64>(&b);
 sp1_zkvm::io::write::<String>(&c);
 ```
 
-Note that `T` must implement the `Serialize` and `Deserialize` trait.  If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice` method:
+Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice` method:
 
 ```rust,noplayground
 let mut my_slice = [0_u8; 32];
@@ -44,6 +44,7 @@ sp1_zkvm::io::write_slice(&my_slice);
 ## Creating Serializable Types
 
 Typically, you can implement the `Serialize` and `Deserialize` traits using a simple derive macro on a struct.
+
 ```rust,noplayground
 use serde::{Serialize, de::Deserialize};
 

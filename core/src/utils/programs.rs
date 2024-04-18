@@ -52,6 +52,9 @@ pub mod tests {
     pub const KECCAK_PERMUTE_ELF: &[u8] =
         include_bytes!("../../../tests/keccak-permute/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const KECCAK256_ELF: &[u8] =
+        include_bytes!("../../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
+
     pub const SECP256K1_ADD_ELF: &[u8] =
         include_bytes!("../../../tests/secp256k1-add/elf/riscv32im-succinct-zkvm-elf");
 
@@ -69,4 +72,28 @@ pub mod tests {
 
     pub const SHA2_ELF: &[u8] =
         include_bytes!("../../../tests/sha2/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_ADD_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-add/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_DOUBLE_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-double/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BN254_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/bn254-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SECP256K1_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/secp256k1-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const UINT256_MUL: &[u8] =
+        include_bytes!("../../../tests/uint256-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const UINT256_DIV: &[u8] =
+        include_bytes!("../../../tests/uint256-div/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const BLS12381_DECOMPRESS_ELF: &[u8] =
+        include_bytes!("../../../tests/bls12381-decompress/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const VERIFY_PROOF_ELF: &[u8] =
+        include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
 }

@@ -1,9 +1,12 @@
 [workspace]
 [package]
 version = "0.1.0"
-name = "regex-script"
+name = "rsa-script"
 edition = "2021"
 
 [dependencies]
-sp1-core = { path = "../../../core" }
 rsa = "0.6"
+sp1-sdk = { path = "../../../sdk" }
+
+[build-dependencies]
+sp1-helper = { path = "../../../helper" }
