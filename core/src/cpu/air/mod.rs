@@ -274,7 +274,7 @@ impl CpuChip {
 
         // When is_sequential_instr is true, assert that instruction is not branch, jump, or halt.
         // Note that the condition `when(local_is_real)` is implied from the previous constraint.
-        let is_halt = self.is_halt_syscall::<AB>(builder, local);
+        let is_halt = self.get_is_halt_syscall::<AB>(builder, local);
         builder.when(local.is_sequential_instr).assert_zero(
             is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
         );

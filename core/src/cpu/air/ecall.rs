@@ -168,7 +168,7 @@ impl CpuChip {
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
     ) {
-        let is_halt = self.is_halt_syscall(builder, local);
+        let is_halt = self.get_is_halt_syscall(builder, local);
 
         // If we're halting and it's a transition, then the next.is_real should be 0.
         builder
@@ -179,7 +179,8 @@ impl CpuChip {
         builder.when(is_halt.clone()).assert_zero(local.next_pc);
     }
 
-    pub(crate) fn is_halt_syscall<AB: SP1AirBuilder>(
+    /// Returns a boolean expression indicating whether the instruction is a HALT instruction.
+    pub(crate) fn get_is_halt_syscall<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -206,7 +207,8 @@ impl CpuChip {
         is_halt * is_ecall_instruction
     }
 
-    pub(crate) fn is_commit_related_syscall<AB: SP1AirBuilder>(
+    /// Returns two boolean expression indicating whether the instruction is a COMMIT or COMMIT_DEFERRED_PROOFS instruction.
+    pub(crate) fn get_is_commit_related_syscall<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -248,6 +250,7 @@ impl CpuChip {
         (is_commit.into(), is_commit_deferred_proofs.into())
     }
 
+    /// Returns the number of extra cycles from an ECALL instruction.
     pub(crate) fn get_num_extra_ecall_cycles<AB: SP1AirBuilder>(
         &self,
         local: &CpuCols<AB::Var>,
