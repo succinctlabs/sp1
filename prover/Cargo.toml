@@ -11,7 +11,6 @@ sp1-recursion-circuit = { path = "../recursion/circuit" }
 sp1-recursion-compiler = { path = "../recursion/compiler" }
 sp1-recursion-core = { path = "../recursion/core" }
 sp1-core = { path = "../core" }
-sp1-sdk = { path = "../sdk" }
 p3-field = { workspace = true }
 p3-challenger = { workspace = true }
 p3-baby-bear = { workspace = true }

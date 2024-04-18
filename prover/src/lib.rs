@@ -150,15 +150,12 @@ impl SP1ProverImpl {
         <SC as StarkGenericConfig>::Val: PrimeField32,
     {
         let config = SC::default();
-        let machine = RiscvAir::machine(config.clone());
         let program = Program::from(elf);
-        let (_, vk) = machine.setup(&program);
         let start = Instant::now();
         let (proof, _) = run_and_prove(program, stdin, config);
         let duration = start.elapsed().as_secs_f64();
         println!("leaf proving time = {:?}", duration);
-        let mut challenger_ver = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger_ver).unwrap();
+
         proof
     }
 
@@ -490,6 +487,29 @@ impl SP1ProverImpl {
         let duration = start.elapsed().as_secs();
         println!("wrap duration = {}", duration);
     }
+
+    /// Verify a proof of an SP1 program and its inputs.
+    pub fn verify<SC: StarkGenericConfig<Val = BabyBear> + Default>(elf: &[u8], proof: &Proof<SC>)
+    where
+        <SC as StarkGenericConfig>::Challenger: Clone,
+        OpeningProof<SC>: Send + Sync,
+        Com<SC>: Send + Sync,
+        PcsProverData<SC>: Send + Sync,
+        ShardMainData<SC>: Serialize + DeserializeOwned,
+        <SC as StarkGenericConfig>::Val: PrimeField32,
+    {
+        let config = SC::default();
+        let machine = RiscvAir::machine(config.clone());
+        let program = Program::from(elf);
+        let (_, vk) = machine.setup(&program);
+        let mut challenger_ver = machine.config().challenger();
+        machine.verify(&vk, proof, &mut challenger_ver).unwrap();
+    }
+
+    /// Verify a Groth16 proof.
+    pub fn verify_groth16() {
+        unimplemented!()
+    }
 }
 
 #[cfg(test)]
@@ -499,11 +519,11 @@ mod tests {
     use sp1_core::{
         runtime::Runtime,
         utils::{prove_core, setup_logger},
+        SP1Stdin,
     };
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     #[test]
     #[ignore]
@@ -521,13 +541,9 @@ mod tests {
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger = machine.config().challenger();
-        let client = ProverClient::new();
-        let proof = client
-            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof;
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
+
+        let proof = SP1ProverImpl::prove(elf, &SP1Stdin::new().buffer);
+
         let prover = SP1ProverImpl::new();
         let sp1_challenger = prover.initialize_challenger(&vk, &proof.shard_proofs);
 

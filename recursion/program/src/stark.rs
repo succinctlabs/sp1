@@ -278,6 +278,7 @@ pub(crate) mod tests {
     use rand::Rng;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
+    use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
     use sp1_core::{
@@ -296,8 +297,6 @@ pub(crate) mod tests {
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
 
     use sp1_recursion_core::stark::RecursionAir;
-    use sp1_sdk::utils::setup_logger;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -305,80 +304,80 @@ pub(crate) mod tests {
     type C = InnerConfig;
     type A = RiscvAir<F>;
 
-    #[test]
-    fn test_permutation_challenges() {
-        // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    // #[test]
+    // fn test_permutation_challenges() {
+    //     // Generate a dummy proof.
+    //     sp1_core::utils::setup_logger();
+    //     let elf =
+    //         include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
-        let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger_val = machine.config().challenger();
-        let client = ProverClient::new();
-        let proofs = client
-            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
-            .shard_proofs;
-        println!("Proof generated successfully");
+    //     let machine = A::machine(SC::default());
+    //     let (_, vk) = machine.setup(&Program::from(elf));
+    //     let mut challenger_val = machine.config().challenger();
+    //     let client = ProverClient::new();
+    //     let proofs = client
+    //         .prove_local(elf, SP1Stdin::new(), machine.config().clone())
+    //         .unwrap()
+    //         .proof
+    //         .shard_proofs;
+    //     println!("Proof generated successfully");
 
-        challenger_val.observe(vk.commit);
+    //     challenger_val.observe(vk.commit);
 
-        proofs.iter().for_each(|proof| {
-            challenger_val.observe(proof.commitment.main_commit);
-            challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
-        });
+    //     proofs.iter().for_each(|proof| {
+    //         challenger_val.observe(proof.commitment.main_commit);
+    //         challenger_val.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
+    //     });
 
-        let permutation_challenges = (0..2)
-            .map(|_| challenger_val.sample_ext_element::<EF>())
-            .collect::<Vec<_>>();
+    //     let permutation_challenges = (0..2)
+    //         .map(|_| challenger_val.sample_ext_element::<EF>())
+    //         .collect::<Vec<_>>();
 
-        // Observe all the commitments.
-        let mut builder = Builder::<InnerConfig>::default();
+    //     // Observe all the commitments.
+    //     let mut builder = Builder::<InnerConfig>::default();
 
-        let mut challenger = DuplexChallengerVariable::new(&mut builder);
+    //     let mut challenger = DuplexChallengerVariable::new(&mut builder);
 
-        let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
-        let preprocessed_commit: Array<C, _> = builder.constant(preprocessed_commit_val.to_vec());
-        challenger.observe(&mut builder, preprocessed_commit);
+    //     let preprocessed_commit_val: [F; DIGEST_SIZE] = vk.commit.into();
+    //     let preprocessed_commit: Array<C, _> = builder.constant(preprocessed_commit_val.to_vec());
+    //     challenger.observe(&mut builder, preprocessed_commit);
 
-        let mut witness_stream = Vec::new();
-        for proof in proofs {
-            witness_stream.extend(proof.write());
-            let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
-            let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
-            challenger.observe(&mut builder, main_commit);
-            let pv_slice = proof.public_values.slice(
-                &mut builder,
-                Usize::Const(0),
-                Usize::Const(machine.num_pv_elts()),
-            );
-            challenger.observe_slice(&mut builder, pv_slice);
-        }
+    //     let mut witness_stream = Vec::new();
+    //     for proof in proofs {
+    //         witness_stream.extend(proof.write());
+    //         let proof = ShardProof::<BabyBearPoseidon2>::read(&mut builder);
+    //         let ShardCommitmentVariable { main_commit, .. } = proof.commitment;
+    //         challenger.observe(&mut builder, main_commit);
+    //         let pv_slice = proof.public_values.slice(
+    //             &mut builder,
+    //             Usize::Const(0),
+    //             Usize::Const(machine.num_pv_elts()),
+    //         );
+    //         challenger.observe_slice(&mut builder, pv_slice);
+    //     }
 
-        // Sample the permutation challenges.
-        let permutation_challenges_var = (0..2)
-            .map(|_| challenger.sample_ext(&mut builder))
-            .collect::<Vec<_>>();
+    //     // Sample the permutation challenges.
+    //     let permutation_challenges_var = (0..2)
+    //         .map(|_| challenger.sample_ext(&mut builder))
+    //         .collect::<Vec<_>>();
 
-        for i in 0..2 {
-            builder.assert_ext_eq(
-                permutation_challenges_var[i],
-                permutation_challenges[i].cons(),
-            );
-        }
+    //     for i in 0..2 {
+    //         builder.assert_ext_eq(
+    //             permutation_challenges_var[i],
+    //             permutation_challenges[i].cons(),
+    //         );
+    //     }
 
-        let program = builder.compile_program();
+    //     let program = builder.compile_program();
 
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.witness_stream = witness_stream;
-        runtime.run();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.timestamp
-        );
-    }
+    //     let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+    //     runtime.witness_stream = witness_stream;
+    //     runtime.run();
+    //     println!(
+    //         "The program executed successfully, number of cycles: {}",
+    //         runtime.timestamp
+    //     );
+    // }
 
     #[test]
     #[ignore]

@@ -3,11 +3,10 @@
 use sp1_core::{
     runtime::Program,
     stark::{Proof, RiscvAir},
-    utils::BabyBearPoseidon2,
+    utils::{setup_logger, BabyBearPoseidon2},
 };
 use sp1_prover::SP1ProverImpl;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
-use sp1_sdk::utils::setup_logger;
 
 pub fn main() {
     setup_logger();
@@ -21,6 +20,9 @@ pub fn main() {
     let (_, sp1_vk) = sp1_machine.setup(&program);
     let core_proof: Proof<BabyBearPoseidon2> = tracing::info_span!("sp1 proof")
         .in_scope(|| SP1ProverImpl::prove(elf, &[bincode::serialize::<u32>(&4).unwrap()]));
+    // Verify the core proof.
+    SP1ProverImpl::verify(elf, &core_proof);
+
     let sp1_challenger = prover.initialize_challenger(&sp1_vk, &core_proof.shard_proofs);
 
     let inner_reduce_proof = tracing::info_span!("inner reduce proof")

@@ -32,7 +32,6 @@ use sp1_core::stark::{Com, DeferredDigest, PcsProverData, RiscvAir};
 use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
-use sp1_core::utils::run_and_prove;
 use std::env;
 use std::fs;
 use std::time::Duration;

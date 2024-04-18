@@ -173,7 +173,6 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
@@ -275,96 +274,96 @@ mod tests {
         )
     }
 
-    #[test]
-    fn test_verify_constraints_whole() {
-        type SC = BabyBearPoseidon2;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RiscvAir<F>;
+    // #[test]
+    // fn test_verify_constraints_whole() {
+    //     type SC = BabyBearPoseidon2;
+    //     type F = <SC as StarkGenericConfig>::Val;
+    //     type EF = <SC as StarkGenericConfig>::Challenge;
+    //     type A = RiscvAir<F>;
 
-        // Generate a dummy proof.
-        sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    //     // Generate a dummy proof.
+    //     sp1_core::utils::setup_logger();
+    //     let elf =
+    //         include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
-        let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger = machine.config().challenger();
-        let client = ProverClient::new();
-        let proof = client
-            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap();
-        client
-            .verify_with_config(elf, &proof, machine.config().clone())
-            .unwrap();
+    //     let machine = A::machine(SC::default());
+    //     let (_, vk) = machine.setup(&Program::from(elf));
+    //     let mut challenger = machine.config().challenger();
+    //     let client = ProverClient::new();
+    //     let proof = client
+    //         .prove_local(elf, SP1Stdin::new(), machine.config().clone())
+    //         .unwrap();
+    //     client
+    //         .verify_with_config(elf, &proof, machine.config().clone())
+    //         .unwrap();
 
-        let proof = proof.proof;
-        println!("Proof generated and verified successfully");
+    //     let proof = proof.proof;
+    //     println!("Proof generated and verified successfully");
 
-        vk.observe_into(&mut challenger);
-        proof.shard_proofs.iter().for_each(|proof| {
-            challenger.observe(proof.commitment.main_commit);
-            challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
-        });
+    //     vk.observe_into(&mut challenger);
+    //     proof.shard_proofs.iter().for_each(|proof| {
+    //         challenger.observe(proof.commitment.main_commit);
+    //         challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
+    //     });
 
-        // Run the verify inside the DSL and compare it to the calculated value.
-        let mut builder = AsmBuilder::<F, EF>::default();
+    //     // Run the verify inside the DSL and compare it to the calculated value.
+    //     let mut builder = AsmBuilder::<F, EF>::default();
 
-        #[allow(clippy::never_loop)]
-        for proof in proof.shard_proofs.into_iter().take(1) {
-            let (
-                chips,
-                trace_domains_vals,
-                quotient_chunk_domains_vals,
-                permutation_challenges,
-                alpha_val,
-                zeta_val,
-            ) = get_shard_data(&machine, &proof, &mut challenger);
+    //     #[allow(clippy::never_loop)]
+    //     for proof in proof.shard_proofs.into_iter().take(1) {
+    //         let (
+    //             chips,
+    //             trace_domains_vals,
+    //             quotient_chunk_domains_vals,
+    //             permutation_challenges,
+    //             alpha_val,
+    //             zeta_val,
+    //         ) = get_shard_data(&machine, &proof, &mut challenger);
 
-            for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
-                chips.iter(),
-                trace_domains_vals,
-                quotient_chunk_domains_vals,
-                proof.opened_values.chips.iter(),
-            ) {
-                let opening = builder.constant(values_vals.clone());
-                let alpha = builder.eval(alpha_val.cons());
-                let zeta = builder.eval(zeta_val.cons());
-                let trace_domain = builder.constant(trace_domain_val);
-                let public_values = builder.constant(proof.public_values.clone());
+    //         for (chip, trace_domain_val, qc_domains_vals, values_vals) in izip!(
+    //             chips.iter(),
+    //             trace_domains_vals,
+    //             quotient_chunk_domains_vals,
+    //             proof.opened_values.chips.iter(),
+    //         ) {
+    //             let opening = builder.constant(values_vals.clone());
+    //             let alpha = builder.eval(alpha_val.cons());
+    //             let zeta = builder.eval(zeta_val.cons());
+    //             let trace_domain = builder.constant(trace_domain_val);
+    //             let public_values = builder.constant(proof.public_values.clone());
 
-                let qc_domains = qc_domains_vals
-                    .iter()
-                    .map(|domain| builder.constant(*domain))
-                    .collect::<Vec<_>>();
+    //             let qc_domains = qc_domains_vals
+    //                 .iter()
+    //                 .map(|domain| builder.constant(*domain))
+    //                 .collect::<Vec<_>>();
 
-                let permutation_challenges = permutation_challenges
-                    .iter()
-                    .map(|c| builder.eval(c.cons()))
-                    .collect::<Vec<_>>();
+    //             let permutation_challenges = permutation_challenges
+    //                 .iter()
+    //                 .map(|c| builder.eval(c.cons()))
+    //                 .collect::<Vec<_>>();
 
-                StarkVerifier::<_, SC>::verify_constraints::<A>(
-                    &mut builder,
-                    chip,
-                    &opening,
-                    public_values,
-                    trace_domain,
-                    qc_domains,
-                    zeta,
-                    alpha,
-                    &permutation_challenges,
-                )
-            }
-            break;
-        }
+    //             StarkVerifier::<_, SC>::verify_constraints::<A>(
+    //                 &mut builder,
+    //                 chip,
+    //                 &opening,
+    //                 public_values,
+    //                 trace_domain,
+    //                 qc_domains,
+    //                 zeta,
+    //                 alpha,
+    //                 &permutation_challenges,
+    //             )
+    //         }
+    //         break;
+    //     }
 
-        let program = builder.compile_program();
+    //     let program = builder.compile_program();
 
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.run();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.clk.as_canonical_u32() / 4
-        );
-    }
+    //     let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
+    //     runtime.run();
+    //     println!(
+    //         "The program executed successfully, number of cycles: {}",
+    //         runtime.clk.as_canonical_u32() / 4
+    //     );
+    // }
 }

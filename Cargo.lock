@@ -4453,7 +4453,6 @@ dependencies = [
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-program",
- "sp1-sdk",
  "tracing",
 ]
 
@@ -4578,7 +4577,6 @@ dependencies = [
  "sp1-core",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
- "sp1-sdk",
 ]
 
 [[package]]
@@ -4605,7 +4603,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
- "sp1-core",
+ "sp1-prover",
  "tokio",
  "tracing",
  "twirp",

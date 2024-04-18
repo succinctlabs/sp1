@@ -6,7 +6,6 @@ use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
 use serde::{de::DeserializeOwned, Serialize};
-use sp1_core::stark::StarkGenericConfig;
 use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
 
