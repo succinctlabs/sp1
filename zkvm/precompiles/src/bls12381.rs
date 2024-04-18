@@ -29,7 +29,6 @@ impl CurveOperations<NUM_WORDS> for Bls12381 {
     }
 }
 
-use crate::syscall_bls12381_decompress;
 use amcl::bls381::bls381::utils::deserialize_g1;
 use anyhow::Result;
 
