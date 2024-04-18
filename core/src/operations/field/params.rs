@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 use std::ops::{Index, IndexMut};
 use std::slice::Iter;
-use std::usize;
 
 use generic_array::{ArrayLength, GenericArray};
 

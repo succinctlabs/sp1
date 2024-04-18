@@ -54,10 +54,10 @@ impl<C: Config> Builder<C> {
     }
 
     /// Exponentializes a variable to an array of bits in little endian.
-    pub fn exp_bits<V: Variable<C>>(&mut self, x: V, power_bits: &Array<C, Var<C::N>>) -> V
+    pub fn exp_bits<V>(&mut self, x: V, power_bits: &Array<C, Var<C::N>>) -> V
     where
         V::Expression: AbstractField,
-        V: Copy + Mul<Output = V::Expression>,
+        V: Copy + Mul<Output = V::Expression> + Variable<C>,
     {
         let result = self.eval(V::Expression::one());
         let power_f: V = self.eval(x);
@@ -104,7 +104,7 @@ impl<C: Config> Builder<C> {
     /// Exponetiates a varibale to a list of reversed bits with a given length.
     ///
     /// Reference: [p3_util::reverse_bits_len]
-    pub fn exp_reverse_bits_len<V: Variable<C>>(
+    pub fn exp_reverse_bits_len<V>(
         &mut self,
         x: V,
         power_bits: &Array<C, Var<C::N>>,
@@ -112,7 +112,7 @@ impl<C: Config> Builder<C> {
     ) -> V
     where
         V::Expression: AbstractField,
-        V: Copy + Mul<Output = V::Expression>,
+        V: Copy + Mul<Output = V::Expression> + Variable<C>,
     {
         let result = self.eval(V::Expression::one());
         let power_f: V = self.eval(x);
@@ -155,13 +155,13 @@ impl<C: Config> Builder<C> {
     }
 
     /// Exponentiates a variable to a list of bits in little endian insid a circuit.
-    pub fn exp_power_of_2_v_circuit<V: Variable<C>>(
+    pub fn exp_power_of_2_v_circuit<V>(
         &mut self,
         base: impl Into<V::Expression>,
         power_log: usize,
     ) -> V
     where
-        V: Copy + Mul<Output = V::Expression>,
+        V: Copy + Mul<Output = V::Expression> + Variable<C>,
     {
         let mut result: V = self.eval(base);
         for _ in 0..power_log {
