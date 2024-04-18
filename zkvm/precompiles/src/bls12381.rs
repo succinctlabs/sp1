@@ -1,5 +1,9 @@
+#![allow(unused_imports)]
 use crate::utils::CurveOperations;
-use crate::{syscall_bls12381_add, syscall_bls12381_double};
+use crate::{syscall_bls12381_add, syscall_bls12381_decompress, syscall_bls12381_double};
+
+use amcl::bls381::bls381::utils::deserialize_g1;
+use anyhow::Result;
 
 #[derive(Copy, Clone)]
 pub struct Bls12381;
@@ -28,9 +32,6 @@ impl CurveOperations<NUM_WORDS> for Bls12381 {
         }
     }
 }
-
-use amcl::bls381::bls381::utils::deserialize_g1;
-use anyhow::Result;
 
 /// Decompresses a compressed public key using bls12381_decompress precompile.
 pub fn decompress_pubkey(compressed_key: &[u8; 48]) -> Result<[u8; 96]> {
