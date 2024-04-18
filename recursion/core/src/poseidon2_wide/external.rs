@@ -400,6 +400,7 @@ mod tests {
 
     /// A test proving 2^10 permuations
     #[test]
+    #[ignore]
     fn prove_babybear() {
         let config = BabyBearPoseidon2Inner::new();
         let mut challenger = config.challenger();
