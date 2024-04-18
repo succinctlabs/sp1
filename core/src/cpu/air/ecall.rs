@@ -92,7 +92,8 @@ impl CpuChip {
         commit_digest: [Word<AB::Expr>; PV_DIGEST_NUM_WORDS],
         deferred_proofs_digest: [Word<AB::Expr>; POSEIDON_NUM_WORDS],
     ) {
-        let (is_commit, is_commit_deferred_proofs) = self.is_commit_related_syscall(builder, local);
+        let (is_commit, is_commit_deferred_proofs) =
+            self.get_is_commit_related_syscall(builder, local);
 
         // Get the ecall specific columns.
         let ecall_columns = local.opcode_specific_columns.ecall();
