@@ -210,16 +210,15 @@ mod test {
         lookup::InteractionKind,
         runtime::{Program, Runtime, ShardingConfig},
         stark::RiscvAir,
-        utils::{setup_logger, tests::FIBONACCI_ELF, BabyBearPoseidon2},
+        utils::{setup_logger, tests::UINT256_MUL, BabyBearPoseidon2},
     };
 
     use super::debug_interactions_with_all_chips;
 
     #[test]
-    #[ignore]
     fn test_debug_interactions() {
         setup_logger();
-        let program = Program::from(FIBONACCI_ELF);
+        let program = Program::from(UINT256_MUL);
         let config = BabyBearPoseidon2::new();
         let machine = RiscvAir::machine(config);
         let (pk, _) = machine.setup(&program);
