@@ -16,18 +16,9 @@ fn get_docker_image() -> String {
 
 #[derive(Parser)]
 pub(crate) struct BuildArgs {
-    #[clap(
-        long,
-        action,
-        help = "Use docker for reproducible builds.",
-        env = "SP1_DOCKER"
-    )]
+    #[clap(long, action, help = "Ignore Rust version check.")]
     pub(crate) docker: bool,
-    #[clap(
-        long,
-        action,
-        help = "Ignore Rust version check.",
-    )]
+    #[clap(long, action, help = "Ignore Rust version check.")]
     pub(crate) ignore_rust_version: bool,
 }
 
