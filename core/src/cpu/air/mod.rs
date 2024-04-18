@@ -68,7 +68,7 @@ where
         self.eval_memory_load::<AB>(builder, local, shard.clone());
         self.eval_memory_store::<AB>(builder, local);
 
-        // ALU instruction.
+        // ALU instructions.
         builder.send_alu(
             local.instruction.opcode,
             local.op_a_val(),
@@ -79,7 +79,7 @@ where
         );
 
         // Branch instructions.
-        self.branch_ops_eval::<AB>(
+        self.eval_branch_ops::<AB>(
             builder,
             is_branch_instruction.clone(),
             local,
@@ -88,45 +88,36 @@ where
         );
 
         // Jump instructions.
-        self.jump_ops_eval::<AB>(builder, local, next, shard.clone());
+        self.eval_jump_ops::<AB>(builder, local, next, shard.clone());
 
         // AUIPC instruction.
-        self.auipc_eval(builder, local, shard.clone());
+        self.eval_auipc(builder, local, shard.clone());
 
         // ECALL instruction.
-        let (num_cycles, is_halt, is_commit, is_commit_deferred_proofs) =
-            self.ecall_eval(builder, local, shard.clone());
+        self.eval_ecall(builder, local, shard.clone());
 
         // COMMIT/COMMIT_DEFERRED_PROOFS ecall instruction.
-        self.commit_eval(
+        self.eval_commit(
             builder,
             local,
-            is_commit,
-            is_commit_deferred_proofs,
             public_values.committed_value_digest.clone(),
             public_values.deferred_proofs_digest.clone(),
         );
 
         // HALT ecall and UNIMPL instruction.
-        self.halt_unimpl_eval(builder, local, next, is_halt.clone());
+        self.eval_halt_unimpl(builder, local, next);
 
-        // Check that the clk is updated correctly.
-        self.clk_eval(builder, local, next, shard, num_cycles);
+        // Check that the shard and clk is updated correctly.
+        self.eval_shard_clk(builder, local, next, shard);
 
         // Check that the pc is updated correctly.
-        self.pc_eval(
-            builder,
-            local,
-            next,
-            is_branch_instruction.clone(),
-            is_halt.clone(),
-        );
+        self.eval_pc(builder, local, next, is_branch_instruction.clone());
 
         // Check public values constraints.
-        self.public_values_eval(builder, local, next, &public_values);
+        self.eval_public_values(builder, local, next, &public_values);
 
         // Check that the is_real flag is correct.
-        self.is_real_eval(builder, local, next);
+        self.eval_is_real(builder, local, next);
     }
 }
 
@@ -140,7 +131,7 @@ impl CpuChip {
     }
 
     /// Constraints related to jump operations.
-    pub(crate) fn jump_ops_eval<AB: SP1AirBuilder>(
+    pub(crate) fn eval_jump_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -204,7 +195,7 @@ impl CpuChip {
     }
 
     /// Constraints related to the AUIPC opcode.
-    pub(crate) fn auipc_eval<AB: SP1AirBuilder>(
+    pub(crate) fn eval_auipc<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -235,20 +226,21 @@ impl CpuChip {
     /// and is transitioned apporpriately.  It will also check that shard values are within 16 bits
     /// and clk values are within 24 bits.  Those range checks are needed for the memory access
     /// timestamp check, which assumes those values are within 2^24.  See [`MemoryAirBuilder::verify_mem_access_ts`].
-    pub(crate) fn clk_eval<AB: SP1AirBuilder>(
+    pub(crate) fn eval_clk<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         shard: AB::Expr,
-        num_cycles: AB::Expr,
     ) {
         // Verify that the first row has a clk value of 0.
         builder.when_first_row().assert_zero(local.clk);
 
         // Verify that the clk increments are correct.  Most clk increment should be 4, but for some
         // precompiles, there are additional cycles.
-        let expected_next_clk = local.clk + AB::Expr::from_canonical_u32(4) + num_cycles.clone();
+        let num_extra_cycles = self.get_num_extra_ecall_cycles::<AB>(local);
+        let expected_next_clk =
+            local.clk + AB::Expr::from_canonical_u32(4) + num_extra_cycles.clone();
 
         builder
             .when_transition()
@@ -269,13 +261,12 @@ impl CpuChip {
     ///
     /// The function will verify that the pc increments by 4 for all instructions except branch, jump
     /// and halt instructions. Also, it ensures that the pc is carried down to the last row for non-real rows.
-    pub(crate) fn pc_eval<AB: SP1AirBuilder>(
+    pub(crate) fn eval_pc<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         next: &CpuCols<AB::Var>,
         is_branch_instruction: AB::Expr,
-        is_halt: AB::Expr,
     ) {
         // Verify that if is_sequential_instr is true, assert that local.is_real is true.
         // This is needed for the following constraint, which is already degree 3.
@@ -285,6 +276,7 @@ impl CpuChip {
 
         // When is_sequential_instr is true, assert that instruction is not branch, jump, or halt.
         // Note that the condition `when(local_is_real)` is implied from the previous constraint.
+        let is_halt = self.get_is_halt_syscall::<AB>(builder, local);
         builder.when(local.is_sequential_instr).assert_zero(
             is_branch_instruction + local.selectors.is_jal + local.selectors.is_jalr + is_halt,
         );
@@ -305,7 +297,7 @@ impl CpuChip {
     }
 
     /// Constraints related to the public values.
-    pub(crate) fn public_values_eval<AB: SP1AirBuilder>(
+    pub(crate) fn eval_public_values<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
@@ -338,7 +330,7 @@ impl CpuChip {
     ///
     /// This method checks that the is_real column is a boolean.  It also checks that the first row
     /// is 1 and once its 0, it never changes value.
-    pub(crate) fn is_real_eval<AB: SP1AirBuilder>(
+    pub(crate) fn eval_is_real<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
