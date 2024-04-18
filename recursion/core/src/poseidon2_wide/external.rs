@@ -226,7 +226,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
         r + NUM_INTERNAL_ROUNDS
     };
     let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-        round_cols.state[i].into() + AB::Expr::from_canonical_u32(RC_16_30_U32[round][i])
+        round_cols.state[i].into() + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][i])
     });
 
     // Apply the sboxes.
