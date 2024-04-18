@@ -101,6 +101,12 @@ impl SP1PublicValues {
     }
 }
 
+impl AsRef<[u8]> for SP1PublicValues {
+    fn as_ref(&self) -> &[u8] {
+        &self.buffer.data
+    }
+}
+
 pub mod proof_serde {
     use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 

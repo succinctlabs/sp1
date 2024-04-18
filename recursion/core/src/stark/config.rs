@@ -142,3 +142,17 @@ impl StarkGenericConfig for BabyBearPoseidon2Outer {
         OuterChallenger::new(self.perm.clone()).unwrap()
     }
 }
+
+/// The FRI config for testing recursion.
+pub fn test_fri_config() -> FriConfig<OuterChallengeMmcs> {
+    let perm = outer_perm();
+    let hash = OuterHash::new(perm.clone()).unwrap();
+    let compress = OuterCompress::new(perm.clone());
+    let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
+    FriConfig {
+        log_blowup: 1,
+        num_queries: 1,
+        proof_of_work_bits: 1,
+        mmcs: challenge_mmcs,
+    }
+}

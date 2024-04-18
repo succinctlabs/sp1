@@ -18,9 +18,10 @@ use crate::runtime::MemoryRecordEnum;
 use crate::stark::MachineRecord;
 use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
-use crate::syscall::precompiles::k256::K256DecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
+use crate::syscall::precompiles::uint256::Uint256MulEvent;
+use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
 use crate::utils::env;
 
@@ -83,15 +84,21 @@ pub struct ExecutionRecord {
 
     pub bn254_double_events: Vec<ECDoubleEvent>,
 
-    pub k256_decompress_events: Vec<K256DecompressEvent>,
+    pub k256_decompress_events: Vec<ECDecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
+
+    pub bls12381_add_events: Vec<ECAddEvent>,
+
+    pub bls12381_double_events: Vec<ECDoubleEvent>,
+
+    pub uint256_mul_events: Vec<Uint256MulEvent>,
 
     pub memory_initialize_events: Vec<MemoryInitializeFinalizeEvent>,
 
     pub memory_finalize_events: Vec<MemoryInitializeFinalizeEvent>,
 
-    pub program_memory_events: Vec<MemoryInitializeFinalizeEvent>,
+    pub bls12381_decompress_events: Vec<ECDecompressEvent>,
 
     /// The public values.
     pub public_values: PublicValues<u32, u32>,
@@ -113,6 +120,9 @@ pub struct ShardingConfig {
     pub secp256k1_double_len: usize,
     pub bn254_add_len: usize,
     pub bn254_double_len: usize,
+    pub bls12381_add_len: usize,
+    pub bls12381_double_len: usize,
+    pub uint256_mul_len: usize,
 }
 
 impl ShardingConfig {
@@ -140,6 +150,9 @@ impl Default for ShardingConfig {
             secp256k1_double_len: shard_size,
             bn254_add_len: shard_size,
             bn254_double_len: shard_size,
+            bls12381_add_len: shard_size,
+            bls12381_double_len: shard_size,
+            uint256_mul_len: shard_size,
         }
     }
 }
@@ -210,6 +223,23 @@ impl MachineRecord for ExecutionRecord {
             "blake3_compress_inner_events".to_string(),
             self.blake3_compress_inner_events.len(),
         );
+        stats.insert(
+            "bls12381_add_events".to_string(),
+            self.bls12381_add_events.len(),
+        );
+        stats.insert(
+            "bls12381_double_events".to_string(),
+            self.bls12381_double_events.len(),
+        );
+        stats.insert(
+            "uint256_mul_events".to_string(),
+            self.uint256_mul_events.len(),
+        );
+
+        stats.insert(
+            "bls12381_decompress_events".to_string(),
+            self.bls12381_decompress_events.len(),
+        );
         stats
     }
 
@@ -243,6 +273,14 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.k256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
+        self.bls12381_add_events
+            .append(&mut other.bls12381_add_events);
+        self.bls12381_double_events
+            .append(&mut other.bls12381_double_events);
+        self.uint256_mul_events
+            .append(&mut other.uint256_mul_events);
+        self.bls12381_decompress_events
+            .append(&mut other.bls12381_decompress_events);
 
         // Merge the byte lookups.
         for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
@@ -264,8 +302,6 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.memory_initialize_events);
         self.memory_finalize_events
             .append(&mut other.memory_finalize_events);
-        self.program_memory_events
-            .append(&mut other.program_memory_events);
     }
 
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
@@ -438,6 +474,26 @@ impl MachineRecord for ExecutionRecord {
                 .extend_from_slice(bn254_double_chunk);
         }
 
+        // BLS12-381 curve add events.
+        for (bls12381_add_chunk, shard) in take(&mut self.bls12381_add_events)
+            .chunks_mut(config.bls12381_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bls12381_add_events
+                .extend_from_slice(bls12381_add_chunk);
+        }
+
+        // BLS12-381 curve double events.
+        for (bls12381_double_chunk, shard) in take(&mut self.bls12381_double_events)
+            .chunks_mut(config.bls12381_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bls12381_double_events
+                .extend_from_slice(bls12381_double_chunk);
+        }
+
         // Put the precompile events in the first shard.
         let first = shards.first_mut().unwrap();
 
@@ -459,6 +515,12 @@ impl MachineRecord for ExecutionRecord {
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
 
+        // Uint256 mul arithmetic events.
+        first.uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
+
+        // Bls12-381 decompress events .
+        first.bls12381_decompress_events = std::mem::take(&mut self.bls12381_decompress_events);
+
         // Put the memory records in the last shard.
         let last_shard = shards.last_mut().unwrap();
 
@@ -468,9 +530,6 @@ impl MachineRecord for ExecutionRecord {
         last_shard
             .memory_finalize_events
             .extend_from_slice(&self.memory_finalize_events);
-        last_shard
-            .program_memory_events
-            .extend_from_slice(&self.program_memory_events);
 
         shards
     }

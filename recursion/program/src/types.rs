@@ -24,6 +24,7 @@ pub struct ShardProofVariable<C: Config> {
 #[derive(DslVariable, Clone)]
 pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
+    pub pc_start: Felt<C::F>,
 }
 
 #[derive(DslVariable, Clone)]
