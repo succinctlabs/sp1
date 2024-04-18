@@ -38,7 +38,7 @@ pub struct Poseidon2WideCols<T> {
     internal_rounds: Poseidon2WideInternalRoundsCols<T>,
 }
 
-// Columns required for external rounds
+/// A grouping of columns for a single external round.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 struct Poseidon2WideExternalRoundCols<T> {
@@ -46,22 +46,18 @@ struct Poseidon2WideExternalRoundCols<T> {
     sbox_deg_3: [T; WIDTH],
 }
 
-// Columns required for a chunk of 3 internal rounds
+/// A grouping of columns for all of the internal rounds.
+/// As an optimization, we can represent all of the internal rounds without columns for intermediate
+/// states except for the 0th element. This is because the linear layer that comes after the sbox is
+/// degree 1, so all state elements at the end can be expressed as a degree-3 polynomial of:
+/// 1) the 0th state element at rounds prior to the current round
+/// 2) the rest of the state elements at the beginning of the internal rounds
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 struct Poseidon2WideInternalRoundsCols<T> {
     state: [T; WIDTH],
     s0: [T; NUM_INTERNAL_ROUNDS - 1],
     sbox_deg_3: [T; NUM_INTERNAL_ROUNDS],
-}
-
-// Columns required for internal rounds
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-struct Poseidon2WideLastInternalRoundCols<T> {
-    state: [T; WIDTH],
-    sbox_deg_3: T,
-    sbox_deg_7: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
@@ -87,12 +83,12 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
 
             cols.input = event.input;
 
-            // apply initial round
+            // Apply the initial round.
             external_linear_layer(&cols.input, &mut cols.external_rounds[0].state);
 
-            // apply first half of external rounds
+            // Apply the first half of external rounds.
             for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-                let next_state = Self::generate_external_round(cols, r);
+                let next_state = populate_external_round(cols, r);
 
                 if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
                     cols.internal_rounds.state = next_state;
@@ -101,13 +97,12 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
                 }
             }
 
-            // apply internal rounds
-            cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state =
-                Self::generate_internal_rounds(cols);
+            // Apply the internal rounds.
+            cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state = populate_internal_rounds(cols);
 
-            // apply second half of external rounds
+            // Apply the second half of external rounds.
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-                let next_state = Self::generate_external_round(cols, r);
+                let next_state = populate_external_round(cols, r);
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
                     cols.output = next_state;
                 } else {
@@ -127,11 +122,12 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
         // Pad the trace to a power of two.
         pad_to_power_of_two::<NUM_POSEIDON2_WIDE_COLS, F>(&mut trace.values);
 
-        // println!(
-        //     "poseidon2 wide trace dims is width: {:?}, height: {:?}",
-        //     trace.width(),
-        //     trace.height()
-        // );
+        #[cfg(debug_assertions)]
+        println!(
+            "poseidon2 wide trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
 
         trace
     }
@@ -141,155 +137,160 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
     }
 }
 
-impl Poseidon2WideChip {
-    fn generate_external_round<F: PrimeField32>(
-        cols: &mut Poseidon2WideCols<F>,
-        r: usize,
-    ) -> [F; WIDTH] {
-        let linear_layer_input = {
-            let round_cols = cols.external_rounds[r].borrow_mut();
+fn populate_external_round<F: PrimeField32>(
+    cols: &mut Poseidon2WideCols<F>,
+    r: usize,
+) -> [F; WIDTH] {
+    let linear_layer_input = {
+        let round_cols = cols.external_rounds[r].borrow_mut();
 
-            // rc
-            // we don't need columns for the result of adding rc since the constraint is
-            // degree 1, so we can absorb this into the constraint for the x^3 part of the sbox
-            let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
-                r
-            } else {
-                r + NUM_INTERNAL_ROUNDS
-            };
-            let mut add_rc = round_cols.state;
-            for i in 0..WIDTH {
-                add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
-            }
-
-            // sbox
-            let mut sbox_deg_7 = [F::zero(); WIDTH];
-            for i in 0..WIDTH {
-                round_cols.sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
-                sbox_deg_7[i] = round_cols.sbox_deg_3[i] * round_cols.sbox_deg_3[i] * add_rc[i];
-            }
-
-            sbox_deg_7
-        };
-
-        // apply linear layer
-        let mut next_state = [F::zero(); WIDTH];
-        external_linear_layer(&linear_layer_input, &mut next_state);
-        next_state
-    }
-
-    fn generate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) -> [F; WIDTH] {
-        let cols = cols.internal_rounds.borrow_mut();
-        let mut state = cols.state;
-        for r in 0..NUM_INTERNAL_ROUNDS {
-            // rc
-            let round = r + NUM_EXTERNAL_ROUNDS / 2;
-            let add_rc = state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
-
-            // sbox
-            cols.sbox_deg_3[r] = add_rc * add_rc * add_rc;
-            let sbox_deg_7 = cols.sbox_deg_3[r] * cols.sbox_deg_3[r] * add_rc;
-
-            // linear layer
-            let mut linear_layer_input = state;
-            linear_layer_input[0] = sbox_deg_7;
-
-            internal_linear_layer(&linear_layer_input, &mut state);
-
-            if r < NUM_INTERNAL_ROUNDS - 1 {
-                cols.s0[r] = state[0];
-            }
-        }
-
-        state
-    }
-
-    fn build_external_round<AB: SP1AirBuilder>(
-        builder: &mut AB,
-        cols: &Poseidon2WideCols<AB::Var>,
-        r: usize,
-    ) {
-        let round_cols = cols.external_rounds[r];
-
-        // rc
-        // we don't need columns for the result of adding rc since the constraint is
-        // degree 1, so we can absorb this into the constraint for the x^3 part of the sbox
+        // Add round constants.
+        //
+        // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
+        // columns for it, and instead include it in the constraint for the x^3 part of the sbox.
         let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
             r
         } else {
             r + NUM_INTERNAL_ROUNDS
         };
-        let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-            round_cols.state[i].into() + AB::Expr::from_canonical_u32(RC_16_30_U32[round][i])
-        });
-
-        // sbox
-        let mut sbox_deg_7: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+        let mut add_rc = round_cols.state;
         for i in 0..WIDTH {
-            let sbox_deg_3 = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
-            builder.assert_eq(round_cols.sbox_deg_3[i], sbox_deg_3);
-
-            let sbox_deg_3 = round_cols.sbox_deg_3[i];
-            sbox_deg_7[i] = sbox_deg_3 * sbox_deg_3 * add_rc[i].clone();
+            add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
         }
 
-        // linear layer
-        let mut linear_layer_output: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
-        external_linear_layer(&sbox_deg_7, &mut linear_layer_output);
-
-        let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-            &cols.internal_rounds.state
-        } else if r == NUM_EXTERNAL_ROUNDS - 1 {
-            &cols.output
-        } else {
-            &cols.external_rounds[r + 1].state
-        };
+        // Apply the sboxes.
+        // Optimization: since the linear layer that comes after the sbox is degree 1, we can
+        // avoid adding columns for the result of the sbox, and instead include the x^3 -> x^7
+        // part of the sbox in the constraint for the linear layer
+        let mut sbox_deg_7: [F; 16] = [F::zero(); WIDTH];
         for i in 0..WIDTH {
-            builder.assert_eq(next_state_cols[i], linear_layer_output[i].clone());
+            round_cols.sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
+            sbox_deg_7[i] = round_cols.sbox_deg_3[i] * round_cols.sbox_deg_3[i] * add_rc[i];
+        }
+
+        sbox_deg_7
+    };
+
+    // Apply the linear layer.
+    let mut next_state = [F::zero(); WIDTH];
+    external_linear_layer(&linear_layer_input, &mut next_state);
+    next_state
+}
+
+fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) -> [F; WIDTH] {
+    let cols = cols.internal_rounds.borrow_mut();
+    let mut state = cols.state;
+    for r in 0..NUM_INTERNAL_ROUNDS {
+        // Add the round constant to the 0th state element.
+        // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
+        // columns for it, just like for external rounds.
+        let round = r + NUM_EXTERNAL_ROUNDS / 2;
+        let add_rc = state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
+
+        // Apply the sboxes.
+        // Optimization: since the linear layer that comes after the sbox is degree 1, we can
+        // avoid adding columns for the result of the sbox, just like for external rounds.
+        cols.sbox_deg_3[r] = add_rc * add_rc * add_rc;
+        let sbox_deg_7 = cols.sbox_deg_3[r] * cols.sbox_deg_3[r] * add_rc;
+
+        // Apply the linear layer.
+        let mut linear_layer_input = state;
+        linear_layer_input[0] = sbox_deg_7;
+
+        internal_linear_layer(&linear_layer_input, &mut state);
+
+        // Optimization: since we're only applying the sbox to the 0th state element, we only
+        // need to have columns for the 0th state element at every step. This is because the
+        // linear layer is degree 1, so all state elements at the end can be expressed as a
+        // degree-3 polynomial of the state at the beginning of the internal rounds and the 0th
+        // state element at rounds prior to the current round
+        if r < NUM_INTERNAL_ROUNDS - 1 {
+            cols.s0[r] = state[0];
         }
     }
 
-    fn build_internal_rounds<AB: SP1AirBuilder>(
-        builder: &mut AB,
-        cols: &Poseidon2WideCols<AB::Var>,
-    ) {
-        let round_cols = &cols.internal_rounds;
-        let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| round_cols.state[i].into());
-        for r in 0..NUM_INTERNAL_ROUNDS {
-            // rc
-            let round = r + NUM_EXTERNAL_ROUNDS / 2;
-            let add_rc = if r == 0 {
-                state[0].clone()
-            } else {
-                round_cols.s0[r - 1].into()
-            } + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+    state
+}
 
-            let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
-            builder.assert_eq(round_cols.sbox_deg_3[r], sbox_deg_3);
+fn eval_external_round<AB: SP1AirBuilder>(
+    builder: &mut AB,
+    cols: &Poseidon2WideCols<AB::Var>,
+    r: usize,
+) {
+    let round_cols = cols.external_rounds[r];
 
-            // we don't need a separate constraint here because the linear layer is degree 1
-            // if this isn't the last round, this is constrained by the constraint below for s0
-            // if this is the last round, this is constrained by the constraint where we set the
-            // and the constraint
-            let sbox_deg_7 =
-                round_cols.sbox_deg_3[r].into() * round_cols.sbox_deg_3[r].into() * add_rc.clone();
+    // Add the round constants.
+    let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
+        r
+    } else {
+        r + NUM_INTERNAL_ROUNDS
+    };
+    let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+        round_cols.state[i].into() + AB::Expr::from_canonical_u32(RC_16_30_U32[round][i])
+    });
 
-            // linear layer
-            let mut linear_layer_input = state.clone();
-            linear_layer_input[0] = sbox_deg_7.clone();
-            internal_linear_layer(&linear_layer_input, &mut state);
+    // Apply the sboxes.
+    // See `populate_external_round` for why we don't have columns for the sbox output here.
+    let mut sbox_deg_7: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+    for i in 0..WIDTH {
+        let sbox_deg_3 = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
+        builder.assert_eq(round_cols.sbox_deg_3[i], sbox_deg_3);
 
-            if r < NUM_INTERNAL_ROUNDS - 1 {
-                builder.assert_eq(round_cols.s0[r], state[0].clone());
-            }
+        let sbox_deg_3 = round_cols.sbox_deg_3[i];
+        sbox_deg_7[i] = sbox_deg_3 * sbox_deg_3 * add_rc[i].clone();
+    }
+
+    // Apply the linear layer.
+    let mut linear_layer_output: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+    external_linear_layer(&sbox_deg_7, &mut linear_layer_output);
+
+    let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
+        &cols.internal_rounds.state
+    } else if r == NUM_EXTERNAL_ROUNDS - 1 {
+        &cols.output
+    } else {
+        &cols.external_rounds[r + 1].state
+    };
+    for i in 0..WIDTH {
+        builder.assert_eq(next_state_cols[i], linear_layer_output[i].clone());
+    }
+}
+
+fn eval_internal_rounds<AB: SP1AirBuilder>(builder: &mut AB, cols: &Poseidon2WideCols<AB::Var>) {
+    let round_cols = &cols.internal_rounds;
+    let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| round_cols.state[i].into());
+    for r in 0..NUM_INTERNAL_ROUNDS {
+        // Add the round constant.
+        let round = r + NUM_EXTERNAL_ROUNDS / 2;
+        let add_rc = if r == 0 {
+            state[0].clone()
+        } else {
+            round_cols.s0[r - 1].into()
+        } + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+
+        let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
+        builder.assert_eq(round_cols.sbox_deg_3[r], sbox_deg_3);
+
+        // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
+        let sbox_deg_7 =
+            round_cols.sbox_deg_3[r].into() * round_cols.sbox_deg_3[r].into() * add_rc.clone();
+
+        // Apply the linear layer.
+        // See `populate_internal_rounds` for why we don't have columns for the new state here.
+        let mut linear_layer_input = state.clone();
+        linear_layer_input[0] = sbox_deg_7.clone();
+        internal_linear_layer(&linear_layer_input, &mut state);
+
+        if r < NUM_INTERNAL_ROUNDS - 1 {
+            builder.assert_eq(round_cols.s0[r], state[0].clone());
         }
+    }
 
-        for i in 0..WIDTH {
-            builder.assert_eq(
-                cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state[i],
-                state[i].clone(),
-            )
-        }
+    for i in 0..WIDTH {
+        builder.assert_eq(
+            cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state[i],
+            state[i].clone(),
+        )
     }
 }
 
@@ -308,7 +309,7 @@ where
         let cols = main.row_slice(0);
         let cols: &Poseidon2WideCols<AB::Var> = (*cols).borrow();
 
-        // initial round
+        // Apply the initial round.
         let initial_round_output = {
             let input: [AB::Expr; WIDTH] = core::array::from_fn(|i| cols.input[i].into());
             let mut output: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
@@ -322,17 +323,17 @@ where
             );
         }
 
-        // first half of external rounds
+        // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            Self::build_external_round(builder, cols, r);
+            eval_external_round(builder, cols, r);
         }
 
-        // internal rounds
-        Self::build_internal_rounds(builder, cols);
+        // Apply the internal rounds.
+        eval_internal_rounds(builder, cols);
 
-        // second half of external rounds
+        // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            Self::build_external_round(builder, cols, r);
+            eval_external_round(builder, cols, r);
         }
     }
 }
@@ -357,6 +358,7 @@ mod tests {
     use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
     use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
 
+    /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
     fn generate_trace() {
         let chip = Poseidon2WideChip;
@@ -392,12 +394,11 @@ mod tests {
         for (i, expected_output) in expected_outputs.iter().enumerate() {
             let row = trace.row(i).collect_vec();
             let cols: &Poseidon2WideCols<BabyBear> = row.as_slice().borrow();
-            println!("{:?}", cols.output);
             assert_eq!(expected_output, &cols.output);
         }
     }
 
-    // test proving 2^10 permuations
+    /// A test proving 2^10 permuations
     #[test]
     fn prove_babybear() {
         let config = BabyBearPoseidon2Inner::new();
@@ -405,7 +406,7 @@ mod tests {
 
         let chip = Poseidon2WideChip;
 
-        let test_inputs = (0..4)
+        let test_inputs = (0..1024)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
             .collect_vec();
 
