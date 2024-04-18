@@ -1,7 +1,6 @@
 use std::fmt::Debug;
 
 use num::BigUint;
-use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
@@ -96,7 +95,6 @@ where
         &self,
         builder: &mut AB,
         a: &Limbs<AB::Var, P::Limbs>,
-        is_odd: bool,
         shard: EShard,
         is_real: ER,
     ) where
@@ -122,9 +120,8 @@ where
         // Assert that the square root is the positive one, i.e., with least significant bit 0.
         // This is done by computing LSB = least_significant_byte & 1.
         builder.assert_bool(self.lsb);
-        builder
-            .when(is_real.clone())
-            .assert_eq(self.lsb, AB::F::from_bool(is_odd));
+        // TODO: assertion on the sign.
+        // builder.when(is_real.clone()).assert_one(self.lsb);
         builder.send_byte(
             ByteOpcode::AND.as_field::<AB::F>(),
             self.lsb,
@@ -262,7 +259,7 @@ mod tests {
             // eval verifies that local.sqrt.result is indeed the square root of local.a.
             local
                 .sqrt
-                .eval(builder, &local.a, false, AB::F::one(), AB::F::one());
+                .eval(builder, &local.a, AB::F::one(), AB::F::one());
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

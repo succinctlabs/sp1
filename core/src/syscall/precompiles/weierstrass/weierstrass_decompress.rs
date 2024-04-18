@@ -265,13 +265,8 @@ where
             row.shard,
             row.is_real,
         );
-        row.y.eval(
-            builder,
-            &row.x_3_plus_b.result,
-            true,
-            row.shard,
-            row.is_real,
-        );
+        row.y
+            .eval(builder, &row.x_3_plus_b.result, row.shard, row.is_real);
         row.neg_y.eval(
             builder,
             &[AB::Expr::zero()].iter(),
@@ -397,17 +392,21 @@ mod tests {
 
         let mut rng = thread_rng();
 
-        let secret_key = k256::SecretKey::random(&mut rng);
-        let public_key = secret_key.public_key();
-        let encoded = public_key.to_encoded_point(false);
-        let decompressed = encoded.as_bytes();
-        let compressed = public_key.to_sec1_bytes();
+        let num_tests = 2;
 
-        let inputs = SP1Stdin::from(&compressed);
+        for _ in 0..num_tests {
+            let secret_key = k256::SecretKey::random(&mut rng);
+            let public_key = secret_key.public_key();
+            let encoded = public_key.to_encoded_point(false);
+            let decompressed = encoded.as_bytes();
+            let compressed = public_key.to_sec1_bytes();
 
-        let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
-        let mut result = [0; 65];
-        proof.public_values.read_slice(&mut result);
-        assert_eq!(result, decompressed);
+            let inputs = SP1Stdin::from(&compressed);
+
+            let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
+            let mut result = [0; 65];
+            proof.public_values.read_slice(&mut result);
+            assert_eq!(result, decompressed);
+        }
     }
 }
