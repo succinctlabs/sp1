@@ -174,7 +174,6 @@ impl ProverClient {
         config: SC,
     ) -> Result<SP1ProofWithIO<SC>>
     where
-        SC: StarkGenericConfig,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
         Com<SC>: Send + Sync,
@@ -273,7 +272,6 @@ impl ProverClient {
         config: SC,
     ) -> Result<DeferredDigest, ProgramVerificationError>
     where
-        SC: StarkGenericConfig,
         SC::Challenger: Clone,
         OpeningProof<SC>: Send + Sync,
         Com<SC>: Send + Sync,

@@ -489,11 +489,11 @@ mod tests {
     use sp1_core::{
         runtime::Runtime,
         utils::{prove_core, setup_logger},
+        SP1Stdin,
     };
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
     use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     #[test]
     #[ignore]
@@ -506,18 +506,8 @@ mod tests {
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         type SC = BabyBearPoseidon2;
-        type F = <SC as StarkGenericConfig>::Val;
-        type A = RiscvAir<F>;
 
-        let machine = A::machine(SC::default());
-        let (_, vk) = machine.setup(&Program::from(elf));
-        let mut challenger = machine.config().challenger();
-        let client = ProverClient::new();
-        let proof = client
-            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof;
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        let proof = SP1ProverImpl::prove::<SC>(elf, &SP1Stdin::new().buffer);
 
         let prover = SP1ProverImpl::new();
         let sp1_machine = RiscvAir::machine(SP1SC::default());
