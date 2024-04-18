@@ -21,7 +21,6 @@ use sp1_core::{
 use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
 use sp1_recursion_core::{
-    cpu::Instruction,
     runtime::{RecursionProgram, Runtime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
@@ -355,6 +354,7 @@ impl SP1ProverImpl {
         }
     }
 
+    /// Initialize a challenger given a verifying key and a list of shard proofs.
     pub fn initialize_challenger(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,

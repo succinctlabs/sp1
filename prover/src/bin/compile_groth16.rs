@@ -2,17 +2,12 @@
 
 use sp1_core::{
     runtime::Program,
-    stark::{Proof, RiscvAir, StarkGenericConfig},
-    utils::{run_and_prove, BabyBearPoseidon2, BabyBearPoseidon2Inner},
+    stark::{Proof, RiscvAir},
+    utils::BabyBearPoseidon2,
 };
 use sp1_prover::SP1ProverImpl;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
-use sp1_recursion_core::stark::{config::BabyBearPoseidon2Outer, RecursionAir};
-use sp1_recursion_program::reduce::build_reduce_program;
 use sp1_sdk::utils::setup_logger;
-
-type InnerSC = BabyBearPoseidon2Inner;
-type OuterSC = BabyBearPoseidon2Outer;
 
 pub fn main() {
     setup_logger();
