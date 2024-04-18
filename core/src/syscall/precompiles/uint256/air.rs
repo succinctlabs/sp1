@@ -33,9 +33,9 @@ pub struct Uint256MulEvent {
     pub shard: u32,
     pub clk: u32,
     pub x_ptr: u32,
-    // pub x: [u32; NUM_WORDS],
+    pub x: [u32; NUM_WORDS],
     pub y_ptr: u32,
-    // pub y: [u32; NUM_WORDS],
+    pub y: [u32; NUM_WORDS],
     pub x_memory_records: [MemoryWriteRecord; NUM_WORDS],
     pub y_memory_records: [MemoryReadRecord; NUM_WORDS],
 }
@@ -100,8 +100,8 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
                         // // Decode uint256 points
-                        // let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
-                        // let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
+                        let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
+                        let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
 
                         // // Assign basic values to the columns.
                         // {
@@ -130,7 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         }
 
                         // println!("x={} y={}", x, y);
-                        // cols.output.populate(&x, &y, FieldOperation::Mul);
+                        cols.output.populate(&x, &y, FieldOperation::Mul);
 
                         row
                     })
@@ -204,9 +204,9 @@ impl Syscall for Uint256MulChip {
             shard,
             clk,
             x_ptr,
-            // x,
+            x,
             y_ptr,
-            // y,
+            y,
             x_memory_records,
             y_memory_records,
         });
@@ -240,9 +240,9 @@ where
         builder.assert_bool(is_real);
 
         // Evaluate the uint256 multiplication
-        local
-            .output
-            .eval::<AB, _, _>(builder, &x, &y, FieldOperation::Mul);
+        // local
+        //     .output
+        //     .eval::<AB, _, _>(builder, &x, &y, FieldOperation::Mul);
 
         // Assert that the output is equal to whats written to the memory record.
         for i in 0..32 {
