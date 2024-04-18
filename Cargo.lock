@@ -4447,18 +4447,21 @@ dependencies = [
  "p3-field",
  "rayon",
  "serde",
+ "serde_json",
  "sp1-core",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-program",
  "sp1-sdk",
+ "tracing",
 ]
 
 [[package]]
 name = "sp1-recursion-circuit"
 version = "0.1.0"
 dependencies = [
+ "bincode",
  "ff 0.13.0",
  "itertools 0.12.1",
  "p3-air",

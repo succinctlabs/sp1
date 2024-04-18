@@ -70,11 +70,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
 
     /// Index an array of expressions using an index bitmap.  This function assumes that the EIndex
     /// type is a boolean and that index_bitmap's entries sum to 1.
-    fn index_array<I: Into<Self::Expr>, EIndex: Into<Self::Expr> + Clone>(
-        &mut self,
-        array: &[I],
-        index_bitmap: &[EIndex],
-    ) -> Self::Expr
+    fn index_array<I, EIndex>(&mut self, array: &[I], index_bitmap: &[EIndex]) -> Self::Expr
     where
         I: Into<Self::Expr> + Clone,
         EIndex: Into<Self::Expr> + Clone,
