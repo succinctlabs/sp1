@@ -45,11 +45,10 @@ impl CpuChip {
 
     /// Constrains the addr_aligned, addr_offset, and addr_word memory columns.
     ///
-    /// This method will first constrain the addr_word memory column by ensuring it equals to
-    /// op_b value + op_c value via interacting with the ALU table.  It will then constrain the addr_offset
-    /// column by calling the method `eval_offset_value_flags`.  It then constrains the addr_aligned
-    /// column by asserting it equals addr_aligned + addr_offset.  It will then finally verify the
-    /// addr_aligned memory access.
+    /// This method will do the following:
+    /// 1. Calculate that the unaligned address is correctly computed to be op_b.value + op_c.value.
+    /// 2. Calculate that the address offset is address % 4.
+    /// 3. Assert the validity of the aligned address given the address offset and the unaligned address.
     pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
