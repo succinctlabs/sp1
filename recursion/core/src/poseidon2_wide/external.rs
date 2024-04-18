@@ -251,12 +251,11 @@ mod tests {
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::uni_stark_verify;
+    use sp1_core::utils::{uni_stark_verify, BabyBearPoseidon2Inner};
     use sp1_core::{air::MachineAir, utils::uni_stark_prove};
 
     use crate::poseidon2::Poseidon2Event;
     use crate::poseidon2_wide::external::WIDTH;
-    use crate::stark::config::BabyBearPoseidon2Inner;
     use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
 
     #[test]

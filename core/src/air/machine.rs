@@ -2,7 +2,7 @@ use p3_air::BaseAir;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use crate::stark::MachineRecord;
+use crate::{runtime::Program, stark::MachineRecord};
 
 pub use sp1_derive::MachineAir;
 
@@ -11,7 +11,7 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     /// The execution record containing events for producing the air trace.
     type Record: MachineRecord;
 
-    type Program: Send + Sync;
+    type Program: MachineProgram<F>;
 
     /// A unique identifier for this AIR as part of a machine.
     fn name(&self) -> String;
@@ -39,5 +39,15 @@ pub trait MachineAir<F: Field>: BaseAir<F> {
     /// Generate the preprocessed trace given a specific program.
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         None
+    }
+}
+
+pub trait MachineProgram<F>: Send + Sync {
+    fn pc_start(&self) -> F;
+}
+
+impl<F: Field> MachineProgram<F> for Program {
+    fn pc_start(&self) -> F {
+        F::from_canonical_u32(self.pc_start)
     }
 }

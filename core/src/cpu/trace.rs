@@ -546,7 +546,6 @@ impl CpuChip {
             let syscall_id = cols.op_a_access.prev_value[0];
             // let send_to_table = cols.op_a_access.prev_value[1];
             // let num_cycles = cols.op_a_access.prev_value[2];
-            // let is_halt = cols.op_a_access.prev_value[3];
 
             // Populate `is_enter_unconstrained`.
             ecall_cols
@@ -571,11 +570,21 @@ impl CpuChip {
                 syscall_id - F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()),
             );
 
-            // If the syscall is a `COMMIT`, set the index bitmap and digest word.
-            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id()) {
+            // Populate `is_commit_deferred_proofs`.
+            ecall_cols
+                .is_commit_deferred_proofs
+                .populate_from_field_element(
+                    syscall_id
+                        - F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id()),
+                );
+
+            // If the syscall is `COMMIT` or `COMMIT_DEFERRED_PROOFS`, set the index bitmap and digest word.
+            if syscall_id == F::from_canonical_u32(SyscallCode::COMMIT.syscall_id())
+                || syscall_id
+                    == F::from_canonical_u32(SyscallCode::COMMIT_DEFERRED_PROOFS.syscall_id())
+            {
                 let digest_idx = cols.op_b_access.value().to_u32() as usize;
                 ecall_cols.index_bitmap[digest_idx] = F::one();
-                ecall_cols.digest_word = *cols.op_c_access.value();
             }
 
             is_halt = syscall_id == F::from_canonical_u32(SyscallCode::HALT.syscall_id());
@@ -611,7 +620,7 @@ mod tests {
     use super::*;
 
     use crate::runtime::{tests::simple_program, Instruction, Runtime};
-    use crate::utils::run_test;
+    use crate::utils::{run_test, setup_logger};
 
     #[test]
     fn generate_trace() {
@@ -661,6 +670,7 @@ mod tests {
 
     #[test]
     fn prove_trace() {
+        setup_logger();
         let program = simple_program();
         run_test(program).unwrap();
     }

@@ -43,7 +43,14 @@ impl<T> TracedVec<T> {
 
     pub fn push(&mut self, value: T) {
         self.vec.push(value);
-        self.traces.push(Some(Backtrace::new_unresolved()));
+        match std::env::var("SP1_DEBUG") {
+            Ok(_) => {
+                self.traces.push(Some(Backtrace::new_unresolved()));
+            }
+            Err(_) => {
+                self.traces.push(None);
+            }
+        };
     }
 
     pub fn extend<I: IntoIterator<Item = (T, Option<Backtrace>)>>(&mut self, iter: I) {
@@ -392,6 +399,23 @@ impl<C: Config> Builder<C> {
             Usize::Const(num) => self.eval(C::N::from_canonical_usize(num)),
             Usize::Var(num) => num,
         }
+    }
+
+    /// Store a felt in the public values buffer.
+    pub fn write_public_value(&mut self, val: Felt<C::F>) {
+        if self.nb_public_values.is_none() {
+            self.nb_public_values = Some(self.eval(C::N::zero()));
+            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
+        }
+
+        let nb_public_values = self.nb_public_values.unwrap();
+        let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
+
+        self.set(&mut public_values_buffer, nb_public_values, val);
+        self.assign(nb_public_values, nb_public_values + C::N::one());
+
+        self.nb_public_values = Some(nb_public_values);
+        self.public_values_buffer = Some(public_values_buffer);
     }
 
     /// Stores an array of felts in the public values buffer.

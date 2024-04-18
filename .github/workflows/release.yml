@@ -108,8 +108,8 @@ jobs:
         id: rustc-toolchain
         uses: actions-rs/toolchain@v1
         with:
+          toolchain: nightly-2024-04-17
           profile: minimal
-          toolchain: nightly-2024-01-25
           override: true
           targets: ${{ matrix.target }}
 

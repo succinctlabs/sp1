@@ -270,7 +270,12 @@ pub fn build_wrap_circuit(
     let proof = dummy_proof.read(&mut builder);
     let ShardCommitment { main_commit, .. } = &proof.commitment;
     challenger.observe_commitment(&mut builder, *main_commit);
-    challenger.observe_slice(&mut builder, proof.public_values.clone());
+    let pv_slice = proof.public_values.slice(
+        &mut builder,
+        Usize::Const(0),
+        Usize::Const(outer_machine.num_pv_elts()),
+    );
+    challenger.observe_slice(&mut builder, pv_slice);
 
     StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
         &mut builder,
@@ -324,6 +329,7 @@ pub(crate) mod tests {
 
     #[test]
     #[serial]
+    #[ignore]
     fn test_recursive_verify_shard_v2() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;

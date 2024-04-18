@@ -1,7 +1,6 @@
 use std::fmt::Debug;
-use std::ops::Index;
+use std::ops::{Index, IndexMut};
 use std::slice::Iter;
-use std::usize;
 
 use generic_array::{ArrayLength, GenericArray};
 
@@ -9,12 +8,12 @@ use crate::air::Polynomial;
 
 pub const NB_BITS_PER_LIMB: usize = 8;
 
-#[derive(Debug, Clone)]
 /// An array representing N limbs of T.
 ///
 /// GenericArray allows us to constrain the correct array lengths so we can have # of limbs and # of
 /// witness limbs associated in NumLimbs / FieldParameters.
 /// See: https://github.com/RustCrypto/traits/issues/1481
+#[derive(Debug, Clone)]
 pub struct Limbs<T, N: ArrayLength>(pub GenericArray<T, N>);
 
 impl<T: Copy, N: ArrayLength> Copy for Limbs<T, N> where N::ArrayType<T>: Copy {}
@@ -33,6 +32,12 @@ impl<T, N: ArrayLength> Index<usize> for Limbs<T, N> {
 
     fn index(&self, index: usize) -> &Self::Output {
         &self.0[index]
+    }
+}
+
+impl<T, N: ArrayLength> IndexMut<usize> for Limbs<T, N> {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
     }
 }
 

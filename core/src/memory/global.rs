@@ -20,7 +20,6 @@ use crate::utils::pad_to_power_of_two;
 pub enum MemoryChipType {
     Initialize,
     Finalize,
-    Program,
 }
 
 /// A memory chip that can initialize or finalize values in memory.
@@ -50,7 +49,6 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
         match self.kind {
             MemoryChipType::Initialize => "MemoryInit".to_string(),
             MemoryChipType::Finalize => "MemoryFinalize".to_string(),
-            MemoryChipType::Program => "MemoryProgram".to_string(),
         }
     }
 
@@ -62,7 +60,6 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
         let memory_events = match self.kind {
             MemoryChipType::Initialize => &input.memory_initialize_events,
             MemoryChipType::Finalize => &input.memory_finalize_events,
-            MemoryChipType::Program => &input.program_memory_events,
         };
         let rows: Vec<[F; 8]> = (0..memory_events.len()) // TODO: change this back to par_iter
             .map(|i| {
@@ -99,7 +96,6 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
         match self.kind {
             MemoryChipType::Initialize => !shard.memory_initialize_events.is_empty(),
             MemoryChipType::Finalize => !shard.memory_finalize_events.is_empty(),
-            MemoryChipType::Program => !shard.program_memory_events.is_empty(),
         }
     }
 }
@@ -140,7 +136,7 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        if self.kind == MemoryChipType::Initialize || self.kind == MemoryChipType::Program {
+        if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(local.value.map(Into::into));
             builder.receive(AirInteraction::new(

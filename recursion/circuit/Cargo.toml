@@ -22,6 +22,7 @@ sp1-recursion-program = { path = "../program" }
 p3-bn254-fr = { workspace = true }
 p3-baby-bear = { workspace = true }
 serial_test = "3.0.0"
+bincode = "1.3.3"
 
 [dev-dependencies]
 ff = { version = "0.13", features = ["derive", "derive_bits"] }

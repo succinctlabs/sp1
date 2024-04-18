@@ -5,6 +5,7 @@ name = "rsa-script"
 edition = "2021"
 
 [dependencies]
+rsa = "0.6"
 sp1-sdk = { path = "../../../sdk" }
 
 [build-dependencies]

@@ -1,6 +1,7 @@
 //! Tests end-to-end performance of wrapping a recursion proof to Groth16.
 
 #![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
 use std::time::Instant;
 
@@ -11,9 +12,7 @@ use sp1_core::{
     stark::{Proof, RiscvAir, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
-use sp1_prover::{ReduceProof, SP1ProverImpl};
-use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
-use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
+use sp1_prover::SP1ProverImpl;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{fmt::format::FmtSpan, util::SubscriberInitExt};
 
@@ -78,23 +77,8 @@ fn main() {
         }
 
         let recursion_proving_start = Instant::now();
-        let inner_proof = prover.reduce_tree(&vk, sp1_challenger.clone(), proof, batch_size);
+        let _ = prover.reduce_tree(&vk, proof, batch_size);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
         tracing::info!("recursion_proving_duration={}", recursion_proving_duration);
-
-        tracing::info!("proving final bn254");
-        let bn254_wrap_start = Instant::now();
-        let bn254_proof =
-            prover.bn254_reduce(&vk, sp1_challenger, ReduceProof::Recursive(inner_proof));
-        let bn254_wrap_proving_duration = bn254_wrap_start.elapsed().as_secs_f64();
-        tracing::info!("bn254_wrap_start_duration={}", bn254_wrap_proving_duration);
-
-        tracing::info!("proving groth16");
-        let mut witness = Witness::default();
-        bn254_proof.write(&mut witness);
-        let constraints = build_wrap_circuit(&prover.reduce_vk_outer, bn254_proof);
-
-        tracing::info_span!("generating groth16 proof")
-            .in_scope(|| groth16_ffi::prove(constraints, witness));
     }
 }

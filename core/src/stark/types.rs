@@ -1,5 +1,6 @@
 use std::{
     collections::HashMap,
+    fmt::Debug,
     fs::File,
     io::{BufReader, BufWriter, Seek},
 };
@@ -11,6 +12,8 @@ use p3_matrix::stack::VerticalPair;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use size::Size;
 use tracing::trace;
+
+use crate::air::SP1_PROOF_NUM_PV_ELTS;
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
@@ -123,9 +126,9 @@ pub struct ShardOpenedValues<T: Serialize> {
 /// The maximum number of elements that can be stored in the public values vec.  Both SP1 and recursive
 /// proofs need to pad their public_values vec to this length.  This is required since the recursion
 /// verification program expects the public values vec to be fixed length.
-pub const PROOF_MAX_NUM_PVS: usize = 64;
+pub const PROOF_MAX_NUM_PVS: usize = SP1_PROOF_NUM_PV_ELTS;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct ShardProof<SC: StarkGenericConfig> {
     pub index: usize,
@@ -154,8 +157,42 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
 pub struct Proof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
+}
+
+impl<SC: StarkGenericConfig> Debug for Proof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Proof")
+            .field("shard_proofs", &self.shard_proofs.len())
+            .finish()
+    }
+}
+
+/// PublicValuesDigest is a hash of all the public values that a zkvm program has committed to.
+pub struct PublicValuesDigest(pub [u8; 32]);
+
+impl From<[u32; 8]> for PublicValuesDigest {
+    fn from(arr: [u32; 8]) -> Self {
+        let mut bytes = [0u8; 32];
+        for (i, word) in arr.iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+        PublicValuesDigest(bytes)
+    }
+}
+
+/// DeferredDigest is a hash of all the deferred proofs that have been witnessed in the VM.
+pub struct DeferredDigest(pub [u8; 32]);
+
+impl From<[u32; 8]> for DeferredDigest {
+    fn from(arr: [u32; 8]) -> Self {
+        let mut bytes = [0u8; 32];
+        for (i, word) in arr.iter().enumerate() {
+            bytes[i * 4..(i + 1) * 4].copy_from_slice(&word.to_le_bytes());
+        }
+        DeferredDigest(bytes)
+    }
 }

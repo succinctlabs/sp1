@@ -1,6 +1,7 @@
 //! Sweeps end-to-end prover performance across a wide range of parameters for Fibonacci.
 
 #![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
 use std::{fs::File, io::BufWriter, io::Write, time::Instant};
 
@@ -77,7 +78,7 @@ fn main() {
         }
 
         let recursion_proving_start = Instant::now();
-        let _ = prover.reduce_tree(&vk, sp1_challenger, proof, batch_size);
+        let _ = prover.reduce_tree(&vk, proof, batch_size);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
 
         lines.push(format!(

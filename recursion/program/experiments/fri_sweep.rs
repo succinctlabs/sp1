@@ -1,12 +1,13 @@
 //! Sweeps end-to-end prover performance across a wide range of parameters for Fibonacci.
 
 #![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
 use std::{fs::File, io::BufWriter, io::Write};
 
 use itertools::iproduct;
+use sp1_core::utils::{inner_perm, InnerChallenge, InnerVal};
 use sp1_recursion_core::runtime::Runtime;
-use sp1_recursion_core::stark::config::{inner_perm, InnerChallenge, InnerVal};
 use sp1_recursion_program::fri::two_adic_pcs::tests::build_test_fri_with_cols_and_log2_rows;
 
 fn main() {

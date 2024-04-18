@@ -15,6 +15,8 @@ pub mod utils {
     };
 }
 
+use sha2::Digest;
+use sha2::Sha256;
 pub use sp1_core::air::PublicValues;
 
 pub use crate::io::*;
@@ -26,7 +28,7 @@ use anyhow::{Context, Ok, Result};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::stark::{Com, PcsProverData, RiscvAir};
+use sp1_core::stark::{Com, DeferredDigest, PcsProverData, RiscvAir};
 use sp1_core::stark::{
     OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
 };
@@ -57,13 +59,19 @@ impl ProverClient {
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         dotenv::dotenv().ok();
-        let private_key = env::var("PRIVATE_KEY").unwrap_or_default();
-        if private_key.is_empty() {
-            Self { client: None }
-        } else {
+        let remote_proving = env::var("REMOTE_PROVE")
+            .unwrap_or_else(|_| String::from("false"))
+            .parse::<bool>()
+            .unwrap_or(false);
+
+        if remote_proving {
+            let private_key = env::var("PRIVATE_KEY")
+                .unwrap_or_else(|_| panic!("PRIVATE_KEY must be set for remote proving"));
             Self {
                 client: Some(NetworkClient::new(&private_key)),
             }
+        } else {
+            Self { client: None }
         }
     }
 
@@ -94,6 +102,8 @@ impl ProverClient {
     }
 
     // Generate a proof remotely using the Succinct Network in an async context.
+    // Note: If the simulation of the runtime is expensive for user programs, we can add an optional
+    // flag to skip it. This shouldn't be the case for the vast majority of user programs.
     pub async fn prove_remote_async(
         &self,
         elf: &[u8],
@@ -103,6 +113,12 @@ impl ProverClient {
             .client
             .as_ref()
             .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
+
+        // Execute the runtime before creating the proof request.
+        let mut runtime = Runtime::new(Program::from(elf));
+        runtime.write_vecs(&stdin.buffer);
+        runtime.run();
+        println!("Simulation complete.");
 
         let proof_id = client.create_proof(elf, &stdin).await?;
         println!("proof_id: {:?}", proof_id);
@@ -151,7 +167,7 @@ impl ProverClient {
     }
 
     // Generate a proof locally for the execution of the ELF with the given public inputs.
-    pub fn prove_local<SC: StarkGenericConfig>(
+    pub fn prove_local<SC>(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
@@ -246,16 +262,16 @@ impl ProverClient {
         &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<BabyBearPoseidon2>,
-    ) -> Result<(), ProgramVerificationError> {
+    ) -> Result<DeferredDigest, ProgramVerificationError> {
         self.verify_with_config(elf, proof, BabyBearPoseidon2::new())
     }
 
-    pub fn verify_with_config<SC: StarkGenericConfig>(
+    pub fn verify_with_config<SC>(
         &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<SC>,
         config: SC,
-    ) -> Result<(), ProgramVerificationError>
+    ) -> Result<DeferredDigest, ProgramVerificationError>
     where
         SC: StarkGenericConfig,
         SC::Challenger: Clone,
@@ -269,7 +285,14 @@ impl ProverClient {
         let machine = RiscvAir::machine(config);
 
         let (_, vk) = machine.setup(&Program::from(elf));
-        machine.verify(&vk, &proof.proof, &mut challenger)
+        let (pv_digest, deferred_digest) = machine.verify(&vk, &proof.proof, &mut challenger)?;
+
+        let recomputed_hash = Sha256::digest(&proof.public_values.buffer.data);
+        if recomputed_hash.as_slice() != pv_digest.0.as_slice() {
+            return Err(ProgramVerificationError::InvalidPublicValuesDigest);
+        }
+
+        Result::Ok(deferred_digest)
     }
 }
 

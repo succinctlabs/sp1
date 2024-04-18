@@ -1,11 +1,13 @@
 pub mod edwards;
 pub mod field;
 pub mod scalar_mul;
+pub mod uint256;
 pub mod utils;
 pub mod weierstrass;
 
 use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
+use typenum::Unsigned;
 
 use field::FieldParameters;
 use num::BigUint;
@@ -27,6 +29,7 @@ pub enum CurveType {
     Secp256k1,
     Bn254,
     Ed25519,
+    Bls12381,
 }
 
 impl Display for CurveType {
@@ -35,6 +38,7 @@ impl Display for CurveType {
             CurveType::Secp256k1 => write!(f, "Secp256k1"),
             CurveType::Bn254 => write!(f, "Bn254"),
             CurveType::Ed25519 => write!(f, "Ed25519"),
+            CurveType::Bls12381 => write!(f, "Bls12381"),
         }
     }
 }
@@ -46,7 +50,7 @@ pub struct AffinePoint<E> {
     _marker: std::marker::PhantomData<E>,
 }
 
-impl<E> AffinePoint<E> {
+impl<E: EllipticCurveParameters> AffinePoint<E> {
     #[allow(dead_code)]
     pub fn new(x: BigUint, y: BigUint) -> Self {
         Self {
@@ -74,27 +78,36 @@ impl<E> AffinePoint<E> {
         }
     }
 
-    pub fn to_words_le(&self) -> [u32; 16] {
-        let mut x_bytes = self.x.to_bytes_le();
-        x_bytes.resize(32, 0u8);
-        let mut y_bytes = self.y.to_bytes_le();
-        y_bytes.resize(32, 0u8);
+    pub fn to_words_le(&self) -> Vec<u32> {
+        let num_words = <E::BaseField as NumWords>::WordsCurvePoint::USIZE;
+        let num_bytes = num_words * 4;
+        let half_words = num_words / 2;
 
-        let mut words = [0u32; 16];
-        for i in 0..8 {
-            words[i] = u32::from_le_bytes([
-                x_bytes[i * 4],
-                x_bytes[i * 4 + 1],
-                x_bytes[i * 4 + 2],
-                x_bytes[i * 4 + 3],
+        let mut x_bytes = self.x.to_bytes_le();
+        x_bytes.resize(num_bytes / 2, 0u8);
+        let mut y_bytes = self.y.to_bytes_le();
+        y_bytes.resize(num_bytes / 2, 0u8);
+
+        let mut words = vec![0u32; num_words];
+
+        for i in 0..half_words {
+            let x = u32::from_le_bytes([
+                x_bytes[4 * i],
+                x_bytes[4 * i + 1],
+                x_bytes[4 * i + 2],
+                x_bytes[4 * i + 3],
             ]);
-            words[i + 8] = u32::from_le_bytes([
-                y_bytes[i * 4],
-                y_bytes[i * 4 + 1],
-                y_bytes[i * 4 + 2],
-                y_bytes[i * 4 + 3],
+            let y = u32::from_le_bytes([
+                y_bytes[4 * i],
+                y_bytes[4 * i + 1],
+                y_bytes[4 * i + 2],
+                y_bytes[4 * i + 3],
             ]);
+
+            words[i] = x;
+            words[half_words + i] = y;
         }
+
         words
     }
 }
