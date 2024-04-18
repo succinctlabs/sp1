@@ -114,8 +114,8 @@ where
         // Check public values constraints.
         self.public_values_eval(builder, local, next, &public_values);
 
-        // // Check that the is_real flag is correct.
-        // self.is_real_eval(builder, local, next);
+        // Check that the is_real flag is correct.
+        self.is_real_eval(builder, local, next);
     }
 }
 
