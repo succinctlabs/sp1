@@ -21,7 +21,11 @@ pub const NUM_POSEIDON2_WIDE_COLS: usize = size_of::<Poseidon2WideCols<u8>>();
 pub const WIDTH: usize = 16;
 
 pub const NUM_EXTERNAL_ROUNDS: usize = 8;
-pub const NUM_INTERNAL_ROUNDS: usize = 22;
+pub const NUM_INTERNAL_ROUND_CHUNKS: usize = 7;
+pub const NUM_LAST_INTERNAL_ROUNDS: usize = 1;
+pub const INTERNAL_ROUND_CHUNK_SIZE: usize = 3;
+pub const NUM_INTERNAL_ROUNDS: usize =
+    NUM_INTERNAL_ROUND_CHUNKS * INTERNAL_ROUND_CHUNK_SIZE + NUM_LAST_INTERNAL_ROUNDS;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
@@ -35,7 +39,8 @@ pub struct Poseidon2WideCols<T> {
     pub input: [T; WIDTH],
     pub output: [T; WIDTH],
     external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
-    internal_rounds: [Poseidon2WideInternalRoundCols<T>; NUM_INTERNAL_ROUNDS],
+    internal_round_chunks: [Poseidon2WideInternalRoundChunkCols<T>; NUM_INTERNAL_ROUND_CHUNKS],
+    last_internal_rounds: [Poseidon2WideLastInternalRoundCols<T>; NUM_LAST_INTERNAL_ROUNDS],
 }
 
 // Columns required for external rounds
@@ -47,10 +52,19 @@ struct Poseidon2WideExternalRoundCols<T> {
     sbox_deg_7: [T; WIDTH],
 }
 
+// Columns required for a chunk of 3 internal rounds
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+struct Poseidon2WideInternalRoundChunkCols<T> {
+    state: [T; WIDTH],
+    state_accs: [T; 2],
+    sbox_deg_3: [T; 3],
+}
+
 // Columns required for internal rounds
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-struct Poseidon2WideInternalRoundCols<T> {
+struct Poseidon2WideLastInternalRoundCols<T> {
     state: [T; WIDTH],
     sbox_deg_3: T,
     sbox_deg_7: T,
@@ -87,20 +101,29 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
                 let next_state = Self::generate_external_round(cols, r);
 
                 if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-                    cols.internal_rounds[0].state = next_state;
+                    cols.internal_round_chunks[0].state = next_state;
                 } else {
                     cols.external_rounds[r + 1].state = next_state;
                 }
             }
 
             // apply internal rounds
-            for r in 0..NUM_INTERNAL_ROUNDS {
-                let next_state = Self::generate_internal_round(cols, r);
-
-                if r == NUM_INTERNAL_ROUNDS - 1 {
+            // first, we do 7 chunks of 3 internal rounds
+            // then, we do the last internal round
+            for chunk in 0..NUM_INTERNAL_ROUND_CHUNKS {
+                let next_state = Self::generate_internal_round_chunk(cols, chunk);
+                if chunk == NUM_INTERNAL_ROUND_CHUNKS - 1 {
+                    cols.last_internal_rounds[0].state = next_state;
+                } else {
+                    cols.internal_round_chunks[chunk + 1].state = next_state;
+                }
+            }
+            for r in 0..NUM_LAST_INTERNAL_ROUNDS {
+                let next_state = Self::generate_last_internal_round(cols, r);
+                if r == NUM_LAST_INTERNAL_ROUNDS - 1 {
                     cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state = next_state;
                 } else {
-                    cols.internal_rounds[r + 1].state = next_state;
+                    cols.last_internal_rounds[r + 1].state = next_state;
                 }
             }
 
@@ -177,17 +200,47 @@ impl Poseidon2WideChip {
         next_state
     }
 
-    fn generate_internal_round<F: PrimeField32>(
+    fn generate_internal_round_chunk<F: PrimeField32>(
+        cols: &mut Poseidon2WideCols<F>,
+        chunk: usize,
+    ) -> [F; WIDTH] {
+        let chunk_cols = &mut cols.internal_round_chunks[chunk];
+        let mut state = chunk_cols.state;
+        for i in 0..INTERNAL_ROUND_CHUNK_SIZE {
+            // rc
+            let round = chunk * INTERNAL_ROUND_CHUNK_SIZE + i + NUM_EXTERNAL_ROUNDS / 2;
+            let add_rc = state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
+
+            // sbox
+            chunk_cols.sbox_deg_3[i] = add_rc * add_rc * add_rc;
+            let sbox_deg_7 = chunk_cols.sbox_deg_3[i] * chunk_cols.sbox_deg_3[i] * add_rc;
+
+            // linear layer
+            let mut linear_layer_input = state;
+            linear_layer_input[0] = sbox_deg_7;
+
+            internal_linear_layer(&linear_layer_input, &mut state);
+
+            if i < INTERNAL_ROUND_CHUNK_SIZE - 1 {
+                chunk_cols.state_accs[i] = state[0];
+            }
+        }
+
+        state
+    }
+
+    fn generate_last_internal_round<F: PrimeField32>(
         cols: &mut Poseidon2WideCols<F>,
         r: usize,
     ) -> [F; WIDTH] {
         let linear_layer_input = {
-            let round_cols = &mut cols.internal_rounds[r];
+            let round_cols = &mut cols.last_internal_rounds[r];
 
             // rc
             // we don't need columns for the result of adding rc since the constraint is
             // degree 1, so we can absorb this into the constraint for the x^3 part of the sbox
-            let round = r + NUM_EXTERNAL_ROUNDS / 2;
+            let round =
+                r + NUM_INTERNAL_ROUND_CHUNKS * INTERNAL_ROUND_CHUNK_SIZE + NUM_EXTERNAL_ROUNDS / 2;
             let add_rc = round_cols.state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
 
             // sbox
@@ -241,7 +294,7 @@ impl Poseidon2WideChip {
         external_linear_layer(&linear_layer_input, &mut linear_layer_output);
 
         let next_state_cols = if r == (NUM_EXTERNAL_ROUNDS / 2) - 1 {
-            &cols.internal_rounds[0].state
+            &cols.internal_round_chunks[0].state
         } else if r == NUM_EXTERNAL_ROUNDS - 1 {
             &cols.output
         } else {
@@ -252,17 +305,72 @@ impl Poseidon2WideChip {
         }
     }
 
-    fn build_internal_round<AB: SP1AirBuilder>(
+    fn build_internal_round_chunk<AB: SP1AirBuilder>(
+        builder: &mut AB,
+        cols: &Poseidon2WideCols<AB::Var>,
+        chunk: usize,
+    ) {
+        let chunk_cols = &cols.internal_round_chunks[chunk];
+
+        let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| chunk_cols.state[i].into());
+        for i in 0..INTERNAL_ROUND_CHUNK_SIZE {
+            // rc
+            let round = chunk * INTERNAL_ROUND_CHUNK_SIZE + i + NUM_EXTERNAL_ROUNDS / 2;
+            let add_rc = if i == 0 {
+                chunk_cols.state[0].into()
+            } else {
+                chunk_cols.state_accs[i - 1].into()
+            } + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+
+            // sbox
+            let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
+            builder.assert_eq(chunk_cols.sbox_deg_3[i], sbox_deg_3);
+
+            let sbox_deg_3 = chunk_cols.sbox_deg_3[i];
+            let sbox_deg_7 = sbox_deg_3 * sbox_deg_3 * add_rc.clone();
+
+            // apply linear layer
+            let linear_layer_input: [AB::Expr; WIDTH] = core::array::from_fn(|j| {
+                if j == 0 {
+                    sbox_deg_7.clone()
+                } else {
+                    state[j].clone()
+                }
+            });
+            let mut linear_layer_output: [AB::Expr; WIDTH] =
+                core::array::from_fn(|_| AB::Expr::zero());
+            internal_linear_layer(&linear_layer_input, &mut linear_layer_output);
+
+            if i < INTERNAL_ROUND_CHUNK_SIZE - 1 {
+                builder.assert_eq(chunk_cols.state_accs[i], linear_layer_output[0].clone());
+            }
+
+            state = linear_layer_output;
+        }
+
+        let next_state_cols = if chunk == NUM_INTERNAL_ROUND_CHUNKS - 1 {
+            &cols.last_internal_rounds[0].state
+        } else {
+            &cols.internal_round_chunks[chunk + 1].state
+        };
+
+        for i in 0..WIDTH {
+            builder.assert_eq(state[i].clone(), next_state_cols[i]);
+        }
+    }
+
+    fn build_last_internal_round<AB: SP1AirBuilder>(
         builder: &mut AB,
         cols: &Poseidon2WideCols<AB::Var>,
         r: usize,
     ) {
-        let round_cols = cols.internal_rounds[r].borrow();
+        let round_cols = cols.last_internal_rounds[r].borrow();
 
         // rc
         // we don't need columns for the result of adding rc since the constraint is
         // degree 1, so we can absorb this into the constraint for the x^3 part of the sbox
-        let round = r + NUM_EXTERNAL_ROUNDS / 2;
+        let round =
+            r + NUM_INTERNAL_ROUND_CHUNKS * INTERNAL_ROUND_CHUNK_SIZE + NUM_EXTERNAL_ROUNDS / 2;
         let add_rc: AB::Expr =
             round_cols.state[0] + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
@@ -282,10 +390,10 @@ impl Poseidon2WideChip {
         let mut linear_layer_output: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
         internal_linear_layer(&linear_layer_input, &mut linear_layer_output);
 
-        let next_state_cols = if r == NUM_INTERNAL_ROUNDS - 1 {
+        let next_state_cols = if r == NUM_LAST_INTERNAL_ROUNDS - 1 {
             &cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state
         } else {
-            &cols.internal_rounds[r + 1].state
+            &cols.last_internal_rounds[r + 1].state
         };
         for i in 0..WIDTH {
             builder.assert_eq(linear_layer_output[i].clone(), next_state_cols[i]);
@@ -328,8 +436,13 @@ where
         }
 
         // internal rounds
-        for r in 0..NUM_INTERNAL_ROUNDS {
-            Self::build_internal_round(builder, cols, r);
+        // first we do 7 chunks of 3 internal rounds
+        // then we do the last internal round
+        for chunk in 0..NUM_INTERNAL_ROUND_CHUNKS {
+            Self::build_internal_round_chunk(builder, cols, chunk);
+        }
+        for r in 0..NUM_LAST_INTERNAL_ROUNDS {
+            Self::build_last_internal_round(builder, cols, r);
         }
 
         // second half of external rounds
