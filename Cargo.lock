@@ -3486,7 +3486,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19de2de2a00075bf566bee3bd4db014b11587e84184d3f7a791bc17f1a8e9e48"
 dependencies = [
  "anyhow",
- "itertools 0.10.5",
+ "itertools 0.12.1",
  "proc-macro2",
  "quote",
  "syn 2.0.59",
@@ -4429,11 +4429,14 @@ version = "0.1.0"
 dependencies = [
  "backtrace",
  "bincode",
+ "clap",
  "itertools 0.12.1",
  "p3-baby-bear",
  "p3-challenger",
  "p3-commit",
  "p3-field",
+ "p3-matrix",
+ "rand",
  "rayon",
  "serde",
  "sp1-core",
