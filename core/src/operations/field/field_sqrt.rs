@@ -7,6 +7,7 @@ use sp1_derive::AlignedBorrow;
 
 use super::field_op::FieldOpCols;
 use super::params::Limbs;
+use super::range::FieldRangeCols;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
@@ -24,12 +25,7 @@ pub struct FieldSqrtCols<T, P: FieldParameters> {
     /// since we'll receive the input again in the `eval` function.
     pub multiplication: FieldOpCols<T, P>,
 
-    /// Byte flags for range-checking the square root.
-    ///
-    ///  Indicates the most significant byte that is smaller than the corresponding byte of the
-    /// modoules. This is used for range checking that the square root is indeed a value in
-    /// the range 0...{modulus - 1}.
-    pub byte_flags: Limbs<T, P::Limbs>,
+    pub range: FieldRangeCols<T, P>,
 
     // The least significant bit of the square root.
     pub lsb: T,
@@ -65,6 +61,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldSqrtCols<F, P> {
         // This is a hack to save a column in FieldSqrtCols. We will receive the value a again in the
         // eval function, so we'll overwrite it with the sqrt.
         self.multiplication.result = P::to_limbs_field::<F, _>(&sqrt);
+
+        // Populate the range columns.
+        self.range.populate(record, shard, &sqrt);
 
         let sqrt_bytes = P::to_limbs(&sqrt);
         self.lsb = F::from_canonical_u8(sqrt_bytes[0] & 1);
@@ -119,6 +118,9 @@ where
             shard.clone(),
             is_real.clone(),
         );
+
+        self.range
+            .eval(builder, &sqrt, shard.clone(), is_real.clone());
 
         // Assert that the square root is the positive one, i.e., with least significant bit 0.
         // This is done by computing LSB = least_significant_byte & 1.
