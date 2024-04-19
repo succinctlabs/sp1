@@ -75,7 +75,7 @@ jobs:
           CARGO_INCREMENTAL: 1
 
   cargo-prove-new:
-    name: Test `cargo prove new`
+    name: cargo prove new
     runs-on: warp-ubuntu-latest-arm64-8x
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
