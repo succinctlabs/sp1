@@ -20,14 +20,14 @@ mod tests {
     fn test_uint256_mul() {
         utils::setup_logger();
         let program = Program::from(UINT256_MUL);
-        run_test_io(program, SP1Stdin::new().buffer).unwrap();
+        run_test_io(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]
     fn test_uint256_div() {
         utils::setup_logger();
         let program = Program::from(UINT256_DIV);
-        run_test_io(program, SP1Stdin::new().buffer).unwrap();
+        run_test_io(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]

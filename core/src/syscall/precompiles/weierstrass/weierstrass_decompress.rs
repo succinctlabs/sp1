@@ -343,9 +343,8 @@ mod tests {
         utils::setup_logger();
         let (_, compressed) = key_pair_generate_g2(&mut RAND::new());
 
-        let inputs = SP1Stdin::from(&compressed);
-        let mut public_values =
-            run_test_io(Program::from(BLS12381_DECOMPRESS_ELF), inputs.buffer).unwrap();
+        let stdin = SP1Stdin::from(&compressed);
+        let mut public_values = run_test_io(Program::from(BLS12381_DECOMPRESS_ELF), stdin).unwrap();
 
         let mut result = [0; 96];
         public_values.read_slice(&mut result);
@@ -369,10 +368,10 @@ mod tests {
         let decompressed = encoded.as_bytes();
         let compressed = public_key.to_sec1_bytes();
 
-        let inputs = SP1Stdin::from(&compressed);
+        let stdin = SP1Stdin::from(&compressed);
 
         let mut public_values =
-            run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs.buffer).unwrap();
+            run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), stdin).unwrap();
         let mut result = [0; 65];
         public_values.read_slice(&mut result);
         assert_eq!(result, decompressed);

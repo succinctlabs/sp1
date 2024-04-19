@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use web_time::Instant;
 
+use crate::syscall::SP1Stdin;
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 use p3_field::PrimeField32;
@@ -30,11 +31,11 @@ pub fn get_cycles(program: Program) -> u64 {
 /// Runs a program and returns the public values stream.
 pub fn run_test_io(
     program: Program,
-    inputs: Vec<Vec<u8>>,
+    inputs: SP1Stdin,
 ) -> Result<Buffer, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_vecs(&inputs);
+        runtime.write_vecs(&inputs.buffer);
         runtime.run();
         runtime
     });
