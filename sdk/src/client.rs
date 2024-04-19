@@ -14,10 +14,7 @@ use crate::proto::network::{
     RelayProofRequest, SubmitProofRequest, TransactionStatus,
 };
 
-use sp1_prover::{
-    io::{SP1PublicValues, SP1Stdin},
-    ProdSP1ProofWithIO,
-};
+use sp1_prover::{io::SP1Stdin, ProdSP1ProofWithIO};
 
 /// The default RPC endpoint for the Succinct prover network.
 const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";

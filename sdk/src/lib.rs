@@ -9,22 +9,16 @@ pub mod auth;
 pub mod client;
 mod util;
 
-use sha2::Digest;
 use sp1_prover::io::SP1PublicValues;
 use sp1_prover::io::SP1Stdin;
 use sp1_prover::ProdSP1ProofWithIO;
-use sp1_prover::SP1Proof;
 use sp1_prover::SP1ProverImpl;
-use sp1_prover::SP1SC;
 
 use proto::network::{ProofStatus, TransactionStatus};
 
 use crate::client::NetworkClient;
 use anyhow::{Context, Ok, Result};
-use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
 use std::env;
-use std::fs;
 use std::time::Duration;
 use tokio::runtime;
 use tokio::time::sleep;
