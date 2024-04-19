@@ -96,8 +96,8 @@ jobs:
       
       - name: Run `cargo prove new`
         run: |
-          cargo prove new test
-          cd test
+          cargo prove new cargo-prove-test
+          cd cargo-prove-test
           cd script
           cargo run --release
 
