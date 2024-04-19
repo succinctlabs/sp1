@@ -21,7 +21,6 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
-pub const ROWS_PER_PERMUTATION: usize = 31;
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -344,6 +343,8 @@ mod tests {
     use p3_symmetric::Permutation;
 
     use super::Poseidon2Cols;
+
+    const ROWS_PER_PERMUTATION: usize = 31;
 
     #[test]
     fn generate_trace() {
