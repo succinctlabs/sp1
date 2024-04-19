@@ -18,7 +18,7 @@ use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
-use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
+use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
@@ -214,21 +214,11 @@ impl SP1Prover {
 
         // Process at most 4 proofs at once in parallel, due to memory limits.
         let chunks: Vec<_> = proofs.chunks(batch_size).collect();
-        let partition_size = std::cmp::max(1, chunks.len() / 4);
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
             .into_par_iter()
-            .chunks(partition_size)
-            .flat_map(|partition| {
-                partition
-                    .iter()
-                    .map(|chunk| {
-                        let start = Instant::now();
-                        let proof = self.reduce_batch(vk, sp1_challenger.clone(), chunk, &[]);
-                        let duration = start.elapsed().as_secs();
-                        println!("reduce duration = {}", duration);
-                        SP1ReduceProofWrapper::Recursive(proof)
-                    })
-                    .collect::<Vec<_>>()
+            .map(|chunk| {
+                let proof = self.reduce_batch(vk, sp1_challenger.clone(), chunk, &[]);
+                SP1ReduceProofWrapper::Recursive(proof)
             })
             .collect();
 
