@@ -1,7 +1,13 @@
+use std::env;
 use std::{sync::Once, time::Duration};
+use tracing_forest::ForestLayer;
 use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::EnvFilter;
+
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::Registry;
 
 static INIT: Once = Once::new();
 
@@ -30,6 +36,26 @@ pub fn setup_logger() {
     });
 }
 
+/// A tracer to benchmark the performance of the vm.
+///
+/// Set the `RUST_TRACER` environment variable to be set to `info` or `debug`.
+pub fn setup_tracer() {
+    let tracer_config = env::var("RUST_TRACER").unwrap_or_else(|_| "none".to_string());
+    let mut env_filter = EnvFilter::builder()
+        .with_default_directive(LevelFilter::OFF.into())
+        .with_default_directive("log::=off".parse().unwrap())
+        .from_env_lossy();
+    if tracer_config == "info" {
+        env_filter = env_filter.add_directive("sp1_core=info".parse().unwrap());
+    } else if tracer_config == "debug" {
+        env_filter = env_filter.add_directive("sp1_core=debug".parse().unwrap());
+    }
+    Registry::default()
+        .with(env_filter)
+        .with(ForestLayer::default())
+        .init();
+}
+
 pub struct StageProgressBar {
     pb: ProgressBar,
     current_stage: u32,
@@ -38,6 +64,7 @@ pub struct StageProgressBar {
 }
 
 impl StageProgressBar {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let pb = ProgressBar::new(1);
         pb.set_style(

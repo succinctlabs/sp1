@@ -7,7 +7,7 @@ pub mod proto {
 }
 pub mod auth;
 pub mod client;
-mod util;
+pub mod utils;
 
 use sp1_prover::io::SP1PublicValues;
 use sp1_prover::io::SP1Stdin;
@@ -22,7 +22,7 @@ use std::env;
 use std::time::Duration;
 use tokio::runtime;
 use tokio::time::sleep;
-use util::StageProgressBar;
+use utils::StageProgressBar;
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {

@@ -1,8 +1,8 @@
 use anstyle::*;
 use anyhow::Result;
 use clap::Parser;
-use sp1_core::utils;
 use sp1_prover::io::SP1Stdin;
+use sp1_sdk::utils::{setup_logger, setup_tracer};
 use sp1_sdk::ProverClient;
 use std::fs;
 use std::time::Instant;
@@ -83,13 +83,13 @@ impl ProveCmd {
                 Ok(_) => {}
                 Err(_) => env::set_var("RUST_LOG", "info"),
             }
-            utils::setup_logger();
+            setup_logger();
         } else {
             match env::var("RUST_TRACER") {
                 Ok(_) => {}
                 Err(_) => env::set_var("RUST_TRACER", "info"),
             }
-            utils::setup_tracer();
+            setup_tracer();
         }
 
         let mut elf = Vec::new();

@@ -4309,7 +4309,6 @@ dependencies = [
  "reqwest 0.11.27",
  "serde",
  "serde_json",
- "sp1-core",
  "sp1-prover",
  "sp1-sdk",
  "tar",
@@ -4610,6 +4609,7 @@ dependencies = [
  "sp1-prover",
  "tokio",
  "tracing",
+ "tracing-forest",
  "tracing-subscriber",
  "twirp",
 ]
