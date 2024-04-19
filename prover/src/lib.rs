@@ -489,7 +489,7 @@ impl SP1ProverImpl {
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
         let start = Instant::now();
-        groth16_ffi::prove(constraints, witness);
+        // groth16_ffi::prove(constraints, witness);
         let duration = start.elapsed().as_secs();
         println!("wrap duration = {}", duration);
     }

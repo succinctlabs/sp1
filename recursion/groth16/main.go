@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
 	"strconv"
@@ -168,10 +169,63 @@ func (circuit *Circuit) Define(api frontend.API) error {
 }
 
 func main() {
-	buildDir := "build"
+	proveCmd := flag.NewFlagSet("prove", flag.ExitOnError)
+	witnessFlag := proveCmd.String("witness", "witness.json", "Path to witness file")
+	dataDirFlag := proveCmd.String("data", "", "Data directory path")
+
+	buildCmd := flag.NewFlagSet("build", flag.ExitOnError)
+	buildDataDirFlag := buildCmd.String("data", "", "Data directory path")
+
+	if len(os.Args) < 2 {
+		fmt.Println("expected 'prove' or 'build' subcommand")
+		os.Exit(1)
+	}
 
 	switch os.Args[1] {
+	case "prove":
+		proveCmd.Parse(os.Args[2:])
+		fmt.Printf("Running 'prove' with witness=%s and data=%s\n", *witnessFlag, *dataDirFlag)
+		buildDir := *dataDirFlag
+
+		// Read the R1CS.
+		r1csFile, err := os.Open(buildDir + "/r1cs.bin")
+		if err != nil {
+			panic(err)
+		}
+		r1cs := groth16.NewCS(ecc.BN254)
+		r1cs.ReadFrom(r1csFile)
+
+		// Read the proving key.
+		pkFile, err := os.Open(buildDir + "/pk.bin")
+		if err != nil {
+			panic(err)
+		}
+		pk := groth16.NewProvingKey(ecc.BN254)
+		pk.ReadFrom(pkFile)
+
+		// Generate the witness.
+		assignment := Circuit{
+			Vars:  []frontend.Variable{},
+			Felts: []*babybear.Variable{},
+			Exts:  []*babybear.ExtensionVariable{},
+		}
+		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		if err != nil {
+			panic(err)
+		}
+
+		// Generate the proof.
+		proof, err := groth16.Prove(r1cs, pk, witness)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println(proof)
 	case "build":
+		buildCmd.Parse(os.Args[2:])
+		fmt.Printf("Running 'build' with data=%s\n", *buildDataDirFlag)
+		buildDir := *buildDataDirFlag
+
 		// Initialize the circuit.
 		circuit := Circuit{
 			Vars:  []frontend.Variable{},
@@ -211,43 +265,8 @@ func main() {
 		}
 		pk.WriteTo(pkFile)
 		pkFile.Close()
-	case "prove":
-		// Read the R1CS.
-		r1csFile, err := os.Open(buildDir + "/r1cs.bin")
-		if err != nil {
-			panic(err)
-		}
-		r1cs := groth16.NewCS(ecc.BN254)
-		r1cs.ReadFrom(r1csFile)
-
-		// Read the proving key.
-		pkFile, err := os.Open(buildDir + "/pk.bin")
-		if err != nil {
-			panic(err)
-		}
-		pk := groth16.NewProvingKey(ecc.BN254)
-		pk.ReadFrom(pkFile)
-
-		// Generate the witness.
-		assignment := Circuit{
-			Vars:  []frontend.Variable{},
-			Felts: []*babybear.Variable{},
-			Exts:  []*babybear.ExtensionVariable{},
-		}
-		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-		if err != nil {
-			panic(err)
-		}
-
-		// Generate the proof.
-		proof, err := groth16.Prove(r1cs, pk, witness)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(proof)
 	default:
-		fmt.Println("unknown command")
+		fmt.Println("expected 'prove' or 'build' subcommand")
 		os.Exit(1)
 	}
 }
