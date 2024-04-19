@@ -81,10 +81,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];
             let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
 
-            cols.input = event.input;
-
             // Apply the initial round.
-            external_linear_layer(&cols.input, &mut cols.external_rounds[0].state);
+            cols.input = event.input;
+            cols.external_rounds[0].state = event.input;
+            external_linear_layer(&mut cols.external_rounds[0].state);
 
             // Apply the first half of external rounds.
             for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
@@ -141,7 +141,7 @@ fn populate_external_round<F: PrimeField32>(
     cols: &mut Poseidon2WideCols<F>,
     r: usize,
 ) -> [F; WIDTH] {
-    let linear_layer_input = {
+    let mut state = {
         let round_cols = cols.external_rounds[r].borrow_mut();
 
         // Add round constants.
@@ -172,9 +172,8 @@ fn populate_external_round<F: PrimeField32>(
     };
 
     // Apply the linear layer.
-    let mut next_state = [F::zero(); WIDTH];
-    external_linear_layer(&linear_layer_input, &mut next_state);
-    next_state
+    external_linear_layer(&mut state);
+    state
 }
 
 fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) -> [F; WIDTH] {
@@ -194,10 +193,8 @@ fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) ->
         let sbox_deg_7 = cols.sbox_deg_3[r] * cols.sbox_deg_3[r] * add_rc;
 
         // Apply the linear layer.
-        let mut linear_layer_input = state;
-        linear_layer_input[0] = sbox_deg_7;
-
-        internal_linear_layer(&linear_layer_input, &mut state);
+        state[0] = sbox_deg_7;
+        internal_linear_layer(&mut state);
 
         // Optimization: since we're only applying the sbox to the 0th state element, we only
         // need to have columns for the 0th state element at every step. This is because the
@@ -241,8 +238,8 @@ fn eval_external_round<AB: SP1AirBuilder>(
     }
 
     // Apply the linear layer.
-    let mut linear_layer_output: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
-    external_linear_layer(&sbox_deg_7, &mut linear_layer_output);
+    let mut state = sbox_deg_7;
+    external_linear_layer(&mut state);
 
     let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
         &cols.internal_rounds.state
@@ -252,7 +249,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
         &cols.external_rounds[r + 1].state
     };
     for i in 0..WIDTH {
-        builder.assert_eq(next_state_cols[i], linear_layer_output[i].clone());
+        builder.assert_eq(next_state_cols[i], state[i].clone());
     }
 }
 
@@ -277,9 +274,8 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(builder: &mut AB, cols: &Poseidon2Wid
 
         // Apply the linear layer.
         // See `populate_internal_rounds` for why we don't have columns for the new state here.
-        let mut linear_layer_input = state.clone();
-        linear_layer_input[0] = sbox_deg_7.clone();
-        internal_linear_layer(&linear_layer_input, &mut state);
+        state[0] = sbox_deg_7.clone();
+        internal_linear_layer(&mut state);
 
         if r < NUM_INTERNAL_ROUNDS - 1 {
             builder.assert_eq(round_cols.s0[r], state[0].clone());
@@ -311,10 +307,10 @@ where
 
         // Apply the initial round.
         let initial_round_output = {
-            let input: [AB::Expr; WIDTH] = core::array::from_fn(|i| cols.input[i].into());
-            let mut output: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
-            external_linear_layer(&input, &mut output);
-            output
+            let mut initial_round_output: [AB::Expr; WIDTH] =
+                core::array::from_fn(|i| cols.input[i].into());
+            external_linear_layer(&mut initial_round_output);
+            initial_round_output
         };
         for i in 0..WIDTH {
             builder.assert_eq(
@@ -400,7 +396,6 @@ mod tests {
 
     /// A test proving 2^10 permuations
     #[test]
-    #[ignore]
     fn prove_babybear() {
         let config = BabyBearPoseidon2Inner::new();
         let mut challenger = config.challenger();
