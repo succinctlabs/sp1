@@ -39,7 +39,7 @@ pub use io::*;
 use runtime::{Program, Runtime};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use stark::Proof;
+use stark::MachineProof;
 use stark::StarkGenericConfig;
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
@@ -47,7 +47,7 @@ use stark::StarkGenericConfig;
 #[deprecated(note = "Import from sp1_sdk instead of sp1_core")]
 pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
     #[serde(with = "proof_serde")]
-    pub proof: Proof<SC>,
+    pub proof: MachineProof<SC>,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
 }

@@ -171,8 +171,8 @@ mod tests {
     use serde::{de::DeserializeOwned, Serialize};
     use serial_test::serial;
     use sp1_core::stark::{
-        Chip, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, ShardCommitment,
-        ShardMainData, ShardProof, StarkGenericConfig,
+        Chip, Com, Dom, LocalProver, OpeningProof, PcsProverData, ShardCommitment, ShardMainData,
+        ShardProof, StarkGenericConfig, StarkMachine,
     };
     use sp1_recursion_compiler::{
         config::OuterConfig,
@@ -189,7 +189,7 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
-        machine: &'a MachineStark<SC, RecursionAir<SC::Val>>,
+        machine: &'a StarkMachine<SC, RecursionAir<SC::Val>>,
         proof: &'a ShardProof<SC>,
         challenger: &mut SC::Challenger,
     ) -> (

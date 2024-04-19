@@ -5,7 +5,7 @@ use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::stark::{
     AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
 };
-use sp1_core::stark::{StarkGenericConfig, VerifyingKey};
+use sp1_core::stark::{StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::{
     BabyBearPoseidon2Inner, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
     InnerVal,
@@ -380,7 +380,7 @@ impl<
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-    > Hintable<C> for VerifyingKey<SC>
+    > Hintable<C> for StarkVerifyingKey<SC>
 {
     type HintVariable = VerifyingKeyVariable<C>;
 

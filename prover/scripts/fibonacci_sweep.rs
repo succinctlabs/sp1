@@ -6,13 +6,8 @@
 use std::{fs::File, io::BufWriter, io::Write, time::Instant};
 
 use itertools::iproduct;
-use p3_challenger::CanObserve;
-use sp1_core::{
-    runtime::Program,
-    stark::{Proof, RiscvAir, StarkGenericConfig},
-    utils::BabyBearPoseidon2,
-};
-use sp1_prover::SP1ProverImpl;
+use sp1_prover::SP1Prover;
+use sp1_sdk::SP1Stdin;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{fmt::format::FmtSpan, util::SubscriberInitExt};
 
@@ -42,13 +37,14 @@ fn main() {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     // Initialize prover.
-    let prover = SP1ProverImpl::new();
+    let prover = SP1Prover::new();
 
     // Setup sweep.
     let iterations = [480000u32];
     let shard_sizes = [1 << 19, 1 << 20, 1 << 21, 1 << 22];
     let batch_sizes = [2, 3, 4];
     let elf = include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
+    let (pk, vk) = prover.setup(elf);
 
     let mut lines = vec![
         "iterations,shard_size,batch_size,leaf_proving_duration,recursion_proving_duration"
@@ -63,22 +59,16 @@ fn main() {
         );
         std::env::set_var("SHARD_SIZE", shard_size.to_string());
 
-        let stdin = [bincode::serialize::<u32>(&iterations).unwrap()];
+        let stdin = SP1Stdin {
+            buffer: vec![bincode::serialize::<u32>(&iterations).unwrap()],
+            ptr: 0,
+        };
         let leaf_proving_start = Instant::now();
-        let proof: Proof<BabyBearPoseidon2> = SP1ProverImpl::prove(elf, &stdin);
+        let proof = prover.prove_core(&pk, &stdin);
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
 
-        let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
-        let (_, vk) = sp1_machine.setup(&Program::from(elf));
-        let mut sp1_challenger = sp1_machine.config().challenger();
-        sp1_challenger.observe(vk.commit);
-        for shard_proof in proof.shard_proofs.iter() {
-            sp1_challenger.observe(shard_proof.commitment.main_commit);
-            sp1_challenger.observe_slice(&shard_proof.public_values.to_vec());
-        }
-
         let recursion_proving_start = Instant::now();
-        let _ = prover.reduce_tree(&vk, proof, batch_size);
+        let _ = prover.reduce(&vk, proof);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
 
         lines.push(format!(

@@ -6,7 +6,7 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use sp1_core::air::Word;
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
-use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, VerifyingKey};
+use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::{inner_fri_config, sp1_fri_config, BabyBearPoseidon2Inner};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
 use sp1_recursion_compiler::ir::{Array, Felt, Var};
@@ -107,8 +107,8 @@ impl ReduceProgram {
                 &recursion_prep_domains,
                 &mut builder,
             );
-            VerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
-            VerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
+            StarkVerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
+            StarkVerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
             Vec::<Val>::witness(&start_pcs, &mut builder);
             Vec::<Val>::witness(&next_pcs, &mut builder);
             Vec::<Val>::witness(&start_shards, &mut builder);
@@ -131,7 +131,7 @@ impl ReduceProgram {
             builder
                 .range(0, num_deferred_proofs)
                 .for_each(|i, builder| {
-                    let vk = VerifyingKey::<SC>::read(builder);
+                    let vk = StarkVerifyingKey::<SC>::read(builder);
                     builder.set(&mut deferred_vks_target, i, vk);
                 });
             builder.assign(deferred_vks.clone(), deferred_vks_target);

@@ -30,7 +30,7 @@ use serde::{Deserialize, Serialize};
 use sp1_core::runtime::{Program, Runtime};
 use sp1_core::stark::{Com, DeferredDigest, PcsProverData, RiscvAir};
 use sp1_core::stark::{
-    OpeningProof, ProgramVerificationError, Proof, ShardMainData, StarkGenericConfig,
+    MachineProof, OpeningProof, ProgramVerificationError, ShardMainData, StarkGenericConfig,
 };
 use sp1_core::utils::run_and_prove;
 use std::env;
@@ -44,7 +44,7 @@ use util::StageProgressBar;
 #[derive(Serialize, Deserialize)]
 pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
     #[serde(with = "proof_serde")]
-    pub proof: Proof<SC>,
+    pub proof: MachineProof<SC>,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
 }
