@@ -148,8 +148,9 @@ where
 mod test {
     use crate::runtime::Program;
     use crate::stark::{RiscvAir, StarkGenericConfig};
+    use crate::syscall::SP1Stdin;
+    use crate::utils::Buffer;
     use crate::utils::{run_and_prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
-    use crate::{SP1PublicValues, SP1Stdin};
 
     use rand::Rng;
     use rand::SeedableRng;
@@ -185,7 +186,7 @@ mod test {
 
         let program = Program::from(KECCAK256_ELF);
         let (proof, public_values) = run_and_prove(program, &stdin.buffer, config);
-        let mut public_values = SP1PublicValues::from(&public_values);
+        let mut public_values = Buffer::from(&public_values);
 
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();

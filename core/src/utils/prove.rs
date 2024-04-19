@@ -19,8 +19,6 @@ use crate::{
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
 
-use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
-
 const LOG_DEGREE_BOUND: usize = 31;
 
 pub fn get_cycles(program: Program) -> u64 {
@@ -29,23 +27,21 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
+/// Runs a program and returns the public values stream.
 pub fn run_test_io(
     program: Program,
-    inputs: SP1Stdin,
-) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+    inputs: Vec<Vec<u8>>,
+) -> Result<Buffer, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.write_vecs(&inputs.buffer);
+        runtime.write_vecs(&inputs);
         runtime.run();
         runtime
     });
-    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let proof = run_test_core(runtime)?;
-    Ok(SP1ProofWithIO {
-        proof,
-        stdin: inputs,
-        public_values,
-    })
+    let public_values = runtime.state.public_values_stream.clone();
+    let _ = run_test_core(runtime)?;
+
+    Ok(Buffer::from(&public_values))
 }
 
 pub fn run_test(
@@ -339,6 +335,8 @@ pub use baby_bear_poseidon2::BabyBearPoseidon2;
 use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
+
+use super::Buffer;
 
 pub mod baby_bear_poseidon2 {
 

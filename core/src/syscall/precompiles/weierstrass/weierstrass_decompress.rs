@@ -325,11 +325,9 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::syscall::SP1Stdin;
+    use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
     use crate::Program;
-    use crate::{
-        utils::{self, tests::BLS12381_DECOMPRESS_ELF},
-        SP1Stdin,
-    };
     use amcl::bls381::bls381::basic::key_pair_generate_g2;
     use amcl::bls381::bls381::utils::deserialize_g1;
     use amcl::rand::RAND;
@@ -346,10 +344,11 @@ mod tests {
         let (_, compressed) = key_pair_generate_g2(&mut RAND::new());
 
         let inputs = SP1Stdin::from(&compressed);
-        let mut proof = run_test_io(Program::from(BLS12381_DECOMPRESS_ELF), inputs).unwrap();
+        let mut public_values =
+            run_test_io(Program::from(BLS12381_DECOMPRESS_ELF), inputs.buffer).unwrap();
 
         let mut result = [0; 96];
-        proof.public_values.read_slice(&mut result);
+        public_values.read_slice(&mut result);
 
         let point = deserialize_g1(&compressed).unwrap();
         let x = point.getx().to_string();
@@ -372,9 +371,10 @@ mod tests {
 
         let inputs = SP1Stdin::from(&compressed);
 
-        let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
+        let mut public_values =
+            run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs.buffer).unwrap();
         let mut result = [0; 65];
-        proof.public_values.read_slice(&mut result);
+        public_values.read_slice(&mut result);
         assert_eq!(result, decompressed);
     }
 }

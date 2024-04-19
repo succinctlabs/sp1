@@ -568,10 +568,10 @@ impl SP1ProverImpl {
 mod tests {
 
     use super::*;
+    use crate::io::SP1Stdin;
     use sp1_core::{
         runtime::Runtime,
         utils::{prove_core, setup_logger},
-        SP1Stdin,
     };
     use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
     use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};

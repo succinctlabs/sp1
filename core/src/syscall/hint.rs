@@ -74,8 +74,8 @@ mod tests {
 
     use crate::{
         runtime::Program,
+        syscall::SP1Stdin,
         utils::{run_and_prove, setup_logger, BabyBearPoseidon2},
-        SP1Stdin,
     };
 
     const HINT_IO_ELF: &[u8] =
