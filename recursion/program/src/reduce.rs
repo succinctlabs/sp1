@@ -185,7 +185,7 @@ impl ReduceProgram {
                     }
                     let pv = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
-                    // Verify witness data
+                    // Verify witness data.
                     builder.assert_felt_eq(shard_start_pc, pv.start_pc);
                     builder.assert_felt_eq(shard_next_pc, pv.next_pc);
                     builder.assert_felt_eq(shard_start_shard, pv.shard);
@@ -201,30 +201,33 @@ impl ReduceProgram {
                         },
                     );
 
-                    // Need to convert the shard as a felt to a variable, since `if_eq` only handles variables.
+                    // Need to convert the shard as a felt to a variable, since `if_eq` only handles
+                    // variables.
                     let shard_f = pv.shard;
                     let shard = felt2var(builder, shard_f);
 
-                    // First shard logic
+                    // Handle the case where the shard is the first shard.
                     builder.if_eq(shard, one).then(|builder| {
-                        // Initialize the current challenger
                         let empty_challenger = DuplexChallengerVariable::new(builder);
                         builder.assign(reconstruct_challenger.clone(), empty_challenger);
                         reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                         reconstruct_challenger.observe(builder, sp1_vk.pc_start);
                     });
 
-                    // Observe current proof commit and public values into reconstruct challenger
+                    // Observe current proof commit and public values into reconstruct challenger.
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&proof.commitment.main_commit, j);
                         reconstruct_challenger.observe(builder, element);
                     }
+
                     // TODO: fix public values observe
                     // let public_values = proof.public_values.to_vec(builder);
                     // reconstruct_challenger.observe_slice(builder, &public_values);
 
-                    // Verify proof with copy of witnessed challenger
+                    // Verify proof with copy of witnessed challenger.
                     let mut current_challenger = sp1_challenger.copy(builder);
+
+                    // Verify the shard.
                     StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                         builder,
                         &sp1_vk.clone(),
@@ -246,7 +249,6 @@ impl ReduceProgram {
                     }
 
                     let proof_pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
-
                     let mut pv = builder.array(4);
                     builder.set(&mut pv, 0, shard_start_pc);
                     builder.set(&mut pv, 1, shard_start_shard);
@@ -254,14 +256,13 @@ impl ReduceProgram {
                     builder.set(&mut pv, 3, shard_next_shard);
 
                     let pv_digest = builder.poseidon2_hash(&pv);
-
                     for j in 0..DIGEST_SIZE {
                         let expected_digest_element = proof_pv.committed_value_digest[j];
                         let digest_element = builder.get(&pv_digest, j);
                         builder.assert_felt_eq(expected_digest_element, digest_element);
                     }
 
-                    // Build recursion challenger
+                    // Build the recursive challenger.
                     let mut current_challenger = recursion_challenger.copy(builder);
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&proof.commitment.main_commit, j);
@@ -271,7 +272,8 @@ impl ReduceProgram {
                         let element = builder.get(&proof.public_values, j);
                         current_challenger.observe(builder, element);
                     });
-                    // Verify the proof
+
+                    // Verify the shard.
                     StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                         builder,
                         &recursion_vk.clone(),
@@ -287,7 +289,7 @@ impl ReduceProgram {
             );
         });
 
-        // Verify deferred proofs and acculumate to deferred proofs digest
+        // Verify deferred proofs and acculumate to deferred proofs digest.
         let _pre_deferred_proof_digest = clone(&mut builder, &deferred_proof_digest);
         for j in 0..DIGEST_SIZE {
             let val = builder.get(&deferred_proof_digest, j);
@@ -308,6 +310,8 @@ impl ReduceProgram {
                     let element = builder.get(&proof.public_values, j);
                     challenger.observe(builder, element);
                 });
+
+                // Verify the shard.
                 StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                     builder,
                     &recursion_vk.clone(),
