@@ -1,60 +1,8 @@
-use std::env;
-use std::{sync::Once, time::Duration};
-use tracing_forest::ForestLayer;
-use tracing_subscriber::fmt::format::FmtSpan;
-use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
+pub use sp1_prover::utils::{setup_logger, setup_tracer};
 
-use tracing::level_filters::LevelFilter;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::Registry;
-
-static INIT: Once = Once::new();
+use std::time::Duration;
 
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
-
-/// A simple logger.
-///
-/// Set the `RUST_LOG` environment variable to be set to `info` or `debug`.
-pub fn setup_logger() {
-    INIT.call_once(|| {
-        let default_filter = "off";
-        let env_filter = EnvFilter::try_from_default_env()
-            .unwrap_or_else(|_| EnvFilter::new(default_filter))
-            .add_directive("p3_keccak_air=off".parse().unwrap())
-            .add_directive("p3_fri=off".parse().unwrap())
-            .add_directive("p3_challenger=off".parse().unwrap());
-        tracing_subscriber::fmt::Subscriber::builder()
-            .compact()
-            .with_file(false)
-            .with_target(false)
-            .with_thread_names(false)
-            .with_env_filter(env_filter)
-            .with_span_events(FmtSpan::CLOSE)
-            .finish()
-            .init();
-    });
-}
-
-/// A tracer to benchmark the performance of the vm.
-///
-/// Set the `RUST_TRACER` environment variable to be set to `info` or `debug`.
-pub fn setup_tracer() {
-    let tracer_config = env::var("RUST_TRACER").unwrap_or_else(|_| "none".to_string());
-    let mut env_filter = EnvFilter::builder()
-        .with_default_directive(LevelFilter::OFF.into())
-        .with_default_directive("log::=off".parse().unwrap())
-        .from_env_lossy();
-    if tracer_config == "info" {
-        env_filter = env_filter.add_directive("sp1_core=info".parse().unwrap());
-    } else if tracer_config == "debug" {
-        env_filter = env_filter.add_directive("sp1_core=debug".parse().unwrap());
-    }
-    Registry::default()
-        .with(env_filter)
-        .with(ForestLayer::default())
-        .init();
-}
 
 pub struct StageProgressBar {
     pb: ProgressBar,

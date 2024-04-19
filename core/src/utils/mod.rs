@@ -5,11 +5,13 @@ pub mod env;
 mod logger;
 mod programs;
 mod prove;
+mod tracer;
 
 pub use buffer::*;
 pub use config::*;
 pub use logger::*;
 pub use prove::*;
+pub use tracer::*;
 
 #[cfg(test)]
 pub use programs::*;

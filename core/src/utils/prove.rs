@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use web_time::Instant;
 
-use crate::io::SP1Stdin;
+use crate::io::{SP1PublicValues, SP1Stdin};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 use p3_field::PrimeField32;
@@ -32,17 +32,17 @@ pub fn get_cycles(program: Program) -> u64 {
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
-) -> Result<Buffer, crate::stark::ProgramVerificationError> {
+) -> Result<SP1PublicValues, crate::stark::ProgramVerificationError> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&inputs.buffer);
         runtime.run();
         runtime
     });
-    let public_values = runtime.state.public_values_stream.clone();
+    let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
     let _ = run_test_core(runtime)?;
 
-    Ok(Buffer::from(&public_values))
+    Ok(public_values)
 }
 
 pub fn run_test(
@@ -336,8 +336,6 @@ pub use baby_bear_poseidon2::BabyBearPoseidon2;
 use p3_air::Air;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::Proof;
-
-use super::Buffer;
 
 pub mod baby_bear_poseidon2 {
 

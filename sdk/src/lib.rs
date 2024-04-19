@@ -16,12 +16,12 @@ use proto::network::{ProofStatus, TransactionStatus};
 use sp1_prover::SP1SC;
 
 use crate::client::NetworkClient;
+use crate::utils::StageProgressBar;
 use anyhow::{Context, Ok, Result};
 use std::env;
 use std::time::Duration;
 use tokio::runtime;
 use tokio::time::sleep;
-use utils::StageProgressBar;
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {

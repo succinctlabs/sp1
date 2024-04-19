@@ -22,6 +22,10 @@ use sp1_core::{
 };
 use std::fs;
 
+pub mod utils {
+    pub use sp1_core::utils::{setup_logger, setup_tracer};
+}
+
 // Re-export SP1 public values and stdin.
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 
