@@ -535,7 +535,6 @@ impl SP1ProverImpl {
     }
 
     pub fn verify_with_config<SC>(
-        &self,
         elf: &[u8],
         proof: &SP1ProofWithIO<SC>,
         config: SC,
