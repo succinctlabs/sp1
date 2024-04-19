@@ -32,6 +32,12 @@ pub struct LtCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
+    /// If the opcode is SLT.
+    pub is_slt: T,
+
+    /// If the opcode is SLTU.
+    pub is_sltu: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -60,7 +66,7 @@ pub struct LtCols<T> {
     /// The multiplication msb_c * is_slt.
     pub bit_c: T,
 
-    /// The result of the intermediate SLTU operation.
+    /// The result of the intermediate SLTU operation `b_comp < c_comp`.
     pub stlu: T,
     /// A bollean flag for an intermediate comparison.
     pub is_comp_eq: T,
@@ -68,18 +74,8 @@ pub struct LtCols<T> {
     pub is_sign_eq: T,
     /// The comparison bytes to be looked up.
     pub comparison_bytes: [T; 2],
-
-    /// Boolean flag to indicate whether to do an equality check between the bytes.
-    ///
-    /// This should be true for all bytes smaller than the first byte pair that differs. With LE
-    /// bytes, this is all bytes after the differing byte pair.
+    /// Boolean fags to indicate which byte differs between the perands `b_comp`, `c_comp`.
     pub byte_equality_check: [T; 4],
-
-    /// If the opcode is SLT.
-    pub is_slt: T,
-
-    /// If the opcode is SLTU.
-    pub is_sltu: T,
 }
 
 impl LtCols<u32> {
@@ -273,6 +269,8 @@ where
         c_comp[3] = local.c[3] * local.is_sltu + local.c_masked * local.is_slt;
 
         // Constrain the `masked_b` and `masked_c` values via lookup.
+        //
+        // The values are given by `b_masked = b[3] & 0x7F` and `c_masked = c[3] & 0x7F`.
         builder.send_byte(
             ByteOpcode::AND.as_field::<AB::F>(),
             local.b_masked,
@@ -289,9 +287,6 @@ where
             local.shard,
             is_real.clone(),
         );
-
-        // Constrain `local.stlu == STLU(b_comp, c_comp)`.
-        builder.assert_bool(local.stlu);
 
         // Set the values of `b_bit` and `c_bit`.
         builder.assert_eq(local.bit_b, local.msb_b * local.is_slt);
@@ -311,7 +306,9 @@ where
             .when_not(local.is_sign_eq)
             .assert_one(local.bit_b + local.bit_c);
 
-        // Assert the result `a` is correct. First, check that `a` is set correctly:
+        // Assert the final result `a` is correct.
+
+        // Check that `a[0]` is set correctly.
         builder.assert_eq(
             local.a[0],
             local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.stlu,
@@ -322,7 +319,7 @@ where
         builder.assert_zero(local.a[3]);
 
         // Verify that the byte equality flags are set correctly, i.e. all are boolean and only
-        // a single byte pair is set.
+        // at most a single byte flag is set.
         let sum_flags =
             local.byte_flags[0] + local.byte_flags[1] + local.byte_flags[2] + local.byte_flags[3];
         builder.assert_bool(local.byte_flags[0]);
@@ -334,18 +331,28 @@ where
             .when(is_real.clone())
             .assert_eq(AB::Expr::one() - local.is_comp_eq, sum_flags);
 
-        // Now we constrain the correct value of `stlu`.
+        // Constrain `local.stlu == STLU(b_comp, c_comp)`.
+        //
+        // We define bytes `b_comp_byte` and `c_comp_byte` as follows: If `b_comp == c_comp`, then
+        // `b_comp_byte = c_comp_byte = 0`. Otherwise, we set `b_comp_byte` and `c_comp_byte` to
+        // the first differing byte (in most significant order). We will use the `local.is_comp_eq`
+        // flag to indicate whether the bytes are equal.
 
         // Check the equality flag is boolean.
         builder.assert_bool(local.is_comp_eq);
+
+        // Find the differing byte if `b_comp != c_comp` and assert equality in case the flag
+        // `local.is_comp_eq` is set to `1`.
 
         // A flag to indicate whether an equality check is necessary (this is for all bytes from
         // most significant until the first inequality.
         let mut is_inequality_visited = AB::Expr::zero();
 
+        // Expressions for computing the comparison bytes.
         let mut b_comparison_byte = AB::Expr::zero();
         let mut c_comparison_byte = AB::Expr::zero();
-
+        // Iterate over the bytes in reverse order and select the differing bytes using the byte
+        // flag columns values.
         for (b_byte, c_byte, &flag) in izip!(
             b_comp.0.iter().rev(),
             c_comp.0.iter().rev(),
@@ -358,7 +365,7 @@ where
             b_comparison_byte += b_byte.clone() * flag;
             c_comparison_byte += c_byte.clone() * flag;
 
-            // If inequality is not visited, then the bytes are equal.
+            // If inequality is not visited, assert that the bytes are equal.
             builder
                 .when_not(is_inequality_visited.clone())
                 .assert_eq(b_byte.clone(), c_byte.clone());
@@ -370,19 +377,23 @@ where
         // We need to verify that the comparison bytes are set correctly. This is only relevant in
         // the case where the bytes are not equal.
 
-        // Constrain the row comparison byte values.
+        // Constrain the row comparison byte values to be equal to the calciulated ones.
         let (b_comp_byte, c_comp_byte) = (local.comparison_bytes[0], local.comparison_bytes[1]);
         builder.assert_eq(b_comp_byte, b_comparison_byte);
         builder.assert_eq(c_comp_byte, c_comparison_byte);
 
-        // First, make sure that when `local.is_comp_eq == 1` then the comparison bytes are indeed
-        // not equal. This is done using the inverse hint `not_eq_inv`.
+        // Using the values above, we can constrain the `local.is_comp_eq` flag. We already asserted
+        // in the loop that when `local.is_comp_eq == 1` then all bytes are euqal. It is left to
+        // verify that when `local.is_comp_eq == 0` the comparison bytes are indeed not equal.
+        // This is done using the inverse hint `not_eq_inv`.
         builder.when_not(local.is_comp_eq).assert_eq(
             local.not_eq_inv * (b_comp_byte - c_comp_byte),
             is_real.clone(),
         );
 
-        // Now the value of local.stlu is equal to the same value for the bytes.
+        // Now the value of `local.stlu` is equal to the same value for the comparison bytes.
+        //
+        // Set `local.stlu = STLU(b_comp_byte, c_comp_byte)` via a lookup.
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
             local.stlu,
@@ -392,14 +403,13 @@ where
             is_real.clone(),
         );
 
-        // Constrain the values of the most significant bits.
-        builder.assert_bool(local.msb_b);
-        builder.assert_bool(local.msb_c);
+        // Constrain the operation flags.
 
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_slt);
         builder.assert_bool(local.is_sltu);
         // Check that at most one of the operation flags is set.
+        //
         // *remark*: this is not strictly necessary since it's also covered by the bus multiplicity
         // but this is included here to make sure the condition is met.
         builder.assert_bool(local.is_slt + local.is_sltu);
