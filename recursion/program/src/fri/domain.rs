@@ -5,7 +5,7 @@ use sp1_recursion_compiler::prelude::*;
 use super::types::FriConfigVariable;
 use crate::commit::PolynomialSpaceVariable;
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L55
+/// Reference: [p3_commit::TwoAdicMultiplicativeCoset]
 #[derive(DslVariable, Clone, Copy)]
 pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
     pub log_n: Var<C::N>,
@@ -15,13 +15,12 @@ pub struct TwoAdicMultiplicativeCosetVariable<C: Config> {
 }
 
 impl<C: Config> TwoAdicMultiplicativeCosetVariable<C> {
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L74
-    pub fn first_point(&self) -> Felt<C::F> {
-        self.shift
-    }
-
     pub fn size(&self) -> Var<C::N> {
         self.size
+    }
+
+    pub fn first_point(&self) -> Felt<C::F> {
+        self.shift
     }
 
     pub fn gen(&self) -> Felt<C::F> {
@@ -38,7 +37,6 @@ where
     fn constant(value: Self::Constant, builder: &mut Builder<C>) -> Self {
         let log_d_val = value.log_n as u32;
         let g_val = C::F::two_adic_generator(value.log_n);
-        // Initialize a domain.
         TwoAdicMultiplicativeCosetVariable::<C> {
             log_n: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(log_d_val)),
             size: builder.eval::<Var<_>, _>(C::N::from_canonical_u32(1 << (log_d_val))),
@@ -54,7 +52,6 @@ where
 {
     type Constant = p3_commit::TwoAdicMultiplicativeCoset<C::F>;
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L77
     fn next_point(
         &self,
         builder: &mut Builder<C>,
@@ -63,7 +60,6 @@ where
         builder.eval(point * self.gen())
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L112
     fn selectors_at_point(
         &self,
         builder: &mut Builder<C>,
@@ -83,27 +79,22 @@ where
         }
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L87
     fn zp_at_point(
         &self,
         builder: &mut Builder<C>,
         point: Ext<<C as Config>::F, <C as Config>::EF>,
     ) -> Ext<<C as Config>::F, <C as Config>::EF> {
-        // Compute (point * domain.shift.inverse()).exp_power_of_2(domain.log_n) - Ext::one()
         let unshifted_power = builder
             .exp_power_of_2_v::<Ext<_, _>>(point * self.shift.inverse(), Usize::Var(self.log_n));
         builder.eval(unshifted_power - C::EF::one())
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/main/commit/src/domain.rs#L91
     fn split_domains(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
         let num_chunks = 1 << log_num_chunks;
         let log_n: Var<_> = builder.eval(self.log_n - C::N::from_canonical_usize(log_num_chunks));
         let size = builder.sll(C::N::one(), Usize::Var(log_n));
 
         let g_dom = self.gen();
-
-        // We can compute a generator for the domain by computing g_dom^{log_num_chunks}
         let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks);
 
         let domain_power: Felt<_> = builder.eval(C::F::one());
@@ -127,10 +118,8 @@ where
         log_degree: Usize<<C as Config>::N>,
         config: Option<FriConfigVariable<C>>,
     ) -> Self {
-        // let domain = new_coset(builder, log_degree);
         let domain = config.unwrap().get_subgroup(builder, log_degree);
         builder.assign(domain.shift, self.shift * C::F::generator());
-
         domain
     }
 }
@@ -161,6 +150,7 @@ pub(crate) mod tests {
         builder.assert_var_eq(domain.log_n, F::from_canonical_usize(domain_val.log_n));
         builder.assert_var_eq(domain.size, F::from_canonical_usize(1 << domain_val.log_n));
         builder.assert_felt_eq(domain.shift, domain_val.shift);
+
         // Get a random point.
         let zeta: Ext<_, _> = builder.eval(zeta_val.cons());
 
@@ -203,6 +193,7 @@ pub(crate) mod tests {
             // Initialize a reference doamin.
             let domain_val = natural_domain_for_degree(1 << log_d_val);
             let domain = builder.constant(domain_val);
+
             // builder.assert_felt_eq(domain.shift, domain_val.shift);
             let zeta_val = rng.gen::<EF>();
             domain_assertions(&mut builder, &domain, &domain_val, zeta_val);

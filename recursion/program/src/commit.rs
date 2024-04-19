@@ -6,8 +6,6 @@ use crate::fri::types::{FriConfigVariable, TwoAdicPcsRoundVariable};
 pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
     type Constant: PolynomialSpace<Val = C::F>;
 
-    // fn from_constant(builder: &mut Builder<C>, constant: Self::Constant) -> Self;
-
     fn next_point(&self, builder: &mut Builder<C>, point: Ext<C::F, C::EF>) -> Ext<C::F, C::EF>;
 
     fn selectors_at_point(
@@ -41,7 +39,6 @@ pub trait PcsVariable<C: Config, Challenger> {
         log_degree: Usize<C::N>,
     ) -> Self::Domain;
 
-    // Todo: change TwoAdicPcsRoundVariable to RoundVariable
     fn verify(
         &self,
         builder: &mut Builder<C>,

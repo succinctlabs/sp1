@@ -4,7 +4,6 @@ use p3_air::{
 use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder};
-
 use sp1_recursion_compiler::{
     ir::{Builder, Config, Ext, Felt},
     prelude::SymbolicExt,

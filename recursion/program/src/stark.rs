@@ -1,14 +1,3 @@
-use crate::challenger::CanObserveVariable;
-use crate::challenger::DuplexChallengerVariable;
-use crate::challenger::FeltChallenger;
-use crate::commit::PolynomialSpaceVariable;
-use crate::folder::RecursiveVerifierConstraintFolder;
-use crate::fri::types::TwoAdicPcsMatsVariable;
-use crate::fri::types::TwoAdicPcsRoundVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::types::ShardCommitmentVariable;
-use crate::types::VerifyingKeyVariable;
-use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
 use p3_air::Air;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
@@ -22,6 +11,18 @@ use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::ir::{Builder, Config, Usize};
 use sp1_recursion_core::runtime::DIGEST_SIZE;
+
+use crate::challenger::CanObserveVariable;
+use crate::challenger::DuplexChallengerVariable;
+use crate::challenger::FeltChallenger;
+use crate::commit::PolynomialSpaceVariable;
+use crate::folder::RecursiveVerifierConstraintFolder;
+use crate::fri::types::TwoAdicPcsMatsVariable;
+use crate::fri::types::TwoAdicPcsRoundVariable;
+use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::types::ShardCommitmentVariable;
+use crate::types::VerifyingKeyVariable;
+use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
 
 pub const EMPTY: usize = 0x_1111_1111;
 

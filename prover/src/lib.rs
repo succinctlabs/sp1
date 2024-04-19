@@ -24,7 +24,7 @@ use sp1_recursion_core::{
     runtime::{RecursionProgram, Runtime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
-use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
+use sp1_recursion_program::{hints::Hintable, reduce::ReduceProgram, stark::EMPTY};
 use std::time::Instant;
 
 type SP1SC = BabyBearPoseidon2;
@@ -124,8 +124,8 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 
 impl SP1ProverImpl {
     pub fn new() -> Self {
-        // TODO: load from serde
-        let (reduce_setup_program, reduce_program) = build_reduce_program();
+        let reduce_setup_program = ReduceProgram::setup();
+        let reduce_program = ReduceProgram::build();
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
         Self {

@@ -19,7 +19,6 @@ use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
 use crate::commit::PcsVariable;
 
-#[allow(clippy::type_complexity)]
 pub fn verify_two_adic_pcs<C: Config>(
     builder: &mut Builder<C>,
     config: &FriConfigVariable<C>,

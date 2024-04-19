@@ -10,7 +10,7 @@ use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/proof.rs#L12
+/// Reference: [sp1_core::stark::ShardProof]
 #[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {
     pub index: Var<C::N>,
@@ -20,13 +20,14 @@ pub struct ShardProofVariable<C: Config> {
     pub public_values: Array<C, Felt<C::F>>,
 }
 
-/// Reference: https://github.com/succinctlabs/sp1/blob/b5d5473c010ab0630102652146e16c014a1eddf6/core/src/stark/machine.rs#L63
+/// Reference: [sp1_core::stark::VerifyingKey]
 #[derive(DslVariable, Clone)]
 pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
     pub pc_start: Felt<C::F>,
 }
 
+/// Reference: [sp1_core::stark::ShardCommitment]
 #[derive(DslVariable, Clone)]
 pub struct ShardCommitmentVariable<C: Config> {
     pub main_commit: DigestVariable<C>,
@@ -34,11 +35,13 @@ pub struct ShardCommitmentVariable<C: Config> {
     pub quotient_commit: DigestVariable<C>,
 }
 
+/// Reference: [sp1_core::stark::ShardOpenedValues]
 #[derive(DslVariable, Debug, Clone)]
 pub struct ShardOpenedValuesVariable<C: Config> {
     pub chips: Array<C, ChipOpenedValuesVariable<C>>,
 }
 
+/// Reference: [sp1_core::stark::ChipOpenedValues]
 #[derive(Debug, Clone)]
 pub struct ChipOpening<C: Config> {
     pub preprocessed: AirOpenedValues<Ext<C::F, C::EF>>,
@@ -49,6 +52,7 @@ pub struct ChipOpening<C: Config> {
     pub log_degree: Var<C::N>,
 }
 
+/// Reference: [sp1_core::stark::ChipOpenedValues]
 #[derive(DslVariable, Debug, Clone)]
 pub struct ChipOpenedValuesVariable<C: Config> {
     pub preprocessed: AirOpenedValuesVariable<C>,
@@ -59,6 +63,7 @@ pub struct ChipOpenedValuesVariable<C: Config> {
     pub log_degree: Var<C::N>,
 }
 
+/// Reference: [sp1_core::stark::AirOpenedValues]
 #[derive(DslVariable, Debug, Clone)]
 pub struct AirOpenedValuesVariable<C: Config> {
     pub local: Array<C, Ext<C::F, C::EF>>,
