@@ -132,7 +132,6 @@ fn main() {
 }
 
 fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64, f64) {
-    let prover = SP1ProverImpl::new();
     match hashfn {
         HashFnId::Blake3 => {
             let mut runtime = Runtime::new(program.clone());
@@ -151,7 +150,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
             };
 
             let verify_start = Instant::now();
-            prover.verify_with_config(elf, &proof, config).unwrap();
+            SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)
@@ -173,7 +172,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
             };
 
             let verify_start = Instant::now();
-            prover.verify_with_config(elf, &proof, config).unwrap();
+            SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)
@@ -195,7 +194,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
             };
 
             let verify_start = Instant::now();
-            prover.verify_with_config(elf, &proof, config).unwrap();
+            SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)

@@ -516,7 +516,7 @@ impl SP1ProverImpl {
         println!("wrap duration = {}", duration);
     }
 
-    /// Verify a proof of an SP1 program and its inputs.
+    /// Verify a proof of an SP1 program without IO.
     pub fn verify<SC: StarkGenericConfig<Val = BabyBear> + Default>(elf: &[u8], proof: &Proof<SC>)
     where
         <SC as StarkGenericConfig>::Challenger: Clone,
@@ -534,6 +534,7 @@ impl SP1ProverImpl {
         machine.verify(&vk, proof, &mut challenger_ver).unwrap();
     }
 
+    /// Verify a proof of an SP1 program with IO.
     pub fn verify_with_config<SC>(
         elf: &[u8],
         proof: &SP1ProofWithIO<SC>,
