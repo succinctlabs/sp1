@@ -279,6 +279,9 @@ where
 
         // Now we constrain the correct value of `stlu`.
 
+        // Check the equality flag is boolean.
+        builder.assert_bool(local.is_comp_eq);
+
         // A flag to indicate whether an equality check is necessary (this is for all bytes from
         // most significant until the first inequality.
         let mut is_inequality_visited = AB::Expr::zero();
@@ -298,10 +301,29 @@ where
             b_comparison_byte += b_byte.clone() * flag;
             c_comparison_byte += c_byte.clone() * flag;
 
+            // If inequality is not visited, then the bytes are equal.
             builder
                 .when_not(is_inequality_visited.clone())
                 .assert_eq(b_byte.clone(), c_byte.clone());
+            // If the numbers are assumed equal, inequality should not be visited.
+            builder
+                .when(local.is_comp_eq)
+                .assert_zero(is_inequality_visited.clone());
         }
+        // We need to verify that the comparison bytes are set correctly. This is only relevant in
+        // the case where the bytes are not equal.
+
+        // Constrain the row comparison byte values.
+        let (b_comp_byte, c_comp_byte) = (local.comparison_bytes[0], local.comparison_bytes[1]);
+        builder.assert_eq(b_comp_byte, b_comparison_byte);
+        builder.assert_eq(c_comp_byte, c_comparison_byte);
+
+        // First, make sure that when `local.is_comp_eq == 1` then the comparison bytes are indeed
+        // not equal. This is done using the inverse hint `not_eq_inv`.
+        // builder.when_not(local.is_comp_eq).assert_eq(
+        //     local.not_eq_inv * (b_comp_byte - c_comp_byte),
+        //     is_real.clone(),
+        // );
 
         // Constrain the values of the most significant bits.
         builder.assert_bool(local.msb_b);
