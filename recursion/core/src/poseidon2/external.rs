@@ -336,6 +336,7 @@ mod tests {
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
+    use crate::poseidon2::external::ROWS_PER_PERMUTATION;
     use crate::{
         poseidon2::{Poseidon2Chip, Poseidon2Event, WIDTH},
         runtime::ExecutionRecord,
@@ -376,7 +377,7 @@ mod tests {
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
 
         for (i, expected_output) in expected_outputs.iter().enumerate() {
-            let row = trace.row(31 * (i + 1) - 1).collect_vec();
+            let row = trace.row(ROWS_PER_PERMUTATION * (i + 1) - 1).collect_vec();
             let cols: &Poseidon2Cols<BabyBear> = row.as_slice().borrow();
             assert_eq!(expected_output, &cols.output);
         }
