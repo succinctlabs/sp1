@@ -335,7 +335,6 @@ mod tests {
         utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
-    use crate::poseidon2::external::ROWS_PER_PERMUTATION;
     use crate::{
         poseidon2::{Poseidon2Chip, Poseidon2Event, WIDTH},
         runtime::ExecutionRecord,
