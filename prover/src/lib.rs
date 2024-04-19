@@ -12,6 +12,8 @@
 #![allow(deprecated)]
 #![allow(clippy::new_without_default)]
 
+mod verify;
+
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
@@ -496,6 +498,9 @@ mod tests {
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
         let core_proof = prover.prove_core(&pk, &stdin);
+
+        tracing::info!("verify core");
+        core_proof.verify(&vk).unwrap();
 
         // TODO: Get rid of this method by reading it from public values.
         let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
