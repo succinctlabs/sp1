@@ -18,7 +18,6 @@ pub struct SP1PublicValues {
 
 impl SP1Stdin {
     /// Create a new `SP1Stdin`.
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             buffer: Vec::new(),
@@ -67,7 +66,6 @@ impl SP1Stdin {
 
 impl SP1PublicValues {
     /// Create a new `SP1PublicValues`.
-    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         Self {
             buffer: Buffer::new(),
