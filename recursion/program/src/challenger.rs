@@ -1,5 +1,4 @@
 use p3_field::AbstractField;
-
 use sp1_recursion_compiler::prelude::MemIndex;
 use sp1_recursion_compiler::prelude::MemVariable;
 use sp1_recursion_compiler::prelude::Ptr;
@@ -33,7 +32,7 @@ pub trait CanSampleBitsVariable<C: Config> {
     ) -> Array<C, Var<C::N>>;
 }
 
-/// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L10
+/// Reference: [p3_challenger::DuplexChallenger]
 #[derive(Clone, DslVariable)]
 pub struct DuplexChallengerVariable<C: Config> {
     pub sponge_state: Array<C, Felt<C::F>>,
@@ -44,6 +43,7 @@ pub struct DuplexChallengerVariable<C: Config> {
 }
 
 impl<C: Config> DuplexChallengerVariable<C> {
+    /// Creates a new duplex challenger with the default state.
     pub fn new(builder: &mut Builder<C>) -> Self {
         DuplexChallengerVariable::<C> {
             sponge_state: builder.dyn_array(PERMUTATION_WIDTH),
@@ -55,7 +55,7 @@ impl<C: Config> DuplexChallengerVariable<C> {
     }
 
     /// Creates a new challenger with the same state as an existing challenger.
-    pub fn as_clone(&self, builder: &mut Builder<C>) -> Self {
+    pub fn copy(&self, builder: &mut Builder<C>) -> Self {
         let mut sponge_state = builder.dyn_array(PERMUTATION_WIDTH);
         builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
             let element = builder.get(&self.sponge_state, i);
@@ -82,7 +82,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L38
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
         builder.range(0, self.nb_inputs).for_each(|i, builder| {
             let element = builder.get(&self.input_buffer, i);
@@ -101,7 +100,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L61
     fn observe(&mut self, builder: &mut Builder<C>, value: Felt<C::F>) {
         builder.assign(self.nb_outputs, C::N::zero());
 
@@ -118,7 +116,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
             })
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L78
     fn observe_commitment(&mut self, builder: &mut Builder<C>, commitment: DigestVariable<C>) {
         for i in 0..DIGEST_SIZE {
             let element = builder.get(&commitment, i);
@@ -126,7 +123,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         }
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L124
     fn sample(&mut self, builder: &mut Builder<C>) -> Felt<C::F> {
         let zero: Var<_> = builder.eval(C::N::zero());
         builder.if_ne(self.nb_inputs, zero).then_or_else(
@@ -153,7 +149,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         builder.ext_from_base_slice(&[a, b, c, d])
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/duplex_challenger.rs#L144
     fn sample_bits(
         &mut self,
         builder: &mut Builder<C>,
@@ -169,7 +164,6 @@ impl<C: Config> DuplexChallengerVariable<C> {
         bits
     }
 
-    /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/challenger/src/grinding_challenger.rs#L16
     pub fn check_witness(&mut self, builder: &mut Builder<C>, nb_bits: usize, witness: Felt<C::F>) {
         self.observe(builder, witness);
         let element_bits = self.sample_bits(builder, Usize::Const(nb_bits));

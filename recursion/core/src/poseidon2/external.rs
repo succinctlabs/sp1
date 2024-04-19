@@ -13,7 +13,10 @@ use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use super::{apply_m_4, matmul_internal, MATRIX_DIAG_16_BABYBEAR_U32};
+use crate::poseidon2_wide::{
+    apply_m_4, external_linear_layer, internal_linear_layer, matmul_internal,
+    MATRIX_DIAG_16_BABYBEAR_U32,
+};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
@@ -60,9 +63,9 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
         let rounds_f = 8;
         let rounds_p = 22;
-        let rounds = rounds_f + rounds_p;
-        let rounds_f_beginning = rounds_f / 2;
-        let p_end = rounds_f_beginning + rounds_p;
+        let rounds = rounds_f + rounds_p + 1;
+        let rounds_p_beginning = 1 + rounds_f / 2;
+        let p_end = rounds_p_beginning + rounds_p;
 
         for poseidon2_event in input.poseidon2_events.iter() {
             let mut round_input = poseidon2_event.input;
@@ -75,8 +78,8 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
                 cols.rounds[r] = F::one();
                 let is_initial_layer = r == 0;
-                let is_external_layer = r != 0
-                    && (((r - 1) < rounds_f_beginning) || (p_end <= (r - 1) && (r - 1) < rounds));
+                let is_external_layer =
+                    (r >= 1 && r < rounds_p_beginning) || (r >= p_end && r < rounds);
 
                 if is_initial_layer {
                     // Mark the selector as initial.
@@ -121,23 +124,9 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
                 // Apply either the external or internal linear layer.
                 if cols.is_initial == F::one() || cols.is_external == F::one() {
-                    for j in (0..WIDTH).step_by(4) {
-                        apply_m_4(&mut state[j..j + 4]);
-                    }
-                    let sums: [F; 4] = core::array::from_fn(|k| {
-                        (0..WIDTH).step_by(4).map(|j| state[j + k]).sum::<F>()
-                    });
-                    for j in 0..WIDTH {
-                        state[j] += sums[j % 4];
-                    }
+                    external_linear_layer(&mut state);
                 } else if cols.is_internal == F::one() {
-                    let matmul_constants: [F; WIDTH] = MATRIX_DIAG_16_BABYBEAR_U32
-                        .iter()
-                        .map(|x| F::from_wrapped_u32(*x))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    matmul_internal(&mut state, matmul_constants);
+                    internal_linear_layer(&mut state)
                 }
 
                 // Copy the state to the output.
@@ -329,49 +318,42 @@ where
 
 #[cfg(test)]
 mod tests {
-    use std::borrow::BorrowMut;
+    use itertools::Itertools;
+    use std::borrow::Borrow;
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_field::AbstractField;
-    use p3_matrix::dense::RowMajorMatrix;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::inner_perm;
     use sp1_core::{
         air::MachineAir,
-        utils::{uni_stark_prove, BabyBearPoseidon2},
+        utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
     };
 
-    use crate::poseidon2::external::WIDTH;
-    use crate::{poseidon2::external::Poseidon2Chip, runtime::ExecutionRecord};
+    use crate::{
+        poseidon2::{Poseidon2Chip, Poseidon2Event, WIDTH},
+        runtime::ExecutionRecord,
+    };
     use p3_symmetric::Permutation;
 
-    use super::{Poseidon2Cols, NUM_POSEIDON2_COLS};
+    use super::Poseidon2Cols;
+
+    const ROWS_PER_PERMUTATION: usize = 31;
 
     #[test]
     fn generate_trace() {
         let chip = Poseidon2Chip;
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
-            &ExecutionRecord::<BabyBear>::default(),
-            &mut ExecutionRecord::<BabyBear>::default(),
-        );
-        println!("{:?}", trace.values)
-    }
-
-    #[test]
-    #[ignore]
-    fn prove_babybear() {
-        let config = BabyBearPoseidon2::new();
-        let mut challenger = config.challenger();
-
-        let chip = Poseidon2Chip;
-        let trace: RowMajorMatrix<BabyBear> = chip.generate_trace(
-            &ExecutionRecord::<BabyBear>::default(),
-            &mut ExecutionRecord::<BabyBear>::default(),
-        );
+        let test_inputs = vec![
+            [BabyBear::from_canonical_u32(1); WIDTH],
+            [BabyBear::from_canonical_u32(2); WIDTH],
+            [BabyBear::from_canonical_u32(3); WIDTH],
+            [BabyBear::from_canonical_u32(4); WIDTH],
+        ];
 
         let gt: Poseidon2<
             BabyBear,
@@ -380,19 +362,65 @@ mod tests {
             16,
             7,
         > = inner_perm();
-        let input = [BabyBear::one(); WIDTH];
-        let output = gt.permute(input);
 
-        let mut row: [BabyBear; NUM_POSEIDON2_COLS] = trace.values
-            [NUM_POSEIDON2_COLS * 30..(NUM_POSEIDON2_COLS) * 31]
-            .try_into()
-            .unwrap();
-        let cols: &mut Poseidon2Cols<BabyBear> = row.as_mut_slice().borrow_mut();
-        assert_eq!(cols.output, output);
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
+
+        let mut input_exec = ExecutionRecord::<BabyBear>::default();
+        for input in test_inputs.iter().cloned() {
+            input_exec.poseidon2_events.push(Poseidon2Event { input });
+        }
+
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+
+        for (i, expected_output) in expected_outputs.iter().enumerate() {
+            let row = trace.row(ROWS_PER_PERMUTATION * (i + 1) - 1).collect_vec();
+            let cols: &Poseidon2Cols<BabyBear> = row.as_slice().borrow();
+            assert_eq!(expected_output, &cols.output);
+        }
+    }
+
+    #[test]
+    fn prove_babybear() {
+        let config = BabyBearPoseidon2::new();
+        let mut challenger = config.challenger();
+
+        let chip = Poseidon2Chip;
+
+        let test_inputs = (0..16)
+            .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
+            .collect_vec();
+
+        let mut input_exec = ExecutionRecord::<BabyBear>::default();
+        for input in test_inputs.iter().cloned() {
+            input_exec.poseidon2_events.push(Poseidon2Event { input });
+        }
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        println!(
+            "trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
 
         let start = Instant::now();
-        uni_stark_prove(&config, &chip, &mut challenger, trace);
+        let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
         let duration = start.elapsed().as_secs_f64();
-        println!("duration = {:?}", duration);
+        println!("proof duration = {:?}", duration);
+
+        let mut challenger: p3_challenger::DuplexChallenger<
+            BabyBear,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+            16,
+        > = config.challenger();
+        let start = Instant::now();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof)
+            .expect("expected proof to be valid");
+
+        let duration = start.elapsed().as_secs_f64();
+        println!("verify duration = {:?}", duration);
     }
 }
