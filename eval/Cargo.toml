@@ -5,7 +5,6 @@ edition = "2021"
 
 [dependencies]
 sp1-core = { path = "../core" }
-sp1-sdk = { path = "../sdk" }
 sp1-prover = { path = "../prover" }
 
 clap = { version = "4.4.0", features = ["derive"] }

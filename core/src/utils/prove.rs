@@ -41,7 +41,6 @@ pub fn run_test_io(
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
     let _ = run_test_core(runtime)?;
-
     Ok(public_values)
 }
 

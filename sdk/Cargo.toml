@@ -35,3 +35,6 @@ dotenv = "0.15.0"
 sha2 = "0.10.8"
 tracing-subscriber = "0.3.18"
 tracing-forest = "0.1.6"
+
+[features]
+neon = ["sp1-prover/neon"]

@@ -4405,7 +4405,6 @@ dependencies = [
  "serde",
  "sp1-core",
  "sp1-prover",
- "sp1-sdk",
 ]
 
 [[package]]

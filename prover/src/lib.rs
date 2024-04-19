@@ -179,7 +179,6 @@ impl SP1ProverImpl {
         let (proof, _) = run_and_prove(program, stdin, config);
         let duration = start.elapsed().as_secs_f64();
         println!("leaf proving time = {:?}", duration);
-
         proof
     }
 
@@ -617,9 +616,7 @@ mod tests {
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
-
         let proof = SP1ProverImpl::prove(elf, &SP1Stdin::new().buffer);
-
         let prover = SP1ProverImpl::new();
         let sp1_challenger = prover.initialize_challenger(&vk, &proof.shard_proofs);
 
