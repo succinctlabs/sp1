@@ -1,4 +1,5 @@
 #![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
 
 use sp1_core::{
     runtime::Program,
@@ -26,7 +27,7 @@ pub fn main() {
     let sp1_challenger = prover.initialize_challenger(&sp1_vk, &core_proof.shard_proofs);
 
     let inner_reduce_proof = tracing::info_span!("inner reduce proof")
-        .in_scope(|| prover.reduce_tree::<2>(&sp1_vk, core_proof));
+        .in_scope(|| prover.reduce_tree(&sp1_vk, core_proof, 2));
 
     let outer_reduce_proof = tracing::info_span!("outer reduce proof")
         .in_scope(|| prover.wrap_into_outer(&sp1_vk, sp1_challenger, inner_reduce_proof));
