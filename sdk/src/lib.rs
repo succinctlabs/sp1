@@ -85,7 +85,7 @@ impl ProverClient {
             .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
 
         // Execute the runtime before creating the proof request.
-        ProverClient::execute(elf, stdin.clone());
+        let _ = ProverClient::execute(elf, stdin.clone());
         println!("Simulation complete.");
 
         let proof_id = client.create_proof(elf, &stdin).await?;
