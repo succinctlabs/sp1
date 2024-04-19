@@ -1,4 +1,6 @@
 #![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
+
 pub mod bls12381;
 pub mod bn254;
 pub mod io;

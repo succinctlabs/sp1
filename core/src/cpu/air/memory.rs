@@ -5,7 +5,7 @@ use crate::air::{BaseAirBuilder, SP1AirBuilder, Word, WordAirBuilder};
 use crate::cpu::columns::{CpuCols, MemoryColumns, OpcodeSelectorCols};
 use crate::cpu::CpuChip;
 use crate::memory::MemoryCols;
-use crate::runtime::Opcode;
+use crate::runtime::{MemoryAccessPosition, Opcode};
 
 impl CpuChip {
     /// Computes whether the opcode is a memory instruction.
@@ -43,6 +43,60 @@ impl CpuChip {
         opcode_selectors.is_sb + opcode_selectors.is_sh + opcode_selectors.is_sw
     }
 
+    /// Constrains the addr_aligned, addr_offset, and addr_word memory columns.
+    ///
+    /// This method will do the following:
+    /// 1. Calculate that the unaligned address is correctly computed to be op_b.value + op_c.value.
+    /// 2. Calculate that the address offset is address % 4.
+    /// 3. Assert the validity of the aligned address given the address offset and the unaligned address.
+    pub(crate) fn eval_memory_address_and_access<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        is_memory_instruction: AB::Expr,
+    ) {
+        // Get the memory specific columns.
+        let memory_columns = local.opcode_specific_columns.memory();
+
+        // Send to the ALU table to verify correct calculation of addr_word.
+        builder.send_alu(
+            AB::Expr::from_canonical_u32(Opcode::ADD as u32),
+            memory_columns.addr_word,
+            local.op_b_val(),
+            local.op_c_val(),
+            local.shard,
+            is_memory_instruction.clone(),
+        );
+
+        // Check that each addr_word element is a byte.
+        builder.slice_range_check_u8(
+            &memory_columns.addr_word.0,
+            local.shard,
+            is_memory_instruction.clone(),
+        );
+
+        // Evaluate the addr_offset column and offset flags.
+        self.eval_offset_value_flags(builder, memory_columns, local);
+
+        // Assert that reduce(addr_word) == addr_aligned + addr_offset.
+        builder
+            .when(is_memory_instruction.clone())
+            .assert_eq::<AB::Expr, AB::Expr>(
+                memory_columns.addr_aligned + memory_columns.addr_offset,
+                memory_columns.addr_word.reduce::<AB>(),
+            );
+
+        // For operations that require reading from memory (not registers), we need to read the
+        // value into the memory columns.
+        builder.eval_memory_access(
+            local.shard,
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
+            memory_columns.addr_aligned,
+            &memory_columns.memory_access,
+            is_memory_instruction.clone(),
+        );
+    }
+
     /// Evaluates constraints related to loading from memory.
     pub(crate) fn eval_memory_load<AB: SP1AirBuilder>(
         &self,
@@ -55,14 +109,14 @@ impl CpuChip {
         // Compute whether this is a load instruction.
         let is_load = self.is_load_instruction::<AB>(&local.selectors);
 
-        // Get the unsigned memory value.
+        // Verify the unsigned_mem_value column.
         self.eval_unsigned_mem_value(builder, memory_columns, local);
 
         // If it's a signed operation (such as LB or LH), then we need verify the bit decomposition
         // of the most significant byte to get it's sign.
         self.eval_most_sig_byte_bit_decomp(builder, memory_columns, local, &local.unsigned_mem_val);
 
-        // Assert that if `is_lb` and `is_lh` are both true, then the most significant byte is
+        // Assert that if `is_lb` and `is_lh` are both true, then the most significant byte
         // matches the value of `local.mem_value_is_neg`.
         builder
             .when(local.selectors.is_lb + local.selectors.is_lh)
@@ -71,7 +125,8 @@ impl CpuChip {
                 memory_columns.most_sig_byte_decomp[7],
             );
 
-        // Use the SUB opcode to compute the signed value of the memory value.
+        // When the memory value is negative, use the SUB opcode to compute the signed value of
+        // the memory value and verify that the op_a value is correct.
         let signed_value = Word([
             AB::Expr::zero(),
             AB::Expr::one() * local.selectors.is_lb,
@@ -87,7 +142,8 @@ impl CpuChip {
             local.mem_value_is_neg,
         );
 
-        // Assert that the result is in op_a.
+        // When the memory value is not negaitve, assert that op_a value is equal to the unsigned
+        // memory value.
         builder
             .when(is_load)
             .when_not(local.mem_value_is_neg)
@@ -104,6 +160,8 @@ impl CpuChip {
 
         // Get the memory offset flags.
         self.eval_offset_value_flags(builder, memory_columns, local);
+        // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
+        // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
             - memory_columns.offset_is_two
@@ -153,6 +211,7 @@ impl CpuChip {
             .assert_word_eq(mem_val.map(|x| x.into()), a_val.map(|x| x.into()));
     }
 
+    /// This function is used to evaluate the unsigned memory value for the load memory instructions.
     pub(crate) fn eval_unsigned_mem_value<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
@@ -161,14 +220,14 @@ impl CpuChip {
     ) {
         let mem_val = *memory_columns.memory_access.value();
 
-        // Get the offset flags for the memory value.
-        self.eval_offset_value_flags(builder, memory_columns, local);
-
-        // Compute the byte value.
+        // Compute the offset_is_zero flag.  The other offset flags are already contrained by the
+        // method `eval_memory_address_and_access`, which is called in `eval_memory_address_and_access`.
         let offset_is_zero = AB::Expr::one()
             - memory_columns.offset_is_one
             - memory_columns.offset_is_two
             - memory_columns.offset_is_three;
+
+        // Compute the byte value.
         let mem_byte = mem_val[0] * offset_is_zero.clone()
             + mem_val[1] * memory_columns.offset_is_one
             + mem_val[2] * memory_columns.offset_is_two

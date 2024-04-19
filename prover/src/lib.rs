@@ -313,7 +313,7 @@ impl SP1ProverImpl {
             &self.reduce_setup_program,
             machine.config().perm.clone(),
         );
-        runtime.witness_stream = witness_stream;
+        runtime.witness_stream = witness_stream.into();
         runtime.run();
         let mut checkpoint = runtime.memory.clone();
         runtime.print_stats();
@@ -324,7 +324,7 @@ impl SP1ProverImpl {
         let mut runtime =
             Runtime::<InnerF, InnerEF, _>::new(&self.reduce_program, machine.config().perm.clone());
         checkpoint.iter_mut().for_each(|e| {
-            e.timestamp = BabyBear::zero();
+            e.1.timestamp = BabyBear::zero();
         });
         runtime.memory = checkpoint;
         runtime.run();
@@ -373,10 +373,11 @@ impl SP1ProverImpl {
     }
 
     /// Recursively reduce proofs into a single proof using an N-ary tree.
-    pub fn reduce_tree<const N: usize>(
+    pub fn reduce_tree(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         proof: Proof<SP1SC>,
+        batch_size: usize,
         // deferred_proofs: &[(ReduceProof, &VerifyingKey<SP1SC>)],
     ) -> ReduceProof<InnerSC> {
         // Observe all commitments and public values. This challenger will be witnessed into
@@ -407,7 +408,8 @@ impl SP1ProverImpl {
         while reduce_proofs.len() > 1 {
             println!("layer = {}, num_proofs = {}", layer, reduce_proofs.len());
             let start = Instant::now();
-            reduce_proofs = self.reduce_layer::<N>(sp1_vk, sp1_challenger.clone(), reduce_proofs);
+            reduce_proofs =
+                self.reduce_layer(sp1_vk, sp1_challenger.clone(), reduce_proofs, batch_size);
             let duration = start.elapsed().as_secs();
             println!("layer {}, reduce duration = {}", layer, duration);
             layer += 1;
@@ -424,20 +426,21 @@ impl SP1ProverImpl {
     }
 
     /// Reduce a list of proofs in groups of N into a smaller list of proofs.
-    pub fn reduce_layer<const N: usize>(
+    pub fn reduce_layer(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
         mut proofs: Vec<ReduceProofType>,
+        batch_size: usize,
     ) -> Vec<ReduceProofType> {
         // If there's one proof at the end, just push it to the next layer.
-        let last_proof = if proofs.len() % N == 1 {
+        let last_proof = if proofs.len() % batch_size == 1 {
             Some(proofs.pop().unwrap())
         } else {
             None
         };
 
-        let chunks: Vec<_> = proofs.chunks(N).collect();
+        let chunks: Vec<_> = proofs.chunks(batch_size).collect();
 
         // Process at most 4 proofs at once in parallel, due to memory limits.
         let partition_size = std::cmp::max(1, chunks.len() / 4);
@@ -535,7 +538,7 @@ mod tests {
         let (_, vk) = sp1_machine.setup(&Program::from(elf));
 
         let start = Instant::now();
-        let final_proof = prover.reduce_tree::<2>(&vk, proof);
+        let final_proof = prover.reduce_tree(&vk, proof, 2);
         let duration = start.elapsed().as_secs();
         println!("full reduce duration = {}", duration);
 
@@ -602,7 +605,7 @@ mod tests {
                     .unwrap();
                 println!("verified fibonacci");
 
-                let final_proof = prover.reduce_tree::<2>(&fibonacci_vk, fibonacci_proof);
+                let final_proof = prover.reduce_tree(&fibonacci_vk, fibonacci_proof, 2);
 
                 let proof = Proof {
                     shard_proofs: vec![final_proof.proof],
