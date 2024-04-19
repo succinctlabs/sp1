@@ -3,6 +3,7 @@ use core::mem::size_of;
 
 use itertools::izip;
 use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::Field;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -131,6 +132,24 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
                 cols.b_masked = F::from_canonical_u8(masked_b);
                 cols.c_masked = F::from_canonical_u8(masked_c);
 
+                // Send the masked interaction.
+                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
+                    shard: event.shard,
+                    opcode: ByteOpcode::AND,
+                    a1: masked_b as u32,
+                    a2: 0,
+                    b: b[3] as u32,
+                    c: 0x7f as u32,
+                });
+                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
+                    shard: event.shard,
+                    opcode: ByteOpcode::AND,
+                    a1: masked_c as u32,
+                    a2: 0,
+                    b: c[3] as u32,
+                    c: 0x7f as u32,
+                });
+
                 let mut b_comp = b;
                 let mut c_comp = c;
                 if event.opcode == Opcode::SLT {
@@ -253,12 +272,35 @@ where
         b_comp[3] = local.b[3] * local.is_sltu + local.b_masked * local.is_slt;
         c_comp[3] = local.c[3] * local.is_sltu + local.c_masked * local.is_slt;
 
+        // Constrain the `masked_b` and `masked_c` values via lookup.
+        builder.send_byte(
+            ByteOpcode::AND.as_field::<AB::F>(),
+            local.b_masked,
+            local.b[3],
+            AB::F::from_canonical_u8(0x7f),
+            local.shard,
+            is_real.clone(),
+        );
+        builder.send_byte(
+            ByteOpcode::AND.as_field::<AB::F>(),
+            local.c_masked,
+            local.c[3],
+            AB::F::from_canonical_u8(0x7f),
+            local.shard,
+            is_real.clone(),
+        );
+
         // Constrain `local.stlu == STLU(b_comp, c_comp)`.
         builder.assert_bool(local.stlu);
 
         // Set the values of `b_bit` and `c_bit`.
         builder.assert_eq(local.bit_b, local.msb_b * local.is_slt);
         builder.assert_eq(local.bit_c, local.msb_c * local.is_slt);
+
+        // Assert the correctness of `local.msb_b` and `local.msb_c` using the mask.
+        let inv_128 = AB::F::from_canonical_u32(128).inverse();
+        builder.assert_eq(local.msb_b, (local.b[3] - local.b_masked) * inv_128);
+        builder.assert_eq(local.msb_c, (local.c[3] - local.c_masked) * inv_128);
 
         // Constrain that when is_sign_eq = (bit_b == bit_c).
         builder
