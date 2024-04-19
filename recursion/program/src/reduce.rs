@@ -43,7 +43,6 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::prelude::Usize;
-use sp1_recursion_core::air::PublicValues as RecursionPublicValues;
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
