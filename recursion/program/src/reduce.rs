@@ -146,10 +146,6 @@ fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
     let recursion_prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
     let sp1_vk: VerifyingKeyVariable<_> = builder.uninit();
     let recursion_vk: VerifyingKeyVariable<_> = builder.uninit();
-    let start_pcs: Array<_, Felt<_>> = builder.uninit();
-    let next_pcs: Array<_, Felt<_>> = builder.uninit();
-    let start_shards: Array<_, Felt<_>> = builder.uninit();
-    let next_shards: Array<_, Felt<_>> = builder.uninit();
     let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
     let deferred_proof_digest: Array<_, Felt<_>> = builder.uninit();
     let deferred_sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
@@ -169,10 +165,6 @@ fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
         VerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
         VerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
         // Read proofs
-        Vec::<Val>::witness(&start_pcs, &mut builder);
-        Vec::<Val>::witness(&next_pcs, &mut builder);
-        Vec::<Val>::witness(&start_shards, &mut builder);
-        Vec::<Val>::witness(&next_shards, &mut builder);
         let num_proofs = is_recursive_flags.len();
         let mut proofs_target = builder.dyn_array(num_proofs);
         builder.range(0, num_proofs).for_each(|i, builder| {
@@ -220,25 +212,29 @@ fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
     recursion_challenger.observe(&mut builder, recursion_vk.pc_start);
     builder.cycle_tracker("stage-b-setup-recursion-challenger");
 
-    // Verify sp1 and recursive proofs
-    let expected_start_pc = builder.get(&start_pcs, zero);
-    let expected_start_shard = builder.get(&start_shards, zero);
+    builder.assert_ne::<Var<_>>(num_proofs, zero);
 
+    // Global start and next which will be committed to at the very end.
+    let start_pc: Felt<_> = builder.uninit();
+    let start_shard: Felt<_> = builder.uninit();
+    let next_pc: Felt<_> = builder.uninit();
+    let next_shard: Felt<_> = builder.uninit();
+
+    let previous_public_values: Array<_, Felt<_>> = builder.uninit();
+
+    // Verify sp1 and recursive proofs
     builder.range(0, num_proofs).for_each(|i, builder| {
         let proof = builder.get(&proofs, i);
         let sorted_indices = builder.get(&sorted_indices, i);
         let is_recursive = builder.get(&is_recursive_flags, i);
 
-        let shard_start_pc = builder.get(&start_pcs, i);
-        let shard_next_pc = builder.get(&next_pcs, i);
-        let shard_start_shard = builder.get(&start_shards, i);
-        let shard_next_shard = builder.get(&next_shards, i);
-
-        // Verify shard transition
-        builder.assert_felt_eq(expected_start_pc, shard_start_pc);
-        builder.assign(expected_start_pc, shard_next_pc);
-        builder.assert_felt_eq(expected_start_shard, shard_start_shard);
-        builder.assign(expected_start_shard, shard_next_shard);
+        // Committed values that will be read from the proof's public values, then checked against
+        // previous proof.
+        let proof_start_pc: Felt<_> = builder.uninit();
+        let proof_next_pc: Felt<_> = builder.uninit();
+        let proof_start_shard: Felt<_> = builder.uninit();
+        let proof_next_shard: Felt<_> = builder.uninit();
+        let proof_exit_code: Felt<_> = builder.uninit();
 
         builder.if_eq(is_recursive, zero).then_or_else(
             // Non-recursive proof
@@ -252,20 +248,14 @@ fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
                 let pv = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
                 // Verify witness data
-                builder.assert_felt_eq(shard_start_pc, pv.start_pc);
-                builder.assert_felt_eq(shard_next_pc, pv.next_pc);
-                builder.assert_felt_eq(shard_start_shard, pv.shard);
                 let pv_shard_plus_one: Felt<_> = builder.eval(pv.shard + one_felt);
+                builder.assign(proof_start_pc, pv.start_pc);
+                builder.assign(proof_next_pc, pv.next_pc);
+                builder.assign(proof_start_shard, pv.shard);
+                builder.assign(proof_next_shard, pv_shard_plus_one);
+                builder.assign(proof_exit_code, pv.exit_code);
 
                 let pv_next_pc = felt_to_var(builder, pv.next_pc);
-                builder.if_eq(pv_next_pc, zero).then_or_else(
-                    |builder| {
-                        builder.assert_felt_eq(shard_next_shard, zero_felt);
-                    },
-                    |builder| {
-                        builder.assert_felt_eq(shard_next_shard, pv_shard_plus_one);
-                    },
-                );
 
                 // Need to convert the shard as a felt to a variable, since `if_eq` only handles variables.
                 let shard_f = pv.shard;
@@ -314,10 +304,6 @@ fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
                 let proof_pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
 
                 let mut pv = builder.array(4);
-                builder.set(&mut pv, 0, shard_start_pc);
-                builder.set(&mut pv, 1, shard_start_shard);
-                builder.set(&mut pv, 2, shard_next_pc);
-                builder.set(&mut pv, 3, shard_next_shard);
 
                 let pv_digest = builder.poseidon2_hash(&pv);
 
@@ -428,15 +414,10 @@ fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
     // )
     // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
     // after observing pv_digest at the end.
-
-    let start_pc = builder.get(&start_pcs, zero);
-    let start_shard = builder.get(&start_shards, zero);
     builder.commit_public_value(start_pc);
     builder.commit_public_value(start_shard);
 
     let last_idx: Var<_> = builder.eval(num_proofs - one);
-    let next_pc = builder.get(&next_pcs, last_idx);
-    let next_shard = builder.get(&next_shards, last_idx);
     builder.commit_public_value(next_pc);
     builder.commit_public_value(next_shard);
 
