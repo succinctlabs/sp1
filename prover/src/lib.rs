@@ -562,11 +562,6 @@ impl SP1ProverImpl {
 
         Result::Ok(deferred_digest)
     }
-
-    /// Verify a Groth16 proof.
-    pub fn verify_groth16() {
-        unimplemented!()
-    }
 }
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
