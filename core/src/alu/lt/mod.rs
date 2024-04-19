@@ -3,7 +3,6 @@ use core::mem::size_of;
 
 use itertools::izip;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -13,6 +12,8 @@ use tracing::instrument;
 
 use crate::air::{BaseAirBuilder, MachineAir};
 use crate::air::{SP1AirBuilder, Word};
+use crate::bytes::event::ByteRecord;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
@@ -92,7 +93,7 @@ impl LtCols<u32> {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for LtChip {
+impl<F: PrimeField32> MachineAir<F> for LtChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -101,20 +102,19 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
         "Lt".to_string()
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {}
-
     #[instrument(name = "generate lt trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = input
+        let (rows, new_byte_lookup_events): (Vec<_>, Vec<_>) = input
             .lt_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_LT_COLS];
+                let mut new_byte_lookup_events: Vec<ByteLookupEvent> = Vec::new();
                 let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
@@ -176,9 +176,22 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
                     cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.stlu
                 );
 
-                row
+                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
+                    shard: event.shard,
+                    opcode: ByteOpcode::LTU,
+                    a1: cols.stlu.as_canonical_u32(),
+                    a2: 0,
+                    b: cols.comparison_bytes[0].as_canonical_u32(),
+                    c: cols.comparison_bytes[1].as_canonical_u32(),
+                });
+
+                (row, new_byte_lookup_events)
             })
-            .collect::<Vec<_>>();
+            .unzip();
+
+        for byte_lookup_events in new_byte_lookup_events {
+            output.add_byte_lookup_events(byte_lookup_events);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -324,6 +337,16 @@ where
         // not equal. This is done using the inverse hint `not_eq_inv`.
         builder.when_not(local.is_comp_eq).assert_eq(
             local.not_eq_inv * (b_comp_byte - c_comp_byte),
+            is_real.clone(),
+        );
+
+        // Now the value of local.stlu is equal to the same value for the bytes.
+        builder.send_byte(
+            ByteOpcode::LTU.as_field::<AB::F>(),
+            local.stlu,
+            b_comp_byte,
+            c_comp_byte,
+            local.shard,
             is_real.clone(),
         );
 
