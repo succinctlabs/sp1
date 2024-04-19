@@ -13,12 +13,12 @@ use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use crate::operations::field::params::FieldParameters;
 
-/// A set of columns to compute `FieldInnerProduct(Vec<a>, Vec<b>)` where a, b are field elements.
-/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
-/// or made generic in the future.
+/// A set of columns to compute `InnerProduct([a], [b])` where a, b are emulated elements.
 ///
-/// TODO: There is an issue here here some fields in these columns must be range checked. This is
-/// a known issue and will be fixed in the future.
+/// *Safety*: The `FieldInnerProductCols` asserts that `result = sum_i a_i * b_i mod M` where
+/// `M` is the modulus `P::modulus()` under the assumption that the length of `a` and `b` is small
+/// enough so that the vanishing polynomial has limbs bounded by the witness shift. It is the
+/// responsibility of the caller to ensure that the length of `a` and `b` is small enough.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldInnerProductCols<T, P: FieldParameters> {
