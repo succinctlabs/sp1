@@ -14,8 +14,10 @@ use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::operations::field::params::FieldParameters;
 use p3_field::AbstractField;
 
-/// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
-/// limb lives.
+/// A set of columns to compute the square root in emulated arithmetic.
+///
+/// *Safety*: The `FieldSqrtCols` asserts that `multiplication.result` is a square root of the given
+/// input lying within the range `[0, modulus)` with the least significant bit `lsb`.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldSqrtCols<T, P: FieldParameters> {

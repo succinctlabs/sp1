@@ -12,15 +12,28 @@ use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 
+/// Airthmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FieldOperation {
     Add,
     Mul,
     Sub,
-    Div, // We don't constrain that the divisor is non-zero.
+    Div,
 }
 
-/// A set of columns to compute `FieldOperation(a, b)` where a, b are field elements.
+/// A set of columns to compute an emulated modular arithmetic operation.
+///
+/// *Safety* The input operands (a, b) (not included in the operation columns) are assumed to be
+/// elements within the range `[0, 2^{P::nb_bits()})`. the result is also assumed to be within the
+/// same range. Let `M = P:modulus()`. The constraints of the function [`FieldOpCols::eval`] assert
+/// that:
+/// * When `op` is `FieldOperation::Add`, then `result = a + b mod M`.
+/// * When `op` is `FieldOperation::Mul`, then `result = a * b mod M`.
+/// * When `op` is `FieldOperation::Sub`, then `result = a - b mod M`.
+/// * When `op` is `FieldOperation::Div`, then `result * b = a  mod M`.
+///
+/// **Warning**: The constraints do not check for division by zero. The caller is responsible for
+/// ensuring that the division operation is valid.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldOpCols<T, P: FieldParameters> {

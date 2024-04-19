@@ -17,6 +17,7 @@ use crate::{
 use super::params::FieldParameters;
 use super::params::Limbs;
 
+/// Operation columns for verifying that an element is within the range `[0, modulus)`.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldRangeCols<T, P: FieldParameters> {
