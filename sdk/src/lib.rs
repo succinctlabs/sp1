@@ -9,12 +9,13 @@ pub mod auth;
 pub mod client;
 pub mod utils;
 
+use sp1_prover::io::SP1ProofWithIO;
 use sp1_prover::io::SP1PublicValues;
 use sp1_prover::io::SP1Stdin;
-use sp1_prover::ProdSP1ProofWithIO;
 use sp1_prover::SP1ProverImpl;
 
 use proto::network::{ProofStatus, TransactionStatus};
+use sp1_prover::SP1SC;
 
 use crate::client::NetworkClient;
 use anyhow::{Context, Ok, Result};
@@ -62,7 +63,7 @@ impl ProverClient {
 
     /// Generate a proof for the execution of the ELF with the given public inputs. If a
     /// NetworkClient is configured, it uses remote proving, otherwise, it proves locally.
-    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ProdSP1ProofWithIO> {
+    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<SP1SC>> {
         if self.client.is_some() {
             println!("Proving remotely");
             self.prove_remote(elf, stdin)
@@ -79,7 +80,7 @@ impl ProverClient {
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
-    ) -> Result<ProdSP1ProofWithIO, anyhow::Error> {
+    ) -> Result<SP1ProofWithIO<SP1SC>, anyhow::Error> {
         let client = self
             .client
             .as_ref()
@@ -128,16 +129,16 @@ impl ProverClient {
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
-    ) -> Result<ProdSP1ProofWithIO, anyhow::Error> {
+    ) -> Result<SP1ProofWithIO<SP1SC>, anyhow::Error> {
         let rt = runtime::Runtime::new()?;
         rt.block_on(async { self.prove_remote_async(elf, stdin).await })
     }
 
     // Generate a proof locally for the execution of the ELF with the given public inputs.
-    pub fn prove_local(&self, elf: &[u8], stdin: SP1Stdin) -> Result<ProdSP1ProofWithIO> {
+    pub fn prove_local(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<SP1SC>> {
         let public_values = SP1ProverImpl::execute(elf, &stdin.buffer);
         let proof = SP1ProverImpl::prove(elf, &stdin.buffer);
-        Ok(ProdSP1ProofWithIO {
+        Ok(SP1ProofWithIO::<SP1SC> {
             proof,
             stdin,
             public_values,
@@ -210,7 +211,7 @@ impl ProverClient {
         })
     }
 
-    pub fn verify(&self, elf: &[u8], proof: &ProdSP1ProofWithIO) -> Result<()> {
+    pub fn verify(&self, elf: &[u8], proof: &SP1ProofWithIO<SP1SC>) -> Result<()> {
         SP1ProverImpl::verify(elf, &proof.proof);
         Ok(())
     }

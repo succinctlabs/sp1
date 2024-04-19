@@ -35,8 +35,6 @@ use sp1_recursion_core::{
 use sp1_recursion_program::{hints::Hintable, reduce::build_reduce_program, stark::EMPTY};
 use std::time::Instant;
 
-// Re-export SP1 proof with IO as the public type tied to the SP1SC.
-pub type ProdSP1ProofWithIO = SP1ProofWithIO<SP1SC>;
 pub type SP1Proof = Proof<SP1SC>;
 pub type SP1SC = BabyBearPoseidon2;
 

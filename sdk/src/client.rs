@@ -14,7 +14,10 @@ use crate::proto::network::{
     RelayProofRequest, SubmitProofRequest, TransactionStatus,
 };
 
-use sp1_prover::{io::SP1Stdin, ProdSP1ProofWithIO};
+use sp1_prover::{
+    io::{SP1ProofWithIO, SP1Stdin},
+    SP1SC,
+};
 
 /// The default RPC endpoint for the Succinct prover network.
 const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
@@ -131,7 +134,7 @@ impl NetworkClient {
     pub async fn get_proof_status(
         &self,
         proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<ProdSP1ProofWithIO>)> {
+    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithIO<SP1SC>>)> {
         let res = self
             .rpc
             .get_proof_status(GetProofStatusRequest {
