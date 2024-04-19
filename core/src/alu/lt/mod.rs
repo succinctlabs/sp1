@@ -64,6 +64,8 @@ pub struct LtCols<T> {
     pub is_comp_eq: T,
     /// A boolean flag for comparing the sign bits.
     pub is_sign_eq: T,
+    /// The comparison bytes to be looked up.
+    pub comparison_bytes: [T; 2],
 
     /// Boolean flag to indicate whether to do an equality check between the bytes.
     ///
@@ -148,6 +150,7 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
                         *flag = F::one();
                         cols.stlu = F::from_bool(b_byte < c_byte);
                         cols.not_eq_inv = F::from_canonical_u8(b_byte - c_byte).inverse();
+                        cols.comparison_bytes = [*b_byte, *c_byte].map(F::from_canonical_u8);
                         break;
                     }
                 }
@@ -275,6 +278,30 @@ where
             .assert_eq(AB::Expr::one() - local.is_comp_eq, sum_flags);
 
         // Now we constrain the correct value of `stlu`.
+
+        // A flag to indicate whether an equality check is necessary (this is for all bytes from
+        // most significant until the first inequality.
+        let mut is_inequality_visited = AB::Expr::zero();
+
+        let mut b_comparison_byte = AB::Expr::zero();
+        let mut c_comparison_byte = AB::Expr::zero();
+
+        for (b_byte, c_byte, &flag) in izip!(
+            b_comp.0.iter().rev(),
+            c_comp.0.iter().rev(),
+            local.byte_flags.iter().rev()
+        ) {
+            // Once the byte flag was set to one, we turn off the quality check flag.
+            // We can do this by calculating the sum of the flags since only `1` is set to `1`.
+            is_inequality_visited += flag.into();
+
+            b_comparison_byte += b_byte.clone() * flag;
+            c_comparison_byte += c_byte.clone() * flag;
+
+            builder
+                .when_not(is_inequality_visited.clone())
+                .assert_eq(b_byte.clone(), c_byte.clone());
+        }
 
         // Constrain the values of the most significant bits.
         builder.assert_bool(local.msb_b);
