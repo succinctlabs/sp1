@@ -1,11 +1,13 @@
 use super::Instruction;
 use backtrace::Backtrace;
 use p3_field::Field;
+use serde::{Deserialize, Serialize};
 use sp1_core::air::MachineProgram;
 
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct RecursionProgram<F> {
     pub instructions: Vec<Instruction<F>>,
+    #[serde(skip)]
     pub traces: Vec<Option<Backtrace>>,
 }
 
