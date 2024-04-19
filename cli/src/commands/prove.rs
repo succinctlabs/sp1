@@ -4,7 +4,6 @@ use clap::Parser;
 use sp1_prover::utils::{setup_logger, setup_tracer};
 use sp1_prover::SP1Stdin;
 use sp1_sdk::ProverClient;
-use std::fs;
 use std::time::Instant;
 use std::{env, fs::File, io::Read, path::PathBuf, str::FromStr};
 
@@ -118,8 +117,9 @@ impl ProveCmd {
         let proof = client.prove(&elf, stdin).unwrap();
 
         if let Some(ref path) = self.output {
-            let data = serde_json::to_string(&proof).unwrap();
-            fs::write(path, data).expect("failed to write proof to file");
+            proof
+                .save(path.to_str().unwrap())
+                .expect("failed to save proof");
         }
 
         let elapsed = elapsed(start_time.elapsed());
