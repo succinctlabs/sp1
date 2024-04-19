@@ -210,7 +210,11 @@ impl ProverClient {
     }
 
     pub fn verify(&self, elf: &[u8], proof: &SP1ProofWithIO<SP1SC>) -> Result<()> {
-        let _ = SP1ProverImpl::verify_with_config(elf, proof, SP1SC::default());
-        Ok(())
+        let res = SP1ProverImpl::verify_with_config(elf, proof, SP1SC::default());
+        if res.is_ok() {
+            Ok(())
+        } else {
+            Err(anyhow::anyhow!("Proof verification failed"))
+        }
     }
 }
