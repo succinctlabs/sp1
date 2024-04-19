@@ -6,9 +6,8 @@ use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
+use crate::operations::field::params::{FieldParameters, NumLimbs};
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
-use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::{AffinePoint, CurveType, EllipticCurveParameters};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;

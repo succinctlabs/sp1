@@ -4,9 +4,8 @@ use generic_array::GenericArray;
 use num::{BigUint, Zero};
 use serde::{Deserialize, Serialize};
 
-use super::field::NumLimbs;
 use super::CurveType;
-use crate::utils::ec::field::FieldParameters;
+use crate::operations::field::params::{FieldParameters, NumLimbs};
 use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 
 pub trait EdwardsParameters: EllipticCurveParameters {

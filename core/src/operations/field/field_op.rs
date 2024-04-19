@@ -5,13 +5,12 @@ use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use super::params::Limbs;
+use super::params::{FieldParameters, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
-use crate::utils::ec::field::FieldParameters;
 
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FieldOperation {
@@ -22,11 +21,6 @@ pub enum FieldOperation {
 }
 
 /// A set of columns to compute `FieldOperation(a, b)` where a, b are field elements.
-/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
-/// or made generic in the future.
-///
-/// TODO: There is an issue here here some fields in these columns must be range checked. This is
-/// a known issue and will be fixed in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldOpCols<T, P: FieldParameters> {
@@ -210,10 +204,10 @@ mod tests {
     use crate::air::MachineAir;
 
     use crate::bytes::event::ByteRecord;
+    use crate::operations::field::params::FieldParameters;
     use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::ec::field::FieldParameters;
     use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
     use crate::utils::{
         pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify,

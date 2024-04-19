@@ -5,11 +5,12 @@ pub use air::*;
 #[cfg(test)]
 mod tests {
 
+    use crate::operations::field::params::FieldParameters;
     use crate::{
         runtime::Program,
         utils::{
             self,
-            ec::{field::FieldParameters, uint256::U256Field, utils::biguint_from_limbs},
+            ec::{uint256::U256Field, utils::biguint_from_limbs},
             run_test_io,
             tests::{UINT256_DIV, UINT256_MUL},
         },

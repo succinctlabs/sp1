@@ -1,8 +1,9 @@
 use typenum::{U36, U70};
 
-use crate::utils::ec::field::{FieldParameters, NumLimbs};
 use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
+
+use crate::operations::field::params::{FieldParameters, NumLimbs};
 
 /// Although `U256` is technically not a field, we utilize `FieldParameters` here for compatibility.
 /// This approach is specifically for the `FieldOps` multiplication operation, which employs these

@@ -11,7 +11,7 @@ use super::range::FieldRangeCols;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::{ByteLookupEvent, ByteOpcode};
-use crate::utils::ec::field::FieldParameters;
+use crate::operations::field::params::FieldParameters;
 use p3_field::AbstractField;
 
 /// A set of columns to compute the square root in the ed25519 curve. `T` is the field in which each
@@ -148,10 +148,10 @@ mod tests {
     use crate::air::MachineAir;
 
     use crate::bytes::event::ByteRecord;
+    use crate::operations::field::params::FieldParameters;
     use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::{ed25519_sqrt, Ed25519BaseField};
-    use crate::utils::ec::field::FieldParameters;
     use crate::utils::{pad_to_power_of_two, BabyBearPoseidon2};
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};

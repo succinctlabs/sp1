@@ -7,8 +7,8 @@ use serde::{Deserialize, Serialize};
 use typenum::{U48, U94};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::NumLimbs;
+use crate::operations::field::params::FieldParameters;
+use crate::operations::field::params::NumLimbs;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurveParameters;
 

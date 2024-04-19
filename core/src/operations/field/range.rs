@@ -12,9 +12,9 @@ use crate::{
     air::Polynomial,
     bytes::{event::ByteRecord, ByteLookupEvent, ByteOpcode},
     stark::SP1AirBuilder,
-    utils::ec::field::FieldParameters,
 };
 
+use super::params::FieldParameters;
 use super::params::Limbs;
 
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -104,7 +104,7 @@ impl<V: Copy, P: FieldParameters> FieldRangeCols<V, P> {
         let mut is_inequality_visited = AB::Expr::zero();
 
         // The bytes of the modulus.
-        let modulus_bytes = P::to_limbs(&P::modulus());
+        let modulus_bytes = P::MODULUS.to_vec();
 
         let element: Polynomial<_> = element.clone().into();
 

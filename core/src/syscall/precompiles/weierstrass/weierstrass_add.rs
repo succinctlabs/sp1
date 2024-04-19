@@ -3,6 +3,8 @@ use core::mem::size_of;
 use std::fmt::Debug;
 use std::marker::PhantomData;
 
+use typenum::Unsigned;
+
 use generic_array::GenericArray;
 use num::BigUint;
 use num::Zero;
@@ -13,7 +15,6 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
-use typenum::Unsigned;
 
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -24,16 +25,13 @@ use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
-use crate::operations::field::params::Limbs;
+use crate::operations::field::params::{FieldParameters, Limbs, NumLimbs, NumWords};
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::Syscall;
 use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_add_event;
 use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::NumLimbs;
-use crate::utils::ec::field::NumWords;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;

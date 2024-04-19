@@ -4,24 +4,20 @@ use num::BigUint;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use super::params::Limbs;
+use super::params::{FieldParameters, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
-use crate::utils::ec::field::FieldParameters;
 
 /// A set of columns to compute `FieldDen(a, b)` where `a`, `b` are field elements.
 ///
 /// `a / (1 + b)` if `sign`
-/// `a / -b` if `!sign`
+/// `a / (1 - b) ` if `!sign`
 ///
-/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
-/// or made generic in the future.
-///
-/// TODO: There is an issue here here some fields in these columns must be range checked. This is
-/// a known issue and will be fixed in the future.
+/// *Safety*: the operation assumes that the denominators are never zero. It is the responsibility
+/// of the caller to ensure that condition.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldDenCols<T, P: FieldParameters> {
@@ -159,10 +155,10 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::operations::field::params::FieldParameters;
     use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::ec::field::FieldParameters;
     use crate::utils::BabyBearPoseidon2;
     use crate::utils::{uni_stark_prove as prove, uni_stark_verify as verify};
     use crate::{air::SP1AirBuilder, runtime::ExecutionRecord};
