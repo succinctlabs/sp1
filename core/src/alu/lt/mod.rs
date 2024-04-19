@@ -149,8 +149,10 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
                     if c_byte != b_byte {
                         *flag = F::one();
                         cols.stlu = F::from_bool(b_byte < c_byte);
-                        cols.not_eq_inv = F::from_canonical_u8(b_byte - c_byte).inverse();
-                        cols.comparison_bytes = [*b_byte, *c_byte].map(F::from_canonical_u8);
+                        let b_byte = F::from_canonical_u8(*b_byte);
+                        let c_byte = F::from_canonical_u8(*c_byte);
+                        cols.not_eq_inv = (b_byte - c_byte).inverse();
+                        cols.comparison_bytes = [b_byte, c_byte];
                         break;
                     }
                 }
@@ -320,10 +322,10 @@ where
 
         // First, make sure that when `local.is_comp_eq == 1` then the comparison bytes are indeed
         // not equal. This is done using the inverse hint `not_eq_inv`.
-        // builder.when_not(local.is_comp_eq).assert_eq(
-        //     local.not_eq_inv * (b_comp_byte - c_comp_byte),
-        //     is_real.clone(),
-        // );
+        builder.when_not(local.is_comp_eq).assert_eq(
+            local.not_eq_inv * (b_comp_byte - c_comp_byte),
+            is_real.clone(),
+        );
 
         // Constrain the values of the most significant bits.
         builder.assert_bool(local.msb_b);
