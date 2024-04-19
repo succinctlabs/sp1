@@ -431,16 +431,14 @@ fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
 
     let start_pc = builder.get(&start_pcs, zero);
     let start_shard = builder.get(&start_shards, zero);
-    builder.write_public_value(start_pc);
-    builder.write_public_value(start_shard);
+    builder.commit_public_value(start_pc);
+    builder.commit_public_value(start_shard);
 
     let last_idx: Var<_> = builder.eval(num_proofs - one);
     let next_pc = builder.get(&next_pcs, last_idx);
     let next_shard = builder.get(&next_shards, last_idx);
-    builder.write_public_value(next_pc);
-    builder.write_public_value(next_shard);
-
-    builder.commit_public_values();
+    builder.commit_public_value(next_pc);
+    builder.commit_public_value(next_shard);
 
     let program = builder.compile_program();
     let elapsed = time.elapsed();

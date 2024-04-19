@@ -401,57 +401,24 @@ impl<C: Config> Builder<C> {
         }
     }
 
-    /// Store a felt in the public values buffer.
-    pub fn write_public_value(&mut self, val: Felt<C::F>) {
+    /// Commits a felt in public values.
+    pub fn commit_public_value(&mut self, val: Felt<C::F>) {
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));
-            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
         }
-
         let nb_public_values = self.nb_public_values.unwrap();
-        let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
 
-        self.set(&mut public_values_buffer, nb_public_values, val);
+        self.operations.push(DslIr::Commit(val, nb_public_values));
         self.assign(nb_public_values, nb_public_values + C::N::one());
-
-        self.nb_public_values = Some(nb_public_values);
-        self.public_values_buffer = Some(public_values_buffer);
     }
 
-    /// Stores an array of felts in the public values buffer.
-    pub fn write_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
-        if self.nb_public_values.is_none() {
-            self.nb_public_values = Some(self.eval(C::N::zero()));
-            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
-        }
-
+    /// Commits an array of felts in public values.
+    pub fn commit_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
         let len = vals.len();
-
-        let nb_public_values = self.nb_public_values.unwrap();
-        let mut public_values_buffer = self.public_values_buffer.clone().unwrap();
-
         self.range(0, len).for_each(|i, builder| {
             let val = builder.get(vals, i);
-            builder.set(&mut public_values_buffer, nb_public_values, val);
-            builder.assign(nb_public_values, nb_public_values + C::N::one());
+            builder.commit_public_value(val);
         });
-
-        self.nb_public_values = Some(nb_public_values);
-        self.public_values_buffer = Some(public_values_buffer);
-    }
-
-    /// Hashes the public values buffer and calls the Commit command on the digest.
-    pub fn commit_public_values(&mut self) {
-        if self.nb_public_values.is_none() {
-            self.nb_public_values = Some(self.eval(C::N::zero()));
-            self.public_values_buffer = Some(self.dyn_array::<Felt<_>>(PV_BUFFER_MAX_SIZE));
-        }
-
-        let pv_buffer = self.public_values_buffer.clone().unwrap();
-        pv_buffer.truncate(self, self.nb_public_values.unwrap().into());
-
-        let pv_hash = self.poseidon2_hash(&pv_buffer);
-        self.operations.push(DslIr::Commit(pv_hash.clone()));
     }
 
     pub fn cycle_tracker(&mut self, name: &str) {

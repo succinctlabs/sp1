@@ -781,15 +781,18 @@ where
                 }
                 Opcode::Commit => {
                     let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
-                    let b_val = Block::<F>::default();
+                    let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
                     let c_val = Block::<F>::default();
 
-                    let hash_ptr = a_val[0].as_canonical_u32() as usize;
+                    let val_ptr = a_val[0].as_canonical_u32() as usize;
 
-                    for i in 0..DIGEST_SIZE {
-                        self.record.public_values_digest[i] =
-                            self.memory.entry(hash_ptr + i).or_default().value[0];
-                    }
+                    // Ensure that writes are in order (index should == public_values.len)
+                    let index = b_val[0].as_canonical_u32() as usize;
+                    assert_eq!(index, self.record.public_values.len());
+
+                    self.record
+                        .public_values
+                        .push(self.memory.entry(val_ptr).or_default().value[0]);
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }

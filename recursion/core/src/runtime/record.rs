@@ -22,7 +22,7 @@ pub struct ExecutionRecord<F: Default> {
     pub last_memory_record: Vec<(F, F, Block<F>)>,
 
     /// The public values.
-    pub public_values_digest: [F; DIGEST_SIZE],
+    pub public_values: Vec<F>,
 }
 
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
@@ -52,9 +52,10 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
         let mut ret = self
-            .public_values_digest
+            .public_values
+            .iter()
             .map(|x| T::from_canonical_u32(x.as_canonical_u32()))
-            .to_vec();
+            .collect::<Vec<_>>();
 
         assert!(ret.len() <= PROOF_MAX_NUM_PVS);
 
