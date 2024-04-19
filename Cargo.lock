@@ -4620,8 +4620,6 @@ dependencies = [
  "sp1-prover",
  "tokio",
  "tracing",
- "tracing-forest",
- "tracing-subscriber",
  "twirp",
 ]
 

@@ -33,5 +33,3 @@ alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bfd0fda", features =
 ] }
 dotenv = "0.15.0"
 sha2 = "0.10.8"
-tracing-subscriber = "0.3.18"
-tracing-forest = "0.1.6"
