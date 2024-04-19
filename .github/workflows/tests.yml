@@ -74,6 +74,43 @@ jobs:
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
 
+  cargo-prove-new:
+    name: Test `cargo prove new`
+    runs-on: warp-ubuntu-latest-arm64-8x
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
+
+      - name: Install sp1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          echo "/root/.sp1/bin" >> $GITHUB_PATH
+          /root/.sp1/bin/sp1up 
+      
+      - name: Install cargo-prove
+        run: |
+          cargo prove new test
+          cd test
+          cd script
+      
+      - name: Run `cargo prove new`
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1  
+
   misc:
     name: Miscellaneous
     runs-on: warp-ubuntu-latest-arm64-8x
