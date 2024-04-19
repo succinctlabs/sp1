@@ -94,22 +94,23 @@ jobs:
           echo "/root/.sp1/bin" >> $GITHUB_PATH
           /root/.sp1/bin/sp1up 
       
-      - name: Install cargo-prove
+      - name: Run `cargo prove new`
         run: |
           cargo prove new test
           cd test
           cd script
+          cargo run --release
       
-      - name: Run `cargo prove new`
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1  
+      # - name: Run `cargo prove new`
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: run
+      #     args: --release
+      #   env:
+      #     RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
+      #     RUST_LOG: 1
+      #     RUST_BACKTRACE: 1
+      #     CARGO_INCREMENTAL: 1  
 
   misc:
     name: Miscellaneous
