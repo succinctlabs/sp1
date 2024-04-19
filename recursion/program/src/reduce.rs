@@ -43,6 +43,8 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::MemVariable;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::prelude::Usize;
+use sp1_recursion_core::air::PublicValues as RecursionPublicValues;
+use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 use sp1_recursion_core::stark::RecursionAir;
@@ -103,7 +105,26 @@ fn felt_to_var(builder: &mut RecursionBuilder, felt: Felt<BabyBear>) -> Var<Baby
     builder.bits2num_v(&bits)
 }
 
-pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
+/// Builds a reduce program. Returns a setup program and a reduce program, where the setup one is
+/// used to initialize witness variables without costing cycles.
+pub fn build_reduce_program() -> (RecursionProgram<Val>, RecursionProgram<Val>) {
+    let reduce_setup_program = build_reduce_program_setup(true);
+    let mut reduce_program = build_reduce_program_setup(false);
+    reduce_program.instructions[0] = Instruction::new(
+        sp1_recursion_core::runtime::Opcode::ADD,
+        BabyBear::zero(),
+        [BabyBear::zero(); 4],
+        [BabyBear::zero(); 4],
+        BabyBear::zero(),
+        BabyBear::zero(),
+        false,
+        false,
+        "".to_string(),
+    );
+    (reduce_setup_program, reduce_program)
+}
+
+fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
     let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
     let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
 
@@ -192,6 +213,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
         let element = builder.get(&recursion_vk.commitment, j);
         recursion_challenger.observe(&mut builder, element);
     }
+    recursion_challenger.observe(&mut builder, recursion_vk.pc_start);
     builder.cycle_tracker("stage-b-setup-recursion-challenger");
 
     let expected_start_pc = builder.get(&proofs, zero).public_values.start_pc;
@@ -251,6 +273,7 @@ pub fn build_reduce_program(setup: bool) -> RecursionProgram<Val> {
                     let empty_challenger = DuplexChallengerVariable::new(builder);
                     builder.assign(reconstruct_challenger.clone(), empty_challenger);
                     reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
+                    reconstruct_challenger.observe(builder, sp1_vk.pc_start);
                 });
 
                 // Observe current proof commit and public values into reconstruct challenger

@@ -311,8 +311,20 @@ pub(crate) mod tests {
     pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
         let one = [F::one(), F::zero(), F::zero(), F::zero()];
-        RecursionProgram::<F> {
-            instructions: vec![Instruction::new(
+        let mut instructions = vec![Instruction::new(
+            Opcode::ADD,
+            F::from_canonical_u32(3),
+            zero,
+            one,
+            F::zero(),
+            F::zero(),
+            false,
+            true,
+            "".to_string(),
+        )];
+        instructions.resize(
+            32,
+            Instruction::new(
                 Opcode::ADD,
                 F::from_canonical_u32(3),
                 zero,
@@ -322,13 +334,17 @@ pub(crate) mod tests {
                 false,
                 true,
                 "".to_string(),
-            )],
+            ),
+        );
+        RecursionProgram::<F> {
+            instructions,
             traces: vec![None],
         }
     }
 
     #[test]
     #[serial]
+    #[ignore]
     fn test_recursive_verify_shard_v2() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;

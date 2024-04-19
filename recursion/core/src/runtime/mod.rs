@@ -3,6 +3,7 @@ mod opcode;
 mod program;
 mod record;
 
+use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -95,7 +96,8 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     pub program: RecursionProgram<F>,
 
     /// Memory.
-    pub memory: Vec<MemoryEntry<F>>,
+    // pub memory: Vec<MemoryEntry<F>>,
+    pub memory: HashMap<usize, MemoryEntry<F>>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -103,7 +105,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// The access record for this cycle.
     pub access: CpuRecord<F>,
 
-    pub witness_stream: Vec<Vec<Block<F>>>,
+    pub witness_stream: VecDeque<Vec<Block<F>>>,
 
     pub cycle_tracker: HashMap<String, CycleTrackerEntry>,
 
@@ -159,11 +161,11 @@ where
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
-            memory: vec![MemoryEntry::default(); MEMORY_SIZE],
+            memory: HashMap::new(),
             record,
             perm: Some(perm),
             access: CpuRecord::default(),
-            witness_stream: vec![],
+            witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
             _marker: PhantomData,
         }
@@ -188,11 +190,11 @@ where
             program: program.clone(),
             fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
-            memory: vec![MemoryEntry::default(); MEMORY_SIZE],
+            memory: HashMap::new(),
             record,
             perm: None,
             access: CpuRecord::default(),
-            witness_stream: vec![],
+            witness_stream: VecDeque::new(),
             cycle_tracker: HashMap::new(),
             _marker: PhantomData,
         }
@@ -212,19 +214,22 @@ where
     }
 
     fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
-        let addr_usize = addr.as_canonical_u32() as usize;
-        let entry = self.memory[addr.as_canonical_u32() as usize].clone();
+        let timestamp = self.timestamp(&position);
+        let entry = self
+            .memory
+            .entry(addr.as_canonical_u32() as usize)
+            .or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord {
             addr,
             value: prev_value,
-            timestamp: self.timestamp(&position),
+            timestamp,
             prev_value,
             prev_timestamp,
         };
-        self.memory[addr_usize] = MemoryEntry {
+        *entry = MemoryEntry {
             value: prev_value,
-            timestamp: self.timestamp(&position),
+            timestamp,
         };
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
@@ -238,7 +243,7 @@ where
     fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
         let addr_usize = addr.as_canonical_u32() as usize;
         let timestamp = self.timestamp(&position);
-        let entry = &self.memory[addr_usize];
+        let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord {
             addr,
@@ -247,7 +252,7 @@ where
             prev_value,
             prev_timestamp,
         };
-        self.memory[addr_usize] = MemoryEntry { value, timestamp };
+        *entry = MemoryEntry { value, timestamp };
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
@@ -256,8 +261,10 @@ where
         };
     }
 
-    fn get_memory_entry(&self, addr: F) -> &MemoryEntry<F> {
-        &self.memory[addr.as_canonical_u32() as usize]
+    fn get_memory_entry(&mut self, addr: F) -> &mut MemoryEntry<F> {
+        self.memory
+            .entry(addr.as_canonical_u32() as usize)
+            .or_default()
     }
 
     fn timestamp(&self, position: &MemoryAccessPosition) -> F {
@@ -561,11 +568,22 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::TRAP => {
-                    let trace = self.program.traces[self.pc.as_canonical_u32() as usize].clone();
+                    let trap_pc = self.pc.as_canonical_u32() as usize;
+                    let trace = self.program.traces[trap_pc].clone();
                     if let Some(mut trace) = trace {
                         trace.resolve();
                         eprintln!("TRAP encountered. Backtrace:\n{:?}", trace);
                     } else {
+                        for nearby_pc in (0..trap_pc).rev() {
+                            let trace = self.program.traces[nearby_pc].clone();
+                            if let Some(mut trace) = trace {
+                                trace.resolve();
+                                eprintln!(
+                                    "TRAP encountered at pc={}. Nearest trace at pc={}: {:?}",
+                                    trap_pc, nearby_pc, trace
+                                );
+                            }
+                        }
                         eprintln!("TRAP encountered. No backtrace available");
                     }
                     exit(1);
@@ -574,10 +592,10 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
                     let dst = a_val[0].as_canonical_u32() as usize;
-                    self.memory[dst].value[0] = b_val[0];
-                    self.memory[dst + 1].value[0] = b_val[1];
-                    self.memory[dst + 2].value[0] = b_val[2];
-                    self.memory[dst + 3].value[0] = b_val[3];
+                    self.memory.entry(dst).or_default().value[0] = b_val[0];
+                    self.memory.entry(dst + 1).or_default().value[0] = b_val[1];
+                    self.memory.entry(dst + 2).or_default().value[0] = b_val[2];
+                    self.memory.entry(dst + 3).or_default().value[0] = b_val[3];
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Poseidon2Perm => {
@@ -590,9 +608,8 @@ where
                     // Get the src array ptr.
                     let src = b_val[0].as_canonical_u32() as usize;
 
-                    let array: [_; PERMUTATION_WIDTH] = self.memory[src..src + PERMUTATION_WIDTH]
-                        .iter()
-                        .map(|entry| entry.value[0])
+                    let array: [_; PERMUTATION_WIDTH] = (src..(src + PERMUTATION_WIDTH))
+                        .map(|addr| self.memory.entry(addr).or_default().value[0])
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
@@ -603,7 +620,7 @@ where
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
                     for (i, value) in result.iter().enumerate() {
-                        self.memory[dst + i].value[0] = *value;
+                        self.memory.entry(dst + i).or_default().value[0] = *value;
                     }
 
                     self.record
@@ -624,17 +641,15 @@ where
                     let left = b_val[0].as_canonical_u32() as usize;
                     let right = c_val[0].as_canonical_u32() as usize;
 
-                    let left_array: [_; PERMUTATION_WIDTH / 2] = self.memory
-                        [left..left + PERMUTATION_WIDTH / 2]
-                        .iter()
-                        .map(|entry| entry.value[0])
+                    let left_array: [_; PERMUTATION_WIDTH / 2] = (left..left
+                        + PERMUTATION_WIDTH / 2)
+                        .map(|addr| self.memory.entry(addr).or_default().value[0])
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
-                    let right_array: [_; PERMUTATION_WIDTH / 2] = self.memory
-                        [right..right + PERMUTATION_WIDTH / 2]
-                        .iter()
-                        .map(|entry| entry.value[0])
+                    let right_array: [_; PERMUTATION_WIDTH / 2] = (right
+                        ..right + PERMUTATION_WIDTH / 2)
+                        .map(|addr| self.memory.entry(addr).or_default().value[0])
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
@@ -647,7 +662,7 @@ where
                     // Write the value back to the array at ptr.
                     // TODO: fix the timestamp as part of integrating the precompile if needed.
                     for (i, value) in result.iter().enumerate() {
-                        self.memory[dst + i].value[0] = *value;
+                        self.memory.entry(dst + i).or_default().value[0] = *value;
                     }
 
                     self.record
@@ -669,7 +684,8 @@ where
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
                     // Write the bits to the array at dst.
                     for (i, bit) in bits.iter().enumerate() {
-                        self.memory[dst + i].value[0] = F::from_canonical_u32(*bit);
+                        self.memory.entry(dst + i).or_default().value[0] =
+                            F::from_canonical_u32(*bit);
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -685,9 +701,9 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
                     let dst = a_val[0].as_canonical_u32() as usize;
-                    let blocks = self.witness_stream.remove(0);
+                    let blocks = self.witness_stream.pop_front().unwrap();
                     for (i, block) in blocks.into_iter().enumerate() {
-                        self.memory[dst + i].value = block;
+                        self.memory.entry(dst + i).or_default().value = block;
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -701,39 +717,65 @@ where
 
                     // Read the input values.
                     let mut ptr = input_ptr;
-                    let z = self.memory[ptr].value.ext::<EF>();
+                    let z = self.memory.entry(ptr).or_default().value.ext::<EF>();
                     ptr += 1;
-                    let alpha = self.memory[ptr].value.ext::<EF>();
+                    let alpha = self.memory.entry(ptr).or_default().value.ext::<EF>();
                     ptr += 1;
-                    let x = self.memory[ptr].value[0];
+                    let x = self.memory.entry(ptr).or_default().value[0];
                     ptr += 1;
-                    let log_height = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    let log_height =
+                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
                     ptr += 1;
-                    let mat_opening_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    let mat_opening_ptr =
+                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
                     ptr += 2;
-                    let ps_at_z_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    let ps_at_z_ptr =
+                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
                     ptr += 2;
-                    let alpha_pow_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    let alpha_pow_ptr =
+                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
                     ptr += 2;
-                    let ro_ptr = self.memory[ptr].value[0].as_canonical_u32() as usize;
+                    let ro_ptr =
+                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
 
                     // Get the opening values.
-                    let p_at_x = self.memory[mat_opening_ptr + m].value.ext::<EF>();
-                    let p_at_z = self.memory[ps_at_z_ptr + m].value.ext::<EF>();
+                    let p_at_x = self
+                        .memory
+                        .entry(mat_opening_ptr + m)
+                        .or_default()
+                        .value
+                        .ext::<EF>();
+                    let p_at_z = self
+                        .memory
+                        .entry(ps_at_z_ptr + m)
+                        .or_default()
+                        .value
+                        .ext::<EF>();
 
                     // Calculate the quotient and update the values
                     let quotient = (-p_at_z + p_at_x) / (-z + x);
 
                     // Modify the ro and alpha pow values.
-                    let alpha_pow_at_log_height =
-                        self.memory[alpha_pow_ptr + log_height].value.ext::<EF>();
-                    let ro_at_log_height = self.memory[ro_ptr + log_height].value.ext::<EF>();
+                    let alpha_pow_at_log_height = self
+                        .memory
+                        .entry(alpha_pow_ptr + log_height)
+                        .or_default()
+                        .value
+                        .ext::<EF>();
+                    let ro_at_log_height = self
+                        .memory
+                        .entry(ro_ptr + log_height)
+                        .or_default()
+                        .value
+                        .ext::<EF>();
 
-                    self.memory[ro_ptr + log_height].value = Block::from(
+                    self.memory.entry(ro_ptr + log_height).or_default().value = Block::from(
                         (ro_at_log_height + alpha_pow_at_log_height * quotient).as_base_slice(),
                     );
-                    self.memory[alpha_pow_ptr + log_height].value =
-                        Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
+                    self.memory
+                        .entry(alpha_pow_ptr + log_height)
+                        .or_default()
+                        .value = Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -745,7 +787,8 @@ where
                     let hash_ptr = a_val[0].as_canonical_u32() as usize;
 
                     for i in 0..DIGEST_SIZE {
-                        self.record.public_values_digest[i] = self.memory[hash_ptr + i].value[0];
+                        self.record.public_values_digest[i] =
+                            self.memory.entry(hash_ptr + i).or_default().value[0];
                     }
 
                     (a, b, c) = (a_val, b_val, c_val);
@@ -773,7 +816,7 @@ where
 
         // Collect all used memory addresses.
         for addr in 0..self.memory.len() {
-            let entry = &self.memory[addr];
+            let entry = self.memory.entry(addr).or_default();
             if entry.timestamp != F::zero() {
                 self.record
                     .first_memory_record
@@ -836,7 +879,8 @@ mod tests {
         };
         let machine = A::machine(SC::default());
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.witness_stream = vec![vec![F::two().into(), F::two().into(), F::two().into()]];
+        runtime.witness_stream =
+            vec![vec![F::two().into(), F::two().into(), F::two().into()]].into();
         runtime.run();
     }
 }

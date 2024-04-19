@@ -37,6 +37,7 @@ fn test_io() {
         vec![F::zero().into(), F::zero().into(), F::one().into()],
         vec![F::zero().into(), F::zero().into(), F::two().into()],
         vec![F::one().into(), F::one().into(), F::two().into()],
-    ];
+    ]
+    .into();
     runtime.run();
 }

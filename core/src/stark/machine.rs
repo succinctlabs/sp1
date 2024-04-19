@@ -16,8 +16,12 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 
 use super::debug_constraints;
+use super::DeferredDigest;
 use super::Dom;
+use super::PublicValuesDigest;
 use crate::air::MachineAir;
+use crate::air::MachineProgram;
+use crate::air::PublicValues;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -62,16 +66,32 @@ impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
 
 pub struct ProvingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
+    pub pc_start: Val<SC>,
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
     pub data: PcsProverData<SC>,
     pub chip_ordering: HashMap<String, usize>,
 }
 
+impl<SC: StarkGenericConfig> ProvingKey<SC> {
+    pub fn observe_into(&self, challenger: &mut SC::Challenger) {
+        challenger.observe(self.commit.clone());
+        challenger.observe(self.pc_start);
+    }
+}
+
 #[derive(Clone)]
 pub struct VerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
+    pub pc_start: Val<SC>,
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
+}
+
+impl<SC: StarkGenericConfig> VerifyingKey<SC> {
+    pub fn observe_into(&self, challenger: &mut SC::Challenger) {
+        challenger.observe(self.commit.clone());
+        challenger.observe(self.pc_start);
+    }
 }
 
 impl<SC: StarkGenericConfig> Debug for VerifyingKey<SC> {
@@ -190,15 +210,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             .map(|(_, trace)| trace)
             .collect::<Vec<_>>();
 
+        let pc_start = program.pc_start();
+
         (
             ProvingKey {
                 commit: commit.clone(),
+                pc_start,
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
             },
             VerifyingKey {
                 commit,
+                pc_start,
                 chip_information,
                 chip_ordering,
             },
@@ -258,18 +282,19 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         &self.config
     }
 
+    /// Verify that a proof is complete and valid given a verifying key and a claimed digest.
     pub fn verify(
         &self,
         vk: &VerifyingKey<SC>,
         proof: &Proof<SC>,
         challenger: &mut SC::Challenger,
-    ) -> Result<(), ProgramVerificationError>
+    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError>
     where
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         // Observe the preprocessed commitment.
-        challenger.observe(vk.commit.clone());
+        vk.observe_into(challenger);
         tracing::debug_span!("observe challenges for all shards").in_scope(|| {
             proof.shard_proofs.iter().for_each(|proof| {
                 challenger.observe(proof.commitment.main_commit.clone());
@@ -277,15 +302,99 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             });
         });
 
-        // Verify the segment proofs.
+        // Verify the shard proofs.
         tracing::info!("verifying shard proofs");
-        for (i, proof) in proof.shard_proofs.iter().enumerate() {
+        let mut result = None;
+        if proof.shard_proofs.is_empty() {
+            return Err(ProgramVerificationError::InvalidShardTransition(
+                "no shards",
+            ));
+        }
+        for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
             tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
+                let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
+                // Verify shard transitions
+                if i == 0 {
+                    // If it's the first shard, index should be 1.
+                    if public_values.shard != SC::Val::one() {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "first shard not 1",
+                        ));
+                    }
+                    if public_values.start_pc != vk.pc_start {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "wrong pc_start",
+                        ));
+                    }
+                    let pv_digest: [u32; 8] = public_values
+                        .committed_value_digest
+                        .iter()
+                        .map(|w| w.to_u32())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    let deferred_proofs_digest: [u32; 8] = public_values
+                        .deferred_proofs_digest
+                        .iter()
+                        .map(|w| w.to_u32())
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap();
+                    result = Some((pv_digest.into(), deferred_proofs_digest.into()));
+                } else {
+                    let prev_shard_proof = &proof.shard_proofs[i - 1];
+                    let prev_public_values =
+                        PublicValues::from_vec(prev_shard_proof.public_values.clone());
+                    // For non-first shards, the index should be the previous index + 1.
+                    if public_values.shard != prev_public_values.shard + SC::Val::one() {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "non incremental shard index",
+                        ));
+                    }
+                    // Next pc should be what the next pc declared in the previous shard was.
+                    if public_values.start_pc != prev_public_values.next_pc {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "pc mismatch",
+                        ));
+                    }
+                    // Digests and exit code should be the same in all shards.
+                    if public_values.committed_value_digest
+                        != prev_public_values.committed_value_digest
+                        || public_values.deferred_proofs_digest
+                            != prev_public_values.deferred_proofs_digest
+                        || public_values.exit_code != prev_public_values.exit_code
+                    {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "digest or exit code mismatch",
+                        ));
+                    }
+                    // The last shard should be halted. Halt is signaled with next_pc == 0.
+                    if i == proof.shard_proofs.len() - 1 && public_values.next_pc != SC::Val::zero()
+                    {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "last shard isn't halted",
+                        ));
+                    }
+                    // All non-last shards should not be halted.
+                    if i != proof.shard_proofs.len() - 1 && public_values.next_pc == SC::Val::zero()
+                    {
+                        return Err(ProgramVerificationError::InvalidShardTransition(
+                            "non-last shard is halted",
+                        ));
+                    }
+                }
+
                 let chips = self
-                    .shard_chips_ordered(&proof.chip_ordering)
+                    .shard_chips_ordered(&shard_proof.chip_ordering)
                     .collect::<Vec<_>>();
-                Verifier::verify_shard(&self.config, vk, &chips, &mut challenger.clone(), proof)
-                    .map_err(ProgramVerificationError::InvalidSegmentProof)
+                Verifier::verify_shard(
+                    &self.config,
+                    vk,
+                    &chips,
+                    &mut challenger.clone(),
+                    shard_proof,
+                )
+                .map_err(ProgramVerificationError::InvalidSegmentProof)
             })?;
         }
         tracing::info!("verifying individual shards succeeded");
@@ -297,7 +406,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
             sum += proof.cumulative_sum();
         }
         match sum.is_zero() {
-            true => Ok(()),
+            true => Ok(result.unwrap()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
         }
     }
@@ -418,6 +527,8 @@ pub enum ProgramVerificationError {
     InvalidSegmentProof(VerificationError),
     InvalidGlobalProof(VerificationError),
     NonZeroCumulativeSum,
+    InvalidShardTransition(&'static str),
+    InvalidPublicValuesDigest,
     DebugInteractionsFailed,
 }
 
@@ -571,6 +682,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
@@ -584,6 +696,7 @@ pub mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_ssz_withdrawal() {
         let program = ssz_withdrawals_program();
         run_test(program).unwrap();

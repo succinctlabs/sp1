@@ -1,4 +1,5 @@
 mod blake3_compress;
+mod bls12381;
 mod bn254;
 mod ed25519;
 mod halt;
@@ -9,9 +10,11 @@ mod secp256k1;
 mod sha_compress;
 mod sha_extend;
 mod sys;
+mod uint256_mul;
 mod unconstrained;
 mod verify;
 
+pub use bls12381::*;
 pub use bn254::*;
 pub use ed25519::*;
 pub use halt::*;
@@ -22,6 +25,7 @@ pub use secp256k1::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
+pub use uint256_mul::*;
 pub use unconstrained::*;
 pub use verify::*;
 
@@ -87,3 +91,15 @@ pub const HINT_LEN: u32 = 0x00_00_00_F0;
 
 /// Executes `HINT_READ`.
 pub const HINT_READ: u32 = 0x00_00_00_F1;
+
+/// Executes `BLS12381_DECOMPRESS`.
+pub const BLS12381_DECOMPRESS: u32 = 0x00_00_01_1C;
+
+/// Executes the `UINT256_MUL` precompile.
+pub const UINT256_MUL: u32 = 0x00_00_01_1D;
+
+/// Executes the `BLS12381_ADD` precompile.
+pub const BLS12381_ADD: u32 = 0x00_01_01_1E;
+
+/// Executes the `BLS12381_DOUBLE` precompile.
+pub const BLS12381_DOUBLE: u32 = 0x00_00_01_1F;

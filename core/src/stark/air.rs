@@ -23,14 +23,16 @@ pub(crate) mod riscv_chips {
     pub use crate::syscall::precompiles::blake3::Blake3CompressInnerChip;
     pub use crate::syscall::precompiles::edwards::EdAddAssignChip;
     pub use crate::syscall::precompiles::edwards::EdDecompressChip;
-    pub use crate::syscall::precompiles::k256::K256DecompressChip;
     pub use crate::syscall::precompiles::keccak256::KeccakPermuteChip;
     pub use crate::syscall::precompiles::sha256::ShaCompressChip;
     pub use crate::syscall::precompiles::sha256::ShaExtendChip;
+    pub use crate::syscall::precompiles::uint256::Uint256MulChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassAddAssignChip;
+    pub use crate::syscall::precompiles::weierstrass::WeierstrassDecompressChip;
     pub use crate::syscall::precompiles::weierstrass::WeierstrassDoubleAssignChip;
     pub use crate::utils::ec::edwards::ed25519::Ed25519Parameters;
     pub use crate::utils::ec::edwards::EdwardsCurve;
+    pub use crate::utils::ec::weierstrass::bls12_381::Bls12381Parameters;
     pub use crate::utils::ec::weierstrass::bn254::Bn254Parameters;
     pub use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
     pub use crate::utils::ec::weierstrass::SwCurve;
@@ -78,7 +80,7 @@ pub enum RiscvAir<F: PrimeField32> {
     /// A precompile for decompressing a point on the Edwards curve ed25519.
     Ed25519Decompress(EdDecompressChip<Ed25519Parameters>),
     /// A precompile for decompressing a point on the K256 curve.
-    K256Decompress(K256DecompressChip),
+    K256Decompress(WeierstrassDecompressChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for addition on the Elliptic curve secp256k1.
     Secp256k1Add(WeierstrassAddAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve secp256k1.
@@ -91,6 +93,14 @@ pub enum RiscvAir<F: PrimeField32> {
     Bn254Add(WeierstrassAddAssignChip<SwCurve<Bn254Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve bn254.
     Bn254Double(WeierstrassDoubleAssignChip<SwCurve<Bn254Parameters>>),
+    /// A precompile for addition on the Elliptic curve bls12_381.
+    Bls12381Add(WeierstrassAddAssignChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for doubling a point on the Elliptic curve bls12_381.
+    Bls12381Double(WeierstrassDoubleAssignChip<SwCurve<Bls12381Parameters>>),
+    /// A precompile for uint256 mul.
+    Uint256Mul(Uint256MulChip),
+    /// A precompile for decompressing a point on the BLS12-381 curve.
+    Bls12381Decompress(WeierstrassDecompressChip<SwCurve<Bls12381Parameters>>),
 }
 
 impl<F: PrimeField32> RiscvAir<F> {
@@ -119,7 +129,7 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Ed25519Add(ed_add_assign));
         let ed_decompress = EdDecompressChip::<Ed25519Parameters>::default();
         chips.push(RiscvAir::Ed25519Decompress(ed_decompress));
-        let k256_decompress = K256DecompressChip::default();
+        let k256_decompress = WeierstrassDecompressChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::K256Decompress(k256_decompress));
         let secp256k1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::Secp256k1Add(secp256k1_add_assign));
@@ -132,6 +142,14 @@ impl<F: PrimeField32> RiscvAir<F> {
         chips.push(RiscvAir::Bn254Add(bn254_add_assign));
         let bn254_double_assign = WeierstrassDoubleAssignChip::<SwCurve<Bn254Parameters>>::new();
         chips.push(RiscvAir::Bn254Double(bn254_double_assign));
+        let bls12381_add = WeierstrassAddAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381Add(bls12381_add));
+        let bls12381_double = WeierstrassDoubleAssignChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381Double(bls12381_double));
+        let uint256_mul = Uint256MulChip::default();
+        chips.push(RiscvAir::Uint256Mul(uint256_mul));
+        let bls12381_decompress = WeierstrassDecompressChip::<SwCurve<Bls12381Parameters>>::new();
+        chips.push(RiscvAir::Bls12381Decompress(bls12381_decompress));
         let add = AddSubChip::default();
         chips.push(RiscvAir::Add(add));
         let bitwise = BitwiseChip::default();

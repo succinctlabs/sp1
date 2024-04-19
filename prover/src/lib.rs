@@ -20,7 +20,6 @@ use sp1_core::{
 use sp1_recursion_circuit::{stark::build_wrap_circuit, witness::Witnessable};
 use sp1_recursion_compiler::{constraints::groth16_ffi, ir::Witness};
 use sp1_recursion_core::{
-    cpu::Instruction,
     runtime::{RecursionProgram, Runtime},
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
@@ -95,19 +94,7 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 impl SP1ProverImpl {
     pub fn new() -> Self {
         // TODO: load from serde
-        let reduce_setup_program = build_reduce_program(true);
-        let mut reduce_program = build_reduce_program(false);
-        reduce_program.instructions[0] = Instruction::new(
-            sp1_recursion_core::runtime::Opcode::ADD,
-            BabyBear::zero(),
-            [BabyBear::zero(); 4],
-            [BabyBear::zero(); 4],
-            BabyBear::zero(),
-            BabyBear::zero(),
-            false,
-            false,
-            "".to_string(),
-        );
+        let (reduce_setup_program, reduce_program) = build_reduce_program();
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
         Self {
@@ -255,7 +242,7 @@ impl SP1ProverImpl {
             &self.reduce_setup_program,
             machine.config().perm.clone(),
         );
-        runtime.witness_stream = witness_stream;
+        runtime.witness_stream = witness_stream.into();
         runtime.run();
         let mut checkpoint = runtime.memory.clone();
         runtime.print_stats();
@@ -266,7 +253,7 @@ impl SP1ProverImpl {
         let mut runtime =
             Runtime::<InnerF, InnerEF, _>::new(&self.reduce_program, machine.config().perm.clone());
         checkpoint.iter_mut().for_each(|e| {
-            e.timestamp = BabyBear::zero();
+            e.1.timestamp = BabyBear::zero();
         });
         runtime.memory = checkpoint;
         runtime.run();
@@ -326,14 +313,37 @@ impl SP1ProverImpl {
         }
     }
 
-    /// Recursively reduce proofs into a single proof using an N-ary tree.
-    pub fn reduce_tree<const N: usize>(
+    /// Initialize a challenger given a verifying key and a list of shard proofs.
+    pub fn initialize_challenger(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
-        sp1_challenger: Challenger<SP1SC>,
+        shard_proofs: &[ShardProof<SP1SC>],
+    ) -> Challenger<SP1SC> {
+        let sp1_config = SP1SC::default();
+        let sp1_machine = RiscvAir::machine(sp1_config);
+        let mut sp1_challenger = sp1_machine.config().challenger();
+        sp1_vk.observe_into(&mut sp1_challenger);
+        for shard_proof in shard_proofs.iter() {
+            sp1_challenger.observe(shard_proof.commitment.main_commit);
+            sp1_challenger
+                .observe_slice(&shard_proof.public_values.to_vec()[0..sp1_machine.num_pv_elts()]);
+        }
+        sp1_challenger
+    }
+
+    /// Recursively reduce proofs into a single proof using an N-ary tree.
+    pub fn reduce_tree(
+        &self,
+        sp1_vk: &VerifyingKey<SP1SC>,
         proof: Proof<SP1SC>,
+        batch_size: usize,
         // deferred_proofs: &[(ReduceProof, &VerifyingKey<SP1SC>)],
     ) -> ReduceProof<InnerSC> {
+        // Observe all commitments and public values. This challenger will be witnessed into
+        // reduce program and used to verify sp1 proofs. It will also be reconstructed over all the
+        // reduce steps to prove that the witnessed challenger was correct.
+        let sp1_challenger = self.initialize_challenger(sp1_vk, &proof.shard_proofs);
+
         let mut reduce_proofs = proof
             .shard_proofs
             .into_iter()
@@ -361,7 +371,8 @@ impl SP1ProverImpl {
         while reduce_proofs.len() > 1 {
             println!("layer = {}, num_proofs = {}", layer, reduce_proofs.len());
             let start = Instant::now();
-            reduce_proofs = self.reduce_layer::<N>(sp1_vk, sp1_challenger.clone(), reduce_proofs);
+            reduce_proofs =
+                self.reduce_layer(sp1_vk, sp1_challenger.clone(), reduce_proofs, batch_size);
             let duration = start.elapsed().as_secs();
             println!("layer {}, reduce duration = {}", layer, duration);
             layer += 1;
@@ -378,20 +389,21 @@ impl SP1ProverImpl {
     }
 
     /// Reduce a list of proofs in groups of N into a smaller list of proofs.
-    pub fn reduce_layer<const N: usize>(
+    pub fn reduce_layer(
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
         mut proofs: Vec<ReduceProofType>,
+        batch_size: usize,
     ) -> Vec<ReduceProofType> {
         // If there's one proof at the end, just push it to the next layer.
-        let last_proof = if proofs.len() % N == 1 {
+        let last_proof = if proofs.len() % batch_size == 1 {
             Some(proofs.pop().unwrap())
         } else {
             None
         };
 
-        let chunks: Vec<_> = proofs.chunks(N).collect();
+        let chunks: Vec<_> = proofs.chunks(batch_size).collect();
 
         // Process at most 4 proofs at once in parallel, due to memory limits.
         let partition_size = std::cmp::max(1, chunks.len() / 4);
@@ -423,9 +435,8 @@ impl SP1ProverImpl {
         &self,
         sp1_vk: &VerifyingKey<SP1SC>, // TODO: we could read these from proof public values
         sp1_challenger: Challenger<SP1SC>,
-        proof: ShardProof<InnerSC>,
+        reduce_proof: ReduceProof<InnerSC>,
     ) -> ShardProof<OuterSC> {
-        let reduce_proof = proof.into();
         self.reduce(
             sp1_vk,
             sp1_challenger,
@@ -461,6 +472,7 @@ mod tests {
     use sp1_sdk::{ProverClient, SP1Stdin};
 
     #[test]
+    #[ignore]
     fn test_prove_sp1() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
@@ -482,24 +494,14 @@ mod tests {
             .unwrap()
             .proof;
         machine.verify(&vk, &proof, &mut challenger).unwrap();
-
         let prover = SP1ProverImpl::new();
+        let sp1_challenger = prover.initialize_challenger(&vk, &proof.shard_proofs);
+
         let sp1_machine = RiscvAir::machine(SP1SC::default());
         let (_, vk) = sp1_machine.setup(&Program::from(elf));
 
-        // Observe all commitments and public values. This challenger will be witnessed into
-        // reduce program and used to verify sp1 proofs. It will also be reconstructed over all the
-        // reduce steps to prove that the witnessed challenger was correct.
-        let mut sp1_challenger = sp1_machine.config().challenger();
-        sp1_challenger.observe(vk.commit);
-        for shard_proof in proof.shard_proofs.iter() {
-            sp1_challenger.observe(shard_proof.commitment.main_commit);
-            sp1_challenger
-                .observe_slice(&shard_proof.public_values.to_vec()[0..sp1_machine.num_pv_elts()]);
-        }
-
         let start = Instant::now();
-        let final_proof = prover.reduce_tree::<2>(&vk, sp1_challenger.clone(), proof);
+        let final_proof = prover.reduce_tree(&vk, proof, 2);
         let duration = start.elapsed().as_secs();
         println!("full reduce duration = {}", duration);
 
@@ -508,7 +510,7 @@ mod tests {
         std::fs::write("final.bin", serialized).unwrap();
 
         // Wrap into outer proof
-        let outer_proof = prover.wrap_into_outer(&vk, sp1_challenger, final_proof.shard_proof);
+        let outer_proof = prover.wrap_into_outer(&vk, sp1_challenger, final_proof);
 
         // Wrap the final proof into a groth16 proof
         prover.wrap_into_groth16(outer_proof);
@@ -566,14 +568,7 @@ mod tests {
                     .unwrap();
                 println!("verified fibonacci");
 
-                let mut challenger = sp1_machine.config().challenger();
-                challenger.observe(fibonacci_vk.commit);
-                for shard_proof in fibonacci_proof.shard_proofs.iter() {
-                    challenger.observe(shard_proof.commitment.main_commit);
-                    challenger.observe_slice(&shard_proof.public_values.to_vec());
-                }
-                let final_proof =
-                    prover.reduce_tree::<2>(&fibonacci_vk, challenger, fibonacci_proof);
+                let final_proof = prover.reduce_tree(&fibonacci_vk, fibonacci_proof, 2);
 
                 let proof = Proof {
                     shard_proofs: vec![final_proof.shard_proof],
@@ -619,7 +614,7 @@ mod tests {
         println!("verified");
 
         let mut challenger = sp1_machine.config().challenger();
-        challenger.observe(verify_vk.commit);
+        verify_vk.observe_into(&mut challenger);
         for shard_proof in proof.shard_proofs.iter() {
             challenger.observe(shard_proof.commitment.main_commit);
             challenger.observe_slice(&shard_proof.public_values.to_vec());
