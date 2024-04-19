@@ -231,6 +231,8 @@ where
         // TODO CONSTRAIN: that the preprocessed chips get called with verify_constraints.
         builder.cycle_tracker("stage-e-verify-constraints");
         for (i, chip) in machine.chips().iter().enumerate() {
+            let chip_name = chip.name();
+            println!("Verifying constraints for chip: {}", chip_name);
             let index = builder.get(&chip_sorted_idxs, i);
 
             if chip.preprocessed_width() > 0 {

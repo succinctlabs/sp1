@@ -117,10 +117,12 @@ pub fn build_reduce_program() -> (RecursionProgram<Val>, RecursionProgram<Val>) 
         false,
         "".to_string(),
     );
+    println!("built");
     (reduce_setup_program, reduce_program)
 }
 
 fn build_reduce_program_setup(setup: bool) -> RecursionProgram<Val> {
+    println!("building");
     let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
     let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
 

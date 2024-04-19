@@ -37,3 +37,7 @@ path = "scripts/tendermint_sweep.rs"
 [[bin]]
 name = "fibonacci_groth16"
 path = "scripts/fibonacci_groth16.rs"
+
+[[bin]]
+name = "build_groth16_verifier"
+path = "scripts/build_groth16_verifier.rs"

@@ -455,6 +455,7 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn cycle_tracker(&mut self, name: &str) {
+        println!("Cycle tracker: {}", name);
         self.operations.push(DslIr::CycleTracker(name.to_string()));
     }
 }

@@ -1,0 +1,10 @@
+[package]
+name = "groth16-ffi"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+p3-field = { workspace = true }
+sp1-recursion-compiler = { path = "../compiler" }
+serde = "1.0.198"
+serde_json = "1.0.116"
