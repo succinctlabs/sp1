@@ -1,5 +1,5 @@
+use crate::utils::Buffer;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::{stark::StarkGenericConfig, utils::Buffer};
 
 /// Standard input for the prover.
 #[derive(Serialize, Deserialize, Clone)]
@@ -111,7 +111,7 @@ impl AsRef<[u8]> for SP1PublicValues {
 pub mod proof_serde {
     use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 
-    use sp1_core::stark::{Proof, StarkGenericConfig};
+    use crate::stark::{Proof, StarkGenericConfig};
 
     pub fn serialize<S, SC: StarkGenericConfig + Serialize>(
         proof: &Proof<SC>,
@@ -144,17 +144,4 @@ pub mod proof_serde {
             Proof::<SC>::deserialize(deserializer)
         }
     }
-}
-
-#[allow(unused_imports)]
-use sp1_core::stark::Proof;
-
-/// A proof of a RISCV ELF execution with given inputs and outputs.
-#[derive(Serialize, Deserialize)]
-// #[deprecated(note = "Import from sp1_sdk instead of sp1_core")]
-pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
-    #[serde(with = "proof_serde")]
-    pub proof: Proof<SC>,
-    pub stdin: SP1Stdin,
-    pub public_values: SP1PublicValues,
 }

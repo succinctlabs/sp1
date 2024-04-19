@@ -276,9 +276,9 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
+    use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
-    use sp1_core::syscall::SP1Stdin;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;

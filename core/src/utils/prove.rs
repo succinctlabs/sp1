@@ -2,7 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use web_time::Instant;
 
-use crate::syscall::SP1Stdin;
+use crate::io::SP1Stdin;
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 use p3_field::PrimeField32;

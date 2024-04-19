@@ -9,10 +9,8 @@ pub mod auth;
 pub mod client;
 pub mod utils;
 
-use sp1_prover::io::SP1ProofWithIO;
-use sp1_prover::io::SP1PublicValues;
-use sp1_prover::io::SP1Stdin;
 use sp1_prover::SP1ProverImpl;
+use sp1_prover::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
 
 use proto::network::{ProofStatus, TransactionStatus};
 use sp1_prover::SP1SC;

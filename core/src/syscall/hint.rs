@@ -73,8 +73,8 @@ mod tests {
     use rand::RngCore;
 
     use crate::{
+        io::SP1Stdin,
         runtime::Program,
-        syscall::SP1Stdin,
         utils::{run_and_prove, setup_logger, BabyBearPoseidon2},
     };
 

@@ -146,9 +146,9 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::io::SP1Stdin;
     use crate::runtime::Program;
     use crate::stark::{RiscvAir, StarkGenericConfig};
-    use crate::syscall::SP1Stdin;
     use crate::utils::Buffer;
     use crate::utils::{run_and_prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
 

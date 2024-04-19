@@ -165,12 +165,12 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
+        io::SP1Stdin,
         runtime::Program,
         stark::{
             Chip, Com, Dom, MachineStark, OpeningProof, PcsProverData, RiscvAir, ShardCommitment,
             ShardMainData, ShardProof, StarkGenericConfig,
         },
-        syscall::SP1Stdin,
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;

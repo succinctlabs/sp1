@@ -6,8 +6,8 @@ pub use air::*;
 mod tests {
 
     use crate::{
+        io::SP1Stdin,
         runtime::Program,
-        syscall::SP1Stdin,
         utils::{
             self,
             ec::{field::FieldParameters, uint256::U256Field, utils::biguint_from_limbs},

@@ -325,7 +325,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::syscall::SP1Stdin;
+    use crate::io::SP1Stdin;
     use crate::utils::{self, tests::BLS12381_DECOMPRESS_ELF};
     use crate::Program;
     use amcl::bls381::bls381::basic::key_pair_generate_g2;

@@ -1,10 +1,6 @@
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
-#![allow(deprecated)]
-
-pub mod io;
-use crate::io::{SP1ProofWithIO, SP1PublicValues};
-
+use anyhow::Result;
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
@@ -13,6 +9,7 @@ use p3_field::{AbstractField, PrimeField32};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use sp1_core::io::proof_serde;
 use sp1_core::{
     air::{MachineAir, PublicValues, Word},
     runtime::Program,
@@ -23,6 +20,10 @@ use sp1_core::{
     },
     utils::{run_and_prove, BabyBearPoseidon2, BabyBearPoseidon2Inner},
 };
+use std::fs;
+
+// Re-export SP1 public values and stdin.
+pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 
 use sp1_core::runtime::Runtime;
 
@@ -565,12 +566,30 @@ impl SP1ProverImpl {
     }
 }
 
+/// A proof of a RISCV ELF execution with given inputs and outputs.
+#[derive(Serialize, Deserialize)]
+pub struct SP1ProofWithIO<SC: StarkGenericConfig + Serialize + DeserializeOwned> {
+    #[serde(with = "proof_serde")]
+    pub proof: Proof<SC>,
+    pub stdin: SP1Stdin,
+    pub public_values: SP1PublicValues,
+}
+
+impl<SC: StarkGenericConfig + Serialize + DeserializeOwned> SP1ProofWithIO<SC> {
+    /// Saves the proof as a JSON to the given path.
+    pub fn save(&self, path: &str) -> Result<()> {
+        let data = serde_json::to_string(self).unwrap();
+        fs::write(path, data).unwrap();
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
-    use crate::io::SP1Stdin;
     use sp1_core::{
+        io::SP1Stdin,
         runtime::Runtime,
         utils::{prove_core, setup_logger},
     };
