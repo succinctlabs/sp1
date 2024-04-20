@@ -17,4 +17,4 @@ This program is from the `examples` [directory](https://github.com/succinctlabs/
 {{#include ../../examples/fibonacci-io/program/src/main.rs}}
 ```
 
-As you can see, writing programs is as simple as writing normal Rust. To read more about how inputs and outputs work, refer to the section on [Inputs & Outputs](./inputs-and-outputs.md).
+As you can see, writing programs is as simple as writing normal Rust codes. To read more about how inputs and outputs work, refer to the section on [Inputs & Outputs](./inputs-and-outputs.md).
