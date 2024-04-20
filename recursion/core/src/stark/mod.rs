@@ -2,7 +2,9 @@ pub mod config;
 pub mod poseidon2;
 
 use crate::{
+    alu::AluChip,
     cpu::CpuChip,
+    fri_fold::FriFoldChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
     // poseidon2::Poseidon2Chip,
     poseidon2_wide::Poseidon2WideChip,
@@ -25,6 +27,8 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     MemoryFinalize(MemoryGlobalChip),
     Poseidon2(Poseidon2WideChip),
     // Poseidon2(Poseidon2Chip),
+    FriFold(FriFoldChip),
+    Alu(AluChip),
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
@@ -54,6 +58,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
         chips.push(RecursionAir::Poseidon2(poseidon_wide2));
         // let poseidon2 = Poseidon2Chip {};
         // chips.push(RecursionAir::Poseidon2(poseidon2));
+        let fri_fold = FriFoldChip {};
+        chips.push(RecursionAir::FriFold(fri_fold));
+        let alu = AluChip {};
+        chips.push(RecursionAir::Alu(alu));
         chips
     }
 }
