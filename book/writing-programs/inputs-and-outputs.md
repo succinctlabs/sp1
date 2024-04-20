@@ -3,7 +3,7 @@
 In real world applications of zero-knowledge proofs, you almost always want to verify your proof in the context of some inputs and outputs. For example:
 
 - **Rollups**: Given a list of transactions, prove the new state of the blockchain.
-- **Coprocessors**: Given a block header, prove the historical state of some storage slot inside a smart contract.
+- **Coprocessors**: Given a block header, prove the historical state of some storage slots inside a smart contract.
 - **Attested Images**: Given a signed image, prove that you made a restricted set of image transformations.
 
 In this section, we cover how you pass inputs and outputs to the zkVM and create new types that support serialization.
