@@ -369,13 +369,14 @@ impl SP1Prover {
         });
         runtime.memory = checkpoint;
         runtime.run();
-        runtime.print_stats();
 
         // Generate proof.
         let machine = RecursionAir::machine(SC::default());
         let (pk, _) = machine.setup(&self.reduce_program);
         let mut challenger = machine.config().challenger();
         let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+
+        // Return the reduced proof.
         assert!(proof.shard_proofs.len() == 1);
         let proof = proof.shard_proofs.into_iter().next().unwrap();
         SP1ReduceProof {
@@ -410,8 +411,6 @@ impl SP1Prover {
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
         let start = Instant::now();
         groth16_ffi::prove(constraints, witness);
-        let duration = start.elapsed().as_secs();
-        println!("wrap duration = {}", duration);
     }
 
     // TODO: Get rid of this method by reading it from public values.
