@@ -8,7 +8,7 @@ use crate::{
     runtime::PV_BUFFER_MAX_SIZE,
 };
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
+use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
 use crate::runtime::D;

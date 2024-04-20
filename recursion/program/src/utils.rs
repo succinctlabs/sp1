@@ -10,7 +10,6 @@ use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, MemVariable, Var};
-use sp1_sdk::utils::BabyBearPoseidon2;
 
 use crate::fri::types::FriConfigVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
