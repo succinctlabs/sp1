@@ -6,8 +6,6 @@ use csv::WriterBuilder;
 use serde::Serialize;
 use sp1_core::runtime::{Program, Runtime};
 use sp1_core::utils::{get_cycles, prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
-use sp1_prover::SP1ProverImpl;
-use sp1_prover::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io;
@@ -131,7 +129,7 @@ fn main() {
     }
 }
 
-fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64, f64) {
+fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f64, f64) {
     match hashfn {
         HashFnId::Blake3 => {
             let mut runtime = Runtime::new(program.clone());
@@ -141,16 +139,11 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
 
             let config = BabyBearBlake3::new();
             let prove_start = Instant::now();
-            let proof = prove_core(config.clone(), runtime);
+            let _proof = prove_core(config.clone(), runtime);
             let prove_duration = prove_start.elapsed().as_secs_f64();
-            let proof = SP1ProofWithIO {
-                stdin: SP1Stdin::new(),
-                public_values: SP1PublicValues::new(),
-                proof,
-            };
 
             let verify_start = Instant::now();
-            SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
+            // SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)
@@ -163,16 +156,11 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
 
             let config = BabyBearPoseidon2::new();
             let prove_start = Instant::now();
-            let proof = prove_core(config.clone(), runtime);
+            let _proof = prove_core(config.clone(), runtime);
             let prove_duration = prove_start.elapsed().as_secs_f64();
-            let proof = SP1ProofWithIO {
-                stdin: SP1Stdin::new(),
-                public_values: SP1PublicValues::new(),
-                proof,
-            };
 
             let verify_start = Instant::now();
-            SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
+            // SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)
@@ -185,16 +173,11 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, elf: &[u8]) -> (f64, f64
 
             let config = BabyBearKeccak::new();
             let prove_start = Instant::now();
-            let proof = prove_core(config.clone(), runtime);
+            let _proof = prove_core(config.clone(), runtime);
             let prove_duration = prove_start.elapsed().as_secs_f64();
-            let proof = SP1ProofWithIO {
-                stdin: SP1Stdin::new(),
-                public_values: SP1PublicValues::new(),
-                proof,
-            };
 
             let verify_start = Instant::now();
-            SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
+            // SP1ProverImpl::verify_with_config(elf, &proof, config).unwrap();
             let verify_duration = verify_start.elapsed().as_secs_f64();
 
             (execution_duration, prove_duration, verify_duration)

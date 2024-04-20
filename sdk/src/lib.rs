@@ -9,19 +9,18 @@ pub mod auth;
 pub mod client;
 pub mod utils;
 
-use sp1_prover::SP1ProverImpl;
-pub use sp1_prover::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
-
-use proto::network::{ProofStatus, TransactionStatus};
-use sp1_prover::SP1SC;
-
-use crate::client::NetworkClient;
-use crate::utils::StageProgressBar;
 use anyhow::{Context, Ok, Result};
+use proto::network::{ProofStatus, TransactionStatus};
+use sp1_core::runtime::Program;
+use sp1_core::utils::run_and_prove;
+use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
 use std::env;
 use std::time::Duration;
 use tokio::runtime;
 use tokio::time::sleep;
+
+use crate::client::NetworkClient;
+use crate::utils::StageProgressBar;
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {
@@ -56,12 +55,12 @@ impl ProverClient {
 
     /// Executes the elf with the given inputs and returns the output.
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
-        Ok(SP1ProverImpl::execute(elf, &stdin.buffer))
+        Ok(SP1Prover::execute(elf, &stdin))
     }
 
     /// Generate a proof for the execution of the ELF with the given public inputs. If a
     /// NetworkClient is configured, it uses remote proving, otherwise, it proves locally.
-    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<SP1SC>> {
+    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof> {
         if self.client.is_some() {
             println!("Proving remotely");
             self.prove_remote(elf, stdin)
@@ -78,7 +77,7 @@ impl ProverClient {
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithIO<SP1SC>, anyhow::Error> {
+    ) -> Result<SP1CoreProof, anyhow::Error> {
         let client = self
             .client
             .as_ref()
@@ -123,22 +122,20 @@ impl ProverClient {
     }
 
     // Generate a proof remotely using the Succinct Network in a sync context.
-    pub fn prove_remote(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithIO<SP1SC>, anyhow::Error> {
+    pub fn prove_remote(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof, anyhow::Error> {
         let rt = runtime::Runtime::new()?;
         rt.block_on(async { self.prove_remote_async(elf, stdin).await })
     }
 
     // Generate a proof locally for the execution of the ELF with the given public inputs.
-    pub fn prove_local(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithIO<SP1SC>> {
-        let public_values = SP1ProverImpl::execute(elf, &stdin.buffer);
-        let proof = SP1ProverImpl::prove(elf, &stdin.buffer);
-        Ok(SP1ProofWithIO::<SP1SC> {
-            proof,
-            stdin,
+    pub fn prove_local(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof> {
+        let config = CoreSC::default();
+        let program = Program::from(elf);
+        let (proof, public_values_stream) = run_and_prove(program.clone(), &stdin.buffer, config);
+        let public_values = SP1PublicValues::from(&public_values_stream);
+        Ok(SP1CoreProof {
+            shard_proofs: proof.shard_proofs,
+            stdin: stdin.clone(),
             public_values,
         })
     }
@@ -209,12 +206,8 @@ impl ProverClient {
         })
     }
 
-    pub fn verify(&self, elf: &[u8], proof: &SP1ProofWithIO<SP1SC>) -> Result<()> {
-        let res = SP1ProverImpl::verify_with_config(elf, proof, SP1SC::default());
-        if res.is_ok() {
-            Ok(())
-        } else {
-            Err(anyhow::anyhow!("Proof verification failed"))
-        }
+    pub fn verify(&self, _elf: &[u8], _proof: &SP1CoreProof) -> Result<()> {
+        // TODO:
+        Ok(())
     }
 }

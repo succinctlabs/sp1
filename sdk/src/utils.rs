@@ -1,8 +1,5 @@
-pub use sp1_prover::utils::{setup_logger, setup_tracer};
-
-use std::time::Duration;
-
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+use std::time::Duration;
 
 pub struct StageProgressBar {
     pb: ProgressBar,
