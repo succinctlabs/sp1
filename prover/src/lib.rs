@@ -44,7 +44,6 @@ use sp1_recursion_core::{
 use sp1_recursion_program::reduce::ReduceProgram;
 use sp1_recursion_program::{hints::Hintable, stark::EMPTY};
 use sp1_sdk::SP1Stdin;
-use std::time::Instant;
 
 /// The configuration for the core prover.
 type CoreSC = BabyBearPoseidon2;
@@ -409,7 +408,6 @@ impl SP1Prover {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
-        let start = Instant::now();
         groth16_ffi::prove(constraints, witness);
     }
 
