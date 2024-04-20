@@ -67,7 +67,7 @@ pub struct LtCols<T> {
     pub bit_c: T,
 
     /// The result of the intermediate SLTU operation `b_comp < c_comp`.
-    pub stlu: T,
+    pub sltu: T,
     /// A bollean flag for an intermediate comparison.
     pub is_comp_eq: T,
     /// A boolean flag for comparing the sign bits.
@@ -152,7 +152,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
                     b_comp[3] = masked_b;
                     c_comp[3] = masked_c;
                 }
-                cols.stlu = F::from_bool(b_comp < c_comp);
+                cols.sltu = F::from_bool(b_comp < c_comp);
                 cols.is_comp_eq = F::from_bool(b_comp == c_comp);
 
                 // Set the byte equality flags.
@@ -163,7 +163,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
                 ) {
                     if c_byte != b_byte {
                         *flag = F::one();
-                        cols.stlu = F::from_bool(b_byte < c_byte);
+                        cols.sltu = F::from_bool(b_byte < c_byte);
                         let b_byte = F::from_canonical_u8(*b_byte);
                         let c_byte = F::from_canonical_u8(*c_byte);
                         cols.not_eq_inv = (b_byte - c_byte).inverse();
@@ -188,13 +188,13 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
 
                 assert_eq!(
                     cols.a[0],
-                    cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.stlu
+                    cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu
                 );
 
                 new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
                     shard: event.shard,
                     opcode: ByteOpcode::LTU,
-                    a1: cols.stlu.as_canonical_u32(),
+                    a1: cols.sltu.as_canonical_u32(),
                     a2: 0,
                     b: cols.comparison_bytes[0].as_canonical_u32(),
                     c: cols.comparison_bytes[1].as_canonical_u32(),
@@ -254,8 +254,8 @@ where
         // * if the operation is `STL`, `b_comp = b & 0x7FFFFFFF` and `c_comp = c & 0x7FFFFFFF``
         //
         // We will set booleans `b_bit` and `c_bit` so that:
-        // * If the operation is `STLU`, then `b_bit = 0` and `c_bit = 0`.
-        // * If the operation is `STL`, then `b_bit`, `c_bit` are the most significant bits of `b`
+        // * If the operation is `SLTU`, then `b_bit = 0` and `c_bit = 0`.
+        // * If the operation is `SLT`, then `b_bit`, `c_bit` are the most significant bits of `b`
         //   and `c` respectively.
         //
         // Then, we will compute the answer as:
@@ -311,7 +311,7 @@ where
         // Check that `a[0]` is set correctly.
         builder.assert_eq(
             local.a[0],
-            local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.stlu,
+            local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.sltu,
         );
         // Check the 3 most significant bytes of 'a' are zero.
         builder.assert_zero(local.a[1]);
@@ -331,7 +331,7 @@ where
             .when(is_real.clone())
             .assert_eq(AB::Expr::one() - local.is_comp_eq, sum_flags);
 
-        // Constrain `local.stlu == STLU(b_comp, c_comp)`.
+        // Constrain `local.sltu == STLU(b_comp, c_comp)`.
         //
         // We define bytes `b_comp_byte` and `c_comp_byte` as follows: If `b_comp == c_comp`, then
         // `b_comp_byte = c_comp_byte = 0`. Otherwise, we set `b_comp_byte` and `c_comp_byte` to
@@ -391,12 +391,12 @@ where
             is_real.clone(),
         );
 
-        // Now the value of `local.stlu` is equal to the same value for the comparison bytes.
+        // Now the value of `local.sltu` is equal to the same value for the comparison bytes.
         //
-        // Set `local.stlu = STLU(b_comp_byte, c_comp_byte)` via a lookup.
+        // Set `local.sltu = STLU(b_comp_byte, c_comp_byte)` via a lookup.
         builder.send_byte(
             ByteOpcode::LTU.as_field::<AB::F>(),
-            local.stlu,
+            local.sltu,
             b_comp_byte,
             c_comp_byte,
             local.shard,
