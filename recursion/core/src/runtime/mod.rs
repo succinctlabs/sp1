@@ -784,15 +784,13 @@ where
                     let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
                     let c_val = Block::<F>::default();
 
-                    let val_ptr = a_val[0].as_canonical_u32() as usize;
-
                     // Ensure that writes are in order (index should == public_values.len)
+                    println!("b_val: {:?}", b_val);
                     let index = b_val[0].as_canonical_u32() as usize;
                     assert_eq!(index, self.record.public_values.len());
+                    println!("val: {:?}", a_val);
 
-                    self.record
-                        .public_values
-                        .push(self.memory.entry(val_ptr).or_default().value[0]);
+                    self.record.public_values.push(a_val[0]);
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }

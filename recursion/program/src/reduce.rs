@@ -27,7 +27,7 @@ use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
 use crate::types::ShardProofVariable;
 use crate::types::VerifyingKeyVariable;
-use crate::utils::{clone, clone_array, const_fri_config, felt2var};
+use crate::utils::{clone, clone_array, const_fri_config, felt2var, var2felt};
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
@@ -109,6 +109,25 @@ fn assign_challenger<C: Config>(
     }
 }
 
+fn commit_challenger<C: Config>(builder: &mut Builder<C>, var: &DuplexChallengerVariable<C>) {
+    for i in 0..PERMUTATION_WIDTH {
+        let element = builder.get(&var.sponge_state, i);
+        builder.commit_public_value(element);
+    }
+    let num_inputs_felt = var2felt(builder, var.nb_inputs);
+    builder.commit_public_value(num_inputs_felt);
+    for i in 0..PERMUTATION_WIDTH {
+        let element = builder.get(&var.input_buffer, i);
+        builder.commit_public_value(element);
+    }
+    let num_outputs_felt = var2felt(builder, var.nb_outputs);
+    builder.commit_public_value(num_outputs_felt);
+    for i in 0..PERMUTATION_WIDTH {
+        let element = builder.get(&var.output_buffer, i);
+        builder.commit_public_value(element);
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct ReduceProgram;
 
@@ -149,7 +168,7 @@ impl ReduceProgram {
         let is_recursive_flags: Array<_, Var<_>> = builder.uninit();
         let sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
         let verify_start_challenger: DuplexChallengerVariable<_> = builder.uninit();
-        let mut reconstruct_challenger: DuplexChallengerVariable<_> = builder.uninit();
+        let reconstruct_challenger: DuplexChallengerVariable<_> = builder.uninit();
         let prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
         let prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
         let recursion_prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
@@ -236,13 +255,98 @@ impl ReduceProgram {
         let global_exit_code: Felt<_> = builder.uninit();
         let global_start_shard: Felt<_> = builder.uninit();
         let global_end_shard: Felt<_> = builder.uninit();
-        let start_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
+        // let start_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
+        let start_reconstruct_challenger = reconstruct_challenger.copy(&mut builder);
         let start_reconstruct_deferred_digest =
             clone_array(&mut builder, &reconstruct_deferred_digest);
+        builder.print_debug(454545);
+        // print start_reconstruct_challenger
+        for i in 0..PERMUTATION_WIDTH {
+            let element = builder.get(&start_reconstruct_challenger.sponge_state, i);
+            builder.print_f(element);
+        }
+        builder.print_v(start_reconstruct_challenger.nb_inputs);
+        for i in 0..PERMUTATION_WIDTH {
+            let element = builder.get(&start_reconstruct_challenger.input_buffer, i);
+            builder.print_f(element);
+        }
+        builder.print_v(start_reconstruct_challenger.nb_outputs);
+        for i in 0..PERMUTATION_WIDTH {
+            let element = builder.get(&start_reconstruct_challenger.output_buffer, i);
+            builder.print_f(element);
+        }
+        builder.print_debug(454545);
 
         // Previous proof's values.
         let prev_next_pc: Felt<_> = builder.uninit();
         let prev_end_shard: Felt<_> = builder.uninit();
+
+        let constrain_shard_transitions =
+            |proof_index: Var<_>,
+             builder: &mut Builder<C>,
+             committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS],
+             deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS],
+             start_pc: Felt<_>,
+             next_pc: Felt<_>,
+             shard: Felt<_>,
+             exit_code: Felt<_>| {
+                let prev_end_shard_plus_one: Felt<_> = builder.eval(prev_end_shard + one_felt);
+
+                builder.if_eq(proof_index, one).then_or_else(
+                    // First proof: initialize the global values.
+                    |builder| {
+                        assign_words(
+                            builder,
+                            &global_committed_values_digest,
+                            &committed_value_digest,
+                        );
+                        for j in 0..POSEIDON_NUM_WORDS {
+                            builder.assign(
+                                global_deferred_proofs_digest[j],
+                                deferred_proofs_digest[j],
+                            );
+                        }
+                        builder.assign(global_start_pc, start_pc);
+                        builder.assign(global_start_shard, shard);
+                        builder.assign(global_exit_code, exit_code);
+                    },
+                    // Non-first proofs: verify global values are same and transitions are valid.
+                    |builder| {
+                        // Assert that digests and exit code are the same
+                        assert_felt_words_eq(
+                            builder,
+                            &global_committed_values_digest,
+                            &committed_value_digest,
+                        );
+                        for j in 0..POSEIDON_NUM_WORDS {
+                            builder.assert_felt_eq(
+                                global_deferred_proofs_digest[j],
+                                deferred_proofs_digest[j],
+                            );
+                        }
+                        builder.assert_felt_eq(global_exit_code, exit_code);
+
+                        // Shard should be previous end shard + 1.
+                        builder.assert_felt_eq(shard, prev_end_shard_plus_one);
+                        // Start pc should be equal to next_pc declared in previous proof.
+                        builder.assert_felt_eq(start_pc, prev_next_pc);
+
+                        builder.if_eq(proof_index, num_proofs - one).then_or_else(
+                            // Set global end variables.
+                            |builder| {
+                                builder.assign(global_end_shard, shard);
+                                builder.assign(global_next_pc, next_pc);
+                            },
+                            // If it's not the last proof, next_pc should not be 0.
+                            |builder| {
+                                builder.assert_felt_ne(next_pc, zero_felt);
+                            },
+                        );
+                    },
+                );
+                builder.assign(prev_next_pc, next_pc);
+                builder.assign(prev_end_shard, shard);
+            };
 
         // Verify sp1 and recursive proofs.
         builder.range(0, num_proofs).for_each(|i, builder| {
@@ -268,7 +372,7 @@ impl ReduceProgram {
                     // Verify shard transitions.
                     let prev_end_shard_plus_one: Felt<_> = builder.eval(prev_end_shard + one_felt);
 
-                    builder.if_eq(i, one).then_or_else(
+                    builder.if_eq(i, zero).then_or_else(
                         // First proof: initialize the global values.
                         |builder| {
                             assign_words(
@@ -282,12 +386,20 @@ impl ReduceProgram {
                                     pv.deferred_proofs_digest[j],
                                 );
                             }
+                            builder.assign(global_start_pc, pv.start_pc);
                             builder.assign(global_start_shard, pv.shard);
                             builder.assign(global_exit_code, pv.exit_code);
                         },
                         // Non-first proofs: verify global values are same and transitions are valid.
                         |builder| {
                             // Assert that digests and exit code are the same
+                            builder.print_debug(121212);
+                            for j in 0..POSEIDON_NUM_WORDS {
+                                for k in 0..4 {
+                                    builder.print_f(global_committed_values_digest[j][k]);
+                                    builder.print_f(pv.committed_value_digest[j][k]);
+                                }
+                            }
                             assert_felt_words_eq(
                                 builder,
                                 &global_committed_values_digest,
@@ -305,18 +417,18 @@ impl ReduceProgram {
                             builder.assert_felt_eq(pv.shard, prev_end_shard_plus_one);
                             // Start pc should be equal to next_pc declared in previous proof.
                             builder.assert_felt_eq(pv.start_pc, prev_next_pc);
-
-                            builder.if_eq(i, num_proofs - one).then_or_else(
-                                // Set global end variables.
-                                |builder| {
-                                    builder.assign(global_end_shard, pv.shard);
-                                    builder.assign(global_next_pc, pv.next_pc);
-                                },
-                                // If it's not the last proof, next_pc should not be 0.
-                                |builder| {
-                                    builder.assert_felt_ne(pv.next_pc, zero_felt);
-                                },
-                            );
+                        },
+                    );
+                    builder.if_eq(i, num_proofs - one).then_or_else(
+                        // Set global end variables.
+                        |builder| {
+                            builder.print_debug(41141141);
+                            builder.assign(global_end_shard, pv.shard);
+                            builder.assign(global_next_pc, pv.next_pc);
+                        },
+                        // If it's not the last proof, next_pc should not be 0.
+                        |builder| {
+                            builder.assert_felt_ne(pv.next_pc, zero_felt);
                         },
                     );
                     builder.assign(prev_next_pc, pv.next_pc);
@@ -329,15 +441,78 @@ impl ReduceProgram {
 
                     // Handle the case where the shard is the first shard.
                     builder.if_eq(shard, one).then(|builder| {
+                        // This should be the first proof as well
+                        builder.assert_var_eq(i, zero);
+
                         // Start pc should be sp1_vk.pc_start
                         builder.assert_felt_eq(pv.start_pc, sp1_vk.pc_start);
 
+                        builder.print_debug(6969695);
                         let mut reconstruct_challenger = reconstruct_challenger.clone();
                         // Initialize the reconstruct challenger from empty challenger.
                         let empty_challenger = DuplexChallengerVariable::new(builder);
+                        builder.print_debug(999999);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element = builder.get(&empty_challenger.sponge_state, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_v(empty_challenger.nb_inputs);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element = builder.get(&empty_challenger.input_buffer, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_v(empty_challenger.nb_outputs);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element = builder.get(&empty_challenger.output_buffer, i);
+                            builder.print_f(element);
+                        }
                         builder.assign(reconstruct_challenger.clone(), empty_challenger);
                         reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                         reconstruct_challenger.observe(builder, sp1_vk.pc_start);
+
+                        // Print challenger
+                        builder.print_debug(999999);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element = builder.get(&reconstruct_challenger.sponge_state, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_v(reconstruct_challenger.nb_inputs);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element = builder.get(&reconstruct_challenger.input_buffer, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_v(reconstruct_challenger.nb_outputs);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element = builder.get(&reconstruct_challenger.output_buffer, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_debug(123412341);
+
+                        // Override start_reconstruct_challenger
+                        let clone = reconstruct_challenger.copy(builder);
+                        builder.assign(start_reconstruct_challenger.clone(), clone);
+                        builder.print_debug(111222);
+                        // print start_reconstruct_challenger
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element =
+                                builder.get(&start_reconstruct_challenger.sponge_state, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_v(start_reconstruct_challenger.nb_inputs);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element =
+                                builder.get(&start_reconstruct_challenger.input_buffer, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_v(start_reconstruct_challenger.nb_outputs);
+                        for i in 0..PERMUTATION_WIDTH {
+                            let element =
+                                builder.get(&start_reconstruct_challenger.output_buffer, i);
+                            builder.print_f(element);
+                        }
+                        builder.print_debug(111222);
+
+                        // TODO: override start_reconstruct_deferred_digest too?
                     });
 
                     // Observe current proof commit and public values into reconstruct challenger.
@@ -378,7 +553,7 @@ impl ReduceProgram {
 
                     // Verify shard transitions.
                     let prev_end_shard_plus_one: Felt<_> = builder.eval(prev_end_shard + one_felt);
-                    builder.if_eq(i, one).then_or_else(
+                    builder.if_eq(i, zero).then_or_else(
                         // First proof: initialize the global values.
                         |builder| {
                             assign_words(
@@ -392,6 +567,7 @@ impl ReduceProgram {
                                     pv.deferred_proofs_digest[j],
                                 );
                             }
+                            builder.assign(global_start_pc, pv.start_pc);
                             builder.assign(global_start_shard, pv.start_shard);
                             builder.assign(global_exit_code, pv.exit_code);
                         },
@@ -415,22 +591,52 @@ impl ReduceProgram {
                             builder.assert_felt_eq(pv.start_shard, prev_end_shard_plus_one);
                             // Start pc should be equal to next_pc declared in previous proof.
                             builder.assert_felt_eq(pv.start_pc, prev_next_pc);
-
-                            builder.if_eq(i, num_proofs - one).then_or_else(
-                                // Set global end variables.
-                                |builder| {
-                                    builder.assign(global_end_shard, pv.end_shard);
-                                    builder.assign(global_next_pc, pv.next_pc);
-                                },
-                                // If it's not the last proof, next_pc should not be 0.
-                                |builder| {
-                                    builder.assert_felt_ne(pv.next_pc, zero_felt);
-                                },
-                            );
+                        },
+                    );
+                    builder.if_eq(i, num_proofs - one).then_or_else(
+                        // Set global end variables.
+                        |builder| {
+                            builder.assign(global_end_shard, pv.end_shard);
+                            builder.assign(global_next_pc, pv.next_pc);
+                        },
+                        // If it's not the last proof, next_pc should not be 0.
+                        |builder| {
+                            builder.assert_felt_ne(pv.next_pc, zero_felt);
                         },
                     );
                     builder.assign(prev_next_pc, pv.next_pc);
                     builder.assign(prev_end_shard, pv.end_shard);
+
+                    // Print reconstruct_challenger
+                    builder.print_debug(991991);
+                    for i in 0..PERMUTATION_WIDTH {
+                        let element = builder.get(&reconstruct_challenger.sponge_state, i);
+                        builder.print_f(element);
+                    }
+                    builder.print_v(reconstruct_challenger.nb_inputs);
+                    for i in 0..PERMUTATION_WIDTH {
+                        let element = builder.get(&reconstruct_challenger.input_buffer, i);
+                        builder.print_f(element);
+                    }
+                    builder.print_v(reconstruct_challenger.nb_outputs);
+                    for i in 0..PERMUTATION_WIDTH {
+                        let element = builder.get(&reconstruct_challenger.output_buffer, i);
+                        builder.print_f(element);
+                    }
+
+                    // Print pv.start_reconstruct_challenger
+                    builder.print_debug(992992);
+                    for i in 0..PERMUTATION_WIDTH {
+                        builder.print_f(pv.start_reconstruct_challenger.sponge_state[i]);
+                    }
+                    builder.print_f(pv.start_reconstruct_challenger.num_inputs);
+                    for i in 0..PERMUTATION_WIDTH {
+                        builder.print_f(pv.start_reconstruct_challenger.input_buffer[i]);
+                    }
+                    builder.print_f(pv.start_reconstruct_challenger.num_outputs);
+                    for i in 0..PERMUTATION_WIDTH {
+                        builder.print_f(pv.start_reconstruct_challenger.output_buffer[i]);
+                    }
 
                     // Assert that the current reconstruct_challenger is the same as the proof's
                     // start_reconstruct_challenger, then fast-forward to end_reconstruct_challenger.
@@ -480,7 +686,7 @@ impl ReduceProgram {
                         let element = builder.get(&proof.commitment.main_commit, j);
                         current_challenger.observe(builder, element);
                     }
-                    builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
+                    builder.range(0, PROOF_MAX_NUM_PVS).for_each(|j, builder| {
                         let element = builder.get(&proof.public_values, j);
                         current_challenger.observe(builder, element);
                     });
@@ -502,11 +708,6 @@ impl ReduceProgram {
         });
 
         // Verify deferred proofs and acculumate to deferred proofs digest.
-        let _pre_deferred_proof_digest = clone(&mut builder, &reconstruct_deferred_digest);
-        for j in 0..DIGEST_SIZE {
-            let val = builder.get(&reconstruct_deferred_digest, j);
-            builder.print_f(val);
-        }
         builder
             .range(0, num_deferred_proofs)
             .for_each(|i, builder| {
@@ -565,21 +766,23 @@ impl ReduceProgram {
         // Proof is complete only if:
         // 1) Proof begins at shard == 1.
         // 2) Execution has halted (next_pc == 0).
-        // 3) start_reconstruct_challenger == empty challenger.
-        // 4) end_reconstruct_challenger == verify_start_challenger.
-        // 5) start_reconstruct_deferred_digest == 0.
-        // 6) end_reconstruct_deferred_digest == deferred_proofs_digest.
-        // Proof is complete only if start_pc == sp1_vk.start_pc && start_shard == 1 && next_pc == 0
-        // && start_reconstruct_challenger == empty && end_reconstruct_challenger == verify_start_challenger
-        // && start_reconstruct_deferred_digest == 0 && end_reconstruct_deferred_digest == deferred_proofs_digest
-        let empty_challenger = DuplexChallengerVariable::new(&mut builder);
-        let global_start_shard_var = felt2var(&mut builder, global_start_shard);
-        let global_next_pc_var = felt2var(&mut builder, global_next_pc);
+        // 3) reconstruct_challenger has been fully reconstructed.
+        //    a) start_reconstruct_challenger == empty challenger.
+        //    b) end_reconstruct_challenger == verify_start_challenger.
+        // 4) reconstruct_deferred_digest has been fully reconstructed.
+        //    a) start_reconstruct_deferred_digest == 0.
+        //    b) end_reconstruct_deferred_digest == deferred_proofs_digest.
         builder.if_eq(is_complete, one).then(|builder| {
+            let global_start_shard_var = felt2var(builder, global_start_shard);
             builder.assert_var_eq(global_start_shard_var, one);
+
+            let global_next_pc_var = felt2var(builder, global_next_pc);
             builder.assert_var_eq(global_next_pc_var, zero);
+
+            let empty_challenger = DuplexChallengerVariable::new(builder);
             start_reconstruct_challenger.assert_eq(builder, &empty_challenger);
             reconstruct_challenger.assert_eq(builder, &verify_start_challenger);
+
             for j in 0..DIGEST_SIZE {
                 let element = builder.get(&start_reconstruct_deferred_digest, j);
                 builder.assert_felt_eq(element, zero_felt);
@@ -592,34 +795,73 @@ impl ReduceProgram {
 
         // Public values:
         // (
-        //     committed_values_digest, (equal)x
-        //     deferred_proofs_digest, (equal)x
-        //     start_pc, (equals prev next_pc)
+        //     committed_values_digest,
+        //     deferred_proofs_digest,
+        //     start_pc,
         //     next_pc,
-        //     exit_code, (equal)x
-        //     start_shard, (equals prev end_shard + 1)
+        //     exit_code,
+        //     start_shard,
         //     end_shard,
-        //     start_reconstruct_challenger, (equals current state)x
-        //     end_reconstruct_challenger, (use as new state)x
-        //     start_reconstruct_deferred_digest, (equals current state)x
-        //     end_reconstruct_deferred_digest, (use as new state)x
-        //     sp1_vk, (equal)x
-        //     recursion_vk, (equal)x
-        //     verify_start_challenger, (equal)x
+        //     start_reconstruct_challenger,
+        //     end_reconstruct_challenger,
+        //     start_reconstruct_deferred_digest,
+        //     end_reconstruct_deferred_digest,
+        //     sp1_vk,
+        //     recursion_vk,
+        //     verify_start_challenger,
         //     is_complete,
         // )
-        // Note we still need to check that verify_start_challenger matches final reconstruct_challenger
-        // after observing pv_digest at the end.
-
-        // let start_pc = builder.get(&start_pcs, zero);
-        // let start_shard = builder.get(&start_shards, zero);
-        // let last_idx: Var<_> = builder.eval(num_proofs - one);
-        // let next_pc = builder.get(&next_pcs, last_idx);
-        // let next_shard = builder.get(&next_shards, last_idx);
-        // builder.commit_public_value(start_pc);
-        // builder.commit_public_value(start_shard);
-        // builder.commit_public_value(next_pc);
-        // builder.commit_public_value(next_shard);
+        builder.print_debug(545454);
+        // print start_reconstruct_challenger
+        for i in 0..PERMUTATION_WIDTH {
+            let element = builder.get(&start_reconstruct_challenger.sponge_state, i);
+            builder.print_f(element);
+        }
+        builder.print_v(start_reconstruct_challenger.nb_inputs);
+        for i in 0..PERMUTATION_WIDTH {
+            let element = builder.get(&start_reconstruct_challenger.input_buffer, i);
+            builder.print_f(element);
+        }
+        builder.print_v(start_reconstruct_challenger.nb_outputs);
+        for i in 0..PERMUTATION_WIDTH {
+            let element = builder.get(&start_reconstruct_challenger.output_buffer, i);
+            builder.print_f(element);
+        }
+        builder.print_debug(545454);
+        for j in 0..PV_DIGEST_NUM_WORDS {
+            for k in 0..4 {
+                builder.commit_public_value(global_committed_values_digest[j][k]);
+            }
+        }
+        for j in 0..POSEIDON_NUM_WORDS {
+            builder.commit_public_value(global_deferred_proofs_digest[j]);
+        }
+        builder.commit_public_value(global_start_pc);
+        builder.commit_public_value(global_next_pc);
+        builder.commit_public_value(global_exit_code);
+        builder.commit_public_value(global_start_shard);
+        builder.commit_public_value(global_end_shard);
+        commit_challenger(&mut builder, &start_reconstruct_challenger);
+        commit_challenger(&mut builder, &reconstruct_challenger);
+        builder.range(0, POSEIDON_NUM_WORDS).for_each(|j, builder| {
+            let element = builder.get(&start_reconstruct_deferred_digest, j);
+            builder.commit_public_value(element);
+        });
+        builder.range(0, POSEIDON_NUM_WORDS).for_each(|j, builder| {
+            let element = builder.get(&reconstruct_deferred_digest, j);
+            builder.commit_public_value(element);
+        });
+        builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
+            let element = builder.get(&sp1_vk.commitment, j);
+            builder.commit_public_value(element);
+        });
+        builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
+            let element = builder.get(&recursion_vk.commitment, j);
+            builder.commit_public_value(element);
+        });
+        commit_challenger(&mut builder, &verify_start_challenger);
+        let is_complete_felt = var2felt(&mut builder, is_complete);
+        builder.commit_public_value(is_complete_felt);
 
         builder.compile_program()
     }

@@ -10,7 +10,7 @@ use p3_field::{AbstractField, PrimeField32};
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
-    air::{MachineAir, PublicValues, Word},
+    air::{MachineAir, PublicValues, Word, SP1_PROOF_NUM_PV_ELTS},
     runtime::Program,
     stark::{
         Challenger, Com, Dom, LocalProver, MachineStark, OpeningProof, PcsProverData, Proof,
@@ -167,6 +167,7 @@ impl SP1ProverImpl {
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
+        reconstruct_challenger: Challenger<SP1SC>,
         reduce_proofs: &[ReduceProofType],
         deferred_proofs: &[(ShardProof<InnerSC>, &VerifyingKey<SP1SC>)],
     ) -> ReduceProof<SC>
@@ -246,9 +247,6 @@ impl SP1ProverImpl {
             })
             .collect_vec();
 
-        let mut reconstruct_challenger = sp1_machine.config().challenger();
-        reconstruct_challenger.observe(sp1_vk.commit);
-
         let (prep_sorted_indices, prep_domains): (
             Vec<usize>,
             Vec<TwoAdicMultiplicativeCoset<BabyBear>>,
@@ -282,16 +280,13 @@ impl SP1ProverImpl {
         witness_stream.extend(recursion_prep_domains.write());
         witness_stream.extend(sp1_vk.write());
         witness_stream.extend(self.reduce_vk_inner.write());
-        witness_stream.extend(Hintable::write(&start_pcs));
-        witness_stream.extend(Hintable::write(&next_pcs));
-        witness_stream.extend(Hintable::write(&start_shards));
-        witness_stream.extend(Hintable::write(&next_shards));
         for proof in reduce_proofs.iter() {
             match proof {
                 ReduceProofType::SP1(reduce_proof) => {
                     witness_stream.extend(reduce_proof.proof.write());
                 }
                 ReduceProofType::Recursive(reduce_proof) => {
+                    println!("public values: {:?}", reduce_proof.proof.public_values);
                     witness_stream.extend(reduce_proof.proof.write());
                 }
                 _ => unreachable!(),
@@ -304,6 +299,9 @@ impl SP1ProverImpl {
         for (_, vk) in deferred_proofs.iter() {
             witness_stream.extend(vk.write());
         }
+        // TODO: set is complete when proof is complete;
+        let is_complete = 0usize;
+        witness_stream.extend(is_complete.write());
         println!("witness_stream.len() = {}", witness_stream.len());
 
         // Execute runtime to get the memory setup.
@@ -384,6 +382,12 @@ impl SP1ProverImpl {
         // reduce program and used to verify sp1 proofs. It will also be reconstructed over all the
         // reduce steps to prove that the witnessed challenger was correct.
         let sp1_challenger = self.initialize_challenger(sp1_vk, &proof.shard_proofs);
+        let sp1_config = SP1SC::default();
+        let sp1_machine = RiscvAir::machine(sp1_config);
+        let mut reconstruct_challenger = sp1_machine.config().challenger();
+        sp1_vk.observe_into(&mut reconstruct_challenger);
+
+        println!("start chall: {:?}", reconstruct_challenger.sponge_state);
 
         let mut reduce_proofs = proof
             .shard_proofs
@@ -408,8 +412,13 @@ impl SP1ProverImpl {
         while reduce_proofs.len() > 1 {
             println!("layer = {}, num_proofs = {}", layer, reduce_proofs.len());
             let start = Instant::now();
-            reduce_proofs =
-                self.reduce_layer(sp1_vk, sp1_challenger.clone(), reduce_proofs, batch_size);
+            reduce_proofs = self.reduce_layer(
+                sp1_vk,
+                sp1_challenger.clone(),
+                &mut reconstruct_challenger.clone(),
+                reduce_proofs,
+                batch_size,
+            );
             let duration = start.elapsed().as_secs();
             println!("layer {}, reduce duration = {}", layer, duration);
             layer += 1;
@@ -419,7 +428,13 @@ impl SP1ProverImpl {
             ReduceProofType::Recursive(proof) => proof,
             ReduceProofType::SP1(_) => {
                 // If there's only one shard, we still want to wrap it into an inner proof.
-                self.reduce(sp1_vk, sp1_challenger, &[last_proof], &[])
+                self.reduce(
+                    sp1_vk,
+                    sp1_challenger,
+                    reconstruct_challenger.clone(),
+                    &[last_proof],
+                    &[],
+                )
             }
             _ => unreachable!(),
         }
@@ -430,6 +445,7 @@ impl SP1ProverImpl {
         &self,
         sp1_vk: &VerifyingKey<SP1SC>,
         sp1_challenger: Challenger<SP1SC>,
+        reconstruct_challenger: &mut Challenger<SP1SC>,
         mut proofs: Vec<ReduceProofType>,
         batch_size: usize,
     ) -> Vec<ReduceProofType> {
@@ -442,17 +458,43 @@ impl SP1ProverImpl {
 
         let chunks: Vec<_> = proofs.chunks(batch_size).collect();
 
+        let reconstruct_challengers = chunks
+            .iter()
+            .map(|chunk| {
+                let start_challenger = reconstruct_challenger.clone();
+                println!("layer start chall: {:?}", start_challenger.sponge_state);
+                for p in chunk.iter() {
+                    match p {
+                        ReduceProofType::SP1(proof) => {
+                            reconstruct_challenger.observe(proof.proof.commitment.main_commit);
+                            reconstruct_challenger.observe_slice(
+                                &proof.proof.public_values.to_vec()[0..SP1_PROOF_NUM_PV_ELTS],
+                            );
+                        }
+                        ReduceProofType::Recursive(proof) => {
+                            todo!("use end recursive challenger state")
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                start_challenger
+            })
+            .collect::<Vec<_>>();
+
         // Process at most 4 proofs at once in parallel, due to memory limits.
         let partition_size = std::cmp::max(1, chunks.len() / 4);
         let mut new_proofs: Vec<ReduceProofType> = chunks
             .into_par_iter()
+            .enumerate()
             .chunks(partition_size)
             .flat_map(|partition| {
                 partition
                     .iter()
-                    .map(|chunk| {
+                    .map(|(i, chunk)| {
+                        let challenger = reconstruct_challengers[*i].clone();
                         let start = Instant::now();
-                        let proof = self.reduce(sp1_vk, sp1_challenger.clone(), chunk, &[]);
+                        let proof =
+                            self.reduce(sp1_vk, sp1_challenger.clone(), challenger, chunk, &[]);
                         let duration = start.elapsed().as_secs();
                         println!("reduce duration = {}", duration);
                         ReduceProofType::Recursive(proof)
@@ -472,11 +514,13 @@ impl SP1ProverImpl {
         &self,
         sp1_vk: &VerifyingKey<SP1SC>, // TODO: we could read these from proof public values
         sp1_challenger: Challenger<SP1SC>,
+        reconstruct_challenger: Challenger<SP1SC>,
         reduce_proof: ReduceProof<InnerSC>,
     ) -> ShardProof<OuterSC> {
         self.reduce(
             sp1_vk,
             sp1_challenger,
+            reconstruct_challenger,
             &[ReduceProofType::Recursive(reduce_proof)],
             &[],
         )
@@ -547,7 +591,11 @@ mod tests {
         std::fs::write("final.bin", serialized).unwrap();
 
         // Wrap into outer proof
-        let outer_proof = prover.wrap_into_outer(&vk, sp1_challenger, final_proof);
+        // TODO: fix this v
+        let mut reconstruct_challenger = sp1_machine.config().challenger();
+        vk.observe_into(&mut reconstruct_challenger);
+        let outer_proof =
+            prover.wrap_into_outer(&vk, sp1_challenger, reconstruct_challenger, final_proof);
 
         // Wrap the final proof into a groth16 proof
         prover.wrap_into_groth16(outer_proof);
@@ -656,12 +704,15 @@ mod tests {
             challenger.observe(shard_proof.commitment.main_commit);
             challenger.observe_slice(&shard_proof.public_values.to_vec());
         }
-        let reduce_proofs = vec![proof.shard_proofs[0].clone().into()];
+        let reduce_proofs: Vec<ReduceProofType> = vec![proof.shard_proofs[0].clone().into()];
         let reduce_proof_to_verify = proof_to_verify.shard_proofs[0].clone();
 
+        // TODO: fix
+        let reconstruct_challenger = sp1_machine.config().challenger();
         prover.reduce::<InnerSC>(
             &verify_vk,
             challenger,
+            reconstruct_challenger,
             &reduce_proofs,
             &[(reduce_proof_to_verify, &fibonacci_vk)],
         );

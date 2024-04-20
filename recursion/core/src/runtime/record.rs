@@ -51,11 +51,13 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
-        let mut ret = self
+        let ret = self
             .public_values
             .iter()
             .map(|x| T::from_canonical_u32(x.as_canonical_u32()))
             .collect::<Vec<_>>();
+
+        println!("public_values ret: {:?}", ret);
 
         ret
     }

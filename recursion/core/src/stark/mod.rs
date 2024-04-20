@@ -7,9 +7,10 @@ use crate::{
     // poseidon2::Poseidon2Chip,
     poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
+    runtime::PV_BUFFER_MAX_SIZE,
 };
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig};
+use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
 use crate::runtime::{D, DIGEST_SIZE};
@@ -33,7 +34,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark::new(config, chips, DIGEST_SIZE)
+        MachineStark::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn get_all() -> Vec<Self> {

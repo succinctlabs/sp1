@@ -3,7 +3,7 @@
 
 use sp1_core::{
     runtime::Program,
-    stark::{Proof, RiscvAir},
+    stark::{Proof, RiscvAir, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
 use sp1_prover::SP1ProverImpl;
@@ -27,8 +27,16 @@ pub fn main() {
     let inner_reduce_proof = tracing::info_span!("inner reduce proof")
         .in_scope(|| prover.reduce_tree(&sp1_vk, core_proof, 2));
 
-    let outer_reduce_proof = tracing::info_span!("outer reduce proof")
-        .in_scope(|| prover.wrap_into_outer(&sp1_vk, sp1_challenger, inner_reduce_proof));
+    // TODO: fix
+    let reconstruct_challenger = sp1_machine.config().challenger();
+    let outer_reduce_proof = tracing::info_span!("outer reduce proof").in_scope(|| {
+        prover.wrap_into_outer(
+            &sp1_vk,
+            sp1_challenger,
+            reconstruct_challenger,
+            inner_reduce_proof,
+        )
+    });
 
     let constraints = tracing::info_span!("wrap circuit")
         .in_scope(|| build_wrap_circuit(&prover.reduce_vk_outer, outer_reduce_proof));

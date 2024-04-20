@@ -98,7 +98,12 @@ pub struct Builder<C: Config> {
 
 impl<C: Config> Builder<C> {
     /// Creates a new builder with a given number of counts for each type.
-    pub fn new(var_count: u32, felt_count: u32, ext_count: u32) -> Self {
+    pub fn new(
+        var_count: u32,
+        felt_count: u32,
+        ext_count: u32,
+        nb_public_values: Option<Var<C::N>>,
+    ) -> Self {
         Self {
             felt_count,
             ext_count,
@@ -107,7 +112,7 @@ impl<C: Config> Builder<C> {
             witness_felt_count: 0,
             witness_ext_count: 0,
             operations: Default::default(),
-            nb_public_values: None,
+            nb_public_values,
             public_values_buffer: None,
             debug: false,
             po2_table: None,
@@ -406,8 +411,10 @@ impl<C: Config> Builder<C> {
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));
         }
-        let nb_public_values = self.nb_public_values.unwrap();
+        let nb_public_values = *self.nb_public_values.as_ref().unwrap();
 
+        self.print_debug(114141);
+        self.print_f(val);
         self.operations.push(DslIr::Commit(val, nb_public_values));
         self.assign(nb_public_values, nb_public_values + C::N::one());
     }
@@ -454,6 +461,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
+            self.builder.nb_public_values,
         );
         f(&mut f_builder);
         let then_instructions = f_builder.operations;
@@ -500,6 +508,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
+            self.builder.nb_public_values,
         );
 
         // Execute the `then` and `else_then` blocks and collect the instructions.
@@ -510,6 +519,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
+            self.builder.nb_public_values,
         );
         else_f(&mut else_builder);
         let else_instructions = else_builder.operations;
@@ -636,6 +646,7 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             self.builder.var_count,
             self.builder.felt_count,
             self.builder.ext_count,
+            self.builder.nb_public_values,
         );
 
         f(loop_variable, &mut loop_body_builder);
