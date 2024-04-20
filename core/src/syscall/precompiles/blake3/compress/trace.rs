@@ -9,6 +9,7 @@ use super::{
     OPERATION_COUNT,
 };
 use crate::air::MachineAir;
+use crate::bytes::event::ByteRecord;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryRecordEnum;
 use crate::runtime::Program;

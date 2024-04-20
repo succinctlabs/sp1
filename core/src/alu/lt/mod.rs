@@ -1,8 +1,9 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 
+use itertools::izip;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::PrimeField;
+use p3_field::Field;
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -10,8 +11,10 @@ use p3_maybe_rayon::prelude::*;
 use sp1_derive::AlignedBorrow;
 use tracing::instrument;
 
-use crate::air::MachineAir;
+use crate::air::{BaseAirBuilder, MachineAir};
 use crate::air::{SP1AirBuilder, Word};
+use crate::bytes::event::ByteRecord;
+use crate::bytes::{ByteLookupEvent, ByteOpcode};
 use crate::runtime::{ExecutionRecord, Opcode, Program};
 use crate::utils::pad_to_power_of_two;
 
@@ -29,6 +32,12 @@ pub struct LtCols<T> {
     /// The shard number, used for byte lookup table.
     pub shard: T,
 
+    /// If the opcode is SLT.
+    pub is_slt: T,
+
+    /// If the opcode is SLTU.
+    pub is_sltu: T,
+
     /// The output operand.
     pub a: Word<T>,
 
@@ -38,30 +47,35 @@ pub struct LtCols<T> {
     /// The second input operand.
     pub c: Word<T>,
 
-    /// Boolean flag to indicate which byte pair differs
-    pub byte_flag: [T; 4],
+    /// Boolean flag to indicate which byte pair differs if the operands are not equal.
+    pub byte_flags: [T; 4],
 
-    /// Sign bits of MSB
-    pub sign: [T; 2],
+    /// The masking b[3] & 0x7F.
+    pub b_masked: T,
+    /// The masking c[3] & 0x7F.
+    pub c_masked: T,
+    /// An inverse of differing byte if c_comp != b_comp.
+    pub not_eq_inv: T,
 
-    // Boolean flag to indicate whether the sign bits of b and c are equal.
-    pub sign_xor: T,
+    /// The most significant bit of operand b.
+    pub msb_b: T,
+    /// The most significant bit of operand c.
+    pub msb_c: T,
+    /// The multiplication msb_b * is_slt.
+    pub bit_b: T,
+    /// The multiplication msb_c * is_slt.
+    pub bit_c: T,
 
-    /// Boolean flag to indicate whether to do an equality check between the bytes.
-    ///
-    /// This should be true for all bytes smaller than the first byte pair that differs. With LE
-    /// bytes, this is all bytes after the differing byte pair.
+    /// The result of the intermediate SLTU operation `b_comp < c_comp`.
+    pub sltu: T,
+    /// A bollean flag for an intermediate comparison.
+    pub is_comp_eq: T,
+    /// A boolean flag for comparing the sign bits.
+    pub is_sign_eq: T,
+    /// The comparison bytes to be looked up.
+    pub comparison_bytes: [T; 2],
+    /// Boolean fags to indicate which byte differs between the perands `b_comp`, `c_comp`.
     pub byte_equality_check: [T; 4],
-
-    /// Bit decomposition of 256 + b[i] - c[i], where i is the index of the largest byte pair that
-    /// differs. This value is at most 2^9 - 1, so it can be represented as 10 bits.
-    pub bits: [T; 10],
-
-    /// If the opcode is SLT.
-    pub is_slt: T,
-
-    /// If the opcode is SLTU.
-    pub is_sltu: T,
 }
 
 impl LtCols<u32> {
@@ -76,7 +90,7 @@ impl LtCols<u32> {
     }
 }
 
-impl<F: PrimeField> MachineAir<F> for LtChip {
+impl<F: PrimeField32> MachineAir<F> for LtChip {
     type Record = ExecutionRecord;
 
     type Program = Program;
@@ -85,20 +99,19 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
         "Lt".to_string()
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {}
-
     #[instrument(name = "generate lt trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        output: &mut ExecutionRecord,
     ) -> RowMajorMatrix<F> {
         // Generate the trace rows for each event.
-        let rows = input
+        let (rows, new_byte_lookup_events): (Vec<_>, Vec<_>) = input
             .lt_events
             .par_iter()
             .map(|event| {
                 let mut row = [F::zero(); NUM_LT_COLS];
+                let mut new_byte_lookup_events: Vec<ByteLookupEvent> = Vec::new();
                 let cols: &mut LtCols<F> = row.as_mut_slice().borrow_mut();
                 let a = event.a.to_le_bytes();
                 let b = event.b.to_le_bytes();
@@ -110,63 +123,90 @@ impl<F: PrimeField> MachineAir<F> for LtChip {
                 cols.c = Word(c.map(F::from_canonical_u8));
 
                 // If this is SLT, mask the MSB of b & c before computing cols.bits.
-                let mut masked_b = b;
-                let mut masked_c = c;
-                masked_b[3] &= 0x7f;
-                masked_c[3] &= 0x7f;
+                let masked_b = b[3] & 0x7f;
+                let masked_c = c[3] & 0x7f;
+                cols.b_masked = F::from_canonical_u8(masked_b);
+                cols.c_masked = F::from_canonical_u8(masked_c);
 
-                // If this is SLT, set the sign bits of b and c.
+                // Send the masked interaction.
+                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
+                    shard: event.shard,
+                    opcode: ByteOpcode::AND,
+                    a1: masked_b as u32,
+                    a2: 0,
+                    b: b[3] as u32,
+                    c: 0x7f as u32,
+                });
+                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
+                    shard: event.shard,
+                    opcode: ByteOpcode::AND,
+                    a1: masked_c as u32,
+                    a2: 0,
+                    b: c[3] as u32,
+                    c: 0x7f as u32,
+                });
+
+                let mut b_comp = b;
+                let mut c_comp = c;
                 if event.opcode == Opcode::SLT {
-                    cols.sign[0] = F::from_canonical_u8(b[3] >> 7);
-                    cols.sign[1] = F::from_canonical_u8(c[3] >> 7);
+                    b_comp[3] = masked_b;
+                    c_comp[3] = masked_c;
                 }
+                cols.sltu = F::from_bool(b_comp < c_comp);
+                cols.is_comp_eq = F::from_bool(b_comp == c_comp);
 
-                cols.sign_xor = cols.sign[0] * (F::from_canonical_u16(1) - cols.sign[1])
-                    + cols.sign[1] * (F::from_canonical_u16(1) - cols.sign[0]);
-
-                // Starting from the largest byte, find the first byte pair, index i that differs.
-                let equal_bytes = b == c;
-                // Defaults to the first byte in BE if the bytes are equal.
-                let mut idx_to_check = 3;
-                // Find the first byte pair that differs in BE.
-                for i in (0..4).rev() {
-                    if b[i] != c[i] {
-                        idx_to_check = i;
+                // Set the byte equality flags.
+                for (b_byte, c_byte, flag) in izip!(
+                    b_comp.iter().rev(),
+                    c_comp.iter().rev(),
+                    cols.byte_flags.iter_mut().rev()
+                ) {
+                    if c_byte != b_byte {
+                        *flag = F::one();
+                        cols.sltu = F::from_bool(b_byte < c_byte);
+                        let b_byte = F::from_canonical_u8(*b_byte);
+                        let c_byte = F::from_canonical_u8(*c_byte);
+                        cols.not_eq_inv = (b_byte - c_byte).inverse();
+                        cols.comparison_bytes = [b_byte, c_byte];
                         break;
                     }
                 }
 
-                // If this is SLT, masked_b and masked_c are used for cols.bits instead of b
-                // and c.
-                if event.opcode == Opcode::SLT {
-                    let z = 256u16 + masked_b[idx_to_check] as u16 - masked_c[idx_to_check] as u16;
-                    for j in 0..10 {
-                        cols.bits[j] = F::from_canonical_u16(z >> j & 1);
-                    }
+                cols.msb_b = F::from_canonical_u8((b[3] >> 7) & 1);
+                cols.msb_c = F::from_canonical_u8((c[3] >> 7) & 1);
+                cols.is_sign_eq = if event.opcode == Opcode::SLT {
+                    F::from_bool((b[3] >> 7) == (c[3] >> 7))
                 } else {
-                    let z = 256u16 + b[idx_to_check] as u16 - c[idx_to_check] as u16;
-                    for j in 0..10 {
-                        cols.bits[j] = F::from_canonical_u16(z >> j & 1);
-                    }
-                }
-                // byte_flag marks the byte which cols.bits is computed from.
-                cols.byte_flag[idx_to_check] = F::one();
-
-                // byte_equality_check marks the bytes that should be checked for equality (i.e.
-                // all bytes after the first byte pair that differs in BE).
-                // Note: If b and c are equal, set byte_equality_check to true for all bytes.
-                for i in 0..4 {
-                    if i > idx_to_check || equal_bytes {
-                        cols.byte_equality_check[i] = F::one();
-                    }
-                }
+                    F::one()
+                };
 
                 cols.is_slt = F::from_bool(event.opcode == Opcode::SLT);
                 cols.is_sltu = F::from_bool(event.opcode == Opcode::SLTU);
 
-                row
+                cols.bit_b = cols.msb_b * cols.is_slt;
+                cols.bit_c = cols.msb_c * cols.is_slt;
+
+                assert_eq!(
+                    cols.a[0],
+                    cols.bit_b * (F::one() - cols.bit_c) + cols.is_sign_eq * cols.sltu
+                );
+
+                new_byte_lookup_events.add_byte_lookup_event(ByteLookupEvent {
+                    shard: event.shard,
+                    opcode: ByteOpcode::LTU,
+                    a1: cols.sltu.as_canonical_u32(),
+                    a2: 0,
+                    b: cols.comparison_bytes[0].as_canonical_u32(),
+                    c: cols.comparison_bytes[1].as_canonical_u32(),
+                });
+
+                (row, new_byte_lookup_events)
             })
-            .collect::<Vec<_>>();
+            .unzip();
+
+        for byte_lookup_events in new_byte_lookup_events {
+            output.add_byte_lookup_events(byte_lookup_events);
+        }
 
         // Convert the trace to a row major matrix.
         let mut trace =
@@ -198,104 +238,186 @@ where
         let local = main.row_slice(0);
         let local: &LtCols<AB::Var> = (*local).borrow();
 
-        let one = AB::Expr::one();
+        let is_real = local.is_slt + local.is_sltu;
 
         // Dummy degree 3 constraint to avoid "OodEvaluationMismatch".
         builder.assert_zero(
             local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
         );
 
-        let base_2 = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512].map(AB::F::from_canonical_u32);
-        let bit_comp: AB::Expr = local
-            .bits
-            .into_iter()
-            .zip(base_2)
-            .map(|(bit, base)| bit * base)
-            .sum();
-
-        for i in 0..4 {
-            let check_eq = (one.clone() - local.byte_flag[i]) * local.byte_equality_check[i];
-            builder.when(check_eq).assert_eq(local.b[i], local.c[i]);
-
-            // In the largest byte, the top bit will be masked if this is an SLT operation.
-            if i == 3 {
-                // If SLTU, verify bits = 256 + b[i] - c[i].
-                let byte_flag_and_sltu = local.byte_flag[3] * local.is_sltu;
-                builder.when(byte_flag_and_sltu).assert_eq(
-                    AB::Expr::from_canonical_u32(256) + local.b[3] - local.c[3],
-                    bit_comp.clone(),
-                );
-
-                // If SLT, use b_masked and c_masked instead of b and c.
-                // bits = 256 + b_masked[i] - c_masked[i]
-                // local.b[i] - (128 * local.sign[0]) is equivalent to masking the MSB of b[i].
-                let b_masked = local.b[3] - (AB::Expr::from_canonical_u32(128) * local.sign[0]);
-                let c_masked = local.c[3] - (AB::Expr::from_canonical_u32(128) * local.sign[1]);
-
-                let byte_flag_and_slt = local.byte_flag[3] * local.is_slt;
-                builder.when(byte_flag_and_slt).assert_eq(
-                    AB::Expr::from_canonical_u32(256) + b_masked - c_masked,
-                    bit_comp.clone(),
-                );
-            } else {
-                builder.when(local.byte_flag[i]).assert_eq(
-                    AB::Expr::from_canonical_u32(256) + local.b[i] - local.c[i],
-                    bit_comp.clone(),
-                );
-            }
-
-            builder.assert_bool(local.byte_flag[i]);
-            builder.assert_bool(local.byte_equality_check[i])
-        }
-        // Verify at most one byte flag is set.
-        let flag_sum =
-            local.byte_flag[0] + local.byte_flag[1] + local.byte_flag[2] + local.byte_flag[3];
-        builder.assert_bool(flag_sum.clone());
-
-        // Compute if b < c. local.bits includes the masking of the MSB of b and c if the operation
-        // is SLT. If this is SLTU, there is no masking, so is_b_less_than_c is the final result.
-        // local.bits = 256 + b - c, so if bits[8] is 0, then b < c.
-        let is_b_less_than_c = AB::Expr::one() - local.bits[8];
-        builder
-            .when(local.is_sltu)
-            .assert_eq(local.a[0], is_b_less_than_c.clone());
-
-        // SLT (signed) = b_s * (1 - c_s) + EQ(b_s, c_s) * SLTU(b_<s, c_<s)
-        // SLTU(b_<s, c_<s) is the result of the operation above on masked inputs, is_b_less_than_c.
+        // We can compute the signed set-less-than as follows:
+        // SLT (signed) = b_s * (1 - c_s) + (b_s == c_s) * SLTU(b_<s, c_<s)
         // Source: Jolt 5.3: Set Less Than (https://people.cs.georgetown.edu/jthaler/Jolt-paper.pdf)
 
-        // local.sign[0] (b_s) and local.sign[1] (c_s) are the sign bits of b and c respectively.
-        builder.assert_bool(local.sign[0]);
-        builder.assert_bool(local.sign[1]);
-        let only_b_neg = local.sign[0] * (one.clone() - local.sign[1]);
+        // We will compute SLTU(b_comp, c_comp) where `b_comp` and `c_comp` where:
+        // * if the operation is `STLU`, `b_comp = b` and `c_comp = c`
+        // * if the operation is `STL`, `b_comp = b & 0x7FFFFFFF` and `c_comp = c & 0x7FFFFFFF``
+        //
+        // We will set booleans `b_bit` and `c_bit` so that:
+        // * If the operation is `SLTU`, then `b_bit = 0` and `c_bit = 0`.
+        // * If the operation is `SLT`, then `b_bit`, `c_bit` are the most significant bits of `b`
+        //   and `c` respectively.
+        //
+        // Then, we will compute the answer as:
+        // SLT = b_bit * (1 - c_bit) + (b_bit == c_bit) * SLTU(b_comp, c_comp)
 
-        // Assert local.sign_xor is the XOR of the sign bits.
-        builder.assert_eq(
-            local.sign_xor,
-            local.sign[0] * (one.clone() - local.sign[1])
-                + local.sign[1] * (one.clone() - local.sign[0]),
+        // First, we set up the values of `b_comp` and `c_comp`.
+        let mut b_comp: Word<AB::Expr> = local.b.map(|x| x.into());
+        let mut c_comp: Word<AB::Expr> = local.c.map(|x| x.into());
+
+        b_comp[3] = local.b[3] * local.is_sltu + local.b_masked * local.is_slt;
+        c_comp[3] = local.c[3] * local.is_sltu + local.c_masked * local.is_slt;
+
+        // Constrain the `masked_b` and `masked_c` values via lookup.
+        //
+        // The values are given by `b_masked = b[3] & 0x7F` and `c_masked = c[3] & 0x7F`.
+        builder.send_byte(
+            ByteOpcode::AND.as_field::<AB::F>(),
+            local.b_masked,
+            local.b[3],
+            AB::F::from_canonical_u8(0x7f),
+            local.shard,
+            is_real.clone(),
         );
-        // Note: EQ(b_s, c_s) = 1 - sign_xor
-        let signed_is_b_less_than_c =
-            only_b_neg.clone() + ((one.clone() - local.sign_xor) * is_b_less_than_c.clone());
+        builder.send_byte(
+            ByteOpcode::AND.as_field::<AB::F>(),
+            local.c_masked,
+            local.c[3],
+            AB::F::from_canonical_u8(0x7f),
+            local.shard,
+            is_real.clone(),
+        );
 
-        // Assert signed_is_b_less_than_c matches the output.
+        // Set the values of `b_bit` and `c_bit`.
+        builder.assert_eq(local.bit_b, local.msb_b * local.is_slt);
+        builder.assert_eq(local.bit_c, local.msb_c * local.is_slt);
+
+        // Assert the correctness of `local.msb_b` and `local.msb_c` using the mask.
+        let inv_128 = AB::F::from_canonical_u32(128).inverse();
+        builder.assert_eq(local.msb_b, (local.b[3] - local.b_masked) * inv_128);
+        builder.assert_eq(local.msb_c, (local.c[3] - local.c_masked) * inv_128);
+
+        // Constrain that when is_sign_eq = (bit_b == bit_c).
+
+        // assert the flag is a boolean.
+        builder.assert_bool(local.is_sign_eq);
+
+        // assert the correction of the comparison.
         builder
-            .when(local.is_slt)
-            .assert_eq(local.a[0], signed_is_b_less_than_c.clone());
+            .when(local.is_sign_eq)
+            .assert_eq(local.bit_b, local.bit_c);
+        builder
+            .when(is_real.clone())
+            .when_not(local.is_sign_eq)
+            .assert_one(local.bit_b + local.bit_c);
 
-        // Check output bits and bit decomposition are valid.
-        builder.assert_bool(local.a[0]);
-        for i in 1..4 {
-            builder.assert_zero(local.a[i]);
+        // Assert the final result `a` is correct.
+
+        // Check that `a[0]` is set correctly.
+        builder.assert_eq(
+            local.a[0],
+            local.bit_b * (AB::Expr::one() - local.bit_c) + local.is_sign_eq * local.sltu,
+        );
+        // Check the 3 most significant bytes of 'a' are zero.
+        builder.assert_zero(local.a[1]);
+        builder.assert_zero(local.a[2]);
+        builder.assert_zero(local.a[3]);
+
+        // Verify that the byte equality flags are set correctly, i.e. all are boolean and only
+        // at most a single byte flag is set.
+        let sum_flags =
+            local.byte_flags[0] + local.byte_flags[1] + local.byte_flags[2] + local.byte_flags[3];
+        builder.assert_bool(local.byte_flags[0]);
+        builder.assert_bool(local.byte_flags[1]);
+        builder.assert_bool(local.byte_flags[2]);
+        builder.assert_bool(local.byte_flags[3]);
+        builder.assert_bool(sum_flags.clone());
+        builder
+            .when(is_real.clone())
+            .assert_eq(AB::Expr::one() - local.is_comp_eq, sum_flags);
+
+        // Constrain `local.sltu == STLU(b_comp, c_comp)`.
+        //
+        // We define bytes `b_comp_byte` and `c_comp_byte` as follows: If `b_comp == c_comp`, then
+        // `b_comp_byte = c_comp_byte = 0`. Otherwise, we set `b_comp_byte` and `c_comp_byte` to
+        // the first differing byte (in most significant order). We will use the `local.is_comp_eq`
+        // flag to indicate whether the bytes are equal.
+
+        // Check the equality flag is boolean.
+        builder.assert_bool(local.is_comp_eq);
+
+        // Find the differing byte if `b_comp != c_comp` and assert equality in case the flag
+        // `local.is_comp_eq` is set to `1`.
+
+        // A flag to indicate whether an equality check is necessary (this is for all bytes from
+        // most significant until the first inequality.
+        let mut is_inequality_visited = AB::Expr::zero();
+
+        // Expressions for computing the comparison bytes.
+        let mut b_comparison_byte = AB::Expr::zero();
+        let mut c_comparison_byte = AB::Expr::zero();
+        // Iterate over the bytes in reverse order and select the differing bytes using the byte
+        // flag columns values.
+        for (b_byte, c_byte, &flag) in izip!(
+            b_comp.0.iter().rev(),
+            c_comp.0.iter().rev(),
+            local.byte_flags.iter().rev()
+        ) {
+            // Once the byte flag was set to one, we turn off the quality check flag.
+            // We can do this by calculating the sum of the flags since only `1` is set to `1`.
+            is_inequality_visited += flag.into();
+
+            b_comparison_byte += b_byte.clone() * flag;
+            c_comparison_byte += c_byte.clone() * flag;
+
+            // If inequality is not visited, assert that the bytes are equal.
+            builder
+                .when_not(is_inequality_visited.clone())
+                .assert_eq(b_byte.clone(), c_byte.clone());
+            // If the numbers are assumed equal, inequality should not be visited.
+            builder
+                .when(local.is_comp_eq)
+                .assert_zero(is_inequality_visited.clone());
         }
-        for bit in local.bits.into_iter() {
-            builder.assert_bool(bit);
-        }
+        // We need to verify that the comparison bytes are set correctly. This is only relevant in
+        // the case where the bytes are not equal.
+
+        // Constrain the row comparison byte values to be equal to the calciulated ones.
+        let (b_comp_byte, c_comp_byte) = (local.comparison_bytes[0], local.comparison_bytes[1]);
+        builder.assert_eq(b_comp_byte, b_comparison_byte);
+        builder.assert_eq(c_comp_byte, c_comparison_byte);
+
+        // Using the values above, we can constrain the `local.is_comp_eq` flag. We already asserted
+        // in the loop that when `local.is_comp_eq == 1` then all bytes are euqal. It is left to
+        // verify that when `local.is_comp_eq == 0` the comparison bytes are indeed not equal.
+        // This is done using the inverse hint `not_eq_inv`.
+        builder.when_not(local.is_comp_eq).assert_eq(
+            local.not_eq_inv * (b_comp_byte - c_comp_byte),
+            is_real.clone(),
+        );
+
+        // Now the value of `local.sltu` is equal to the same value for the comparison bytes.
+        //
+        // Set `local.sltu = STLU(b_comp_byte, c_comp_byte)` via a lookup.
+        builder.send_byte(
+            ByteOpcode::LTU.as_field::<AB::F>(),
+            local.sltu,
+            b_comp_byte,
+            c_comp_byte,
+            local.shard,
+            is_real.clone(),
+        );
+
+        // Constrain the operation flags.
 
         // Check that the operation flags are boolean.
         builder.assert_bool(local.is_slt);
         builder.assert_bool(local.is_sltu);
+        // Check that at most one of the operation flags is set.
+        //
+        // *remark*: this is not strictly necessary since it's also covered by the bus multiplicity
+        // but this is included here to make sure the condition is met.
+        builder.assert_bool(local.is_slt + local.is_sltu);
 
         // Receive the arguments.
         builder.receive_alu(
@@ -305,7 +427,7 @@ where
             local.b,
             local.c,
             local.shard,
-            local.is_slt + local.is_sltu,
+            is_real,
         );
     }
 }

@@ -17,12 +17,15 @@ use typenum::Unsigned;
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
+use crate::bytes::event::ByteRecord;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryReadWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
-use crate::operations::field::params::Limbs;
+use crate::operations::field::params::{FieldParameters, NumWords};
+use crate::operations::field::params::{Limbs, NumLimbs};
+use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::Syscall;
@@ -30,9 +33,6 @@ use crate::runtime::SyscallCode;
 use crate::syscall::precompiles::create_ec_decompress_event;
 use crate::syscall::precompiles::SyscallContext;
 use crate::utils::bytes_to_words_le_vec;
-use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::NumLimbs;
-use crate::utils::ec::field::NumWords;
 use crate::utils::ec::weierstrass::bls12_381::bls12381_sqrt;
 use crate::utils::ec::weierstrass::secp256k1::secp256k1_sqrt;
 use crate::utils::ec::weierstrass::WeierstrassParameters;
@@ -58,12 +58,12 @@ pub struct WeierstrassDecompressCols<T, P: FieldParameters + NumWords> {
     pub is_odd: T,
     pub x_access: GenericArray<MemoryReadCols<T>, P::WordsFieldElement>,
     pub y_access: GenericArray<MemoryReadWriteCols<T>, P::WordsFieldElement>,
+    pub(crate) range_x: FieldRangeCols<T, P>,
     pub(crate) x_2: FieldOpCols<T, P>,
     pub(crate) x_3: FieldOpCols<T, P>,
     pub(crate) x_3_plus_b: FieldOpCols<T, P>,
     pub(crate) y: FieldSqrtCols<T, P>,
     pub(crate) neg_y: FieldOpCols<T, P>,
-    pub(crate) y_least_bits: [T; 8],
 }
 
 #[derive(Default)]
@@ -95,32 +95,34 @@ impl<E: EllipticCurve + WeierstrassParameters> WeierstrassDecompressChip<E> {
     }
 
     fn populate_field_ops<F: PrimeField32>(
+        record: &mut impl ByteRecord,
+        shard: u32,
         cols: &mut WeierstrassDecompressCols<F, E::BaseField>,
         x: BigUint,
     ) {
         // Y = sqrt(x^3 + b)
+        cols.range_x.populate(record, shard, &x);
         let x_2 = cols
             .x_2
-            .populate(&x.clone(), &x.clone(), FieldOperation::Mul);
-        let x_3 = cols.x_3.populate(&x_2, &x, FieldOperation::Mul);
+            .populate(record, shard, &x.clone(), &x.clone(), FieldOperation::Mul);
+        let x_3 = cols
+            .x_3
+            .populate(record, shard, &x_2, &x, FieldOperation::Mul);
         let b = E::b_int();
-        let x_3_plus_b = cols.x_3_plus_b.populate(&x_3, &b, FieldOperation::Add);
+        let x_3_plus_b = cols
+            .x_3_plus_b
+            .populate(record, shard, &x_3, &b, FieldOperation::Add);
 
         let sqrt_fn = match E::CURVE_TYPE {
             CurveType::Secp256k1 => secp256k1_sqrt,
             CurveType::Bls12381 => bls12381_sqrt,
             _ => panic!("Unsupported curve"),
         };
-        let y = cols.y.populate(&x_3_plus_b, sqrt_fn);
+        let y = cols.y.populate(record, shard, &x_3_plus_b, sqrt_fn);
 
         let zero = BigUint::zero();
-        cols.neg_y.populate(&zero, &y, FieldOperation::Sub);
-        // Decompose bits of least significant Y byte
-        let y_bytes = y.to_bytes_le();
-        let y_lsb = if y_bytes.is_empty() { 0 } else { y_bytes[0] };
-        for i in 0..8 {
-            cols.y_least_bits[i] = F::from_canonical_u32(((y_lsb >> i) & 1) as u32);
-        }
+        cols.neg_y
+            .populate(record, shard, &zero, &y, FieldOperation::Sub);
     }
 }
 
@@ -168,7 +170,7 @@ where
             cols.is_odd = F::from_canonical_u32(event.is_odd as u32);
 
             let x = BigUint::from_bytes_le(&event.x_bytes);
-            Self::populate_field_ops(cols, x);
+            Self::populate_field_ops(&mut new_byte_lookup_events, event.shard, cols, x);
 
             for i in 0..cols.x_access.len() {
                 cols.x_access[i].populate(event.x_memory_records[i], &mut new_byte_lookup_events);
@@ -195,7 +197,7 @@ where
                 cols.x_access[i].access.value = words[i].into();
             }
 
-            Self::populate_field_ops(cols, dummy_value);
+            Self::populate_field_ops(&mut vec![], 0, cols, dummy_value);
             row
         });
 
@@ -237,40 +239,47 @@ where
 
         let x: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_prev_access(&row.x_access);
+        row.range_x.eval(builder, &x, row.shard, row.is_real);
         row.x_2
-            .eval::<AB, _, _>(builder, &x, &x, FieldOperation::Mul);
-        row.x_3
-            .eval::<AB, _, _>(builder, &row.x_2.result, &x, FieldOperation::Mul);
+            .eval(builder, &x, &x, FieldOperation::Mul, row.shard, row.is_real);
+        row.x_3.eval(
+            builder,
+            &row.x_2.result,
+            &x,
+            FieldOperation::Mul,
+            row.shard,
+            row.is_real,
+        );
         let b = E::b_int();
         let b_const = E::BaseField::to_limbs_field::<AB::F, _>(&b);
-        row.x_3_plus_b
-            .eval::<AB, _, _>(builder, &row.x_3.result, &b_const, FieldOperation::Add);
-        row.y.eval::<AB>(builder, &row.x_3_plus_b.result);
-        row.neg_y.eval::<AB, _, _>(
+        row.x_3_plus_b.eval(
+            builder,
+            &row.x_3.result,
+            &b_const,
+            FieldOperation::Add,
+            row.shard,
+            row.is_real,
+        );
+
+        row.neg_y.eval(
             builder,
             &[AB::Expr::zero()].iter(),
             &row.y.multiplication.result,
             FieldOperation::Sub,
+            row.shard,
+            row.is_real,
         );
 
-        // Constrain decomposition of least significant byte of Y into `y_least_bits`
-        for i in 0..8 {
-            builder.when(row.is_real).assert_bool(row.y_least_bits[i]);
-        }
-        let y_least_byte = row.y.multiplication.result.0[0];
-        let powers_of_two = [1, 2, 4, 8, 16, 32, 64, 128].map(AB::F::from_canonical_u32);
-        let recomputed_byte: AB::Expr = row
-            .y_least_bits
-            .iter()
-            .zip(powers_of_two)
-            .map(|(p, b)| (*p).into() * b)
-            .sum();
-        builder
-            .when(row.is_real)
-            .assert_eq(recomputed_byte, y_least_byte);
-
         // Interpret the lowest bit of Y as whether it is odd or not.
-        let y_is_odd = row.y_least_bits[0];
+        let y_is_odd = row.y.lsb;
+
+        row.y.eval(
+            builder,
+            &row.x_3_plus_b.result,
+            row.y.lsb,
+            row.shard,
+            row.is_real,
+        );
 
         let y_limbs: Limbs<AB::Var, <E::BaseField as NumLimbs>::Limbs> =
             limbs_from_access(&row.y_access);
@@ -334,8 +343,7 @@ mod tests {
     use amcl::bls381::bls381::utils::deserialize_g1;
     use amcl::rand::RAND;
     use elliptic_curve::sec1::ToEncodedPoint;
-    use rand::rngs::StdRng;
-    use rand::SeedableRng;
+    use rand::{thread_rng, Rng};
 
     use crate::utils::run_test_io;
     use crate::utils::tests::SECP256K1_DECOMPRESS_ELF;
@@ -343,6 +351,12 @@ mod tests {
     #[test]
     fn test_weierstrass_bls_decompress() {
         utils::setup_logger();
+        let mut rng = thread_rng();
+        let mut rand = RAND::new();
+
+        let len = 100;
+        let random_slice = (0..len).map(|_| rng.gen::<u8>()).collect::<Vec<u8>>();
+        rand.seed(len, &random_slice);
         let (_, compressed) = key_pair_generate_g2(&mut RAND::new());
 
         let inputs = SP1Stdin::from(&compressed);
@@ -362,19 +376,23 @@ mod tests {
     fn test_weierstrass_k256_decompress() {
         utils::setup_logger();
 
-        let mut rng = StdRng::seed_from_u64(2);
+        let mut rng = thread_rng();
 
-        let secret_key = k256::SecretKey::random(&mut rng);
-        let public_key = secret_key.public_key();
-        let encoded = public_key.to_encoded_point(false);
-        let decompressed = encoded.as_bytes();
-        let compressed = public_key.to_sec1_bytes();
+        let num_tests = 10;
 
-        let inputs = SP1Stdin::from(&compressed);
+        for _ in 0..num_tests {
+            let secret_key = k256::SecretKey::random(&mut rng);
+            let public_key = secret_key.public_key();
+            let encoded = public_key.to_encoded_point(false);
+            let decompressed = encoded.as_bytes();
+            let compressed = public_key.to_sec1_bytes();
 
-        let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
-        let mut result = [0; 65];
-        proof.public_values.read_slice(&mut result);
-        assert_eq!(result, decompressed);
+            let inputs = SP1Stdin::from(&compressed);
+
+            let mut proof = run_test_io(Program::from(SECP256K1_DECOMPRESS_ELF), inputs).unwrap();
+            let mut result = [0; 65];
+            proof.public_values.read_slice(&mut result);
+            assert_eq!(result, decompressed);
+        }
     }
 }

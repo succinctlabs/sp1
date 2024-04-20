@@ -1,16 +1,11 @@
 use p3_field::PrimeField32;
 
 use super::{MemoryAccessCols, MemoryReadCols, MemoryReadWriteCols, MemoryWriteCols};
-use crate::bytes::ByteLookupEvent;
-use crate::bytes::ByteOpcode::{U16Range, U8Range};
+use crate::bytes::event::ByteRecord;
 use crate::runtime::{MemoryReadRecord, MemoryRecord, MemoryRecordEnum, MemoryWriteRecord};
 
 impl<F: PrimeField32> MemoryWriteCols<F> {
-    pub fn populate(
-        &mut self,
-        record: MemoryWriteRecord,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
-    ) {
+    pub fn populate(&mut self, record: MemoryWriteRecord, output: &mut impl ByteRecord) {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
@@ -23,16 +18,12 @@ impl<F: PrimeField32> MemoryWriteCols<F> {
         };
         self.prev_value = prev_record.value.into();
         self.access
-            .populate_access(current_record, prev_record, new_blu_events);
+            .populate_access(current_record, prev_record, output);
     }
 }
 
 impl<F: PrimeField32> MemoryReadCols<F> {
-    pub fn populate(
-        &mut self,
-        record: MemoryReadRecord,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
-    ) {
+    pub fn populate(&mut self, record: MemoryReadRecord, output: &mut impl ByteRecord) {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
@@ -44,31 +35,19 @@ impl<F: PrimeField32> MemoryReadCols<F> {
             timestamp: record.prev_timestamp,
         };
         self.access
-            .populate_access(current_record, prev_record, new_blu_events);
+            .populate_access(current_record, prev_record, output);
     }
 }
 
 impl<F: PrimeField32> MemoryReadWriteCols<F> {
-    pub fn populate(
-        &mut self,
-        record: MemoryRecordEnum,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
-    ) {
+    pub fn populate(&mut self, record: MemoryRecordEnum, output: &mut impl ByteRecord) {
         match record {
-            MemoryRecordEnum::Read(read_record) => {
-                self.populate_read(read_record, new_blu_events);
-            }
-            MemoryRecordEnum::Write(write_record) => {
-                self.populate_write(write_record, new_blu_events);
-            }
+            MemoryRecordEnum::Read(read_record) => self.populate_read(read_record, output),
+            MemoryRecordEnum::Write(write_record) => self.populate_write(write_record, output),
         }
     }
 
-    pub fn populate_write(
-        &mut self,
-        record: MemoryWriteRecord,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
-    ) {
+    pub fn populate_write(&mut self, record: MemoryWriteRecord, output: &mut impl ByteRecord) {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
@@ -81,14 +60,10 @@ impl<F: PrimeField32> MemoryReadWriteCols<F> {
         };
         self.prev_value = prev_record.value.into();
         self.access
-            .populate_access(current_record, prev_record, new_blu_events);
+            .populate_access(current_record, prev_record, output);
     }
 
-    pub fn populate_read(
-        &mut self,
-        record: MemoryReadRecord,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
-    ) {
+    pub fn populate_read(&mut self, record: MemoryReadRecord, output: &mut impl ByteRecord) {
         let current_record = MemoryRecord {
             value: record.value,
             shard: record.shard,
@@ -101,7 +76,7 @@ impl<F: PrimeField32> MemoryReadWriteCols<F> {
         };
         self.prev_value = prev_record.value.into();
         self.access
-            .populate_access(current_record, prev_record, new_blu_events);
+            .populate_access(current_record, prev_record, output);
     }
 }
 
@@ -110,7 +85,7 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         &mut self,
         current_record: MemoryRecord,
         prev_record: MemoryRecord,
-        new_blu_events: &mut Vec<ByteLookupEvent>,
+        output: &mut impl ByteRecord,
     ) {
         self.value = current_record.value.into();
 
@@ -140,23 +115,9 @@ impl<F: PrimeField32> MemoryAccessCols<F> {
         let shard = current_record.shard;
 
         // Add a byte table lookup with the 16Range op.
-        new_blu_events.push(ByteLookupEvent::new(
-            shard,
-            U16Range,
-            diff_16bit_limb,
-            0,
-            0,
-            0,
-        ));
+        output.add_u16_range_check(shard, diff_16bit_limb);
 
         // Add a byte table lookup with the U8Range op.
-        new_blu_events.push(ByteLookupEvent::new(
-            shard,
-            U8Range,
-            0,
-            0,
-            0,
-            diff_8bit_limb,
-        ));
+        output.add_u8_range_check(shard, 0, diff_8bit_limb as u8);
     }
 }

@@ -1,8 +1,9 @@
 use typenum::{U36, U70};
 
-use crate::utils::ec::field::{FieldParameters, NumLimbs};
 use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
+
+use crate::operations::field::params::{FieldParameters, NumLimbs};
 
 /// Although `U256` is technically not a field, we utilize `FieldParameters` here for compatibility.
 /// This approach is specifically for the `FieldOps` multiplication operation, which employs these
@@ -18,7 +19,7 @@ impl FieldParameters for U256Field {
     ];
 
     /// A rough witness-offset estimate given the size of the limbs and the size of the field.
-    const WITNESS_OFFSET: usize = 1usize << 13;
+    const WITNESS_OFFSET: usize = 1usize << 14;
 
     /// The modulus of Uint235 is 2^256.
     fn modulus() -> BigUint {

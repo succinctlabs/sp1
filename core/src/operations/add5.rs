@@ -6,6 +6,7 @@ use sp1_derive::AlignedBorrow;
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
 use crate::air::WORD_SIZE;
+use crate::bytes::event::ByteRecord;
 use crate::runtime::ExecutionRecord;
 
 /// A set of columns needed to compute the sum of five words.
