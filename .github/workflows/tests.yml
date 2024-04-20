@@ -43,6 +43,7 @@ jobs:
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
+
   e2e:
     name: E2E
     runs-on: warp-ubuntu-latest-arm64-8x
@@ -74,6 +75,14 @@ jobs:
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
 
+      - name: Run cargo prove new
+        run: |
+          cargo prove new cargo-prove-test
+          cd cargo-prove-test
+          cd script
+          cargo run --release
+
+
   misc:
     name: Miscellaneous
     runs-on: warp-ubuntu-latest-arm64-8x
@@ -87,11 +96,29 @@ jobs:
         uses: ./.github/actions/setup
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
+          
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
         with:
           command: test
           args: -p sp1-core --release --no-default-features --features debug -- cpu::trace::tests::generate_trace
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
+
+      - name: Install sp1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          echo "/root/.sp1/bin" >> $GITHUB_PATH
+          /root/.sp1/bin/sp1up
+
+      - name: Run fibonacci-io example
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1

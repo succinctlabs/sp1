@@ -7,6 +7,7 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::{ParallelIterator, ParallelSlice};
 use tracing::instrument;
 
+use crate::bytes::event::ByteRecord;
 use crate::{runtime::Program, stark::MachineRecord};
 
 use crate::{air::MachineAir, runtime::ExecutionRecord};

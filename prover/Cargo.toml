@@ -11,7 +11,6 @@ sp1-recursion-circuit = { path = "../recursion/circuit" }
 sp1-recursion-compiler = { path = "../recursion/compiler" }
 sp1-recursion-core = { path = "../recursion/core" }
 sp1-core = { path = "../core" }
-sp1-sdk = { path = "../sdk" }
 p3-field = { workspace = true }
 p3-challenger = { workspace = true }
 p3-baby-bear = { workspace = true }
@@ -25,6 +24,9 @@ tracing = "0.1.40"
 tracing-subscriber = "0.3.18"
 tracing-appender = "0.2.3"
 serde_json = "1.0.116"
+sha2 = "0.10.8"
+hex = "0.4.3"
+anyhow = "1.0.82"
 
 [[bin]]
 name = "fibonacci_sweep"
@@ -37,3 +39,6 @@ path = "scripts/tendermint_sweep.rs"
 [[bin]]
 name = "fibonacci_groth16"
 path = "scripts/fibonacci_groth16.rs"
+
+[features]
+neon = ["sp1-core/neon"]

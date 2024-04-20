@@ -159,11 +159,11 @@ impl<SC: StarkGenericConfig> ShardProof<SC> {
 
 #[derive(Serialize, Deserialize, Clone)]
 #[serde(bound = "")]
-pub struct Proof<SC: StarkGenericConfig> {
+pub struct MachineProof<SC: StarkGenericConfig> {
     pub shard_proofs: Vec<ShardProof<SC>>,
 }
 
-impl<SC: StarkGenericConfig> Debug for Proof<SC> {
+impl<SC: StarkGenericConfig> Debug for MachineProof<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Proof")
             .field("shard_proofs", &self.shard_proofs.len())

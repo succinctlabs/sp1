@@ -4,16 +4,14 @@ pub mod poseidon2;
 use crate::{
     cpu::CpuChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
-    // poseidon2::Poseidon2Chip,
-    poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
     runtime::PV_BUFFER_MAX_SIZE,
 };
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig, PROOF_MAX_NUM_PVS};
+use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
 use sp1_derive::MachineAir;
 
-use crate::runtime::{D, DIGEST_SIZE};
+use crate::runtime::D;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
@@ -24,17 +22,17 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    Poseidon2(Poseidon2WideChip),
+    // Poseidon2(Poseidon2WideChip),
     // Poseidon2(Poseidon2Chip),
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
-    pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> MachineStark<SC, Self> {
+    pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark::new(config, chips, PROOF_MAX_NUM_PVS)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn get_all() -> Vec<Self> {
@@ -51,8 +49,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
             kind: MemoryChipKind::Finalize,
         };
         chips.push(RecursionAir::MemoryFinalize(memory_finalize));
-        let poseidon_wide2 = Poseidon2WideChip {};
-        chips.push(RecursionAir::Poseidon2(poseidon_wide2));
+        // let poseidon_wide2 = Poseidon2WideChip {};
+        // chips.push(RecursionAir::Poseidon2(poseidon_wide2));
         // let poseidon2 = Poseidon2Chip {};
         // chips.push(RecursionAir::Poseidon2(poseidon2));
         chips

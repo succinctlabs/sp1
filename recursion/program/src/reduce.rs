@@ -6,10 +6,12 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
+use sp1_core::air::PublicValues;
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
-use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, VerifyingKey};
+use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::baby_bear_poseidon2::Challenger;
+use sp1_core::utils::BabyBearPoseidon2;
 use sp1_core::utils::{inner_fri_config, sp1_fri_config, BabyBearPoseidon2Inner};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var, Variable};
@@ -17,8 +19,6 @@ use sp1_recursion_core::air::{ChallengerPublicValues, PublicValues as RecursionP
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE, PERMUTATION_WIDTH};
 use sp1_recursion_core::stark::RecursionAir;
-use sp1_sdk::utils::BabyBearPoseidon2;
-use sp1_sdk::PublicValues;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::TwoAdicFriPcsVariable;
@@ -200,8 +200,8 @@ impl ReduceProgram {
                 &recursion_prep_domains,
                 &mut builder,
             );
-            VerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
-            VerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
+            StarkVerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
+            StarkVerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
 
             let num_proofs = is_recursive_flags.len();
             let mut proofs_target = builder.dyn_array(num_proofs);
@@ -220,7 +220,7 @@ impl ReduceProgram {
             builder
                 .range(0, num_deferred_proofs)
                 .for_each(|i, builder| {
-                    let vk = VerifyingKey::<SC>::read(builder);
+                    let vk = StarkVerifyingKey::<SC>::read(builder);
                     builder.set(&mut deferred_vks_target, i, vk);
                 });
             builder.assign(deferred_vks.clone(), deferred_vks_target);

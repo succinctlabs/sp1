@@ -1,6 +1,5 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
 use crate::utils::Buffer;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
 #[derive(Serialize, Deserialize, Clone)]
@@ -14,6 +13,7 @@ pub struct SP1Stdin {
 /// Public values for the prover.
 #[derive(Serialize, Deserialize)]
 pub struct SP1PublicValues {
+    // TODO: fix
     pub buffer: Buffer,
 }
 
@@ -110,10 +110,10 @@ impl AsRef<[u8]> for SP1PublicValues {
 pub mod proof_serde {
     use serde::{de::DeserializeOwned, Deserialize, Deserializer, Serialize};
 
-    use crate::stark::{Proof, StarkGenericConfig};
+    use crate::stark::{MachineProof, StarkGenericConfig};
 
     pub fn serialize<S, SC: StarkGenericConfig + Serialize>(
-        proof: &Proof<SC>,
+        proof: &MachineProof<SC>,
         serializer: S,
     ) -> Result<S::Ok, S::Error>
     where
@@ -130,7 +130,7 @@ pub mod proof_serde {
 
     pub fn deserialize<'de, D, SC: StarkGenericConfig + DeserializeOwned>(
         deserializer: D,
-    ) -> Result<Proof<SC>, D::Error>
+    ) -> Result<MachineProof<SC>, D::Error>
     where
         D: Deserializer<'de>,
     {
@@ -140,7 +140,7 @@ pub mod proof_serde {
             let proof = bincode::deserialize(&bytes).map_err(serde::de::Error::custom)?;
             Ok(proof)
         } else {
-            Proof::<SC>::deserialize(deserializer)
+            MachineProof::<SC>::deserialize(deserializer)
         }
     }
 }
