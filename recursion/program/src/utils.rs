@@ -7,9 +7,9 @@ use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use sp1_core::stark::StarkGenericConfig;
+use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::ir::{Builder, Felt, MemVariable, Var};
-use sp1_core::utils::BabyBearPoseidon2;
 
 use crate::fri::types::FriConfigVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
