@@ -162,6 +162,7 @@ mod tests {
     use itertools::{izip, Itertools};
     use serde::{de::DeserializeOwned, Serialize};
     use sp1_core::{
+        io::SP1Stdin,
         runtime::Program,
         stark::{
             Chip, Com, Dom, OpeningProof, PcsProverData, RiscvAir, ShardCommitment, ShardMainData,
@@ -170,7 +171,6 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
@@ -287,17 +287,15 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let client = ProverClient::new();
-        let proof = client
-            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap();
-        client
-            .verify_with_config(elf, &proof, machine.config().clone())
-            .unwrap();
+        let (proof, _) = sp1_core::utils::run_and_prove(
+            Program::from(elf),
+            &SP1Stdin::new().buffer,
+            SC::default(),
+        );
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
 
-        let proof = proof.proof;
         println!("Proof generated and verified successfully");
-
+        let mut challenger = machine.config().challenger();
         vk.observe_into(&mut challenger);
         proof.shard_proofs.iter().for_each(|proof| {
             challenger.observe(proof.commitment.main_commit);

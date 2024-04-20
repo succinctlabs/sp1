@@ -277,8 +277,10 @@ pub(crate) mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::AbstractField;
     use rand::Rng;
+    use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
     use sp1_core::stark::LocalProver;
+    use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
     use sp1_core::{
@@ -297,8 +299,6 @@ pub(crate) mod tests {
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
 
     use sp1_recursion_core::stark::RecursionAir;
-    use sp1_sdk::utils::setup_logger;
-    use sp1_sdk::{ProverClient, SP1Stdin};
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -316,12 +316,12 @@ pub(crate) mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
-        let client = ProverClient::new();
-        let proofs = client
-            .prove_local(elf, SP1Stdin::new(), machine.config().clone())
-            .unwrap()
-            .proof
-            .shard_proofs;
+        let (proof, _) = sp1_core::utils::run_and_prove(
+            Program::from(elf),
+            &SP1Stdin::new().buffer,
+            SC::default(),
+        );
+        let proofs = proof.shard_proofs;
         println!("Proof generated successfully");
 
         challenger_val.observe(vk.commit);

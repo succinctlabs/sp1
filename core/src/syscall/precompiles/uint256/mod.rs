@@ -7,6 +7,7 @@ mod tests {
 
     use crate::operations::field::params::FieldParameters;
     use crate::{
+        io::SP1Stdin,
         runtime::Program,
         utils::{
             self,
@@ -14,7 +15,6 @@ mod tests {
             run_test_io,
             tests::{UINT256_DIV, UINT256_MUL},
         },
-        SP1Stdin,
     };
 
     #[test]

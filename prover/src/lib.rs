@@ -12,6 +12,7 @@
 #![allow(deprecated)]
 #![allow(clippy::new_without_default)]
 
+mod utils;
 mod verify;
 
 use itertools::Itertools;
@@ -21,6 +22,8 @@ use p3_field::AbstractField;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
+use sp1_core::runtime::Runtime;
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
 use sp1_core::{
     air::{MachineAir, PublicValues, Word},
@@ -30,7 +33,6 @@ use sp1_core::{
         StarkProvingKey, StarkVerifyingKey, Val,
     },
     utils::{run_and_prove, BabyBearPoseidon2},
-    SP1PublicValues,
 };
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
@@ -38,21 +40,20 @@ use sp1_recursion_compiler::constraints::groth16_ffi;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::{
-    runtime::Runtime,
+    runtime::Runtime as RecursionRuntime,
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
 use sp1_recursion_program::reduce::ReduceProgram;
 use sp1_recursion_program::{hints::Hintable, stark::EMPTY};
-use sp1_sdk::SP1Stdin;
 
 /// The configuration for the core prover.
-type CoreSC = BabyBearPoseidon2;
+pub type CoreSC = BabyBearPoseidon2;
 
 /// The configuration for the recursive prover.
-type InnerSC = BabyBearPoseidon2;
+pub type InnerSC = BabyBearPoseidon2;
 
 /// The configuration for the outer prover.
-type OuterSC = BabyBearPoseidon2Outer;
+pub type OuterSC = BabyBearPoseidon2Outer;
 
 /// A end-to-end prover implementation for SP1.
 pub struct SP1Prover {
@@ -124,6 +125,15 @@ impl SP1Prover {
         let pk = SP1ProvingKey { pk, program };
         let vk = SP1VerifyingKey { vk };
         (pk, vk)
+    }
+
+    /// Generate a proof of an SP1 program with the specified inputs.
+    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> SP1PublicValues {
+        let program = Program::from(elf);
+        let mut runtime = Runtime::new(program);
+        runtime.write_vecs(&stdin.buffer);
+        runtime.run();
+        SP1PublicValues::from(&runtime.state.public_values_stream)
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
@@ -348,7 +358,7 @@ impl SP1Prover {
 
         // Execute runtime to get the memory setup.
         let machine = RecursionAir::machine(InnerSC::default());
-        let mut runtime = Runtime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
             &self.reduce_setup_program,
             machine.config().perm.clone(),
         );
@@ -359,7 +369,7 @@ impl SP1Prover {
 
         // Execute runtime.
         let machine = RecursionAir::machine(InnerSC::default());
-        let mut runtime = Runtime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
             &self.reduce_program,
             machine.config().perm.clone(),
         );
@@ -463,8 +473,8 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
-    use sp1_sdk::SP1Stdin;
 
     #[test]
     #[ignore]

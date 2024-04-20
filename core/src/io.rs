@@ -1,6 +1,5 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-
 use crate::utils::Buffer;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
 #[derive(Serialize, Deserialize, Clone)]

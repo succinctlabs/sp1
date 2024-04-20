@@ -1,9 +1,10 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
+use sp1_core::io::SP1Stdin;
+use sp1_core::utils::setup_logger;
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
-use sp1_sdk::{utils::setup_logger, SP1Stdin};
 
 pub fn main() {
     setup_logger();
