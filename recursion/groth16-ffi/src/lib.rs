@@ -79,6 +79,7 @@ impl Groth16Verifier {
         }
     }
 
+    #[allow(dead_code)]
     fn go_test(&self) {
         let result = Command::new("go")
             .args(["test", "-v", "-timeout", "100000s", "-run", "^TestMain$"])

@@ -9,6 +9,7 @@ fn main() {
     println!("cargo:rerun-if-changed=../groth16/go.mod");
     println!("cargo:rerun-if-changed=../groth16/go.sum");
     println!("cargo:rerun-if-changed=../groth16/main.go");
+
     // Get the current directory of the build script.
     let current_dir = env::current_dir().expect("failed to get current directory");
 
@@ -27,9 +28,19 @@ fn main() {
         panic!("failed to execute make with status: {}", status);
     }
 
+    // Create the "build" directory.
+    let status = Command::new("mkdir")
+        .args(["-p", "../groth16-ffi/build"])
+        .current_dir(parent_dir.clone())
+        .status()
+        .expect("failed to create build directory");
+    if !status.success() {
+        panic!("failed to create build directory");
+    }
+
     // Move `main` binary to groth16-ffi.
     let status = Command::new("mv")
-        .args(["main", "../groth16-ffi/groth16circuit"])
+        .args(["main", "../groth16-ffi/build/bin"])
         .current_dir(parent_dir)
         .status()
         .expect("failed to copy groth16 binary");

@@ -1,12 +1,26 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
+use clap::Parser;
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_sdk::{utils::setup_logger, SP1Stdin};
+use std::fs::File;
+use std::io::Write;
+
+/// SP1 Prover handles proof operations for SP1
+#[derive(Parser, Debug)]
+#[clap(author, version, about, long_about = None)]
+struct Args {
+    /// Sets a custom output file for JSON constraints
+    #[clap(short, long, default_value = "constraints.json")]
+    output_json: String,
+}
 
 pub fn main() {
     setup_logger();
+
+    let args = Args::parse();
 
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -20,7 +34,6 @@ pub fn main() {
     let stdin = SP1Stdin::new();
     let core_proof = prover.prove_core(&pk, &stdin);
 
-    // TODO: Get rid of this method by reading it from public values.
     let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
 
     tracing::info!("reduce");
@@ -32,8 +45,7 @@ pub fn main() {
     let constraints = tracing::info_span!("wrap circuit")
         .in_scope(|| build_wrap_circuit(&prover.reduce_vk_outer, wrapped_proof));
 
-    // Write constraints to file
     let serialized = serde_json::to_string(&constraints).unwrap();
-    let mut file = std::fs::File::create("constraints.json").unwrap();
-    std::io::Write::write_all(&mut file, serialized.as_bytes()).unwrap();
+    let mut file = File::create(args.output_json).unwrap();
+    Write::write_all(&mut file, serialized.as_bytes()).unwrap();
 }

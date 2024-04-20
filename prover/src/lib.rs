@@ -355,7 +355,6 @@ impl SP1Prover {
         runtime.witness_stream = witness_stream.into();
         runtime.run();
         let mut checkpoint = runtime.memory.clone();
-        runtime.print_stats();
 
         // Execute runtime.
         let machine = RecursionAir::machine(InnerSC::default());
