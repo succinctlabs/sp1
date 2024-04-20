@@ -15,8 +15,8 @@ use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
 use super::{SwCurve, WeierstrassParameters};
-use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::NumLimbs;
+use crate::operations::field::params::FieldParameters;
+use crate::operations::field::params::NumLimbs;
 use crate::utils::ec::AffinePoint;
 use crate::utils::ec::CurveType;
 use crate::utils::ec::EllipticCurve;
@@ -110,7 +110,7 @@ pub fn secp256k1_sqrt(n: &BigUint) -> BigUint {
     let mut bytes = [0_u8; 32];
     bytes[32 - be_bytes.len()..].copy_from_slice(&be_bytes);
     let fe = FieldElement::from_bytes(&bytes.into()).unwrap();
-    let result_bytes = fe.sqrt().unwrap().to_bytes();
+    let result_bytes = fe.sqrt().unwrap().normalize().to_bytes();
     BigUint::from_be_bytes(&result_bytes as &[u8])
 }
 
@@ -139,9 +139,8 @@ mod tests {
             let x = rng.gen_biguint(256) % Secp256k1BaseField::modulus();
             let x_2 = (&x * &x) % Secp256k1BaseField::modulus();
             let sqrt = secp256k1_sqrt(&x_2);
-            if sqrt > x_2 {
-                println!("wtf");
-            }
+
+            println!("sqrt: {}", sqrt);
 
             let sqrt_2 = (&sqrt * &sqrt) % Secp256k1BaseField::modulus();
 

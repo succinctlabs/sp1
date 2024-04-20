@@ -5,27 +5,35 @@ use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
-use super::params::Limbs;
+use super::params::{FieldParameters, Limbs};
 use super::util::{compute_root_quotient_and_shift, split_u16_limbs_to_u8_limbs};
 use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
-use crate::utils::ec::field::FieldParameters;
+use crate::bytes::event::ByteRecord;
 
+/// Airthmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug)]
 pub enum FieldOperation {
     Add,
     Mul,
     Sub,
-    Div, // We don't constrain that the divisor is non-zero.
+    Div,
 }
 
-/// A set of columns to compute `FieldOperation(a, b)` where a, b are field elements.
-/// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
-/// or made generic in the future.
+/// A set of columns to compute an emulated modular arithmetic operation.
 ///
-/// TODO: There is an issue here here some fields in these columns must be range checked. This is
-/// a known issue and will be fixed in the future.
+/// *Safety* The input operands (a, b) (not included in the operation columns) are assumed to be
+/// elements within the range `[0, 2^{P::nb_bits()})`. the result is also assumed to be within the
+/// same range. Let `M = P:modulus()`. The constraints of the function [`FieldOpCols::eval`] assert
+/// that:
+/// * When `op` is `FieldOperation::Add`, then `result = a + b mod M`.
+/// * When `op` is `FieldOperation::Mul`, then `result = a * b mod M`.
+/// * When `op` is `FieldOperation::Sub`, then `result = a - b mod M`.
+/// * When `op` is `FieldOperation::Div`, then `result * b = a  mod M`.
+///
+/// **Warning**: The constraints do not check for division by zero. The caller is responsible for
+/// ensuring that the division operation is valid.
 #[derive(Debug, Clone, AlignedBorrow)]
 #[repr(C)]
 pub struct FieldOpCols<T, P: FieldParameters> {
@@ -37,48 +45,12 @@ pub struct FieldOpCols<T, P: FieldParameters> {
 }
 
 impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
-    pub fn populate(&mut self, a: &BigUint, b: &BigUint, op: FieldOperation) -> BigUint {
-        if b == &BigUint::zero() && op == FieldOperation::Div {
-            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
-            assert_eq!(
-                *a,
-                BigUint::zero(),
-                "division by zero is allowed only when dividing zero"
-            );
-        }
-
-        let modulus = P::modulus();
-
-        // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
-        if op == FieldOperation::Sub {
-            let result = (modulus.clone() + a - b) % &modulus;
-            // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
-            // But we populate `result` with the actual result of the subtraction because those columns are expected
-            // to contain the result by the user.
-            // Note that this reversal means we have to flip result, a correspondingly in
-            // the `eval` function.
-            self.populate(&result, b, FieldOperation::Add);
-            self.result = P::to_limbs_field::<F, _>(&result);
-            return result;
-        }
-
-        // a / b = result is equivalent to a = result * b.
-        if op == FieldOperation::Div {
-            // As modulus is prime, we can use Fermat's little theorem to compute the
-            // inverse.
-            let result =
-                (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
-
-            // We populate the carry, witness_low, witness_high as if we were doing a multiplication
-            // with result * b. But we populate `result` with the actual result of the
-            // multiplication because those columns are expected to contain the result by the user.
-            // Note that this reversal means we have to flip result, a correspondingly in the `eval`
-            // function.
-            self.populate(&result, b, FieldOperation::Mul);
-            self.result = P::to_limbs_field::<F, _>(&result);
-            return result;
-        }
-
+    pub fn populate_carry_and_witness(
+        &mut self,
+        a: &BigUint,
+        b: &BigUint,
+        op: FieldOperation,
+    ) -> BigUint {
         let p_a: Polynomial<F> = P::to_limbs_field::<F, _>(a).into();
         let p_b: Polynomial<F> = P::to_limbs_field::<F, _>(b).into();
 
@@ -126,20 +98,83 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
 
         result
     }
+
+    pub fn populate(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        a: &BigUint,
+        b: &BigUint,
+        op: FieldOperation,
+    ) -> BigUint {
+        if b == &BigUint::zero() && op == FieldOperation::Div {
+            // Division by 0 is allowed only when dividing 0 so that padded rows can be all 0.
+            assert_eq!(
+                *a,
+                BigUint::zero(),
+                "division by zero is allowed only when dividing zero"
+            );
+        }
+
+        let modulus = P::modulus();
+
+        let result = match op {
+            // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
+            FieldOperation::Sub => {
+                let result = (modulus.clone() + a - b) % &modulus;
+                // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
+                // But we populate `result` with the actual result of the subtraction because those columns are expected
+                // to contain the result by the user.
+                // Note that this reversal means we have to flip result, a correspondingly in
+                // the `eval` function.
+                self.populate_carry_and_witness(&result, b, FieldOperation::Add);
+                self.result = P::to_limbs_field::<F, _>(&result);
+                result
+            }
+            // a / b = result is equivalent to a = result * b.
+            FieldOperation::Div => {
+                // As modulus is prime, we can use Fermat's little theorem to compute the
+                // inverse.
+                let result =
+                    (a * b.modpow(&(modulus.clone() - 2u32), &modulus.clone())) % modulus.clone();
+
+                // We populate the carry, witness_low, witness_high as if we were doing a multiplication
+                // with result * b. But we populate `result` with the actual result of the
+                // multiplication because those columns are expected to contain the result by the user.
+                // Note that this reversal means we have to flip result, a correspondingly in the `eval`
+                // function.
+                self.populate_carry_and_witness(&result, b, FieldOperation::Mul);
+                self.result = P::to_limbs_field::<F, _>(&result);
+                result
+            }
+            _ => self.populate_carry_and_witness(a, b, op),
+        };
+
+        // Range checks
+        record.add_u8_range_checks_field(shard, &self.result.0);
+        record.add_u8_range_checks_field(shard, &self.carry.0);
+        record.add_u8_range_checks_field(shard, &self.witness_low.0);
+        record.add_u8_range_checks_field(shard, &self.witness_high.0);
+
+        result
+    }
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
-    #[allow(unused_variables)]
     pub fn eval<
         AB: SP1AirBuilder<Var = V>,
         A: Into<Polynomial<AB::Expr>> + Clone,
         B: Into<Polynomial<AB::Expr>> + Clone,
+        EShard: Into<AB::Expr> + Clone,
+        ER: Into<AB::Expr> + Clone,
     >(
         &self,
         builder: &mut AB,
         a: &A,
         b: &B,
         op: FieldOperation,
+        shard: EShard,
+        is_real: ER,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
@@ -156,12 +191,18 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
             FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
             FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
         };
-        let p_op_minus_result: Polynomial<AB::Expr> = p_op - p_result;
+        let p_op_minus_result: Polynomial<AB::Expr> = p_op - &p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
         let p_vanishing = p_op_minus_result - &(&p_carry * &p_limbs);
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();
         eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+
+        // Range checks for the result, carry, and witness columns.
+        builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(p_witness_low.coefficients(), shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(p_witness_high.coefficients(), shard, is_real);
     }
 }
 
@@ -175,10 +216,11 @@ mod tests {
 
     use crate::air::MachineAir;
 
+    use crate::bytes::event::ByteRecord;
+    use crate::operations::field::params::FieldParameters;
     use crate::runtime::Program;
     use crate::stark::StarkGenericConfig;
     use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
-    use crate::utils::ec::field::FieldParameters;
     use crate::utils::ec::weierstrass::secp256k1::Secp256k1BaseField;
     use crate::utils::{
         pad_to_power_of_two, uni_stark_prove as prove, uni_stark_verify as verify,
@@ -189,6 +231,7 @@ mod tests {
     use num::bigint::RandBigInt;
     use p3_air::Air;
     use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
     use rand::thread_rng;
@@ -230,7 +273,7 @@ mod tests {
         fn generate_trace(
             &self,
             _: &ExecutionRecord,
-            _: &mut ExecutionRecord,
+            output: &mut ExecutionRecord,
         ) -> RowMajorMatrix<F> {
             let mut rng = thread_rng();
             let num_rows = 1 << 8;
@@ -255,11 +298,14 @@ mod tests {
             let rows = operands
                 .iter()
                 .map(|(a, b)| {
+                    let mut blu_events = Vec::new();
                     let mut row = [F::zero(); NUM_TEST_COLS];
                     let cols: &mut TestCols<F, P> = row.as_mut_slice().borrow_mut();
                     cols.a = P::to_limbs_field::<F, _>(a);
                     cols.b = P::to_limbs_field::<F, _>(b);
-                    cols.a_op_b.populate(a, b, self.operation);
+                    cols.a_op_b
+                        .populate(&mut blu_events, 1, a, b, self.operation);
+                    output.add_byte_lookup_events(blu_events);
                     row
                 })
                 .collect::<Vec<_>>();
@@ -295,9 +341,14 @@ mod tests {
             let main = builder.main();
             let local = main.row_slice(0);
             let local: &TestCols<AB::Var, P> = (*local).borrow();
-            local
-                .a_op_b
-                .eval::<AB, _, _>(builder, &local.a, &local.b, self.operation);
+            local.a_op_b.eval(
+                builder,
+                &local.a,
+                &local.b,
+                self.operation,
+                AB::F::one(),
+                AB::F::one(),
+            );
 
             // A dummy constraint to keep the degree 3.
             builder.assert_zero(

@@ -1,5 +1,4 @@
 pub mod edwards;
-pub mod field;
 pub mod scalar_mul;
 pub mod uint256;
 pub mod utils;
@@ -9,12 +8,11 @@ use std::fmt::{Debug, Display, Formatter, Result};
 use std::ops::{Add, Neg};
 use typenum::Unsigned;
 
-use field::FieldParameters;
 use num::BigUint;
 use serde::{de::DeserializeOwned, Serialize};
 
-use self::field::NumWords;
 use crate::air::WORD_SIZE;
+use crate::operations::field::params::{FieldParameters, NumWords};
 
 pub const NUM_WORDS_FIELD_ELEMENT: usize = 8;
 pub const NUM_BYTES_FIELD_ELEMENT: usize = NUM_WORDS_FIELD_ELEMENT * WORD_SIZE;

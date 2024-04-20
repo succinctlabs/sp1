@@ -4,6 +4,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
+use crate::bytes::event::ByteRecord;
 use crate::bytes::utils::shr_carry;
 use crate::bytes::ByteLookupEvent;
 use crate::bytes::ByteOpcode;

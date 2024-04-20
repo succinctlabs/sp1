@@ -61,6 +61,20 @@ impl<F: PrimeField32> Instruction<F> {
         }
     }
 
+    pub fn dummy() -> Self {
+        Instruction::new(
+            Opcode::ADD,
+            F::zero(),
+            [F::zero(); 4],
+            [F::zero(); 4],
+            F::zero(),
+            F::zero(),
+            false,
+            false,
+            "".to_string(),
+        )
+    }
+
     pub(crate) fn is_b_ext(&self) -> bool {
         matches!(
             self.opcode,

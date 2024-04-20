@@ -1,3 +1,17 @@
+use p3_air::Air;
+use p3_commit::TwoAdicMultiplicativeCoset;
+use p3_field::AbstractField;
+use p3_field::TwoAdicField;
+use sp1_core::air::MachineAir;
+use sp1_core::stark::Com;
+use sp1_core::stark::StarkGenericConfig;
+use sp1_core::stark::StarkMachine;
+use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::Ext;
+use sp1_recursion_compiler::ir::Var;
+use sp1_recursion_compiler::ir::{Builder, Config, Usize};
+use sp1_recursion_core::runtime::DIGEST_SIZE;
+
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
@@ -9,19 +23,6 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::ShardCommitmentVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
-use p3_air::Air;
-use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractField;
-use p3_field::TwoAdicField;
-use sp1_core::air::MachineAir;
-use sp1_core::stark::Com;
-use sp1_core::stark::MachineStark;
-use sp1_core::stark::StarkGenericConfig;
-use sp1_recursion_compiler::ir::Array;
-use sp1_recursion_compiler::ir::Ext;
-use sp1_recursion_compiler::ir::Var;
-use sp1_recursion_compiler::ir::{Builder, Config, Usize};
-use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 pub const EMPTY: usize = 0x_1111_1111;
 
@@ -43,7 +44,7 @@ where
         builder: &mut Builder<C>,
         vk: &VerifyingKeyVariable<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
-        machine: &MachineStark<SC, A>,
+        machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
         chip_sorted_idxs: Array<C, Var<C::N>>,

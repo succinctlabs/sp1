@@ -33,8 +33,8 @@ use crate::stark::VerifierConstraintFolder;
 
 use super::Chip;
 use super::Com;
+use super::MachineProof;
 use super::PcsProverData;
-use super::Proof;
 use super::Prover;
 use super::StarkGenericConfig;
 use super::Val;
@@ -44,7 +44,7 @@ use super::Verifier;
 pub type MachineChip<SC, A> = Chip<Val<SC>, A>;
 
 /// A STARK for proving RISC-V execution.
-pub struct MachineStark<SC: StarkGenericConfig, A> {
+pub struct StarkMachine<SC: StarkGenericConfig, A> {
     /// The STARK settings for the RISC-V STARK.
     config: SC,
     /// The chips that make up the RISC-V STARK machine, in order of their execution.
@@ -54,7 +54,7 @@ pub struct MachineStark<SC: StarkGenericConfig, A> {
     num_pv_elts: usize,
 }
 
-impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
+impl<SC: StarkGenericConfig, A> StarkMachine<SC, A> {
     pub fn new(config: SC, chips: Vec<Chip<Val<SC>, A>>, num_pv_elts: usize) -> Self {
         Self {
             config,
@@ -64,7 +64,7 @@ impl<SC: StarkGenericConfig, A> MachineStark<SC, A> {
     }
 }
 
-pub struct ProvingKey<SC: StarkGenericConfig> {
+pub struct StarkProvingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub pc_start: Val<SC>,
     pub traces: Vec<RowMajorMatrix<Val<SC>>>,
@@ -72,7 +72,7 @@ pub struct ProvingKey<SC: StarkGenericConfig> {
     pub chip_ordering: HashMap<String, usize>,
 }
 
-impl<SC: StarkGenericConfig> ProvingKey<SC> {
+impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
@@ -80,27 +80,27 @@ impl<SC: StarkGenericConfig> ProvingKey<SC> {
 }
 
 #[derive(Clone)]
-pub struct VerifyingKey<SC: StarkGenericConfig> {
+pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub pc_start: Val<SC>,
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
 }
 
-impl<SC: StarkGenericConfig> VerifyingKey<SC> {
+impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
     pub fn observe_into(&self, challenger: &mut SC::Challenger) {
         challenger.observe(self.commit.clone());
         challenger.observe(self.pc_start);
     }
 }
 
-impl<SC: StarkGenericConfig> Debug for VerifyingKey<SC> {
+impl<SC: StarkGenericConfig> Debug for StarkVerifyingKey<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VerifyingKey").finish()
     }
 }
 
-impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
+impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     /// Get an array containing a `ChipRef` for all the chips of this RISC-V STARK machine.
     pub fn chips(&self) -> &[MachineChip<SC, A>] {
         &self.chips
@@ -154,7 +154,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    pub fn setup(&self, program: &A::Program) -> (ProvingKey<SC>, VerifyingKey<SC>) {
+    pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let mut named_preprocessed_traces = self
             .chips()
             .iter()
@@ -213,14 +213,14 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
         let pc_start = program.pc_start();
 
         (
-            ProvingKey {
+            StarkProvingKey {
                 commit: commit.clone(),
                 pc_start,
                 traces,
                 data,
                 chip_ordering: chip_ordering.clone(),
             },
-            VerifyingKey {
+            StarkVerifyingKey {
                 commit,
                 pc_start,
                 chip_information,
@@ -261,10 +261,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// a STARK proof that the execution record is valid.
     pub fn prove<P: Prover<SC, A>>(
         &self,
-        pk: &ProvingKey<SC>,
+        pk: &StarkProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-    ) -> Proof<SC>
+    ) -> MachineProof<SC>
     where
         A: for<'a> Air<ProverConstraintFolder<'a, SC>>
             + Air<InteractionBuilder<Val<SC>>>
@@ -285,8 +285,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
     /// Verify that a proof is complete and valid given a verifying key and a claimed digest.
     pub fn verify(
         &self,
-        vk: &VerifyingKey<SC>,
-        proof: &Proof<SC>,
+        vk: &StarkVerifyingKey<SC>,
+        proof: &MachineProof<SC>,
         challenger: &mut SC::Challenger,
     ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError>
     where
@@ -413,7 +413,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
 
     pub fn debug_constraints(
         &self,
-        pk: &ProvingKey<SC>,
+        pk: &StarkProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
     ) where

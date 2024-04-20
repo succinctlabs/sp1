@@ -1,7 +1,7 @@
 use std::{
     fs::File,
     io::Write,
-    path::{Path, PathBuf},
+    path::PathBuf,
     process::{Command, Stdio},
 };
 
@@ -136,8 +136,6 @@ impl Groth16Verifier {
 
         self.go_run(&["run", "-v", "-timeout", "100000s"]);
     }
-
-    
 }
 
 pub fn prove_test<C: Config>(constraints: Vec<Constraint>, mut witness: Witness<C>) {

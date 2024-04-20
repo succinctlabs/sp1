@@ -9,6 +9,7 @@ use super::{
 };
 use crate::{
     air::{MachineAir, Word},
+    bytes::event::ByteRecord,
     runtime::{ExecutionRecord, Program},
     utils::pad_rows,
 };
