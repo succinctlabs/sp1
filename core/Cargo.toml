@@ -33,7 +33,9 @@ sp1-derive = { path = "../derive" }
 sp1-primitives = { path = "../primitives" }
 
 anyhow = "1.0.79"
-amcl = { package = "snowbridge-amcl", version="1.0.2", default-features = false, features = ["bls381"]}
+amcl = { package = "snowbridge-amcl", version = "1.0.2", default-features = false, features = [
+    "bls381",
+] }
 arrayref = "0.3.6"
 blake3 = "1.5"
 blake3-zkvm = { git = "https://github.com/sp1-patches/BLAKE3.git", branch = "patch-blake3_zkvm/v.1.0.0" }

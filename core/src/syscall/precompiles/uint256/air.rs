@@ -1,16 +1,3 @@
-use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
-use crate::memory::MemoryCols;
-use crate::memory::{MemoryReadCols, MemoryWriteCols};
-use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::Limbs;
-use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use crate::stark::MachineRecord;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::field::{FieldParameters, NumLimbs};
-use crate::utils::ec::uint256::U256Field;
-use crate::utils::{bytes_to_words_le, pad_rows, words_to_bytes_le};
-
 use num::Zero;
 use num::{BigUint, One};
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -22,6 +9,20 @@ use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
+
+use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
+use crate::bytes::event::ByteRecord;
+use crate::memory::MemoryCols;
+use crate::memory::{MemoryReadCols, MemoryWriteCols};
+use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
+use crate::operations::field::params::FieldParameters;
+use crate::operations::field::params::{Limbs, NumLimbs};
+use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use crate::stark::MachineRecord;
+use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::uint256::U256Field;
+use crate::utils::{bytes_to_words_le, pad_rows, words_to_bytes_le};
 
 /// The number of columns in the Uint256MulCols.
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
@@ -140,7 +141,13 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             }
                         }
 
-                        cols.output.populate(&x, &y, FieldOperation::Mul);
+                        cols.output.populate(
+                            &mut new_byte_lookup_events,
+                            event.shard,
+                            &x,
+                            &y,
+                            FieldOperation::Mul,
+                        );
 
                         row
                     })
@@ -163,7 +170,8 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
 
             let x = BigUint::zero();
             let y = BigUint::zero();
-            cols.output.populate(&x, &y, FieldOperation::Mul);
+            cols.output
+                .populate(&mut vec![], 0, &x, &y, FieldOperation::Mul);
 
             row
         });
@@ -267,11 +275,13 @@ where
         y_limbs.resize(U256Field::NB_LIMBS, AB::Expr::zero());
 
         // Evaluate the uint256 multiplication
-        local.output.eval::<AB, _, _>(
+        local.output.eval(
             builder,
             &Polynomial::new(x_limbs),
             &Polynomial::new(y_limbs),
             FieldOperation::Mul,
+            local.shard,
+            local.is_real,
         );
 
         // Assert that the output is equal to whats written to the memory record.

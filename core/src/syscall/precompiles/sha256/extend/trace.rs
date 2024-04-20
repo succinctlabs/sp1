@@ -5,6 +5,7 @@ use p3_matrix::dense::RowMajorMatrix;
 
 use crate::{
     air::MachineAir,
+    bytes::event::ByteRecord,
     runtime::{ExecutionRecord, Program},
 };
 

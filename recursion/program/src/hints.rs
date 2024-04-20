@@ -1,9 +1,3 @@
-use crate::challenger::DuplexChallengerVariable;
-use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
-    ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
-};
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
@@ -22,6 +16,13 @@ use sp1_recursion_compiler::{
 };
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+
+use crate::challenger::DuplexChallengerVariable;
+use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::types::{
+    AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
+    ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
+};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;

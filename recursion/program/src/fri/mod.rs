@@ -23,17 +23,16 @@ use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
 
-use crate::challenger::CanObserveVariable;
-use crate::challenger::CanSampleBitsVariable;
-use crate::challenger::DuplexChallengerVariable;
-use crate::challenger::FeltChallenger;
-
 use self::types::DigestVariable;
 use self::types::DimensionsVariable;
 use self::types::FriChallengesVariable;
 use self::types::FriConfigVariable;
 use self::types::FriProofVariable;
 use self::types::FriQueryProofVariable;
+use crate::challenger::CanObserveVariable;
+use crate::challenger::CanSampleBitsVariable;
+use crate::challenger::DuplexChallengerVariable;
+use crate::challenger::FeltChallenger;
 
 /// Reference: https://github.com/Plonky3/Plonky3/blob/4809fa7bedd9ba8f6f5d3267b1592618e3776c57/fri/src/verifier.rs#L27
 pub fn verify_shape_and_sample_challenges<C: Config>(
