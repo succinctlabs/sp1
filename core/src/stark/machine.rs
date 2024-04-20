@@ -336,7 +336,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                     let deferred_proofs_digest: [u32; 8] = public_values
                         .deferred_proofs_digest
                         .iter()
-                        .map(|w| w.to_u32())
+                        .map(|w| w.to_string().parse::<u32>().unwrap())
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
@@ -351,7 +351,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> MachineStark<SC, A> {
                             "non incremental shard index",
                         ));
                     }
-                    // Next pc should be what the next pc declared in the previous shard was.
+                    // Start pc should be what the next pc declared in the previous shard was.
                     if public_values.start_pc != prev_public_values.next_pc {
                         return Err(ProgramVerificationError::InvalidShardTransition(
                             "pc mismatch",

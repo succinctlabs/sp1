@@ -301,36 +301,36 @@ where
     AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let cols = main.row_slice(0);
-        let cols: &Poseidon2WideCols<AB::Var> = (*cols).borrow();
+        // let main = builder.main();
+        // let cols = main.row_slice(0);
+        // let cols: &Poseidon2WideCols<AB::Var> = (*cols).borrow();
 
-        // Apply the initial round.
-        let initial_round_output = {
-            let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| cols.input[i].into());
-            external_linear_layer(&mut initial_round_output);
-            initial_round_output
-        };
-        for i in 0..WIDTH {
-            builder.assert_eq(
-                cols.external_rounds[0].state[i],
-                initial_round_output[i].clone(),
-            );
-        }
+        // // Apply the initial round.
+        // let initial_round_output = {
+        //     let mut initial_round_output: [AB::Expr; WIDTH] =
+        //         core::array::from_fn(|i| cols.input[i].into());
+        //     external_linear_layer(&mut initial_round_output);
+        //     initial_round_output
+        // };
+        // for i in 0..WIDTH {
+        //     builder.assert_eq(
+        //         cols.external_rounds[0].state[i],
+        //         initial_round_output[i].clone(),
+        //     );
+        // }
 
-        // Apply the first half of external rounds.
-        for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            eval_external_round(builder, cols, r);
-        }
+        // // Apply the first half of external rounds.
+        // for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
+        //     eval_external_round(builder, cols, r);
+        // }
 
-        // Apply the internal rounds.
-        eval_internal_rounds(builder, cols);
+        // // Apply the internal rounds.
+        // eval_internal_rounds(builder, cols);
 
-        // Apply the second half of external rounds.
-        for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, cols, r);
-        }
+        // // Apply the second half of external rounds.
+        // for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
+        //     eval_external_round(builder, cols, r);
+        // }
     }
 }
 

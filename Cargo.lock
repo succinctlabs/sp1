@@ -655,6 +655,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "array-macro"
+version = "2.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "220a2c618ab466efe41d0eace94dfeff1c35e3aa47891bdb95e1c0fefffd3c99"
+
+[[package]]
 name = "arrayref"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4571,6 +4577,7 @@ dependencies = [
 name = "sp1-recursion-program"
 version = "0.1.0"
 dependencies = [
+ "array-macro",
  "itertools 0.12.1",
  "p3-air",
  "p3-baby-bear",

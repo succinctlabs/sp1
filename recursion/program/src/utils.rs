@@ -8,7 +8,7 @@ use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use sp1_core::stark::StarkGenericConfig;
 use sp1_recursion_compiler::asm::AsmConfig;
-use sp1_recursion_compiler::ir::{Builder, Felt, MemVariable, Var};
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, MemVariable, Var};
 use sp1_sdk::utils::BabyBearPoseidon2;
 
 use crate::fri::types::FriConfigVariable;
@@ -62,7 +62,19 @@ pub fn clone<T: MemVariable<C>>(builder: &mut RecursionBuilder, var: &T) -> T {
     builder.get(&arr, 0)
 }
 
-pub fn felt2var(builder: &mut RecursionBuilder, felt: Felt<BabyBear>) -> Var<BabyBear> {
+pub fn clone_array<T: MemVariable<C>>(
+    builder: &mut RecursionBuilder,
+    arr: &Array<C, T>,
+) -> Array<C, T> {
+    let mut new_arr = builder.dyn_array(arr.len());
+    builder.range(0, arr.len()).for_each(|i, builder| {
+        let var = builder.get(arr, i);
+        builder.set(&mut new_arr, i, var);
+    });
+    new_arr
+}
+
+pub fn felt2var<C: Config>(builder: &mut Builder<C>, felt: Felt<C::F>) -> Var<C::N> {
     let bits = builder.num2bits_f(felt);
     builder.bits2num_v(&bits)
 }
