@@ -298,6 +298,11 @@ where
         builder.assert_eq(local.msb_c, (local.c[3] - local.c_masked) * inv_128);
 
         // Constrain that when is_sign_eq = (bit_b == bit_c).
+
+        // assert the flag is a boolean.
+        builder.assert_bool(local.is_sign_eq);
+
+        // assert the correction of the comparison.
         builder
             .when(local.is_sign_eq)
             .assert_eq(local.bit_b, local.bit_c);
