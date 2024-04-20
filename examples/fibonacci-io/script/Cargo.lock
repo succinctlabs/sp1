@@ -4133,11 +4133,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sp1-core",
  "sp1-prover",
  "tokio",
  "tracing",
- "tracing-forest",
- "tracing-subscriber",
  "twirp",
 ]
 

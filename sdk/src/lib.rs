@@ -13,7 +13,7 @@ use anyhow::{Context, Ok, Result};
 use proto::network::{ProofStatus, TransactionStatus};
 use sp1_core::runtime::Program;
 use sp1_core::utils::run_and_prove;
-use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
+pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
 use std::env;
 use std::time::Duration;
 use tokio::runtime;

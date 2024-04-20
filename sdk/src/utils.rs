@@ -1,4 +1,5 @@
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+pub use sp1_core::utils::{setup_logger, setup_tracer};
 use std::time::Duration;
 
 pub struct StageProgressBar {
