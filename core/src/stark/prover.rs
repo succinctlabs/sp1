@@ -375,7 +375,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &packed_perm_challenges,
                         alpha,
-                        shard_data.public_values.clone(),
+                        &shard_data.public_values,
                     )
                 })
                 .collect::<Vec<_>>()
