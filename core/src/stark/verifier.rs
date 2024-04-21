@@ -43,6 +43,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             commitment,
             opened_values,
             opening_proof,
+            chip_ordering,
+            public_values,
             ..
         } = proof;
 
@@ -87,8 +89,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .chip_information
             .iter()
             .map(|(name, domain, _)| {
-                let i = proof.chip_ordering[name];
-                let values = proof.opened_values.chips[i].preprocessed.clone();
+                let i = chip_ordering[name];
+                let values = opened_values.chips[i].preprocessed.clone();
                 (
                     *domain,
                     vec![
@@ -101,7 +103,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let main_domains_points_and_opens = trace_domains
             .iter()
-            .zip_eq(proof.opened_values.chips.iter())
+            .zip_eq(opened_values.chips.iter())
             .map(|(domain, values)| {
                 (
                     *domain,
@@ -115,7 +117,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let perm_domains_points_and_opens = trace_domains
             .iter()
-            .zip_eq(proof.opened_values.chips.iter())
+            .zip_eq(opened_values.chips.iter())
             .map(|(domain, values)| {
                 (
                     *domain,
@@ -186,7 +188,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 zeta,
                 alpha,
                 &permutation_challenges,
-                proof.public_values.clone(),
+                public_values,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
@@ -202,7 +204,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values: Vec<Val<SC>>,
+        public_values: &[Val<SC>],
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -233,7 +235,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values: Vec<Val<SC>>,
+        public_values: &[Val<SC>],
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -256,7 +258,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let public_values = public_values.to_vec();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
@@ -268,7 +269,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
-            public_values: &public_values,
+            public_values,
             _marker: PhantomData,
         };
 
