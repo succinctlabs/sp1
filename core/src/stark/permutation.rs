@@ -71,6 +71,10 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
     }
 }
 
+pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize) -> usize {
+    (num_interactions + 1) / batch_size + 1
+}
+
 /// Generates the permutation trace for the given chip and main trace based on a variant of LogUp.
 ///
 /// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
@@ -96,7 +100,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     //
     // where f_{i, c_k} is the value at row i for column c_k. The computed value is essentially a
     // fingerprint for the interaction.
-    let permutation_trace_width = (sends.len() + receives.len() + 1) / batch_size + 1;
+    let permutation_trace_width = permutation_trace_width(sends.len() + receives.len(), batch_size);
     let height = main.height();
 
     let mut permutation_trace = RowMajorMatrix::new(
