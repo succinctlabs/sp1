@@ -785,10 +785,8 @@ where
                     let c_val = Block::<F>::default();
 
                     // Ensure that writes are in order (index should == public_values.len)
-                    println!("b_val: {:?}", b_val);
                     let index = b_val[0].as_canonical_u32() as usize;
-                    assert_eq!(index, self.record.public_values.len());
-                    println!("val: {:?}", a_val);
+                    debug_assert_eq!(index, self.record.public_values.len());
 
                     self.record.public_values.push(a_val[0]);
 

@@ -6,7 +6,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
-use sp1_core::air::PublicValues;
+use sp1_core::air::{PublicValues, SP1_PROOF_NUM_PV_ELTS};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
@@ -77,16 +77,26 @@ fn assert_challengers_eq<C: Config>(
     }
     let num_inputs_var = felt2var(builder, values.num_inputs);
     builder.assert_var_eq(var.nb_inputs, num_inputs_var);
+    let mut input_buffer_array: Array<_, Felt<_>> = builder.dyn_array(PERMUTATION_WIDTH);
     for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.input_buffer, i);
-        builder.assert_felt_eq(element, values.input_buffer[i]);
+        builder.set(&mut input_buffer_array, i, values.input_buffer[i]);
     }
+    builder.range(0, num_inputs_var).for_each(|i, builder| {
+        let element = builder.get(&var.input_buffer, i);
+        let values_element = builder.get(&input_buffer_array, i);
+        builder.assert_felt_eq(element, values_element);
+    });
     let num_outputs_var = felt2var(builder, values.num_outputs);
     builder.assert_var_eq(var.nb_outputs, num_outputs_var);
+    let mut output_buffer_array: Array<_, Felt<_>> = builder.dyn_array(PERMUTATION_WIDTH);
     for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.output_buffer, i);
-        builder.assert_felt_eq(element, values.output_buffer[i]);
+        builder.set(&mut output_buffer_array, i, values.output_buffer[i]);
     }
+    builder.range(0, num_outputs_var).for_each(|i, builder| {
+        let element = builder.get(&var.output_buffer, i);
+        let values_element = builder.get(&output_buffer_array, i);
+        builder.assert_felt_eq(element, values_element);
+    });
 }
 
 fn assign_challenger<C: Config>(
@@ -393,13 +403,6 @@ impl ReduceProgram {
                         // Non-first proofs: verify global values are same and transitions are valid.
                         |builder| {
                             // Assert that digests and exit code are the same
-                            builder.print_debug(121212);
-                            for j in 0..POSEIDON_NUM_WORDS {
-                                for k in 0..4 {
-                                    builder.print_f(global_committed_values_digest[j][k]);
-                                    builder.print_f(pv.committed_value_digest[j][k]);
-                                }
-                            }
                             assert_felt_words_eq(
                                 builder,
                                 &global_committed_values_digest,
@@ -422,7 +425,6 @@ impl ReduceProgram {
                     builder.if_eq(i, num_proofs - one).then_or_else(
                         // Set global end variables.
                         |builder| {
-                            builder.print_debug(41141141);
                             builder.assign(global_end_shard, pv.shard);
                             builder.assign(global_next_pc, pv.next_pc);
                         },
@@ -447,77 +449,31 @@ impl ReduceProgram {
                         // Start pc should be sp1_vk.pc_start
                         builder.assert_felt_eq(pv.start_pc, sp1_vk.pc_start);
 
-                        builder.print_debug(6969695);
+                        // Clone the variable pointer to verify_start_challenger.
                         let mut reconstruct_challenger = reconstruct_challenger.clone();
                         // Initialize the reconstruct challenger from empty challenger.
-                        let empty_challenger = DuplexChallengerVariable::new(builder);
-                        builder.print_debug(999999);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element = builder.get(&empty_challenger.sponge_state, i);
-                            builder.print_f(element);
-                        }
-                        builder.print_v(empty_challenger.nb_inputs);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element = builder.get(&empty_challenger.input_buffer, i);
-                            builder.print_f(element);
-                        }
-                        builder.print_v(empty_challenger.nb_outputs);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element = builder.get(&empty_challenger.output_buffer, i);
-                            builder.print_f(element);
-                        }
-                        builder.assign(reconstruct_challenger.clone(), empty_challenger);
+                        reconstruct_challenger.reset(builder);
                         reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
                         reconstruct_challenger.observe(builder, sp1_vk.pc_start);
 
-                        // Print challenger
-                        builder.print_debug(999999);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element = builder.get(&reconstruct_challenger.sponge_state, i);
-                            builder.print_f(element);
-                        }
-                        builder.print_v(reconstruct_challenger.nb_inputs);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element = builder.get(&reconstruct_challenger.input_buffer, i);
-                            builder.print_f(element);
-                        }
-                        builder.print_v(reconstruct_challenger.nb_outputs);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element = builder.get(&reconstruct_challenger.output_buffer, i);
-                            builder.print_f(element);
-                        }
-                        builder.print_debug(123412341);
+                        // Make sure the start reconstruct challenger is correct, since we will
+                        // commit to it in public values.
+                        start_reconstruct_challenger.assert_eq(builder, &reconstruct_challenger);
 
-                        // Override start_reconstruct_challenger
-                        let clone = reconstruct_challenger.copy(builder);
-                        builder.assign(start_reconstruct_challenger.clone(), clone);
-                        builder.print_debug(111222);
-                        // print start_reconstruct_challenger
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element =
-                                builder.get(&start_reconstruct_challenger.sponge_state, i);
-                            builder.print_f(element);
+                        // Make sure start reconstruct deferred digest is fully zero.
+                        for j in 0..POSEIDON_NUM_WORDS {
+                            let element = builder.get(&start_reconstruct_deferred_digest, j);
+                            builder.assert_felt_eq(element, zero_felt);
                         }
-                        builder.print_v(start_reconstruct_challenger.nb_inputs);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element =
-                                builder.get(&start_reconstruct_challenger.input_buffer, i);
-                            builder.print_f(element);
-                        }
-                        builder.print_v(start_reconstruct_challenger.nb_outputs);
-                        for i in 0..PERMUTATION_WIDTH {
-                            let element =
-                                builder.get(&start_reconstruct_challenger.output_buffer, i);
-                            builder.print_f(element);
-                        }
-                        builder.print_debug(111222);
-
-                        // TODO: override start_reconstruct_deferred_digest too?
                     });
 
                     // Observe current proof commit and public values into reconstruct challenger.
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&proof.commitment.main_commit, j);
+                        reconstruct_challenger.clone().observe(builder, element);
+                    }
+                    for j in 0..SP1_PROOF_NUM_PV_ELTS {
+                        let element = builder.get(&proof.public_values, j);
                         reconstruct_challenger.clone().observe(builder, element);
                     }
 

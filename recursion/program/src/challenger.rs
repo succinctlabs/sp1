@@ -110,6 +110,22 @@ impl<C: Config> DuplexChallengerVariable<C> {
         });
     }
 
+    pub fn reset(&mut self, builder: &mut Builder<C>) {
+        let zero: Var<_> = builder.eval(C::N::zero());
+        let zero_felt: Felt<_> = builder.eval(C::F::zero());
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            builder.set(&mut self.sponge_state, i, zero_felt);
+        });
+        builder.assign(self.nb_inputs, zero);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            builder.set(&mut self.input_buffer, i, zero_felt);
+        });
+        builder.assign(self.nb_outputs, zero);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            builder.set(&mut self.output_buffer, i, zero_felt);
+        });
+    }
+
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
         builder.range(0, self.nb_inputs).for_each(|i, builder| {
             let element = builder.get(&self.input_buffer, i);

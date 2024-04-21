@@ -15,11 +15,11 @@
 mod utils;
 mod verify;
 
-use itertools::Itertools;
 use p3_baby_bear::BabyBear;
-use p3_challenger::CanObserve;
+use p3_challenger::{CanObserve, DuplexChallenger};
 use p3_field::AbstractField;
-use rayon::iter::{IntoParallelIterator, ParallelIterator};
+use p3_field::PrimeField32;
+use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
@@ -40,6 +40,7 @@ use sp1_recursion_compiler::constraints::groth16_ffi;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::{
+    air::PublicValues as RecursionPublicValues,
     runtime::Runtime as RecursionRuntime,
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
@@ -61,6 +62,11 @@ pub struct SP1Prover {
     pub reduce_setup_program: RecursionProgram<BabyBear>,
     pub reduce_vk_inner: StarkVerifyingKey<InnerSC>,
     pub reduce_vk_outer: StarkVerifyingKey<OuterSC>,
+    pub core_machine: StarkMachine<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>,
+    pub inner_recursion_machine:
+        StarkMachine<InnerSC, RecursionAir<<InnerSC as StarkGenericConfig>::Val>>,
+    pub outer_recursion_machine:
+        StarkMachine<OuterSC, RecursionAir<<OuterSC as StarkGenericConfig>::Val>>,
 }
 
 /// The information necessary to generate a proof for a given RISC-V program.
@@ -88,10 +94,6 @@ pub struct SP1CoreProof {
 #[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
 pub struct SP1ReduceProof<SC: StarkGenericConfig> {
     pub proof: ShardProof<SC>,
-    pub start_pc: SC::Val,
-    pub next_pc: SC::Val,
-    pub start_shard: SC::Val,
-    pub next_shard: SC::Val,
 }
 
 /// A wrapper to abstract proofs representing a range of shards with multiple proving configs.
@@ -108,11 +110,17 @@ impl SP1Prover {
         let reduce_program = ReduceProgram::build();
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
+        let core_machine = RiscvAir::machine(CoreSC::default());
+        let inner_recursion_machine = RecursionAir::machine(InnerSC::default());
+        let outer_recursion_machine = RecursionAir::machine(OuterSC::default());
         Self {
             reduce_setup_program,
             reduce_program,
             reduce_vk_inner,
             reduce_vk_outer,
+            core_machine,
+            inner_recursion_machine,
+            outer_recursion_machine,
         }
     }
 
@@ -157,13 +165,13 @@ impl SP1Prover {
         // This challenger will be witnessed into reduce program and used to verify sp1 proofs. It
         // will also be reconstructed over all the reduce steps to prove that the witnessed
         // challenger was correct.
-        let core_machine = RiscvAir::machine(CoreSC::default());
-        let mut core_challenger = core_machine.config().challenger();
+        let mut core_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut core_challenger);
         for shard_proof in proof.shard_proofs.iter() {
             core_challenger.observe(shard_proof.commitment.main_commit);
-            core_challenger
-                .observe_slice(&shard_proof.public_values.to_vec()[0..core_machine.num_pv_elts()]);
+            core_challenger.observe_slice(
+                &shard_proof.public_values.to_vec()[0..self.core_machine.num_pv_elts()],
+            );
         }
 
         // Map the existing shards to a self-reducing type of proof (i.e. Reduce: T[] -> T).
@@ -174,24 +182,48 @@ impl SP1Prover {
                 let public_values = PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(
                     proof.public_values.clone(),
                 );
-                SP1ReduceProofWrapper::Core(SP1ReduceProof {
-                    proof,
-                    start_pc: public_values.start_pc,
-                    next_pc: public_values.next_pc,
-                    start_shard: public_values.shard,
-                    next_shard: if public_values.next_pc == Val::<CoreSC>::zero() {
-                        Val::<CoreSC>::zero()
-                    } else {
-                        public_values.shard + Val::<CoreSC>::one()
-                    },
-                })
+                SP1ReduceProofWrapper::Core(SP1ReduceProof { proof })
             })
             .collect::<Vec<_>>();
 
         // Keep reducing until we have only one shard. If we have only one shard, we still want to
         // wrap it into a reduce shard.
         while reduce_proofs.len() > 1 {
+            println!("new layer");
             reduce_proofs = self.reduce_layer(vk, core_challenger.clone(), reduce_proofs, 2);
+            let last_proof = &reduce_proofs[reduce_proofs.len() - 1];
+            let last_reduce_proof = match last_proof {
+                SP1ReduceProofWrapper::Recursive(reduce_proof) => &reduce_proof.proof,
+                _ => unreachable!(),
+            };
+            let end_reconstruct_challenger = self.get_end_reconstruct_challenger(last_reduce_proof);
+            assert_eq!(
+                end_reconstruct_challenger.sponge_state,
+                core_challenger.sponge_state
+            );
+            assert_eq!(
+                end_reconstruct_challenger.input_buffer.len(),
+                core_challenger.input_buffer.len()
+            );
+            assert_eq!(
+                end_reconstruct_challenger.output_buffer.len(),
+                core_challenger.output_buffer.len()
+            );
+            for (a, b) in end_reconstruct_challenger
+                .input_buffer
+                .iter()
+                .zip(core_challenger.input_buffer.iter())
+            {
+                assert_eq!(a, b);
+            }
+            for (a, b) in end_reconstruct_challenger
+                .output_buffer
+                .iter()
+                .zip(core_challenger.output_buffer.iter())
+            {
+                assert_eq!(a, b);
+            }
+            println!("ok");
         }
 
         // Return the remaining single reduce proof.
@@ -200,9 +232,32 @@ impl SP1Prover {
         match last_proof {
             SP1ReduceProofWrapper::Recursive(proof) => proof,
             SP1ReduceProofWrapper::Core(_) => {
-                self.reduce_batch(vk, core_challenger, &[last_proof], &[])
+                let reconstruct_challenger = self.setup_initial_core_challenger(vk);
+                self.reduce_batch(
+                    vk,
+                    core_challenger,
+                    reconstruct_challenger,
+                    &[last_proof],
+                    &[],
+                )
             }
         }
+    }
+
+    fn get_end_reconstruct_challenger<SC: StarkGenericConfig<Val = BabyBear>>(
+        &self,
+        shard_proof: &ShardProof<SC>,
+    ) -> Challenger<CoreSC> {
+        let mut challenger = self.core_machine.config().challenger();
+        let pv = RecursionPublicValues::from_vec(shard_proof.public_values.clone());
+        challenger.sponge_state = pv.end_reconstruct_challenger.sponge_state;
+        challenger.input_buffer = pv.end_reconstruct_challenger.input_buffer
+            [..pv.end_reconstruct_challenger.num_inputs.as_canonical_u32() as usize]
+            .to_vec();
+        challenger.output_buffer = pv.end_reconstruct_challenger.output_buffer
+            [..pv.end_reconstruct_challenger.num_outputs.as_canonical_u32() as usize]
+            .to_vec();
+        challenger
     }
 
     /// Reduce a set of shard proofs in groups of `batch_size` into a smaller set of shard proofs
@@ -223,10 +278,58 @@ impl SP1Prover {
 
         // Process at most 4 proofs at once in parallel, due to memory limits.
         let chunks: Vec<_> = proofs.chunks(batch_size).collect();
+        let mut reconstruct_challenger = self.setup_initial_core_challenger(vk);
+        let reconstruct_challengers = chunks
+            .iter()
+            .map(|chunk| {
+                let start_challenger = reconstruct_challenger.clone();
+                for proof in chunk.iter() {
+                    match proof {
+                        SP1ReduceProofWrapper::Core(reduce_proof) => {
+                            reconstruct_challenger
+                                .observe(reduce_proof.proof.commitment.main_commit);
+                            reconstruct_challenger.observe_slice(
+                                &reduce_proof.proof.public_values.to_vec()
+                                    [0..self.core_machine.num_pv_elts()],
+                            );
+                        }
+                        SP1ReduceProofWrapper::Recursive(reduce_proof) => {
+                            let pv = RecursionPublicValues::from_vec(
+                                reduce_proof.proof.public_values.clone(),
+                            );
+                            reconstruct_challenger.sponge_state =
+                                pv.end_reconstruct_challenger.sponge_state;
+                            reconstruct_challenger.input_buffer =
+                                pv.end_reconstruct_challenger.input_buffer[..pv
+                                    .end_reconstruct_challenger
+                                    .num_inputs
+                                    .as_canonical_u32()
+                                    as usize]
+                                    .to_vec();
+                            reconstruct_challenger.output_buffer =
+                                pv.end_reconstruct_challenger.output_buffer[..pv
+                                    .end_reconstruct_challenger
+                                    .num_outputs
+                                    .as_canonical_u32()
+                                    as usize]
+                                    .to_vec();
+                        }
+                    }
+                }
+                start_challenger
+            })
+            .collect::<Vec<_>>();
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
             .into_par_iter()
-            .map(|chunk| {
-                let proof = self.reduce_batch(vk, sp1_challenger.clone(), chunk, &[]);
+            .zip(reconstruct_challengers.into_par_iter())
+            .map(|(chunk, reconstruct_challenger)| {
+                let proof = self.reduce_batch(
+                    vk,
+                    sp1_challenger.clone(),
+                    reconstruct_challenger,
+                    chunk,
+                    &[],
+                );
                 SP1ReduceProofWrapper::Recursive(proof)
             })
             .collect();
@@ -242,6 +345,7 @@ impl SP1Prover {
         &self,
         vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
+        reconstruct_challenger: Challenger<CoreSC>,
         reduce_proofs: &[SP1ReduceProofWrapper],
         deferred_proofs: &[(ShardProof<InnerSC>, &StarkVerifyingKey<CoreSC>)],
     ) -> SP1ReduceProof<SC>
@@ -253,10 +357,6 @@ impl SP1Prover {
         ShardMainData<SC>: Serialize + DeserializeOwned,
         LocalProver<SC, RecursionAir<BabyBear>>: Prover<SC, RecursionAir<BabyBear>>,
     {
-        // Setup the machines.
-        let core_machine = RiscvAir::machine(CoreSC::default());
-        let recursion_machine = RecursionAir::machine(InnerSC::default());
-
         // Compute inputs.
         let is_recursive_flags: Vec<usize> = reduce_proofs
             .iter()
@@ -269,58 +369,28 @@ impl SP1Prover {
             .iter()
             .map(|p| match p {
                 SP1ReduceProofWrapper::Core(reduce_proof) => {
-                    get_sorted_indices(&core_machine, &reduce_proof.proof)
+                    get_sorted_indices(&self.core_machine, &reduce_proof.proof)
                 }
                 SP1ReduceProofWrapper::Recursive(reduce_proof) => {
-                    get_sorted_indices(&recursion_machine, &reduce_proof.proof)
+                    get_sorted_indices(&self.inner_recursion_machine, &reduce_proof.proof)
                 }
             })
             .collect();
-        let start_pcs = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                SP1ReduceProofWrapper::Core(ref proof) => proof.start_pc,
-                SP1ReduceProofWrapper::Recursive(ref proof) => proof.start_pc,
-            })
-            .collect_vec();
-        let next_pcs = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                SP1ReduceProofWrapper::Core(ref proof) => proof.next_pc,
-                SP1ReduceProofWrapper::Recursive(ref proof) => proof.next_pc,
-            })
-            .collect_vec();
-        let start_shards = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                SP1ReduceProofWrapper::Core(ref proof) => proof.start_shard,
-                SP1ReduceProofWrapper::Recursive(ref proof) => proof.start_shard,
-            })
-            .collect_vec();
-        let next_shards = reduce_proofs
-            .iter()
-            .map(|p| match p {
-                SP1ReduceProofWrapper::Core(ref proof) => proof.next_shard,
-                SP1ReduceProofWrapper::Recursive(ref proof) => proof.next_shard,
-            })
-            .collect_vec();
         let (prep_sorted_indices, prep_domains): (Vec<usize>, Vec<Domain<CoreSC>>) =
-            get_preprocessed_data(&core_machine, &vk.vk);
+            get_preprocessed_data(&self.core_machine, &vk.vk);
         let (recursion_prep_sorted_indices, recursion_prep_domains): (
             Vec<usize>,
             Vec<Domain<InnerSC>>,
-        ) = get_preprocessed_data(&recursion_machine, &self.reduce_vk_inner);
+        ) = get_preprocessed_data(&self.inner_recursion_machine, &self.reduce_vk_inner);
         let deferred_sorted_indices: Vec<Vec<usize>> = deferred_proofs
             .iter()
             .map(|(proof, _)| {
-                let indices = get_sorted_indices(&recursion_machine, proof);
+                let indices = get_sorted_indices(&self.inner_recursion_machine, proof);
                 println!("indices = {:?}", indices);
                 indices
             })
             .collect();
         let deferred_proof_vec: Vec<_> = deferred_proofs.iter().map(|(proof, _)| proof).collect();
-        let mut reconstruct_challenger = core_machine.config().challenger();
-        reconstruct_challenger.observe(vk.vk.commit);
 
         // Convert the inputs into a witness stream.
         let mut witness_stream = Vec::new();
@@ -334,10 +404,6 @@ impl SP1Prover {
         witness_stream.extend(recursion_prep_domains.write());
         witness_stream.extend(vk.vk.write());
         witness_stream.extend(self.reduce_vk_inner.write());
-        witness_stream.extend(Hintable::write(&start_pcs));
-        witness_stream.extend(Hintable::write(&next_pcs));
-        witness_stream.extend(Hintable::write(&start_shards));
-        witness_stream.extend(Hintable::write(&next_shards));
         for proof in reduce_proofs.iter() {
             match proof {
                 SP1ReduceProofWrapper::Core(reduce_proof) => {
@@ -355,6 +421,9 @@ impl SP1Prover {
         for (_, vk) in deferred_proofs.iter() {
             witness_stream.extend(vk.write());
         }
+        // TODO: set is complete when proof is complete;
+        let is_complete = 0usize;
+        witness_stream.extend(is_complete.write());
 
         // Execute runtime to get the memory setup.
         let machine = RecursionAir::machine(InnerSC::default());
@@ -388,13 +457,7 @@ impl SP1Prover {
         // Return the reduced proof.
         assert!(proof.shard_proofs.len() == 1);
         let proof = proof.shard_proofs.into_iter().next().unwrap();
-        SP1ReduceProof {
-            proof,
-            start_pc: start_pcs[0],
-            next_pc: next_pcs[next_pcs.len() - 1],
-            start_shard: start_shards[0],
-            next_shard: next_shards[next_shards.len() - 1],
-        }
+        SP1ReduceProof { proof }
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
@@ -404,9 +467,13 @@ impl SP1Prover {
         core_challenger: Challenger<CoreSC>,
         reduced_proof: SP1ReduceProof<InnerSC>,
     ) -> ShardProof<OuterSC> {
+        // Since the proof passed in should be complete already, the start reconstruct_challenger
+        // should be in initial state with only vk observed.
+        let reconstruct_challenger = self.setup_initial_core_challenger(vk);
         self.reduce_batch::<OuterSC>(
             vk,
             core_challenger,
+            reconstruct_challenger,
             &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
             &[],
         )
@@ -421,19 +488,23 @@ impl SP1Prover {
         groth16_ffi::prove(constraints, witness);
     }
 
-    // TODO: Get rid of this method by reading it from public values.
+    pub fn setup_initial_core_challenger(&self, vk: &SP1VerifyingKey) -> Challenger<CoreSC> {
+        let mut core_challenger = self.core_machine.config().challenger();
+        vk.vk.observe_into(&mut core_challenger);
+        core_challenger
+    }
+
     pub fn setup_core_challenger(
         &self,
         vk: &SP1VerifyingKey,
         proof: &SP1CoreProof,
     ) -> Challenger<CoreSC> {
-        let core_machine = RiscvAir::machine(CoreSC::default());
-        let mut core_challenger = core_machine.config().challenger();
-        vk.vk.observe_into(&mut core_challenger);
+        let mut core_challenger = self.setup_initial_core_challenger(vk);
         for shard_proof in proof.shard_proofs.iter() {
             core_challenger.observe(shard_proof.commitment.main_commit);
-            core_challenger
-                .observe_slice(&shard_proof.public_values.to_vec()[0..core_machine.num_pv_elts()]);
+            core_challenger.observe_slice(
+                &shard_proof.public_values.to_vec()[0..self.core_machine.num_pv_elts()],
+            );
         }
         core_challenger
     }
