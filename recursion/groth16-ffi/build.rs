@@ -2,8 +2,8 @@ use std::env;
 use std::process::Command;
 
 fn main() {
-    // Rebuild if the groth16 program or lib changes.
-    println!("cargo:rerun-if-changed=../groth16/babybear");
+    // Always rebuild if the groth16 program or lib changes.
+    println!("cargo:rerun-if-changed=../groth16/x");
     println!("cargo:rerun-if-changed=../groth16/lib/babybear/src");
     println!("cargo:rerun-if-changed=../groth16/poseidon2");
     println!("cargo:rerun-if-changed=../groth16/go.mod");

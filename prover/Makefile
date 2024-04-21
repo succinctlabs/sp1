@@ -5,8 +5,9 @@ all:
 
 groth16:
 	RUST_LOG=info RUSTFLAGS='-C target-cpu=native' \
-	cargo run -p sp1-prover --release --bin verifier-constraints -- \
-	--output-json=../groth16-ffi/build/bin/constraints.json
+	cargo run -p sp1-prover --release --bin verifier_constraints -- \
+	--output-dir=../recursion/groth16-ffi/build && \
+	../recursion/groth16-ffi/build/bin build --data ../recursion/groth16-ffi/build
 
 fibonacci-sweep:
 	mkdir -p scripts/results && \

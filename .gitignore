@@ -22,4 +22,4 @@ benchmark.csv
 .env
 
 # Groth16 FFI
-recursion/groth16-ffi/build/bin
+recursion/groth16-ffi/build

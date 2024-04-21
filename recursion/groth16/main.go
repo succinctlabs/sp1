@@ -225,12 +225,39 @@ func main() {
 		buildCmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'build' with data=%s\n", *buildDataDirFlag)
 		buildDir := *buildDataDirFlag
+		os.Setenv("CONSTRAINT_JSON", buildDir+"/constraints.json")
+
+		// Read the witness.
+		data, err := os.ReadFile(buildDir + "/witness.json")
+		if err != nil {
+			panic(err)
+		}
+
+		// Deserialize the JSON data into a slice of Instruction structs
+		var witness Witness
+		err = json.Unmarshal(data, &witness)
+		if err != nil {
+			panic(err)
+		}
+
+		vars := make([]frontend.Variable, len(witness.Vars))
+		felts := make([]*babybear.Variable, len(witness.Felts))
+		exts := make([]*babybear.ExtensionVariable, len(witness.Exts))
+		for i := 0; i < len(witness.Vars); i++ {
+			vars[i] = frontend.Variable(witness.Vars[i])
+		}
+		for i := 0; i < len(witness.Felts); i++ {
+			felts[i] = babybear.NewF(witness.Felts[i])
+		}
+		for i := 0; i < len(witness.Exts); i++ {
+			exts[i] = babybear.NewE(witness.Exts[i])
+		}
 
 		// Initialize the circuit.
 		circuit := Circuit{
-			Vars:  []frontend.Variable{},
-			Felts: []*babybear.Variable{},
-			Exts:  []*babybear.ExtensionVariable{},
+			Vars:  vars,
+			Felts: felts,
+			Exts:  exts,
 		}
 
 		// Compile the circuit.
