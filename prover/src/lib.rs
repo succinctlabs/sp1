@@ -191,39 +191,6 @@ impl SP1Prover {
         while reduce_proofs.len() > 1 {
             println!("new layer");
             reduce_proofs = self.reduce_layer(vk, core_challenger.clone(), reduce_proofs, 2);
-            let last_proof = &reduce_proofs[reduce_proofs.len() - 1];
-            let last_reduce_proof = match last_proof {
-                SP1ReduceProofWrapper::Recursive(reduce_proof) => &reduce_proof.proof,
-                _ => unreachable!(),
-            };
-            let end_reconstruct_challenger = self.get_end_reconstruct_challenger(last_reduce_proof);
-            assert_eq!(
-                end_reconstruct_challenger.sponge_state,
-                core_challenger.sponge_state
-            );
-            assert_eq!(
-                end_reconstruct_challenger.input_buffer.len(),
-                core_challenger.input_buffer.len()
-            );
-            assert_eq!(
-                end_reconstruct_challenger.output_buffer.len(),
-                core_challenger.output_buffer.len()
-            );
-            for (a, b) in end_reconstruct_challenger
-                .input_buffer
-                .iter()
-                .zip(core_challenger.input_buffer.iter())
-            {
-                assert_eq!(a, b);
-            }
-            for (a, b) in end_reconstruct_challenger
-                .output_buffer
-                .iter()
-                .zip(core_challenger.output_buffer.iter())
-            {
-                assert_eq!(a, b);
-            }
-            println!("ok");
         }
 
         // Return the remaining single reduce proof.

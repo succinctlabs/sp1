@@ -64,8 +64,8 @@ pub struct PublicValues<T> {
     /// First shard being proven.
     pub start_shard: T,
 
-    /// Last shard being proven.
-    pub end_shard: T,
+    /// Next shard that should be proven, or 0 if the program halted.
+    pub next_shard: T,
 
     /// Start state of reconstruct_challenger.
     pub start_reconstruct_challenger: ChallengerPublicValues<T>,
@@ -137,7 +137,7 @@ impl<T: Clone + Debug> PublicValues<T> {
             next_pc,
             exit_code,
             start_shard,
-            end_shard,
+            next_shard: end_shard,
             start_reconstruct_challenger,
             end_reconstruct_challenger,
             start_reconstruct_deferred_digest: unwrap_into_array(start_reconstruct_deferred_digest),

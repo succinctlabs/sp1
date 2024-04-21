@@ -264,7 +264,7 @@ impl ReduceProgram {
         let global_next_pc: Felt<_> = builder.uninit();
         let global_exit_code: Felt<_> = builder.uninit();
         let global_start_shard: Felt<_> = builder.uninit();
-        let global_end_shard: Felt<_> = builder.uninit();
+        let global_next_shard: Felt<_> = builder.uninit();
         // let start_reconstruct_challenger = clone(&mut builder, &reconstruct_challenger);
         let start_reconstruct_challenger = reconstruct_challenger.copy(&mut builder);
         let start_reconstruct_deferred_digest =
@@ -289,7 +289,7 @@ impl ReduceProgram {
 
         // Previous proof's values.
         let prev_next_pc: Felt<_> = builder.uninit();
-        let prev_end_shard: Felt<_> = builder.uninit();
+        let prev_next_shard: Felt<_> = builder.uninit();
 
         let constrain_shard_transitions =
             |proof_index: Var<_>,
@@ -298,11 +298,10 @@ impl ReduceProgram {
              deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS],
              start_pc: Felt<_>,
              next_pc: Felt<_>,
-             shard: Felt<_>,
+             start_shard: Felt<_>,
+             next_shard: Felt<_>,
              exit_code: Felt<_>| {
-                let prev_end_shard_plus_one: Felt<_> = builder.eval(prev_end_shard + one_felt);
-
-                builder.if_eq(proof_index, one).then_or_else(
+                builder.if_eq(proof_index, zero).then_or_else(
                     // First proof: initialize the global values.
                     |builder| {
                         assign_words(
@@ -317,7 +316,7 @@ impl ReduceProgram {
                             );
                         }
                         builder.assign(global_start_pc, start_pc);
-                        builder.assign(global_start_shard, shard);
+                        builder.assign(global_start_shard, start_shard);
                         builder.assign(global_exit_code, exit_code);
                     },
                     // Non-first proofs: verify global values are same and transitions are valid.
@@ -336,26 +335,25 @@ impl ReduceProgram {
                         }
                         builder.assert_felt_eq(global_exit_code, exit_code);
 
-                        // Shard should be previous end shard + 1.
-                        builder.assert_felt_eq(shard, prev_end_shard_plus_one);
+                        // Shard should be previous next_shard.
+                        builder.assert_felt_eq(start_shard, prev_next_shard);
                         // Start pc should be equal to next_pc declared in previous proof.
                         builder.assert_felt_eq(start_pc, prev_next_pc);
-
-                        builder.if_eq(proof_index, num_proofs - one).then_or_else(
-                            // Set global end variables.
-                            |builder| {
-                                builder.assign(global_end_shard, shard);
-                                builder.assign(global_next_pc, next_pc);
-                            },
-                            // If it's not the last proof, next_pc should not be 0.
-                            |builder| {
-                                builder.assert_felt_ne(next_pc, zero_felt);
-                            },
-                        );
+                    },
+                );
+                builder.if_eq(proof_index, num_proofs - one).then_or_else(
+                    // If it's the last proof, set global end variables.
+                    |builder| {
+                        builder.assign(global_next_shard, next_shard);
+                        builder.assign(global_next_pc, next_pc);
+                    },
+                    // If it's not the last proof, next_pc should not be 0.
+                    |builder| {
+                        builder.assert_felt_ne(next_pc, zero_felt);
                     },
                 );
                 builder.assign(prev_next_pc, next_pc);
-                builder.assign(prev_end_shard, shard);
+                builder.assign(prev_next_shard, next_shard);
             };
 
         // Verify sp1 and recursive proofs.
@@ -380,61 +378,30 @@ impl ReduceProgram {
                     let pv = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
 
                     // Verify shard transitions.
-                    let prev_end_shard_plus_one: Felt<_> = builder.eval(prev_end_shard + one_felt);
-
-                    builder.if_eq(i, zero).then_or_else(
-                        // First proof: initialize the global values.
+                    let next_shard: Felt<_> = builder.uninit();
+                    let next_pc_var = felt2var(builder, pv.next_pc);
+                    builder.if_eq(next_pc_var, zero).then_or_else(
+                        // If next_pc is 0, then next_shard should be 0.
                         |builder| {
-                            assign_words(
-                                builder,
-                                &global_committed_values_digest,
-                                &pv.committed_value_digest,
-                            );
-                            for j in 0..POSEIDON_NUM_WORDS {
-                                builder.assign(
-                                    global_deferred_proofs_digest[j],
-                                    pv.deferred_proofs_digest[j],
-                                );
-                            }
-                            builder.assign(global_start_pc, pv.start_pc);
-                            builder.assign(global_start_shard, pv.shard);
-                            builder.assign(global_exit_code, pv.exit_code);
+                            builder.assign(next_shard, zero_felt);
                         },
-                        // Non-first proofs: verify global values are same and transitions are valid.
+                        // Otherwise, next_shard should be shard + 1.
                         |builder| {
-                            // Assert that digests and exit code are the same
-                            assert_felt_words_eq(
-                                builder,
-                                &global_committed_values_digest,
-                                &pv.committed_value_digest,
-                            );
-                            for j in 0..POSEIDON_NUM_WORDS {
-                                builder.assert_felt_eq(
-                                    global_deferred_proofs_digest[j],
-                                    pv.deferred_proofs_digest[j],
-                                );
-                            }
-                            builder.assert_felt_eq(global_exit_code, pv.exit_code);
-
-                            // Shard should be previous end shard + 1.
-                            builder.assert_felt_eq(pv.shard, prev_end_shard_plus_one);
-                            // Start pc should be equal to next_pc declared in previous proof.
-                            builder.assert_felt_eq(pv.start_pc, prev_next_pc);
+                            let shard_plus_one: Felt<_> = builder.eval(pv.shard + one_felt);
+                            builder.assign(next_shard, shard_plus_one);
                         },
                     );
-                    builder.if_eq(i, num_proofs - one).then_or_else(
-                        // Set global end variables.
-                        |builder| {
-                            builder.assign(global_end_shard, pv.shard);
-                            builder.assign(global_next_pc, pv.next_pc);
-                        },
-                        // If it's not the last proof, next_pc should not be 0.
-                        |builder| {
-                            builder.assert_felt_ne(pv.next_pc, zero_felt);
-                        },
+                    constrain_shard_transitions(
+                        i,
+                        builder,
+                        pv.committed_value_digest,
+                        pv.deferred_proofs_digest,
+                        pv.start_pc,
+                        pv.next_pc,
+                        pv.shard,
+                        next_shard,
+                        pv.exit_code,
                     );
-                    builder.assign(prev_next_pc, pv.next_pc);
-                    builder.assign(prev_end_shard, pv.shard);
 
                     // Need to convert the shard as a felt to a variable, since `if_eq` only handles
                     // variables.
@@ -508,60 +475,19 @@ impl ReduceProgram {
                     let pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
 
                     // Verify shard transitions.
-                    let prev_end_shard_plus_one: Felt<_> = builder.eval(prev_end_shard + one_felt);
-                    builder.if_eq(i, zero).then_or_else(
-                        // First proof: initialize the global values.
-                        |builder| {
-                            assign_words(
-                                builder,
-                                &global_committed_values_digest,
-                                &pv.committed_value_digest,
-                            );
-                            for j in 0..POSEIDON_NUM_WORDS {
-                                builder.assign(
-                                    global_deferred_proofs_digest[j],
-                                    pv.deferred_proofs_digest[j],
-                                );
-                            }
-                            builder.assign(global_start_pc, pv.start_pc);
-                            builder.assign(global_start_shard, pv.start_shard);
-                            builder.assign(global_exit_code, pv.exit_code);
-                        },
-                        // Non-first proofs: verify global values are same and transitions are valid.
-                        |builder| {
-                            // Assert that digests and exit code are the same
-                            assert_felt_words_eq(
-                                builder,
-                                &global_committed_values_digest,
-                                &pv.committed_value_digest,
-                            );
-                            for j in 0..POSEIDON_NUM_WORDS {
-                                builder.assert_felt_eq(
-                                    global_deferred_proofs_digest[j],
-                                    pv.deferred_proofs_digest[j],
-                                );
-                            }
-                            builder.assert_felt_eq(global_exit_code, pv.exit_code);
+                    constrain_shard_transitions(
+                        i,
+                        builder,
+                        pv.committed_value_digest,
+                        pv.deferred_proofs_digest,
+                        pv.start_pc,
+                        pv.next_pc,
+                        pv.start_shard,
+                        pv.next_shard,
+                        pv.exit_code,
+                    );
 
-                            // Shard should be previous end shard + 1.
-                            builder.assert_felt_eq(pv.start_shard, prev_end_shard_plus_one);
-                            // Start pc should be equal to next_pc declared in previous proof.
-                            builder.assert_felt_eq(pv.start_pc, prev_next_pc);
-                        },
-                    );
-                    builder.if_eq(i, num_proofs - one).then_or_else(
-                        // Set global end variables.
-                        |builder| {
-                            builder.assign(global_end_shard, pv.end_shard);
-                            builder.assign(global_next_pc, pv.next_pc);
-                        },
-                        // If it's not the last proof, next_pc should not be 0.
-                        |builder| {
-                            builder.assert_felt_ne(pv.next_pc, zero_felt);
-                        },
-                    );
-                    builder.assign(prev_next_pc, pv.next_pc);
-                    builder.assign(prev_end_shard, pv.end_shard);
+                    // TODO: verify keys are same
 
                     // Print reconstruct_challenger
                     builder.print_debug(991991);
@@ -796,7 +722,7 @@ impl ReduceProgram {
         builder.commit_public_value(global_next_pc);
         builder.commit_public_value(global_exit_code);
         builder.commit_public_value(global_start_shard);
-        builder.commit_public_value(global_end_shard);
+        builder.commit_public_value(global_next_shard);
         commit_challenger(&mut builder, &start_reconstruct_challenger);
         commit_challenger(&mut builder, &reconstruct_challenger);
         builder.range(0, POSEIDON_NUM_WORDS).for_each(|j, builder| {
