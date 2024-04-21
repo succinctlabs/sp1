@@ -14,7 +14,7 @@ use tracing::instrument;
 use crate::poseidon2_wide::{external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
-/// The number of main trace columns for `AddChip`.
+/// The number of main trace columns for `Poseidon2Chip`.
 pub const NUM_POSEIDON2_WIDE_COLS: usize = size_of::<Poseidon2WideCols<u8>>();
 
 /// The width of the permutation.
@@ -24,7 +24,7 @@ pub const NUM_EXTERNAL_ROUNDS: usize = 8;
 pub const NUM_INTERNAL_ROUNDS: usize = 22;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
-/// A chip that implements addition for the opcode ADD.
+/// A chip that implements the Poseidon2 precompile.
 #[derive(Default)]
 pub struct Poseidon2WideChip;
 

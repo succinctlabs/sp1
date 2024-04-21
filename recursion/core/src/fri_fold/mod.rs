@@ -1,3 +1,7 @@
+/// A chip that implements the Fri Fold precompile.
+#[derive(Default)]
+pub struct FriFoldChip;
+
 #[derive(Debug, Clone)]
 pub struct FriFoldEvent<F: PrimeField32, EF: ExtensionField<F>> {
     pub z: EF,

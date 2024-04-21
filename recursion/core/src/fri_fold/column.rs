@@ -2,6 +2,9 @@ use sp1_derive::AlignedBorrow;
 
 use super::FriFoldEvent;
 
+/// The number of main trace columns for `Poseidon2Chip`.
+pub const NUM_FRI_FOLD_COLS: usize = size_of::<Poseidon2WideCols<u8>>();
+
 #[derive(AlignedBorrow, Debug, Clone)]
 #[repr(C)]
 pub struct FriFoldCols<T> {
