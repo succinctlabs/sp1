@@ -233,7 +233,7 @@ mod tests {
         let program_clone = program.clone();
         let mut runtime = Runtime::new(program);
         runtime.run();
-        let machine: crate::stark::MachineStark<BabyBearPoseidon2, RiscvAir<BabyBear>> =
+        let machine: crate::stark::StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>> =
             RiscvAir::machine(BabyBearPoseidon2::new());
         let (pkey, _) = machine.setup(&program_clone);
         let shards = machine.shard(

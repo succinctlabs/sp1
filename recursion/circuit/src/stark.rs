@@ -9,7 +9,7 @@ use p3_field::TwoAdicField;
 use sp1_core::stark::{Com, ShardProof};
 use sp1_core::{
     air::MachineAir,
-    stark::{MachineStark, ShardCommitment, StarkGenericConfig, VerifyingKey},
+    stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
@@ -42,8 +42,8 @@ where
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
-        vk: &VerifyingKey<SC>,
-        machine: &MachineStark<SC, A>,
+        vk: &StarkVerifyingKey<SC>,
+        machine: &StarkMachine<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
         proof: &RecursionShardProofVariable<C>,
         sorted_chips: Vec<String>,
@@ -234,7 +234,7 @@ type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
 pub fn build_wrap_circuit(
-    vk: &VerifyingKey<OuterSC>,
+    vk: &StarkVerifyingKey<OuterSC>,
     dummy_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let outer_config = OuterSC::new();
