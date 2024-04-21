@@ -6,7 +6,7 @@ use crate::{
     cpu::CpuChip,
     fri_fold::FriFoldChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
-    // poseidon2::Poseidon2Chip,
+    poseidon2::Poseidon2Chip,
     poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
 };
@@ -26,7 +26,6 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
     Poseidon2(Poseidon2WideChip),
-    // Poseidon2(Poseidon2Chip),
     FriFold(FriFoldChip),
     Alu(AluChip),
 }
@@ -56,8 +55,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
         chips.push(RecursionAir::MemoryFinalize(memory_finalize));
         let poseidon_wide2 = Poseidon2WideChip {};
         chips.push(RecursionAir::Poseidon2(poseidon_wide2));
-        // let poseidon2 = Poseidon2Chip {};
-        // chips.push(RecursionAir::Poseidon2(poseidon2));
         let fri_fold = FriFoldChip {};
         chips.push(RecursionAir::FriFold(fri_fold));
         let alu = AluChip {};

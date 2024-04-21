@@ -22,7 +22,7 @@ pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
 
-/// A chip that implements addition for the opcode ADD.
+/// A chip that implements addition for the Poseidon opcode.
 #[derive(Default)]
 pub struct Poseidon2Chip;
 
