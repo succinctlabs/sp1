@@ -1,4 +1,5 @@
 use core::fmt::Display;
+use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
@@ -15,6 +16,7 @@ use p3_field::AbstractField;
 use super::folder::VerifierConstraintFolder;
 use super::types::*;
 use super::Domain;
+use super::OpeningError;
 use super::StarkGenericConfig;
 use super::StarkVerifyingKey;
 use super::Val;
@@ -31,7 +33,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-    ) -> Result<(), VerificationError>
+    ) -> Result<(), VerificationError<SC>>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
@@ -166,7 +168,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 opening_proof,
                 challenger,
             )
-            .map_err(|_| VerificationError::InvalidopeningArgument)?;
+            .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
         // Verify the constrtaint evaluations.
 
@@ -315,20 +317,32 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
 pub struct OodEvaluationMismatch;
 
-#[derive(Debug)]
-pub enum VerificationError {
+pub enum VerificationError<SC: StarkGenericConfig> {
     /// opening proof is invalid.
-    InvalidopeningArgument,
+    InvalidopeningArgument(OpeningError<SC>),
     /// Out-of-domain evaluation mismatch.
     ///
     /// `constraints(zeta)` did not match `quotient(zeta) Z_H(zeta)`.
     OodEvaluationMismatch(String),
 }
 
-impl Display for VerificationError {
+impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            VerificationError::InvalidopeningArgument => {
+            VerificationError::InvalidopeningArgument(e) => {
+                write!(f, "Invalid opening argument: {:?}", e)
+            }
+            VerificationError::OodEvaluationMismatch(chip) => {
+                write!(f, "Out-of-domain evaluation mismatch on chip {}", chip)
+            }
+        }
+    }
+}
+
+impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            VerificationError::InvalidopeningArgument(_) => {
                 write!(f, "Invalid opening argument")
             }
             VerificationError::OodEvaluationMismatch(chip) => {
@@ -337,3 +351,5 @@ impl Display for VerificationError {
         }
     }
 }
+
+impl<SC: StarkGenericConfig> std::error::Error for VerificationError<SC> {}

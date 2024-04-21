@@ -288,7 +288,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk: &StarkVerifyingKey<SC>,
         proof: &MachineProof<SC>,
         challenger: &mut SC::Challenger,
-    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError>
+    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError<SC>>
     where
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -522,15 +522,47 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     }
 }
 
-#[derive(Debug)]
-pub enum ProgramVerificationError {
-    InvalidSegmentProof(VerificationError),
-    InvalidGlobalProof(VerificationError),
+pub enum ProgramVerificationError<SC: StarkGenericConfig> {
+    InvalidSegmentProof(VerificationError<SC>),
+    InvalidGlobalProof(VerificationError<SC>),
     NonZeroCumulativeSum,
     InvalidShardTransition(&'static str),
     InvalidPublicValuesDigest,
     DebugInteractionsFailed,
 }
+
+impl<SC: StarkGenericConfig> Debug for ProgramVerificationError<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ProgramVerificationError::InvalidSegmentProof(e) => {
+                write!(f, "Invalid segment proof: {:?}", e)
+            }
+            ProgramVerificationError::InvalidGlobalProof(e) => {
+                write!(f, "Invalid global proof: {:?}", e)
+            }
+            ProgramVerificationError::NonZeroCumulativeSum => {
+                write!(f, "Non-zero cumulative sum")
+            }
+            ProgramVerificationError::InvalidShardTransition(s) => {
+                write!(f, "Invalid shard transition: {}", s)
+            }
+            ProgramVerificationError::InvalidPublicValuesDigest => {
+                write!(f, "Invalid public values digest")
+            }
+            ProgramVerificationError::DebugInteractionsFailed => {
+                write!(f, "Debug interactions failed")
+            }
+        }
+    }
+}
+
+impl<SC: StarkGenericConfig> std::fmt::Display for ProgramVerificationError<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Debug::fmt(self, f)
+    }
+}
+
+impl<SC: StarkGenericConfig> std::error::Error for ProgramVerificationError<SC> {}
 
 #[cfg(test)]
 #[allow(non_snake_case)]
