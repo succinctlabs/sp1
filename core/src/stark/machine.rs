@@ -153,7 +153,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     /// The setup preprocessing phase.
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
-    /// to the program code and other preprocessed colunms such as lookup tables.
+    /// to the program code and other preprocessed columns such as lookup tables.
     pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let mut named_preprocessed_traces = self
             .chips()

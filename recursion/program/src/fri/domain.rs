@@ -190,7 +190,7 @@ pub(crate) mod tests {
 
             let log_quotient_degree = 2;
 
-            // Initialize a reference doamin.
+            // Initialize a reference domain.
             let domain_val = natural_domain_for_degree(1 << log_d_val);
             let domain = builder.constant(domain_val);
 
@@ -219,7 +219,7 @@ pub(crate) mod tests {
                 zeta_val,
             );
 
-            // Now try splited domains
+            // Now try splitted domains
             let qc_domains_val = disjoint_domain_val.split_domains(1 << log_quotient_degree);
             for dom_val in qc_domains_val.iter() {
                 let dom = builder.constant(*dom_val);

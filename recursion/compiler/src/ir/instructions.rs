@@ -1,7 +1,7 @@
 use super::{Array, FriFoldInput, MemIndex, Ptr, TracedVec};
 use super::{Config, Ext, Felt, Usize, Var};
 
-/// An intermeddiate instruction set for implementing programs.
+/// An intermediate instruction set for implementing programs.
 ///
 /// Programs written in the DSL can compile both to the recursive zkVM and the R1CS or Plonk-ish
 /// circuits.
@@ -114,9 +114,9 @@ pub enum DslIr<C: Config> {
     LoadE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
     /// Store variable at address
     StoreV(Ptr<C::N>, Var<C::N>, MemIndex<C::N>),
-    /// Store field element at adress
+    /// Store field element at address
     StoreF(Ptr<C::N>, Felt<C::F>, MemIndex<C::N>),
-    /// Store extension field at adress
+    /// Store extension field at address
     StoreE(Ptr<C::N>, Ext<C::F, C::EF>, MemIndex<C::N>),
 
     // Bits.
