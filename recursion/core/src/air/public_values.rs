@@ -108,7 +108,7 @@ impl<T: Clone + Debug> PublicValues<T> {
         let next_pc = iter.next().unwrap();
         let exit_code = iter.next().unwrap();
         let start_shard = iter.next().unwrap();
-        let end_shard = iter.next().unwrap();
+        let next_shard = iter.next().unwrap();
         let start_reconstruct_challenger = ChallengerPublicValues::from_vec(
             iter.by_ref()
                 .take(CHALLENGER_STATE_NUM_ELTS)
@@ -137,7 +137,7 @@ impl<T: Clone + Debug> PublicValues<T> {
             next_pc,
             exit_code,
             start_shard,
-            next_shard: end_shard,
+            next_shard,
             start_reconstruct_challenger,
             end_reconstruct_challenger,
             start_reconstruct_deferred_digest: unwrap_into_array(start_reconstruct_deferred_digest),

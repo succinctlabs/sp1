@@ -22,6 +22,8 @@ use p3_field::PrimeField32;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
+use sp1_core::air::POSEIDON_NUM_WORDS;
+use sp1_core::air::PV_DIGEST_NUM_WORDS;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
@@ -101,6 +103,43 @@ pub struct SP1ReduceProof<SC: StarkGenericConfig> {
 pub enum SP1ReduceProofWrapper {
     Core(SP1ReduceProof<CoreSC>),
     Recursive(SP1ReduceProof<InnerSC>),
+}
+
+/// Reprents the state of reducing proofs together. This is used to track the current values since
+/// some reduce batches may have only deferred proofs.
+pub struct ReduceState {
+    pub committed_values_digest: [Word<Val<CoreSC>>; PV_DIGEST_NUM_WORDS],
+    pub deferred_proofs_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
+    pub start_pc: Val<CoreSC>,
+    pub exit_code: Val<CoreSC>,
+    pub start_shard: Val<CoreSC>,
+}
+
+impl<SC: StarkGenericConfig<Val = BabyBear>> From<&SP1ReduceProof<SC>> for ReduceState {
+    fn from(proof: &SP1ReduceProof<SC>) -> Self {
+        let pv = RecursionPublicValues::from_vec(proof.proof.public_values.clone());
+        Self {
+            committed_values_digest: pv.committed_value_digest,
+            deferred_proofs_digest: pv.deferred_proofs_digest,
+            start_pc: pv.start_pc,
+            exit_code: pv.exit_code,
+            start_shard: pv.start_shard,
+        }
+    }
+}
+
+impl From<&ShardProof<CoreSC>> for ReduceState {
+    fn from(proof: &ShardProof<CoreSC>) -> Self {
+        let pv =
+            PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(proof.public_values.clone());
+        Self {
+            committed_values_digest: pv.committed_value_digest,
+            deferred_proofs_digest: pv.deferred_proofs_digest,
+            start_pc: pv.start_pc,
+            exit_code: pv.exit_code,
+            start_shard: pv.shard,
+        }
+    }
 }
 
 impl SP1Prover {
@@ -186,24 +225,26 @@ impl SP1Prover {
             })
             .collect::<Vec<_>>();
 
-        // Keep reducing until we have only one shard. If we have only one shard, we still want to
-        // wrap it into a reduce shard.
+        // Keep reducing until we have only one shard.
         while reduce_proofs.len() > 1 {
-            println!("new layer");
+            println!("new layer {}", reduce_proofs.len());
             reduce_proofs = self.reduce_layer(vk, core_challenger.clone(), reduce_proofs, 2);
         }
 
-        // Return the remaining single reduce proof.
+        // Return the remaining single reduce proof. If we have only one shard, we still want to
+        // wrap it into a reduce shard.
         assert_eq!(reduce_proofs.len(), 1);
         let last_proof = reduce_proofs.into_iter().next().unwrap();
         match last_proof {
             SP1ReduceProofWrapper::Recursive(proof) => proof,
-            SP1ReduceProofWrapper::Core(_) => {
+            SP1ReduceProofWrapper::Core(ref proof) => {
+                let state = (&proof.proof).into();
                 let reconstruct_challenger = self.setup_initial_core_challenger(vk);
                 self.reduce_batch(
                     vk,
                     core_challenger,
                     reconstruct_challenger,
+                    state,
                     &[last_proof],
                     &[],
                 )
@@ -286,14 +327,23 @@ impl SP1Prover {
                 start_challenger
             })
             .collect::<Vec<_>>();
+        let start_states = chunks
+            .iter()
+            .map(|chunk| match chunk[0] {
+                SP1ReduceProofWrapper::Core(ref proof) => (&proof.proof).into(),
+                SP1ReduceProofWrapper::Recursive(ref proof) => (&proof.proof).into(),
+            })
+            .collect::<Vec<_>>();
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
             .into_par_iter()
             .zip(reconstruct_challengers.into_par_iter())
-            .map(|(chunk, reconstruct_challenger)| {
+            .zip(start_states.into_par_iter())
+            .map(|((chunk, reconstruct_challenger), start_state)| {
                 let proof = self.reduce_batch(
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger,
+                    start_state,
                     chunk,
                     &[],
                 );
@@ -313,6 +363,7 @@ impl SP1Prover {
         vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
         reconstruct_challenger: Challenger<CoreSC>,
+        state: ReduceState,
         reduce_proofs: &[SP1ReduceProofWrapper],
         deferred_proofs: &[(ShardProof<InnerSC>, &StarkVerifyingKey<CoreSC>)],
     ) -> SP1ReduceProof<SC>
@@ -371,6 +422,11 @@ impl SP1Prover {
         witness_stream.extend(recursion_prep_domains.write());
         witness_stream.extend(vk.vk.write());
         witness_stream.extend(self.reduce_vk_inner.write());
+        witness_stream.extend(state.committed_values_digest.write());
+        witness_stream.extend(state.deferred_proofs_digest.write());
+        witness_stream.extend(Hintable::write(&state.start_pc));
+        witness_stream.extend(Hintable::write(&state.exit_code));
+        witness_stream.extend(Hintable::write(&state.start_shard));
         for proof in reduce_proofs.iter() {
             match proof {
                 SP1ReduceProofWrapper::Core(reduce_proof) => {
@@ -437,10 +493,12 @@ impl SP1Prover {
         // Since the proof passed in should be complete already, the start reconstruct_challenger
         // should be in initial state with only vk observed.
         let reconstruct_challenger = self.setup_initial_core_challenger(vk);
+        let state = (&reduced_proof).into();
         self.reduce_batch::<OuterSC>(
             vk,
             core_challenger,
             reconstruct_challenger,
+            state,
             &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
             &[],
         )
