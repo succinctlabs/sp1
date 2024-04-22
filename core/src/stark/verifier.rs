@@ -211,6 +211,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 opening.preprocessed.local.len(),
             ));
         }
+        if opening.preprocessed.next.len() != chip.preprocessed_width() {
+            return Err(OpeningShapeError::PreprocessedWidthMismatch(
+                chip.preprocessed_width(),
+                opening.preprocessed.next.len(),
+            ));
+        }
 
         // Verify that the main width matches the expected value for the chip.
         if opening.main.local.len() != chip.width() {
@@ -219,12 +225,24 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 opening.main.local.len(),
             ));
         }
+        if opening.main.next.len() != chip.width() {
+            return Err(OpeningShapeError::MainWidthMismatch(
+                chip.width(),
+                opening.main.next.len(),
+            ));
+        }
 
         // Verify that the permutation width matches the expected value for the chip.
         if opening.permutation.local.len() != chip.permutation_width() * SC::Challenge::D {
             return Err(OpeningShapeError::PermutationWidthMismatch(
                 chip.permutation_width(),
                 opening.permutation.local.len(),
+            ));
+        }
+        if opening.permutation.next.len() != chip.permutation_width() * SC::Challenge::D {
+            return Err(OpeningShapeError::PermutationWidthMismatch(
+                chip.permutation_width(),
+                opening.permutation.next.len(),
             ));
         }
 
