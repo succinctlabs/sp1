@@ -246,12 +246,15 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             ));
         }
 
+        // Verift that the number of quotient chunks matches the expected value for the chip.
         if opening.quotient.len() != chip.quotient_width() {
             return Err(OpeningShapeError::QuotientWidthMismatch(
                 chip.quotient_width(),
                 opening.quotient.len(),
             ));
         }
+        // For each quotient chunk, verify that the number of elements is equal to the degree of the
+        // challenge extension field over the value field.
         for slice in &opening.quotient {
             if slice.len() != SC::Challenge::D {
                 return Err(OpeningShapeError::QuotientChunkSizeMismatch(
@@ -280,7 +283,9 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
     {
         let sels = trace_domain.selectors_at_point(zeta);
 
+        // Recompute the quotient at zeta from the chunks.
         let quotient = Self::recompute_quotient(opening, &qc_domains, zeta);
+        // Calculate the evaluations of the constraints at zeta.
         let folded_constraints = Self::eval_constraints(
             chip,
             opening,
