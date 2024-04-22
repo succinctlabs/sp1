@@ -2,14 +2,15 @@ use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use std::collections::HashMap;
 
+use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
 
-use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
+use crate::air::{MachineAir, PublicValues};
 use crate::cpu::columns::InstructionCols;
 use crate::cpu::columns::OpcodeSelectorCols;
 use crate::runtime::{ExecutionRecord, Program};
@@ -165,6 +166,12 @@ where
         let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
+
+        let public_values = PublicValues::from_slice(builder.public_values());
+
+        builder
+            .when(mult_local.multiplicity)
+            .assert_eq(mult_local.shard, public_values.shard);
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
