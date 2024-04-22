@@ -1,6 +1,6 @@
-use std::time::Duration;
-
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
+pub use sp1_core::utils::{setup_logger, setup_tracer};
+use std::time::Duration;
 
 pub struct StageProgressBar {
     pb: ProgressBar,
@@ -10,6 +10,7 @@ pub struct StageProgressBar {
 }
 
 impl StageProgressBar {
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let pb = ProgressBar::new(1);
         pb.set_style(

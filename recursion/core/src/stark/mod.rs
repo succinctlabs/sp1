@@ -10,7 +10,7 @@ use crate::{
 };
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, MachineStark, StarkGenericConfig};
+use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
 use sp1_derive::MachineAir;
 
 use crate::runtime::{D, DIGEST_SIZE};
@@ -30,12 +30,12 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
-    pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> MachineStark<SC, Self> {
+    pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        MachineStark::new(config, chips, DIGEST_SIZE)
+        StarkMachine::new(config, chips, DIGEST_SIZE)
     }
 
     pub fn get_all() -> Vec<Self> {

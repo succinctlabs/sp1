@@ -7,7 +7,7 @@ use p3_matrix::Matrix;
 
 use super::InteractionKind;
 use crate::air::MachineAir;
-use crate::stark::{MachineChip, MachineStark, ProvingKey, StarkGenericConfig, Val};
+use crate::stark::{MachineChip, StarkGenericConfig, StarkMachine, StarkProvingKey, Val};
 
 #[derive(Debug)]
 pub struct InteractionData<F: Field> {
@@ -47,7 +47,7 @@ fn field_to_int<F: PrimeField32>(x: F) -> i32 {
 
 pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     chip: &MachineChip<SC, A>,
-    pkey: &ProvingKey<SC>,
+    pkey: &StarkProvingKey<SC>,
     record: &A::Record,
     interaction_kinds: Vec<InteractionKind>,
 ) -> (
@@ -126,8 +126,8 @@ pub fn debug_interactions<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 /// Calculate the number of times we send and receive each event of the given interaction type,
 /// and print out the ones for which the set of sends and receives don't match.
 pub fn debug_interactions_with_all_chips<SC, A>(
-    machine: &MachineStark<SC, A>,
-    pkey: &ProvingKey<SC>,
+    machine: &StarkMachine<SC, A>,
+    pkey: &StarkProvingKey<SC>,
     shards: &[A::Record],
     interaction_kinds: Vec<InteractionKind>,
 ) -> bool

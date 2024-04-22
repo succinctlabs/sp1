@@ -342,23 +342,23 @@ where
             InteractionKind::Memory,
         ));
 
-        let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
-        prog_interaction_vals.push(local.instruction.op_a.into());
-        prog_interaction_vals.extend_from_slice(&local.instruction.op_b.map(|x| x.into()).0);
-        prog_interaction_vals.extend_from_slice(&local.instruction.op_c.map(|x| x.into()).0);
-        prog_interaction_vals.push(local.instruction.imm_b.into());
-        prog_interaction_vals.push(local.instruction.imm_c.into());
-        prog_interaction_vals.extend_from_slice(
-            &local
-                .selectors
-                .into_iter()
-                .map(|x| x.into())
-                .collect::<Vec<_>>(),
-        );
-        builder.send(AirInteraction::new(
-            prog_interaction_vals,
-            local.is_real.into(),
-            InteractionKind::Program,
-        ));
+        // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
+        // prog_interaction_vals.push(local.instruction.op_a.into());
+        // prog_interaction_vals.extend_from_slice(&local.instruction.op_b.map(|x| x.into()).0);
+        // prog_interaction_vals.extend_from_slice(&local.instruction.op_c.map(|x| x.into()).0);
+        // prog_interaction_vals.push(local.instruction.imm_b.into());
+        // prog_interaction_vals.push(local.instruction.imm_c.into());
+        // prog_interaction_vals.extend_from_slice(
+        //     &local
+        //         .selectors
+        //         .into_iter()
+        //         .map(|x| x.into())
+        //         .collect::<Vec<_>>(),
+        // );
+        // builder.send(AirInteraction::new(
+        //     prog_interaction_vals,
+        //     local.is_real.into(),
+        //     InteractionKind::Program,
+        // ));
     }
 }

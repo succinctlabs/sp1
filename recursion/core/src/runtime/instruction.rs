@@ -1,10 +1,11 @@
 use p3_field::PrimeField32;
+use serde::{Deserialize, Serialize};
 
 use crate::air::Block;
 
 use super::{Opcode, D};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Instruction<F> {
     /// Which operation to execute.
     pub opcode: Opcode,
@@ -58,6 +59,20 @@ impl<F: PrimeField32> Instruction<F> {
             imm_c,
             debug,
         }
+    }
+
+    pub fn dummy() -> Self {
+        Instruction::new(
+            Opcode::ADD,
+            F::zero(),
+            [F::zero(); 4],
+            [F::zero(); 4],
+            F::zero(),
+            F::zero(),
+            false,
+            false,
+            "".to_string(),
+        )
     }
 
     pub(crate) fn is_b_ext(&self) -> bool {

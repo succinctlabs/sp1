@@ -73,9 +73,9 @@ mod tests {
     use rand::RngCore;
 
     use crate::{
+        io::SP1Stdin,
         runtime::Program,
         utils::{run_and_prove, setup_logger, BabyBearPoseidon2},
-        SP1Stdin,
     };
 
     const HINT_IO_ELF: &[u8] =

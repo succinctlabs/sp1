@@ -1,26 +1,23 @@
 use std::{env, time::Duration};
 
-use crate::{auth::NetworkAuth, SP1Stdin};
+use crate::auth::NetworkAuth;
 use anyhow::{Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use serde::{de::DeserializeOwned, Serialize};
-use sp1_core::stark::StarkGenericConfig;
+use sp1_prover::{SP1CoreProof, SP1Stdin};
 use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
 
-use crate::{
-    proto::network::{
-        CreateProofRequest, GetNonceRequest, GetProofStatusRequest, GetProofStatusResponse,
-        GetRelayStatusRequest, GetRelayStatusResponse, NetworkServiceClient, ProofStatus,
-        RelayProofRequest, SubmitProofRequest, TransactionStatus,
-    },
-    SP1ProofWithIO,
+use crate::proto::network::{
+    CreateProofRequest, GetNonceRequest, GetProofStatusRequest, GetProofStatusResponse,
+    GetRelayStatusRequest, GetRelayStatusResponse, NetworkServiceClient, ProofStatus,
+    RelayProofRequest, SubmitProofRequest, TransactionStatus,
 };
 
 /// The default RPC endpoint for the Succinct prover network.
 const DEFAULT_PROVER_NETWORK_RPC: &str = "https://rpc.succinct.xyz/";
+
 /// The default SP1 Verifier address on all chains.
 const DEFAULT_SP1_VERIFIER_ADDRESS: &str = "0xed2107448519345059eab9cddab42ddc78fbebe9";
 
@@ -131,10 +128,10 @@ impl NetworkClient {
         Ok(res.proof_id)
     }
 
-    pub async fn get_proof_status<SC: StarkGenericConfig + Serialize + DeserializeOwned>(
+    pub async fn get_proof_status(
         &self,
         proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<SP1ProofWithIO<SC>>)> {
+    ) -> Result<(GetProofStatusResponse, Option<SP1CoreProof>)> {
         let res = self
             .rpc
             .get_proof_status(GetProofStatusRequest {

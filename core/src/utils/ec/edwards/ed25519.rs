@@ -6,9 +6,8 @@ use num::{BigUint, Num, One};
 use serde::{Deserialize, Serialize};
 use typenum::{U32, U62};
 
+use crate::operations::field::params::{FieldParameters, NumLimbs};
 use crate::utils::ec::edwards::{EdwardsCurve, EdwardsParameters};
-use crate::utils::ec::field::FieldParameters;
-use crate::utils::ec::field::NumLimbs;
 use crate::utils::ec::{AffinePoint, CurveType, EllipticCurveParameters};
 
 pub type Ed25519 = EdwardsCurve<Ed25519Parameters>;
@@ -25,7 +24,7 @@ impl FieldParameters for Ed25519BaseField {
         255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 255, 127,
     ];
 
-    const WITNESS_OFFSET: usize = 1usize << 13;
+    const WITNESS_OFFSET: usize = 1usize << 14;
 
     fn modulus() -> BigUint {
         (BigUint::one() << 255) - BigUint::from(19u32)
@@ -68,6 +67,9 @@ impl EdwardsParameters for Ed25519Parameters {
 }
 
 /// Computes the square root of a number in the base field of Ed25519.
+///
+/// This function always returns the nonnegative square root, in the sense that the least
+/// significant bit of the result is always 0.
 pub fn ed25519_sqrt(a: &BigUint) -> BigUint {
     // Here is a description of how to calculate sqrt in the Curve25519 base field:
     // ssh://git@github.com/succinctlabs/curve25519-dalek/blob/e2d1bd10d6d772af07cac5c8161cd7655016af6d/curve25519-dalek/src/field.rs#L256

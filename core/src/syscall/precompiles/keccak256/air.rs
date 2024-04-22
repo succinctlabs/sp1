@@ -146,10 +146,10 @@ where
 
 #[cfg(test)]
 mod test {
+    use crate::io::{SP1PublicValues, SP1Stdin};
     use crate::runtime::Program;
     use crate::stark::{RiscvAir, StarkGenericConfig};
     use crate::utils::{run_and_prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
-    use crate::{SP1PublicValues, SP1Stdin};
 
     use rand::Rng;
     use rand::SeedableRng;

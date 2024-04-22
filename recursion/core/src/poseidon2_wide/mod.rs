@@ -40,35 +40,30 @@ pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
         state[i] += sum.clone();
     }
 }
-pub(crate) fn external_linear_layer<AF: AbstractField>(
-    input: &[AF; WIDTH],
-    output: &mut [AF; WIDTH],
-) {
-    output.clone_from_slice(input);
+pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) {
     for j in (0..WIDTH).step_by(4) {
-        apply_m_4(&mut output[j..j + 4]);
+        apply_m_4(&mut state[j..j + 4]);
     }
     let sums: [AF; 4] = core::array::from_fn(|k| {
         (0..WIDTH)
             .step_by(4)
-            .map(|j| output[j + k].clone())
+            .map(|j| state[j + k].clone())
             .sum::<AF>()
     });
 
     for j in 0..WIDTH {
-        output[j] += sums[j % 4].clone();
+        state[j] += sums[j % 4].clone();
     }
 }
 
-pub(crate) fn internal_linear_layer<F: AbstractField>(input: &[F; WIDTH], output: &mut [F; WIDTH]) {
-    output.clone_from_slice(input);
+pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
     let matmul_constants: [<F as AbstractField>::F; WIDTH] = MATRIX_DIAG_16_BABYBEAR_U32
         .iter()
         .map(|x| <F as AbstractField>::F::from_wrapped_u32(*x))
         .collect::<Vec<_>>()
         .try_into()
         .unwrap();
-    matmul_internal(output, matmul_constants);
+    matmul_internal(state, matmul_constants);
 }
 
 pub const MATRIX_DIAG_16_BABYBEAR_U32: [u32; 16] = [

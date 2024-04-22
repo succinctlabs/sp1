@@ -1,5 +1,6 @@
 use crate::air::SP1AirBuilder;
 use crate::air::Word;
+use crate::bytes::event::ByteRecord;
 use crate::runtime::ExecutionRecord;
 
 use p3_air::AirBuilder;

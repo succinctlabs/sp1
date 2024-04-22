@@ -21,9 +21,10 @@ p3-poseidon2 = { workspace = true }
 sp1-recursion-core = { path = "../core" }
 sp1-recursion-compiler = { path = "../compiler" }
 sp1-core = { path = "../../core" }
-sp1-sdk = { path = "../../sdk" }
 itertools = "0.12.1"
 serde = { version = "1.0.197", features = ["derive"] }
-
-[dev-dependencies]
 rand = "0.8.4"
+
+[[bin]]
+name = "fri_sweep"
+path = "experiments/fri_sweep.rs"
