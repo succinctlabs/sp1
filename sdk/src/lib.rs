@@ -7,7 +7,6 @@ pub mod proto {
 }
 pub mod auth;
 pub mod client;
-pub mod utils;
 
 use anyhow::{Context, Ok, Result};
 use proto::network::{ProofStatus, TransactionStatus};
@@ -20,7 +19,6 @@ use tokio::runtime;
 use tokio::time::sleep;
 
 use crate::client::NetworkClient;
-use crate::utils::StageProgressBar;
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {
@@ -90,31 +88,22 @@ impl ProverClient {
         let proof_id = client.create_proof(elf, &stdin).await?;
         println!("proof_id: {:?}", proof_id);
 
-        let mut pb = StageProgressBar::new();
         loop {
             let (status, maybe_proof) = client.get_proof_status(&proof_id).await?;
 
             match status.status() {
-                ProofStatus::ProofSucceeded => {
-                    println!("Proof succeeded");
-                    pb.finish();
+                ProofStatus::ProofFulfilled => {
+                    println!("Proof fulfilled");
                     if let Some(proof) = maybe_proof {
                         return Ok(proof);
                     } else {
-                        return Err(anyhow::anyhow!("Proof succeeded but no proof available"));
+                        return Err(anyhow::anyhow!("Proof fulfilled but no proof available"));
                     }
                 }
                 ProofStatus::ProofFailed => {
-                    pb.finish();
                     return Err(anyhow::anyhow!("Proof generation failed"));
                 }
                 _ => {
-                    pb.update(
-                        status.stage,
-                        status.total_stages,
-                        &status.stage_name,
-                        status.stage_progress.map(|p| (p, status.stage_total())),
-                    );
                     sleep(Duration::from_secs(1)).await;
                 }
             }

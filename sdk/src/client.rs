@@ -1,6 +1,7 @@
 use std::{env, time::Duration};
 
 use crate::auth::NetworkAuth;
+use anyhow::Context;
 use anyhow::{Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
@@ -10,9 +11,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
 
 use crate::proto::network::{
-    CreateProofRequest, GetNonceRequest, GetProofStatusRequest, GetProofStatusResponse,
-    GetRelayStatusRequest, GetRelayStatusResponse, NetworkServiceClient, ProofStatus,
-    RelayProofRequest, SubmitProofRequest, TransactionStatus,
+    ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
+    FulfillProofResponse, GetNonceRequest, GetProofRequestsRequest, GetProofRequestsResponse,
+    GetProofStatusRequest, GetProofStatusResponse, GetRelayStatusRequest, GetRelayStatusResponse,
+    NetworkServiceClient, ProofStatus, RelayProofRequest, SubmitProofRequest, TransactionStatus,
 };
 
 /// The default RPC endpoint for the Succinct prover network.
@@ -28,6 +30,7 @@ pub struct NetworkClient {
 }
 
 impl NetworkClient {
+    // Create a new NetworkClient with the given private key for authentication.
     pub fn new(private_key: &str) -> Self {
         let auth = NetworkAuth::new(private_key);
 
@@ -56,6 +59,7 @@ impl NetworkClient {
         }
     }
 
+    // Get the address for the SP1 Verifier contract.
     pub fn get_sp1_verifier_address() -> [u8; 20] {
         let verifier_hex = env::var("SP1_VERIFIER_ADDRESS")
             .unwrap_or_else(|_| DEFAULT_SP1_VERIFIER_ADDRESS.to_string());
@@ -79,12 +83,86 @@ impl NetworkClient {
         res.nonce
     }
 
+    // Upload a file to the specified url.
     async fn upload_file(&self, url: &str, data: Vec<u8>) -> Result<()> {
         self.http.put(url).body(data).send().await?;
         Ok(())
     }
 
-    /// Makes a request to create a proof for the given ELF and stdin.
+    // Get the status of a given proof.
+    pub async fn get_proof_status(
+        &self,
+        proof_id: &str,
+    ) -> Result<(GetProofStatusResponse, Option<SP1CoreProof>)> {
+        let res = self
+            .rpc
+            .get_proof_status(GetProofStatusRequest {
+                proof_id: proof_id.to_string(),
+            })
+            .await
+            .context("Failed to get proof status")?;
+
+        let proof = match res.status() {
+            ProofStatus::ProofFulfilled => {
+                let proof_bytes = self
+                    .http
+                    .get(res.proof_url.clone())
+                    .send()
+                    .await
+                    .context("Failed to send HTTP request for proof")?
+                    .bytes()
+                    .await
+                    .context("Failed to load proof bytes")?;
+
+                Some(bincode::deserialize(&proof_bytes).context("Failed to deserialize proof")?)
+            }
+            _ => None,
+        };
+
+        Ok((res, proof))
+    }
+
+    // Get all the proof requests for a given status.
+    pub async fn get_proof_requests(
+        &self,
+        status: ProofStatus,
+    ) -> Result<GetProofRequestsResponse> {
+        let res = self
+            .rpc
+            .get_proof_requests(GetProofRequestsRequest {
+                status: status.into(),
+            })
+            .await?;
+
+        Ok(res)
+    }
+
+    // Get the status of a relay request transaction.
+    pub async fn get_relay_status(
+        &self,
+        tx_id: &str,
+    ) -> Result<(GetRelayStatusResponse, Option<String>, Option<String>)> {
+        let res = self
+            .rpc
+            .get_relay_status(GetRelayStatusRequest {
+                tx_id: tx_id.to_string(),
+            })
+            .await?;
+
+        let tx_hash = match res.status() {
+            TransactionStatus::TransactionScheduled => None,
+            _ => Some(format!("0x{}", hex::encode(res.tx_hash.clone()))),
+        };
+
+        let simulation_url = match res.status() {
+            TransactionStatus::TransactionFailed => Some(res.simulation_url.clone()),
+            _ => None,
+        };
+
+        Ok((res, tx_hash, simulation_url))
+    }
+
+    /// Makes a proof request for the given ELF and stdin.
     pub async fn create_proof(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start
@@ -105,8 +183,8 @@ impl NetworkClient {
 
         let program_bytes = bincode::serialize(elf)?;
         let stdin_bytes = bincode::serialize(&stdin)?;
-        let program_promise = self.upload_file(&res.program_put_url, program_bytes);
-        let stdin_promise = self.upload_file(&res.stdin_put_url, stdin_bytes);
+        let program_promise = self.upload_file(&res.program_url, program_bytes);
+        let stdin_promise = self.upload_file(&res.stdin_url, stdin_bytes);
         let v = vec![program_promise, stdin_promise];
         let mut results = join_all(v).await;
         results.pop().expect("Failed to upload stdin")?;
@@ -128,33 +206,44 @@ impl NetworkClient {
         Ok(res.proof_id)
     }
 
-    pub async fn get_proof_status(
-        &self,
-        proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<SP1CoreProof>)> {
+    // Claim a proof that was requested. This commits to generating a proof and fulfilling it.
+    // Returns an error if the proof is not in a PROOF_REQUESTED state.
+    pub async fn claim_proof(&self, proof_id: &str) -> Result<ClaimProofResponse> {
+        let nonce = self.get_nonce().await;
+        let signature = self.auth.sign_claim_proof_message(nonce, proof_id).await?;
         let res = self
             .rpc
-            .get_proof_status(GetProofStatusRequest {
+            .claim_proof(ClaimProofRequest {
+                nonce,
                 proof_id: proof_id.to_string(),
+                signature,
             })
             .await?;
 
-        let proof = if res.status() == ProofStatus::ProofSucceeded {
-            let proof = self
-                .http
-                .get(res.result_get_url.clone())
-                .send()
-                .await?
-                .bytes()
-                .await?;
-            Some(bincode::deserialize(&proof).expect("Failed to deserialize proof"))
-        } else {
-            None
-        };
-
-        Ok((res, proof))
+        Ok(res)
     }
 
+    // Fulfill a proof. Should only be called after the proof has been uploaded. Returns an error
+    // if the proof is not in a PROOF_CLAIMED state or if the caller is not the claimer.
+    pub async fn fulfill_proof(&self, proof_id: &str) -> Result<FulfillProofResponse> {
+        let nonce = self.get_nonce().await;
+        let signature = self
+            .auth
+            .sign_fulfill_proof_message(nonce, proof_id)
+            .await?;
+        let res = self
+            .rpc
+            .fulfill_proof(FulfillProofRequest {
+                nonce,
+                proof_id: proof_id.to_string(),
+                signature,
+            })
+            .await?;
+
+        Ok(res)
+    }
+
+    // Relay a proof. Returns an error if the proof is not in a PROOF_FULFILLED state.
     pub async fn relay_proof(
         &self,
         proof_id: &str,
@@ -179,29 +268,5 @@ impl NetworkClient {
         };
         let result = self.rpc.relay_proof(req).await?;
         Ok(result.tx_id)
-    }
-
-    pub async fn get_relay_status(
-        &self,
-        tx_id: &str,
-    ) -> Result<(GetRelayStatusResponse, Option<String>, Option<String>)> {
-        let res = self
-            .rpc
-            .get_relay_status(GetRelayStatusRequest {
-                tx_id: tx_id.to_string(),
-            })
-            .await?;
-
-        let tx_hash = match res.status() {
-            TransactionStatus::TransactionScheduled => None,
-            _ => Some(format!("0x{}", hex::encode(res.tx_hash.clone()))),
-        };
-
-        let simulation_url = match res.status() {
-            TransactionStatus::TransactionFailed => Some(res.simulation_url.clone()),
-            _ => None,
-        };
-
-        Ok((res, tx_hash, simulation_url))
     }
 }
