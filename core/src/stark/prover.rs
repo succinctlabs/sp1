@@ -375,7 +375,7 @@ where
                         permutation_trace_on_quotient_domains,
                         &packed_perm_challenges,
                         alpha,
-                        shard_data.public_values.clone(),
+                        &shard_data.public_values,
                     )
                 })
                 .collect::<Vec<_>>()
@@ -505,7 +505,6 @@ where
             .collect::<Vec<_>>();
 
         ShardProof::<SC> {
-            index: shard_data.index,
             commitment: ShardCommitment {
                 main_commit: shard_data.main_commit.clone(),
                 permutation_commit,

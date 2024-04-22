@@ -305,7 +305,6 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
         let public_values = builder.vec(public_values);
 
         RecursionShardProofVariable {
-            index: self.index,
             commitment,
             opened_values,
             opening_proof,
