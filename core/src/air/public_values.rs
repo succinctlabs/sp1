@@ -108,6 +108,10 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
             exit_code: exit_code.to_owned(),
         }
     }
+
+    pub fn from_slice<S: Into<T> + Copy>(slice: &[S]) -> Self {
+        Self::from_vec(slice.iter().map(|elm| (*elm).into()).collect_vec())
+    }
 }
 
 impl<F: PrimeField32> PublicValues<Word<F>, F> {
