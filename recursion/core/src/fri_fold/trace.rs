@@ -1,4 +1,15 @@
-impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
+use p3_field::PrimeField32;
+use p3_matrix::dense::RowMajorMatrix;
+use p3_matrix::Matrix;
+use sp1_core::air::MachineAir;
+use sp1_core::utils::pad_to_power_of_two;
+use std::borrow::BorrowMut;
+use tracing::instrument;
+
+use crate::fri_fold::{column::FriFoldCols, column::NUM_FRI_FOLD_COLS, FriFoldChip};
+use crate::runtime::{ExecutionRecord, RecursionProgram};
+
+impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
@@ -18,7 +29,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
         for event in &input.fri_fold_events {
             let mut row = [F::zero(); NUM_FRI_FOLD_COLS];
 
-            let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
+            let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
 
             cols.m.populate(&event.m);
             cols.input_ptr.populate(&event.input_ptr);

@@ -7,12 +7,14 @@ use std::collections::HashMap;
 use super::{RecursionProgram, DIGEST_SIZE};
 use crate::air::Block;
 use crate::cpu::CpuEvent;
+use crate::fri_fold::FriFoldEvent;
 use crate::poseidon2::Poseidon2Event;
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
     pub program: Arc<RecursionProgram<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
+    pub fri_fold_events: Vec<FriFoldEvent<F>>,
     pub poseidon2_events: Vec<Poseidon2Event<F>>,
 
     // (address)

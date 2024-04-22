@@ -1,21 +1,38 @@
+use p3_air::BaseAir;
+
+use crate::fri_fold::column::NUM_FRI_FOLD_COLS;
+use crate::memory::MemoryRecord;
+
+mod column;
+mod trace;
+
 /// A chip that implements the Fri Fold precompile.
 #[derive(Default)]
 pub struct FriFoldChip;
 
+impl<F> BaseAir<F> for FriFoldChip {
+    fn width(&self) -> usize {
+        NUM_FRI_FOLD_COLS
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct FriFoldEvent<F: PrimeField32, EF: ExtensionField<F>> {
-    pub z: EF,
-    pub alpha: EF,
-    pub x: F,
-    pub log_height: usize,
-    pub mat_opening_ptr: usize,
-    pub ps_at_x_ptr: usize,
-    pub alpha_pow_ptr: usize,
-    pub ro_ptr: usize,
+pub struct FriFoldEvent<F> {
+    pub m: MemoryRecord<F>,
+    pub input_ptr: MemoryRecord<F>,
 
-    pub p_at_x: EF,
-    pub p_at_z: EF,
+    pub z: MemoryRecord<F>,
+    pub alpha: MemoryRecord<F>,
+    pub x: MemoryRecord<F>,
+    pub log_height: MemoryRecord<F>,
+    pub mat_opening_ptr: MemoryRecord<F>,
+    pub ps_at_z_ptr: MemoryRecord<F>,
+    pub alpha_pow_ptr: MemoryRecord<F>,
+    pub ro_ptr: MemoryRecord<F>,
 
-    pub alpha_pow_at_log_height: EF,
-    pub ro_at_log_height: EF,
+    pub p_at_x: MemoryRecord<F>,
+    pub p_at_z: MemoryRecord<F>,
+
+    pub alpha_pow_at_log_height: MemoryRecord<F>,
+    pub ro_at_log_height: MemoryRecord<F>,
 }
