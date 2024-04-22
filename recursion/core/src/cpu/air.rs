@@ -176,9 +176,6 @@ where
             .when(local.instruction.imm_c)
             .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
 
-        // Compute ALU.
-        // TODO
-
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
             local.is_real * local.is_real * local.is_real,

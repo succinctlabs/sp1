@@ -130,11 +130,11 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::AddEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::AddEI(dst.fp(), lhs.fp(), rhs), trace);
                 }
-                DslIr::AddEFI(dst, lhs, rhs) => {
-                    self.push(
-                        AsmInstruction::AddEI(dst.fp(), lhs.fp(), EF::from_base(rhs)),
-                        trace,
-                    );
+                DslIr::AddEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddE(dst.fp(), lhs.fp(), rhs.fp()), trace);
+                }
+                DslIr::AddEFFI(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::AddEI(dst.fp(), lhs.fp(), rhs), trace);
                 }
                 DslIr::SubV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::SubF(dst.fp(), lhs.fp(), rhs.fp()), trace);
@@ -175,6 +175,9 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::InvF(dst, src) => {
                     self.push(AsmInstruction::DivFIN(dst.fp(), F::one(), src.fp()), trace);
                 }
+                DslIr::DivEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::DivE(dst.fp(), lhs.fp(), rhs.fp()), trace);
+                }
                 DslIr::DivEFI(dst, lhs, rhs) => {
                     self.push(
                         AsmInstruction::DivEI(dst.fp(), lhs.fp(), EF::from_base(rhs)),
@@ -198,6 +201,9 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 }
                 DslIr::InvE(dst, src) => {
                     self.push(AsmInstruction::DivEIN(dst.fp(), EF::one(), src.fp()), trace);
+                }
+                DslIr::SubEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::SubE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::SubEFI(dst, lhs, rhs) => {
                     self.push(
@@ -237,6 +243,9 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 }
                 DslIr::MulEI(dst, lhs, rhs) => {
                     self.push(AsmInstruction::MulEI(dst.fp(), lhs.fp(), rhs), trace);
+                }
+                DslIr::MulEF(dst, lhs, rhs) => {
+                    self.push(AsmInstruction::MulE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::MulEFI(dst, lhs, rhs) => {
                     self.push(
@@ -527,7 +536,10 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::CycleTracker(name) => {
                     self.push(AsmInstruction::CycleTracker(name.clone()), trace);
                 }
-                _ => unimplemented!(),
+                _ => {
+                    println!("unimplemented op is {:?}", op);
+                    unimplemented!();
+                }
             }
         }
     }
