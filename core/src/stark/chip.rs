@@ -7,7 +7,7 @@ use p3_util::log2_ceil_usize;
 
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
-    lookup::{Interaction, InteractionBuilder},
+    lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
 use super::{eval_permutation_constraints, generate_permutation_trace, permutation_trace_width};
@@ -77,6 +77,16 @@ where
     #[inline]
     pub fn num_interactions(&self) -> usize {
         self.sends.len() + self.receives.len()
+    }
+
+    #[inline]
+    pub fn num_sends_by_kind(&self, kind: InteractionKind) -> usize {
+        self.sends.iter().filter(|i| i.kind == kind).count()
+    }
+
+    #[inline]
+    pub fn num_receives_by_kind(&self, kind: InteractionKind) -> usize {
+        self.receives.iter().filter(|i| i.kind == kind).count()
     }
 
     pub fn generate_permutation_trace<EF: ExtensionField<F>>(
