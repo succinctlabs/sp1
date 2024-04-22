@@ -20,6 +20,7 @@ pub use record::*;
 
 use crate::air::Block;
 use crate::cpu::CpuEvent;
+use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
 use crate::poseidon2::Poseidon2Event;
 
@@ -776,6 +777,10 @@ where
                         .entry(alpha_pow_ptr + log_height)
                         .or_default()
                         .value = Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
+
+                    self.record
+                        .fri_fold_events
+                        .push(FriFoldEvent { input: array });
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
