@@ -1,0 +1,5 @@
+2024-04-20T22:38:07.910968Z  INFO running: shard_size=4194304, iterations=480000, batch_size=2
+2024-04-20T22:38:07.911068Z  INFO proving leaves
+2024-04-20T22:49:30.147030Z  INFO leaf_proving_duration=546.51394325
+2024-04-20T22:49:30.147178Z  INFO proving inner
+2024-04-20T22:51:29.632980Z  INFO recursion_proving_duration=119.485166958
