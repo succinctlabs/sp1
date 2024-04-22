@@ -127,11 +127,29 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::AddE,
                     args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
                 }),
+                DslIr::AddEF(a, b, c) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::AddEF,
+                    args: vec![vec![a.id()], vec![b.id()], vec![c.id()]],
+                }),
+                DslIr::AddEFI(a, b, c) => {
+                    let tmp = self.alloc_f(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::AddEF,
+                        args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
                 DslIr::AddEI(a, b, c) => {
                     let tmp = self.alloc_e(&mut constraints, c);
                     constraints.push(Constraint {
                         opcode: ConstraintOpcode::AddE,
                         args: vec![vec![a.id()], vec![b.id()], vec![tmp]],
+                    });
+                }
+                DslIr::AddEFFI(a, b, c) => {
+                    let tmp = self.alloc_e(&mut constraints, c);
+                    constraints.push(Constraint {
+                        opcode: ConstraintOpcode::AddEF,
+                        args: vec![vec![a.id()], vec![tmp], vec![b.id()]],
                     });
                 }
                 DslIr::SubV(a, b, c) => constraints.push(Constraint {
