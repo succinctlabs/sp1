@@ -13,7 +13,6 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {
-    pub index: Var<C::N>,
     pub commitment: ShardCommitmentVariable<C>,
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
