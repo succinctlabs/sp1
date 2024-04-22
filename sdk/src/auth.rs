@@ -82,7 +82,7 @@ impl NetworkAuth {
         self.sign_message(type_struct).await
     }
 
-    /// Signs a message to to request ot submit a proof.
+    /// Signs a message to mark a proof as ready for proof generation.
     pub async fn sign_submit_proof_message(&self, nonce: u64, proof_id: &str) -> Result<Vec<u8>> {
         let type_struct = SubmitProof {
             nonce,
