@@ -7,6 +7,7 @@ pub mod proto {
 }
 pub mod auth;
 pub mod client;
+pub mod utils;
 
 use anyhow::{Context, Ok, Result};
 use proto::network::{ProofStatus, TransactionStatus};
@@ -83,21 +84,23 @@ impl ProverClient {
 
         // Execute the runtime before creating the proof request.
         let _ = ProverClient::execute(elf, stdin.clone());
-        println!("Simulation complete.");
+        println!("Simulation complete");
 
         let proof_id = client.create_proof(elf, &stdin).await?;
-        println!("proof_id: {:?}", proof_id);
+        println!("Proof ID: {:?}", proof_id);
 
+        let mut is_claimed = false;
         loop {
             let (status, maybe_proof) = client.get_proof_status(&proof_id).await?;
 
             match status.status() {
                 ProofStatus::ProofFulfilled => {
-                    println!("Proof fulfilled");
-                    if let Some(proof) = maybe_proof {
-                        return Ok(proof);
-                    } else {
-                        return Err(anyhow::anyhow!("Proof fulfilled but no proof available"));
+                    maybe_proof.unwrap();
+                }
+                ProofStatus::ProofClaimed => {
+                    if !is_claimed {
+                        println!("Proof claimed by a prover");
+                        is_claimed = true;
                     }
                 }
                 ProofStatus::ProofFailed => {

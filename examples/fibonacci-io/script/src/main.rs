@@ -1,5 +1,4 @@
-use sha2::{Digest, Sha256};
-use sp1_sdk::{utils, ProverClient, SP1PublicValues, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -31,6 +30,7 @@ fn main() {
     assert_eq!(a, expected_a);
     assert_eq!(b, expected_b);
 
+    println!("n: {}", n);
     println!("a: {}", a);
     println!("b: {}", b);
 

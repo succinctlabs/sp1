@@ -1,8 +1,7 @@
 use std::{env, time::Duration};
 
 use crate::auth::NetworkAuth;
-use anyhow::Context;
-use anyhow::{Ok, Result};
+use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
@@ -89,7 +88,7 @@ impl NetworkClient {
         Ok(())
     }
 
-    // Get the status of a given proof.
+    // Get the status of a given proof. If the status is ProofFulfilled, the proof is also returned.
     pub async fn get_proof_status(
         &self,
         proof_id: &str,
@@ -137,7 +136,7 @@ impl NetworkClient {
         Ok(res)
     }
 
-    // Get the status of a relay request transaction.
+    // Get the status of a relay transaction request.
     pub async fn get_relay_status(
         &self,
         tx_id: &str,
