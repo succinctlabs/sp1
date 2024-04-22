@@ -6,9 +6,11 @@ use p3_field::AbstractField;
 use p3_field::Field;
 use p3_matrix::Matrix;
 
+use p3_air::AirBuilder;
+
 use super::columns::{ByteMultCols, BytePreprocessedCols, NUM_BYTE_MULT_COLS};
 use super::{ByteChip, ByteOpcode};
-use crate::air::SP1AirBuilder;
+use crate::air::{PublicValues, SP1AirBuilder};
 
 impl<F: Field> BaseAir<F> for ByteChip<F> {
     fn width(&self) -> usize {
@@ -25,6 +27,17 @@ impl<AB: SP1AirBuilder + PairBuilder> Air<AB> for ByteChip<AB::F> {
         let prep = builder.preprocessed();
         let prep = prep.row_slice(0);
         let local: &BytePreprocessedCols<AB::Var> = (*prep).borrow();
+
+        let public_values = PublicValues::from_slice(builder.public_values());
+
+        let mult_sum = local_mult
+            .multiplicities
+            .iter()
+            .fold(AB::Expr::zero(), |acc, x| acc + *x);
+
+        builder
+            .when(mult_sum)
+            .assert_eq(local_mult.shard, public_values.shard);
 
         // Send all the lookups for each operation.
         for (i, opcode) in ByteOpcode::all().iter().enumerate() {
