@@ -8,12 +8,6 @@ pub struct AluCols<T> {
 
     pub ext_b: Block<T>,
 
-    // c = a + b;
-    pub add_scratch: Block<T>,
-
-    // c = a - b;
-    pub sub_scratch: Block<T>,
-
-    // c = a * b;
-    pub mul_scratch: Block<T>,
+    // Used for div operations.
+    pub inverse_scratch: Block<T>,
 }
