@@ -505,7 +505,6 @@ where
             .collect::<Vec<_>>();
 
         ShardProof::<SC> {
-            index: shard_data.index,
             commitment: ShardCommitment {
                 main_commit: shard_data.main_commit.clone(),
                 permutation_commit,
