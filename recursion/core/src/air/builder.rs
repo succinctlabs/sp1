@@ -6,7 +6,7 @@ use sp1_core::{
 
 use super::Block;
 
-pub trait Sp1RecursionAirBuilder: SP1AirBuilder + RecursionAirBuilder {}
+impl<AB: SP1AirBuilder> RecursionAirBuilder for AB {}
 
 pub trait RecursionAirBuilder: BaseAirBuilder {
     fn eval_memory_read_write_multiplicity<

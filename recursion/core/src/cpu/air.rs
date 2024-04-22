@@ -1,5 +1,6 @@
 use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
+use crate::air::RecursionAirBuilder;
 use crate::cpu::CpuChip;
 use crate::runtime::RecursionProgram;
 use core::mem::size_of;
@@ -12,6 +13,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::BinomialExtension;
 use sp1_core::air::MachineAir;
+use sp1_core::air::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
@@ -20,7 +22,6 @@ use std::mem::transmute;
 use tracing::instrument;
 
 use super::columns::CpuCols;
-use crate::air::Sp1RecursionAirBuilder;
 use crate::runtime::ExecutionRecord;
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -143,7 +144,7 @@ impl<F: Send + Sync> BaseAir<F> for CpuChip<F> {
 
 impl<AB> Air<AB> for CpuChip<AB::F>
 where
-    AB: Sp1RecursionAirBuilder,
+    AB: SP1AirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Constraints for the CPU chip.
