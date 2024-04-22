@@ -376,7 +376,7 @@ where
                     self.nb_print_f += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
-                    // println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
+                    println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::PrintE => {

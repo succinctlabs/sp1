@@ -1,7 +1,21 @@
-//! A program that can reduce a set of proofs into a single proof.
+//! ReduceProgram defines a recursive program that can reduce a set of proofs into a single proof.
+//!
+//! Specifically, this program takes in an ordered list of proofs where each proof can be either an
+//! SP1 Core proof or a recursive VM proof of itself. Each proof is verified and then checked to
+//! ensure that each transition is valid. Finally, the overall start and end values are committed to.
+//!
+//! Because SP1 uses a global challenger system, `verify_start_challenger` is witnessed and used to
+//! verify each core proof. As each core proof is verified, its commitment and public values are
+//! observed into `reconstruct_challenger`. After recursively reducing down to one proof,
+//! `reconstruct_challenger` must equal `verify_start_challenger`.
+//!
+//! "Deferred proofs" can also be passed in and verified. These are fully reduced proofs that were
+//! committed to within the core VM. These proofs can then be verified here and then reconstructed
+//! into a single digest which is checked against what was committed. Note that it is possible for
+//! reduce to be called with only deferred proofs, and not any core/recursive proofs. In this case,
+//! the start and end pc/shard values should be equal to each other.
 #![allow(clippy::needless_range_loop)]
 
-use array_macro::array;
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -10,11 +24,10 @@ use sp1_core::air::{PublicValues, SP1_PROOF_NUM_PV_ELTS, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::baby_bear_poseidon2::Challenger;
 use sp1_core::utils::{inner_fri_config, sp1_fri_config, BabyBearPoseidon2Inner};
 use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var, Variable};
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_core::air::{ChallengerPublicValues, PublicValues as RecursionPublicValues};
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE, PERMUTATION_WIDTH};
@@ -28,44 +41,13 @@ use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
 use crate::types::VerifyingKeyVariable;
 use crate::types::{Sha256DigestVariable, ShardProofVariable};
-use crate::utils::{clone, clone_array, const_fri_config, felt2var, var2felt};
+use crate::utils::{clone_array, const_fri_config, felt2var, var2felt};
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
 type EF = <SC as StarkGenericConfig>::Challenge;
 type C = AsmConfig<F, EF>;
 type Val = BabyBear;
-
-fn uninit_word<V: Variable<C>>(builder: &mut AsmBuilder<F, EF>) -> Word<V> {
-    Word([
-        builder.uninit(),
-        builder.uninit(),
-        builder.uninit(),
-        builder.uninit(),
-    ])
-}
-
-fn assign_words<V: Variable<C>>(builder: &mut AsmBuilder<F, EF>, dst: &[Word<V>], src: &[Word<V>]) {
-    debug_assert_eq!(src.len(), dst.len());
-    for i in 0..src.len() {
-        for j in 0..4 {
-            builder.assign(dst[i][j].clone(), src[i][j].clone());
-        }
-    }
-}
-
-fn assert_felt_words_eq<C: Config>(
-    builder: &mut Builder<C>,
-    expected: &[Word<Felt<C::F>>],
-    actual: &[Word<Felt<C::F>>],
-) {
-    debug_assert_eq!(expected.len(), actual.len());
-    for i in 0..expected.len() {
-        for j in 0..4 {
-            builder.assert_felt_eq(expected[i][j], actual[i][j]);
-        }
-    }
-}
 
 fn assert_challengers_eq<C: Config>(
     builder: &mut Builder<C>,
@@ -252,7 +234,7 @@ impl ReduceProgram {
             Vec::<ShardProof<SC>>::witness(&deferred_proofs, &mut builder);
             let num_deferred_proofs_var = deferred_proofs.len();
             builder.assign(num_deferred_proofs, num_deferred_proofs_var);
-            let mut deferred_vks_target = builder.dyn_array(num_proofs);
+            let mut deferred_vks_target = builder.dyn_array(num_deferred_proofs);
             builder
                 .range(0, num_deferred_proofs)
                 .for_each(|i, builder| {
@@ -282,17 +264,14 @@ impl ReduceProgram {
         builder.cycle_tracker("stage-b-setup-recursion-challenger");
 
         // Global variables that will be commmitted to at the end.
-        let global_committed_values_digest: Sha256DigestVariable<_> = builder.uninit();
-        let global_deferred_proofs_digest: DigestVariable<_> = builder.uninit();
-        let global_start_pc: Felt<_> = builder.uninit();
+        let global_committed_values_digest: Sha256DigestVariable<_> =
+            initial_committed_values_digest;
+        let global_deferred_proofs_digest: DigestVariable<_> = initial_deferred_proofs_digest;
+        let global_start_pc: Felt<_> = initial_start_pc;
         let global_next_pc: Felt<_> = builder.uninit();
-        let global_exit_code: Felt<_> = builder.uninit();
-        let global_start_shard: Felt<_> = builder.uninit();
+        let global_exit_code: Felt<_> = initial_exit_code;
+        let global_start_shard: Felt<_> = initial_start_shard;
         let global_next_shard: Felt<_> = builder.uninit();
-
-        // Pass in: global_committed_values_digest, global_deferred_proofs_digest, global_start_pc,
-        // global_exit_code, global_start_shard
-
         let start_reconstruct_challenger = reconstruct_challenger.copy(&mut builder);
         let start_reconstruct_deferred_digest =
             clone_array(&mut builder, &reconstruct_deferred_digest);
@@ -301,6 +280,12 @@ impl ReduceProgram {
         let prev_next_pc: Felt<_> = builder.uninit();
         let prev_next_shard: Felt<_> = builder.uninit();
 
+        // For each proof:
+        // 1) If it's the first proof of this batch, ensure that the start values are correct.
+        // 2) If it's not the first proof, ensure that the global values are the same and the
+        //    transitions are valid.
+        // 3) If it's the last proof of this batch, set the global end variables.
+        // 4) If it's not the last proof, ensure that next_pc != 0 and update the previous values.
         let constrain_shard_transitions =
             |proof_index: Var<_>,
              builder: &mut Builder<C>,
@@ -315,20 +300,21 @@ impl ReduceProgram {
                     Sha256DigestVariable::from_words(builder, committed_value_digest_words);
                 let deferred_proofs_digest = felts_to_array(builder, deferred_proofs_digest_felts);
                 builder.if_eq(proof_index, zero).then_or_else(
-                    // First proof: initialize the global values.
+                    // First proof: ensure that witnessed start values are correct.
                     |builder| {
-                        builder.assign(
-                            global_committed_values_digest.clone(),
-                            committed_value_digest.clone(),
-                        );
-                        builder.assign(global_start_pc, start_pc);
-                        builder.assign(global_start_shard, start_shard);
-                        builder.assign(global_exit_code, exit_code);
+                        for i in 0..(PV_DIGEST_NUM_WORDS * WORD_SIZE) {
+                            let element = builder.get(&global_committed_values_digest.bytes, i);
+                            let proof_element = builder.get(&committed_value_digest.bytes, i);
+                            builder.assert_felt_eq(element, proof_element);
+                        }
+                        builder.assert_felt_eq(global_start_pc, start_pc);
+                        builder.assert_felt_eq(global_start_shard, start_shard);
+                        builder.assert_felt_eq(global_exit_code, exit_code);
                     },
                     // Non-first proofs: verify global values are same and transitions are valid.
                     |builder| {
                         // Assert that digests and exit code are the same
-                        for j in 0..32 {
+                        for j in 0..(PV_DIGEST_NUM_WORDS * WORD_SIZE) {
                             let global_element =
                                 builder.get(&global_committed_values_digest.bytes, j);
                             let element = builder.get(&committed_value_digest.bytes, j);
@@ -353,13 +339,15 @@ impl ReduceProgram {
                         builder.assign(global_next_shard, next_shard);
                         builder.assign(global_next_pc, next_pc);
                     },
-                    // If it's not the last proof, next_pc should not be 0.
+                    // If it's not the last proof, ensure next_pc != 0. Also update previous values.
                     |builder| {
                         builder.assert_felt_ne(next_pc, zero_felt);
+                        builder.assert_felt_ne(next_shard, zero_felt);
+
+                        builder.assign(prev_next_pc, next_pc);
+                        builder.assign(prev_next_shard, next_shard);
                     },
                 );
-                builder.assign(prev_next_pc, next_pc);
-                builder.assign(prev_next_shard, next_shard);
             };
 
         // Verify sp1 and recursive proofs.
@@ -367,8 +355,6 @@ impl ReduceProgram {
             let proof = builder.get(&proofs, i);
             let sorted_indices = builder.get(&sorted_indices, i);
             let is_recursive = builder.get(&is_recursive_flags, i);
-
-            // Verify shard transition.
 
             builder.if_eq(is_recursive, zero).then_or_else(
                 // Handle the case where the proof is a sp1 proof.
@@ -493,39 +479,6 @@ impl ReduceProgram {
                         pv.exit_code,
                     );
 
-                    // TODO: verify keys are same
-
-                    // Print reconstruct_challenger
-                    builder.print_debug(991991);
-                    for i in 0..PERMUTATION_WIDTH {
-                        let element = builder.get(&reconstruct_challenger.sponge_state, i);
-                        builder.print_f(element);
-                    }
-                    builder.print_v(reconstruct_challenger.nb_inputs);
-                    for i in 0..PERMUTATION_WIDTH {
-                        let element = builder.get(&reconstruct_challenger.input_buffer, i);
-                        builder.print_f(element);
-                    }
-                    builder.print_v(reconstruct_challenger.nb_outputs);
-                    for i in 0..PERMUTATION_WIDTH {
-                        let element = builder.get(&reconstruct_challenger.output_buffer, i);
-                        builder.print_f(element);
-                    }
-
-                    // Print pv.start_reconstruct_challenger
-                    builder.print_debug(992992);
-                    for i in 0..PERMUTATION_WIDTH {
-                        builder.print_f(pv.start_reconstruct_challenger.sponge_state[i]);
-                    }
-                    builder.print_f(pv.start_reconstruct_challenger.num_inputs);
-                    for i in 0..PERMUTATION_WIDTH {
-                        builder.print_f(pv.start_reconstruct_challenger.input_buffer[i]);
-                    }
-                    builder.print_f(pv.start_reconstruct_challenger.num_outputs);
-                    for i in 0..PERMUTATION_WIDTH {
-                        builder.print_f(pv.start_reconstruct_challenger.output_buffer[i]);
-                    }
-
                     // Assert that the current reconstruct_challenger is the same as the proof's
                     // start_reconstruct_challenger, then fast-forward to end_reconstruct_challenger.
                     assert_challengers_eq(
@@ -558,6 +511,7 @@ impl ReduceProgram {
                         let element = builder.get(&sp1_vk.commitment, j);
                         builder.assert_felt_eq(element, pv.sp1_vk_commit[j]);
                     }
+                    builder.assert_felt_eq(sp1_vk.pc_start, pv.start_pc);
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&recursion_vk.commitment, j);
                         builder.assert_felt_eq(element, pv.recursion_vk_commit[j]);
@@ -595,6 +549,12 @@ impl ReduceProgram {
             );
         });
 
+        // If num_proofs is 0, set end values to same as start values.
+        builder.if_eq(num_proofs, zero).then(|builder| {
+            builder.assign(global_next_shard, global_start_shard);
+            builder.assign(global_next_pc, global_start_pc);
+        });
+
         // Verify deferred proofs and acculumate to deferred proofs digest.
         builder
             .range(0, num_deferred_proofs)
@@ -625,7 +585,6 @@ impl ReduceProgram {
                     recursion_prep_domains.clone(),
                 );
 
-                // TODO: verify inner proof's public values (it must be complete)
                 // Update deferred proof digest
                 // poseidon2( prev_digest || vk.commit || proof.pv_digest )
                 let mut poseidon_inputs = builder.array(24);
@@ -660,14 +619,18 @@ impl ReduceProgram {
             // 2) Proof begins at pc == sp1_vk.pc_start.
             builder.assert_felt_eq(global_start_pc, sp1_vk.pc_start);
 
-            // 3) Execution has halted (next_pc == 0).
+            // 3) Execution has halted (next_pc == 0 && next_shard == 0).
             let global_next_pc_var = felt2var(builder, global_next_pc);
             builder.assert_var_eq(global_next_pc_var, zero);
+            let global_next_shard_var = felt2var(builder, global_next_shard);
+            builder.assert_var_eq(global_next_shard_var, zero);
 
             // 4) reconstruct_challenger has been fully reconstructed.
-            //    a) start_reconstruct_challenger == empty challenger.
-            let empty_challenger = DuplexChallengerVariable::new(builder);
-            start_reconstruct_challenger.assert_eq(builder, &empty_challenger);
+            //    a) start_reconstruct_challenger == challenger after observing vk and pc_start.
+            let mut expected_challenger = DuplexChallengerVariable::new(builder);
+            expected_challenger.observe(builder, sp1_vk.commitment.clone());
+            expected_challenger.observe(builder, sp1_vk.pc_start);
+            start_reconstruct_challenger.assert_eq(builder, &expected_challenger);
             //    b) end_reconstruct_challenger == verify_start_challenger.
             reconstruct_challenger.assert_eq(builder, &verify_start_challenger);
 

@@ -16,7 +16,7 @@ mod utils;
 mod verify;
 
 use p3_baby_bear::BabyBear;
-use p3_challenger::{CanObserve, DuplexChallenger};
+use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
@@ -217,12 +217,7 @@ impl SP1Prover {
         let mut reduce_proofs = proof
             .shard_proofs
             .into_iter()
-            .map(|proof| {
-                let public_values = PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(
-                    proof.public_values.clone(),
-                );
-                SP1ReduceProofWrapper::Core(SP1ReduceProof { proof })
-            })
+            .map(|proof| SP1ReduceProofWrapper::Core(SP1ReduceProof { proof }))
             .collect::<Vec<_>>();
 
         // Keep reducing until we have only one shard.
@@ -247,25 +242,10 @@ impl SP1Prover {
                     state,
                     &[last_proof],
                     &[],
+                    true,
                 )
             }
         }
-    }
-
-    fn get_end_reconstruct_challenger<SC: StarkGenericConfig<Val = BabyBear>>(
-        &self,
-        shard_proof: &ShardProof<SC>,
-    ) -> Challenger<CoreSC> {
-        let mut challenger = self.core_machine.config().challenger();
-        let pv = RecursionPublicValues::from_vec(shard_proof.public_values.clone());
-        challenger.sponge_state = pv.end_reconstruct_challenger.sponge_state;
-        challenger.input_buffer = pv.end_reconstruct_challenger.input_buffer
-            [..pv.end_reconstruct_challenger.num_inputs.as_canonical_u32() as usize]
-            .to_vec();
-        challenger.output_buffer = pv.end_reconstruct_challenger.output_buffer
-            [..pv.end_reconstruct_challenger.num_outputs.as_canonical_u32() as usize]
-            .to_vec();
-        challenger
     }
 
     /// Reduce a set of shard proofs in groups of `batch_size` into a smaller set of shard proofs
@@ -284,7 +264,6 @@ impl SP1Prover {
             None
         };
 
-        // Process at most 4 proofs at once in parallel, due to memory limits.
         let chunks: Vec<_> = proofs.chunks(batch_size).collect();
         let mut reconstruct_challenger = self.setup_initial_core_challenger(vk);
         let reconstruct_challengers = chunks
@@ -334,6 +313,7 @@ impl SP1Prover {
                 SP1ReduceProofWrapper::Recursive(ref proof) => (&proof.proof).into(),
             })
             .collect::<Vec<_>>();
+        let is_complete = chunks.len() == 1 && last_proof.is_none();
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
             .into_par_iter()
             .zip(reconstruct_challengers.into_par_iter())
@@ -346,6 +326,7 @@ impl SP1Prover {
                     start_state,
                     chunk,
                     &[],
+                    is_complete,
                 );
                 SP1ReduceProofWrapper::Recursive(proof)
             })
@@ -358,6 +339,7 @@ impl SP1Prover {
     }
 
     /// Reduces a batch of shard proofs into a single shard proof using the recursion prover.
+    #[allow(clippy::too_many_arguments)]
     fn reduce_batch<SC>(
         &self,
         vk: &SP1VerifyingKey,
@@ -366,6 +348,7 @@ impl SP1Prover {
         state: ReduceState,
         reduce_proofs: &[SP1ReduceProofWrapper],
         deferred_proofs: &[(ShardProof<InnerSC>, &StarkVerifyingKey<CoreSC>)],
+        is_complete: bool,
     ) -> SP1ReduceProof<SC>
     where
         SC: StarkGenericConfig<Val = BabyBear> + Default,
@@ -444,8 +427,7 @@ impl SP1Prover {
         for (_, vk) in deferred_proofs.iter() {
             witness_stream.extend(vk.write());
         }
-        // TODO: set is complete when proof is complete;
-        let is_complete = 0usize;
+        let is_complete = if is_complete { 1usize } else { 0 };
         witness_stream.extend(is_complete.write());
 
         // Execute runtime to get the memory setup.
@@ -501,6 +483,7 @@ impl SP1Prover {
             state,
             &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
             &[],
+            true,
         )
         .proof
     }
