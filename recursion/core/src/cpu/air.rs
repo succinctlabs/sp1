@@ -10,11 +10,8 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
 use sp1_core::air::MachineAir;
-use sp1_core::lookup::InteractionKind;
-use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
@@ -23,6 +20,7 @@ use std::mem::transmute;
 use tracing::instrument;
 
 use super::columns::CpuCols;
+use crate::air::Sp1RecursionAirBuilder;
 use crate::runtime::ExecutionRecord;
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -145,7 +143,7 @@ impl<F: Send + Sync> BaseAir<F> for CpuChip<F> {
 
 impl<AB> Air<AB> for CpuChip<AB::F>
 where
-    AB: SP1AirBuilder,
+    AB: Sp1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Constraints for the CPU chip.
@@ -265,82 +263,34 @@ where
         // );
 
         // Receive C.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.c.addr.into(),
-                local.c.prev_timestamp.into(),
-                local.c.prev_value.0[0].into(),
-                local.c.prev_value.0[1].into(),
-                local.c.prev_value.0[2].into(),
-                local.c.prev_value.0[3].into(),
-            ],
+        builder.eval_memory_read_write_multiplicity(
+            local.c.addr,
+            local.c.prev_timestamp,
+            local.c.timestamp,
+            local.c.prev_value,
+            local.c.value,
             AB::Expr::one() - local.instruction.imm_c.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.c.addr.into(),
-                local.c.timestamp.into(),
-                local.c.value.0[0].into(),
-                local.c.value.0[1].into(),
-                local.c.value.0[2].into(),
-                local.c.value.0[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_c.into(),
-            InteractionKind::Memory,
-        ));
+        );
 
         // Receive B.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.b.addr.into(),
-                local.b.prev_timestamp.into(),
-                local.b.prev_value.0[0].into(),
-                local.b.prev_value.0[1].into(),
-                local.b.prev_value.0[2].into(),
-                local.b.prev_value.0[3].into(),
-            ],
+        builder.eval_memory_read_write_multiplicity(
+            local.b.addr,
+            local.b.prev_timestamp,
+            local.b.timestamp,
+            local.b.prev_value,
+            local.b.value,
             AB::Expr::one() - local.instruction.imm_b.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.b.addr.into(),
-                local.b.timestamp.into(),
-                local.b.value.0[0].into(),
-                local.b.value.0[1].into(),
-                local.b.value.0[2].into(),
-                local.b.value.0[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_b.into(),
-            InteractionKind::Memory,
-        ));
+        );
 
         // Receive A.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.a.addr.into(),
-                local.a.prev_timestamp.into(),
-                local.a.prev_value.0[0].into(),
-                local.a.prev_value.0[1].into(),
-                local.a.prev_value.0[2].into(),
-                local.a.prev_value.0[3].into(),
-            ],
+        builder.eval_memory_read_write_multiplicity(
+            local.a.addr,
+            local.a.prev_timestamp,
+            local.a.timestamp,
+            local.a.prev_value,
+            local.a.value,
             local.is_real.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.a.addr.into(),
-                local.a.timestamp.into(),
-                local.a.value.0[0].into(),
-                local.a.value.0[1].into(),
-                local.a.value.0[2].into(),
-                local.a.value.0[3].into(),
-            ],
-            local.is_real.into(),
-            InteractionKind::Memory,
-        ));
+        );
 
         // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
         // prog_interaction_vals.push(local.instruction.op_a.into());
