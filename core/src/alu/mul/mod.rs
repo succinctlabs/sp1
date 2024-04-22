@@ -74,8 +74,11 @@ pub struct MulChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct MulCols<T> {
-    /// The shard number, used for byte lookup table.
+    /// The shard in which the operation was looked up at.
     pub shard: T,
+
+    /// The clock cycle in which the operations was looked up at.
+    pub clk: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -236,6 +239,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
                         cols.is_mulhu = F::from_bool(event.opcode == Opcode::MULHU);
                         cols.is_mulhsu = F::from_bool(event.opcode == Opcode::MULHSU);
                         cols.shard = F::from_canonical_u32(event.shard);
+                        cols.clk = F::from_canonical_u32(event.clk);
 
                         // Range check.
                         {
@@ -439,6 +443,7 @@ where
             local.b,
             local.c,
             local.shard,
+            local.clk,
             local.is_real,
         );
 

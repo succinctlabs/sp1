@@ -26,8 +26,11 @@ pub struct BitwiseChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct BitwiseCols<T> {
-    /// The shard number, used for byte lookup table.
+    /// The shard number the operation was looked up at.
     pub shard: T,
+
+    /// The clock cycle the operation was looked up at.
+    pub clk: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -75,6 +78,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
                 let c = event.c.to_le_bytes();
 
                 cols.shard = F::from_canonical_u32(event.shard);
+                cols.clk = F::from_canonical_u32(event.clk);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
@@ -154,6 +158,7 @@ where
             local.b,
             local.c,
             local.shard,
+            local.clk,
             local.is_xor + local.is_or + local.is_and,
         );
 

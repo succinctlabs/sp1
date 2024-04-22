@@ -8,7 +8,7 @@ use super::ByteOpcode;
 /// A byte lookup event.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub struct ByteLookupEvent {
-    /// The shard number, used for byte lookup table.
+    /// The shard in which the operation was looked up at.
     pub shard: u32,
 
     /// The opcode of the operation.

@@ -62,8 +62,11 @@ pub struct ShiftLeft;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftLeftCols<T> {
-    /// The shard number, used for byte lookup table.
+    /// The shard in which the operation was looked up at.
     pub shard: T,
+
+    /// The clock cycle the operation was looked up at.
+    pub clk: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -120,6 +123,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
             let b = event.b.to_le_bytes();
             let c = event.c.to_le_bytes();
             cols.shard = F::from_canonical_u32(event.shard);
+            cols.clk = F::from_canonical_u32(event.clk);
             cols.a = Word(a.map(F::from_canonical_u8));
             cols.b = Word(b.map(F::from_canonical_u8));
             cols.c = Word(c.map(F::from_canonical_u8));
@@ -341,6 +345,7 @@ where
             local.b,
             local.c,
             local.shard,
+            local.clk,
             local.is_real,
         );
 

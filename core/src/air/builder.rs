@@ -317,19 +317,22 @@ pub trait WordAirBuilder: ByteAirBuilder {
 /// A trait which contains methods related to ALU interactions in an AIR.
 pub trait AluAirBuilder: BaseAirBuilder {
     /// Sends an ALU operation to be processed.
-    fn send_alu<EOp, Ea, Eb, Ec, EShard, EMult>(
+    #[allow(clippy::too_many_arguments)]
+    fn send_alu<EOp, Ea, Eb, Ec, EShard, EClk, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,
         b: Word<Eb>,
         c: Word<Ec>,
         shard: EShard,
+        clk: EClk,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EClk: Into<Self::Expr>,
         EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
@@ -338,6 +341,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
+            .chain(once(clk.into()))
             .collect();
 
         self.send(AirInteraction::new(
@@ -348,19 +352,22 @@ pub trait AluAirBuilder: BaseAirBuilder {
     }
 
     /// Receives an ALU operation to be processed.
-    fn receive_alu<EOp, Ea, Eb, Ec, EShard, EMult>(
+    #[allow(clippy::too_many_arguments)]
+    fn receive_alu<EOp, Ea, Eb, Ec, EShard, EClk, EMult>(
         &mut self,
         opcode: EOp,
         a: Word<Ea>,
         b: Word<Eb>,
         c: Word<Ec>,
         shard: EShard,
+        clk: EClk,
         multiplicity: EMult,
     ) where
         EOp: Into<Self::Expr>,
         Ea: Into<Self::Expr>,
         Eb: Into<Self::Expr>,
         Ec: Into<Self::Expr>,
+        EClk: Into<Self::Expr>,
         EShard: Into<Self::Expr>,
         EMult: Into<Self::Expr>,
     {
@@ -369,6 +376,7 @@ pub trait AluAirBuilder: BaseAirBuilder {
             .chain(b.0.into_iter().map(Into::into))
             .chain(c.0.into_iter().map(Into::into))
             .chain(once(shard.into()))
+            .chain(once(clk.into()))
             .collect();
 
         self.receive(AirInteraction::new(

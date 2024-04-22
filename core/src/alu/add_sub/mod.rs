@@ -33,8 +33,11 @@ pub struct AddSubChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct AddSubCols<T> {
-    /// The shard number, used for byte lookup table.
+    /// The shard number the operation was looked up at.
     pub shard: T,
+
+    /// The clock cycle the operation was looked up at.
+    pub clk: T,
 
     /// Instance of `AddOperation` to handle addition logic in `AddSubChip`'s ALU operations.
     /// It's result will be `a` for the add operation and `b` for the sub operation.
@@ -90,6 +93,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
                         let cols: &mut AddSubCols<F> = row.as_mut_slice().borrow_mut();
                         let is_add = event.opcode == Opcode::ADD;
                         cols.shard = F::from_canonical_u32(event.shard);
+                        cols.clk = F::from_canonical_u32(event.clk);
                         cols.is_add = F::from_bool(is_add);
                         cols.is_sub = F::from_bool(!is_add);
 
@@ -163,6 +167,7 @@ where
             local.operand_1,
             local.operand_2,
             local.shard,
+            local.clk,
             local.is_add,
         );
 
@@ -173,6 +178,7 @@ where
             local.add_operation.value,
             local.operand_2,
             local.shard,
+            local.clk,
             local.is_sub,
         );
 

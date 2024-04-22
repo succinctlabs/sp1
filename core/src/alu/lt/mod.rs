@@ -29,8 +29,11 @@ pub struct LtChip;
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct LtCols<T> {
-    /// The shard number, used for byte lookup table.
+    /// The shard in which the operation was looked up at.
     pub shard: T,
+
+    /// The clock cycle the operation was looked up at.
+    pub clk: T,
 
     /// If the opcode is SLT.
     pub is_slt: T,
@@ -118,6 +121,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
                 let c = event.c.to_le_bytes();
 
                 cols.shard = F::from_canonical_u32(event.shard);
+                cols.clk = F::from_canonical_u32(event.clk);
                 cols.a = Word(a.map(F::from_canonical_u8));
                 cols.b = Word(b.map(F::from_canonical_u8));
                 cols.c = Word(c.map(F::from_canonical_u8));
@@ -427,6 +431,7 @@ where
             local.b,
             local.c,
             local.shard,
+            local.clk,
             is_real,
         );
     }

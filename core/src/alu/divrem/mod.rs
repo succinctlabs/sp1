@@ -102,8 +102,11 @@ pub struct DivRemChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct DivRemCols<T> {
-    /// The shard number, used for byte lookup table.
+    /// The shard in which the operation was looked up at.
     pub shard: T,
+
+    /// The clock cycle the operation was looked up at.
+    pub clk: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -220,6 +223,7 @@ impl<F: PrimeField> MachineAir<F> for DivRemChip {
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
                 cols.shard = F::from_canonical_u32(event.shard);
+                cols.clk = F::from_canonical_u32(event.clk);
                 cols.is_real = F::one();
                 cols.is_divu = F::from_bool(event.opcode == Opcode::DIVU);
                 cols.is_remu = F::from_bool(event.opcode == Opcode::REMU);
@@ -468,6 +472,7 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
+                local.clk,
                 local.is_real,
             );
 
@@ -492,6 +497,7 @@ where
                 local.quotient,
                 local.c,
                 local.shard,
+                local.clk,
                 local.is_real,
             );
         }
@@ -684,6 +690,7 @@ where
                 local.abs_remainder,
                 local.max_abs_c_or_1,
                 local.shard,
+                local.clk,
                 local.is_real,
             );
         }
@@ -763,6 +770,7 @@ where
                 local.b,
                 local.c,
                 local.shard,
+                local.clk,
                 local.is_real,
             );
         }

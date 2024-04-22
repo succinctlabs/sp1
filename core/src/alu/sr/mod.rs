@@ -80,8 +80,11 @@ pub struct ShiftRightChip;
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct ShiftRightCols<T> {
-    /// The shard number, used for byte lookup table.
+    /// The shard in which the operation was looked up at.
     pub shard: T,
+
+    /// The clock cycle in which the operation was looked up at.
+    pub clk: T,
 
     /// The output operand.
     pub a: Word<T>,
@@ -151,6 +154,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
             // Initialize cols with basic operands and flags derived from the current event.
             {
                 cols.shard = F::from_canonical_u32(event.shard);
+                cols.clk = F::from_canonical_u32(event.clk);
                 cols.a = Word::from(event.a);
                 cols.b = Word::from(event.b);
                 cols.c = Word::from(event.c);
@@ -480,6 +484,7 @@ where
             local.b,
             local.c,
             local.shard,
+            local.clk,
             local.is_real,
         );
     }
