@@ -264,34 +264,21 @@ where
         // );
 
         // Receive C.
-        builder.eval_memory_read_write(
-            local.c.prev_timestamp,
-            local.c.timestamp,
+        builder.recursion_eval_memory_access(
             local.c.addr,
-            local.c.prev_value,
-            local.c.value,
+            &local.c,
             AB::Expr::one() - local.instruction.imm_c.into(),
         );
 
         // Receive B.
-        builder.eval_memory_read_write(
-            local.b.prev_timestamp,
-            local.b.timestamp,
+        builder.recursion_eval_memory_access(
             local.b.addr,
-            local.b.prev_value,
-            local.b.value,
+            &local.b,
             AB::Expr::one() - local.instruction.imm_b.into(),
         );
 
         // Receive A.
-        builder.eval_memory_read_write(
-            local.a.prev_timestamp,
-            local.a.timestamp,
-            local.a.addr,
-            local.a.prev_value,
-            local.a.value,
-            local.is_real.into(),
-        );
+        builder.recursion_eval_memory_access(local.a.addr, &local.a, local.is_real.into());
 
         // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
         // prog_interaction_vals.push(local.instruction.op_a.into());
