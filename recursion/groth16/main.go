@@ -45,9 +45,10 @@ type Inputs struct {
 }
 
 type Groth16Proof struct {
-	A [2]string    `json:"a"`
-	B [2][2]string `json:"b"`
-	C [2]string    `json:"c"`
+	A     [2]string    `json:"a"`
+	B     [2][2]string `json:"b"`
+	C     [2]string    `json:"c"`
+	Input [2]string    `json:"input"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
@@ -282,9 +283,10 @@ func main() {
 		proofBytes := buf.Bytes()
 
 		var (
-			a [2]string
-			b [2][2]string
-			c [2]string
+			a     [2]string
+			b     [2][2]string
+			c     [2]string
+			input [2]string
 		)
 		a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
 		a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
@@ -294,11 +296,14 @@ func main() {
 		b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
 		c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
 		c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
+		input[0] = inputs.VkeyHash
+		input[1] = inputs.CommitedValuesDigest
 
 		groth16Proof := Groth16Proof{
-			A: a,
-			B: b,
-			C: c,
+			A:     a,
+			B:     b,
+			C:     c,
+			Input: input,
 		}
 
 		jsonData, err := json.Marshal(groth16Proof)
