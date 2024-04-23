@@ -812,6 +812,10 @@ where
             self.clk += F::from_canonical_u32(4);
             self.timestamp += 1;
             self.access = CpuRecord::default();
+
+            if self.timestamp > 1000 {
+                break;
+            }
         }
 
         // Collect all used memory addresses.

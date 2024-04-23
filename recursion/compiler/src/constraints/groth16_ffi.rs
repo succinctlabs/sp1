@@ -66,7 +66,7 @@ pub fn test_prove<C: Config>(constraints: Vec<Constraint>, mut witness: Witness<
     let result = Command::new("go")
         .args([
             "test",
-            "-tags=prover_checks",
+            "-tags=prover_checks,debug",
             "-v",
             "-timeout",
             "100000s",

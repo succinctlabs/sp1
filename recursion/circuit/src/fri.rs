@@ -34,7 +34,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     }
 
     assert_eq!(proof.query_proofs.len(), config.num_queries);
-
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
