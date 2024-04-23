@@ -114,6 +114,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
     pub fn check_witness(&mut self, builder: &mut Builder<C>, bits: usize, witness: Felt<C::F>) {
         self.observe(builder, witness);
         let element = self.sample_bits(builder, bits);
+        builder.print_v(element);
         builder.assert_var_eq(element, C::N::from_canonical_usize(0));
     }
 }
@@ -183,7 +184,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::test_prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -201,7 +202,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::test_prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -220,7 +221,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::test_prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -258,7 +259,7 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::test_prove::<OuterConfig>(constraints, Witness::default());
     }
 
     #[test]
@@ -301,6 +302,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        groth16_ffi::test_prove::<OuterConfig>(constraints, Witness::default());
     }
 }

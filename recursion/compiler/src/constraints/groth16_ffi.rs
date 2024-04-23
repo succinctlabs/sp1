@@ -20,7 +20,7 @@ pub struct Groth16Witness {
     pub exts: Vec<Vec<String>>,
 }
 
-pub fn prove<C: Config>(constraints: Vec<Constraint>, mut witness: Witness<C>) {
+pub fn test_prove<C: Config>(constraints: Vec<Constraint>, mut witness: Witness<C>) {
     let serialized = serde_json::to_string(&constraints).unwrap();
     let manifest_dir = env!("CARGO_MANIFEST_DIR");
     let dir = format!("{}/../groth16", manifest_dir);
@@ -66,6 +66,7 @@ pub fn prove<C: Config>(constraints: Vec<Constraint>, mut witness: Witness<C>) {
     let result = Command::new("go")
         .args([
             "test",
+            "-tags=prover_checks",
             "-v",
             "-timeout",
             "100000s",
