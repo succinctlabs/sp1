@@ -23,7 +23,6 @@ use super::columns::CpuCols;
 use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
 use crate::air::SP1RecursionAirBuilder;
-use crate::cpu::Block;
 use crate::cpu::CpuChip;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::RecursionProgram;
