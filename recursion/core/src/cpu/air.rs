@@ -176,60 +176,6 @@ where
 
         self.eval_alu(builder, local);
 
-        // // Compute extension ALU.
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() + local.c.value.as_extension::<AB>(),
-        //     local.add_ext_scratch.as_extension::<AB>(),
-        // );
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() - local.c.value.as_extension::<AB>(),
-        //     local.sub_ext_scratch.as_extension::<AB>(),
-        // );
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() * local.c.value.as_extension::<AB>(),
-        //     local.mul_ext_scratch.as_extension::<AB>(),
-        // );
-
-        // // Connect ALU to CPU.
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[0], local.add_scratch);
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
-
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[0], local.sub_scratch);
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
-
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[0], local.mul_scratch);
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
-
         // Compute if a == b.
         // IsZeroOperation::<AB::F>::eval::<AB>(
         //     builder,
