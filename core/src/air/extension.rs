@@ -13,8 +13,6 @@ const DEGREE: usize = 4;
 pub struct BinomialExtension<T>(pub [T; DEGREE]);
 
 impl<T> BinomialExtension<T> {
-    pub const DEGREE: usize = DEGREE;
-
     pub fn from_base(b: T) -> Self
     where
         T: AbstractField,

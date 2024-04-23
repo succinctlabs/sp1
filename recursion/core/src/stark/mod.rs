@@ -10,14 +10,12 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
 use sp1_derive::MachineAir;
 
-pub use crate::air::SP1RecursionAirBuilder;
 use crate::runtime::{D, DIGEST_SIZE};
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
-#[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
 pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     Program(ProgramChip),
     Cpu(CpuChip<F>),
