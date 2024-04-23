@@ -1,7 +1,3 @@
-use crate::air::BinomialExtensionUtils;
-use crate::air::BlockBuilder;
-use crate::cpu::CpuChip;
-use crate::runtime::RecursionProgram;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -13,6 +9,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
+use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::indices_arr;
@@ -23,8 +20,12 @@ use std::mem::transmute;
 use tracing::instrument;
 
 use super::columns::CpuCols;
+use crate::air::BinomialExtensionUtils;
+use crate::air::BlockBuilder;
 use crate::air::SP1RecursionAirBuilder;
+use crate::cpu::CpuChip;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::RecursionProgram;
 use crate::runtime::D;
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
@@ -82,18 +83,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     cols.c.populate(record);
                 } else {
                     cols.c.value = event.instruction.op_c;
-                }
-
-                let alu_cols = cols.opcode_specific.alu_mut();
-                alu_cols.ext_a = cols.a.value;
-                alu_cols.ext_b = cols.b.value;
-                alu_cols.ext_c = cols.c.value;
-                if cols.selectors.is_div.is_one() {
-                    alu_cols.inverse_scratch = cols.c.value.0[0].inverse().into();
-                } else if cols.selectors.is_ediv.is_one() {
-                    alu_cols.inverse_scratch = BinomialExtension::from_block(cols.c.value)
-                        .inverse()
-                        .as_block();
                 }
 
                 // cols.a_eq_b
@@ -184,59 +173,7 @@ where
             local.is_real * local.is_real * local.is_real,
         );
 
-        // // Compute extension ALU.
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() + local.c.value.as_extension::<AB>(),
-        //     local.add_ext_scratch.as_extension::<AB>(),
-        // );
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() - local.c.value.as_extension::<AB>(),
-        //     local.sub_ext_scratch.as_extension::<AB>(),
-        // );
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() * local.c.value.as_extension::<AB>(),
-        //     local.mul_ext_scratch.as_extension::<AB>(),
-        // );
-
-        // // Connect ALU to CPU.
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[0], local.add_scratch);
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
-
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[0], local.sub_scratch);
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
-
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[0], local.mul_scratch);
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
+        self.eval_alu(builder, local);
 
         // Compute if a == b.
         // IsZeroOperation::<AB::F>::eval::<AB>(
@@ -342,5 +279,50 @@ where
         //     local.is_real.into(),
         //     InteractionKind::Program,
         // ));
+    }
+}
+
+impl<F> CpuChip<F> {
+    /// Eval all the ALU operations.
+    fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        // Convert register values from Block<Var> to BinomialExtension<Expr>.
+        let a_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.a.value.map(|x| x.into()));
+        let b_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.b.value.map(|x| x.into()));
+        let c_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.c.value.map(|x| x.into()));
+
+        // Flag to check if the instruction is a field operation
+        let is_field_op = local.selectors.is_add
+            + local.selectors.is_sub
+            + local.selectors.is_mul
+            + local.selectors.is_div;
+
+        // Verify that the b and c registers are base elements for field operations.
+        builder
+            .when(is_field_op.clone())
+            .assert_is_base_element(b_ext.clone());
+        builder
+            .when(is_field_op)
+            .assert_is_base_element(c_ext.clone());
+
+        // Verify the actual operation.
+        builder
+            .when(local.selectors.is_add + local.selectors.is_eadd)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() + c_ext.clone());
+        builder
+            .when(local.selectors.is_sub + local.selectors.is_esub)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() - c_ext.clone());
+        builder
+            .when(local.selectors.is_mul + local.selectors.is_emul)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() * c_ext.clone());
+        // For div operation, we assert that b == a * c (equivalent to a == b / c).
+        builder
+            .when(local.selectors.is_div + local.selectors.is_ediv)
+            .assert_ext_eq(b_ext, a_ext * c_ext);
     }
 }
