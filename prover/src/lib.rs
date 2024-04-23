@@ -82,17 +82,7 @@ impl SP1Prover {
     pub fn new() -> Self {
         let reduce_setup_program = ReduceProgram::setup();
         // Load program from reduce.bin if it exists
-        let file = std::fs::File::open("reduce.bin");
-        let reduce_program = match file {
-            Ok(file) => bincode::deserialize_from(file).unwrap(),
-            Err(_) => {
-                println!("reduce.bin not found, building reduce program");
-                let program = ReduceProgram::build();
-                let file = std::fs::File::create("reduce.bin").unwrap();
-                bincode::serialize_into(file, &program).unwrap();
-                program
-            }
-        };
+        let reduce_program = ReduceProgram::build();
         println!("program size: {}", reduce_program.instructions.len());
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
