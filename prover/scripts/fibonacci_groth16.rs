@@ -6,8 +6,8 @@
 use std::time::Instant;
 
 use itertools::iproduct;
+use sp1_core::io::SP1Stdin;
 use sp1_prover::SP1Prover;
-use sp1_sdk::SP1Stdin;
 use tracing_subscriber::EnvFilter;
 use tracing_subscriber::{fmt::format::FmtSpan, util::SubscriberInitExt};
 

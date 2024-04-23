@@ -4319,6 +4319,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp1-core",
+ "sp1-prover",
  "sp1-sdk",
  "tar",
  "target-lexicon",
@@ -4404,7 +4405,7 @@ dependencies = [
  "csv",
  "serde",
  "sp1-core",
- "sp1-sdk",
+ "sp1-prover",
 ]
 
 [[package]]
@@ -4447,9 +4448,11 @@ dependencies = [
 name = "sp1-prover"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "backtrace",
  "bincode",
  "clap",
+ "hex",
  "itertools 0.12.1",
  "p3-baby-bear",
  "p3-challenger",
@@ -4458,13 +4461,13 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "sha2",
  "sp1-core",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-groth16-ffi",
  "sp1-recursion-program",
- "sp1-sdk",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -4603,7 +4606,6 @@ dependencies = [
  "sp1-core",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
- "sp1-sdk",
  "tracing",
 ]
 
@@ -4632,6 +4634,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sp1-core",
+ "sp1-prover",
  "tokio",
  "tracing",
  "twirp",

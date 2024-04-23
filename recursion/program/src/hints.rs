@@ -7,8 +7,8 @@ use sp1_core::stark::{
 };
 use sp1_core::stark::{StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::{
-    BabyBearPoseidon2Inner, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
-    InnerVal,
+    BabyBearPoseidon2, BabyBearPoseidon2Inner, InnerChallenge, InnerDigest, InnerDigestHash,
+    InnerPcsProof, InnerPerm, InnerVal,
 };
 use sp1_recursion_compiler::{
     config::InnerConfig,
@@ -16,7 +16,6 @@ use sp1_recursion_compiler::{
 };
 use sp1_recursion_core::air::Block;
 use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
-use sp1_sdk::utils::BabyBearPoseidon2;
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
@@ -416,13 +415,11 @@ where
     type HintVariable = ShardProofVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let index = builder.hint_var();
         let commitment = ShardCommitment::read(builder);
         let opened_values = ShardOpenedValues::read(builder);
         let opening_proof = InnerPcsProof::read(builder);
         let public_values = Vec::<InnerVal>::read(builder);
         ShardProofVariable {
-            index,
             commitment,
             opened_values,
             opening_proof,
@@ -432,7 +429,6 @@ where
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-        stream.extend(self.index.write());
         stream.extend(self.commitment.write());
         stream.extend(self.opened_values.write());
         stream.extend(self.opening_proof.write());

@@ -12,7 +12,6 @@ use crate::DIGEST_SIZE;
 pub type OuterDigestVariable<C: Config> = [Var<C::N>; DIGEST_SIZE];
 
 pub struct RecursionShardProofVariable<C: Config> {
-    pub index: usize,
     pub commitment: ShardCommitment<OuterDigestVariable<C>>,
     pub opened_values: RecursionShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,

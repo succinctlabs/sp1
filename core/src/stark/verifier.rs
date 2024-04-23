@@ -1,9 +1,11 @@
 use core::fmt::Display;
+use std::fmt::Debug;
 use std::fmt::Formatter;
 use std::marker::PhantomData;
 
 use itertools::Itertools;
 use p3_air::Air;
+use p3_air::BaseAir;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
 use p3_commit::LagrangeSelectors;
@@ -15,6 +17,7 @@ use p3_field::AbstractField;
 use super::folder::VerifierConstraintFolder;
 use super::types::*;
 use super::Domain;
+use super::OpeningError;
 use super::StarkGenericConfig;
 use super::StarkVerifyingKey;
 use super::Val;
@@ -31,7 +34,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         chips: &[&MachineChip<SC, A>],
         challenger: &mut SC::Challenger,
         proof: &ShardProof<SC>,
-    ) -> Result<(), VerificationError>
+    ) -> Result<(), VerificationError<SC>>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
@@ -41,6 +44,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             commitment,
             opened_values,
             opening_proof,
+            chip_ordering,
+            public_values,
             ..
         } = proof;
 
@@ -85,8 +90,8 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             .chip_information
             .iter()
             .map(|(name, domain, _)| {
-                let i = proof.chip_ordering[name];
-                let values = proof.opened_values.chips[i].preprocessed.clone();
+                let i = chip_ordering[name];
+                let values = opened_values.chips[i].preprocessed.clone();
                 (
                     *domain,
                     vec![
@@ -99,7 +104,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let main_domains_points_and_opens = trace_domains
             .iter()
-            .zip_eq(proof.opened_values.chips.iter())
+            .zip_eq(opened_values.chips.iter())
             .map(|(domain, values)| {
                 (
                     *domain,
@@ -113,7 +118,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let perm_domains_points_and_opens = trace_domains
             .iter()
-            .zip_eq(proof.opened_values.chips.iter())
+            .zip_eq(opened_values.chips.iter())
             .map(|(domain, values)| {
                 (
                     *domain,
@@ -166,7 +171,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
                 opening_proof,
                 challenger,
             )
-            .map_err(|_| VerificationError::InvalidopeningArgument)?;
+            .map_err(|e| VerificationError::InvalidopeningArgument(e))?;
 
         // Verify the constrtaint evaluations.
 
@@ -176,41 +181,114 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             quotient_chunk_domains,
             opened_values.chips.iter(),
         ) {
+            // Verify the shape of the opening arguments matches the expected values.
+            Self::verify_opening_shape(chip, values)
+                .map_err(|e| VerificationError::OpeningShapeError(chip.name(), e))?;
+            // Verify the constraint evaluation.
             Self::verify_constraints(
                 chip,
-                values.clone(),
+                values,
                 trace_domain,
                 qc_domains,
                 zeta,
                 alpha,
                 &permutation_challenges,
-                proof.public_values.clone(),
+                public_values,
             )
             .map_err(|_| VerificationError::OodEvaluationMismatch(chip.name()))?;
         }
         Ok(())
     }
 
+    fn verify_opening_shape(
+        chip: &MachineChip<SC, A>,
+        opening: &ChipOpenedValues<SC::Challenge>,
+    ) -> Result<(), OpeningShapeError> {
+        // Verify that the preprocessed width matches the expected value for the chip.
+        if opening.preprocessed.local.len() != chip.preprocessed_width() {
+            return Err(OpeningShapeError::PreprocessedWidthMismatch(
+                chip.preprocessed_width(),
+                opening.preprocessed.local.len(),
+            ));
+        }
+        if opening.preprocessed.next.len() != chip.preprocessed_width() {
+            return Err(OpeningShapeError::PreprocessedWidthMismatch(
+                chip.preprocessed_width(),
+                opening.preprocessed.next.len(),
+            ));
+        }
+
+        // Verify that the main width matches the expected value for the chip.
+        if opening.main.local.len() != chip.width() {
+            return Err(OpeningShapeError::MainWidthMismatch(
+                chip.width(),
+                opening.main.local.len(),
+            ));
+        }
+        if opening.main.next.len() != chip.width() {
+            return Err(OpeningShapeError::MainWidthMismatch(
+                chip.width(),
+                opening.main.next.len(),
+            ));
+        }
+
+        // Verify that the permutation width matches the expected value for the chip.
+        if opening.permutation.local.len() != chip.permutation_width() * SC::Challenge::D {
+            return Err(OpeningShapeError::PermutationWidthMismatch(
+                chip.permutation_width(),
+                opening.permutation.local.len(),
+            ));
+        }
+        if opening.permutation.next.len() != chip.permutation_width() * SC::Challenge::D {
+            return Err(OpeningShapeError::PermutationWidthMismatch(
+                chip.permutation_width(),
+                opening.permutation.next.len(),
+            ));
+        }
+
+        // Verift that the number of quotient chunks matches the expected value for the chip.
+        if opening.quotient.len() != chip.quotient_width() {
+            return Err(OpeningShapeError::QuotientWidthMismatch(
+                chip.quotient_width(),
+                opening.quotient.len(),
+            ));
+        }
+        // For each quotient chunk, verify that the number of elements is equal to the degree of the
+        // challenge extension field over the value field.
+        for slice in &opening.quotient {
+            if slice.len() != SC::Challenge::D {
+                return Err(OpeningShapeError::QuotientChunkSizeMismatch(
+                    SC::Challenge::D,
+                    slice.len(),
+                ));
+            }
+        }
+
+        Ok(())
+    }
+
     #[allow(clippy::too_many_arguments)]
     fn verify_constraints(
         chip: &MachineChip<SC, A>,
-        opening: ChipOpenedValues<SC::Challenge>,
+        opening: &ChipOpenedValues<SC::Challenge>,
         trace_domain: Domain<SC>,
         qc_domains: Vec<Domain<SC>>,
         zeta: SC::Challenge,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values: Vec<Val<SC>>,
+        public_values: &[Val<SC>],
     ) -> Result<(), OodEvaluationMismatch>
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
     {
         let sels = trace_domain.selectors_at_point(zeta);
 
-        let quotient = Self::recompute_quotient(&opening, &qc_domains, zeta);
+        // Recompute the quotient at zeta from the chunks.
+        let quotient = Self::recompute_quotient(opening, &qc_domains, zeta);
+        // Calculate the evaluations of the constraints at zeta.
         let folded_constraints = Self::eval_constraints(
             chip,
-            &opening,
+            opening,
             &sels,
             alpha,
             permutation_challenges,
@@ -231,7 +309,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
         selectors: &LagrangeSelectors<SC::Challenge>,
         alpha: SC::Challenge,
         permutation_challenges: &[SC::Challenge],
-        public_values: Vec<Val<SC>>,
+        public_values: &[Val<SC>],
     ) -> SC::Challenge
     where
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -254,7 +332,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             next: unflatten(&opening.permutation.next),
         };
 
-        let public_values = public_values.to_vec();
         let mut folder = VerifierConstraintFolder::<SC> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
@@ -266,7 +343,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             is_transition: selectors.is_transition,
             alpha,
             accumulator: SC::Challenge::zero(),
-            public_values: &public_values,
+            public_values,
             _marker: PhantomData,
         };
 
@@ -315,25 +392,104 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
 pub struct OodEvaluationMismatch;
 
-#[derive(Debug)]
-pub enum VerificationError {
+pub enum OpeningShapeError {
+    PreprocessedWidthMismatch(usize, usize),
+    MainWidthMismatch(usize, usize),
+    PermutationWidthMismatch(usize, usize),
+    QuotientWidthMismatch(usize, usize),
+    QuotientChunkSizeMismatch(usize, usize),
+}
+
+pub enum VerificationError<SC: StarkGenericConfig> {
     /// opening proof is invalid.
-    InvalidopeningArgument,
+    InvalidopeningArgument(OpeningError<SC>),
     /// Out-of-domain evaluation mismatch.
     ///
     /// `constraints(zeta)` did not match `quotient(zeta) Z_H(zeta)`.
     OodEvaluationMismatch(String),
+    /// The shape of the opening arguments is invalid.
+    OpeningShapeError(String, OpeningShapeError),
 }
 
-impl Display for VerificationError {
+impl Debug for OpeningShapeError {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
-            VerificationError::InvalidopeningArgument => {
+            OpeningShapeError::PreprocessedWidthMismatch(expected, actual) => {
+                write!(
+                    f,
+                    "Preprocessed width mismatch: expected {}, got {}",
+                    expected, actual
+                )
+            }
+            OpeningShapeError::MainWidthMismatch(expected, actual) => {
+                write!(
+                    f,
+                    "Main width mismatch: expected {}, got {}",
+                    expected, actual
+                )
+            }
+            OpeningShapeError::PermutationWidthMismatch(expected, actual) => {
+                write!(
+                    f,
+                    "Permutation width mismatch: expected {}, got {}",
+                    expected, actual
+                )
+            }
+            OpeningShapeError::QuotientWidthMismatch(expected, actual) => {
+                write!(
+                    f,
+                    "Quotient width mismatch: expected {}, got {}",
+                    expected, actual
+                )
+            }
+            OpeningShapeError::QuotientChunkSizeMismatch(expected, actual) => {
+                write!(
+                    f,
+                    "Quotient chunk size mismatch: expected {}, got {}",
+                    expected, actual
+                )
+            }
+        }
+    }
+}
+
+impl Display for OpeningShapeError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        // use the debug implementation
+        write!(f, "{:?}", self)
+    }
+}
+
+impl<SC: StarkGenericConfig> Debug for VerificationError<SC> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            VerificationError::InvalidopeningArgument(e) => {
+                write!(f, "Invalid opening argument: {:?}", e)
+            }
+            VerificationError::OodEvaluationMismatch(chip) => {
+                write!(f, "Out-of-domain evaluation mismatch on chip {}", chip)
+            }
+            VerificationError::OpeningShapeError(chip, e) => {
+                write!(f, "Invalid opening shape for chip {}: {:?}", chip, e)
+            }
+        }
+    }
+}
+
+impl<SC: StarkGenericConfig> Display for VerificationError<SC> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            VerificationError::InvalidopeningArgument(_) => {
                 write!(f, "Invalid opening argument")
             }
             VerificationError::OodEvaluationMismatch(chip) => {
                 write!(f, "Out-of-domain evaluation mismatch on chip {}", chip)
             }
+            VerificationError::OpeningShapeError(chip, e) => {
+                write!(f, "Invalid opening shape for chip {}: {}", chip, e)
+            }
         }
     }
 }
+
+impl<SC: StarkGenericConfig> std::error::Error for VerificationError<SC> {}

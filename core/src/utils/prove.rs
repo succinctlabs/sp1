@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use web_time::Instant;
 
+use crate::io::{SP1PublicValues, SP1Stdin};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
 use p3_field::PrimeField32;
@@ -19,8 +20,6 @@ use crate::{
     stark::{LocalProver, OpeningProof, ShardMainData},
 };
 
-use crate::{SP1ProofWithIO, SP1PublicValues, SP1Stdin};
-
 const LOG_DEGREE_BOUND: usize = 31;
 
 pub fn get_cycles(program: Program) -> u64 {
@@ -29,10 +28,11 @@ pub fn get_cycles(program: Program) -> u64 {
     runtime.state.global_clk as u64
 }
 
+/// Runs a program and returns the public values stream.
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
-) -> Result<SP1ProofWithIO<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+) -> Result<SP1PublicValues, crate::stark::ProgramVerificationError<BabyBearBlake3>> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&inputs.buffer);
@@ -40,17 +40,16 @@ pub fn run_test_io(
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
-    let proof = run_test_core(runtime)?;
-    Ok(SP1ProofWithIO {
-        proof,
-        stdin: inputs,
-        public_values,
-    })
+    let _ = run_test_core(runtime)?;
+    Ok(public_values)
 }
 
 pub fn run_test(
     program: Program,
-) -> Result<crate::stark::MachineProof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+) -> Result<
+    crate::stark::MachineProof<BabyBearBlake3>,
+    crate::stark::ProgramVerificationError<BabyBearBlake3>,
+> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.run();
@@ -62,7 +61,10 @@ pub fn run_test(
 #[allow(unused_variables)]
 pub fn run_test_core(
     runtime: Runtime,
-) -> Result<crate::stark::MachineProof<BabyBearBlake3>, crate::stark::ProgramVerificationError> {
+) -> Result<
+    crate::stark::MachineProof<BabyBearBlake3>,
+    crate::stark::ProgramVerificationError<BabyBearBlake3>,
+> {
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
