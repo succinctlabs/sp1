@@ -16,13 +16,12 @@ use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
+use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 use sp1_recursion_core::stark::RecursionAir;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
-use crate::fri::verify_two_adic_pcs;
 use crate::types::TwoAdicPcsMatsVariable;
 use crate::types::TwoAdicPcsRoundVariable;
 use crate::{challenger::MultiField32ChallengerVariable, types::RecursionShardProofVariable};
@@ -201,8 +200,8 @@ where
         rounds.push(main_round);
         rounds.push(perm_round);
         rounds.push(quotient_round);
-        let config = outer_fri_config();
-        verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
+        // let config = outer_fri_config();
+        // verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
         // for (i, sorted_chip) in sorted_chips.iter().enumerate() {
         //     for chip in machine.chips() {

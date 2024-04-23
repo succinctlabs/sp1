@@ -8,3 +8,4 @@ p3-field = { workspace = true }
 sp1-recursion-compiler = { path = "../compiler" }
 serde = "1.0.198"
 serde_json = "1.0.116"
+tempfile = "3.10.1"

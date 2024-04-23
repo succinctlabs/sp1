@@ -59,85 +59,84 @@ pub fn verify_two_adic_pcs<C: Config>(
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
-    // let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
+    let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
-    // let reduced_openings = proof
-    //     .query_openings
-    //     .iter()
-    //     .zip(&fri_challenges.query_indices)
-    //     .map(|(query_opening, &index)| {
-    // TODO: FIX
-    //         let mut ro: [Ext<C::F, C::EF>; 32] =
-    //             [builder.eval(SymbolicExt::Const(C::EF::zero())); 32];
-    //         let mut alpha_pow: [Ext<C::F, C::EF>; 32] =
-    //             [builder.eval(SymbolicExt::Const(C::EF::one())); 32];
+    let reduced_openings = proof
+        .query_openings
+        .iter()
+        .zip(&fri_challenges.query_indices)
+        .map(|(query_opening, &index)| {
+            let mut ro: [Ext<C::F, C::EF>; 32] =
+                [builder.eval(SymbolicExt::Const(C::EF::zero())); 32];
+            let mut alpha_pow: [Ext<C::F, C::EF>; 32] =
+                [builder.eval(SymbolicExt::Const(C::EF::one())); 32];
 
-    //         for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
-    //             let batch_commit = round.batch_commit;
-    //             let mats = &round.mats;
-    //             let batch_heights = mats
-    //                 .iter()
-    //                 .map(|mat| mat.domain.size() << config.log_blowup)
-    //                 .collect_vec();
-    //             let batch_dims = batch_heights
-    //                 .iter()
-    //                 .map(|&height| Dimensions { width: 0, height })
-    //                 .collect_vec();
+            for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
+                let batch_commit = round.batch_commit;
+                let mats = &round.mats;
+                let batch_heights = mats
+                    .iter()
+                    .map(|mat| mat.domain.size() << config.log_blowup)
+                    .collect_vec();
+                let batch_dims = batch_heights
+                    .iter()
+                    .map(|&height| Dimensions { width: 0, height })
+                    .collect_vec();
 
-    //             let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
-    //             let log_batch_max_height = log2_strict_usize(*batch_max_height);
-    //             let bits_reduced = log_global_max_height - log_batch_max_height;
+                let batch_max_height = batch_heights.iter().max().expect("Empty batch?");
+                let log_batch_max_height = log2_strict_usize(*batch_max_height);
+                let bits_reduced = log_global_max_height - log_batch_max_height;
 
-    //             let index_bits = builder.num2bits_v_circuit(index, 32);
-    //             let reduced_index_bits = index_bits[bits_reduced..].to_vec();
+                let index_bits = builder.num2bits_v_circuit(index, 32);
+                let reduced_index_bits = index_bits[bits_reduced..].to_vec();
 
-    //             verify_batch::<C, 1>(
-    //                 builder,
-    //                 batch_commit,
-    //                 batch_dims,
-    //                 reduced_index_bits,
-    //                 batch_opening.opened_values.clone(),
-    //                 batch_opening.opening_proof.clone(),
-    //             );
-    //             for (mat_opening, mat) in izip!(batch_opening.opened_values.clone(), mats) {
-    //                 let mat_domain = mat.domain;
-    //                 let mat_points = &mat.points;
-    //                 let mat_values = &mat.values;
-    //                 let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
+                verify_batch::<C, 1>(
+                    builder,
+                    batch_commit,
+                    batch_dims,
+                    reduced_index_bits,
+                    batch_opening.opened_values.clone(),
+                    batch_opening.opening_proof.clone(),
+                );
+                for (mat_opening, mat) in izip!(batch_opening.opened_values.clone(), mats) {
+                    let mat_domain = mat.domain;
+                    let mat_points = &mat.points;
+                    let mat_values = &mat.values;
+                    let log_height = log2_strict_usize(mat_domain.size()) + config.log_blowup;
 
-    //                 let bits_reduced = log_global_max_height - log_height;
-    //                 let rev_reduced_index = builder
-    //                     .reverse_bits_len_circuit(index_bits[bits_reduced..].to_vec(), log_height);
+                    let bits_reduced = log_global_max_height - log_height;
+                    let rev_reduced_index = builder
+                        .reverse_bits_len_circuit(index_bits[bits_reduced..].to_vec(), log_height);
 
-    //                 let g = builder.generator();
-    //                 let two_adic_generator: Felt<_> =
-    //                     builder.eval(C::F::two_adic_generator(log_height));
-    //                 let two_adic_generator_exp =
-    //                     builder.exp_f_bits(two_adic_generator, rev_reduced_index);
-    //                 let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
+                    let g = builder.generator();
+                    let two_adic_generator: Felt<_> =
+                        builder.eval(C::F::two_adic_generator(log_height));
+                    let two_adic_generator_exp =
+                        builder.exp_f_bits(two_adic_generator, rev_reduced_index);
+                    let x: Felt<_> = builder.eval(g * two_adic_generator_exp);
 
-    //                 for (z, ps_at_z) in izip!(mat_points, mat_values) {
-    //                     for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-    //                         let p_at_x = builder.ext_from_base_slice(&p_at_x);
-    //                         let quotient: SymbolicExt<C::F, C::EF> = (-p_at_z + p_at_x) / (-*z + x);
-    //                         ro[log_height] =
-    //                             builder.eval(ro[log_height] + alpha_pow[log_height] * quotient);
-    //                         alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
-    //                     }
-    //                 }
-    //             }
-    //         }
-    //         ro
-    //     })
-    //     .collect::<Vec<_>>();
+                    for (z, ps_at_z) in izip!(mat_points, mat_values) {
+                        for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
+                            let p_at_x = builder.ext_from_base_slice(&p_at_x);
+                            let quotient: SymbolicExt<C::F, C::EF> = (-p_at_z + p_at_x) / (-*z + x);
+                            ro[log_height] =
+                                builder.eval(ro[log_height] + alpha_pow[log_height] * quotient);
+                            alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
+                        }
+                    }
+                }
+            }
+            ro
+        })
+        .collect::<Vec<_>>();
 
-    // verify_challenges(
-    //     builder,
-    //     config,
-    //     &proof.fri_proof,
-    //     &fri_challenges,
-    //     reduced_openings,
-    // );
+    verify_challenges(
+        builder,
+        config,
+        &proof.fri_proof,
+        &fri_challenges,
+        reduced_openings,
+    );
 }
 
 pub fn verify_challenges<C: Config>(

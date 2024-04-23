@@ -13,12 +13,14 @@ use sp1_sdk::SP1Stdin;
 #[clap(author, version, about, long_about = None)]
 struct Args {
     #[clap(short, long)]
-    output_dir: String,
+    build_dir: String,
 }
 
 pub fn main() {
     sp1_sdk::utils::setup_logger();
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
+
+    let args = Args::parse();
 
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -47,9 +49,17 @@ pub fn main() {
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    tracing::info!("sanity check gnark circuit");
+    tracing::info!("sanity check gnark test");
     Groth16Prover::test(constraints.clone(), witness.clone());
 
-    tracing::info!("sanity check proving");
-    Groth16Prover::build(constraints.clone(), witness.clone());
+    tracing::info!("sanity check gnark build");
+    Groth16Prover::build(
+        constraints.clone(),
+        witness.clone(),
+        args.build_dir.clone().into(),
+    );
+
+    tracing::info!("sanity check gnark prove");
+    let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
+    println!("{:?}", proof);
 }

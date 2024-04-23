@@ -7,9 +7,11 @@ package main
 import "C"
 
 import (
+	"bytes"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"math/big"
 	"os"
 	"strconv"
 
@@ -32,15 +34,21 @@ type Constraint struct {
 	Args   [][]string `json:"args"`
 }
 
-type Witness struct {
+type Inputs struct {
 	Vars  []string   `json:"vars"`
 	Felts []string   `json:"felts"`
 	Exts  [][]string `json:"exts"`
 }
 
+type Groth16Proof struct {
+	A [2]string    `json:"a"`
+	B [2][2]string `json:"b"`
+	C [2]string    `json:"c"`
+}
+
 func (circuit *Circuit) Define(api frontend.API) error {
 	// Get the file name from an environment variable.
-	fileName := os.Getenv("CONSTRAINT_JSON")
+	fileName := os.Getenv("CONSTRAINTS_JSON")
 	if fileName == "" {
 		fileName = "constraints.json"
 	}
@@ -171,6 +179,8 @@ func (circuit *Circuit) Define(api frontend.API) error {
 func main() {
 	proveCmd := flag.NewFlagSet("prove", flag.ExitOnError)
 	dataDirFlag := proveCmd.String("data", "", "Data directory path")
+	witnessPathFlag := proveCmd.String("witness", "", "Path to witness")
+	proofPathFlag := proveCmd.String("proof", "", "Path to proof")
 
 	buildCmd := flag.NewFlagSet("build", flag.ExitOnError)
 	buildDataDirFlag := buildCmd.String("data", "", "Data directory path")
@@ -185,6 +195,9 @@ func main() {
 		proveCmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'prove' with data=%s\n", *dataDirFlag)
 		buildDir := *dataDirFlag
+		witnessPath := *witnessPathFlag
+		proofPath := *proofPathFlag
+		os.Setenv("CONSTRAINTS_JSON", buildDir+"/constraints.json")
 
 		// Read the R1CS.
 		fmt.Println("Reading r1cs...")
@@ -206,61 +219,99 @@ func main() {
 
 		// Generate the witness.
 		fmt.Println("Generating witness...")
-		data, err := os.ReadFile(buildDir + "/witness.json")
+		data, err := os.ReadFile(witnessPath)
 		if err != nil {
 			panic(err)
 		}
 
 		// Deserialize the JSON data into a slice of Instruction structs
-		var witness Witness
-		err = json.Unmarshal(data, &witness)
+		var inputs Inputs
+		err = json.Unmarshal(data, &inputs)
 		if err != nil {
 			panic(err)
 		}
 
-		vars := make([]frontend.Variable, len(witness.Vars))
-		felts := make([]*babybear.Variable, len(witness.Felts))
-		exts := make([]*babybear.ExtensionVariable, len(witness.Exts))
-		for i := 0; i < len(witness.Vars); i++ {
-			vars[i] = frontend.Variable(witness.Vars[i])
+		vars := make([]frontend.Variable, len(inputs.Vars))
+		felts := make([]*babybear.Variable, len(inputs.Felts))
+		exts := make([]*babybear.ExtensionVariable, len(inputs.Exts))
+		for i := 0; i < len(inputs.Vars); i++ {
+			vars[i] = frontend.Variable(inputs.Vars[i])
 		}
-		for i := 0; i < len(witness.Felts); i++ {
-			felts[i] = babybear.NewF(witness.Felts[i])
+		for i := 0; i < len(inputs.Felts); i++ {
+			felts[i] = babybear.NewF(inputs.Felts[i])
 		}
-		for i := 0; i < len(witness.Exts); i++ {
-			exts[i] = babybear.NewE(witness.Exts[i])
+		for i := 0; i < len(inputs.Exts); i++ {
+			exts[i] = babybear.NewE(inputs.Exts[i])
 		}
+
+		// Generate witness.
+		fmt.Println("Generating witness...")
 		assignment := Circuit{
 			Vars:  vars,
 			Felts: felts,
 			Exts:  exts,
 		}
-		witnessX, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 		if err != nil {
 			panic(err)
 		}
 
 		// Generate the proof.
 		fmt.Println("Generating proof...")
-		proof, err := groth16.Prove(r1cs, pk, witnessX)
+		proof, err := groth16.Prove(r1cs, pk, witness)
 		if err != nil {
 			panic(err)
 		}
 
-		fmt.Println(proof)
+		// Serialize the proof to JSON.
+		const fpSize = 4 * 8
+		var buf bytes.Buffer
+		proof.WriteRawTo(&buf)
+		proofBytes := buf.Bytes()
+
+		var (
+			a [2]string
+			b [2][2]string
+			c [2]string
+		)
+		a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
+		a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
+		b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3]).String()
+		b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4]).String()
+		b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5]).String()
+		b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
+		c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
+		c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
+
+		groth16Proof := Groth16Proof{
+			A: a,
+			B: b,
+			C: c,
+		}
+
+		jsonData, err := json.Marshal(groth16Proof)
+		if err != nil {
+			panic(err)
+		}
+
+		err = os.WriteFile(proofPath, jsonData, 0644)
+		if err != nil {
+			panic(err)
+		}
 	case "build":
 		buildCmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'build' with data=%s\n", *buildDataDirFlag)
 		buildDir := *buildDataDirFlag
+		os.Setenv("CONSTRAINTS_JSON", buildDir+"/constraints.json")
 
 		// Read the witness.
-		data, err := os.ReadFile("witness.json")
+		data, err := os.ReadFile(buildDir + "/witness.json")
 		if err != nil {
 			panic(err)
 		}
 
 		// Deserialize the JSON data into a slice of Instruction structs
-		var witness Witness
+		var witness Inputs
 		err = json.Unmarshal(data, &witness)
 		if err != nil {
 			panic(err)
@@ -302,50 +353,6 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-
-		// Deserialize the JSON data into a slice of Instruction structs
-		var witness2 Witness
-		err = json.Unmarshal(data, &witness2)
-		if err != nil {
-			panic(err)
-		}
-
-		vars2 := make([]frontend.Variable, len(witness2.Vars))
-		felts2 := make([]*babybear.Variable, len(witness2.Felts))
-		exts2 := make([]*babybear.ExtensionVariable, len(witness2.Exts))
-		for i := 0; i < len(witness2.Vars); i++ {
-			vars2[i] = frontend.Variable(witness2.Vars[i])
-		}
-		fmt.Println("NbVars:", len(vars2))
-		for i := 0; i < len(witness2.Felts); i++ {
-			felts2[i] = babybear.NewF(witness2.Felts[i])
-		}
-		fmt.Println("NbFelts:", len(felts2))
-		for i := 0; i < len(witness2.Exts); i++ {
-			exts2[i] = babybear.NewE(witness2.Exts[i])
-		}
-		fmt.Println("NbExts:", len(exts2))
-
-		// Initialize the circuit.
-		circuit = Circuit{
-			Vars:  vars2,
-			Felts: felts2,
-			Exts:  exts2,
-		}
-
-		witnessX, err := frontend.NewWitness(&circuit, ecc.BN254.ScalarField())
-		if err != nil {
-			panic(err)
-		}
-
-		// Generate the dummy proof.
-		fmt.Println("Generating proof...")
-		proof, err := groth16.Prove(r1cs, pk, witnessX)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(proof)
 
 		// Create the build directory.
 		os.MkdirAll(buildDir, 0755)

@@ -29,7 +29,7 @@ func TestMain(t *testing.T) {
 	}
 
 	// Deserialize the JSON data into a slice of Instruction structs
-	var witness Witness
+	var witness Inputs
 	err = json.Unmarshal(data, &witness)
 	if err != nil {
 		panic(err)
