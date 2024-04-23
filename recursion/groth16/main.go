@@ -252,10 +252,9 @@ func main() {
 		buildCmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'build' with data=%s\n", *buildDataDirFlag)
 		buildDir := *buildDataDirFlag
-		os.Setenv("CONSTRAINT_JSON", buildDir+"/constraints.json")
 
 		// Read the witness.
-		data, err := os.ReadFile(buildDir + "/witness.json")
+		data, err := os.ReadFile("witness.json")
 		if err != nil {
 			panic(err)
 		}
@@ -273,12 +272,15 @@ func main() {
 		for i := 0; i < len(witness.Vars); i++ {
 			vars[i] = frontend.Variable(witness.Vars[i])
 		}
+		fmt.Println("NbVars:", len(vars))
 		for i := 0; i < len(witness.Felts); i++ {
 			felts[i] = babybear.NewF(witness.Felts[i])
 		}
+		fmt.Println("NbFelts:", len(felts))
 		for i := 0; i < len(witness.Exts); i++ {
 			exts[i] = babybear.NewE(witness.Exts[i])
 		}
+		fmt.Println("NbExts:", len(exts))
 
 		// Initialize the circuit.
 		circuit := Circuit{
@@ -301,24 +303,37 @@ func main() {
 			panic(err)
 		}
 
-		vars = make([]frontend.Variable, len(witness.Vars))
-		felts = make([]*babybear.Variable, len(witness.Felts))
-		exts = make([]*babybear.ExtensionVariable, len(witness.Exts))
-		for i := 0; i < len(witness.Vars); i++ {
-			vars[i] = frontend.Variable(witness.Vars[i])
+		// Deserialize the JSON data into a slice of Instruction structs
+		var witness2 Witness
+		err = json.Unmarshal(data, &witness2)
+		if err != nil {
+			panic(err)
 		}
-		for i := 0; i < len(witness.Felts); i++ {
-			felts[i] = babybear.NewF(witness.Felts[i])
+
+		vars2 := make([]frontend.Variable, len(witness2.Vars))
+		felts2 := make([]*babybear.Variable, len(witness2.Felts))
+		exts2 := make([]*babybear.ExtensionVariable, len(witness2.Exts))
+		for i := 0; i < len(witness2.Vars); i++ {
+			vars2[i] = frontend.Variable(witness2.Vars[i])
 		}
-		for i := 0; i < len(witness.Exts); i++ {
-			exts[i] = babybear.NewE(witness.Exts[i])
+		fmt.Println("NbVars:", len(vars2))
+		for i := 0; i < len(witness2.Felts); i++ {
+			felts2[i] = babybear.NewF(witness2.Felts[i])
 		}
-		assignment := Circuit{
-			Vars:  vars,
-			Felts: felts,
-			Exts:  exts,
+		fmt.Println("NbFelts:", len(felts2))
+		for i := 0; i < len(witness2.Exts); i++ {
+			exts2[i] = babybear.NewE(witness2.Exts[i])
 		}
-		witnessX, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		fmt.Println("NbExts:", len(exts2))
+
+		// Initialize the circuit.
+		circuit = Circuit{
+			Vars:  vars2,
+			Felts: felts2,
+			Exts:  exts2,
+		}
+
+		witnessX, err := frontend.NewWitness(&circuit, ecc.BN254.ScalarField())
 		if err != nil {
 			panic(err)
 		}

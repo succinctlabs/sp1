@@ -7,7 +7,6 @@ use std::{
     process::{Command, Stdio},
 };
 
-use p3_field::AbstractField;
 use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},
@@ -43,15 +42,10 @@ impl Groth16Prover {
     }
 
     /// Executes the prover in testing mode with a circuit definition and witness.
-    pub fn test<C: Config>(constraints: Vec<Constraint>, mut witness: Witness<C>) {
+    pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let dir = format!("{}/../groth16", manifest_dir);
-
-        // Append some dummy elements to the witness to avoid compilation errors.
-        witness.vars.push(C::N::from_canonical_usize(999));
-        witness.felts.push(C::F::from_canonical_usize(999));
-        witness.exts.push(C::EF::from_canonical_usize(999));
 
         // Write constraints.
         let constraints_path = format!("{}/constraints.json", dir);
@@ -88,26 +82,35 @@ impl Groth16Prover {
         }
     }
 
-    pub fn prove<C: Config>(&self, constraints: Vec<Constraint>, mut witness: Witness<C>) {
+    pub fn prove<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
-        let dir = self.binary.parent().unwrap();
-
-        // Append some dummy elements to the witness to avoid compilation errors.
-        witness.vars.push(C::N::from_canonical_usize(999));
-        witness.felts.push(C::F::from_canonical_usize(999));
-        witness.exts.push(C::EF::from_canonical_usize(999));
+        let manifest_dir = env!("CARGO_MANIFEST_DIR");
+        let dir = format!("{}/../groth16", manifest_dir);
 
         // Write constraints.
-        let constraints_path = format!("{}/constraints.json", dir.display());
+        let constraints_path = format!("{}/constraints.json", dir);
         let mut file = File::create(constraints_path).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
 
         // Write witness.
-        let witness_path = format!("{}/witness.json", dir.display());
+        let witness_path = format!("{}/witness.json", dir);
         let gnark_witness: Groth16Witness = witness.into();
-        gnark_witness.save(&witness_path);
+        let mut file = File::create(witness_path).unwrap();
+        let serialized = serde_json::to_string(&gnark_witness).unwrap();
+        file.write_all(serialized.as_bytes()).unwrap();
 
-        self.cmd(&["run", "-v", "-timeout", "100000s"]);
+        let result = Command::new("go")
+            .args(["run", "main.go", "build"])
+            .current_dir(dir)
+            .stderr(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stdin(Stdio::inherit())
+            .output()
+            .unwrap();
+
+        if !result.status.success() {
+            panic!("failed to run test circuit");
+        }
     }
 }
 

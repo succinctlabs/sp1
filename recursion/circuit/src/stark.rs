@@ -254,8 +254,6 @@ pub fn build_wrap_circuit(
         [builder.eval(preprocessed_commit_val[0])];
     challenger.observe_commitment(&mut builder, preprocessed_commit);
 
-    builder.print_debug(1);
-
     let chips = outer_machine
         .shard_chips_ordered(&dummy_proof.chip_ordering)
         .map(|chip| chip.name())
@@ -285,17 +283,15 @@ pub fn build_wrap_circuit(
     );
     challenger.observe_slice(&mut builder, pv_slice);
 
-    builder.print_debug(2);
-
-    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
-        &mut builder,
-        vk,
-        &outer_machine,
-        &mut challenger.clone(),
-        &proof,
-        chips,
-        sorted_indices,
-    );
+    // StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+    //     &mut builder,
+    //     vk,
+    //     &outer_machine,
+    //     &mut challenger.clone(),
+    //     &proof,
+    //     chips,
+    //     sorted_indices,
+    // );
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)

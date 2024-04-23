@@ -370,7 +370,7 @@ impl SP1Prover {
 
         // Generate proof.
         let machine = RecursionAir::machine(SC::default());
-        let (pk, _) = machine.setup(&self.reduce_setup_program);
+        let (pk, _) = machine.setup(&self.reduce_program);
         let mut challenger = machine.config().challenger();
         let proof =
             machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
@@ -501,7 +501,7 @@ mod tests {
         tracing::info!("reduce");
         let reduced_proof = prover.reduce(&vk, core_proof);
 
-        tracing::info!("wrap");
+        tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
 
         tracing::info!("groth16");

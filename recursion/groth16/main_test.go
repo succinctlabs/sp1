@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -40,12 +41,15 @@ func TestMain(t *testing.T) {
 	for i := 0; i < len(witness.Vars); i++ {
 		vars[i] = frontend.Variable(witness.Vars[i])
 	}
+	fmt.Println("NbVars:", len(vars))
 	for i := 0; i < len(witness.Felts); i++ {
 		felts[i] = babybear.NewF(witness.Felts[i])
 	}
+	fmt.Println("NbFelts:", len(felts))
 	for i := 0; i < len(witness.Exts); i++ {
 		exts[i] = babybear.NewE(witness.Exts[i])
 	}
+	fmt.Println("NbExts:", len(exts))
 
 	// Run some sanity checks.
 	circuit := Circuit{

@@ -7,6 +7,7 @@ use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_groth16_ffi::witness::Groth16Witness;
+use sp1_recursion_groth16_ffi::Groth16Prover;
 use sp1_sdk::SP1Stdin;
 use std::fs::File;
 use std::io::Write;
@@ -51,10 +52,9 @@ pub fn main() {
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    tracing::info!("writing constraints + witness");
-    let gnark_witness: Groth16Witness = witness.clone().into();
-    gnark_witness.save(&format!("{}/witness.json", args.output_dir));
-    let serialized = serde_json::to_string(&constraints).unwrap();
-    let mut file = File::create(format!("{}/constraints.json", args.output_dir)).unwrap();
-    Write::write_all(&mut file, serialized.as_bytes()).unwrap();
+    tracing::info!("sanity check gnark circuit");
+    Groth16Prover::test(constraints.clone(), witness.clone());
+
+    tracing::info!("sanity check proving");
+    Groth16Prover::prove(constraints.clone(), witness.clone());
 }
