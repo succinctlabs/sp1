@@ -13,6 +13,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
+use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::indices_arr;
@@ -24,6 +25,7 @@ use tracing::instrument;
 
 use super::columns::CpuCols;
 use crate::air::SP1RecursionAirBuilder;
+use crate::cpu::Block;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::D;
 
@@ -88,13 +90,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 alu_cols.ext_a = cols.a.value;
                 alu_cols.ext_b = cols.b.value;
                 alu_cols.ext_c = cols.c.value;
-                if cols.selectors.is_div.is_one() {
-                    alu_cols.inverse_scratch = cols.c.value.0[0].inverse().into();
-                } else if cols.selectors.is_ediv.is_one() {
-                    alu_cols.inverse_scratch = BinomialExtension::from_block(cols.c.value)
-                        .inverse()
-                        .as_block();
-                }
 
                 // cols.a_eq_b
                 //     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
@@ -183,6 +178,8 @@ where
             local.is_real * local.is_real * local.is_real,
             local.is_real * local.is_real * local.is_real,
         );
+
+        self.eval_alu(builder, local);
 
         // // Compute extension ALU.
         // builder.assert_ext_eq(
@@ -342,5 +339,48 @@ where
         //     local.is_real.into(),
         //     InteractionKind::Program,
         // ));
+    }
+}
+
+impl<F> CpuChip<F> {
+    fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        let alu_cols = local.opcode_specific.alu();
+
+        let ext_a_expr: Block<AB::Expr> = alu_cols.ext_a.map(|x| x.into());
+        let ext_b_expr: Block<AB::Expr> = alu_cols.ext_b.map(|x| x.into());
+        let ext_c_expr: Block<AB::Expr> = alu_cols.ext_c.map(|x| x.into());
+
+        let a_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_a_expr);
+        let b_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_b_expr);
+        let c_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_c_expr);
+
+        let is_base_field_op = local.selectors.is_add
+            + local.selectors.is_sub
+            + local.selectors.is_mul
+            + local.selectors.is_div;
+
+        builder
+            .when(is_base_field_op.clone())
+            .assert_is_base_element(b_ext.clone());
+        builder
+            .when(is_base_field_op)
+            .assert_is_base_element(c_ext.clone());
+
+        builder
+            .when(local.selectors.is_add + local.selectors.is_eadd)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() + c_ext.clone());
+        builder
+            .when(local.selectors.is_sub + local.selectors.is_esub)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() - c_ext.clone());
+        builder
+            .when(local.selectors.is_mul + local.selectors.is_emul)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() * c_ext.clone());
+        // For div operation, we assert that b == a * c (equivalent to a == b / c).
+        builder
+            .when(local.selectors.is_div + local.selectors.is_ediv)
+            .assert_ext_eq(b_ext, a_ext * c_ext);
     }
 }
