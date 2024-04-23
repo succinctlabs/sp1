@@ -103,6 +103,7 @@ impl NetworkClient {
 
         let proof = match res.status() {
             ProofStatus::ProofFulfilled => {
+                println!("Proof request fulfilled");
                 let proof_bytes = self
                     .http
                     .get(res.proof_url.clone())
@@ -161,7 +162,7 @@ impl NetworkClient {
         Ok((res, tx_hash, simulation_url))
     }
 
-    /// Makes a proof request for the given ELF and stdin.
+    /// Creates a proof request for the given ELF and stdin.
     pub async fn create_proof(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start

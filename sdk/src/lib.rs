@@ -87,7 +87,7 @@ impl ProverClient {
         println!("Simulation complete");
 
         let proof_id = client.create_proof(elf, &stdin).await?;
-        println!("Proof ID: {:?}", proof_id);
+        println!("Proof request ID: {:?}", proof_id);
 
         let mut is_claimed = false;
         loop {
@@ -99,7 +99,7 @@ impl ProverClient {
                 }
                 ProofStatus::ProofClaimed => {
                     if !is_claimed {
-                        println!("Proof claimed by a prover");
+                        println!("Proof request claimed");
                         is_claimed = true;
                     }
                 }
