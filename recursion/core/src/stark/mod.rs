@@ -10,7 +10,6 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
 use sp1_derive::MachineAir;
 
-pub use crate::air::SP1RecursionAirBuilder;
 use crate::runtime::{D, DIGEST_SIZE};
 
 #[derive(MachineAir)]
