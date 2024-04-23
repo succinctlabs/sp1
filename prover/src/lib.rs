@@ -74,7 +74,6 @@ pub struct SP1VerifyingKey {
 }
 
 /// A proof of a RISC-V execution with given inputs and outputs composed of multiple shard proofs.
-#[derive(Serialize, Deserialize)]
 pub struct SP1CoreProof {
     pub shard_proofs: Vec<ShardProof<CoreSC>>,
     pub stdin: SP1Stdin,
@@ -346,7 +345,6 @@ impl SP1Prover {
             witness_stream.extend(vk.write());
         }
 
-        // Execute runtime to get the memory setup.
         let machine = RecursionAir::machine(InnerSC::default());
         let mut runtime = Runtime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
             &self.reduce_setup_program,
@@ -354,6 +352,7 @@ impl SP1Prover {
         );
         runtime.witness_stream = witness_stream.into();
         runtime.run();
+        runtime.print_stats();
         let mut checkpoint = runtime.memory.clone();
 
         // Execute runtime.
@@ -367,12 +366,20 @@ impl SP1Prover {
         });
         runtime.memory = checkpoint;
         runtime.run();
+        runtime.print_stats();
 
         // Generate proof.
         let machine = RecursionAir::machine(SC::default());
-        let (pk, _) = machine.setup(&self.reduce_program);
+        let (pk, _) = machine.setup(&self.reduce_setup_program);
         let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let proof =
+            machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
+
+        // Verify proof.
+        //
+        // let mut challenger = machine.config().challenger();
+        // machine.debug_constraints(&pk, runtime.record, &mut challenger);
+        // machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         // Return the reduced proof.
         assert!(proof.shard_proofs.len() == 1);

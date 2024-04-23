@@ -6,7 +6,7 @@ use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_groth16_ffi::Groth16Witness;
+use sp1_recursion_groth16_ffi::witness::Groth16Witness;
 use sp1_sdk::SP1Stdin;
 use std::fs::File;
 use std::io::Write;
@@ -35,7 +35,6 @@ pub fn main() {
     tracing::info!("prove core");
     let stdin = SP1Stdin::new();
     let core_proof = prover.prove_core(&pk, &stdin);
-
     let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
 
     tracing::info!("reduce");
@@ -51,9 +50,10 @@ pub fn main() {
     tracing::info!("building template witness");
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
-    let gnark_witness: Groth16Witness = witness.into();
-    gnark_witness.save(&format!("{}/witness.json", args.output_dir));
 
+    tracing::info!("writing constraints + witness");
+    let gnark_witness: Groth16Witness = witness.clone().into();
+    gnark_witness.save(&format!("{}/witness.json", args.output_dir));
     let serialized = serde_json::to_string(&constraints).unwrap();
     let mut file = File::create(format!("{}/constraints.json", args.output_dir)).unwrap();
     Write::write_all(&mut file, serialized.as_bytes()).unwrap();
