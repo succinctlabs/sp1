@@ -273,7 +273,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_constraints_whole() {
+    fn test_verify_constraints() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
@@ -350,7 +350,6 @@ mod tests {
                     &permutation_challenges,
                 )
             }
-            break;
         }
 
         let program = builder.compile_program();
