@@ -107,5 +107,8 @@ func TestMain(t *testing.T) {
 
 	fmt.Println(proof)
 
+	// This was the old way we were testing the circuit, but it seems to have edge cases where it
+	// doesn't properly check that the prover will succeed.
+	//
 	// assert.CheckCircuit(&circuit, test.WithCurves(ecc.BN254), test.WithBackends(backend.GROTH16))
 }
