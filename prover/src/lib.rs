@@ -778,7 +778,7 @@ mod tests {
         let (keccak_pk, keccak_vk) = prover.setup(keccak_elf);
         let (verify_pk, verify_vk) = prover.setup(verify_elf);
 
-        tracing::info!("prove core");
+        tracing::info!("prove subproof 1");
         let mut stdin = SP1Stdin::new();
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
@@ -795,14 +795,13 @@ mod tests {
         };
         let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
         println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
-        let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32].to_vec();
-        let pv_digest_1: [u8; 32] = pv_digest_1
+        let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32]
             .iter()
-            .map(|n| n.as_canonical_u32() as u8)
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
+            .map(|x| x.as_canonical_u32() as u8)
+            .collect::<Vec<_>>();
+        println!("proof 1 pv_digest: {:?}", hex::encode(pv_digest_1.clone()));
 
+        tracing::info!("prove subproof 2");
         let mut stdin = SP1Stdin::new();
         stdin.write(&3usize);
         stdin.write(&vec![0u8, 1, 2]);
@@ -821,17 +820,16 @@ mod tests {
         };
         let pv_2 = deferred_proof_2.public_values.buffer.data.clone();
         println!("proof 2 pv: {:?}", hex::encode(pv_2.clone()));
-        let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32].to_vec();
-        let pv_digest_2: [u8; 32] = pv_digest_2
+        let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32]
             .iter()
-            .map(|n| n.as_canonical_u32() as u8)
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
+            .map(|x| x.as_canonical_u32() as u8)
+            .collect::<Vec<_>>();
+        println!("proof 2 pv_digest: {:?}", hex::encode(pv_digest_2.clone()));
 
-        println!("deferred_reduce_1");
+        println!("reduce subproof 1");
         let deferred_reduce_1 = prover.reduce(&keccak_vk, deferred_proof_1, vec![]);
-        println!("deferred_reduce_2");
+
+        println!("reduce subproof 2");
         let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
 
         let mut stdin = SP1Stdin::new();
@@ -844,13 +842,11 @@ mod tests {
             .unwrap();
         stdin.write(&vkey_digest);
         stdin.write(&vec![pv_1.clone(), pv_2.clone(), pv_2.clone()]);
-        stdin.write(&pv_digest_1);
-        stdin.write(&pv_digest_2);
-        stdin.write(&pv_digest_2);
         stdin.write_proof(deferred_reduce_1.proof.clone(), keccak_vk.vk.clone());
         stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
         stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
-        println!("verify proof");
+
+        println!("proving verify program (core)");
         let verify_proof = prover.prove_core(&verify_pk, &stdin);
         let pv = PublicValues::<Word<BabyBear>, BabyBear>::from_vec(
             verify_proof.shard_proofs[0].public_values.clone(),
@@ -858,7 +854,7 @@ mod tests {
 
         println!("deferred_hash: {:?}", pv.deferred_proofs_digest);
 
-        println!("verify reduce");
+        println!("proving verify program (recursion)");
         let verify_reduce = prover.reduce(
             &verify_vk,
             verify_proof.clone(),
@@ -876,19 +872,7 @@ mod tests {
         let challenger = prover.setup_core_challenger(&verify_vk, &verify_proof);
         let wrapped = prover.wrap_bn254(&verify_vk, challenger, verify_reduce);
 
-        // tracing::info!("verify core");
-        // core_proof.verify(&vk).unwrap();
-
-        // // TODO: Get rid of this method by reading it from public values.
-        // let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
-
-        // tracing::info!("reduce");
-        // let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
-
-        // tracing::info!("wrap");
-        // let wrapped_bn254_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
-
-        // tracing::info!("groth16");
-        // prover.wrap_groth16(wrapped_bn254_proof);
+        tracing::info!("groth16");
+        prover.wrap_groth16(wrapped);
     }
 }
