@@ -132,6 +132,40 @@ fn felts_to_array<C: Config>(
     arr
 }
 
+/// Hash the verifying key + prep domains into a single digest.
+/// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
+fn hash_vkey<C: Config>(
+    builder: &mut Builder<C>,
+    vk: &VerifyingKeyVariable<C>,
+    prep_domains: &Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+) -> Array<C, Felt<C::F>> {
+    let domain_slots: Var<_> = builder.eval(prep_domains.len() * 4);
+    let vkey_slots: Var<_> = builder.constant(C::N::from_canonical_usize(DIGEST_SIZE + 1));
+    let total_slots: Var<_> = builder.eval(vkey_slots + domain_slots);
+    let mut inputs = builder.dyn_array(total_slots);
+    builder.range(0, DIGEST_SIZE).for_each(|i, builder| {
+        let element = builder.get(&vk.commitment, i);
+        builder.set(&mut inputs, i, element);
+    });
+    builder.set(&mut inputs, DIGEST_SIZE, vk.pc_start);
+    let four: Var<_> = builder.constant(C::N::from_canonical_usize(4));
+    let one: Var<_> = builder.constant(C::N::one());
+    builder.range(0, prep_domains.len()).for_each(|i, builder| {
+        let domain = builder.get(prep_domains, i);
+        let log_n_index: Var<_> = builder.eval(vkey_slots + i * four);
+        let size_index: Var<_> = builder.eval(log_n_index + one);
+        let shift_index: Var<_> = builder.eval(size_index + one);
+        let g_index: Var<_> = builder.eval(shift_index + one);
+        let log_n_felt = var2felt(builder, domain.log_n);
+        let size_felt = var2felt(builder, domain.size);
+        builder.set(&mut inputs, log_n_index, log_n_felt);
+        builder.set(&mut inputs, size_index, size_felt);
+        builder.set(&mut inputs, shift_index, domain.shift);
+        builder.set(&mut inputs, g_index, domain.g);
+    });
+    builder.poseidon2_hash(&inputs)
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct ReduceProgram;
 
@@ -262,6 +296,10 @@ impl ReduceProgram {
         }
         recursion_challenger.observe(&mut builder, recursion_vk.pc_start);
         builder.cycle_tracker("stage-b-setup-recursion-challenger");
+
+        // Hash vkey + pc_start + prep_domains into a single digest.
+        let sp1_vk_digest = hash_vkey(&mut builder, &sp1_vk, &prep_domains);
+        let recursion_vk_digest = hash_vkey(&mut builder, &recursion_vk, &recursion_prep_domains);
 
         // Global variables that will be commmitted to at the end.
         let global_committed_values_digest: Sha256DigestVariable<_> =
@@ -508,13 +546,13 @@ impl ReduceProgram {
 
                     // Assert that sp1_vk, recursion_vk, and verify_start_challenger are the same.
                     for j in 0..DIGEST_SIZE {
-                        let element = builder.get(&sp1_vk.commitment, j);
-                        builder.assert_felt_eq(element, pv.sp1_vk_commit[j]);
+                        let element = builder.get(&sp1_vk_digest, j);
+                        builder.assert_felt_eq(element, pv.sp1_vk_digest[j]);
                     }
                     builder.assert_felt_eq(sp1_vk.pc_start, pv.start_pc);
                     for j in 0..DIGEST_SIZE {
-                        let element = builder.get(&recursion_vk.commitment, j);
-                        builder.assert_felt_eq(element, pv.recursion_vk_commit[j]);
+                        let element = builder.get(&recursion_vk_digest, j);
+                        builder.assert_felt_eq(element, pv.recursion_vk_digest[j]);
                     }
                     assert_challengers_eq(
                         builder,
@@ -572,6 +610,21 @@ impl ReduceProgram {
                     challenger.observe(builder, element);
                 });
 
+                // Validate proof public values.
+                // 1) Ensure that the proof is complete.
+                let mut pv_elements = Vec::new();
+                for i in 0..PROOF_MAX_NUM_PVS {
+                    let element = builder.get(&proof.public_values, i);
+                    pv_elements.push(element);
+                }
+                let pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
+                builder.assert_felt_eq(pv.is_complete, one_felt);
+                // 2) Ensure recursion vkey is correct
+                for j in 0..DIGEST_SIZE {
+                    let element = builder.get(&recursion_vk_digest, j);
+                    builder.assert_felt_eq(element, pv.recursion_vk_digest[j]);
+                }
+
                 // Verify the shard.
                 StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                     builder,
@@ -586,27 +639,29 @@ impl ReduceProgram {
                 );
 
                 // Update deferred proof digest
-                // poseidon2( prev_digest || vk.commit || proof.pv_digest )
-                let mut poseidon_inputs = builder.array(24);
+                // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
+                let mut poseidon_inputs = builder.array(48);
                 builder.range(0, 8).for_each(|j, builder| {
                     let element = builder.get(&reconstruct_deferred_digest, j);
                     builder.set(&mut poseidon_inputs, j, element);
                 });
-                builder.range(0, 8).for_each(|j, builder| {
-                    let input_index: Var<_> = builder.eval(j + F::from_canonical_u32(8));
-                    let element = builder.get(&vk.commitment, j);
-                    builder.set(&mut poseidon_inputs, input_index, element);
-                });
-                builder.range(0, 8).for_each(|j, builder| {
-                    let input_index: Var<_> = builder.eval(j + F::from_canonical_u32(16));
-                    let element = builder.get(&proof.public_values, j);
-                    builder.set(&mut poseidon_inputs, input_index, element);
-                });
-                let new_digest = builder.poseidon2_hash(&poseidon_inputs);
-                builder.assign(reconstruct_deferred_digest.clone(), new_digest);
                 for j in 0..DIGEST_SIZE {
-                    let val = builder.get(&reconstruct_deferred_digest, j);
-                    builder.print_f(val);
+                    let input_index: Var<_> = builder.constant(F::from_canonical_usize(j + 8));
+                    builder.set(&mut poseidon_inputs, input_index, pv.sp1_vk_digest[j]);
+                }
+                for j in 0..PV_DIGEST_NUM_WORDS {
+                    for k in 0..WORD_SIZE {
+                        let input_index: Var<_> =
+                            builder.eval(F::from_canonical_usize(j * WORD_SIZE + k + 16));
+                        let element = pv.committed_value_digest[j][k];
+                        builder.set(&mut poseidon_inputs, input_index, element);
+                    }
+                }
+                let new_digest = builder.poseidon2_hash(&poseidon_inputs);
+                for j in 0..DIGEST_SIZE {
+                    let element = builder.get(&new_digest, j);
+                    builder.set(&mut reconstruct_deferred_digest, j, element);
+                    builder.print_f(element);
                 }
             });
 
@@ -661,8 +716,8 @@ impl ReduceProgram {
         //     end_reconstruct_challenger,
         //     start_reconstruct_deferred_digest,
         //     end_reconstruct_deferred_digest,
-        //     sp1_vk,
-        //     recursion_vk,
+        //     sp1_vk_digest,
+        //     recursion_vk_digest,
         //     verify_start_challenger,
         //     is_complete,
         // )
@@ -690,11 +745,11 @@ impl ReduceProgram {
             builder.commit_public_value(element);
         });
         builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
-            let element = builder.get(&sp1_vk.commitment, j);
+            let element = builder.get(&sp1_vk_digest, j);
             builder.commit_public_value(element);
         });
         builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
-            let element = builder.get(&recursion_vk.commitment, j);
+            let element = builder.get(&recursion_vk_digest, j);
             builder.commit_public_value(element);
         });
         commit_challenger(&mut builder, &verify_start_challenger);

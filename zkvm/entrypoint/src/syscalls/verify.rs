@@ -31,27 +31,22 @@ pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u32; 8]) {
             );
         }
 
-        // Update deferred_proofs_digest to be poseidon2_hash(deferred_proofs_digest || vkey || pv_digest)
-        let mut hash_input = Vec::with_capacity(24);
-        // First 8 bytes are previous hash (initially zero bytes)
+        // Update digest to p2_hash(prev_digest[0..8] || vkey_digest[0..8] || pv_digest[0..32])
+        let mut hash_input = Vec::with_capacity(48);
+        // First 8 elements are previous hash (initially zero)
         let deferred_proofs_digest;
         // SAFETY: we have sole access because zkvm is single threaded.
         unsafe {
             deferred_proofs_digest = DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
-            hash_input.extend_from_slice(deferred_proofs_digest);
         }
-        // Next 8 bytes are vkey converted from u32s to BabyBear
+        hash_input.extend_from_slice(deferred_proofs_digest);
+        // Next 8 elements are vkey_digest
         let vkey_baby_bear = vkey
             .iter()
-            .flat_map(|x| {
-                x.to_le_bytes()
-                    .iter()
-                    .map(|b| BabyBear::from_canonical_u8(*b))
-                    .collect::<Vec<_>>()
-            })
+            .map(|x| BabyBear::from_canonical_u32(*x))
             .collect::<Vec<_>>();
         hash_input.extend_from_slice(&vkey_baby_bear);
-        // Remaining bytes are proof converted from u32s to BabyBear
+        // Remaining 32 elements are pv_digest converted from u32s to BabyBear
         let pv_digest_baby_bear = pv_digest
             .iter()
             .flat_map(|x| {
