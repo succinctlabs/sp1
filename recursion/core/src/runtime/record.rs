@@ -57,7 +57,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             .map(|x| T::from_canonical_u32(x.as_canonical_u32()))
             .collect::<Vec<_>>();
 
-        println!("public_values ret: {:?}", ret);
+        // println!("public_values ret: {:?}", ret);
 
         ret
     }

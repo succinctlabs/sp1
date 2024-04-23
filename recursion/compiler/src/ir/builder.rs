@@ -413,8 +413,6 @@ impl<C: Config> Builder<C> {
         }
         let nb_public_values = *self.nb_public_values.as_ref().unwrap();
 
-        self.print_debug(114141);
-        self.print_f(val);
         self.operations.push(DslIr::Commit(val, nb_public_values));
         self.assign(nb_public_values, nb_public_values + C::N::one());
     }

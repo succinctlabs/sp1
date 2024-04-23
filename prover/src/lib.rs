@@ -25,6 +25,7 @@ use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sp1_core::air::POSEIDON_NUM_WORDS;
 use sp1_core::air::PV_DIGEST_NUM_WORDS;
+use sp1_core::air::WORD_SIZE;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
@@ -168,7 +169,19 @@ impl SP1Prover {
     /// Initializes a new [SP1Prover].
     pub fn new() -> Self {
         let reduce_setup_program = ReduceProgram::setup();
-        let reduce_program = ReduceProgram::build();
+        // Load program from reduce.bin if it exists
+        let file = std::fs::File::open("reduce.bin");
+        let reduce_program = match file {
+            Ok(file) => bincode::deserialize_from(file).unwrap(),
+            Err(_) => {
+                println!("reduce.bin not found, building reduce program");
+                let program = ReduceProgram::build();
+                let file = std::fs::File::create("reduce.bin").unwrap();
+                bincode::serialize_into(file, &program).unwrap();
+                program
+            }
+        };
+        println!("program size: {}", reduce_program.instructions.len());
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
         let core_machine = RiscvAir::machine(CoreSC::default());
@@ -274,7 +287,7 @@ impl SP1Prover {
                     reconstruct_challenger,
                     state,
                     &[last_proof],
-                    &[],
+                    &deferred_proofs,
                     true,
                 )
             }
@@ -312,6 +325,12 @@ impl SP1Prover {
                                 &reduce_proof.proof.public_values.to_vec()
                                     [0..self.core_machine.num_pv_elts()],
                             );
+                            let pv = PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(
+                                reduce_proof.proof.public_values.clone(),
+                            );
+                            println!("next_pc = {:?}", pv.next_pc);
+                            println!("shard = {:?}", pv.shard);
+                            println!("pv_digest = {:?}", pv.committed_value_digest);
                         }
                         SP1ReduceProofWrapper::Recursive(reduce_proof) => {
                             let pv = RecursionPublicValues::from_vec(
@@ -333,6 +352,10 @@ impl SP1Prover {
                                     .as_canonical_u32()
                                     as usize]
                                     .to_vec();
+                            println!("2next_pc = {:?}", pv.next_pc);
+                            println!("start_shard = {:?}", pv.start_shard);
+                            println!("next_shard = {:?}", pv.next_shard);
+                            println!("pv_digest = {:?}", pv.committed_value_digest);
                         }
                     }
                 }
@@ -346,17 +369,32 @@ impl SP1Prover {
                     ReduceState::from_core_start_state(&proof.proof)
                 }
                 SP1ReduceProofWrapper::Recursive(ref proof) => {
-                    ReduceState::from_reduce_start_state(&proof)
+                    ReduceState::from_reduce_start_state(proof)
                 }
             })
             .collect::<Vec<_>>();
+        for start_state in start_states.iter() {
+            println!(
+                "1deferred_digest = {:?}",
+                start_state.deferred_proofs_digest
+            );
+            println!(
+                "1deferred_digest = {:?}",
+                start_state.reconstruct_deferred_digest
+            );
+        }
         // This is the last layer only if the outcome is a single proof. If there are deferred proofs
         // or there is a single proof being pushed to the next layer, it's not the last layer.
         let is_complete = chunks.len() == 1 && last_proof.is_none() && deferred_proofs.is_empty();
+        println!(
+            "num main chunks = {}, num deferred chunks = {}",
+            chunks.len(),
+            deferred_proofs.len()
+        );
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
-            .into_par_iter()
-            .zip(reconstruct_challengers.into_par_iter())
-            .zip(start_states.into_par_iter())
+            .into_iter()
+            .zip(reconstruct_challengers.into_iter())
+            .zip(start_states.into_iter())
             .map(|((chunk, reconstruct_challenger), start_state)| {
                 let proof = self.reduce_batch(
                     vk,
@@ -378,21 +416,62 @@ impl SP1Prover {
         // For all the proofs with only deferred proofs, the start and end state will be the end
         // state of the last proof from above.
         let last_new_proof = &new_proofs[new_proofs.len() - 1];
-        let end_state: ReduceState = match last_new_proof {
+        let mut reduce_state: ReduceState = match last_new_proof {
             SP1ReduceProofWrapper::Recursive(ref proof) => {
                 ReduceState::from_reduce_end_state(proof)
             }
             _ => unreachable!(),
         };
         let deferred_chunks: Vec<_> = deferred_proofs.chunks(batch_size).collect();
+        let start_states = deferred_chunks
+            .iter()
+            .map(|chunk| {
+                let start_state = reduce_state.clone();
+                // Accumulate deferred proofs into the digest
+                // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
+                for proof in chunk.iter() {
+                    println!(
+                        "before deferred_digest = {:?}",
+                        reduce_state.reconstruct_deferred_digest
+                    );
+                    let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+                    let mut inputs = [BabyBear::zero(); 48];
+                    inputs[0..8].copy_from_slice(&reduce_state.reconstruct_deferred_digest);
+                    let vk_digest = pv.sp1_vk_digest;
+                    inputs[8..16].copy_from_slice(&vk_digest);
+                    for i in 0..PV_DIGEST_NUM_WORDS {
+                        for j in 0..WORD_SIZE {
+                            inputs[16 + i * WORD_SIZE + j] = pv.committed_value_digest[i][j];
+                        }
+                    }
+                    println!("inputs: {:?}", inputs);
+                    reduce_state.reconstruct_deferred_digest = poseidon2_hash(inputs.to_vec());
+                    println!(
+                        "after deferred_digest = {:?}",
+                        reduce_state.reconstruct_deferred_digest
+                    );
+                }
+                start_state
+            })
+            .collect::<Vec<_>>();
+        for start_state in start_states.iter() {
+            println!("deferred_digest = {:?}", start_state.deferred_proofs_digest);
+            println!(
+                "reconstruct_deferred_digest = {:?}",
+                start_state.reconstruct_deferred_digest
+            );
+        }
+
+        println!("num deferred chunks = {}", deferred_chunks.len());
         let new_deferred_proofs = deferred_chunks
             .into_par_iter()
-            .map(|proofs| {
+            .zip(start_states.into_par_iter())
+            .map(|(proofs, state)| {
                 self.reduce_batch::<InnerSC>(
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger.clone(),
-                    end_state.clone(),
+                    state,
                     &[],
                     proofs,
                     false,
@@ -635,6 +714,7 @@ fn hash_vkey<A: MachineAir<BabyBear>>(
         inputs.push(g);
     }
 
+    println!("vkey hash inputs: {:?}", inputs);
     poseidon2_hash(inputs)
 }
 
@@ -702,7 +782,17 @@ mod tests {
         let mut stdin = SP1Stdin::new();
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
-        let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
+        // Read proof from p1.bin if exists
+        let p1_file = std::fs::File::open("p1.bin");
+        let deferred_proof_1 = match p1_file {
+            Ok(file) => bincode::deserialize_from(file).unwrap(),
+            Err(_) => {
+                let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
+                let file = std::fs::File::create("p1.bin").unwrap();
+                bincode::serialize_into(file, &deferred_proof_1).unwrap();
+                deferred_proof_1
+            }
+        };
         let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
         println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
         let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32].to_vec();
@@ -718,7 +808,17 @@ mod tests {
         stdin.write(&vec![0u8, 1, 2]);
         stdin.write(&vec![2, 3, 4]);
         stdin.write(&vec![5, 6, 7]);
-        let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
+        // Read proof from p2.bin if exists
+        let p2_file = std::fs::File::open("p2.bin");
+        let deferred_proof_2 = match p2_file {
+            Ok(file) => bincode::deserialize_from(file).unwrap(),
+            Err(_) => {
+                let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
+                let file = std::fs::File::create("p2.bin").unwrap();
+                bincode::serialize_into(file, &deferred_proof_2).unwrap();
+                deferred_proof_2
+            }
+        };
         let pv_2 = deferred_proof_2.public_values.buffer.data.clone();
         println!("proof 2 pv: {:?}", hex::encode(pv_2.clone()));
         let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32].to_vec();
@@ -735,7 +835,7 @@ mod tests {
         let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
 
         let mut stdin = SP1Stdin::new();
-        let vkey_digest = hash_vkey(&prover.core_machine, &verify_vk);
+        let vkey_digest = hash_vkey(&prover.core_machine, &keccak_vk);
         let vkey_digest: [u32; 8] = vkey_digest
             .into_iter()
             .map(|n| n.as_canonical_u32())

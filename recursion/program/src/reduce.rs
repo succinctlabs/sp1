@@ -316,12 +316,11 @@ impl ReduceProgram {
         // 2) If it's not the first proof, ensure that the global values are the same and the
         //    transitions are valid.
         // 3) If it's the last proof of this batch, set the global end variables.
-        // 4) If it's not the last proof, ensure that next_pc != 0 and update the previous values.
+        // 4) If it's not the last proof, update the previous values.
         let constrain_shard_transitions =
             |proof_index: Var<_>,
              builder: &mut Builder<C>,
              committed_value_digest_words: &[Word<Felt<_>>; PV_DIGEST_NUM_WORDS],
-             deferred_proofs_digest_felts: &[Felt<_>; POSEIDON_NUM_WORDS],
              start_pc: Felt<_>,
              next_pc: Felt<_>,
              start_shard: Felt<_>,
@@ -329,7 +328,6 @@ impl ReduceProgram {
              exit_code: Felt<_>| {
                 let committed_value_digest =
                     Sha256DigestVariable::from_words(builder, committed_value_digest_words);
-                let deferred_proofs_digest = felts_to_array(builder, deferred_proofs_digest_felts);
                 builder.if_eq(proof_index, zero).then_or_else(
                     // First proof: ensure that witnessed start values are correct.
                     |builder| {
@@ -344,16 +342,11 @@ impl ReduceProgram {
                     },
                     // Non-first proofs: verify global values are same and transitions are valid.
                     |builder| {
-                        // Assert that digests and exit code are the same
+                        // Assert that committed_values_digest and exit_code are the same
                         for j in 0..(PV_DIGEST_NUM_WORDS * WORD_SIZE) {
                             let global_element =
                                 builder.get(&global_committed_values_digest.bytes, j);
                             let element = builder.get(&committed_value_digest.bytes, j);
-                            builder.assert_felt_eq(global_element, element);
-                        }
-                        for j in 0..POSEIDON_NUM_WORDS {
-                            let global_element = builder.get(&global_deferred_proofs_digest, j);
-                            let element = builder.get(&deferred_proofs_digest, j);
                             builder.assert_felt_eq(global_element, element);
                         }
                         builder.assert_felt_eq(global_exit_code, exit_code);
@@ -370,11 +363,8 @@ impl ReduceProgram {
                         builder.assign(global_next_shard, next_shard);
                         builder.assign(global_next_pc, next_pc);
                     },
-                    // If it's not the last proof, ensure next_pc != 0. Also update previous values.
+                    // If it's not the last proof, update previous values.
                     |builder| {
-                        builder.assert_felt_ne(next_pc, zero_felt);
-                        builder.assert_felt_ne(next_shard, zero_felt);
-
                         builder.assign(prev_next_pc, next_pc);
                         builder.assign(prev_next_shard, next_shard);
                     },
@@ -418,7 +408,6 @@ impl ReduceProgram {
                         i,
                         builder,
                         &pv.committed_value_digest,
-                        &pv.deferred_proofs_digest,
                         pv.start_pc,
                         pv.next_pc,
                         pv.shard,
@@ -502,7 +491,6 @@ impl ReduceProgram {
                         i,
                         builder,
                         &pv.committed_value_digest,
-                        &pv.deferred_proofs_digest,
                         pv.start_pc,
                         pv.next_pc,
                         pv.start_shard,
@@ -596,7 +584,7 @@ impl ReduceProgram {
                     let element = builder.get(&proof.commitment.main_commit, j);
                     challenger.observe(builder, element);
                 }
-                builder.range(0, PV_BUFFER_MAX_SIZE).for_each(|j, builder| {
+                builder.range(0, PROOF_MAX_NUM_PVS).for_each(|j, builder| {
                     let element = builder.get(&proof.public_values, j);
                     challenger.observe(builder, element);
                 });
@@ -652,7 +640,6 @@ impl ReduceProgram {
                 for j in 0..DIGEST_SIZE {
                     let element = builder.get(&new_digest, j);
                     builder.set(&mut reconstruct_deferred_digest, j, element);
-                    builder.print_f(element);
                 }
             });
 

@@ -124,15 +124,9 @@ fn test_compiler_poseidon2_hash_v2() {
     let mut random_state = builder.dyn_array(PERMUTATION_WIDTH);
     for (i, val) in random_state_vals.iter().enumerate() {
         builder.set(&mut random_state, i, *val);
-        let element = builder.get(&random_state, i);
-        builder.print_f(element);
     }
 
     let idx: Var<_> = builder.eval(F::zero());
-    builder.if_eq(idx, F::zero()).then(|builder| {
-        let element = builder.get(&random_state, idx);
-        builder.print_f(element);
-    });
 
     let program = builder.compile_program();
 
