@@ -1,5 +1,8 @@
 #![allow(clippy::needless_range_loop)]
 
+use crate::memory::{
+    MemoryReadColsWithoutAddr, MemoryReadSingleColsWithoutAddr, MemoryReadWriteColsWithoutAddr,
+};
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
@@ -14,6 +17,7 @@ use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
+use crate::air::RecursionAirBuilder;
 use crate::memory::{MemoryReadWriteCols, MemoryRecord};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
@@ -53,21 +57,22 @@ pub struct FriFoldCols<T> {
     pub input_ptr: T,
 
     /// The inputs stored in memory.  All the values are just read from memory.
-    pub z: MemoryReadWriteCols<T>,
-    pub alpha: MemoryReadWriteCols<T>,
-    pub x: MemoryReadWriteCols<T>,
-    pub log_height: MemoryReadWriteCols<T>,
-    pub mat_opening_ptr: MemoryReadWriteCols<T>,
-    pub ps_at_z_ptr: MemoryReadWriteCols<T>,
-    pub alpha_pow_ptr: MemoryReadWriteCols<T>,
-    pub ro_ptr: MemoryReadWriteCols<T>,
+    pub z: MemoryReadColsWithoutAddr<T>,
+    pub alpha: MemoryReadColsWithoutAddr<T>,
+    pub x: MemoryReadSingleColsWithoutAddr<T>,
 
-    pub p_at_x: MemoryReadWriteCols<T>,
-    pub p_at_z: MemoryReadWriteCols<T>,
+    pub log_height: MemoryReadSingleColsWithoutAddr<T>,
+    pub mat_opening_ptr: MemoryReadSingleColsWithoutAddr<T>,
+    pub ps_at_z_ptr: MemoryReadSingleColsWithoutAddr<T>,
+    pub alpha_pow_ptr: MemoryReadSingleColsWithoutAddr<T>,
+    pub ro_ptr: MemoryReadSingleColsWithoutAddr<T>,
+
+    pub p_at_x: MemoryReadColsWithoutAddr<T>,
+    pub p_at_z: MemoryReadColsWithoutAddr<T>,
 
     /// The values here are read and then written.
-    pub alpha_pow_at_log_height: MemoryReadWriteCols<T>,
-    pub ro_at_log_height: MemoryReadWriteCols<T>,
+    pub alpha_pow_at_log_height: MemoryReadWriteColsWithoutAddr<T>,
+    pub ro_at_log_height: MemoryReadWriteColsWithoutAddr<T>,
 }
 
 impl<F> BaseAir<F> for FriFoldChip {
@@ -156,294 +161,85 @@ where
         // Constrain `m`
         // Constrain `ptr`
 
-        // Constrain read for `z`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.z.addr.into(),
-                cols.z.timestamp.into(),
-                cols.z.prev_value.0[0].into(),
-                cols.z.prev_value.0[1].into(),
-                cols.z.prev_value.0[2].into(),
-                cols.z.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.z.addr.into(),
-                cols.z.timestamp.into(),
-                cols.z.value.0[0].into(),
-                cols.z.value.0[1].into(),
-                cols.z.value.0[2].into(),
-                cols.z.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        // Constrain read for `z` at `ptr + 1`
+        builder.recursion_eval_memory_access(
+            cols.input_ptr + AB::Expr::one(),
+            &cols.z,
+            AB::Expr::one(),
+        );
 
-        // Constraintread for `alpha`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.alpha.addr.into(),
-                cols.alpha.timestamp.into(),
-                cols.alpha.prev_value.0[0].into(),
-                cols.alpha.prev_value.0[1].into(),
-                cols.alpha.prev_value.0[2].into(),
-                cols.alpha.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.alpha.addr.into(),
-                cols.alpha.timestamp.into(),
-                cols.alpha.value.0[0].into(),
-                cols.alpha.value.0[1].into(),
-                cols.alpha.value.0[2].into(),
-                cols.alpha.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        // Constrain read for `alpha` at `ptr + 2`
+        builder.recursion_eval_memory_access(
+            cols.input_ptr + AB::Expr::two(),
+            &cols.alpha,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `x`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.x.addr.into(),
-                cols.x.timestamp.into(),
-                cols.x.prev_value.0[0].into(),
-                cols.x.prev_value.0[1].into(),
-                cols.x.prev_value.0[2].into(),
-                cols.x.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.x.addr.into(),
-                cols.x.timestamp.into(),
-                cols.x.value.0[0].into(),
-                cols.x.value.0[1].into(),
-                cols.x.value.0[2].into(),
-                cols.x.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access_single(
+            cols.input_ptr + AB::Expr::from_canonical_u32(3),
+            &cols.x,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `log_height`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.log_height.addr.into(),
-                cols.log_height.timestamp.into(),
-                cols.log_height.prev_value.0[0].into(),
-                cols.log_height.prev_value.0[1].into(),
-                cols.log_height.prev_value.0[2].into(),
-                cols.log_height.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.log_height.addr.into(),
-                cols.log_height.timestamp.into(),
-                cols.log_height.value.0[0].into(),
-                cols.log_height.value.0[1].into(),
-                cols.log_height.value.0[2].into(),
-                cols.log_height.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access_single(
+            cols.input_ptr + AB::Expr::from_canonical_u32(4),
+            &cols.log_height,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `mat_opening_ptr`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.mat_opening_ptr.addr.into(),
-                cols.mat_opening_ptr.timestamp.into(),
-                cols.mat_opening_ptr.prev_value.0[0].into(),
-                cols.mat_opening_ptr.prev_value.0[1].into(),
-                cols.mat_opening_ptr.prev_value.0[2].into(),
-                cols.mat_opening_ptr.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.mat_opening_ptr.addr.into(),
-                cols.mat_opening_ptr.timestamp.into(),
-                cols.mat_opening_ptr.value.0[0].into(),
-                cols.mat_opening_ptr.value.0[1].into(),
-                cols.mat_opening_ptr.value.0[2].into(),
-                cols.mat_opening_ptr.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access_single(
+            cols.input_ptr + AB::Expr::from_canonical_u32(5),
+            &cols.mat_opening_ptr,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `ps_at_z_ptr`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.ps_at_z_ptr.addr.into(),
-                cols.ps_at_z_ptr.timestamp.into(),
-                cols.ps_at_z_ptr.prev_value.0[0].into(),
-                cols.ps_at_z_ptr.prev_value.0[1].into(),
-                cols.ps_at_z_ptr.prev_value.0[2].into(),
-                cols.ps_at_z_ptr.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.ps_at_z_ptr.addr.into(),
-                cols.ps_at_z_ptr.timestamp.into(),
-                cols.ps_at_z_ptr.value.0[0].into(),
-                cols.ps_at_z_ptr.value.0[1].into(),
-                cols.ps_at_z_ptr.value.0[2].into(),
-                cols.ps_at_z_ptr.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access_single(
+            cols.input_ptr + AB::Expr::from_canonical_u32(7),
+            &cols.ps_at_z_ptr,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `alpha_pow_ptr`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.alpha_pow_ptr.addr.into(),
-                cols.alpha_pow_ptr.timestamp.into(),
-                cols.alpha_pow_ptr.prev_value.0[0].into(),
-                cols.alpha_pow_ptr.prev_value.0[1].into(),
-                cols.alpha_pow_ptr.prev_value.0[2].into(),
-                cols.alpha_pow_ptr.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.alpha_pow_ptr.addr.into(),
-                cols.alpha_pow_ptr.timestamp.into(),
-                cols.alpha_pow_ptr.value.0[0].into(),
-                cols.alpha_pow_ptr.value.0[1].into(),
-                cols.alpha_pow_ptr.value.0[2].into(),
-                cols.alpha_pow_ptr.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access_single(
+            cols.input_ptr + AB::Expr::from_canonical_u32(9),
+            &cols.ps_at_z_ptr,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `ro_ptr`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.ro_ptr.addr.into(),
-                cols.ro_ptr.timestamp.into(),
-                cols.ro_ptr.prev_value.0[0].into(),
-                cols.ro_ptr.prev_value.0[1].into(),
-                cols.ro_ptr.prev_value.0[2].into(),
-                cols.ro_ptr.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.ro_ptr.addr.into(),
-                cols.ro_ptr.timestamp.into(),
-                cols.ro_ptr.value.0[0].into(),
-                cols.ro_ptr.value.0[1].into(),
-                cols.ro_ptr.value.0[2].into(),
-                cols.ro_ptr.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access_single(
+            cols.input_ptr + AB::Expr::from_canonical_u32(11),
+            &cols.ro_ptr,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `p_at_x`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.p_at_x.addr.into(),
-                cols.p_at_x.timestamp.into(),
-                cols.p_at_x.prev_value.0[0].into(),
-                cols.p_at_x.prev_value.0[1].into(),
-                cols.p_at_x.prev_value.0[2].into(),
-                cols.p_at_x.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.p_at_x.addr.into(),
-                cols.p_at_x.timestamp.into(),
-                cols.p_at_x.value.0[0].into(),
-                cols.p_at_x.value.0[1].into(),
-                cols.p_at_x.value.0[2].into(),
-                cols.p_at_x.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access(
+            cols.mat_opening_ptr.value.into() + cols.m.into(),
+            &cols.p_at_x,
+            AB::Expr::one(),
+        );
 
         // Constrain read for `p_at_z`
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.p_at_z.addr.into(),
-                cols.p_at_z.timestamp.into(),
-                cols.p_at_z.prev_value.0[0].into(),
-                cols.p_at_z.prev_value.0[1].into(),
-                cols.p_at_z.prev_value.0[2].into(),
-                cols.p_at_z.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.p_at_z.addr.into(),
-                cols.p_at_z.timestamp.into(),
-                cols.p_at_z.value.0[0].into(),
-                cols.p_at_z.value.0[1].into(),
-                cols.p_at_z.value.0[2].into(),
-                cols.p_at_z.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        builder.recursion_eval_memory_access(
+            cols.ps_at_z_ptr.value.into() + cols.m.into(),
+            &cols.p_at_z,
+            AB::Expr::one(),
+        );
 
-        // Update alpha_pow_at_log_height
-        // 1. constrain old and new value against memory
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.alpha_pow_at_log_height.addr.into(),
-                cols.alpha_pow_at_log_height.timestamp.into(),
-                cols.alpha_pow_at_log_height.prev_value.0[0].into(),
-                cols.alpha_pow_at_log_height.prev_value.0[1].into(),
-                cols.alpha_pow_at_log_height.prev_value.0[2].into(),
-                cols.alpha_pow_at_log_height.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.alpha_pow_at_log_height.addr.into(),
-                cols.alpha_pow_at_log_height.timestamp.into(),
-                cols.alpha_pow_at_log_height.value.0[0].into(),
-                cols.alpha_pow_at_log_height.value.0[1].into(),
-                cols.alpha_pow_at_log_height.value.0[2].into(),
-                cols.alpha_pow_at_log_height.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        // Update alpha_pow_at_log_height.
+        // 1. Constrain old and new value against memory
+        builder.recursion_eval_memory_access(
+            cols.alpha_pow_ptr.value.into() + cols.log_height.value.into(),
+            &cols.alpha_pow_at_log_height,
+            AB::Expr::one(),
+        );
 
-        // 2. constrain new_value = old_value * alpha
+        // 2. Constrain new_value = old_value * alpha.
         let alpha = cols.alpha.value.as_extension::<AB>();
         let alpha_pow_at_log_height = cols.alpha_pow_at_log_height.prev_value.as_extension::<AB>();
         let new_alpha_pow_at_log_height = cols.alpha_pow_at_log_height.value.as_extension::<AB>();
@@ -452,40 +248,21 @@ where
             new_alpha_pow_at_log_height,
         );
 
-        // Update ro_at_log_height
-        // 1. constrain old and new value against memory
-        builder.receive(AirInteraction::new(
-            vec![
-                cols.ro_at_log_height.addr.into(),
-                cols.ro_at_log_height.timestamp.into(),
-                cols.ro_at_log_height.prev_value.0[0].into(),
-                cols.ro_at_log_height.prev_value.0[1].into(),
-                cols.ro_at_log_height.prev_value.0[2].into(),
-                cols.ro_at_log_height.prev_value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                cols.ro_at_log_height.addr.into(),
-                cols.ro_at_log_height.timestamp.into(),
-                cols.ro_at_log_height.value.0[0].into(),
-                cols.ro_at_log_height.value.0[1].into(),
-                cols.ro_at_log_height.value.0[2].into(),
-                cols.ro_at_log_height.value.0[3].into(),
-            ],
-            AB::Expr::zero(),
-            InteractionKind::Memory,
-        ));
+        // Update ro_at_log_height.
+        // 1. Constrain old and new value against memory.
+        builder.recursion_eval_memory_access(
+            cols.ro_ptr.value.into() + cols.log_height.value.into(),
+            &cols.ro_at_log_height,
+            AB::Expr::one(),
+        );
 
-        // 2. constrain new_value = old_alpha_pow_at_log_height * quotient + old_value
-        // where quotient = (p_at_x - p_at_z) / (x - z);
+        // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
+        // where quotient = (p_at_x - p_at_z) / (x - z)
         // <=> (new_value - old_value) * (z - x) = old_alpha_pow_at_log_height * (p_at_x - p_at_z)
         let p_at_z = cols.p_at_z.value.as_extension::<AB>();
         let p_at_x = cols.p_at_x.value.as_extension::<AB>();
         let z = cols.z.value.as_extension::<AB>();
-        let x = cols.x.value[0].into();
+        let x = cols.x.value.into();
 
         let ro_at_log_height = cols.ro_at_log_height.prev_value.as_extension::<AB>();
         let new_ro_at_log_height = cols.ro_at_log_height.value.as_extension::<AB>();
