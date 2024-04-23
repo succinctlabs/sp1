@@ -6,7 +6,7 @@ use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::Opcode;
 
-use super::ZERO;
+use super::A0;
 use crate::util::canonical_i32_to_field;
 
 #[derive(Debug, Clone)]
@@ -22,11 +22,6 @@ pub enum AsmInstruction<F, EF> {
     /// Store a value from src(fp) into the address stored at dest(fp).
     StoreF(i32, i32, i32, F, F),
     StoreFI(i32, i32, F, F, F),
-
-    /// Get immediate (dst, value).
-    ///
-    /// Load a value into the dest(fp).
-    ImmF(i32, F),
 
     /// Add, dst = lhs + rhs.
     AddF(i32, i32, i32),
@@ -69,11 +64,6 @@ pub enum AsmInstruction<F, EF> {
     /// Store a value from src(fp) into address stored at dst(fp).
     StoreE(i32, i32, i32, F, F),
     StoreEI(i32, i32, F, F, F),
-
-    /// Get immediate extension value (dst, value).
-    ///
-    /// Load a value into the dest(fp).
-    ImmE(i32, EF),
 
     /// Add extension, dst = lhs + rhs.
     AddE(i32, i32, i32),
@@ -186,7 +176,7 @@ pub enum AsmInstruction<F, EF> {
 
 impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
     pub fn j(label: F) -> Self {
-        AsmInstruction::Jal(ZERO, label, F::zero())
+        AsmInstruction::Jal(A0, label, F::zero())
     }
 
     pub fn to_machine(self, pc: usize, label_to_pc: &BTreeMap<F, usize>) -> Instruction<F> {
@@ -248,17 +238,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
 
-            AsmInstruction::ImmF(dst, value) => Instruction::new(
-                Opcode::LW,
-                i32_f(dst),
-                f_u32(value),
-                zero,
-                F::zero(),
-                F::one(),
-                true,
-                false,
-                "".to_string(),
-            ),
             AsmInstruction::AddF(dst, lhs, rhs) => Instruction::new(
                 Opcode::ADD,
                 i32_f(dst),
@@ -422,17 +401,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 size,
                 false,
                 true,
-                "".to_string(),
-            ),
-            AsmInstruction::ImmE(dst, value) => Instruction::new(
-                Opcode::LE,
-                i32_f(dst),
-                value.as_base_slice().try_into().unwrap(),
-                zero,
-                F::zero(),
-                F::zero(),
-                true,
-                false,
                 "".to_string(),
             ),
             AsmInstruction::AddE(dst, lhs, rhs) => Instruction::new(
@@ -902,7 +870,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     dst, src, index, offset, size
                 )
             }
-            AsmInstruction::ImmF(dst, value) => write!(f, "imm   ({})fp, {}", dst, value),
             AsmInstruction::AddF(dst, lhs, rhs) => {
                 write!(f, "add   ({})fp, ({})fp, ({})fp", dst, lhs, rhs)
             }
@@ -933,7 +900,6 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
             AsmInstruction::DivFIN(dst, lhs, rhs) => {
                 write!(f, "divin ({})fp, {}, ({})fp", dst, lhs, rhs)
             }
-            AsmInstruction::ImmE(dst, value) => write!(f, "eimm  ({})fp, {}", dst, value),
             AsmInstruction::LoadE(dst, src, index, offset, size) => {
                 write!(
                     f,
