@@ -220,13 +220,7 @@ where
             .entry(addr.as_canonical_u32() as usize)
             .or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
-        let record = MemoryRecord {
-            addr,
-            value: prev_value,
-            timestamp,
-            prev_value,
-            prev_timestamp,
-        };
+        let record = MemoryRecord::new_read(addr, prev_value, timestamp, prev_timestamp);
         *entry = MemoryEntry {
             value: prev_value,
             timestamp,
@@ -245,13 +239,7 @@ where
         let timestamp = self.timestamp(&position);
         let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
-        let record = MemoryRecord {
-            addr,
-            value,
-            timestamp,
-            prev_value,
-            prev_timestamp,
-        };
+        let record = MemoryRecord::new_write(addr, value, timestamp, prev_value, prev_timestamp);
         *entry = MemoryEntry { value, timestamp };
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),

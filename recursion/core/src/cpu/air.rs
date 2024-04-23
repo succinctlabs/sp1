@@ -263,35 +263,13 @@ where
         //     local.is_real.into(),
         // );
 
-        // Receive C.
-        builder.eval_memory_read_write(
-            local.c.prev_timestamp,
-            local.c.timestamp,
-            local.c.addr,
-            local.c.prev_value,
-            local.c.value,
-            AB::Expr::one() - local.instruction.imm_c.into(),
-        );
+        let b_addr = local.fp + local.instruction.op_b[0];
+        // TODO: only evaluate the memory access when is_real * (1 - imm_b) is true.
+        builder.eval_memory_access(local.clk, b_addr, local.b, local.is_real.into());
 
-        // Receive B.
-        builder.eval_memory_read_write(
-            local.b.prev_timestamp,
-            local.b.timestamp,
-            local.b.addr,
-            local.b.prev_value,
-            local.b.value,
-            AB::Expr::one() - local.instruction.imm_b.into(),
-        );
+        let c_addr = local.fp + local.instruction.op_c[0];
 
-        // Receive A.
-        builder.eval_memory_read_write(
-            local.a.prev_timestamp,
-            local.a.timestamp,
-            local.a.addr,
-            local.a.prev_value,
-            local.a.value,
-            local.is_real.into(),
-        );
+        let a_addr = local.fp + local.instruction.op_a[0];
 
         // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
         // prog_interaction_vals.push(local.instruction.op_a.into());

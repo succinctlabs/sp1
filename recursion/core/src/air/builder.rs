@@ -1,6 +1,9 @@
+use ff::derive::bitvec::mem;
 use sp1_core::{
     air::{AirInteraction, BaseAirBuilder, SP1AirBuilder},
+    cpu::air::memory,
     lookup::InteractionKind,
+    memory::MemoryAccessCols,
 };
 
 use super::Block;
@@ -8,84 +11,54 @@ use super::Block;
 impl<AB: SP1AirBuilder> RecursionAirBuilder for AB {}
 
 pub trait RecursionAirBuilder: BaseAirBuilder {
-    fn eval_memory_read_write<
-        EPrevTimestamp,
-        ETimestamp,
-        EAddr,
-        EPrevValue,
-        EValue,
-        EMultiplicity,
-    >(
+    fn eval_memory_access_timestamp(
         &mut self,
-        prev_timestamp: EPrevTimestamp,
-        timestamp: ETimestamp,
-        addr: EAddr,
-        prev_value: Block<EPrevValue>,
-        value: Block<EValue>,
-        multiplicity: EMultiplicity,
-    ) where
-        EPrevTimestamp: Into<Self::Expr>,
-        ETimestamp: Into<Self::Expr>,
-        EAddr: Into<Self::Expr>,
-        EPrevValue: Into<Self::Expr>,
-        EValue: Into<Self::Expr>,
-        EMultiplicity: Into<Self::Expr>,
-    {
-        // TODO add timestamp checks once we have them implemented in recursion VM.
-        let [prev_value_0, prev_value_1, prev_value_2, prev_value_3] = prev_value.0;
-        let [value_0, value_1, value_2, value_3] = value.0;
-        let addr = addr.into();
-        let multiplicity = multiplicity.into();
-
-        self.receive(AirInteraction::new(
-            vec![
-                addr.clone(),
-                prev_timestamp.into(),
-                prev_value_0.into(),
-                prev_value_1.into(),
-                prev_value_2.into(),
-                prev_value_3.into(),
-            ],
-            multiplicity.clone(),
-            InteractionKind::Memory,
-        ));
-        self.send(AirInteraction::new(
-            vec![
-                addr,
-                timestamp.into(),
-                value_0.into(),
-                value_1.into(),
-                value_2.into(),
-                value_3.into(),
-            ],
-            multiplicity,
-            InteractionKind::Memory,
-        ));
+        mem_access: &MemoryAccessCols<impl Into<Self::Expr>>,
+        clk: impl Into<Self::Expr>,
+        is_real: impl Into<Self::Expr>,
+    ) {
+        // TODO: check that mem_access.prev_clk < clk if is_real.
     }
 
-    fn eval_memory_read<EPrevTimestamp, ETimestamp, EAddr, EValue, EMultiplicity>(
+    /// This implementation is almost 1-1 with the implementation in core/src/air/builder.rs::eval_memory_access
+    /// except that it uses the crate's MemoryAccessCols instead of the one from sp1_core.
+    /// In particular, it excludes shard.
+    fn eval_memory_access(
         &mut self,
-        prev_timestamp: EPrevTimestamp,
-        timestamp: ETimestamp,
-        addr: EAddr,
-        value: EValue,
-        multiplicity: EMultiplicity,
-    ) where
-        EPrevTimestamp: Into<Self::Expr>,
-        ETimestamp: Into<Self::Expr>,
-        EAddr: Into<Self::Expr>,
-        EValue: Into<Block<Self::Expr>>,
-        EMultiplicity: Into<Self::Expr>,
-    {
+        clk: impl Into<Self::Expr>,
+        addr: impl Into<Self::Expr>,
+        memory_access: &MemoryAccessCols<impl Into<Self::Expr>>,
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let is_real: Self::Expr = is_real.into();
+        let clk: Self::Expr = clk.into();
+        let mem_access = memory_access.access();
+
+        self.eval_memory_access_timestamp(mem_access, clk, is_real);
+
         let addr = addr.into();
-        let value = value.into();
-        self.eval_memory_read_write(
-            prev_timestamp.into(),
-            timestamp.into(),
-            addr,
-            value.clone(),
-            value,
-            multiplicity,
-        )
+        let prev_clk = mem_access.prev_clk.clone().into();
+        let prev_values = once(prev_clk)
+            .chain(once(addr.clone()))
+            .chain(memory_access.prev_value().clone().map(Into::into))
+            .collect();
+        let current_values = once(clk)
+            .chain(once(addr.clone()))
+            .chain(memory_access.value().clone().map(Into::into))
+            .collect();
+
+        // The previous values get sent with multiplicity * 1, for "read".
+        self.send(AirInteraction::new(
+            prev_values,
+            do_check.clone(),
+            InteractionKind::Memory,
+        ));
+
+        // The current values get "received", i.e. multiplicity = -1
+        self.receive(AirInteraction::new(
+            current_values,
+            do_check.clone(),
+            InteractionKind::Memory,
+        ));
     }
 }
