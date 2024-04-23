@@ -5,6 +5,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{MachineAir, SP1AirBuilder};
+use sp1_core::memory::MemoryAccessCols;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
@@ -32,8 +33,11 @@ pub struct Poseidon2WideChip;
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2WideCols<T> {
-    pub input: [T; WIDTH],
-    pub output: [T; WIDTH],
+    pub clk: T,
+    pub left: T,
+    pub right: T,
+    pub input: [MemoryAccessCols<T>; WIDTH], // TODO: write
+    // pub output: [MemoryAccessCols<T>; WIDTH], // TODO: write
     external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
     internal_rounds: Poseidon2WideInternalRoundsCols<T>,
 }

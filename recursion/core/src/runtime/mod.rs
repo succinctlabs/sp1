@@ -3,7 +3,9 @@ mod opcode;
 mod program;
 mod record;
 
+use nohash_hasher::BuildNoHashHasher;
 use std::collections::VecDeque;
+use std::hash::Hash;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
 
@@ -49,6 +51,7 @@ pub struct CpuRecord<F> {
     pub a: Option<MemoryRecord<F>>,
     pub b: Option<MemoryRecord<F>>,
     pub c: Option<MemoryRecord<F>>,
+    pub memory: Option<MemoryRecord<F>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -98,6 +101,10 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     /// Memory.
     // pub memory: Vec<MemoryEntry<F>>,
     pub memory: HashMap<usize, MemoryEntry<F>>,
+
+    /// Uninitialized memory addresses that have a specific value they should be initialized with.
+    /// The Opcodes that start with Hint* utilize this to set memory values.
+    pub uninitialized_memory: HashMap<F, Block<F>, BuildNoHashHasher<F>>,
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -162,6 +169,7 @@ where
             fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
             memory: HashMap::new(),
+            uninitialized_memory: HashMap::new(),
             record,
             perm: Some(perm),
             access: CpuRecord::default(),
@@ -191,6 +199,7 @@ where
             fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
             memory: HashMap::new(),
+            uninitialized_memory: HashMap::new(),
             record,
             perm: None,
             access: CpuRecord::default(),
@@ -213,8 +222,15 @@ where
         }
     }
 
-    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
-        let timestamp = self.timestamp(&position);
+    // Peek at the memory without touching the record.
+    fn peek(&mut self, addr: F) -> Block<F> {
+        self.memory
+            .get(&(addr.as_canonical_u32() as usize))
+            .map(|entry| entry.value)
+            .unwrap_or_else(Block::default)
+    }
+
+    fn mr(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
         let entry = self
             .memory
             .entry(addr.as_canonical_u32() as usize)
@@ -231,18 +247,30 @@ where
             value: prev_value,
             timestamp,
         };
+        (record, prev_value)
+    }
+
+    fn mr_cpu(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
+        let timestamp = self.timestamp(&position);
+        let record = self.mr(addr, timestamp);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
             MemoryAccessPosition::C => self.access.c = Some(record),
-            _ => unreachable!(),
+            MemoryAccessPosition::Memory => self.access.memory = Some(record),
         };
         prev_value
     }
 
-    fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
+    fn mw_uninitialized(&mut self, addr: F, value: Block<F>) {
+        self.uninitialized_memory
+            .entry(addr)
+            .and_modify(|_| panic!("address already initialized"))
+            .or_insert(value);
+    }
+
+    fn mw(&mut self, addr: F, value: Block<F>, timestamp: F) -> MemoryRecord<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
-        let timestamp = self.timestamp(&position);
         let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord {
@@ -253,10 +281,17 @@ where
             prev_timestamp,
         };
         *entry = MemoryEntry { value, timestamp };
+        record
+    }
+
+    fn mw_cpu(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
+        let timestamp = self.timestamp(&position);
+        let record = self.mw(addr, value, timestamp);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
             MemoryAccessPosition::C => self.access.c = Some(record),
+            MemoryAccessPosition::Memory => self.access.memory = Some(record),
             _ => unreachable!(),
         };
     }
@@ -271,13 +306,31 @@ where
         self.clk + F::from_canonical_u32(*position as u32)
     }
 
+    // When we read the "a" position, it is never an immediate value, so we always read from memory.
+    fn get_a(&mut self, instruction: &Instruction<F>) -> Block<F> {
+        self.mr_cpu(self.fp + instruction.op_a[0], MemoryAccessPosition::A)
+    }
+
+    // Useful to peek at the value of the "a" position without updating the access record.
+    // This assumes that there will be a write later.
+    fn peek_a(&self, instruction: &Instruction<F>) -> (F, Block<F>) {
+        let addr = self.fp + instruction.op_a[0];
+        (
+            addr,
+            self.memory
+                .get(&(addr.as_canonical_u32() as usize))
+                .map(|entry| entry.value)
+                .unwrap_or_else(Block::default),
+        )
+    }
+
     fn get_b(&mut self, instruction: &Instruction<F>) -> Block<F> {
         if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
         } else if instruction.imm_b {
             instruction.op_b
         } else {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
+            self.mr_cpu(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         }
     }
 
@@ -287,8 +340,17 @@ where
         } else if instruction.imm_c {
             instruction.op_c
         } else {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
+            self.mr_cpu(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
         }
+    }
+
+    /// Just read all the values for an instruction.
+    fn all_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, Block<F>) {
+        let a_val = self.get_a(instruction);
+        let b_val = self.get_b(instruction);
+        let c_val = self.get_c(instruction);
+
+        (a_val, b_val, c_val)
     }
 
     /// Fetch the destination address and input operand values for an ALU instruction.
@@ -301,63 +363,41 @@ where
     }
 
     /// Fetch the destination address input operand values for a load instruction (from heap).
-    fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
-        let a_ptr = self.fp + instruction.op_a;
-
-        let index = if instruction.imm_c {
-            instruction.op_c[0]
-        } else {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
-        };
-
+    fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>, Block<F>, Block<F>) {
         let offset = instruction.offset_imm;
         let size = instruction.size_imm;
 
-        let b = if instruction.imm_b_base() {
-            Block::from(instruction.op_b[0])
-        } else if instruction.imm_b {
-            instruction.op_b
-        } else {
-            let address = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            self.mr(address[0] + index * size + offset, MemoryAccessPosition::A)
-        };
+        let a_ptr = self.fp + instruction.op_a;
+        let b_val = self.get_b(instruction);
+        let c_val = self.get_c(instruction);
 
-        (a_ptr, b)
+        let index = c_val[0];
+        let addr = b_val[0] + index * size + offset;
+        let memory_val = self.mr_cpu(addr, MemoryAccessPosition::Memory);
+
+        (a_ptr, b_val, c_val, memory_val)
     }
 
     /// Fetch the destination address input operand values for a store instruction (from stack).
-    fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
-        let index = if instruction.imm_c {
-            instruction.op_c[0]
-        } else {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
-        };
-
+    fn store_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, Block<F>) {
         let offset = instruction.offset_imm;
         let size = instruction.size_imm;
 
-        let a_ptr = if instruction.imm_b {
-            // If b is an immediate, then we store the value at the address in a.
-            self.fp + instruction.op_a
-        } else {
-            // Load without touching access. This assumes that the caller will call mw on a_ptr.
-            self.get_memory_entry(self.fp + instruction.op_a).value[0] + index * size + offset
-        };
+        let c_val = self.get_c(instruction);
+        let b_val = self.get_b(instruction);
+        let a_val = self.get_a(instruction);
 
-        let b = if instruction.imm_b_base() {
-            Block::from(instruction.op_b[0])
-        } else if instruction.imm_b {
-            instruction.op_b
-        } else {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
-        };
+        let index = c_val[0];
+        let addr = b_val[0] + index * size + offset;
 
-        (a_ptr, b)
+        self.mw_cpu(addr, a_val, MemoryAccessPosition::Memory);
+
+        (a_val, b_val, c_val)
     }
 
     /// Fetch the input operand values for a branch instruction.
     fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
-        let a = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+        let a = self.get_a(instruction);
         let b = self.get_b(instruction);
 
         let c = instruction.op_c[0];
@@ -374,21 +414,18 @@ where
             match instruction.opcode {
                 Opcode::PrintF => {
                     self.nb_print_f += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::PrintE => {
                     self.nb_print_e += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     println!("PRINTEF={:?}", a_val);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::CycleTracker => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     let name = instruction.debug.clone();
                     let entry = self.cycle_tracker.entry(name).or_default();
@@ -407,14 +444,14 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] + c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LessThanF => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = F::from_bool(b_val.0[0] < c_val.0[0]);
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::SUB => {
@@ -422,7 +459,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] - c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::MUL => {
@@ -430,7 +467,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] * c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::DIV => {
@@ -438,7 +475,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] / c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EADD | Opcode::EFADD => {
@@ -446,7 +483,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(sum.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EMUL | Opcode::EFMUL => {
@@ -454,7 +491,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(product.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::ESUB | Opcode::EFSUB | Opcode::FESUB => {
@@ -462,7 +499,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(diff.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EDIV | Opcode::EFDIV | Opcode::FEDIV => {
@@ -470,22 +507,20 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(quotient.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LW => {
                     self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let a_val = b_val;
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
+                    let (a_ptr, b_val, c_val, memory_val) = self.load_rr(&instruction);
+                    self.mw_cpu(a_ptr, memory_val, MemoryAccessPosition::A);
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
+                // For store, branch opcodes, we read from the a operand, instead of writing.
                 Opcode::SW => {
                     self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let a_val = b_val;
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
+                    let (a_val, b_val, c_val) = self.store_rr(&instruction);
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::BEQ => {
                     self.nb_branch_ops += 1;
@@ -503,34 +538,37 @@ where
                         next_pc = self.pc + c_offset;
                     }
                 }
+                // For this opcode, we write to the a register, but constraint it to be incremented by 1.
                 Opcode::BNEINC => {
                     self.nb_branch_ops += 1;
-                    let (mut a_val, b_val, c_offset) = self.branch_rr(&instruction);
-                    a_val.0[0] += F::one();
-                    if a_val.0[0] != b_val.0[0] {
+                    let c_offset = instruction.op_c[0];
+                    let b_val = self.get_b(&instruction);
+                    let (a_ptr, mut a_val) = self.peek_a(&instruction);
+                    a_val += EF::one();
+                    if a_val != b_val {
                         next_pc = self.pc + c_offset;
                     }
-                    self.mw(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                 }
                 Opcode::JAL => {
                     self.nb_branch_ops += 1;
-                    let imm = instruction.op_b[0];
+                    // These are both immediates.
+                    let c_val = self.get_c(&instruction);
+                    let b_val = self.get_b(&instruction);
                     let a_ptr = instruction.op_a + self.fp;
-                    self.mw(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
-                    next_pc = self.pc + imm;
-                    self.fp += instruction.op_c[0];
+                    self.mw_cpu(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
+                    next_pc = self.pc + b_val[0];
+                    self.fp += c_val[0];
                     (a, b, c) = (Block::from(a_ptr), Block::default(), Block::default());
                 }
                 Opcode::JALR => {
                     self.nb_branch_ops += 1;
-                    let imm = instruction.op_c;
-                    let b_ptr = instruction.op_b[0] + self.fp;
+                    let c_val = self.get_c(&instruction);
+                    let b_val = self.get_b(&instruction);
                     let a_ptr = instruction.op_a + self.fp;
-                    let b_val = self.mr(b_ptr, MemoryAccessPosition::B);
-                    let c_val = imm;
-                    let a_val = Block::from(self.pc + F::one());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    let a_val: Block<F> = Block::from(self.pc + F::one());
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     next_pc = b_val.0[0];
                     self.fp = c_val[0];
                     (a, b, c) = (a_val, b_val, c_val);
@@ -556,92 +594,62 @@ where
                     }
                     exit(1);
                 }
-                Opcode::Ext2Felt => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
-                    let dst = a_val[0].as_canonical_u32() as usize;
-                    self.memory.entry(dst).or_default().value[0] = b_val[0];
-                    self.memory.entry(dst + 1).or_default().value[0] = b_val[1];
-                    self.memory.entry(dst + 2).or_default().value[0] = b_val[2];
-                    self.memory.entry(dst + 3).or_default().value[0] = b_val[3];
-                    (a, b, c) = (a_val, b_val, c_val);
-                }
-                Opcode::Poseidon2Perm => {
-                    self.nb_poseidons += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
-
-                    // Get the dst array ptr.
-                    let dst = a_val[0].as_canonical_u32() as usize;
-                    // Get the src array ptr.
-                    let src = b_val[0].as_canonical_u32() as usize;
-
-                    let array: [_; PERMUTATION_WIDTH] = (src..(src + PERMUTATION_WIDTH))
-                        .map(|addr| self.memory.entry(addr).or_default().value[0])
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-
-                    // Perform the permutation.
-                    let result = self.perm.as_ref().unwrap().permute(array);
-
-                    // Write the value back to the array at ptr.
-                    // TODO: fix the timestamp as part of integrating the precompile if needed.
-                    for (i, value) in result.iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value[0] = *value;
-                    }
-
-                    self.record
-                        .poseidon2_events
-                        .push(Poseidon2Event { input: array });
-
-                    (a, b, c) = (a_val, b_val, c_val);
-                }
                 Opcode::Poseidon2Compress => {
                     self.nb_poseidons += 1;
 
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
-
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
                     // Get the src array ptr.
                     let left = b_val[0].as_canonical_u32() as usize;
                     let right = c_val[0].as_canonical_u32() as usize;
 
+                    let timestamp = self.clk;
+
                     let left_array: [_; PERMUTATION_WIDTH / 2] = (left..left
                         + PERMUTATION_WIDTH / 2)
-                        .map(|addr| self.memory.entry(addr).or_default().value[0])
+                        .map(|addr| self.mr(addr, timestamp))
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
                     let right_array: [_; PERMUTATION_WIDTH / 2] = (right
                         ..right + PERMUTATION_WIDTH / 2)
-                        .map(|addr| self.memory.entry(addr).or_default().value[0])
+                        .map(|addr| self.mr(addr, timestamp))
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
-                    let array: [_; PERMUTATION_WIDTH] =
-                        [left_array, right_array].concat().try_into().unwrap();
+                    let array: [F; PERMUTATION_WIDTH] = [left_array, right_array]
+                        .concat()
+                        .map(|x| x.1 .0[0]) // Grab the 2nd entry (the Block) and grab the first element.
+                        .try_into()
+                        .unwrap();
 
                     // Perform the permutation.
                     let result = self.perm.as_ref().unwrap().permute(array);
 
                     // Write the value back to the array at ptr.
-                    // TODO: fix the timestamp as part of integrating the precompile if needed.
                     for (i, value) in result.iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value[0] = *value;
+                        self.mw(dst + i, Block::from(*value), timestamp + 1);
                     }
 
+                    // TODO: include all of the records in the Poseidon2Event.
                     self.record
                         .poseidon2_events
                         .push(Poseidon2Event { input: array });
                     (a, b, c) = (a_val, b_val, c_val);
                 }
+                Opcode::HintExt2Felt => {
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+                    let dst: usize = a_val[0].as_canonical_u32() as usize;
+                    self.mw_uninitialized(dst, Block::from(b_val[0]));
+                    self.mw_uninitialized(dst + 1, Block::from(b_val[1]));
+                    self.mw_uninitialized(dst + 2, Block::from(b_val[2]));
+                    self.mw_uninitialized(dst + 3, Block::from(b_val[3]));
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::HintBits => {
                     self.nb_bit_decompositions += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -652,98 +660,75 @@ where
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
                     // Write the bits to the array at dst.
                     for (i, bit) in bits.iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value[0] =
-                            F::from_canonical_u32(*bit);
+                        self.mw_uninitialized(dst + i, Block::from(F::from_canonical_u32(*bit)));
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintLen => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    self.mr(a_ptr, MemoryAccessPosition::A);
                     let a_val: Block<F> =
                         F::from_canonical_usize(self.witness_stream[0].len()).into();
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Hint => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let dst = a_val[0].as_canonical_u32() as usize;
                     let blocks = self.witness_stream.pop_front().unwrap();
                     for (i, block) in blocks.into_iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value = block;
+                        self.mw_uninitialized(dst + i, block);
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::FRIFold => {
-                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
-                    let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-                    let c_val = Block::<F>::default();
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     let m = a_val[0].as_canonical_u32() as usize;
                     let input_ptr = b_val[0].as_canonical_u32() as usize;
 
+                    let timestamp = self.clk;
+
                     // Read the input values.
                     let mut ptr = input_ptr;
-                    let z = self.memory.entry(ptr).or_default().value.ext::<EF>();
-                    ptr += 1;
-                    let alpha = self.memory.entry(ptr).or_default().value.ext::<EF>();
-                    ptr += 1;
-                    let x = self.memory.entry(ptr).or_default().value[0];
-                    ptr += 1;
-                    let log_height =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 1;
-                    let mat_opening_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 2;
-                    let ps_at_z_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 2;
-                    let alpha_pow_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 2;
-                    let ro_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
+                    let (z_record, z) = self.mr(ptr, timestamp);
+                    let (alpha_record, alpha) = self.mr(ptr + 1, timestamp);
+                    let (x_record, x) = self.mr(ptr + 2, timestamp);
+                    let (log_height_record, log_height_ef) = self.mr(ptr + 3, timestamp);
+                    let (mat_opening_record, mat_opening) = self.mr(ptr + 4, timestamp);
+                    let (ps_at_z_record, ps_at_z) = self.mr(ptr + 7, timestamp);
+                    let (alpha_pow_record, alpha_pow) = self.mr(ptr + 9, timestamp);
+                    let (ro_record, ro) = self.mr(ptr + 11, timestamp);
+
+                    let log_height = log_height_ef[0];
+                    let mat_opening_ptr: F = mat_opening[0];
+                    let ps_at_z_ptr = ps_at_z[0];
+                    let alpha_pow_ptr = alpha_pow[0];
+                    let ro_ptr = ro[0];
 
                     // Get the opening values.
-                    let p_at_x = self
-                        .memory
-                        .entry(mat_opening_ptr + m)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
-                    let p_at_z = self
-                        .memory
-                        .entry(ps_at_z_ptr + m)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
+                    let (p_at_x_record, p_at_x) = self.mr(mat_opening_ptr + m, timestamp);
+                    let (p_at_z_record, p_at_z) = self.mr(ps_at_z_ptr + m, timestamp);
 
                     // Calculate the quotient and update the values
                     let quotient = (-p_at_z + p_at_x) / (-z + x);
 
                     // Modify the ro and alpha pow values.
-                    let alpha_pow_at_log_height = self
-                        .memory
-                        .entry(alpha_pow_ptr + log_height)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
-                    let ro_at_log_height = self
-                        .memory
-                        .entry(ro_ptr + log_height)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
+                    let alpha_pow_at_log_height = self.peek(alpha_pow_ptr + log_height);
+                    let ro_at_log_height = self.peek(ro_ptr + log_height);
 
-                    self.memory.entry(ro_ptr + log_height).or_default().value = Block::from(
-                        (ro_at_log_height + alpha_pow_at_log_height * quotient).as_base_slice(),
+                    let row_ptr_at_log_height_record = self.mw(
+                        ro_ptr + log_height,
+                        ro_at_log_height + alpha_pow_at_log_height * quotient,
+                        timestamp + 1,
                     );
-                    self.memory
-                        .entry(alpha_pow_ptr + log_height)
-                        .or_default()
-                        .value = Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
+
+                    let alpha_pow_at_log_height_record = self.mw(
+                        alpha_pow_ptr + log_height,
+                        alpha_pow_at_log_height * alpha,
+                        timestamp + 1,
+                    );
+
+                    // TODO: emit FRI Fold event with all of these records.
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
