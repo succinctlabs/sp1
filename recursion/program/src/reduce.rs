@@ -27,12 +27,10 @@ use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKe
 use sp1_core::utils::{inner_fri_config, sp1_fri_config, BabyBearPoseidon2Inner};
 use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_core::air::{ChallengerPublicValues, PublicValues as RecursionPublicValues};
 use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::{
-    RecursionProgram, DIGEST_SIZE, PERMUTATION_WIDTH, PV_BUFFER_MAX_SIZE,
-};
+use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE, PERMUTATION_WIDTH};
 use sp1_recursion_core::stark::RecursionAir;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
@@ -303,6 +301,7 @@ impl ReduceProgram {
         let global_exit_code: Felt<_> = initial_exit_code;
         let global_start_shard: Felt<_> = initial_start_shard;
         let global_next_shard: Felt<_> = builder.uninit();
+        let global_cumulative_sum: Ext<_, _> = builder.eval(EF::zero().cons());
         let start_reconstruct_challenger = reconstruct_challenger.copy(&mut builder);
         let start_reconstruct_deferred_digest =
             clone_array(&mut builder, &reconstruct_deferred_digest);
@@ -456,9 +455,14 @@ impl ReduceProgram {
                         reconstruct_challenger.clone().observe(builder, element);
                     }
 
-                    // TODO: fix public values observe
-                    // let public_values = proof.public_values.to_vec(builder);
-                    // reconstruct_challenger.observe_slice(builder, &public_values);
+                    // Accumulate lookup bus.
+                    let num_chips = proof.opened_values.chips.len();
+                    builder.range(0, num_chips).for_each(|j, builder| {
+                        let chip = builder.get(&proof.opened_values.chips, j);
+                        let new_sum: Ext<_, _> =
+                            builder.eval(global_cumulative_sum + chip.cumulative_sum);
+                        builder.assign(global_cumulative_sum, new_sum);
+                    });
 
                     // Verify proof with copy of witnessed challenger.
                     let mut current_challenger = verify_start_challenger.copy(builder);
@@ -539,6 +543,12 @@ impl ReduceProgram {
                         &verify_start_challenger,
                         pv.verify_start_challenger,
                     );
+
+                    // Accumulate lookup bus.
+                    let pv_cumulative_sum = builder.ext_from_base_slice(&pv.cumulative_sum);
+                    let new_sum: Ext<_, _> =
+                        builder.eval(global_cumulative_sum + pv_cumulative_sum);
+                    builder.assign(global_cumulative_sum, new_sum);
 
                     // Setup the recursive challenger to use for verifying.
                     let mut current_challenger = recursion_challenger.copy(builder);
@@ -679,6 +689,10 @@ impl ReduceProgram {
                 let global_element = builder.get(&global_deferred_proofs_digest, j);
                 builder.assert_felt_eq(element, global_element);
             }
+
+            // 6) Verify that the cumulative sum is zero.
+            let zero_ext: Ext<_, _> = builder.eval(EF::zero().cons());
+            builder.assert_ext_eq(global_cumulative_sum, zero_ext);
         });
 
         // Public values:
@@ -697,6 +711,7 @@ impl ReduceProgram {
         //     sp1_vk_digest,
         //     recursion_vk_digest,
         //     verify_start_challenger,
+        //     cumulative_sum,
         //     is_complete,
         // )
         for j in 0..(PV_DIGEST_NUM_WORDS * WORD_SIZE) {
@@ -731,6 +746,8 @@ impl ReduceProgram {
             builder.commit_public_value(element);
         });
         commit_challenger(&mut builder, &verify_start_challenger);
+        let cumulative_sum_felts = builder.ext2felt(global_cumulative_sum);
+        builder.commit_public_values(&cumulative_sum_felts);
         let is_complete_felt = var2felt(&mut builder, is_complete);
         builder.commit_public_value(is_complete_felt);
 

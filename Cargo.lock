@@ -4565,6 +4565,7 @@ dependencies = [
  "sp1-core",
  "sp1-derive",
  "sp1-primitives",
+ "static_assertions",
  "tracing",
  "zkhash",
 ]

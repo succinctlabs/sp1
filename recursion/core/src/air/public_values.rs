@@ -2,7 +2,11 @@ use crate::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use core::fmt::Debug;
 use serde::{Deserialize, Serialize};
-use sp1_core::air::{Word, POSEIDON_NUM_WORDS};
+use sp1_core::{
+    air::{Word, POSEIDON_NUM_WORDS},
+    stark::PROOF_MAX_NUM_PVS,
+};
+use static_assertions::const_assert_eq;
 use std::mem::size_of;
 
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
@@ -10,6 +14,10 @@ pub const PV_DIGEST_NUM_WORDS: usize = 8;
 pub const CHALLENGER_STATE_NUM_ELTS: usize = 50;
 
 pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<u8>>();
+
+// Recursive proof has more public values than core proof, so the max number constant defined in
+// sp1_core should be set to `RECURSIVE_PROOF_NUM_PV_ELTS`.
+const_assert_eq!(RECURSIVE_PROOF_NUM_PV_ELTS, PROOF_MAX_NUM_PVS);
 
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
 pub struct ChallengerPublicValues<T> {
@@ -88,6 +96,9 @@ pub struct PublicValues<T> {
     /// The commitment to the start program being proven.
     pub verify_start_challenger: ChallengerPublicValues<T>,
 
+    /// Current cumulative sum of lookup bus.
+    pub cumulative_sum: [T; 4],
+
     /// Whether the proof completely proves the program execution.
     pub is_complete: T,
 }
@@ -128,6 +139,7 @@ impl<T: Clone + Debug> PublicValues<T> {
                 .take(CHALLENGER_STATE_NUM_ELTS)
                 .collect::<Vec<_>>(),
         );
+        let cumulative_sum = iter.by_ref().take(4).collect::<Vec<_>>();
         let is_complete = iter.next().unwrap();
 
         Self {
@@ -145,6 +157,7 @@ impl<T: Clone + Debug> PublicValues<T> {
             sp1_vk_digest: unwrap_into_array(sp1_vk_commit),
             recursion_vk_digest: unwrap_into_array(recursion_vk_commit),
             verify_start_challenger,
+            cumulative_sum: unwrap_into_array(cumulative_sum),
             is_complete,
         }
     }

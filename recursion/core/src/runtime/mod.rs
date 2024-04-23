@@ -37,9 +37,6 @@ pub const HASH_RATE: usize = 8;
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
 pub const DIGEST_SIZE: usize = 8;
 
-/// The max size of the public values buffer
-pub const PV_BUFFER_MAX_SIZE: usize = 1024;
-
 pub const NUM_BITS: usize = 31;
 
 pub const D: usize = 4;
