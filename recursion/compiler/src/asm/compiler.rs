@@ -97,20 +97,20 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
         // Set the heap pointer value according to stack size.
         if self.block_label().is_zero() {
             let stack_size = F::from_canonical_usize(STACK_SIZE + 4);
-            self.push(AsmInstruction::ImmF(HEAP_PTR, stack_size), None);
+            self.push(AsmInstruction::AddFI(HEAP_PTR, ZERO, stack_size), None);
         }
 
         // For each operation, generate assembly instructions.
         for (op, trace) in operations.clone() {
             match op {
                 DslIr::ImmV(dst, src) => {
-                    self.push(AsmInstruction::ImmF(dst.fp(), src), trace);
+                    self.push(AsmInstruction::AddFI(dst.fp(), ZERO, src), trace);
                 }
                 DslIr::ImmF(dst, src) => {
-                    self.push(AsmInstruction::ImmF(dst.fp(), src), trace);
+                    self.push(AsmInstruction::AddFI(dst.fp(), ZERO, src), trace);
                 }
                 DslIr::ImmE(dst, src) => {
-                    self.push(AsmInstruction::ImmE(dst.fp(), src), trace);
+                    self.push(AsmInstruction::AddEI(dst.fp(), ZERO, src), trace);
                 }
                 DslIr::AddV(dst, lhs, rhs) => {
                     self.push(AsmInstruction::AddF(dst.fp(), lhs.fp(), rhs.fp()), trace);
@@ -161,10 +161,10 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::SubFIN(dst.fp(), lhs, rhs.fp()), trace);
                 }
                 DslIr::NegV(dst, src) => {
-                    self.push(AsmInstruction::SubFIN(dst.fp(), F::one(), src.fp()), trace);
+                    self.push(AsmInstruction::SubFIN(dst.fp(), F::zero(), src.fp()), trace);
                 }
                 DslIr::NegF(dst, src) => {
-                    self.push(AsmInstruction::SubFIN(dst.fp(), F::one(), src.fp()), trace);
+                    self.push(AsmInstruction::SubFIN(dst.fp(), F::zero(), src.fp()), trace);
                 }
                 DslIr::DivF(dst, lhs, rhs) => {
                     self.push(AsmInstruction::DivF(dst.fp(), lhs.fp(), rhs.fp()), trace);
@@ -420,33 +420,33 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         trace,
                     ),
                 },
-                DslIr::StoreV(ptr, var, index) => match index.fp() {
+                DslIr::StoreV(var, ptr, index) => match index.fp() {
                     IndexTriple::Const(index, offset, size) => self.push(
-                        AsmInstruction::StoreFI(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreFI(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                     IndexTriple::Var(index, offset, size) => self.push(
-                        AsmInstruction::StoreF(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreF(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                 },
-                DslIr::StoreF(ptr, var, index) => match index.fp() {
+                DslIr::StoreF(var, ptr, index) => match index.fp() {
                     IndexTriple::Const(index, offset, size) => self.push(
-                        AsmInstruction::StoreFI(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreFI(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                     IndexTriple::Var(index, offset, size) => self.push(
-                        AsmInstruction::StoreF(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreF(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                 },
-                DslIr::StoreE(ptr, var, index) => match index.fp() {
+                DslIr::StoreE(var, ptr, index) => match index.fp() {
                     IndexTriple::Const(index, offset, size) => self.push(
-                        AsmInstruction::StoreEI(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreEI(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                     IndexTriple::Var(index, offset, size) => self.push(
-                        AsmInstruction::StoreE(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreE(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                 },
@@ -805,7 +805,7 @@ impl<'a, F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField>
         match self.start {
             Usize::Const(start) => {
                 self.compiler.push(
-                    AsmInstruction::ImmF(self.loop_var.fp(), F::from_canonical_usize(start)),
+                    AsmInstruction::AddFI(self.loop_var.fp(), ZERO, F::from_canonical_usize(start)),
                     None,
                 );
             }
