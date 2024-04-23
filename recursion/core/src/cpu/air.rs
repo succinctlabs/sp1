@@ -86,11 +86,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     cols.c.value = event.instruction.op_c;
                 }
 
-                let alu_cols = cols.opcode_specific.alu_mut();
-                alu_cols.ext_a = cols.a.value;
-                alu_cols.ext_b = cols.b.value;
-                alu_cols.ext_c = cols.c.value;
-
                 // cols.a_eq_b
                 //     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
 
@@ -347,15 +342,15 @@ impl<F> CpuChip<F> {
     where
         AB: SP1AirBuilder<F = F>,
     {
-        let alu_cols = local.opcode_specific.alu();
+        // Convert Block<Var> to Block<Expr>, since we will need that for the binomial extension operations.
+        let ext_a: Block<AB::Expr> = local.a.value.map(|x| x.into());
+        let ext_b: Block<AB::Expr> = local.b.value.map(|x| x.into());
+        let ext_c: Block<AB::Expr> = local.c.value.map(|x| x.into());
 
-        let ext_a_expr: Block<AB::Expr> = alu_cols.ext_a.map(|x| x.into());
-        let ext_b_expr: Block<AB::Expr> = alu_cols.ext_b.map(|x| x.into());
-        let ext_c_expr: Block<AB::Expr> = alu_cols.ext_c.map(|x| x.into());
-
-        let a_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_a_expr);
-        let b_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_b_expr);
-        let c_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_c_expr);
+        // Convert Block<Expr> to BinomialExtension<Expr>.
+        let a_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_a);
+        let b_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_b);
+        let c_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_c);
 
         let is_base_field_op = local.selectors.is_add
             + local.selectors.is_sub
