@@ -1,3 +1,5 @@
+#![warn(unused_extern_crates)]
+
 pub mod witness;
 
 use std::{
@@ -53,19 +55,17 @@ impl Groth16Prover {
     pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let dir = format!("{}/../groth16", manifest_dir);
+        let groth16_dir = format!("{}/../groth16", manifest_dir);
 
         // Write constraints.
-        let constraints_path = format!("{}/constraints.json", dir);
-        let mut file = File::create(constraints_path).unwrap();
-        file.write_all(serialized.as_bytes()).unwrap();
+        let mut constraints_file = tempfile::NamedTempFile::new().unwrap();
+        constraints_file.write_all(serialized.as_bytes()).unwrap();
 
         // Write witness.
-        let witness_path = format!("{}/witness.json", dir);
+        let mut witness_file = tempfile::NamedTempFile::new().unwrap();
         let gnark_witness: Groth16Witness = witness.into();
-        let mut file = File::create(witness_path).unwrap();
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
-        file.write_all(serialized.as_bytes()).unwrap();
+        witness_file.write_all(serialized.as_bytes()).unwrap();
 
         let result = Command::new("go")
             .args([
@@ -78,7 +78,12 @@ impl Groth16Prover {
                 "^TestMain$",
                 "github.com/succinctlabs/sp1-recursion-groth16",
             ])
-            .current_dir(dir)
+            .current_dir(groth16_dir)
+            .env("WITNESS_JSON", witness_file.path().to_str().unwrap())
+            .env(
+                "CONSTRAINTS_JSON",
+                constraints_file.path().to_str().unwrap(),
+            )
             .stderr(Stdio::inherit())
             .stdout(Stdio::inherit())
             .stdin(Stdio::inherit())

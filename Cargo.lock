@@ -4495,11 +4495,11 @@ dependencies = [
  "p3-util",
  "rand",
  "serde",
- "serial_test",
  "sp1-core",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-derive",
+ "sp1-recursion-groth16-ffi",
  "sp1-recursion-program",
  "zkhash",
 ]
