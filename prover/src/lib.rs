@@ -7,6 +7,7 @@
 //! 3. Wrap the shard proof into a SNARK-friendly field.
 //! 4. Wrap the last shard proof, proven over the SNARK-friendly field, into a Groth16/PLONK proof.
 
+#![warn(unused_extern_crates)]
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 #![allow(deprecated)]
@@ -39,7 +40,6 @@ use sp1_core::{
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::constraints::groth16_ffi;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::{
@@ -48,6 +48,7 @@ use sp1_recursion_core::{
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
 use sp1_recursion_program::hints::Hintable;
+use sp1_recursion_groth16_ffi::Groth16Prover;
 use sp1_recursion_program::reduce::ReduceProgram;
 
 use crate::types::ReduceState;
@@ -477,7 +478,6 @@ impl SP1Prover {
         let is_complete = if is_complete { 1usize } else { 0 };
         witness_stream.extend(is_complete.write());
 
-        // Execute runtime to get the memory setup.
         let machine = RecursionAir::machine(InnerSC::default());
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
             &self.reduce_setup_program,
@@ -485,8 +485,8 @@ impl SP1Prover {
         );
         runtime.witness_stream = witness_stream.into();
         runtime.run();
-        let mut checkpoint = runtime.memory.clone();
         runtime.print_stats();
+        let mut checkpoint = runtime.memory.clone();
 
         // Execute runtime.
         let machine = RecursionAir::machine(InnerSC::default());
@@ -499,12 +499,20 @@ impl SP1Prover {
         });
         runtime.memory = checkpoint;
         runtime.run();
+        runtime.print_stats();
 
         // Generate proof.
         let machine = RecursionAir::machine(SC::default());
         let (pk, _) = machine.setup(&self.reduce_program);
         let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let proof =
+            machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
+
+        // Verify proof.
+        //
+        // let mut challenger = machine.config().challenger();
+        // machine.debug_constraints(&pk, runtime.record, &mut challenger);
+        // machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         // Return the reduced proof.
         assert!(proof.shard_proofs.len() == 1);
@@ -540,7 +548,7 @@ impl SP1Prover {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
-        groth16_ffi::prove(constraints, witness);
+        Groth16Prover::test(constraints, witness);
     }
 
     pub fn setup_initial_core_challenger(&self, vk: &SP1VerifyingKey) -> Challenger<CoreSC> {
@@ -603,7 +611,7 @@ mod tests {
         tracing::info!("reduce");
         let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
 
-        tracing::info!("wrap");
+        tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
 
         tracing::info!("groth16");

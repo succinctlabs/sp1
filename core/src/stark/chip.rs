@@ -7,10 +7,10 @@ use p3_util::log2_ceil_usize;
 
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
-    lookup::{Interaction, InteractionBuilder},
+    lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
-use super::{eval_permutation_constraints, generate_permutation_trace};
+use super::{eval_permutation_constraints, generate_permutation_trace, permutation_trace_width};
 
 /// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
@@ -74,8 +74,19 @@ where
         }
     }
 
+    #[inline]
     pub fn num_interactions(&self) -> usize {
         self.sends.len() + self.receives.len()
+    }
+
+    #[inline]
+    pub fn num_sends_by_kind(&self, kind: InteractionKind) -> usize {
+        self.sends.iter().filter(|i| i.kind == kind).count()
+    }
+
+    #[inline]
+    pub fn num_receives_by_kind(&self, kind: InteractionKind) -> usize {
+        self.receives.iter().filter(|i| i.kind == kind).count()
     }
 
     pub fn generate_permutation_trace<EF: ExtensionField<F>>(
@@ -98,6 +109,20 @@ where
         )
     }
 
+    #[inline]
+    pub fn permutation_width(&self) -> usize {
+        permutation_trace_width(
+            self.sends().len() + self.receives().len(),
+            self.logup_batch_size(),
+        )
+    }
+
+    #[inline]
+    pub fn quotient_width(&self) -> usize {
+        1 << self.log_quotient_degree
+    }
+
+    #[inline]
     pub fn logup_batch_size(&self) -> usize {
         // TODO: calculate by log_quotient_degree.
         2

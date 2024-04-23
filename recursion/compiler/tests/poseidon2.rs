@@ -127,6 +127,10 @@ fn test_compiler_poseidon2_hash_v2() {
     }
 
     let idx: Var<_> = builder.eval(F::zero());
+    builder.if_eq(idx, F::zero()).then(|builder| {
+        let element = builder.get(&random_state, idx);
+        builder.print_f(element);
+    });
 
     let program = builder.compile_program();
 

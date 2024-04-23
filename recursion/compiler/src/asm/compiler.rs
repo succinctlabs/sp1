@@ -131,10 +131,10 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::AddEI(dst.fp(), lhs.fp(), rhs), trace);
                 }
                 DslIr::AddEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::AddEF(dst.fp(), lhs.fp(), rhs.fp()), trace);
+                    self.push(AsmInstruction::AddE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::AddEFFI(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::AddEIF(dst.fp(), lhs.fp(), rhs), trace);
+                    self.push(AsmInstruction::AddEI(dst.fp(), lhs.fp(), rhs), trace);
                 }
                 DslIr::AddEFI(dst, lhs, rhs) => {
                     self.push(
@@ -182,7 +182,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::DivFIN(dst.fp(), F::one(), src.fp()), trace);
                 }
                 DslIr::DivEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::DivFE(dst.fp(), lhs.fp(), rhs.fp()), trace);
+                    self.push(AsmInstruction::DivE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::DivEFI(dst, lhs, rhs) => {
                     self.push(
@@ -209,7 +209,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::DivEIN(dst.fp(), EF::one(), src.fp()), trace);
                 }
                 DslIr::SubEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::SubFE(dst.fp(), lhs.fp(), rhs.fp()), trace);
+                    self.push(AsmInstruction::SubE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::SubEFI(dst, lhs, rhs) => {
                     self.push(
@@ -251,7 +251,7 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::MulEI(dst.fp(), lhs.fp(), rhs), trace);
                 }
                 DslIr::MulEF(dst, lhs, rhs) => {
-                    self.push(AsmInstruction::MulFE(dst.fp(), lhs.fp(), rhs.fp()), trace);
+                    self.push(AsmInstruction::MulE(dst.fp(), lhs.fp(), rhs.fp()), trace);
                 }
                 DslIr::MulEFI(dst, lhs, rhs) => {
                     self.push(

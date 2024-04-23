@@ -433,13 +433,11 @@ where
     type HintVariable = ShardProofVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let index = builder.hint_var();
         let commitment = ShardCommitment::read(builder);
         let opened_values = ShardOpenedValues::read(builder);
         let opening_proof = InnerPcsProof::read(builder);
         let public_values = Vec::<InnerVal>::read(builder);
         ShardProofVariable {
-            index,
             commitment,
             opened_values,
             opening_proof,
@@ -449,7 +447,6 @@ where
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-        stream.extend(self.index.write());
         stream.extend(self.commitment.write());
         stream.extend(self.opened_values.write());
         stream.extend(self.opening_proof.write());
