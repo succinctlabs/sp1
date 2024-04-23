@@ -85,6 +85,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 }
 
                 let alu_cols = cols.opcode_specific.alu_mut();
+                alu_cols.ext_a = cols.a.value;
+                alu_cols.ext_b = cols.b.value;
+                alu_cols.ext_c = cols.c.value;
                 if cols.selectors.is_div.is_one() {
                     alu_cols.inverse_scratch = cols.c.value.0[0].inverse().into();
                 } else if cols.selectors.is_ediv.is_one() {

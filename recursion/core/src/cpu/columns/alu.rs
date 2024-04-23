@@ -8,6 +8,8 @@ pub struct AluCols<T> {
 
     pub ext_b: Block<T>,
 
-    // Used for div operations.
+    pub ext_c: Block<T>,
+
+    // Used for field and extension div operations.
     pub inverse_scratch: Block<T>,
 }
