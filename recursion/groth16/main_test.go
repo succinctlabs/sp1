@@ -49,9 +49,11 @@ func TestMain(t *testing.T) {
 
 	// Run some sanity checks.
 	circuit := Circuit{
-		Vars:  vars,
-		Felts: felts,
-		Exts:  exts,
+		Vars:                 vars,
+		Felts:                felts,
+		Exts:                 exts,
+		VkeyHash:             inputs.VkeyHash,
+		CommitedValuesDigest: inputs.CommitedValuesDigest,
 	}
 
 	// Compile the circuit.
@@ -82,9 +84,11 @@ func TestMain(t *testing.T) {
 		exts[i] = babybear.NewE(inputs.Exts[i])
 	}
 	assignment := Circuit{
-		Vars:  vars,
-		Felts: felts,
-		Exts:  exts,
+		Vars:                 vars,
+		Felts:                felts,
+		Exts:                 exts,
+		VkeyHash:             inputs.VkeyHash,
+		CommitedValuesDigest: inputs.CommitedValuesDigest,
 	}
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {

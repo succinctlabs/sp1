@@ -24,9 +24,11 @@ import (
 )
 
 type Circuit struct {
-	Vars  []frontend.Variable
-	Felts []*babybear.Variable
-	Exts  []*babybear.ExtensionVariable
+	Vars                 []frontend.Variable
+	Felts                []*babybear.Variable
+	Exts                 []*babybear.ExtensionVariable
+	VkeyHash             frontend.Variable `gnark:",public"`
+	CommitedValuesDigest frontend.Variable `gnark:",public"`
 }
 
 type Constraint struct {
@@ -35,9 +37,11 @@ type Constraint struct {
 }
 
 type Inputs struct {
-	Vars  []string   `json:"vars"`
-	Felts []string   `json:"felts"`
-	Exts  [][]string `json:"exts"`
+	Vars                 []string   `json:"vars"`
+	Felts                []string   `json:"felts"`
+	Exts                 [][]string `json:"exts"`
+	VkeyHash             string     `json:"vkey_hash"`
+	CommitedValuesDigest string     `json:"commited_values_digest"`
 }
 
 type Groth16Proof struct {
@@ -71,6 +75,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	vars := make(map[string]frontend.Variable)
 	felts := make(map[string]*babybear.Variable)
 	exts := make(map[string]*babybear.ExtensionVariable)
+	commitedValues := make([]frontend.Variable, 0)
 
 	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
@@ -168,10 +173,19 @@ func (circuit *Circuit) Define(api frontend.API) error {
 				panic(err)
 			}
 			exts[cs.Args[0][0]] = circuit.Exts[i]
+		case "CommitVkeyHash":
+			element := vars[cs.Args[0][0]]
+			api.AssertIsEqual(circuit.VkeyHash, element)
+		case "CommitCommitedValuesDigest":
+			element := vars[cs.Args[0][0]]
+			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}
 	}
+
+	// Handle the commit logic.
+	fmt.Println(len(commitedValues))
 
 	return nil
 }
@@ -247,9 +261,11 @@ func main() {
 		// Generate witness.
 		fmt.Println("Generating witness...")
 		assignment := Circuit{
-			Vars:  vars,
-			Felts: felts,
-			Exts:  exts,
+			Vars:                 vars,
+			Felts:                felts,
+			Exts:                 exts,
+			VkeyHash:             inputs.VkeyHash,
+			CommitedValuesDigest: inputs.CommitedValuesDigest,
 		}
 		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 		if err != nil {
@@ -335,9 +351,11 @@ func main() {
 
 		// Initialize the circuit.
 		circuit := Circuit{
-			Vars:  vars,
-			Felts: felts,
-			Exts:  exts,
+			Vars:                 vars,
+			Felts:                felts,
+			Exts:                 exts,
+			VkeyHash:             witness.VkeyHash,
+			CommitedValuesDigest: witness.CommitedValuesDigest,
 		}
 
 		// Compile the circuit.

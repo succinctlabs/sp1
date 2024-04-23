@@ -171,6 +171,25 @@ mod tests {
     use crate::DIGEST_SIZE;
 
     #[test]
+    fn test_commit() {
+        let mut builder = Builder::<OuterConfig>::default();
+        let vkey_hash_bn254 = Bn254Fr::from_canonical_u32(1345237507);
+        let commited_values_digest_bn254 = Bn254Fr::from_canonical_u32(102);
+        let vkey_hash = builder.eval(vkey_hash_bn254);
+        let commited_values_digest = builder.eval(commited_values_digest_bn254);
+        builder.commit_vkey_hash_circuit(vkey_hash);
+        builder.commit_commited_values_digest_circuit(commited_values_digest);
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+        let mut witness = Witness::default();
+        witness.set_vkey_hash(vkey_hash_bn254);
+        witness.set_commited_values_digest(commited_values_digest_bn254);
+
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+    }
+
+    #[test]
     fn test_num2bits_v() {
         let mut builder = Builder::<OuterConfig>::default();
         let mut value_u32 = 1345237507;

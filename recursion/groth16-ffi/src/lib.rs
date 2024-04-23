@@ -63,7 +63,7 @@ impl Groth16Prover {
 
         // Write witness.
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
-        let gnark_witness: Groth16Witness = witness.into();
+        let gnark_witness = Groth16Witness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
@@ -108,7 +108,7 @@ impl Groth16Prover {
 
         // Write witness.
         let witness_path = build_dir.join("witness.json");
-        let gnark_witness: Groth16Witness = witness.into();
+        let gnark_witness = Groth16Witness::new(witness);
         let mut file = File::create(witness_path).unwrap();
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         file.write_all(serialized.as_bytes()).unwrap();
@@ -153,7 +153,7 @@ impl Groth16Prover {
 
         // Write witness.
         let mut witness_file = tempfile::NamedTempFile::new().unwrap();
-        let gnark_witness: Groth16Witness = witness.into();
+        let gnark_witness = Groth16Witness::new(witness);
         let serialized = serde_json::to_string(&gnark_witness).unwrap();
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
