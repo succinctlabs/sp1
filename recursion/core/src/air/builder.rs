@@ -9,7 +9,7 @@ use super::Block;
 impl<AB: SP1AirBuilder> RecursionAirBuilder for AB {}
 
 pub trait RecursionAirBuilder: BaseAirBuilder {
-    fn eval_memory_read_write_multiplicity<
+    fn eval_memory_read_write<
         EAddr,
         EPrevTimestamp,
         ETimestamp,
@@ -18,9 +18,9 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         EMultiplicity,
     >(
         &mut self,
-        addr: EAddr,
         prev_timestamp: EPrevTimestamp,
         timestamp: ETimestamp,
+        addr: EAddr,
         prev_value: Block<EPrevValue>,
         value: Block<EValue>,
         multiplicity: EMultiplicity,
@@ -32,10 +32,12 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         EValue: Into<Self::Expr>,
         EMultiplicity: Into<Self::Expr>,
     {
+        // TODO add timestamp checks once we have them implemented in recursion VM.
         let [prev_value_0, prev_value_1, prev_value_2, prev_value_3] = prev_value.0;
         let [value_0, value_1, value_2, value_3] = value.0;
         let addr = addr.into();
         let multiplicity = multiplicity.into();
+
         self.receive(AirInteraction::new(
             vec![
                 addr.clone(),
@@ -62,50 +64,29 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         ));
     }
 
-    fn eval_memory_read_write<EAddr, EPrevTimestamp, ETimestamp, EPrevValue, EValue>(
+    fn eval_memory_read<EAddr, EPrevTimestamp, ETimestamp, EValue, EMultiplicity>(
         &mut self,
-        addr: EAddr,
         prev_timestamp: EPrevTimestamp,
         timestamp: ETimestamp,
-        prev_value: Block<EPrevValue>,
-        value: Block<EValue>,
-    ) where
-        EAddr: Into<Self::Expr>,
-        EPrevTimestamp: Into<Self::Expr>,
-        ETimestamp: Into<Self::Expr>,
-        EPrevValue: Into<Self::Expr>,
-        EValue: Into<Self::Expr>,
-    {
-        self.eval_memory_read_write_multiplicity(
-            addr,
-            prev_timestamp,
-            timestamp,
-            prev_value,
-            value,
-            Self::Expr::one(),
-        )
-    }
-
-    fn eval_memory_read<EAddr, EPrevTimestamp, ETimestamp, EValue>(
-        &mut self,
         addr: EAddr,
-        prev_timestamp: EPrevTimestamp,
-        timestamp: ETimestamp,
         value: EValue,
+        multiplicity: EMultiplicity,
     ) where
         EAddr: Into<Self::Expr>,
         EPrevTimestamp: Into<Self::Expr>,
         ETimestamp: Into<Self::Expr>,
         EValue: Into<Block<Self::Expr>>,
+        EMultiplicity: Into<Self::Expr>,
     {
         let addr = addr.into();
         let value = value.into();
         self.eval_memory_read_write(
-            addr,
             prev_timestamp.into(),
             timestamp.into(),
+            addr,
             value.clone(),
             value,
+            multiplicity,
         )
     }
 }

@@ -264,30 +264,30 @@ where
         // );
 
         // Receive C.
-        builder.eval_memory_read_write_multiplicity(
-            local.c.addr,
+        builder.eval_memory_read_write(
             local.c.prev_timestamp,
             local.c.timestamp,
+            local.c.addr,
             local.c.prev_value,
             local.c.value,
             AB::Expr::one() - local.instruction.imm_c.into(),
         );
 
         // Receive B.
-        builder.eval_memory_read_write_multiplicity(
-            local.b.addr,
+        builder.eval_memory_read_write(
             local.b.prev_timestamp,
             local.b.timestamp,
+            local.b.addr,
             local.b.prev_value,
             local.b.value,
             AB::Expr::one() - local.instruction.imm_b.into(),
         );
 
         // Receive A.
-        builder.eval_memory_read_write_multiplicity(
-            local.a.addr,
+        builder.eval_memory_read_write(
             local.a.prev_timestamp,
             local.a.timestamp,
+            local.a.addr,
             local.a.prev_value,
             local.a.value,
             local.is_real.into(),
