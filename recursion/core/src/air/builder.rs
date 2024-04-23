@@ -9,9 +9,9 @@ impl<AB: SP1AirBuilder> RecursionAirBuilder for AB {}
 
 pub trait RecursionAirBuilder: BaseAirBuilder {
     fn eval_memory_read_write<
-        EAddr,
         EPrevTimestamp,
         ETimestamp,
+        EAddr,
         EPrevValue,
         EValue,
         EMultiplicity,
@@ -24,9 +24,9 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         value: Block<EValue>,
         multiplicity: EMultiplicity,
     ) where
-        EAddr: Into<Self::Expr>,
         EPrevTimestamp: Into<Self::Expr>,
         ETimestamp: Into<Self::Expr>,
+        EAddr: Into<Self::Expr>,
         EPrevValue: Into<Self::Expr>,
         EValue: Into<Self::Expr>,
         EMultiplicity: Into<Self::Expr>,
@@ -63,7 +63,7 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         ));
     }
 
-    fn eval_memory_read<EAddr, EPrevTimestamp, ETimestamp, EValue, EMultiplicity>(
+    fn eval_memory_read<EPrevTimestamp, ETimestamp, EAddr, EValue, EMultiplicity>(
         &mut self,
         prev_timestamp: EPrevTimestamp,
         timestamp: ETimestamp,
@@ -71,9 +71,9 @@ pub trait RecursionAirBuilder: BaseAirBuilder {
         value: EValue,
         multiplicity: EMultiplicity,
     ) where
-        EAddr: Into<Self::Expr>,
         EPrevTimestamp: Into<Self::Expr>,
         ETimestamp: Into<Self::Expr>,
+        EAddr: Into<Self::Expr>,
         EValue: Into<Block<Self::Expr>>,
         EMultiplicity: Into<Self::Expr>,
     {
