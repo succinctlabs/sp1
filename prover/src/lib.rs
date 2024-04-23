@@ -17,15 +17,14 @@ mod types;
 mod utils;
 mod verify;
 
+pub use types::*;
+
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
-use p3_field::PrimeField32;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
-use serde::{Deserialize, Serialize};
-use sp1_core::air::PV_DIGEST_NUM_WORDS;
-use sp1_core::air::WORD_SIZE;
+use serde::Serialize;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
@@ -33,11 +32,11 @@ use sp1_core::{
     runtime::Program,
     stark::{
         Challenger, LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine,
-        StarkProvingKey, StarkVerifyingKey, Val,
+        StarkVerifyingKey, Val,
     },
     utils::{run_and_prove, BabyBearPoseidon2},
 };
-use sp1_primitives::poseidon2_hash;
+use sp1_primitives::hash_deferred_proofs;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
@@ -47,9 +46,10 @@ use sp1_recursion_core::{
     runtime::Runtime as RecursionRuntime,
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
-use sp1_recursion_program::hints::Hintable;
 use sp1_recursion_groth16_ffi::Groth16Prover;
+use sp1_recursion_program::hints::Hintable;
 use sp1_recursion_program::reduce::ReduceProgram;
+use utils::words_to_bytes;
 
 use crate::types::ReduceState;
 use crate::utils::get_preprocessed_data;
@@ -75,40 +75,6 @@ pub struct SP1Prover {
         StarkMachine<InnerSC, RecursionAir<<InnerSC as StarkGenericConfig>::Val>>,
     pub outer_recursion_machine:
         StarkMachine<OuterSC, RecursionAir<<OuterSC as StarkGenericConfig>::Val>>,
-}
-
-/// The information necessary to generate a proof for a given RISC-V program.
-pub struct SP1ProvingKey {
-    pub pk: StarkProvingKey<CoreSC>,
-    pub program: Program,
-}
-
-/// The information necessary to verify a proof for a given RISC-V program.
-pub struct SP1VerifyingKey {
-    pub vk: StarkVerifyingKey<CoreSC>,
-}
-
-/// A proof of a RISC-V execution with given inputs and outputs composed of multiple shard proofs.
-#[derive(Serialize, Deserialize, Clone)]
-pub struct SP1CoreProof {
-    pub shard_proofs: Vec<ShardProof<CoreSC>>,
-    pub stdin: SP1Stdin,
-    pub public_values: SP1PublicValues,
-}
-
-/// An intermediate proof which proves the execution over a range of shards.
-#[derive(Serialize, Deserialize)]
-#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
-#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
-pub struct SP1ReduceProof<SC: StarkGenericConfig> {
-    pub proof: ShardProof<SC>,
-}
-
-/// A wrapper to abstract proofs representing a range of shards with multiple proving configs.
-#[derive(Serialize, Deserialize)]
-pub enum SP1ReduceProofWrapper {
-    Core(SP1ReduceProof<CoreSC>),
-    Recursive(SP1ReduceProof<InnerSC>),
 }
 
 impl SP1Prover {
@@ -250,9 +216,6 @@ impl SP1Prover {
         deferred_proofs: Vec<ShardProof<InnerSC>>,
         batch_size: usize,
     ) -> Vec<SP1ReduceProofWrapper> {
-        let last_proof = None;
-
-        // If there are deferred proofs, we want to add them to the end.
         // OPT: If there's only one proof in the last batch, we could push it to the next layer.
         // OPT: We could pack deferred proofs into the last chunk if it has less than batch_size proofs.
         let chunks: Vec<_> = proofs.chunks(batch_size).collect();
@@ -276,22 +239,8 @@ impl SP1Prover {
                             let pv = RecursionPublicValues::from_vec(
                                 reduce_proof.proof.public_values.clone(),
                             );
-                            reconstruct_challenger.sponge_state =
-                                pv.end_reconstruct_challenger.sponge_state;
-                            reconstruct_challenger.input_buffer =
-                                pv.end_reconstruct_challenger.input_buffer[..pv
-                                    .end_reconstruct_challenger
-                                    .num_inputs
-                                    .as_canonical_u32()
-                                    as usize]
-                                    .to_vec();
-                            reconstruct_challenger.output_buffer =
-                                pv.end_reconstruct_challenger.output_buffer[..pv
-                                    .end_reconstruct_challenger
-                                    .num_outputs
-                                    .as_canonical_u32()
-                                    as usize]
-                                    .to_vec();
+                            pv.end_reconstruct_challenger
+                                .set_challenger(&mut reconstruct_challenger);
                         }
                     }
                 }
@@ -309,9 +258,9 @@ impl SP1Prover {
                 }
             })
             .collect::<Vec<_>>();
-        // This is the last layer only if the outcome is a single proof. If there are deferred proofs
-        // or there is a single proof being pushed to the next layer, it's not the last layer.
-        let is_complete = chunks.len() == 1 && last_proof.is_none() && deferred_proofs.is_empty();
+        // This is the last layer only if the outcome is a single proof. If there are deferred
+        // proofs, it's not the last layer.
+        let is_complete = chunks.len() == 1 && deferred_proofs.is_empty();
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
             .into_par_iter()
             .zip(reconstruct_challengers.into_par_iter())
@@ -330,12 +279,10 @@ impl SP1Prover {
             })
             .collect();
 
-        if let Some(proof) = last_proof {
-            new_proofs.push(proof);
-        }
-
-        // For all the proofs with only deferred proofs, the start and end state will be the end
-        // state of the last proof from above.
+        // If there are deferred proofs, we want to add them to the end.
+        // Here we get the end state of the last proof from above which will be the start state for
+        // the deferred proofs. When verifying only deferred proofs, only reconstruct_deferred_digests
+        // should change.
         let last_new_proof = &new_proofs[new_proofs.len() - 1];
         let mut reduce_state: ReduceState = match last_new_proof {
             SP1ReduceProofWrapper::Recursive(ref proof) => {
@@ -344,24 +291,21 @@ impl SP1Prover {
             _ => unreachable!(),
         };
         let deferred_chunks: Vec<_> = deferred_proofs.chunks(batch_size).collect();
+        // For each reduce, we need to pass in the start state from the previous proof. Here we
+        // need to compute updated reconstruct_deferred_digests since each proof is modifying it.
         let start_states = deferred_chunks
             .iter()
             .map(|chunk| {
                 let start_state = reduce_state.clone();
-                // Accumulate deferred proofs into the digest
-                // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
+                // Accumulate each deferred proof into the digest
                 for proof in chunk.iter() {
                     let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
-                    let mut inputs = [BabyBear::zero(); 48];
-                    inputs[0..8].copy_from_slice(&reduce_state.reconstruct_deferred_digest);
-                    let vk_digest = pv.sp1_vk_digest;
-                    inputs[8..16].copy_from_slice(&vk_digest);
-                    for i in 0..PV_DIGEST_NUM_WORDS {
-                        for j in 0..WORD_SIZE {
-                            inputs[16 + i * WORD_SIZE + j] = pv.committed_value_digest[i][j];
-                        }
-                    }
-                    reduce_state.reconstruct_deferred_digest = poseidon2_hash(inputs.to_vec());
+                    let committed_values_digest = words_to_bytes(&pv.committed_value_digest);
+                    reduce_state.reconstruct_deferred_digest = hash_deferred_proofs(
+                        &reduce_state.reconstruct_deferred_digest,
+                        &pv.sp1_vk_digest,
+                        &committed_values_digest.try_into().unwrap(),
+                    );
                 }
                 start_state
             })
@@ -575,9 +519,9 @@ impl SP1Prover {
 
 #[cfg(test)]
 mod tests {
-    use crate::utils::hash_vkey;
 
     use super::*;
+    use p3_field::PrimeField32;
     use sp1_core::air::{PublicValues, Word};
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
@@ -691,9 +635,9 @@ mod tests {
         let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
 
         let mut stdin = SP1Stdin::new();
-        let vkey_digest = hash_vkey(&prover.core_machine, &keccak_vk);
+        let vkey_digest = &prover.core_machine.hash_vkey(&keccak_vk.vk);
         let vkey_digest: [u32; 8] = vkey_digest
-            .into_iter()
+            .iter()
             .map(|n| n.as_canonical_u32())
             .collect::<Vec<_>>()
             .try_into()

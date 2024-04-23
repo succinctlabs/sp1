@@ -1,17 +1,54 @@
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
+use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
-    stark::{ShardProof, StarkGenericConfig, Val},
+    io::{SP1PublicValues, SP1Stdin},
+    runtime::Program,
+    stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val},
 };
 use sp1_recursion_core::air::RecursionPublicValues;
 
-use crate::{CoreSC, SP1ReduceProof};
+use crate::{CoreSC, InnerSC};
+
+/// The information necessary to generate a proof for a given RISC-V program.
+pub struct SP1ProvingKey {
+    pub pk: StarkProvingKey<CoreSC>,
+    pub program: Program,
+}
+
+/// The information necessary to verify a proof for a given RISC-V program.
+pub struct SP1VerifyingKey {
+    pub vk: StarkVerifyingKey<CoreSC>,
+}
+
+/// A proof of a RISC-V execution with given inputs and outputs composed of multiple shard proofs.
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SP1CoreProof {
+    pub shard_proofs: Vec<ShardProof<CoreSC>>,
+    pub stdin: SP1Stdin,
+    pub public_values: SP1PublicValues,
+}
+
+/// An intermediate proof which proves the execution over a range of shards.
+#[derive(Serialize, Deserialize)]
+#[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
+#[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
+pub struct SP1ReduceProof<SC: StarkGenericConfig> {
+    pub proof: ShardProof<SC>,
+}
+
+/// A wrapper to abstract proofs representing a range of shards with multiple proving configs.
+#[derive(Serialize, Deserialize)]
+pub enum SP1ReduceProofWrapper {
+    Core(SP1ReduceProof<CoreSC>),
+    Recursive(SP1ReduceProof<InnerSC>),
+}
 
 /// Represents the state of reducing proofs together. This is used to track the current values since
 /// some reduce batches may have only deferred proofs.
 #[derive(Clone)]
-pub struct ReduceState {
+pub(crate) struct ReduceState {
     pub committed_values_digest: [Word<Val<CoreSC>>; PV_DIGEST_NUM_WORDS],
     pub deferred_proofs_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
     pub start_pc: Val<CoreSC>,

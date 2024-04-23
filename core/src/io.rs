@@ -1,6 +1,6 @@
 use crate::{
-    stark::{MachineProof, ShardProof, StarkVerifyingKey},
-    utils::{BabyBearPoseidon2, BabyBearPoseidon2Inner, Buffer},
+    stark::{ShardProof, StarkVerifyingKey},
+    utils::{BabyBearPoseidon2, Buffer},
 };
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 

@@ -77,9 +77,9 @@ pub struct Sha256DigestVariable<C: Config> {
 impl<C: Config> Sha256DigestVariable<C> {
     pub fn from_words(builder: &mut Builder<C>, words: &[Word<Felt<C::F>>]) -> Self {
         let mut bytes = builder.array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
-        for i in 0..PV_DIGEST_NUM_WORDS {
+        for (i, word) in words.iter().enumerate() {
             for j in 0..WORD_SIZE {
-                let byte = words[i][j];
+                let byte = word[j];
                 builder.set(&mut bytes, i * WORD_SIZE + j, byte);
             }
         }

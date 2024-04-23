@@ -13,8 +13,6 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use size::Size;
 use tracing::trace;
 
-use crate::{air::SP1_PROOF_NUM_PV_ELTS, utils::BabyBearPoseidon2Inner};
-
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
 pub type QuotientOpenedValues<T> = Vec<T>;

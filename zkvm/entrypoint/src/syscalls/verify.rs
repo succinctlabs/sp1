@@ -12,21 +12,21 @@ cfg_if::cfg_if! {
         use crate::zkvm::DEFERRED_PROOFS_DIGEST;
         use p3_baby_bear::BabyBear;
         use p3_field::AbstractField;
-        use sp1_primitives::poseidon2_hash;
+        use sp1_primitives::hash_deferred_proofs;
     }
 }
 
 #[no_mangle]
 #[allow(unused_variables)]
-pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u32; 8]) {
+pub fn syscall_verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]) {
     #[cfg(target_os = "zkvm")]
     {
         // Call syscall to verify the next proof at runtime
         unsafe {
             asm!(
                 "ecall",
-                in("t0") crate::syscalls::VERIFY_SP1_PROOF,
-                in("a0") vkey.as_ptr(),
+                in("t0") VERIFY_SP1_PROOF,
+                in("a0") vk_digest.as_ptr(),
                 in("a1") pv_digest.as_ptr(),
             );
         }
@@ -40,25 +40,23 @@ pub fn syscall_verify_sp1_proof(vkey: &[u32; 8], pv_digest: &[u32; 8]) {
             deferred_proofs_digest = DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
         }
         hash_input.extend_from_slice(deferred_proofs_digest);
+
         // Next 8 elements are vkey_digest
-        let vkey_baby_bear = vkey
+        let vk_digest_babybear = vk_digest
             .iter()
             .map(|x| BabyBear::from_canonical_u32(*x))
             .collect::<Vec<_>>();
-        hash_input.extend_from_slice(&vkey_baby_bear);
-        // Remaining 32 elements are pv_digest converted from u32s to BabyBear
-        let pv_digest_baby_bear = pv_digest
+        // Remaining 32 elements are pv_digest converted from u8 to BabyBear
+        let pv_digest_babybear = pv_digest
             .iter()
-            .flat_map(|x| {
-                x.to_le_bytes()
-                    .iter()
-                    .map(|b| BabyBear::from_canonical_u8(*b))
-                    .collect::<Vec<_>>()
-            })
+            .map(|b| BabyBear::from_canonical_u8(*b))
             .collect::<Vec<_>>();
-        hash_input.extend_from_slice(&pv_digest_baby_bear);
 
-        *deferred_proofs_digest = poseidon2_hash(hash_input);
+        *deferred_proofs_digest = hash_deferred_proofs(
+            deferred_proofs_digest,
+            &vk_digest_babybear.try_into().unwrap(),
+            &pv_digest_babybear.try_into().unwrap(),
+        );
     }
 
     #[cfg(not(target_os = "zkvm"))]

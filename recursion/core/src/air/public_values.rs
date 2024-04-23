@@ -1,6 +1,9 @@
 use crate::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use core::fmt::Debug;
+use p3_challenger::DuplexChallenger;
+use p3_field::PrimeField32;
+use p3_symmetric::CryptographicPermutation;
 use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::{Word, POSEIDON_NUM_WORDS},
@@ -48,6 +51,19 @@ impl<T: Clone + Debug> ChallengerPublicValues<T> {
             num_outputs,
             output_buffer: unwrap_into_array(output_buffer),
         }
+    }
+
+    pub fn set_challenger<P: CryptographicPermutation<[T; PERMUTATION_WIDTH]>>(
+        &self,
+        challenger: &mut DuplexChallenger<T, P, PERMUTATION_WIDTH>,
+    ) where
+        T: PrimeField32,
+    {
+        challenger.sponge_state = self.sponge_state;
+        let num_inputs = self.num_inputs.as_canonical_u32() as usize;
+        challenger.input_buffer = self.input_buffer[..num_inputs].to_vec();
+        let num_outputs = self.num_outputs.as_canonical_u32() as usize;
+        challenger.output_buffer = self.output_buffer[..num_outputs].to_vec();
     }
 }
 

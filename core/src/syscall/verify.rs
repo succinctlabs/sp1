@@ -1,8 +1,4 @@
-use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
-
 use crate::{
-    air::PublicValues,
     runtime::{Syscall, SyscallContext},
     stark::{RiscvAir, StarkGenericConfig},
     utils::BabyBearPoseidon2Inner,

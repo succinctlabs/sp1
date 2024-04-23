@@ -4,7 +4,7 @@ use p3_field::{AbstractField, PrimeField32};
 use sp1_core::stark::MachineRecord;
 use std::collections::HashMap;
 
-use super::{RecursionProgram, DIGEST_SIZE};
+use super::RecursionProgram;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::poseidon2::Poseidon2Event;

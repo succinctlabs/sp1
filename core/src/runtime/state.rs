@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    stark::{MachineProof, ShardProof, StarkVerifyingKey},
-    utils::{BabyBearPoseidon2, BabyBearPoseidon2Inner},
+    stark::{ShardProof, StarkVerifyingKey},
+    utils::BabyBearPoseidon2,
 };
 
 use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
