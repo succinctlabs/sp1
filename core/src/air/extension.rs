@@ -21,18 +21,19 @@ impl<T> BinomialExtension<T> {
         arr[0] = b;
         Self(arr)
     }
+
+    pub fn as_base_slice(&self) -> &[T] {
+        &self.0
+    }
 }
 
 impl<T: Add<Output = T> + Clone> Add for BinomialExtension<T> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self::Output {
-        Self([
-            self.0[0].clone() + rhs.0[0].clone(),
-            self.0[1].clone() + rhs.0[1].clone(),
-            self.0[2].clone() + rhs.0[2].clone(),
-            self.0[3].clone() + rhs.0[3].clone(),
-        ])
+        Self(core::array::from_fn(|i| {
+            self.0[i].clone() + rhs.0[i].clone()
+        }))
     }
 }
 
@@ -40,12 +41,9 @@ impl<T: Sub<Output = T> + Clone> Sub for BinomialExtension<T> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self::Output {
-        Self([
-            self.0[0].clone() - rhs.0[0].clone(),
-            self.0[1].clone() - rhs.0[1].clone(),
-            self.0[2].clone() - rhs.0[2].clone(),
-            self.0[3].clone() - rhs.0[3].clone(),
-        ])
+        Self(core::array::from_fn(|i| {
+            self.0[i].clone() - rhs.0[i].clone()
+        }))
     }
 }
 
