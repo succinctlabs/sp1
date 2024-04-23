@@ -338,6 +338,7 @@ where
 }
 
 impl<F> CpuChip<F> {
+    /// Eval all the ALU operations.
     fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1AirBuilder<F = F>,
