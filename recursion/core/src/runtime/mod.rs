@@ -392,11 +392,9 @@ where
         let a_val = self.get_a(instruction);
 
         let index = c_val[0];
-        let addr = b_val[0] + index * size + offset;
+        let addr = a_val[0] + index * size + offset;
 
-        self.mw_cpu(addr, a_val, MemoryAccessPosition::Memory);
-
-        (a_val, b_val, c_val)
+        (a_val, b_val, c_val, addr)
     }
 
     /// Fetch the input operand values for a branch instruction.
@@ -517,13 +515,19 @@ where
                 Opcode::LW => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val, c_val, memory_val) = self.load_rr(&instruction);
+                    let final_memory_val = if instruction.imm_b { b_val } else { memory_val };
                     self.mw_cpu(a_ptr, memory_val, MemoryAccessPosition::A);
                     (a, b, c) = (memory_val, b_val, c_val);
                 }
                 // For store, branch opcodes, we read from the a operand, instead of writing.
                 Opcode::SW => {
                     self.nb_memory_ops += 1;
-                    let (a_val, b_val, c_val) = self.store_rr(&instruction);
+                    let (a_val, b_val, c_val, addr) = self.store_rr(&instruction);
+                    let memory_ptr = if instruction.imm_b {
+                        self.fp + instruction.op_a
+                    } else {
+                        b_val[0]
+                    };
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::BEQ => {

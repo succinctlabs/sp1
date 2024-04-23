@@ -6,7 +6,7 @@ use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::Opcode;
 
-use super::ZERO;
+use super::{PERMUTATION_WIDTH, ZERO};
 use crate::util::canonical_i32_to_field;
 
 #[derive(Debug, Clone)]

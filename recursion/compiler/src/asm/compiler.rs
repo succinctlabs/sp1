@@ -31,6 +31,8 @@ pub(crate) const HEAP_PTR: i32 = -4;
 /// The address of A0.
 pub(crate) const A0: i32 = -8;
 
+pub(crate) const PERMUTATION_WIDTH: i32 = 16;
+
 /// The assembly compiler.
 #[derive(Debug, Clone, Default)]
 pub struct AsmCompiler<F, EF> {
