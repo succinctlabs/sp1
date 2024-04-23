@@ -15,7 +15,6 @@ use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
 use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
-use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
@@ -24,6 +23,7 @@ use std::mem::transmute;
 use tracing::instrument;
 
 use super::columns::CpuCols;
+use crate::air::SP1RecursionAirBuilder;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::D;
 
@@ -142,7 +142,7 @@ impl<F: Send + Sync> BaseAir<F> for CpuChip<F> {
 
 impl<AB> Air<AB> for CpuChip<AB::F>
 where
-    AB: SP1AirBuilder,
+    AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Constraints for the CPU chip.
