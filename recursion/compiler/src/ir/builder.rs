@@ -482,7 +482,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
 
-        // Execute the `then`` block and collect the instructions.
+        // Execute the `then` block and collect the instructions.
         let mut f_builder = Builder::<C>::new(
             self.builder.var_count,
             self.builder.felt_count,

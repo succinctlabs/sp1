@@ -161,10 +161,10 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     self.push(AsmInstruction::SubFIN(dst.fp(), lhs, rhs.fp()), trace);
                 }
                 DslIr::NegV(dst, src) => {
-                    self.push(AsmInstruction::SubFIN(dst.fp(), F::one(), src.fp()), trace);
+                    self.push(AsmInstruction::SubFIN(dst.fp(), F::zero(), src.fp()), trace);
                 }
                 DslIr::NegF(dst, src) => {
-                    self.push(AsmInstruction::SubFIN(dst.fp(), F::one(), src.fp()), trace);
+                    self.push(AsmInstruction::SubFIN(dst.fp(), F::zero(), src.fp()), trace);
                 }
                 DslIr::DivF(dst, lhs, rhs) => {
                     self.push(AsmInstruction::DivF(dst.fp(), lhs.fp(), rhs.fp()), trace);
