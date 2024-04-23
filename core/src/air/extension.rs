@@ -1,8 +1,8 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, Div, Mul, Neg, Sub};
 
 use p3_field::{
     extension::{BinomialExtensionField, BinomiallyExtendable},
-    AbstractExtensionField, AbstractField,
+    AbstractExtensionField, AbstractField, Field,
 };
 use sp1_derive::AlignedBorrow;
 
@@ -67,6 +67,31 @@ impl<T: Add<Output = T> + Mul<Output = T> + AbstractField> Mul for BinomialExten
         }
 
         Self(result)
+    }
+}
+
+impl<F> Div for BinomialExtension<F>
+where
+    F: BinomiallyExtendable<DEGREE>,
+{
+    type Output = Self;
+
+    fn div(self, rhs: Self) -> Self::Output {
+        let p3_ef_lhs = BinomialExtensionField::from_base_slice(&self.0);
+        let p3_ef_rhs = BinomialExtensionField::from_base_slice(&rhs.0);
+        let p3_ef_result = p3_ef_lhs / p3_ef_rhs;
+        Self(p3_ef_result.as_base_slice().try_into().unwrap())
+    }
+}
+
+impl<F> BinomialExtension<F>
+where
+    F: BinomiallyExtendable<DEGREE>,
+{
+    pub fn inverse(&self) -> Self {
+        let p3_ef = BinomialExtensionField::from_base_slice(&self.0);
+        let p3_ef_inverse = p3_ef.inverse();
+        Self(p3_ef_inverse.as_base_slice().try_into().unwrap())
     }
 }
 

@@ -441,7 +441,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EADD | Opcode::EFADD => {
+                Opcode::EADD => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
@@ -449,7 +449,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EMUL | Opcode::EFMUL => {
+                Opcode::EMUL => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
@@ -457,7 +457,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::ESUB | Opcode::EFSUB | Opcode::FESUB => {
+                Opcode::ESUB => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
@@ -465,7 +465,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EDIV | Opcode::EFDIV | Opcode::FEDIV => {
+                Opcode::EDIV => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);

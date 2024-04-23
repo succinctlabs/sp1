@@ -6,6 +6,7 @@ use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -24,6 +25,7 @@ use tracing::instrument;
 
 use super::columns::CpuCols;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::D;
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 
@@ -34,7 +36,7 @@ const fn make_col_map() -> CpuCols<usize> {
 
 pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
-impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
     type Program = RecursionProgram<F>;
 
@@ -83,20 +85,15 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 }
 
                 let alu_cols = cols.opcode_specific.alu_mut();
-                if cols.selectors.is_add.is_one() {
-                    alu_cols.add_scratch.0[0] = cols.b.value.0[0] + cols.c.value.0[0];
-                    alu_cols.sub_scratch.0[0] = cols.b.value.0[0] - cols.c.value.0[0];
-                    alu_cols.mul_scratch.0[0] = cols.b.value.0[0] * cols.c.value.0[0];
-                } else if cols.selectors.is_eadd.is_one() || cols.selectors.is_efadd.is_one() {
-                    alu_cols.add_scratch = (BinomialExtension::from_block(cols.b.value)
-                        + BinomialExtension::from_block(cols.c.value))
-                    .as_block();
-                    alu_cols.sub_scratch = (BinomialExtension::from_block(cols.b.value)
-                        - BinomialExtension::from_block(cols.c.value))
-                    .as_block();
-                    alu_cols.mul_scratch = (BinomialExtension::from_block(cols.b.value)
-                        * BinomialExtension::from_block(cols.c.value))
-                    .as_block();
+                alu_cols.ext_a = cols.a.value;
+                alu_cols.ext_b = cols.b.value;
+                alu_cols.ext_c = cols.c.value;
+                if cols.selectors.is_div.is_one() {
+                    alu_cols.inverse_scratch = cols.c.value.0[0].inverse().into();
+                } else if cols.selectors.is_ediv.is_one() {
+                    alu_cols.inverse_scratch = BinomialExtension::from_block(cols.c.value)
+                        .inverse()
+                        .as_block();
                 }
 
                 // cols.a_eq_b
@@ -181,21 +178,6 @@ where
         builder
             .when(local.instruction.imm_c)
             .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
-
-        // Compute ALU.
-        let alu_cols = local.opcode_specific.alu();
-        builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] + local.c.value.0[0],
-            alu_cols.add_scratch[0],
-        );
-        builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] - local.c.value.0[0],
-            alu_cols.sub_scratch[0],
-        );
-        builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] * local.c.value.0[0],
-            alu_cols.mul_scratch[0],
-        );
 
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
