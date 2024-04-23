@@ -21,5 +21,6 @@ benchmark.csv
 # Environment
 .env
 
-# Groth16 FFI
+# Build Artifacts
 recursion/groth16-ffi/build
+prover/build
