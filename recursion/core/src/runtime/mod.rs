@@ -252,14 +252,14 @@ where
 
     fn mr_cpu(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
         let timestamp = self.timestamp(&position);
-        let record = self.mr(addr, timestamp);
+        let (record, value) = self.mr(addr, timestamp);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
             MemoryAccessPosition::C => self.access.c = Some(record),
             MemoryAccessPosition::Memory => self.access.memory = Some(record),
         };
-        prev_value
+        value
     }
 
     fn mw_uninitialized(&mut self, addr: F, value: Block<F>) {
@@ -308,13 +308,13 @@ where
 
     // When we read the "a" position, it is never an immediate value, so we always read from memory.
     fn get_a(&mut self, instruction: &Instruction<F>) -> Block<F> {
-        self.mr_cpu(self.fp + instruction.op_a[0], MemoryAccessPosition::A)
+        self.mr_cpu(self.fp + instruction.op_a, MemoryAccessPosition::A)
     }
 
     // Useful to peek at the value of the "a" position without updating the access record.
     // This assumes that there will be a write later.
     fn peek_a(&self, instruction: &Instruction<F>) -> (F, Block<F>) {
-        let addr = self.fp + instruction.op_a[0];
+        let addr = self.fp + instruction.op_a;
         (
             addr,
             self.memory
@@ -514,7 +514,7 @@ where
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val, c_val, memory_val) = self.load_rr(&instruction);
                     self.mw_cpu(a_ptr, memory_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, c_val);
+                    (a, b, c) = (memory_val, b_val, c_val);
                 }
                 // For store, branch opcodes, we read from the a operand, instead of writing.
                 Opcode::SW => {
@@ -599,37 +599,37 @@ where
 
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     // Get the dst array ptr.
-                    let dst = a_val[0].as_canonical_u32() as usize;
+                    let dst = a_val[0];
                     // Get the src array ptr.
-                    let left = b_val[0].as_canonical_u32() as usize;
-                    let right = c_val[0].as_canonical_u32() as usize;
+                    let left = b_val[0];
+                    let right = c_val[0];
 
                     let timestamp = self.clk;
 
-                    let left_array: [_; PERMUTATION_WIDTH / 2] = (left..left
-                        + PERMUTATION_WIDTH / 2)
-                        .map(|addr| self.mr(addr, timestamp))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    let right_array: [_; PERMUTATION_WIDTH / 2] = (right
-                        ..right + PERMUTATION_WIDTH / 2)
-                        .map(|addr| self.mr(addr, timestamp))
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    let array: [F; PERMUTATION_WIDTH] = [left_array, right_array]
-                        .concat()
-                        .map(|x| x.1 .0[0]) // Grab the 2nd entry (the Block) and grab the first element.
-                        .try_into()
-                        .unwrap();
+                    let mut left_records = vec![];
+                    let mut right_records = vec![];
+                    let array: [F; PERMUTATION_WIDTH];
+
+                    for i in (0..PERMUTATION_WIDTH / 2) {
+                        let f_i = F::from_canonical_u32(i as u32);
+                        let left_val = self.mr(left + f_i, timestamp);
+                        let right_val = self.mr(right + f_i, timestamp);
+                        array[i] = left_val.1 .0[0];
+                        array[i + PERMUTATION_WIDTH / 2] = right_val.1 .0[0];
+                        left_records.push(left_val.0);
+                        right_records.push(right_val.0);
+                    }
 
                     // Perform the permutation.
                     let result = self.perm.as_ref().unwrap().permute(array);
 
                     // Write the value back to the array at ptr.
                     for (i, value) in result.iter().enumerate() {
-                        self.mw(dst + i, Block::from(*value), timestamp + 1);
+                        self.mw(
+                            dst + F::from_canonical_usize(i),
+                            Block::from(*value),
+                            timestamp + F::one(),
+                        );
                     }
 
                     // TODO: include all of the records in the Poseidon2Event.
@@ -640,11 +640,11 @@ where
                 }
                 Opcode::HintExt2Felt => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
-                    let dst: usize = a_val[0].as_canonical_u32() as usize;
+                    let dst = a_val[0];
                     self.mw_uninitialized(dst, Block::from(b_val[0]));
-                    self.mw_uninitialized(dst + 1, Block::from(b_val[1]));
-                    self.mw_uninitialized(dst + 2, Block::from(b_val[2]));
-                    self.mw_uninitialized(dst + 3, Block::from(b_val[3]));
+                    self.mw_uninitialized(dst + F::one(), Block::from(b_val[1]));
+                    self.mw_uninitialized(dst + F::from_canonical_u32(2), Block::from(b_val[2]));
+                    self.mw_uninitialized(dst + F::from_canonical_u32(3), Block::from(b_val[3]));
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {
@@ -652,7 +652,7 @@ where
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Get the dst array ptr.
-                    let dst = a_val[0].as_canonical_u32() as usize;
+                    let dst = a_val[0];
                     // Get the src value.
                     let num = b_val[0].as_canonical_u32();
 
@@ -660,7 +660,10 @@ where
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
                     // Write the bits to the array at dst.
                     for (i, bit) in bits.iter().enumerate() {
-                        self.mw_uninitialized(dst + i, Block::from(F::from_canonical_u32(*bit)));
+                        self.mw_uninitialized(
+                            dst + F::from_canonical_usize(i),
+                            Block::from(F::from_canonical_u32(*bit)),
+                        );
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -683,21 +686,25 @@ where
                 Opcode::FRIFold => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    let m = a_val[0].as_canonical_u32() as usize;
-                    let input_ptr = b_val[0].as_canonical_u32() as usize;
+                    let m = a_val[0];
+                    let input_ptr = b_val[0];
 
                     let timestamp = self.clk;
 
                     // Read the input values.
                     let mut ptr = input_ptr;
                     let (z_record, z) = self.mr(ptr, timestamp);
-                    let (alpha_record, alpha) = self.mr(ptr + 1, timestamp);
-                    let (x_record, x) = self.mr(ptr + 2, timestamp);
-                    let (log_height_record, log_height_ef) = self.mr(ptr + 3, timestamp);
-                    let (mat_opening_record, mat_opening) = self.mr(ptr + 4, timestamp);
-                    let (ps_at_z_record, ps_at_z) = self.mr(ptr + 7, timestamp);
-                    let (alpha_pow_record, alpha_pow) = self.mr(ptr + 9, timestamp);
-                    let (ro_record, ro) = self.mr(ptr + 11, timestamp);
+                    let (alpha_record, alpha) = self.mr(ptr + F::one(), timestamp);
+                    let (x_record, x) = self.mr(ptr + F::from_canonical_u32(2), timestamp);
+                    let (log_height_record, log_height_ef) =
+                        self.mr(ptr + F::from_canonical_u32(3), timestamp);
+                    let (mat_opening_record, mat_opening) =
+                        self.mr(ptr + F::from_canonical_u32(4), timestamp);
+                    let (ps_at_z_record, ps_at_z) =
+                        self.mr(ptr + F::from_canonical_u32(7), timestamp);
+                    let (alpha_pow_record, alpha_pow) =
+                        self.mr(ptr + F::from_canonical_u32(9), timestamp);
+                    let (ro_record, ro) = self.mr(ptr + F::from_canonical_u32(11), timestamp);
 
                     let log_height = log_height_ef[0];
                     let mat_opening_ptr: F = mat_opening[0];
@@ -719,13 +726,13 @@ where
                     let row_ptr_at_log_height_record = self.mw(
                         ro_ptr + log_height,
                         ro_at_log_height + alpha_pow_at_log_height * quotient,
-                        timestamp + 1,
+                        timestamp + F::one(),
                     );
 
                     let alpha_pow_at_log_height_record = self.mw(
                         alpha_pow_ptr + log_height,
                         alpha_pow_at_log_height * alpha,
-                        timestamp + 1,
+                        timestamp + F::one(),
                     );
 
                     // TODO: emit FRI Fold event with all of these records.
@@ -733,7 +740,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Commit => {
-                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+                    let a_val = self.get_a(&instruction);
                     let b_val = Block::<F>::default();
                     let c_val = Block::<F>::default();
 
