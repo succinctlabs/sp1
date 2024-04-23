@@ -15,8 +15,8 @@
 //! reduce to be called with only deferred proofs, and not any core/recursive proofs. In this case,
 //! the start and end pc/shard values should be equal to each other.
 //!
-//! Because the program can verify "windows" of a full SP1 proof, the program exposes `is_complete`
-//! which is only true if the program has fully verified the execution of the program, including all
+//! Because the program can verify ranges of a full SP1 proof, the program exposes `is_complete`
+//! which is only 1 if the program has fully verified the execution of the program, including all
 //! deferred proofs.
 
 #![allow(clippy::needless_range_loop)]

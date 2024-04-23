@@ -29,7 +29,6 @@ pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
 use sp1_core::{
-    air::{PublicValues, Word},
     runtime::Program,
     stark::{
         Challenger, LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine,
@@ -168,7 +167,7 @@ impl SP1Prover {
     /// the core prover.
     pub fn prove_core(&self, pk: &SP1ProvingKey, stdin: &SP1Stdin) -> SP1CoreProof {
         let config = CoreSC::default();
-        let (proof, public_values_stream) = run_and_prove(pk.program.clone(), &stdin, config);
+        let (proof, public_values_stream) = run_and_prove(pk.program.clone(), stdin, config);
         let public_values = SP1PublicValues::from(&public_values_stream);
         SP1CoreProof {
             shard_proofs: proof.shard_proofs,
@@ -271,9 +270,6 @@ impl SP1Prover {
                                 &reduce_proof.proof.public_values.to_vec()
                                     [0..self.core_machine.num_pv_elts()],
                             );
-                            let pv = PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(
-                                reduce_proof.proof.public_values.clone(),
-                            );
                         }
                         SP1ReduceProofWrapper::Recursive(reduce_proof) => {
                             let pv = RecursionPublicValues::from_vec(
@@ -316,9 +312,9 @@ impl SP1Prover {
         // or there is a single proof being pushed to the next layer, it's not the last layer.
         let is_complete = chunks.len() == 1 && last_proof.is_none() && deferred_proofs.is_empty();
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
-            .into_iter()
-            .zip(reconstruct_challengers.into_iter())
-            .zip(start_states.into_iter())
+            .into_par_iter()
+            .zip(reconstruct_challengers.into_par_iter())
+            .zip(start_states.into_par_iter())
             .map(|((chunk, reconstruct_challenger), start_state)| {
                 let proof = self.reduce_batch(
                     vk,
@@ -574,6 +570,7 @@ mod tests {
     use crate::utils::hash_vkey;
 
     use super::*;
+    use sp1_core::air::{PublicValues, Word};
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
 
