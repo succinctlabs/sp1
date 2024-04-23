@@ -19,6 +19,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
+use p3_field::TwoAdicField;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
@@ -36,8 +37,10 @@ use sp1_core::{
     },
     utils::{run_and_prove, BabyBearPoseidon2},
 };
+use sp1_primitives::poseidon2_hash;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
+use sp1_recursion_circuit::DIGEST_SIZE;
 use sp1_recursion_compiler::constraints::groth16_ffi;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
@@ -83,7 +86,7 @@ pub struct SP1VerifyingKey {
 }
 
 /// A proof of a RISC-V execution with given inputs and outputs composed of multiple shard proofs.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct SP1CoreProof {
     pub shard_proofs: Vec<ShardProof<CoreSC>>,
     pub stdin: SP1Stdin,
@@ -206,8 +209,7 @@ impl SP1Prover {
     /// the core prover.
     pub fn prove_core(&self, pk: &SP1ProvingKey, stdin: &SP1Stdin) -> SP1CoreProof {
         let config = CoreSC::default();
-        let (proof, public_values_stream) =
-            run_and_prove(pk.program.clone(), &stdin.buffer, config);
+        let (proof, public_values_stream) = run_and_prove(pk.program.clone(), &stdin, config);
         let public_values = SP1PublicValues::from(&public_values_stream);
         SP1CoreProof {
             shard_proofs: proof.shard_proofs,
@@ -612,6 +614,30 @@ fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     (prep_sorted_indices, prep_domains)
 }
 
+/// Hash the verifying key + prep domains into a single digest.
+/// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
+fn hash_vkey<A: MachineAir<BabyBear>>(
+    machine: &StarkMachine<CoreSC, A>,
+    vkey: &SP1VerifyingKey,
+) -> [BabyBear; 8] {
+    // TODO: cleanup
+    let (_, prep_domains) = get_preprocessed_data(machine, &vkey.vk);
+    let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
+    let mut inputs = Vec::with_capacity(num_inputs);
+    inputs.extend(vkey.vk.commit.as_ref());
+    inputs.push(vkey.vk.pc_start);
+    for domain in prep_domains.iter() {
+        inputs.push(BabyBear::from_canonical_usize(domain.log_n));
+        let size = 1 << domain.log_n;
+        inputs.push(BabyBear::from_canonical_usize(size));
+        let g = BabyBear::two_adic_generator(domain.log_n);
+        inputs.push(domain.shift);
+        inputs.push(g);
+    }
+
+    poseidon2_hash(inputs)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -652,5 +678,117 @@ mod tests {
 
         tracing::info!("groth16");
         prover.wrap_groth16(wrapped_bn254_proof);
+    }
+
+    #[test]
+    #[ignore]
+    fn test_deferred_verify() {
+        setup_logger();
+        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
+
+        // Generate SP1 proof
+        let keccak_elf = include_bytes!("../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
+
+        let verify_elf = include_bytes!("../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
+
+        tracing::info!("initializing prover");
+        let prover = SP1Prover::new();
+
+        tracing::info!("setup elf");
+        let (keccak_pk, keccak_vk) = prover.setup(keccak_elf);
+        let (verify_pk, verify_vk) = prover.setup(verify_elf);
+
+        tracing::info!("prove core");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&1usize);
+        stdin.write(&vec![0u8, 0, 0]);
+        let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
+        let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
+        println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
+        let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32].to_vec();
+        let pv_digest_1: [u8; 32] = pv_digest_1
+            .iter()
+            .map(|n| n.as_canonical_u32() as u8)
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&3usize);
+        stdin.write(&vec![0u8, 1, 2]);
+        stdin.write(&vec![2, 3, 4]);
+        stdin.write(&vec![5, 6, 7]);
+        let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
+        let pv_2 = deferred_proof_2.public_values.buffer.data.clone();
+        println!("proof 2 pv: {:?}", hex::encode(pv_2.clone()));
+        let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32].to_vec();
+        let pv_digest_2: [u8; 32] = pv_digest_2
+            .iter()
+            .map(|n| n.as_canonical_u32() as u8)
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+
+        println!("deferred_reduce_1");
+        let deferred_reduce_1 = prover.reduce(&keccak_vk, deferred_proof_1, vec![]);
+        println!("deferred_reduce_2");
+        let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
+
+        let mut stdin = SP1Stdin::new();
+        let vkey_digest = hash_vkey(&prover.core_machine, &verify_vk);
+        let vkey_digest: [u32; 8] = vkey_digest
+            .into_iter()
+            .map(|n| n.as_canonical_u32())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
+        stdin.write(&vkey_digest);
+        stdin.write(&vec![pv_1.clone(), pv_2.clone(), pv_2.clone()]);
+        stdin.write(&pv_digest_1);
+        stdin.write(&pv_digest_2);
+        stdin.write(&pv_digest_2);
+        stdin.write_proof(deferred_reduce_1.proof.clone(), keccak_vk.vk.clone());
+        stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
+        stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
+        println!("verify proof");
+        let verify_proof = prover.prove_core(&verify_pk, &stdin);
+        let pv = PublicValues::<Word<BabyBear>, BabyBear>::from_vec(
+            verify_proof.shard_proofs[0].public_values.clone(),
+        );
+
+        println!("deferred_hash: {:?}", pv.deferred_proofs_digest);
+
+        println!("verify reduce");
+        let verify_reduce = prover.reduce(
+            &verify_vk,
+            verify_proof.clone(),
+            vec![
+                deferred_reduce_1.proof,
+                deferred_reduce_2.proof.clone(),
+                deferred_reduce_2.proof,
+            ],
+        );
+        let reduce_pv = RecursionPublicValues::from_vec(verify_reduce.proof.public_values.clone());
+        println!("deferred_hash: {:?}", reduce_pv.deferred_proofs_digest);
+        println!("complete: {:?}", reduce_pv.is_complete);
+
+        println!("wrap");
+        let challenger = prover.setup_core_challenger(&verify_vk, &verify_proof);
+        let wrapped = prover.wrap_bn254(&verify_vk, challenger, verify_reduce);
+
+        // tracing::info!("verify core");
+        // core_proof.verify(&vk).unwrap();
+
+        // // TODO: Get rid of this method by reading it from public values.
+        // let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
+
+        // tracing::info!("reduce");
+        // let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
+
+        // tracing::info!("wrap");
+        // let wrapped_bn254_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
+
+        // tracing::info!("groth16");
+        // prover.wrap_groth16(wrapped_bn254_proof);
     }
 }

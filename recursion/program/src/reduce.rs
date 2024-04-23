@@ -30,7 +30,9 @@ use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, Var};
 use sp1_recursion_core::air::{ChallengerPublicValues, PublicValues as RecursionPublicValues};
 use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE, PERMUTATION_WIDTH};
+use sp1_recursion_core::runtime::{
+    RecursionProgram, DIGEST_SIZE, PERMUTATION_WIDTH, PV_BUFFER_MAX_SIZE,
+};
 use sp1_recursion_core::stark::RecursionAir;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
@@ -594,7 +596,7 @@ impl ReduceProgram {
                     let element = builder.get(&proof.commitment.main_commit, j);
                     challenger.observe(builder, element);
                 }
-                builder.range(0, DIGEST_SIZE).for_each(|j, builder| {
+                builder.range(0, PV_BUFFER_MAX_SIZE).for_each(|j, builder| {
                     let element = builder.get(&proof.public_values, j);
                     challenger.observe(builder, element);
                 });

@@ -14,6 +14,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Dimensions;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
+use serde::Deserialize;
+use serde::Serialize;
 
 use super::debug_constraints;
 use super::DeferredDigest;
@@ -79,10 +81,12 @@ impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound = "SC: StarkGenericConfig")]
 pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub pc_start: Val<SC>,
+    #[serde(skip)]
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
 }

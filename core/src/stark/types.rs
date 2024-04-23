@@ -13,7 +13,7 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use size::Size;
 use tracing::trace;
 
-use crate::air::SP1_PROOF_NUM_PV_ELTS;
+use crate::{air::SP1_PROOF_NUM_PV_ELTS, utils::BabyBearPoseidon2Inner};
 
 use super::{Challenge, Com, OpeningProof, PcsProverData, StarkGenericConfig, Val};
 
@@ -137,6 +137,12 @@ pub struct ShardProof<SC: StarkGenericConfig> {
     pub opening_proof: OpeningProof<SC>,
     pub chip_ordering: HashMap<String, usize>,
     pub public_values: Vec<Val<SC>>,
+}
+
+impl<SC: StarkGenericConfig> Debug for ShardProof<SC> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ShardProof").finish()
+    }
 }
 
 impl<T: Send + Sync + Clone> AirOpenedValues<T> {

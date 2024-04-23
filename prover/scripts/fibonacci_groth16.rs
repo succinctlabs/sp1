@@ -59,6 +59,7 @@ fn main() {
         let stdin = SP1Stdin {
             buffer: vec![bincode::serialize::<u32>(&iterations).unwrap()],
             ptr: 0,
+            proofs: vec![],
         };
         let leaf_proving_start = Instant::now();
         let proof = prover.prove_core(&pk, &stdin);
