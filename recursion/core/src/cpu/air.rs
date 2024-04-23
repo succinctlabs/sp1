@@ -289,28 +289,29 @@ impl<F> CpuChip<F> {
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        // Convert Block<Var> to Block<Expr>, since we will need that for the binomial extension operations.
-        let ext_a: Block<AB::Expr> = local.a.value.map(|x| x.into());
-        let ext_b: Block<AB::Expr> = local.b.value.map(|x| x.into());
-        let ext_c: Block<AB::Expr> = local.c.value.map(|x| x.into());
+        // Convert register values from Block<Var> to BinomialExtension<Expr>.
+        let a_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.a.value.map(|x| x.into()));
+        let b_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.b.value.map(|x| x.into()));
+        let c_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.c.value.map(|x| x.into()));
 
-        // Convert Block<Expr> to BinomialExtension<Expr>.
-        let a_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_a);
-        let b_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_b);
-        let c_ext: BinomialExtension<AB::Expr> = BinomialExtensionUtils::from_block(ext_c);
-
-        let is_base_field_op = local.selectors.is_add
+        // Flag to check if the instruction is a field operation
+        let is_field_op = local.selectors.is_add
             + local.selectors.is_sub
             + local.selectors.is_mul
             + local.selectors.is_div;
 
+        // Verify that the b and c registers are base fields for field operations.
         builder
-            .when(is_base_field_op.clone())
+            .when(is_field_op.clone())
             .assert_is_base_element(b_ext.clone());
         builder
-            .when(is_base_field_op)
+            .when(is_field_op)
             .assert_is_base_element(c_ext.clone());
 
+        // Verify the actual operation.
         builder
             .when(local.selectors.is_add + local.selectors.is_eadd)
             .assert_ext_eq(a_ext.clone(), b_ext.clone() + c_ext.clone());
