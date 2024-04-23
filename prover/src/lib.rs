@@ -12,6 +12,7 @@
 #![allow(deprecated)]
 #![allow(clippy::new_without_default)]
 
+mod types;
 mod utils;
 mod verify;
 
@@ -19,21 +20,19 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
-use p3_field::TwoAdicField;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
-use sp1_core::air::POSEIDON_NUM_WORDS;
 use sp1_core::air::PV_DIGEST_NUM_WORDS;
 use sp1_core::air::WORD_SIZE;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
 use sp1_core::{
-    air::{MachineAir, PublicValues, Word},
+    air::{PublicValues, Word},
     runtime::Program,
     stark::{
-        Challenger, Dom, LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine,
+        Challenger, LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine,
         StarkProvingKey, StarkVerifyingKey, Val,
     },
     utils::{run_and_prove, BabyBearPoseidon2},
@@ -41,17 +40,20 @@ use sp1_core::{
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_circuit::DIGEST_SIZE;
 use sp1_recursion_compiler::constraints::groth16_ffi;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::{
-    air::PublicValues as RecursionPublicValues,
+    air::RecursionPublicValues,
     runtime::Runtime as RecursionRuntime,
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
+use sp1_recursion_program::hints::Hintable;
 use sp1_recursion_program::reduce::ReduceProgram;
-use sp1_recursion_program::{hints::Hintable, stark::EMPTY};
+
+use crate::types::ReduceState;
+use crate::utils::get_preprocessed_data;
+use crate::utils::get_sorted_indices;
 
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
@@ -107,62 +109,6 @@ pub struct SP1ReduceProof<SC: StarkGenericConfig> {
 pub enum SP1ReduceProofWrapper {
     Core(SP1ReduceProof<CoreSC>),
     Recursive(SP1ReduceProof<InnerSC>),
-}
-
-/// Reprents the state of reducing proofs together. This is used to track the current values since
-/// some reduce batches may have only deferred proofs.
-#[derive(Clone)]
-pub struct ReduceState {
-    pub committed_values_digest: [Word<Val<CoreSC>>; PV_DIGEST_NUM_WORDS],
-    pub deferred_proofs_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
-    pub start_pc: Val<CoreSC>,
-    pub exit_code: Val<CoreSC>,
-    pub start_shard: Val<CoreSC>,
-    pub reconstruct_deferred_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
-}
-
-impl ReduceState {
-    pub fn from_reduce_end_state<SC: StarkGenericConfig<Val = BabyBear>>(
-        state: &SP1ReduceProof<SC>,
-    ) -> Self {
-        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
-        Self {
-            committed_values_digest: pv.committed_value_digest,
-            deferred_proofs_digest: pv.deferred_proofs_digest,
-            start_pc: pv.next_pc,
-            exit_code: pv.exit_code,
-            start_shard: pv.next_shard,
-            reconstruct_deferred_digest: pv.end_reconstruct_deferred_digest,
-        }
-    }
-
-    pub fn from_reduce_start_state<SC: StarkGenericConfig<Val = BabyBear>>(
-        state: &SP1ReduceProof<SC>,
-    ) -> Self {
-        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
-        Self {
-            committed_values_digest: pv.committed_value_digest,
-            deferred_proofs_digest: pv.deferred_proofs_digest,
-            start_pc: pv.start_pc,
-            exit_code: pv.exit_code,
-            start_shard: pv.start_shard,
-            reconstruct_deferred_digest: pv.start_reconstruct_deferred_digest,
-        }
-    }
-
-    pub fn from_core_start_state(state: &ShardProof<CoreSC>) -> Self {
-        let pv =
-            PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(state.public_values.clone());
-        Self {
-            committed_values_digest: pv.committed_value_digest,
-            deferred_proofs_digest: pv.deferred_proofs_digest,
-            start_pc: pv.start_pc,
-            exit_code: pv.exit_code,
-            start_shard: pv.shard,
-            // TODO: we assume that core proofs aren't in a later batch than one with a deferred proof
-            reconstruct_deferred_digest: [BabyBear::zero(); 8],
-        }
-    }
 }
 
 impl SP1Prover {
@@ -328,9 +274,6 @@ impl SP1Prover {
                             let pv = PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(
                                 reduce_proof.proof.public_values.clone(),
                             );
-                            println!("next_pc = {:?}", pv.next_pc);
-                            println!("shard = {:?}", pv.shard);
-                            println!("pv_digest = {:?}", pv.committed_value_digest);
                         }
                         SP1ReduceProofWrapper::Recursive(reduce_proof) => {
                             let pv = RecursionPublicValues::from_vec(
@@ -352,10 +295,6 @@ impl SP1Prover {
                                     .as_canonical_u32()
                                     as usize]
                                     .to_vec();
-                            println!("2next_pc = {:?}", pv.next_pc);
-                            println!("start_shard = {:?}", pv.start_shard);
-                            println!("next_shard = {:?}", pv.next_shard);
-                            println!("pv_digest = {:?}", pv.committed_value_digest);
                         }
                     }
                 }
@@ -373,24 +312,9 @@ impl SP1Prover {
                 }
             })
             .collect::<Vec<_>>();
-        for start_state in start_states.iter() {
-            println!(
-                "1deferred_digest = {:?}",
-                start_state.deferred_proofs_digest
-            );
-            println!(
-                "1deferred_digest = {:?}",
-                start_state.reconstruct_deferred_digest
-            );
-        }
         // This is the last layer only if the outcome is a single proof. If there are deferred proofs
         // or there is a single proof being pushed to the next layer, it's not the last layer.
         let is_complete = chunks.len() == 1 && last_proof.is_none() && deferred_proofs.is_empty();
-        println!(
-            "num main chunks = {}, num deferred chunks = {}",
-            chunks.len(),
-            deferred_proofs.len()
-        );
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
             .into_iter()
             .zip(reconstruct_challengers.into_iter())
@@ -430,10 +354,6 @@ impl SP1Prover {
                 // Accumulate deferred proofs into the digest
                 // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
                 for proof in chunk.iter() {
-                    println!(
-                        "before deferred_digest = {:?}",
-                        reduce_state.reconstruct_deferred_digest
-                    );
                     let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
                     let mut inputs = [BabyBear::zero(); 48];
                     inputs[0..8].copy_from_slice(&reduce_state.reconstruct_deferred_digest);
@@ -444,25 +364,12 @@ impl SP1Prover {
                             inputs[16 + i * WORD_SIZE + j] = pv.committed_value_digest[i][j];
                         }
                     }
-                    println!("inputs: {:?}", inputs);
                     reduce_state.reconstruct_deferred_digest = poseidon2_hash(inputs.to_vec());
-                    println!(
-                        "after deferred_digest = {:?}",
-                        reduce_state.reconstruct_deferred_digest
-                    );
                 }
                 start_state
             })
             .collect::<Vec<_>>();
-        for start_state in start_states.iter() {
-            println!("deferred_digest = {:?}", start_state.deferred_proofs_digest);
-            println!(
-                "reconstruct_deferred_digest = {:?}",
-                start_state.reconstruct_deferred_digest
-            );
-        }
 
-        println!("num deferred chunks = {}", deferred_chunks.len());
         let new_deferred_proofs = deferred_chunks
             .into_par_iter()
             .zip(start_states.into_par_iter())
@@ -662,64 +569,10 @@ impl SP1Prover {
     }
 }
 
-fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
-    machine: &StarkMachine<SC, A>,
-    proof: &ShardProof<SC>,
-) -> Vec<usize> {
-    machine
-        .chips_sorted_indices(proof)
-        .into_iter()
-        .map(|x| match x {
-            Some(x) => x,
-            None => EMPTY,
-        })
-        .collect()
-}
-
-fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
-    machine: &StarkMachine<SC, A>,
-    vk: &StarkVerifyingKey<SC>,
-) -> (Vec<usize>, Vec<Dom<SC>>) {
-    let chips = machine.chips();
-    let (prep_sorted_indices, prep_domains) = machine
-        .preprocessed_chip_ids()
-        .into_iter()
-        .map(|chip_idx| {
-            let name = chips[chip_idx].name().clone();
-            let prep_sorted_idx = vk.chip_ordering[&name];
-            (prep_sorted_idx, vk.chip_information[prep_sorted_idx].1)
-        })
-        .unzip();
-    (prep_sorted_indices, prep_domains)
-}
-
-/// Hash the verifying key + prep domains into a single digest.
-/// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
-fn hash_vkey<A: MachineAir<BabyBear>>(
-    machine: &StarkMachine<CoreSC, A>,
-    vkey: &SP1VerifyingKey,
-) -> [BabyBear; 8] {
-    // TODO: cleanup
-    let (_, prep_domains) = get_preprocessed_data(machine, &vkey.vk);
-    let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
-    let mut inputs = Vec::with_capacity(num_inputs);
-    inputs.extend(vkey.vk.commit.as_ref());
-    inputs.push(vkey.vk.pc_start);
-    for domain in prep_domains.iter() {
-        inputs.push(BabyBear::from_canonical_usize(domain.log_n));
-        let size = 1 << domain.log_n;
-        inputs.push(BabyBear::from_canonical_usize(size));
-        let g = BabyBear::two_adic_generator(domain.log_n);
-        inputs.push(domain.shift);
-        inputs.push(g);
-    }
-
-    println!("vkey hash inputs: {:?}", inputs);
-    poseidon2_hash(inputs)
-}
-
 #[cfg(test)]
 mod tests {
+    use crate::utils::hash_vkey;
+
     use super::*;
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;

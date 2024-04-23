@@ -13,7 +13,7 @@ pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 pub const CHALLENGER_STATE_NUM_ELTS: usize = 50;
 
-pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<u8>>();
+pub const RECURSIVE_PROOF_NUM_PV_ELTS: usize = size_of::<RecursionPublicValues<u8>>();
 
 // Recursive proof has more public values than core proof, so the max number constant defined in
 // sp1_core should be set to `RECURSIVE_PROOF_NUM_PV_ELTS`.
@@ -53,7 +53,7 @@ impl<T: Clone + Debug> ChallengerPublicValues<T> {
 
 /// The PublicValues struct is used to store all of a reduce proof's public values.
 #[derive(Serialize, Deserialize, Clone, Copy, Default, Debug)]
-pub struct PublicValues<T> {
+pub struct RecursionPublicValues<T> {
     /// The hash of all the bytes that the program has written to public values.
     pub committed_value_digest: [Word<T>; PV_DIGEST_NUM_WORDS],
 
@@ -103,7 +103,7 @@ pub struct PublicValues<T> {
     pub is_complete: T,
 }
 
-impl<T: Clone + Debug> PublicValues<T> {
+impl<T: Clone + Debug> RecursionPublicValues<T> {
     /// Convert a vector of field elements into a PublicValues struct.
     pub fn from_vec(data: Vec<T>) -> Self {
         if data.len() != RECURSIVE_PROOF_NUM_PV_ELTS {

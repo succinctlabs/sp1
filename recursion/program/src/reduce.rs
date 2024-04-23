@@ -14,6 +14,11 @@
 //! into a single digest which is checked against what was committed. Note that it is possible for
 //! reduce to be called with only deferred proofs, and not any core/recursive proofs. In this case,
 //! the start and end pc/shard values should be equal to each other.
+//!
+//! Because the program can verify "windows" of a full SP1 proof, the program exposes `is_complete`
+//! which is only true if the program has fully verified the execution of the program, including all
+//! deferred proofs.
+
 #![allow(clippy::needless_range_loop)]
 
 use p3_baby_bear::BabyBear;
@@ -27,10 +32,10 @@ use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKe
 use sp1_core::utils::{inner_fri_config, sp1_fri_config, BabyBearPoseidon2Inner};
 use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
-use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
-use sp1_recursion_core::air::{ChallengerPublicValues, PublicValues as RecursionPublicValues};
+use sp1_recursion_compiler::ir::{Array, Builder, Ext, ExtConst, Felt, Var};
+use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE, PERMUTATION_WIDTH};
+use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
 use sp1_recursion_core::stark::RecursionAir;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
@@ -41,130 +46,16 @@ use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
 use crate::types::VerifyingKeyVariable;
 use crate::types::{Sha256DigestVariable, ShardProofVariable};
-use crate::utils::{clone_array, const_fri_config, felt2var, var2felt};
+use crate::utils::{
+    assert_challenger_eq_pv, assign_challenger_from_pv, clone_array, commit_challenger,
+    const_fri_config, felt2var, hash_vkey, var2felt,
+};
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
 type EF = <SC as StarkGenericConfig>::Challenge;
 type C = AsmConfig<F, EF>;
 type Val = BabyBear;
-
-fn assert_challengers_eq<C: Config>(
-    builder: &mut Builder<C>,
-    var: &DuplexChallengerVariable<C>,
-    values: ChallengerPublicValues<Felt<C::F>>,
-) {
-    for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.sponge_state, i);
-        builder.assert_felt_eq(element, values.sponge_state[i]);
-    }
-    let num_inputs_var = felt2var(builder, values.num_inputs);
-    builder.assert_var_eq(var.nb_inputs, num_inputs_var);
-    let mut input_buffer_array: Array<_, Felt<_>> = builder.dyn_array(PERMUTATION_WIDTH);
-    for i in 0..PERMUTATION_WIDTH {
-        builder.set(&mut input_buffer_array, i, values.input_buffer[i]);
-    }
-    builder.range(0, num_inputs_var).for_each(|i, builder| {
-        let element = builder.get(&var.input_buffer, i);
-        let values_element = builder.get(&input_buffer_array, i);
-        builder.assert_felt_eq(element, values_element);
-    });
-    let num_outputs_var = felt2var(builder, values.num_outputs);
-    builder.assert_var_eq(var.nb_outputs, num_outputs_var);
-    let mut output_buffer_array: Array<_, Felt<_>> = builder.dyn_array(PERMUTATION_WIDTH);
-    for i in 0..PERMUTATION_WIDTH {
-        builder.set(&mut output_buffer_array, i, values.output_buffer[i]);
-    }
-    builder.range(0, num_outputs_var).for_each(|i, builder| {
-        let element = builder.get(&var.output_buffer, i);
-        let values_element = builder.get(&output_buffer_array, i);
-        builder.assert_felt_eq(element, values_element);
-    });
-}
-
-fn assign_challenger<C: Config>(
-    builder: &mut Builder<C>,
-    dst: &mut DuplexChallengerVariable<C>,
-    values: ChallengerPublicValues<Felt<C::F>>,
-) {
-    for i in 0..PERMUTATION_WIDTH {
-        builder.set(&mut dst.sponge_state, i, values.sponge_state[i]);
-    }
-    let num_inputs_var = felt2var(builder, values.num_inputs);
-    builder.assign(dst.nb_inputs, num_inputs_var);
-    for i in 0..PERMUTATION_WIDTH {
-        builder.set(&mut dst.input_buffer, i, values.input_buffer[i]);
-    }
-    let num_outputs_var = felt2var(builder, values.num_outputs);
-    builder.assign(dst.nb_outputs, num_outputs_var);
-    for i in 0..PERMUTATION_WIDTH {
-        builder.set(&mut dst.output_buffer, i, values.output_buffer[i]);
-    }
-}
-
-fn commit_challenger<C: Config>(builder: &mut Builder<C>, var: &DuplexChallengerVariable<C>) {
-    for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.sponge_state, i);
-        builder.commit_public_value(element);
-    }
-    let num_inputs_felt = var2felt(builder, var.nb_inputs);
-    builder.commit_public_value(num_inputs_felt);
-    for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.input_buffer, i);
-        builder.commit_public_value(element);
-    }
-    let num_outputs_felt = var2felt(builder, var.nb_outputs);
-    builder.commit_public_value(num_outputs_felt);
-    for i in 0..PERMUTATION_WIDTH {
-        let element = builder.get(&var.output_buffer, i);
-        builder.commit_public_value(element);
-    }
-}
-
-fn felts_to_array<C: Config>(
-    builder: &mut Builder<C>,
-    felts: &[Felt<C::F>],
-) -> Array<C, Felt<C::F>> {
-    let mut arr = builder.array(felts.len());
-    for i in 0..felts.len() {
-        builder.set(&mut arr, i, felts[i]);
-    }
-    arr
-}
-
-/// Hash the verifying key + prep domains into a single digest.
-/// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
-fn hash_vkey<C: Config>(
-    builder: &mut Builder<C>,
-    vk: &VerifyingKeyVariable<C>,
-    prep_domains: &Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
-) -> Array<C, Felt<C::F>> {
-    let domain_slots: Var<_> = builder.eval(prep_domains.len() * 4);
-    let vkey_slots: Var<_> = builder.constant(C::N::from_canonical_usize(DIGEST_SIZE + 1));
-    let total_slots: Var<_> = builder.eval(vkey_slots + domain_slots);
-    let mut inputs = builder.dyn_array(total_slots);
-    builder.range(0, DIGEST_SIZE).for_each(|i, builder| {
-        let element = builder.get(&vk.commitment, i);
-        builder.set(&mut inputs, i, element);
-    });
-    builder.set(&mut inputs, DIGEST_SIZE, vk.pc_start);
-    let four: Var<_> = builder.constant(C::N::from_canonical_usize(4));
-    let one: Var<_> = builder.constant(C::N::one());
-    builder.range(0, prep_domains.len()).for_each(|i, builder| {
-        let domain = builder.get(prep_domains, i);
-        let log_n_index: Var<_> = builder.eval(vkey_slots + i * four);
-        let size_index: Var<_> = builder.eval(log_n_index + one);
-        let shift_index: Var<_> = builder.eval(size_index + one);
-        let g_index: Var<_> = builder.eval(shift_index + one);
-        let log_n_felt = var2felt(builder, domain.log_n);
-        let size_felt = var2felt(builder, domain.size);
-        builder.set(&mut inputs, log_n_index, log_n_felt);
-        builder.set(&mut inputs, size_index, size_felt);
-        builder.set(&mut inputs, shift_index, domain.shift);
-        builder.set(&mut inputs, g_index, domain.g);
-    });
-    builder.poseidon2_hash(&inputs)
-}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReduceProgram;
@@ -504,12 +395,12 @@ impl ReduceProgram {
 
                     // Assert that the current reconstruct_challenger is the same as the proof's
                     // start_reconstruct_challenger, then fast-forward to end_reconstruct_challenger.
-                    assert_challengers_eq(
+                    assert_challenger_eq_pv(
                         builder,
                         &reconstruct_challenger,
                         pv.start_reconstruct_challenger,
                     );
-                    assign_challenger(
+                    assign_challenger_from_pv(
                         builder,
                         &mut reconstruct_challenger,
                         pv.end_reconstruct_challenger,
@@ -538,7 +429,7 @@ impl ReduceProgram {
                         let element = builder.get(&recursion_vk_digest, j);
                         builder.assert_felt_eq(element, pv.recursion_vk_digest[j]);
                     }
-                    assert_challengers_eq(
+                    assert_challenger_eq_pv(
                         builder,
                         &verify_start_challenger,
                         pv.verify_start_challenger,
@@ -654,46 +545,52 @@ impl ReduceProgram {
             });
 
         // If witnessed as complete, then verify all of the final state is correct.
-        builder.if_eq(is_complete, one).then(|builder| {
-            // 1) Proof begins at shard == 1.
-            let global_start_shard_var = felt2var(builder, global_start_shard);
-            builder.assert_var_eq(global_start_shard_var, one);
+        builder.if_eq(is_complete, one).then_or_else(
+            |builder| {
+                // 1) Proof begins at shard == 1.
+                let global_start_shard_var = felt2var(builder, global_start_shard);
+                builder.assert_var_eq(global_start_shard_var, one);
 
-            // 2) Proof begins at pc == sp1_vk.pc_start.
-            builder.assert_felt_eq(global_start_pc, sp1_vk.pc_start);
+                // 2) Proof begins at pc == sp1_vk.pc_start.
+                builder.assert_felt_eq(global_start_pc, sp1_vk.pc_start);
 
-            // 3) Execution has halted (next_pc == 0 && next_shard == 0).
-            let global_next_pc_var = felt2var(builder, global_next_pc);
-            builder.assert_var_eq(global_next_pc_var, zero);
-            let global_next_shard_var = felt2var(builder, global_next_shard);
-            builder.assert_var_eq(global_next_shard_var, zero);
+                // 3) Execution has halted (next_pc == 0 && next_shard == 0).
+                let global_next_pc_var = felt2var(builder, global_next_pc);
+                builder.assert_var_eq(global_next_pc_var, zero);
+                let global_next_shard_var = felt2var(builder, global_next_shard);
+                builder.assert_var_eq(global_next_shard_var, zero);
 
-            // 4) reconstruct_challenger has been fully reconstructed.
-            //    a) start_reconstruct_challenger == challenger after observing vk and pc_start.
-            let mut expected_challenger = DuplexChallengerVariable::new(builder);
-            expected_challenger.observe(builder, sp1_vk.commitment.clone());
-            expected_challenger.observe(builder, sp1_vk.pc_start);
-            start_reconstruct_challenger.assert_eq(builder, &expected_challenger);
-            //    b) end_reconstruct_challenger == verify_start_challenger.
-            reconstruct_challenger.assert_eq(builder, &verify_start_challenger);
+                // 4) reconstruct_challenger has been fully reconstructed.
+                //    a) start_reconstruct_challenger == challenger after observing vk and pc_start.
+                let mut expected_challenger = DuplexChallengerVariable::new(builder);
+                expected_challenger.observe(builder, sp1_vk.commitment.clone());
+                expected_challenger.observe(builder, sp1_vk.pc_start);
+                start_reconstruct_challenger.assert_eq(builder, &expected_challenger);
+                //    b) end_reconstruct_challenger == verify_start_challenger.
+                reconstruct_challenger.assert_eq(builder, &verify_start_challenger);
 
-            // 5) reconstruct_deferred_digest has been fully reconstructed.
-            //    a) start_reconstruct_deferred_digest == 0.
-            for j in 0..DIGEST_SIZE {
-                let element = builder.get(&start_reconstruct_deferred_digest, j);
-                builder.assert_felt_eq(element, zero_felt);
-            }
-            //    b) end_reconstruct_deferred_digest == deferred_proofs_digest.
-            for j in 0..DIGEST_SIZE {
-                let element = builder.get(&reconstruct_deferred_digest, j);
-                let global_element = builder.get(&global_deferred_proofs_digest, j);
-                builder.assert_felt_eq(element, global_element);
-            }
+                // 5) reconstruct_deferred_digest has been fully reconstructed.
+                //    a) start_reconstruct_deferred_digest == 0.
+                for j in 0..DIGEST_SIZE {
+                    let element = builder.get(&start_reconstruct_deferred_digest, j);
+                    builder.assert_felt_eq(element, zero_felt);
+                }
+                //    b) end_reconstruct_deferred_digest == deferred_proofs_digest.
+                for j in 0..DIGEST_SIZE {
+                    let element = builder.get(&reconstruct_deferred_digest, j);
+                    let global_element = builder.get(&global_deferred_proofs_digest, j);
+                    builder.assert_felt_eq(element, global_element);
+                }
 
-            // 6) Verify that the cumulative sum is zero.
-            let zero_ext: Ext<_, _> = builder.eval(EF::zero().cons());
-            builder.assert_ext_eq(global_cumulative_sum, zero_ext);
-        });
+                // 6) Verify that the cumulative sum is zero.
+                let zero_ext: Ext<_, _> = builder.eval(EF::zero().cons());
+                builder.assert_ext_eq(global_cumulative_sum, zero_ext);
+            },
+            // Ensure is_complete is boolean.
+            |builder| {
+                builder.assert_var_eq(is_complete, zero);
+            },
+        );
 
         // Public values:
         // (
