@@ -20,6 +20,7 @@ pub use record::*;
 
 use crate::air::Block;
 use crate::cpu::CpuEvent;
+use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
 use crate::poseidon2::Poseidon2Event;
 
@@ -769,6 +770,10 @@ where
                         .value
                         .ext::<EF>();
 
+                    let new_ro_at_log_height =
+                        ro_at_log_height + alpha_pow_at_log_height * quotient;
+                    let new_alpha_pow_at_log_height = alpha_pow_at_log_height * alpha;
+
                     self.memory.entry(ro_ptr + log_height).or_default().value = Block::from(
                         (ro_at_log_height + alpha_pow_at_log_height * quotient).as_base_slice(),
                     );
@@ -776,6 +781,94 @@ where
                         .entry(alpha_pow_ptr + log_height)
                         .or_default()
                         .value = Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
+
+                    // TODO use real memory records
+                    let dummy_memory_record = MemoryRecord {
+                        addr: F::zero(),
+                        value: Block::default(),
+                        timestamp: F::zero(),
+                        prev_value: Block::default(),
+                        prev_timestamp: F::zero(),
+                    };
+                    self.record.fri_fold_events.push(FriFoldEvent {
+                        m: F::from_canonical_usize(m),
+                        input_ptr: F::from_canonical_usize(input_ptr),
+                        z: MemoryRecord {
+                            value: Block::from(z.as_base_slice()),
+                            ..dummy_memory_record.clone()
+                        },
+                        alpha: MemoryRecord {
+                            value: Block::from(alpha.as_base_slice()),
+                            ..dummy_memory_record.clone()
+                        },
+                        x: MemoryRecord {
+                            value: Block::from([x, F::zero(), F::zero(), F::zero()]),
+                            ..dummy_memory_record.clone()
+                        },
+                        log_height: MemoryRecord {
+                            value: Block::from([
+                                F::from_canonical_u32(log_height as u32),
+                                F::zero(),
+                                F::zero(),
+                                F::zero(),
+                            ]),
+                            ..dummy_memory_record.clone()
+                        },
+                        mat_opening_ptr: MemoryRecord {
+                            value: Block::from([
+                                F::from_canonical_usize(mat_opening_ptr),
+                                F::zero(),
+                                F::zero(),
+                                F::zero(),
+                            ]),
+                            ..dummy_memory_record.clone()
+                        },
+                        ps_at_z_ptr: MemoryRecord {
+                            value: Block::from([
+                                F::from_canonical_usize(ps_at_z_ptr),
+                                F::zero(),
+                                F::zero(),
+                                F::zero(),
+                            ]),
+                            ..dummy_memory_record.clone()
+                        },
+                        alpha_pow_ptr: MemoryRecord {
+                            value: Block::from([
+                                F::from_canonical_usize(alpha_pow_ptr),
+                                F::zero(),
+                                F::zero(),
+                                F::zero(),
+                            ]),
+                            ..dummy_memory_record.clone()
+                        },
+                        ro_ptr: MemoryRecord {
+                            value: Block::from([
+                                F::from_canonical_usize(ro_ptr),
+                                F::zero(),
+                                F::zero(),
+                                F::zero(),
+                            ]),
+                            ..dummy_memory_record.clone()
+                        },
+                        p_at_x: MemoryRecord {
+                            value: Block::from(p_at_x.as_base_slice()),
+                            ..dummy_memory_record.clone()
+                        },
+                        p_at_z: MemoryRecord {
+                            value: Block::from(p_at_z.as_base_slice()),
+                            ..dummy_memory_record.clone()
+                        },
+                        alpha_pow_at_log_height: MemoryRecord {
+                            value: Block::from(new_alpha_pow_at_log_height.as_base_slice()),
+                            prev_value: Block::from(alpha_pow_at_log_height.as_base_slice()),
+                            ..dummy_memory_record.clone()
+                        },
+                        ro_at_log_height: MemoryRecord {
+                            value: Block::from(new_ro_at_log_height.as_base_slice()),
+                            prev_value: Block::from(ro_at_log_height.as_base_slice()),
+                            ..dummy_memory_record.clone()
+                        },
+                    });
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
