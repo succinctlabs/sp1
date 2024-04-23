@@ -5,7 +5,7 @@ all:
 
 groth16:
 	RUST_LOG=info RUSTFLAGS='-C target-cpu=native' \
-	cargo run -p sp1-prover --release --bin verifier_constraints -- \
+	cargo run -p sp1-prover --release --bin e2e -- \
 	--build-dir=../recursion/groth16-ffi/build
 
 fibonacci-sweep:
