@@ -1,7 +1,5 @@
 use p3_air::AirBuilderWithPublicValues;
-use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MemoryAirBuilder, ProgramAirBuilder};
-
-use crate::air::Block;
+use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder};
 
 pub trait SP1RecursionAirBuilder:
     BaseAirBuilder + ExtensionAirBuilder + AirBuilderWithPublicValues
