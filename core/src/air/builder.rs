@@ -721,12 +721,7 @@ pub trait MachineAirBuilder:
 
 /// A trait which contains all helper methods for building SP1 machine AIRs.
 pub trait SP1AirBuilder:
-    MachineAirBuilder
-    + ByteAirBuilder
-    + WordAirBuilder
-    + AluAirBuilder
-    + MemoryAirBuilder
-    + ExtensionAirBuilder
+    MachineAirBuilder + ByteAirBuilder + WordAirBuilder + AluAirBuilder + MemoryAirBuilder
 {
 }
 
