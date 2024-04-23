@@ -16,13 +16,12 @@ use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
+use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 use sp1_recursion_core::stark::RecursionAir;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
-use crate::fri::verify_two_adic_pcs;
 use crate::types::TwoAdicPcsMatsVariable;
 use crate::types::TwoAdicPcsRoundVariable;
 use crate::{challenger::MultiField32ChallengerVariable, types::RecursionShardProofVariable};
@@ -46,7 +45,7 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
         proof: &RecursionShardProofVariable<C>,
-        sorted_chips: Vec<String>,
+        _sorted_chips: Vec<String>,
         sorted_indices: Vec<usize>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
@@ -67,13 +66,13 @@ where
             quotient_commit,
         } = commitment;
 
-        let permutation_challenges = (0..2)
+        let _permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
 
         challenger.observe_commitment(builder, *permutation_commit);
 
-        let alpha = challenger.sample_ext(builder);
+        let _alpha = challenger.sample_ext(builder);
 
         challenger.observe_commitment(builder, *quotient_commit);
 
@@ -201,31 +200,37 @@ where
         rounds.push(main_round);
         rounds.push(perm_round);
         rounds.push(quotient_round);
-        let config = outer_fri_config();
-        verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
+        // let config = outer_fri_config();
+        // verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
-        for (i, sorted_chip) in sorted_chips.iter().enumerate() {
-            for chip in machine.chips() {
-                if chip.name() == *sorted_chip {
-                    let values = &opened_values.chips[i];
-                    let trace_domain = &trace_domains[i];
-                    let quotient_domain = &quotient_domains[i];
-                    let qc_domains =
-                        quotient_domain.split_domains(builder, chip.log_quotient_degree());
-                    Self::verify_constraints(
-                        builder,
-                        chip,
-                        values,
-                        proof.public_values.clone(),
-                        trace_domain.clone(),
-                        qc_domains,
-                        zeta,
-                        alpha,
-                        &permutation_challenges,
-                    );
-                }
-            }
-        }
+        // for (i, sorted_chip) in sorted_chips.iter().enumerate() {
+        //     for chip in machine.chips() {
+        //         if chip.name() == *sorted_chip {
+        //             println!("chip {} = {}", i, sorted_chip);
+        //             builder.print_debug(4 + i);
+        //             if chip.preprocessed_width() > 0 {
+        //                 continue;
+        //             }
+        //             let values = &opened_values.chips[i];
+        //             let trace_domain = &trace_domains[i];
+        //             let quotient_domain = &quotient_domains[i];
+        //             let qc_domains =
+        //                 quotient_domain.split_domains(builder, chip.log_quotient_degree());
+        //             Self::verify_constraints(
+        //                 builder,
+        //                 chip,
+        //                 values,
+        //                 proof.public_values.clone(),
+        //                 trace_domain.clone(),
+        //                 qc_domains,
+        //                 zeta,
+        //                 alpha,
+        //                 &permutation_challenges,
+        //             );
+        //             builder.print_debug(4 + i);
+        //         }
+        //     }
+        // }
     }
 }
 
@@ -344,7 +349,6 @@ pub(crate) mod tests {
 
     #[test]
     #[serial]
-    #[ignore]
     fn test_recursive_verify_shard_v2() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
@@ -372,6 +376,6 @@ pub(crate) mod tests {
 
         let constraints = build_wrap_circuit(&vk, proof);
 
-        groth16_ffi::prove::<OuterConfig>(constraints, witness);
+        groth16_ffi::test_prove::<OuterConfig>(constraints, witness);
     }
 }

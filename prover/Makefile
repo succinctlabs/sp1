@@ -3,6 +3,11 @@ all:
 	make tendermint-sweep
 	make fibonacci-groth16
 
+groth16:
+	RUST_LOG=info RUSTFLAGS='-C target-cpu=native' \
+	cargo run -p sp1-prover --release --bin e2e -- \
+	--build-dir=../recursion/groth16-ffi/build
+
 fibonacci-sweep:
 	mkdir -p scripts/results && \
 	rm -f scripts/results/fibonacci_sweep.log && \

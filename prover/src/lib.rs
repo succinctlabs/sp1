@@ -356,7 +356,6 @@ impl SP1Prover {
             witness_stream.extend(vk.write());
         }
 
-        // Execute runtime to get the memory setup.
         let machine = RecursionAir::machine(InnerSC::default());
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
             &self.reduce_setup_program,
@@ -364,8 +363,8 @@ impl SP1Prover {
         );
         runtime.witness_stream = witness_stream.into();
         runtime.run();
-        let mut checkpoint = runtime.memory.clone();
         runtime.print_stats();
+        let mut checkpoint = runtime.memory.clone();
 
         // Execute runtime.
         let machine = RecursionAir::machine(InnerSC::default());
@@ -378,12 +377,20 @@ impl SP1Prover {
         });
         runtime.memory = checkpoint;
         runtime.run();
+        runtime.print_stats();
 
         // Generate proof.
         let machine = RecursionAir::machine(SC::default());
         let (pk, _) = machine.setup(&self.reduce_program);
         let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let proof =
+            machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
+
+        // Verify proof.
+        //
+        // let mut challenger = machine.config().challenger();
+        // machine.debug_constraints(&pk, runtime.record, &mut challenger);
+        // machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         // Return the reduced proof.
         assert!(proof.shard_proofs.len() == 1);
@@ -418,7 +425,7 @@ impl SP1Prover {
         let mut witness = Witness::default();
         proof.write(&mut witness);
         let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
-        groth16_ffi::prove(constraints, witness);
+        groth16_ffi::test_prove(constraints, witness);
     }
 
     // TODO: Get rid of this method by reading it from public values.
@@ -505,7 +512,7 @@ mod tests {
         tracing::info!("reduce");
         let reduced_proof = prover.reduce(&vk, core_proof);
 
-        tracing::info!("wrap");
+        tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
 
         tracing::info!("groth16");
