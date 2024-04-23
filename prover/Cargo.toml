@@ -41,5 +41,5 @@ name = "fibonacci_groth16"
 path = "scripts/fibonacci_groth16.rs"
 
 [[bin]]
-name = "verifier_constraints"
-path = "scripts/verifier_constraints.rs"
+name = "e2e"
+path = "scripts/e2e.rs"
