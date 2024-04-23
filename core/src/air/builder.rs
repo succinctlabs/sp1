@@ -712,16 +712,16 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
 
     fn cumulative_sum(&self) -> Self::Sum;
 }
-/// A trait which contains all helper methods for building an AIR.
+
+/// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
+pub trait MachineAirBuilder:
+    BaseAirBuilder + ExtensionAirBuilder + ProgramAirBuilder + AirBuilderWithPublicValues
+{
+}
+
+/// A trait which contains all helper methods for building SP1 machine AIRs.
 pub trait SP1AirBuilder:
-    BaseAirBuilder
-    + ByteAirBuilder
-    + WordAirBuilder
-    + AluAirBuilder
-    + MemoryAirBuilder
-    + ProgramAirBuilder
-    + ExtensionAirBuilder
-    + AirBuilderWithPublicValues
+    MachineAirBuilder + ByteAirBuilder + WordAirBuilder + AluAirBuilder + MemoryAirBuilder
 {
 }
 
@@ -742,6 +742,7 @@ impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
 impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
+impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
