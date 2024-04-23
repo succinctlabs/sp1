@@ -265,20 +265,20 @@ where
 
         // Receive C.
         builder.recursion_eval_memory_access(
-            local.c.addr,
+            local.c_addr,
             &local.c,
             AB::Expr::one() - local.instruction.imm_c.into(),
         );
 
         // Receive B.
         builder.recursion_eval_memory_access(
-            local.b.addr,
+            local.b_addr,
             &local.b,
             AB::Expr::one() - local.instruction.imm_b.into(),
         );
 
         // Receive A.
-        builder.recursion_eval_memory_access(local.a.addr, &local.a, local.is_real.into());
+        builder.recursion_eval_memory_access(local.a_addr, &local.a, local.is_real.into());
 
         // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
         // prog_interaction_vals.push(local.instruction.op_a.into());

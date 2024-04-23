@@ -1,8 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 
-use crate::memory::{
-    MemoryReadColsWithoutAddr, MemoryReadSingleColsWithoutAddr, MemoryReadWriteColsWithoutAddr,
-};
+use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
@@ -56,22 +54,22 @@ pub struct FriFoldCols<T> {
     pub input_ptr: T,
 
     /// The inputs stored in memory.  All the values are just read from memory.
-    pub z: MemoryReadColsWithoutAddr<T>,
-    pub alpha: MemoryReadColsWithoutAddr<T>,
-    pub x: MemoryReadSingleColsWithoutAddr<T>,
+    pub z: MemoryReadCols<T>,
+    pub alpha: MemoryReadCols<T>,
+    pub x: MemoryReadSingleCols<T>,
 
-    pub log_height: MemoryReadSingleColsWithoutAddr<T>,
-    pub mat_opening_ptr: MemoryReadSingleColsWithoutAddr<T>,
-    pub ps_at_z_ptr: MemoryReadSingleColsWithoutAddr<T>,
-    pub alpha_pow_ptr: MemoryReadSingleColsWithoutAddr<T>,
-    pub ro_ptr: MemoryReadSingleColsWithoutAddr<T>,
+    pub log_height: MemoryReadSingleCols<T>,
+    pub mat_opening_ptr: MemoryReadSingleCols<T>,
+    pub ps_at_z_ptr: MemoryReadSingleCols<T>,
+    pub alpha_pow_ptr: MemoryReadSingleCols<T>,
+    pub ro_ptr: MemoryReadSingleCols<T>,
 
-    pub p_at_x: MemoryReadColsWithoutAddr<T>,
-    pub p_at_z: MemoryReadColsWithoutAddr<T>,
+    pub p_at_x: MemoryReadCols<T>,
+    pub p_at_z: MemoryReadCols<T>,
 
     /// The values here are read and then written.
-    pub alpha_pow_at_log_height: MemoryReadWriteColsWithoutAddr<T>,
-    pub ro_at_log_height: MemoryReadWriteColsWithoutAddr<T>,
+    pub alpha_pow_at_log_height: MemoryReadWriteCols<T>,
+    pub ro_at_log_height: MemoryReadWriteCols<T>,
 }
 
 impl<F> BaseAir<F> for FriFoldChip {
