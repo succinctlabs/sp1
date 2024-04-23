@@ -6,11 +6,8 @@ use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_groth16_ffi::witness::Groth16Witness;
 use sp1_recursion_groth16_ffi::Groth16Prover;
 use sp1_sdk::SP1Stdin;
-use std::fs::File;
-use std::io::Write;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -22,8 +19,6 @@ struct Args {
 pub fn main() {
     sp1_sdk::utils::setup_logger();
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-
-    let args = Args::parse();
 
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -56,5 +51,5 @@ pub fn main() {
     Groth16Prover::test(constraints.clone(), witness.clone());
 
     tracing::info!("sanity check proving");
-    Groth16Prover::prove(constraints.clone(), witness.clone());
+    Groth16Prover::build(constraints.clone(), witness.clone());
 }

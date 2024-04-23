@@ -82,7 +82,7 @@ impl Groth16Prover {
         }
     }
 
-    pub fn prove<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
+    pub fn build<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
         let manifest_dir = env!("CARGO_MANIFEST_DIR");
         let dir = format!("{}/../groth16", manifest_dir);
