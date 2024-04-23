@@ -491,7 +491,7 @@ impl<C: Config> MemVariable<C> for Var<C::N> {
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIr::StoreV(ptr, *self, index));
+        builder.push(DslIr::StoreV(*self, ptr, index));
     }
 }
 
@@ -834,7 +834,7 @@ impl<C: Config> MemVariable<C> for Felt<C::F> {
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIr::StoreF(ptr, *self, index));
+        builder.push(DslIr::StoreF(*self, ptr, index));
     }
 }
 
@@ -1232,7 +1232,7 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIr::StoreE(ptr, *self, index));
+        builder.push(DslIr::StoreE(*self, ptr, index));
     }
 }
 

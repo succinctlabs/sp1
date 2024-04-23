@@ -12,7 +12,6 @@ use sp1_core::air::BinomialExtension;
 use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::MachineAir;
 use sp1_core::lookup::InteractionKind;
-use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
@@ -23,6 +22,7 @@ use tracing::instrument;
 use super::columns::CpuCols;
 use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
+use crate::air::SP1RecursionAirBuilder;
 use crate::cpu::Block;
 use crate::cpu::CpuChip;
 use crate::runtime::ExecutionRecord;
@@ -132,7 +132,7 @@ impl<F: Send + Sync> BaseAir<F> for CpuChip<F> {
 
 impl<AB> Air<AB> for CpuChip<AB::F>
 where
-    AB: SP1AirBuilder,
+    AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Constraints for the CPU chip.
@@ -287,7 +287,7 @@ impl<F> CpuChip<F> {
     /// Eval all the ALU operations.
     fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
-        AB: SP1AirBuilder<F = F>,
+        AB: SP1RecursionAirBuilder<F = F>,
     {
         // Convert Block<Var> to Block<Expr>, since we will need that for the binomial extension operations.
         let ext_a: Block<AB::Expr> = local.a.value.map(|x| x.into());

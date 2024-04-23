@@ -17,10 +17,8 @@ pub enum Opcode {
     EDIV = 13,
 
     // Memory instructions.
-    LW = 4,
-    SW = 5,
-    LE = 14,
-    SE = 15,
+    LOAD = 4,
+    STORE = 5,
 
     // Branch instructions.
     BEQ = 6,
