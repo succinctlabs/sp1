@@ -104,7 +104,7 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
 
     /// Uninitialized memory addresses that have a specific value they should be initialized with.
     /// The Opcodes that start with Hint* utilize this to set memory values.
-    pub uninitialized_memory: HashMap<F, Block<F>, BuildNoHashHasher<F>>,
+    pub uninitialized_memory: HashMap<F, Block<F>>, // TODO: add "HashNoHasher" back to this
 
     /// The execution record.
     pub record: ExecutionRecord<F>,
@@ -269,18 +269,22 @@ where
             .or_insert(value);
     }
 
-    fn mw(&mut self, addr: F, value: Block<F>, timestamp: F) -> MemoryRecord<F> {
+    fn mw(&mut self, addr: F, value: impl Into<Block<F>>, timestamp: F) -> MemoryRecord<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
         let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
+        let value_as_block = value.into();
         let record = MemoryRecord {
             addr,
-            value,
+            value: value_as_block,
             timestamp,
             prev_value,
             prev_timestamp,
         };
-        *entry = MemoryEntry { value, timestamp };
+        *entry = MemoryEntry {
+            value: value_as_block,
+            timestamp,
+        };
         record
     }
 
@@ -544,7 +548,7 @@ where
                     let c_offset = instruction.op_c[0];
                     let b_val = self.get_b(&instruction);
                     let (a_ptr, mut a_val) = self.peek_a(&instruction);
-                    a_val += EF::one();
+                    a_val[0] += F::one();
                     if a_val != b_val {
                         next_pc = self.pc + c_offset;
                     }
@@ -608,7 +612,7 @@ where
 
                     let mut left_records = vec![];
                     let mut right_records = vec![];
-                    let array: [F; PERMUTATION_WIDTH];
+                    let mut array: [F; PERMUTATION_WIDTH] = [F::zero(); PERMUTATION_WIDTH];
 
                     for i in (0..PERMUTATION_WIDTH / 2) {
                         let f_i = F::from_canonical_u32(i as u32);
@@ -676,10 +680,10 @@ where
                 }
                 Opcode::Hint => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
-                    let dst = a_val[0].as_canonical_u32() as usize;
+                    let dst = a_val[0];
                     let blocks = self.witness_stream.pop_front().unwrap();
                     for (i, block) in blocks.into_iter().enumerate() {
-                        self.mw_uninitialized(dst + i, block);
+                        self.mw_uninitialized(dst + F::from_canonical_usize(i), block);
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -717,7 +721,8 @@ where
                     let (p_at_z_record, p_at_z) = self.mr(ps_at_z_ptr + m, timestamp);
 
                     // Calculate the quotient and update the values
-                    let quotient = (-p_at_z + p_at_x) / (-z + x);
+                    let quotient = (-p_at_z.ext::<EF>() + p_at_x.ext::<EF>())
+                        / (-z.ext::<EF>() + x.ext::<EF>());
 
                     // Modify the ro and alpha pow values.
                     let alpha_pow_at_log_height = self.peek(alpha_pow_ptr + log_height);
@@ -725,13 +730,15 @@ where
 
                     let row_ptr_at_log_height_record = self.mw(
                         ro_ptr + log_height,
-                        ro_at_log_height + alpha_pow_at_log_height * quotient,
+                        (ro_at_log_height.ext::<EF>()
+                            + alpha_pow_at_log_height.ext::<EF>() * quotient)
+                            .as_base_slice(),
                         timestamp + F::one(),
                     );
 
                     let alpha_pow_at_log_height_record = self.mw(
                         alpha_pow_ptr + log_height,
-                        alpha_pow_at_log_height * alpha,
+                        (alpha_pow_at_log_height.ext::<EF>() * alpha.ext::<EF>()).as_base_slice(),
                         timestamp + F::one(),
                     );
 
