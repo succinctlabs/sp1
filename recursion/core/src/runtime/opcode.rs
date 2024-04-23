@@ -27,14 +27,10 @@ pub enum Opcode {
     // Memory instructions.
     LW = 4,
     SW = 5,
-    LE = 14,
-    SE = 15,
 
     // Branch instructions.
     BEQ = 6,
     BNE = 7,
-    EBEQ = 16,
-    EBNE = 17,
 
     // Jump instructions.
     JAL = 8,

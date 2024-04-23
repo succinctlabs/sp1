@@ -476,27 +476,11 @@ where
                 Opcode::LW => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let prev_a = self.get_memory_entry(a_ptr).value;
-                    let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
-                }
-                Opcode::LE => {
-                    self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.load_rr(&instruction);
                     let a_val = b_val;
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::default());
                 }
                 Opcode::SW => {
-                    self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let prev_a = self.get_memory_entry(a_ptr).value;
-                    let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
-                }
-                Opcode::SE => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val) = self.store_rr(&instruction);
                     let a_val = b_val;
@@ -507,7 +491,7 @@ where
                     self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a.0[0] == b.0[0] {
+                    if a == b {
                         next_pc = self.pc + c_offset;
                     }
                 }
@@ -515,7 +499,7 @@ where
                     self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a.0[0] != b.0[0] {
+                    if a != b {
                         next_pc = self.pc + c_offset;
                     }
                 }
@@ -528,22 +512,6 @@ where
                     }
                     self.mw(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                }
-                Opcode::EBEQ => {
-                    self.nb_branch_ops += 1;
-                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
-                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a == b {
-                        next_pc = self.pc + c_offset;
-                    }
-                }
-                Opcode::EBNE => {
-                    self.nb_branch_ops += 1;
-                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
-                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a != b {
-                        next_pc = self.pc + c_offset;
-                    }
                 }
                 Opcode::JAL => {
                     self.nb_branch_ops += 1;

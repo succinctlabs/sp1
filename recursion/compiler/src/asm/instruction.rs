@@ -432,7 +432,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::LoadE(dst, src, index, offset, size) => Instruction::new(
-                Opcode::LE,
+                Opcode::LW,
                 i32_f(dst),
                 i32_f_arr(src),
                 i32_f_arr(index),
@@ -443,7 +443,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::LoadEI(dst, src, index, offset, size) => Instruction::new(
-                Opcode::LE,
+                Opcode::LW,
                 i32_f(dst),
                 i32_f_arr(src),
                 f_u32(index),
@@ -454,7 +454,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::StoreE(dst, src, index, offset, size) => Instruction::new(
-                Opcode::SE,
+                Opcode::SW,
                 i32_f(dst),
                 i32_f_arr(src),
                 i32_f_arr(index),
@@ -465,7 +465,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::StoreEI(dst, src, index, offset, size) => Instruction::new(
-                Opcode::SE,
+                Opcode::SW,
                 i32_f(dst),
                 i32_f_arr(src),
                 f_u32(index),
@@ -476,7 +476,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::ImmE(dst, value) => Instruction::new(
-                Opcode::LE,
+                Opcode::LW,
                 i32_f(dst),
                 value.as_base_slice().try_into().unwrap(),
                 zero,
@@ -877,7 +877,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBNE,
+                    Opcode::BNE,
                     i32_f(lhs),
                     i32_f_arr(rhs),
                     f_u32(offset),
@@ -892,7 +892,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBNE,
+                    Opcode::BNE,
                     i32_f(lhs),
                     rhs.as_base_slice().try_into().unwrap(),
                     f_u32(offset),
@@ -907,7 +907,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBEQ,
+                    Opcode::BEQ,
                     i32_f(lhs),
                     i32_f_arr(rhs),
                     f_u32(offset),
@@ -922,7 +922,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBEQ,
+                    Opcode::BEQ,
                     i32_f(lhs),
                     rhs.as_base_slice().try_into().unwrap(),
                     f_u32(offset),
