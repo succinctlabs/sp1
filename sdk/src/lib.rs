@@ -95,7 +95,7 @@ impl ProverClient {
 
             match status.status() {
                 ProofStatus::ProofFulfilled => {
-                    return Ok(maybe_proof.ok_or_else(|| anyhow::anyhow!("No proof found"))?);
+                    return maybe_proof.unwrap();
                 }
                 ProofStatus::ProofClaimed => {
                     if !is_claimed {
