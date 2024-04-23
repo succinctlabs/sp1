@@ -715,17 +715,18 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
 pub trait MachineAirBuilder:
-    BaseAirBuilder
-    + ExtensionAirBuilder
-    + ProgramAirBuilder
-    + MultiTableAirBuilder
-    + AirBuilderWithPublicValues
+    BaseAirBuilder + ExtensionAirBuilder + ProgramAirBuilder + AirBuilderWithPublicValues
 {
 }
 
 /// A trait which contains all helper methods for building SP1 machine AIRs.
 pub trait SP1AirBuilder:
-    MachineAirBuilder + ByteAirBuilder + WordAirBuilder + AluAirBuilder + ExtensionAirBuilder
+    MachineAirBuilder
+    + ByteAirBuilder
+    + WordAirBuilder
+    + AluAirBuilder
+    + MemoryAirBuilder
+    + ExtensionAirBuilder
 {
 }
 
@@ -746,6 +747,7 @@ impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
 impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
+impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}
