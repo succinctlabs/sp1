@@ -75,7 +75,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	vars := make(map[string]frontend.Variable)
 	felts := make(map[string]*babybear.Variable)
 	exts := make(map[string]*babybear.ExtensionVariable)
-	commitedValues := make([]frontend.Variable, 0)
 
 	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
@@ -183,9 +182,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}
 	}
-
-	// Handle the commit logic.
-	fmt.Println(len(commitedValues))
 
 	return nil
 }
