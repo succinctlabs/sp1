@@ -303,7 +303,7 @@ impl<F> CpuChip<F> {
             + local.selectors.is_mul
             + local.selectors.is_div;
 
-        // Verify that the b and c registers are base fields for field operations.
+        // Verify that the b and c registers are base elements for field operations.
         builder
             .when(is_field_op.clone())
             .assert_is_base_element(b_ext.clone());
