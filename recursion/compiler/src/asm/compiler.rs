@@ -420,33 +420,33 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                         trace,
                     ),
                 },
-                DslIr::StoreV(ptr, var, index) => match index.fp() {
+                DslIr::StoreV(var, ptr, index) => match index.fp() {
                     IndexTriple::Const(index, offset, size) => self.push(
-                        AsmInstruction::StoreFI(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreFI(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                     IndexTriple::Var(index, offset, size) => self.push(
-                        AsmInstruction::StoreF(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreF(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                 },
-                DslIr::StoreF(ptr, var, index) => match index.fp() {
+                DslIr::StoreF(var, ptr, index) => match index.fp() {
                     IndexTriple::Const(index, offset, size) => self.push(
-                        AsmInstruction::StoreFI(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreFI(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                     IndexTriple::Var(index, offset, size) => self.push(
-                        AsmInstruction::StoreF(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreF(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                 },
-                DslIr::StoreE(ptr, var, index) => match index.fp() {
+                DslIr::StoreE(var, ptr, index) => match index.fp() {
                     IndexTriple::Const(index, offset, size) => self.push(
-                        AsmInstruction::StoreEI(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreEI(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                     IndexTriple::Var(index, offset, size) => self.push(
-                        AsmInstruction::StoreE(ptr.fp(), var.fp(), index, offset, size),
+                        AsmInstruction::StoreE(var.fp(), ptr.fp(), index, offset, size),
                         trace,
                     ),
                 },

@@ -113,11 +113,11 @@ pub enum DslIr<C: Config> {
     /// Load extension field
     LoadE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
     /// Store variable at address
-    StoreV(Ptr<C::N>, Var<C::N>, MemIndex<C::N>),
+    StoreV(Var<C::N>, Ptr<C::N>, MemIndex<C::N>),
     /// Store field element at adress
-    StoreF(Ptr<C::N>, Felt<C::F>, MemIndex<C::N>),
+    StoreF(Felt<C::F>, Ptr<C::N>, MemIndex<C::N>),
     /// Store extension field at adress
-    StoreE(Ptr<C::N>, Ext<C::F, C::EF>, MemIndex<C::N>),
+    StoreE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
 
     // Bits.
     Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),

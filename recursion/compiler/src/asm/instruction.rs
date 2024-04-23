@@ -17,9 +17,9 @@ pub enum AsmInstruction<F, EF> {
     LoadF(i32, i32, i32, F, F),
     LoadFI(i32, i32, F, F, F),
 
-    /// Store word (dst, src, index, offset, size)
+    /// Store word (val, addr, index, offset, size)
     ///
-    /// Store a value from src(fp) into the address stored at dest(fp).
+    /// Store a value from val(fp) into the address stored at addr(fp) with given index and offset.
     StoreF(i32, i32, i32, F, F),
     StoreFI(i32, i32, F, F, F),
 
@@ -59,9 +59,9 @@ pub enum AsmInstruction<F, EF> {
     LoadE(i32, i32, i32, F, F),
     LoadEI(i32, i32, F, F, F),
 
-    /// Store an ext value (dst, src, index, offset, size).
+    /// Store an ext value (val, addr, index, offset, size).
     ///
-    /// Store a value from src(fp) into address stored at dst(fp).
+    /// Store a value from val(fp) into the address stored at addr(fp) with given index and offset.
     StoreE(i32, i32, i32, F, F),
     StoreEI(i32, i32, F, F, F),
 
@@ -215,10 +215,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
-            AsmInstruction::StoreF(dst, src, index, offset, size) => Instruction::new(
+            AsmInstruction::StoreF(value, addr, index, offset, size) => Instruction::new(
                 Opcode::SW,
-                i32_f(dst),
-                i32_f_arr(src),
+                i32_f(value),
+                i32_f_arr(addr),
                 i32_f_arr(index),
                 offset,
                 size,
@@ -226,10 +226,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
-            AsmInstruction::StoreFI(dst, src, index, offset, size) => Instruction::new(
+            AsmInstruction::StoreFI(value, addr, index, offset, size) => Instruction::new(
                 Opcode::SW,
-                i32_f(dst),
-                i32_f_arr(src),
+                i32_f(value),
+                i32_f_arr(addr),
                 f_u32(index),
                 offset,
                 size,
@@ -381,10 +381,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 true,
                 "".to_string(),
             ),
-            AsmInstruction::StoreE(dst, src, index, offset, size) => Instruction::new(
+            AsmInstruction::StoreE(value, addr, index, offset, size) => Instruction::new(
                 Opcode::SE,
-                i32_f(dst),
-                i32_f_arr(src),
+                i32_f(value),
+                i32_f_arr(addr),
                 i32_f_arr(index),
                 offset,
                 size,
@@ -392,10 +392,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
-            AsmInstruction::StoreEI(dst, src, index, offset, size) => Instruction::new(
+            AsmInstruction::StoreEI(value, addr, index, offset, size) => Instruction::new(
                 Opcode::SE,
-                i32_f(dst),
-                i32_f_arr(src),
+                i32_f(value),
+                i32_f_arr(addr),
                 f_u32(index),
                 offset,
                 size,
