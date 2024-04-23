@@ -25,10 +25,8 @@ pub struct OpcodeSelectorCols<T> {
     pub is_ediv: T,
 
     // Memory instructions.
-    pub is_lw: T,
-    pub is_sw: T,
-    pub is_le: T,
-    pub is_se: T,
+    pub is_load: T,
+    pub is_store: T,
 
     // Branch instructions.
     pub is_beq: T,
@@ -64,10 +62,8 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::ESUB => self.is_esub = F::one(),
             Opcode::EMUL => self.is_emul = F::one(),
             Opcode::EDIV => self.is_ediv = F::one(),
-            Opcode::LW => self.is_lw = F::one(),
-            Opcode::SW => self.is_sw = F::one(),
-            Opcode::LE => self.is_le = F::one(),
-            Opcode::SE => self.is_se = F::one(),
+            Opcode::LOAD => self.is_load = F::one(),
+            Opcode::STORE => self.is_store = F::one(),
             Opcode::BEQ => self.is_beq = F::one(),
             Opcode::BNE => self.is_bne = F::one(),
             Opcode::EBEQ => self.is_ebeq = F::one(),
@@ -103,10 +99,8 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_esub,
             self.is_emul,
             self.is_ediv,
-            self.is_lw,
-            self.is_sw,
-            self.is_le,
-            self.is_se,
+            self.is_load,
+            self.is_store,
             self.is_beq,
             self.is_bne,
             self.is_ebeq,

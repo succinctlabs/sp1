@@ -194,7 +194,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
         match self {
             AsmInstruction::Break(_) => panic!("Unresolved break instruction"),
             AsmInstruction::LoadF(dst, src, index, offset, size) => Instruction::new(
-                Opcode::LW,
+                Opcode::LOAD,
                 i32_f(dst),
                 i32_f_arr(src),
                 i32_f_arr(index),
@@ -205,7 +205,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::LoadFI(dst, src, index, offset, size) => Instruction::new(
-                Opcode::LW,
+                Opcode::LOAD,
                 i32_f(dst),
                 i32_f_arr(src),
                 f_u32(index),
@@ -216,7 +216,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::StoreF(value, addr, index, offset, size) => Instruction::new(
-                Opcode::SW,
+                Opcode::STORE,
                 i32_f(value),
                 i32_f_arr(addr),
                 i32_f_arr(index),
@@ -227,7 +227,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::StoreFI(value, addr, index, offset, size) => Instruction::new(
-                Opcode::SW,
+                Opcode::STORE,
                 i32_f(value),
                 i32_f_arr(addr),
                 f_u32(index),
@@ -360,7 +360,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::LoadE(dst, src, index, offset, size) => Instruction::new(
-                Opcode::LE,
+                Opcode::LOAD,
                 i32_f(dst),
                 i32_f_arr(src),
                 i32_f_arr(index),
@@ -371,7 +371,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::LoadEI(dst, src, index, offset, size) => Instruction::new(
-                Opcode::LE,
+                Opcode::LOAD,
                 i32_f(dst),
                 i32_f_arr(src),
                 f_u32(index),
@@ -382,7 +382,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::StoreE(value, addr, index, offset, size) => Instruction::new(
-                Opcode::SE,
+                Opcode::STORE,
                 i32_f(value),
                 i32_f_arr(addr),
                 i32_f_arr(index),
@@ -393,7 +393,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::StoreEI(value, addr, index, offset, size) => Instruction::new(
-                Opcode::SE,
+                Opcode::STORE,
                 i32_f(value),
                 i32_f_arr(addr),
                 f_u32(index),

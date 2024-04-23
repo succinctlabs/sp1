@@ -432,7 +432,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::LW => {
+                Opcode::LOAD => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
                     let addr = Self::calculate_address(b_val, c_val, &instruction);
@@ -442,26 +442,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::LE => {
-                    self.nb_memory_ops += 1;
-                    let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
-                    let addr = Self::calculate_address(b_val, c_val, &instruction);
-
-                    let val = self.mr(addr, MemoryAccessPosition::B);
-                    let a_val = val;
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, c_val);
-                }
-                Opcode::SW => {
-                    self.nb_memory_ops += 1;
-                    let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
-                    let addr = Self::calculate_address(b_val, c_val, &instruction);
-
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
-                    self.mw(addr, a_val, MemoryAccessPosition::B);
-                    (a, b, c) = (a_val, b_val, c_val);
-                }
-                Opcode::SE => {
+                Opcode::STORE => {
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
                     let addr = Self::calculate_address(b_val, c_val, &instruction);
