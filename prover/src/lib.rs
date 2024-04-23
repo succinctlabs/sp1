@@ -107,37 +107,56 @@ pub enum SP1ReduceProofWrapper {
 
 /// Reprents the state of reducing proofs together. This is used to track the current values since
 /// some reduce batches may have only deferred proofs.
+#[derive(Clone)]
 pub struct ReduceState {
     pub committed_values_digest: [Word<Val<CoreSC>>; PV_DIGEST_NUM_WORDS],
     pub deferred_proofs_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
     pub start_pc: Val<CoreSC>,
     pub exit_code: Val<CoreSC>,
     pub start_shard: Val<CoreSC>,
+    pub reconstruct_deferred_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
 }
 
-impl<SC: StarkGenericConfig<Val = BabyBear>> From<&SP1ReduceProof<SC>> for ReduceState {
-    fn from(proof: &SP1ReduceProof<SC>) -> Self {
-        let pv = RecursionPublicValues::from_vec(proof.proof.public_values.clone());
+impl ReduceState {
+    pub fn from_reduce_end_state<SC: StarkGenericConfig<Val = BabyBear>>(
+        state: &SP1ReduceProof<SC>,
+    ) -> Self {
+        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
+        Self {
+            committed_values_digest: pv.committed_value_digest,
+            deferred_proofs_digest: pv.deferred_proofs_digest,
+            start_pc: pv.next_pc,
+            exit_code: pv.exit_code,
+            start_shard: pv.next_shard,
+            reconstruct_deferred_digest: pv.end_reconstruct_deferred_digest,
+        }
+    }
+
+    pub fn from_reduce_start_state<SC: StarkGenericConfig<Val = BabyBear>>(
+        state: &SP1ReduceProof<SC>,
+    ) -> Self {
+        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
         Self {
             committed_values_digest: pv.committed_value_digest,
             deferred_proofs_digest: pv.deferred_proofs_digest,
             start_pc: pv.start_pc,
             exit_code: pv.exit_code,
             start_shard: pv.start_shard,
+            reconstruct_deferred_digest: pv.start_reconstruct_deferred_digest,
         }
     }
-}
 
-impl From<&ShardProof<CoreSC>> for ReduceState {
-    fn from(proof: &ShardProof<CoreSC>) -> Self {
+    pub fn from_core_start_state(state: &ShardProof<CoreSC>) -> Self {
         let pv =
-            PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(proof.public_values.clone());
+            PublicValues::<Word<Val<CoreSC>>, Val<CoreSC>>::from_vec(state.public_values.clone());
         Self {
             committed_values_digest: pv.committed_value_digest,
             deferred_proofs_digest: pv.deferred_proofs_digest,
             start_pc: pv.start_pc,
             exit_code: pv.exit_code,
             start_shard: pv.shard,
+            // TODO: we assume that core proofs aren't in a later batch than one with a deferred proof
+            reconstruct_deferred_digest: [BabyBear::zero(); 8],
         }
     }
 }
@@ -198,7 +217,12 @@ impl SP1Prover {
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
-    pub fn reduce(&self, vk: &SP1VerifyingKey, proof: SP1CoreProof) -> SP1ReduceProof<InnerSC> {
+    pub fn reduce(
+        &self,
+        vk: &SP1VerifyingKey,
+        proof: SP1CoreProof,
+        mut deferred_proofs: Vec<ShardProof<InnerSC>>,
+    ) -> SP1ReduceProof<InnerSC> {
         // Observe all commitments and public values.
         //
         // This challenger will be witnessed into reduce program and used to verify sp1 proofs. It
@@ -223,7 +247,14 @@ impl SP1Prover {
         // Keep reducing until we have only one shard.
         while reduce_proofs.len() > 1 {
             println!("new layer {}", reduce_proofs.len());
-            reduce_proofs = self.reduce_layer(vk, core_challenger.clone(), reduce_proofs, 2);
+            let layer_deferred_proofs = std::mem::take(&mut deferred_proofs);
+            reduce_proofs = self.reduce_layer(
+                vk,
+                core_challenger.clone(),
+                reduce_proofs,
+                layer_deferred_proofs,
+                2,
+            );
         }
 
         // Return the remaining single reduce proof. If we have only one shard, we still want to
@@ -233,7 +264,7 @@ impl SP1Prover {
         match last_proof {
             SP1ReduceProofWrapper::Recursive(proof) => proof,
             SP1ReduceProofWrapper::Core(ref proof) => {
-                let state = (&proof.proof).into();
+                let state = ReduceState::from_core_start_state(&proof.proof);
                 let reconstruct_challenger = self.setup_initial_core_challenger(vk);
                 self.reduce_batch(
                     vk,
@@ -254,23 +285,23 @@ impl SP1Prover {
         &self,
         vk: &SP1VerifyingKey,
         sp1_challenger: Challenger<CoreSC>,
-        mut proofs: Vec<SP1ReduceProofWrapper>,
+        proofs: Vec<SP1ReduceProofWrapper>,
+        deferred_proofs: Vec<ShardProof<InnerSC>>,
         batch_size: usize,
     ) -> Vec<SP1ReduceProofWrapper> {
-        // If there's one proof at the end, push it to the next layer.
-        let last_proof = if proofs.len() % batch_size == 1 {
-            Some(proofs.pop().unwrap())
-        } else {
-            None
-        };
+        let last_proof = None;
 
+        // If there are deferred proofs, we want to add them to the end.
+        // OPT: If there's only one proof in the last batch, we could push it to the next layer.
+        // OPT: We could pack deferred proofs into the last chunk if it has less than batch_size proofs.
         let chunks: Vec<_> = proofs.chunks(batch_size).collect();
+
         let mut reconstruct_challenger = self.setup_initial_core_challenger(vk);
         let reconstruct_challengers = chunks
             .iter()
-            .map(|chunk| {
+            .map(|proofs| {
                 let start_challenger = reconstruct_challenger.clone();
-                for proof in chunk.iter() {
+                for proof in proofs.iter() {
                     match proof {
                         SP1ReduceProofWrapper::Core(reduce_proof) => {
                             reconstruct_challenger
@@ -309,11 +340,17 @@ impl SP1Prover {
         let start_states = chunks
             .iter()
             .map(|chunk| match chunk[0] {
-                SP1ReduceProofWrapper::Core(ref proof) => (&proof.proof).into(),
-                SP1ReduceProofWrapper::Recursive(ref proof) => (&proof.proof).into(),
+                SP1ReduceProofWrapper::Core(ref proof) => {
+                    ReduceState::from_core_start_state(&proof.proof)
+                }
+                SP1ReduceProofWrapper::Recursive(ref proof) => {
+                    ReduceState::from_reduce_start_state(&proof)
+                }
             })
             .collect::<Vec<_>>();
-        let is_complete = chunks.len() == 1 && last_proof.is_none();
+        // This is the last layer only if the outcome is a single proof. If there are deferred proofs
+        // or there is a single proof being pushed to the next layer, it's not the last layer.
+        let is_complete = chunks.len() == 1 && last_proof.is_none() && deferred_proofs.is_empty();
         let mut new_proofs: Vec<SP1ReduceProofWrapper> = chunks
             .into_par_iter()
             .zip(reconstruct_challengers.into_par_iter())
@@ -335,6 +372,37 @@ impl SP1Prover {
         if let Some(proof) = last_proof {
             new_proofs.push(proof);
         }
+
+        // For all the proofs with only deferred proofs, the start and end state will be the end
+        // state of the last proof from above.
+        let last_new_proof = &new_proofs[new_proofs.len() - 1];
+        let end_state: ReduceState = match last_new_proof {
+            SP1ReduceProofWrapper::Recursive(ref proof) => {
+                ReduceState::from_reduce_end_state(proof)
+            }
+            _ => unreachable!(),
+        };
+        let deferred_chunks: Vec<_> = deferred_proofs.chunks(batch_size).collect();
+        let new_deferred_proofs = deferred_chunks
+            .into_par_iter()
+            .map(|proofs| {
+                self.reduce_batch::<InnerSC>(
+                    vk,
+                    sp1_challenger.clone(),
+                    reconstruct_challenger.clone(),
+                    end_state.clone(),
+                    &[],
+                    proofs,
+                    false,
+                )
+            })
+            .collect::<Vec<_>>();
+
+        new_proofs.extend(
+            new_deferred_proofs
+                .into_iter()
+                .map(SP1ReduceProofWrapper::Recursive),
+        );
         new_proofs
     }
 
@@ -347,7 +415,7 @@ impl SP1Prover {
         reconstruct_challenger: Challenger<CoreSC>,
         state: ReduceState,
         reduce_proofs: &[SP1ReduceProofWrapper],
-        deferred_proofs: &[(ShardProof<InnerSC>, &StarkVerifyingKey<CoreSC>)],
+        deferred_proofs: &[ShardProof<InnerSC>],
         is_complete: bool,
     ) -> SP1ReduceProof<SC>
     where
@@ -385,13 +453,12 @@ impl SP1Prover {
         ) = get_preprocessed_data(&self.inner_recursion_machine, &self.reduce_vk_inner);
         let deferred_sorted_indices: Vec<Vec<usize>> = deferred_proofs
             .iter()
-            .map(|(proof, _)| {
+            .map(|proof| {
                 let indices = get_sorted_indices(&self.inner_recursion_machine, proof);
                 println!("indices = {:?}", indices);
                 indices
             })
             .collect();
-        let deferred_proof_vec: Vec<_> = deferred_proofs.iter().map(|(proof, _)| proof).collect();
 
         // Convert the inputs into a witness stream.
         let mut witness_stream = Vec::new();
@@ -410,6 +477,7 @@ impl SP1Prover {
         witness_stream.extend(Hintable::write(&state.start_pc));
         witness_stream.extend(Hintable::write(&state.exit_code));
         witness_stream.extend(Hintable::write(&state.start_shard));
+        witness_stream.extend(Hintable::write(&state.reconstruct_deferred_digest));
         for proof in reduce_proofs.iter() {
             match proof {
                 SP1ReduceProofWrapper::Core(reduce_proof) => {
@@ -420,13 +488,8 @@ impl SP1Prover {
                 }
             }
         }
-        let empty_hash = [BabyBear::zero(); 8].to_vec();
-        witness_stream.extend(Hintable::write(&empty_hash));
         witness_stream.extend(deferred_sorted_indices.write());
-        witness_stream.extend(deferred_proof_vec.write());
-        for (_, vk) in deferred_proofs.iter() {
-            witness_stream.extend(vk.write());
-        }
+        witness_stream.extend(deferred_proofs.to_vec().write());
         let is_complete = if is_complete { 1usize } else { 0 };
         witness_stream.extend(is_complete.write());
 
@@ -475,7 +538,7 @@ impl SP1Prover {
         // Since the proof passed in should be complete already, the start reconstruct_challenger
         // should be in initial state with only vk observed.
         let reconstruct_challenger = self.setup_initial_core_challenger(vk);
-        let state = (&reduced_proof).into();
+        let state = ReduceState::from_reduce_start_state(&reduced_proof);
         self.reduce_batch::<OuterSC>(
             vk,
             core_challenger,
@@ -582,7 +645,7 @@ mod tests {
         let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
 
         tracing::info!("reduce");
-        let reduced_proof = prover.reduce(&vk, core_proof);
+        let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
 
         tracing::info!("wrap");
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);

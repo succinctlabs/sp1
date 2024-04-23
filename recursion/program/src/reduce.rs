@@ -219,12 +219,11 @@ impl ReduceProgram {
         let initial_start_pc: Felt<_> = builder.uninit();
         let initial_exit_code: Felt<_> = builder.uninit();
         let initial_start_shard: Felt<_> = builder.uninit();
-        let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
         let mut reconstruct_deferred_digest: DigestVariable<_> = builder.uninit();
+        let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
         let deferred_sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
         let num_deferred_proofs: Var<_> = builder.uninit();
         let deferred_proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
-        let deferred_vks: Array<_, VerifyingKeyVariable<_>> = builder.uninit();
 
         let is_complete: Var<_> = builder.uninit();
 
@@ -254,6 +253,7 @@ impl ReduceProgram {
             BabyBear::witness(&initial_start_pc, &mut builder);
             BabyBear::witness(&initial_exit_code, &mut builder);
             BabyBear::witness(&initial_start_shard, &mut builder);
+            InnerDigest::witness(&reconstruct_deferred_digest, &mut builder);
 
             let num_proofs = is_recursive_flags.len();
             let mut proofs_target = builder.dyn_array(num_proofs);
@@ -263,19 +263,10 @@ impl ReduceProgram {
             });
             builder.assign(proofs.clone(), proofs_target);
 
-            InnerDigest::witness(&reconstruct_deferred_digest, &mut builder);
             Vec::<Vec<usize>>::witness(&deferred_sorted_indices, &mut builder);
             Vec::<ShardProof<SC>>::witness(&deferred_proofs, &mut builder);
             let num_deferred_proofs_var = deferred_proofs.len();
             builder.assign(num_deferred_proofs, num_deferred_proofs_var);
-            let mut deferred_vks_target = builder.dyn_array(num_deferred_proofs);
-            builder
-                .range(0, num_deferred_proofs)
-                .for_each(|i, builder| {
-                    let vk = StarkVerifyingKey::<SC>::read(builder);
-                    builder.set(&mut deferred_vks_target, i, vk);
-                });
-            builder.assign(deferred_vks.clone(), deferred_vks_target);
             usize::witness(&is_complete, &mut builder);
 
             return builder.compile_program();
@@ -549,7 +540,6 @@ impl ReduceProgram {
                         let element = builder.get(&sp1_vk_digest, j);
                         builder.assert_felt_eq(element, pv.sp1_vk_digest[j]);
                     }
-                    builder.assert_felt_eq(sp1_vk.pc_start, pv.start_pc);
                     for j in 0..DIGEST_SIZE {
                         let element = builder.get(&recursion_vk_digest, j);
                         builder.assert_felt_eq(element, pv.recursion_vk_digest[j]);
@@ -598,7 +588,6 @@ impl ReduceProgram {
             .range(0, num_deferred_proofs)
             .for_each(|i, builder| {
                 let proof = builder.get(&deferred_proofs, i);
-                let vk = builder.get(&deferred_vks, i);
                 let sorted_indices = builder.get(&deferred_sorted_indices, i);
                 let mut challenger = recursion_challenger.copy(builder);
                 for j in 0..DIGEST_SIZE {
