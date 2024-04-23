@@ -305,6 +305,8 @@ mod tests {
         // Run the verify inside the DSL and compare it to the calculated value.
         let mut builder = AsmBuilder::<F, EF>::default();
 
+        let time = std::time::Instant::now();
+
         #[allow(clippy::never_loop)]
         for proof in proof.shard_proofs.into_iter().take(1) {
             let (
@@ -353,6 +355,9 @@ mod tests {
         }
 
         let program = builder.compile_program();
+
+        let elapsed = time.elapsed();
+        println!("Compiled in {:?}", elapsed);
 
         let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
         runtime.run();
