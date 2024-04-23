@@ -349,7 +349,7 @@ func main() {
 
 		// Run the dummy setup.
 		var pk groth16.ProvingKey
-		pk, err = groth16.DummySetup(r1cs)
+		pk, vk, err := groth16.Setup(r1cs)
 		if err != nil {
 			panic(err)
 		}
@@ -372,6 +372,13 @@ func main() {
 		}
 		pk.WriteTo(pkFile)
 		pkFile.Close()
+
+		// Write the solidity verifier.
+		solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")
+		if err != nil {
+			panic(err)
+		}
+		vk.ExportSolidity(solidityVerifierFile)
 	default:
 		fmt.Println("expected 'prove' or 'build' subcommand")
 		os.Exit(1)
