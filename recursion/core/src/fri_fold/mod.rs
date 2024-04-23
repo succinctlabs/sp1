@@ -10,15 +10,14 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{AirInteraction, BinomialExtension, MachineAir, SP1AirBuilder};
-use sp1_core::lookup::InteractionKind;
+use sp1_core::air::{BinomialExtension, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
 use crate::air::RecursionAirBuilder;
-use crate::memory::{MemoryReadWriteCols, MemoryRecord};
+use crate::memory::MemoryRecord;
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
