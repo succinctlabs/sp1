@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"os"
 	"testing"
 
@@ -41,15 +40,12 @@ func TestMain(t *testing.T) {
 	for i := 0; i < len(inputs.Vars); i++ {
 		vars[i] = frontend.Variable(inputs.Vars[i])
 	}
-	fmt.Println("NbVars:", len(vars))
 	for i := 0; i < len(inputs.Felts); i++ {
 		felts[i] = babybear.NewF(inputs.Felts[i])
 	}
-	fmt.Println("NbFelts:", len(felts))
 	for i := 0; i < len(inputs.Exts); i++ {
 		exts[i] = babybear.NewE(inputs.Exts[i])
 	}
-	fmt.Println("NbExts:", len(exts))
 
 	// Run some sanity checks.
 	circuit := Circuit{
@@ -73,18 +69,15 @@ func TestMain(t *testing.T) {
 	}
 
 	// Generate witness.
-	fmt.Println("Generating witness...")
 	vars = make([]frontend.Variable, len(inputs.Vars))
 	felts = make([]*babybear.Variable, len(inputs.Felts))
 	exts = make([]*babybear.ExtensionVariable, len(inputs.Exts))
 	for i := 0; i < len(inputs.Vars); i++ {
 		vars[i] = frontend.Variable(inputs.Vars[i])
 	}
-	fmt.Println("NbVars:", len(vars))
 	for i := 0; i < len(inputs.Felts); i++ {
 		felts[i] = babybear.NewF(inputs.Felts[i])
 	}
-	fmt.Println("NbFelts:", len(felts))
 	for i := 0; i < len(inputs.Exts); i++ {
 		exts[i] = babybear.NewE(inputs.Exts[i])
 	}
@@ -99,13 +92,10 @@ func TestMain(t *testing.T) {
 	}
 
 	// Generate the proof.
-	fmt.Println("Generating proof...")
-	proof, err := groth16.Prove(r1cs, pk, witness)
+	_, err = groth16.Prove(r1cs, pk, witness)
 	if err != nil {
 		panic(err)
 	}
-
-	fmt.Println(proof)
 
 	// This was the old way we were testing the circuit, but it seems to have edge cases where it
 	// doesn't properly check that the prover will succeed.

@@ -300,15 +300,15 @@ pub(crate) mod tests {
     use crate::witness::Witnessable;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_field::PrimeField32;
-    use serial_test::serial;
     use sp1_core::stark::{LocalProver, StarkGenericConfig};
+    use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::ir::Witness;
-    use sp1_recursion_compiler::{config::OuterConfig, constraints::groth16_ffi};
     use sp1_recursion_core::{
         cpu::Instruction,
         runtime::{Opcode, RecursionProgram, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+    use sp1_recursion_groth16_ffi::Groth16Prover;
 
     pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
@@ -345,7 +345,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_recursive_verify_shard_v2() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
@@ -377,6 +376,6 @@ pub(crate) mod tests {
 
         let constraints = build_wrap_circuit(&vk, proof);
 
-        groth16_ffi::test_prove::<OuterConfig>(constraints, witness);
+        Groth16Prover::test::<OuterConfig>(constraints, witness);
     }
 }
