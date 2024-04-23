@@ -2,12 +2,12 @@
 #![allow(incomplete_features)]
 
 use clap::Parser;
+use sp1_core::io::SP1Stdin;
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_groth16_ffi::Groth16Prover;
-use sp1_sdk::SP1Stdin;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -17,7 +17,7 @@ struct Args {
 }
 
 pub fn main() {
-    sp1_sdk::utils::setup_logger();
+    sp1_core::utils::setup_logger();
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     let args = Args::parse();

@@ -75,6 +75,7 @@ pub struct SP1VerifyingKey {
 }
 
 /// A proof of a RISC-V execution with given inputs and outputs composed of multiple shard proofs.
+#[derive(Serialize, Deserialize)]
 pub struct SP1CoreProof {
     pub shard_proofs: Vec<ShardProof<CoreSC>>,
     pub stdin: SP1Stdin,
