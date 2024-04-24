@@ -12,6 +12,7 @@ pub struct MemoryRecord<F> {
     pub prev_value: Block<F>,
     pub timestamp: F,
     pub prev_timestamp: F,
+    _private: (),
 }
 
 impl<F: Clone> MemoryRecord<F> {
@@ -28,6 +29,7 @@ impl<F: Clone> MemoryRecord<F> {
             prev_value,
             timestamp,
             prev_timestamp,
+            _private: (),
         }
     }
 
@@ -38,6 +40,7 @@ impl<F: Clone> MemoryRecord<F> {
             prev_value: value,
             timestamp,
             prev_timestamp,
+            _private: (),
         }
     }
 }

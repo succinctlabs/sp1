@@ -20,6 +20,7 @@ use tracing::instrument;
 use super::columns::CpuCols;
 use crate::air::{BinomialExtensionUtils, BlockBuilder, SP1RecursionAirBuilder};
 use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::RecursionProgram;
 use crate::runtime::D;
@@ -73,16 +74,16 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
                 } else {
-                    cols.b.access.value = event.instruction.op_b;
+                    *cols.b.value_mut() = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
                 } else {
-                    cols.c.access.value = event.instruction.op_c;
+                    *cols.c.value_mut() = event.instruction.op_c;
                 }
 
                 // cols.a_eq_b
-                //     .populate((cols.a.access.value.0[0] - cols.b.access.value.0[0]).as_canonical_u32());
+                //     .populate((cols.a.value().0[0] - cols.b.value().0[0]).as_canonical_u32());
 
                 // let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
                 // cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
@@ -154,15 +155,15 @@ where
         //     .assert_eq(local.pc + AB::F::one(), next.pc);
         // builder
         //     .when(local.beq + local.bne)
-        //     .assert_eq(next.pc, local.pc + local.c.access.value.0[0]);
+        //     .assert_eq(next.pc, local.pc + local.c.value().0[0]);
 
         // Connect immediates.
         builder
             .when(local.instruction.imm_b)
-            .assert_block_eq::<AB::Var, AB::Var>(local.b.access.value, local.instruction.op_b);
+            .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
         builder
             .when(local.instruction.imm_c)
-            .assert_block_eq::<AB::Var, AB::Var>(local.c.access.value, local.instruction.op_c);
+            .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
 
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
@@ -174,7 +175,7 @@ where
         // Compute if a == b.
         // IsZeroOperation::<AB::F>::eval::<AB>(
         //     builder,
-        //     local.a.value.0[0] - local.b.access.value.0[0],
+        //     local.a.value.0[0] - local.b.value().0[0],
         //     local.a_eq_b,
         //     local.is_real.into(),
         // );
@@ -182,7 +183,7 @@ where
         // Receive C.
         builder.recursion_eval_memory_access(
             local.clk,
-            local.c_addr,
+            local.fp.into() + local.instruction.op_c.0[0].into(),
             &local.c,
             AB::Expr::one() - local.instruction.imm_c.into(),
         );
@@ -190,7 +191,7 @@ where
         // Receive B.
         builder.recursion_eval_memory_access(
             local.clk,
-            local.b_addr,
+            local.fp.into() + local.instruction.op_b.0[0].into(),
             &local.b,
             AB::Expr::one() - local.instruction.imm_b.into(),
         );
@@ -198,7 +199,7 @@ where
         // Receive A.
         builder.recursion_eval_memory_access(
             local.clk,
-            local.a_addr,
+            local.fp.into() + local.instruction.op_a.into(),
             &local.a,
             local.is_real.into(),
         );
@@ -232,11 +233,11 @@ impl<F> CpuChip<F> {
     {
         // Convert register values from Block<Var> to BinomialExtension<Expr>.
         let a_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.access.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.b.access.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
         let c_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.c.access.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.c.value().map(|x| x.into()));
 
         // Flag to check if the instruction is a field operation
         let is_field_op = local.selectors.is_add

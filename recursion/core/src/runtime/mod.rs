@@ -214,46 +214,53 @@ where
         }
     }
 
-    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
+    fn mr_record(
+        &mut self,
+        addr: F,
+        position: MemoryAccessPosition,
+    ) -> (MemoryRecord<F>, Block<F>) {
         let timestamp = self.timestamp(&position);
         let entry = self
             .memory
             .entry(addr.as_canonical_u32() as usize)
             .or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
-        let record = MemoryRecord {
-            addr,
-            value: prev_value,
-            timestamp,
-            prev_value,
-            prev_timestamp,
-        };
+        let record = MemoryRecord::new_read(addr, prev_value, timestamp, prev_timestamp);
         *entry = MemoryEntry {
             value: prev_value,
             timestamp,
         };
+        (record, prev_value)
+    }
+
+    fn mw_record(
+        &mut self,
+        addr: F,
+        value: Block<F>,
+        position: MemoryAccessPosition,
+    ) -> MemoryRecord<F> {
+        let addr_usize = addr.as_canonical_u32() as usize;
+        let timestamp = self.timestamp(&position);
+        let entry = self.memory.entry(addr_usize).or_default();
+        let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
+        let record = MemoryRecord::new_write(addr, value, timestamp, prev_value, prev_timestamp);
+        *entry = MemoryEntry { value, timestamp };
+        record
+    }
+
+    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
+        let (record, value) = self.mr_record(addr, position);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
             MemoryAccessPosition::C => self.access.c = Some(record),
             _ => unreachable!(),
         };
-        prev_value
+        value
     }
 
     fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
-        let addr_usize = addr.as_canonical_u32() as usize;
-        let timestamp = self.timestamp(&position);
-        let entry = self.memory.entry(addr_usize).or_default();
-        let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
-        let record = MemoryRecord {
-            addr,
-            value,
-            timestamp,
-            prev_value,
-            prev_timestamp,
-        };
-        *entry = MemoryEntry { value, timestamp };
+        let record = self.mw_record(addr, value, position);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
@@ -663,162 +670,92 @@ where
                     let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
                     let c_val = Block::<F>::default();
 
-                    let m = a_val[0].as_canonical_u32() as usize;
-                    let input_ptr = b_val[0].as_canonical_u32() as usize;
+                    let m = a_val[0];
+                    let input_ptr = b_val[0];
 
                     // Read the input values.
                     let mut ptr = input_ptr;
-                    let z = self.memory.entry(ptr).or_default().value.ext::<EF>();
-                    ptr += 1;
-                    let alpha = self.memory.entry(ptr).or_default().value.ext::<EF>();
-                    ptr += 1;
-                    let x = self.memory.entry(ptr).or_default().value[0];
-                    ptr += 1;
-                    let log_height =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 1;
-                    let mat_opening_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 2;
-                    let ps_at_z_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 2;
-                    let alpha_pow_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
-                    ptr += 2;
-                    let ro_ptr =
-                        self.memory.entry(ptr).or_default().value[0].as_canonical_u32() as usize;
+                    let (z_record, z) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let z: EF = z.ext();
+                    ptr += F::one();
+                    let (alpha_record, alpha) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let alpha: EF = alpha.ext();
+                    ptr += F::one();
+                    let (x_record, x) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let x = x.0[0];
+                    ptr += F::one();
+                    let (log_height_record, log_height) =
+                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let log_height = log_height.0[0];
+                    ptr += F::one();
+                    let (mat_opening_ptr_record, mat_opening_ptr) =
+                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let mat_opening_ptr = mat_opening_ptr.0[0];
+                    ptr += F::two();
+                    let (ps_at_z_ptr_record, ps_at_z_ptr) =
+                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let ps_at_z_ptr = ps_at_z_ptr.0[0];
+                    ptr += F::two();
+                    let (alpha_pow_ptr_record, alpha_pow_ptr) =
+                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let alpha_pow_ptr = alpha_pow_ptr.0[0];
+                    ptr += F::two();
+                    let (ro_ptr_record, ro_ptr) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let ro_ptr = ro_ptr.0[0];
 
                     // Get the opening values.
-                    let p_at_x = self
-                        .memory
-                        .entry(mat_opening_ptr + m)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
-                    let p_at_z = self
-                        .memory
-                        .entry(ps_at_z_ptr + m)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
+                    let (p_at_x_record, p_at_x) =
+                        self.mr_record(mat_opening_ptr + m, MemoryAccessPosition::Memory);
+                    let p_at_x: EF = p_at_x.ext();
+
+                    let (p_at_z_record, p_at_z) =
+                        self.mr_record(ps_at_z_ptr + m, MemoryAccessPosition::Memory);
+                    let p_at_z: EF = p_at_z.ext();
 
                     // Calculate the quotient and update the values
                     let quotient = (-p_at_z + p_at_x) / (-z + x);
 
                     // Modify the ro and alpha pow values.
-                    let alpha_pow_at_log_height = self
-                        .memory
-                        .entry(alpha_pow_ptr + log_height)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
-                    let ro_at_log_height = self
-                        .memory
-                        .entry(ro_ptr + log_height)
-                        .or_default()
-                        .value
-                        .ext::<EF>();
+                    let (_, alpha_pow_at_log_height) =
+                        self.mr_record(alpha_pow_ptr + log_height, MemoryAccessPosition::Memory);
+                    let alpha_pow_at_log_height: EF = alpha_pow_at_log_height.ext();
+
+                    let (_, ro_at_log_height) =
+                        self.mr_record(ro_ptr + log_height, MemoryAccessPosition::Memory);
+                    let ro_at_log_height: EF = ro_at_log_height.ext();
 
                     let new_ro_at_log_height =
                         ro_at_log_height + alpha_pow_at_log_height * quotient;
                     let new_alpha_pow_at_log_height = alpha_pow_at_log_height * alpha;
 
-                    self.memory.entry(ro_ptr + log_height).or_default().value = Block::from(
-                        (ro_at_log_height + alpha_pow_at_log_height * quotient).as_base_slice(),
+                    let ro_at_log_height_record = self.mw_record(
+                        ro_ptr + log_height,
+                        Block::from(new_ro_at_log_height.as_base_slice()),
+                        MemoryAccessPosition::Memory,
                     );
-                    self.memory
-                        .entry(alpha_pow_ptr + log_height)
-                        .or_default()
-                        .value = Block::from((alpha_pow_at_log_height * alpha).as_base_slice());
 
-                    // TODO use real memory records
-                    let dummy_memory_record = MemoryRecord {
-                        addr: F::zero(),
-                        value: Block::default(),
-                        timestamp: F::zero(),
-                        prev_value: Block::default(),
-                        prev_timestamp: F::zero(),
-                    };
+                    let alpha_pow_at_log_height_record = self.mw_record(
+                        alpha_pow_ptr + log_height,
+                        Block::from(new_alpha_pow_at_log_height.as_base_slice()),
+                        MemoryAccessPosition::Memory,
+                    );
+
                     self.record.fri_fold_events.push(FriFoldEvent {
                         clk: self.clk,
-                        m: F::from_canonical_usize(m),
-                        input_ptr: F::from_canonical_usize(input_ptr),
-                        z: MemoryRecord {
-                            value: Block::from(z.as_base_slice()),
-                            ..dummy_memory_record.clone()
-                        },
-                        alpha: MemoryRecord {
-                            value: Block::from(alpha.as_base_slice()),
-                            ..dummy_memory_record.clone()
-                        },
-                        x: MemoryRecord {
-                            value: Block::from([x, F::zero(), F::zero(), F::zero()]),
-                            ..dummy_memory_record.clone()
-                        },
-                        log_height: MemoryRecord {
-                            value: Block::from([
-                                F::from_canonical_u32(log_height as u32),
-                                F::zero(),
-                                F::zero(),
-                                F::zero(),
-                            ]),
-                            ..dummy_memory_record.clone()
-                        },
-                        mat_opening_ptr: MemoryRecord {
-                            value: Block::from([
-                                F::from_canonical_usize(mat_opening_ptr),
-                                F::zero(),
-                                F::zero(),
-                                F::zero(),
-                            ]),
-                            ..dummy_memory_record.clone()
-                        },
-                        ps_at_z_ptr: MemoryRecord {
-                            value: Block::from([
-                                F::from_canonical_usize(ps_at_z_ptr),
-                                F::zero(),
-                                F::zero(),
-                                F::zero(),
-                            ]),
-                            ..dummy_memory_record.clone()
-                        },
-                        alpha_pow_ptr: MemoryRecord {
-                            value: Block::from([
-                                F::from_canonical_usize(alpha_pow_ptr),
-                                F::zero(),
-                                F::zero(),
-                                F::zero(),
-                            ]),
-                            ..dummy_memory_record.clone()
-                        },
-                        ro_ptr: MemoryRecord {
-                            value: Block::from([
-                                F::from_canonical_usize(ro_ptr),
-                                F::zero(),
-                                F::zero(),
-                                F::zero(),
-                            ]),
-                            ..dummy_memory_record.clone()
-                        },
-                        p_at_x: MemoryRecord {
-                            value: Block::from(p_at_x.as_base_slice()),
-                            ..dummy_memory_record.clone()
-                        },
-                        p_at_z: MemoryRecord {
-                            value: Block::from(p_at_z.as_base_slice()),
-                            ..dummy_memory_record.clone()
-                        },
-                        alpha_pow_at_log_height: MemoryRecord {
-                            value: Block::from(new_alpha_pow_at_log_height.as_base_slice()),
-                            prev_value: Block::from(alpha_pow_at_log_height.as_base_slice()),
-                            ..dummy_memory_record.clone()
-                        },
-                        ro_at_log_height: MemoryRecord {
-                            value: Block::from(new_ro_at_log_height.as_base_slice()),
-                            prev_value: Block::from(ro_at_log_height.as_base_slice()),
-                            ..dummy_memory_record.clone()
-                        },
+                        m,
+                        input_ptr,
+                        z: z_record,
+                        alpha: alpha_record,
+                        x: x_record,
+                        log_height: log_height_record,
+                        mat_opening_ptr: mat_opening_ptr_record,
+                        ps_at_z_ptr: ps_at_z_ptr_record,
+                        alpha_pow_ptr: alpha_pow_ptr_record,
+                        ro_ptr: ro_ptr_record,
+                        p_at_x: p_at_x_record,
+                        p_at_z: p_at_z_record,
+                        alpha_pow_at_log_height: alpha_pow_at_log_height_record,
+                        ro_at_log_height: ro_at_log_height_record,
                     });
 
                     (a, b, c) = (a_val, b_val, c_val);
