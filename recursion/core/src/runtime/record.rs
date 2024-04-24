@@ -1,3 +1,4 @@
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
@@ -9,6 +10,7 @@ use crate::air::Block;
 use crate::cpu::CpuEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::poseidon2::Poseidon2Event;
+use crate::range_check::RangeCheckEvent;
 
 #[derive(Default, Debug, Clone)]
 pub struct ExecutionRecord<F: Default> {
@@ -16,6 +18,7 @@ pub struct ExecutionRecord<F: Default> {
     pub cpu_events: Vec<CpuEvent<F>>,
     pub poseidon2_events: Vec<Poseidon2Event<F>>,
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
+    pub range_check_events: BTreeMap<RangeCheckEvent, usize>,
 
     // (address)
     pub first_memory_record: Vec<F>,

@@ -11,3 +11,10 @@ pub struct RangeCheckEvent {
     /// The val to range check.
     pub val: u16,
 }
+
+impl RangeCheckEvent {
+    /// Creates a new `RangeCheckEvent`.
+    pub fn new(opcode: RangeCheckOpcode, val: u16) -> Self {
+        Self { opcode, val }
+    }
+}
