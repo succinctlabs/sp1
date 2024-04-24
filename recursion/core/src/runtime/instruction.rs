@@ -76,29 +76,17 @@ impl<F: PrimeField32> Instruction<F> {
     }
 
     pub(crate) fn is_b_ext(&self) -> bool {
-        matches!(
-            self.opcode,
-            Opcode::EADD
-                | Opcode::ESUB
-                | Opcode::EMUL
-                | Opcode::EFADD
-                | Opcode::EFSUB
-                | Opcode::EFMUL
-                | Opcode::EDIV
-                | Opcode::EFDIV
-        )
+        matches!(self.opcode, Opcode::EADD
+            | Opcode::ESUB
+            | Opcode::EMUL
+            | Opcode::EDIV)
     }
 
     pub(crate) fn is_c_ext(&self) -> bool {
-        matches!(
-            self.opcode,
-            Opcode::EADD
-                | Opcode::EMUL
-                | Opcode::ESUB
-                | Opcode::FESUB
-                | Opcode::EDIV
-                | Opcode::FEDIV
-        )
+        matches!(self.opcode, 
+            Opcode::EADD| Opcode::EMUL
+            | Opcode::ESUB
+            | Opcode::EDIV)
     }
 
     pub(crate) fn imm_b_base(&self) -> bool {

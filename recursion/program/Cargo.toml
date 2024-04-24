@@ -24,6 +24,7 @@ sp1-core = { path = "../../core" }
 itertools = "0.12.1"
 serde = { version = "1.0.197", features = ["derive"] }
 rand = "0.8.4"
+tracing = "0.1.40"
 
 [[bin]]
 name = "fri_sweep"

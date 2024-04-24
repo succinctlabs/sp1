@@ -705,6 +705,18 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
             self.assert_eq(left, right);
         }
     }
+
+    /// Checks if an extension element is a base element.
+    fn assert_is_base_element<I: Into<Self::Expr> + Clone>(
+        &mut self,
+        element: BinomialExtension<I>,
+    ) {
+        let base_slice = element.as_base_slice();
+        let degree = base_slice.len();
+        base_slice[1..degree - 1].iter().for_each(|coeff| {
+            self.assert_zero(coeff.clone().into());
+        });
+    }
 }
 
 pub trait MultiTableAirBuilder: PermutationAirBuilder {
@@ -712,16 +724,16 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
 
     fn cumulative_sum(&self) -> Self::Sum;
 }
-/// A trait which contains all helper methods for building an AIR.
+
+/// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
+pub trait MachineAirBuilder:
+    BaseAirBuilder + ExtensionAirBuilder + ProgramAirBuilder + AirBuilderWithPublicValues
+{
+}
+
+/// A trait which contains all helper methods for building SP1 machine AIRs.
 pub trait SP1AirBuilder:
-    BaseAirBuilder
-    + ByteAirBuilder
-    + WordAirBuilder
-    + AluAirBuilder
-    + MemoryAirBuilder
-    + ProgramAirBuilder
-    + ExtensionAirBuilder
-    + AirBuilderWithPublicValues
+    MachineAirBuilder + ByteAirBuilder + WordAirBuilder + AluAirBuilder + MemoryAirBuilder
 {
 }
 
@@ -742,6 +754,7 @@ impl<AB: BaseAirBuilder> AluAirBuilder for AB {}
 impl<AB: BaseAirBuilder> MemoryAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ProgramAirBuilder for AB {}
 impl<AB: BaseAirBuilder> ExtensionAirBuilder for AB {}
+impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> MachineAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> SP1AirBuilder for AB {}
 
 impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for ProverConstraintFolder<'a, SC> {}

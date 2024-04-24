@@ -16,17 +16,9 @@ pub enum Opcode {
     EMUL = 12,
     EDIV = 13,
 
-    // Mixed arithmetic operations.
-    EFADD = 20,
-    EFSUB = 21,
-    FESUB = 24,
-    EFMUL = 22,
-    EFDIV = 23,
-    FEDIV = 25,
-
     // Memory instructions.
-    LW = 4,
-    SW = 5,
+    LOAD = 4,
+    STORE = 5,
 
     // Branch instructions.
     BEQ = 6,

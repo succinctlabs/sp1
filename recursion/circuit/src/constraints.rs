@@ -169,14 +169,13 @@ mod tests {
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
     use serde::{de::DeserializeOwned, Serialize};
-    use serial_test::serial;
     use sp1_core::stark::{
         Chip, Com, Dom, LocalProver, OpeningProof, PcsProverData, ShardCommitment, ShardMainData,
         ShardProof, StarkGenericConfig, StarkMachine,
     };
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{groth16_ffi, ConstraintCompiler},
+        constraints::ConstraintCompiler,
         ir::{Builder, Witness},
         prelude::ExtConst,
     };
@@ -184,6 +183,7 @@ mod tests {
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+    use sp1_recursion_groth16_ffi::Groth16Prover;
 
     use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 
@@ -282,7 +282,6 @@ mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_verify_constraints_whole() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
@@ -361,6 +360,6 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }
