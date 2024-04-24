@@ -1,20 +1,15 @@
-use crate::air::BinomialExtensionUtils;
-use crate::air::BlockBuilder;
-use crate::cpu::CpuChip;
-use crate::runtime::RecursionProgram;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
 use p3_air::BaseAir;
+use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
+use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::MachineAir;
-use sp1_core::lookup::InteractionKind;
-use sp1_core::stark::SP1AirBuilder;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
@@ -23,7 +18,12 @@ use std::mem::transmute;
 use tracing::instrument;
 
 use super::columns::CpuCols;
+use crate::air::{BinomialExtensionUtils, BlockBuilder, SP1RecursionAirBuilder};
+use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::RecursionProgram;
+use crate::runtime::D;
 
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 
@@ -34,7 +34,7 @@ const fn make_col_map() -> CpuCols<usize> {
 
 pub(crate) const CPU_COL_MAP: CpuCols<usize> = make_col_map();
 
-impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
     type Record = ExecutionRecord<F>;
     type Program = RecursionProgram<F>;
 
@@ -74,33 +74,16 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
                 } else {
-                    cols.b.value = event.instruction.op_b;
+                    *cols.b.value_mut() = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
                 } else {
-                    cols.c.value = event.instruction.op_c;
-                }
-
-                let alu_cols = cols.opcode_specific.alu_mut();
-                if cols.selectors.is_add.is_one() {
-                    alu_cols.add_scratch.0[0] = cols.b.value.0[0] + cols.c.value.0[0];
-                    alu_cols.sub_scratch.0[0] = cols.b.value.0[0] - cols.c.value.0[0];
-                    alu_cols.mul_scratch.0[0] = cols.b.value.0[0] * cols.c.value.0[0];
-                } else if cols.selectors.is_eadd.is_one() || cols.selectors.is_efadd.is_one() {
-                    alu_cols.add_scratch = (BinomialExtension::from_block(cols.b.value)
-                        + BinomialExtension::from_block(cols.c.value))
-                    .as_block();
-                    alu_cols.sub_scratch = (BinomialExtension::from_block(cols.b.value)
-                        - BinomialExtension::from_block(cols.c.value))
-                    .as_block();
-                    alu_cols.mul_scratch = (BinomialExtension::from_block(cols.b.value)
-                        * BinomialExtension::from_block(cols.c.value))
-                    .as_block();
+                    *cols.c.value_mut() = event.instruction.op_c;
                 }
 
                 // cols.a_eq_b
-                //     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
+                //     .populate((cols.a.value()[0] - cols.b.value()[0]).as_canonical_u32());
 
                 // let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
                 // cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
@@ -145,7 +128,7 @@ impl<F: Send + Sync> BaseAir<F> for CpuChip<F> {
 
 impl<AB> Air<AB> for CpuChip<AB::F>
 where
-    AB: SP1AirBuilder,
+    AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         // Constraints for the CPU chip.
@@ -172,175 +155,54 @@ where
         //     .assert_eq(local.pc + AB::F::one(), next.pc);
         // builder
         //     .when(local.beq + local.bne)
-        //     .assert_eq(next.pc, local.pc + local.c.value.0[0]);
+        //     .assert_eq(next.pc, local.pc + local.c.value()[0]);
 
         // Connect immediates.
         builder
             .when(local.instruction.imm_b)
-            .assert_block_eq::<AB::Var, AB::Var>(local.b.value, local.instruction.op_b);
+            .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
         builder
             .when(local.instruction.imm_c)
-            .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
-
-        // Compute ALU.
-        let alu_cols = local.opcode_specific.alu();
-        builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] + local.c.value.0[0],
-            alu_cols.add_scratch[0],
-        );
-        builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] - local.c.value.0[0],
-            alu_cols.sub_scratch[0],
-        );
-        builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] * local.c.value.0[0],
-            alu_cols.mul_scratch[0],
-        );
+            .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
 
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
             local.is_real * local.is_real * local.is_real,
         );
 
-        // // Compute extension ALU.
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() + local.c.value.as_extension::<AB>(),
-        //     local.add_ext_scratch.as_extension::<AB>(),
-        // );
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() - local.c.value.as_extension::<AB>(),
-        //     local.sub_ext_scratch.as_extension::<AB>(),
-        // );
-        // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() * local.c.value.as_extension::<AB>(),
-        //     local.mul_ext_scratch.as_extension::<AB>(),
-        // );
-
-        // // Connect ALU to CPU.
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[0], local.add_scratch);
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_add)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
-
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[0], local.sub_scratch);
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_sub)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
-
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[0], local.mul_scratch);
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[1], AB::F::zero());
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[2], AB::F::zero());
-        // builder
-        //     .when(local.is_mul)
-        //     .assert_eq(local.a.value.0[3], AB::F::zero());
+        self.eval_alu(builder, local);
 
         // Compute if a == b.
         // IsZeroOperation::<AB::F>::eval::<AB>(
         //     builder,
-        //     local.a.value.0[0] - local.b.value.0[0],
+        //     local.a.value[0] - local.b.value()[0],
         //     local.a_eq_b,
         //     local.is_real.into(),
         // );
 
         // Receive C.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.c.addr.into(),
-                local.c.prev_timestamp.into(),
-                local.c.prev_value.0[0].into(),
-                local.c.prev_value.0[1].into(),
-                local.c.prev_value.0[2].into(),
-                local.c.prev_value.0[3].into(),
-            ],
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.fp.into() + local.instruction.op_c[0].into(),
+            &local.c,
             AB::Expr::one() - local.instruction.imm_c.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.c.addr.into(),
-                local.c.timestamp.into(),
-                local.c.value.0[0].into(),
-                local.c.value.0[1].into(),
-                local.c.value.0[2].into(),
-                local.c.value.0[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_c.into(),
-            InteractionKind::Memory,
-        ));
+        );
 
         // Receive B.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.b.addr.into(),
-                local.b.prev_timestamp.into(),
-                local.b.prev_value.0[0].into(),
-                local.b.prev_value.0[1].into(),
-                local.b.prev_value.0[2].into(),
-                local.b.prev_value.0[3].into(),
-            ],
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.fp.into() + local.instruction.op_b[0].into(),
+            &local.b,
             AB::Expr::one() - local.instruction.imm_b.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.b.addr.into(),
-                local.b.timestamp.into(),
-                local.b.value.0[0].into(),
-                local.b.value.0[1].into(),
-                local.b.value.0[2].into(),
-                local.b.value.0[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_b.into(),
-            InteractionKind::Memory,
-        ));
+        );
 
         // Receive A.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.a.addr.into(),
-                local.a.prev_timestamp.into(),
-                local.a.prev_value.0[0].into(),
-                local.a.prev_value.0[1].into(),
-                local.a.prev_value.0[2].into(),
-                local.a.prev_value.0[3].into(),
-            ],
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.fp.into() + local.instruction.op_a.into(),
+            &local.a,
             local.is_real.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.a.addr.into(),
-                local.a.timestamp.into(),
-                local.a.value.0[0].into(),
-                local.a.value.0[1].into(),
-                local.a.value.0[2].into(),
-                local.a.value.0[3].into(),
-            ],
-            local.is_real.into(),
-            InteractionKind::Memory,
-        ));
+        );
 
         // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
         // prog_interaction_vals.push(local.instruction.op_a.into());
@@ -360,5 +222,50 @@ where
         //     local.is_real.into(),
         //     InteractionKind::Program,
         // ));
+    }
+}
+
+impl<F> CpuChip<F> {
+    /// Eval all the ALU operations.
+    fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        // Convert register values from Block<Var> to BinomialExtension<Expr>.
+        let a_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
+        let b_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
+        let c_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.c.value().map(|x| x.into()));
+
+        // Flag to check if the instruction is a field operation
+        let is_field_op = local.selectors.is_add
+            + local.selectors.is_sub
+            + local.selectors.is_mul
+            + local.selectors.is_div;
+
+        // Verify that the b and c registers are base elements for field operations.
+        builder
+            .when(is_field_op.clone())
+            .assert_is_base_element(b_ext.clone());
+        builder
+            .when(is_field_op)
+            .assert_is_base_element(c_ext.clone());
+
+        // Verify the actual operation.
+        builder
+            .when(local.selectors.is_add + local.selectors.is_eadd)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() + c_ext.clone());
+        builder
+            .when(local.selectors.is_sub + local.selectors.is_esub)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() - c_ext.clone());
+        builder
+            .when(local.selectors.is_mul + local.selectors.is_emul)
+            .assert_ext_eq(a_ext.clone(), b_ext.clone() * c_ext.clone());
+        // For div operation, we assert that b == a * c (equivalent to a == b / c).
+        builder
+            .when(local.selectors.is_div + local.selectors.is_ediv)
+            .assert_ext_eq(b_ext, a_ext * c_ext);
     }
 }

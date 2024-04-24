@@ -114,6 +114,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
     pub fn check_witness(&mut self, builder: &mut Builder<C>, bits: usize, witness: Felt<C::F>) {
         self.observe(builder, witness);
         let element = self.sample_bits(builder, bits);
+        builder.print_v(element);
         builder.assert_var_eq(element, C::N::from_canonical_usize(0));
     }
 }
@@ -157,12 +158,12 @@ mod tests {
     use p3_field::split_32 as split_32_gt;
     use p3_field::AbstractField;
     use p3_symmetric::Hash;
-    use serial_test::serial;
     use sp1_recursion_compiler::config::OuterConfig;
-    use sp1_recursion_compiler::constraints::{groth16_ffi, ConstraintCompiler};
+    use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::SymbolicExt;
     use sp1_recursion_compiler::ir::{Builder, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterChallenger};
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     use super::reduce_32;
     use super::split_32;
@@ -170,7 +171,6 @@ mod tests {
     use crate::DIGEST_SIZE;
 
     #[test]
-    #[serial]
     fn test_num2bits_v() {
         let mut builder = Builder::<OuterConfig>::default();
         let mut value_u32 = 1345237507;
@@ -183,11 +183,10 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_reduce_32() {
         let value_1 = BabyBear::from_canonical_u32(1345237507);
         let value_2 = BabyBear::from_canonical_u32(1000001);
@@ -201,11 +200,10 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_split_32() {
         let value = Bn254Fr::from_canonical_u32(1345237507);
         let gt: Vec<BabyBear> = split_32_gt(value, 3);
@@ -220,11 +218,10 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_challenger() {
         let perm = outer_perm();
         let mut challenger = OuterChallenger::new(perm).unwrap();
@@ -258,11 +255,10 @@ mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_challenger_sample_ext() {
         let perm = outer_perm();
         let mut challenger = OuterChallenger::new(perm).unwrap();
@@ -296,11 +292,11 @@ mod tests {
         challenger.observe(&mut builder, c);
         let result2 = challenger.sample_ext(&mut builder);
 
-        builder.assert_ext_eq(SymbolicExt::Const(gt1), result1);
-        builder.assert_ext_eq(SymbolicExt::Const(gt2), result2);
+        builder.assert_ext_eq(SymbolicExt::from_f(gt1), result1);
+        builder.assert_ext_eq(SymbolicExt::from_f(gt2), result2);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

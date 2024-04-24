@@ -58,17 +58,16 @@ pub mod tests {
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use p3_symmetric::{CryptographicHasher, Permutation, PseudoCompressionFunction};
-    use serial_test::serial;
     use sp1_recursion_compiler::config::OuterConfig;
-    use sp1_recursion_compiler::constraints::{groth16_ffi, ConstraintCompiler};
+    use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     use crate::poseidon2::Poseidon2CircuitBuilder;
     use crate::types::OuterDigestVariable;
 
     #[test]
-    #[serial]
     fn test_p2_permute_mut() {
         let poseidon2 = outer_perm();
         let input: [Bn254Fr; 3] = [
@@ -91,11 +90,10 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_p2_hash() {
         let perm = outer_perm();
         let hasher = OuterHash::new(perm.clone()).unwrap();
@@ -109,7 +107,7 @@ pub mod tests {
             BabyBear::from_canonical_u32(2),
             BabyBear::from_canonical_u32(2),
         ];
-        let output = hasher.hash_iter(input.into_iter());
+        let output = hasher.hash_iter(input);
 
         let mut builder = Builder::<OuterConfig>::default();
         let a: Felt<_> = builder.eval(input[0]);
@@ -125,11 +123,10 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_p2_compress() {
         let perm = outer_perm();
         let compressor = OuterCompress::new(perm.clone());
@@ -146,6 +143,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

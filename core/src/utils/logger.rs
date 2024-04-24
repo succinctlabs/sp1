@@ -16,6 +16,7 @@ pub fn setup_logger() {
             .unwrap_or_else(|_| EnvFilter::new(default_filter))
             .add_directive("p3_keccak_air=off".parse().unwrap())
             .add_directive("p3_fri=off".parse().unwrap())
+            .add_directive("p3_dft=off".parse().unwrap())
             .add_directive("p3_challenger=off".parse().unwrap());
         tracing_subscriber::fmt::Subscriber::builder()
             .compact()

@@ -1,10 +1,4 @@
-package main
-
-/*
-#cgo LDFLAGS: ./lib/libbabybear.a -ldl
-#include "./lib/babybear.h"
-*/
-import "C"
+package sp1
 
 import (
 	"encoding/json"
@@ -12,18 +6,17 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/succinctlabs/sp1-recursion-groth16/babybear"
-	"github.com/succinctlabs/sp1-recursion-groth16/poseidon2"
+	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
 )
 
 type Circuit struct {
-	Vars  []frontend.Variable
-	Felts []*babybear.Variable
-	Exts  []*babybear.ExtensionVariable
+	Vars                 []frontend.Variable
+	Felts                []*babybear.Variable
+	Exts                 []*babybear.ExtensionVariable
+	VkeyHash             frontend.Variable `gnark:",public"`
+	CommitedValuesDigest frontend.Variable `gnark:",public"`
 }
 
 type Constraint struct {
@@ -31,15 +24,29 @@ type Constraint struct {
 	Args   [][]string `json:"args"`
 }
 
-type Witness struct {
-	Vars  []string   `json:"vars"`
-	Felts []string   `json:"felts"`
-	Exts  [][]string `json:"exts"`
+type WitnessInput struct {
+	Vars                 []string   `json:"vars"`
+	Felts                []string   `json:"felts"`
+	Exts                 [][]string `json:"exts"`
+	VkeyHash             string     `json:"vkey_hash"`
+	CommitedValuesDigest string     `json:"commited_values_digest"`
+}
+
+type Groth16Proof struct {
+	A            [2]string    `json:"a"`
+	B            [2][2]string `json:"b"`
+	C            [2]string    `json:"c"`
+	PublicInputs [2]string    `json:"public_inputs"`
+}
+
+type PlonkBn254Proof struct {
+	Proof        string    `json:"proof"`
+	PublicInputs [2]string `json:"public_inputs"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
 	// Get the file name from an environment variable.
-	fileName := os.Getenv("CONSTRAINT_JSON")
+	fileName := os.Getenv("CONSTRAINTS_JSON")
 	if fileName == "" {
 		fileName = "constraints.json"
 	}
@@ -159,95 +166,16 @@ func (circuit *Circuit) Define(api frontend.API) error {
 				panic(err)
 			}
 			exts[cs.Args[0][0]] = circuit.Exts[i]
+		case "CommitVkeyHash":
+			element := vars[cs.Args[0][0]]
+			api.AssertIsEqual(circuit.VkeyHash, element)
+		case "CommitCommitedValuesDigest":
+			element := vars[cs.Args[0][0]]
+			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}
 	}
 
 	return nil
-}
-
-func main() {
-	buildDir := "build"
-
-	switch os.Args[1] {
-	case "build":
-		// Initialize the circuit.
-		circuit := Circuit{
-			Vars:  []frontend.Variable{},
-			Felts: []*babybear.Variable{},
-			Exts:  []*babybear.ExtensionVariable{},
-		}
-
-		// Compile the circuit.
-		builder := r1cs.NewBuilder
-		r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
-		if err != nil {
-			panic(err)
-		}
-
-		// Run the dummy setup.
-		var pk groth16.ProvingKey
-		pk, err = groth16.DummySetup(r1cs)
-		if err != nil {
-			panic(err)
-		}
-
-		// Create the build directory.
-		os.MkdirAll(buildDir, 0755)
-
-		// Write the R1CS.
-		r1csFile, err := os.Create(buildDir + "/r1cs.bin")
-		if err != nil {
-			panic(err)
-		}
-		r1cs.WriteTo(r1csFile)
-		r1csFile.Close()
-
-		// Write the proving key.
-		pkFile, err := os.Create(buildDir + "/pk.bin")
-		if err != nil {
-			panic(err)
-		}
-		pk.WriteTo(pkFile)
-		pkFile.Close()
-	case "prove":
-		// Read the R1CS.
-		r1csFile, err := os.Open(buildDir + "/r1cs.bin")
-		if err != nil {
-			panic(err)
-		}
-		r1cs := groth16.NewCS(ecc.BN254)
-		r1cs.ReadFrom(r1csFile)
-
-		// Read the proving key.
-		pkFile, err := os.Open(buildDir + "/pk.bin")
-		if err != nil {
-			panic(err)
-		}
-		pk := groth16.NewProvingKey(ecc.BN254)
-		pk.ReadFrom(pkFile)
-
-		// Generate the witness.
-		assignment := Circuit{
-			Vars:  []frontend.Variable{},
-			Felts: []*babybear.Variable{},
-			Exts:  []*babybear.ExtensionVariable{},
-		}
-		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-		if err != nil {
-			panic(err)
-		}
-
-		// Generate the proof.
-		proof, err := groth16.Prove(r1cs, pk, witness)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println(proof)
-	default:
-		fmt.Println("unknown command")
-		os.Exit(1)
-	}
 }

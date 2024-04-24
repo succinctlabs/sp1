@@ -34,7 +34,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     }
 
     assert_eq!(proof.query_proofs.len(), config.num_queries);
-
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
@@ -67,9 +66,9 @@ pub fn verify_two_adic_pcs<C: Config>(
         .zip(&fri_challenges.query_indices)
         .map(|(query_opening, &index)| {
             let mut ro: [Ext<C::F, C::EF>; 32] =
-                [builder.eval(SymbolicExt::Const(C::EF::zero())); 32];
+                [builder.eval(SymbolicExt::from_f(C::EF::zero())); 32];
             let mut alpha_pow: [Ext<C::F, C::EF>; 32] =
-                [builder.eval(SymbolicExt::Const(C::EF::one())); 32];
+                [builder.eval(SymbolicExt::from_f(C::EF::one())); 32];
 
             for (batch_opening, round) in izip!(query_opening.clone(), &rounds) {
                 let batch_commit = round.batch_commit;
@@ -175,8 +174,8 @@ pub fn verify_query<C: Config>(
     reduced_openings: [Ext<C::F, C::EF>; 32],
     log_max_height: usize,
 ) -> Ext<C::F, C::EF> {
-    let mut folded_eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::Const(C::EF::zero()));
-    let two_adic_generator = builder.eval(SymbolicExt::Const(C::EF::two_adic_generator(
+    let mut folded_eval: Ext<C::F, C::EF> = builder.eval(SymbolicExt::from_f(C::EF::zero()));
+    let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
         log_max_height,
     )));
     let index_bits = builder.num2bits_v_circuit(index, 256);
@@ -242,16 +241,16 @@ pub mod tests {
     use p3_fri::{verifier, TwoAdicFriPcsProof};
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
-    use serial_test::serial;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{groth16_ffi, ConstraintCompiler},
+        constraints::ConstraintCompiler,
         ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
         outer_perm, test_fri_config, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
         OuterCompress, OuterDft, OuterFriProof, OuterHash, OuterPcs, OuterVal, OuterValMmcs,
     };
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     use super::{verify_shape_and_sample_challenges, verify_two_adic_pcs, TwoAdicPcsRoundVariable};
     use crate::{
@@ -289,7 +288,7 @@ pub mod tests {
                     .iter()
                     .map(|commit_phase_opening| {
                         let sibling_value =
-                            builder.eval(SymbolicExt::Const(commit_phase_opening.sibling_value));
+                            builder.eval(SymbolicExt::from_f(commit_phase_opening.sibling_value));
                         let opening_proof = commit_phase_opening
                             .opening_proof
                             .iter()
@@ -314,7 +313,7 @@ pub mod tests {
         FriProofVariable {
             commit_phase_commits,
             query_proofs,
-            final_poly: builder.eval(SymbolicExt::Const(fri_proof.final_poly)),
+            final_poly: builder.eval(SymbolicExt::from_f(fri_proof.final_poly)),
             pow_witness: builder.eval(fri_proof.pow_witness),
         }
     }
@@ -373,14 +372,14 @@ pub mod tests {
         for (domain, poly) in os.into_iter() {
             let points: Vec<Ext<OuterVal, OuterChallenge>> = poly
                 .iter()
-                .map(|(p, _)| builder.eval(SymbolicExt::Const(*p)))
+                .map(|(p, _)| builder.eval(SymbolicExt::from_f(*p)))
                 .collect::<Vec<_>>();
             let values: Vec<Vec<Ext<OuterVal, OuterChallenge>>> = poly
                 .iter()
                 .map(|(_, v)| {
                     v.clone()
                         .iter()
-                        .map(|t| builder.eval(SymbolicExt::Const(*t)))
+                        .map(|t| builder.eval(SymbolicExt::from_f(*t)))
                         .collect::<Vec<_>>()
                 })
                 .collect::<Vec<_>>();
@@ -402,7 +401,6 @@ pub mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_fri_verify_shape_and_sample_challenges() {
         let mut rng = &mut OsRng;
         let log_degrees = &[16, 9, 7, 4, 2];
@@ -471,7 +469,7 @@ pub mod tests {
 
         for i in 0..fri_challenges_gt.betas.len() {
             builder.assert_ext_eq(
-                SymbolicExt::Const(fri_challenges_gt.betas[i]),
+                SymbolicExt::from_f(fri_challenges_gt.betas[i]),
                 fri_challenges.betas[i],
             );
         }
@@ -485,11 +483,10 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_verify_two_adic_pcs() {
         let mut rng = &mut OsRng;
         let log_degrees = &[19, 19];
@@ -559,6 +556,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

@@ -1,14 +1,12 @@
 use crate::{air::IsExtZeroOperation, memory::MemoryReadWriteCols};
 use sp1_derive::AlignedBorrow;
 
-mod alu;
 mod branch;
 mod instruction;
 mod jump;
 mod opcode;
 mod opcode_specific;
 
-pub use alu::*;
 pub use instruction::*;
 pub use opcode::*;
 
@@ -26,7 +24,9 @@ pub struct CpuCols<T: Copy> {
     pub selectors: OpcodeSelectorCols<T>,
 
     pub a: MemoryReadWriteCols<T>,
+
     pub b: MemoryReadWriteCols<T>,
+
     pub c: MemoryReadWriteCols<T>,
 
     pub opcode_specific: OpcodeSpecificCols<T>,

@@ -1,5 +1,4 @@
-use sha2::{Digest, Sha256};
-use sp1_sdk::{utils, ProverClient, SP1PublicValues, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
 const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
@@ -25,7 +24,7 @@ fn main() {
     println!("generated proof");
 
     // Read and verify the output.
-    let n: u32 = proof.public_values.read::<u32>();
+    let _ = proof.public_values.read::<u32>();
     let a = proof.public_values.read::<u32>();
     let b = proof.public_values.read::<u32>();
     assert_eq!(a, expected_a);

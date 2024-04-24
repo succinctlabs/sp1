@@ -4,16 +4,22 @@ use std::fmt::Debug;
 
 use itertools::Itertools;
 use p3_air::Air;
+use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
 use p3_commit::Pcs;
+use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
+use p3_field::TwoAdicField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Dimensions;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
+use serde::Deserialize;
+use serde::Serialize;
+use sp1_primitives::poseidon2_hash;
 
 use super::debug_constraints;
 use super::DeferredDigest;
@@ -30,6 +36,7 @@ use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
+use crate::utils::DIGEST_SIZE;
 
 use super::Chip;
 use super::Com;
@@ -79,10 +86,12 @@ impl<SC: StarkGenericConfig> StarkProvingKey<SC> {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
+#[serde(bound = "SC: StarkGenericConfig")]
 pub struct StarkVerifyingKey<SC: StarkGenericConfig> {
     pub commit: Com<SC>,
     pub pc_start: Val<SC>,
+    #[serde(skip)]
     pub chip_information: Vec<(String, Dom<SC>, Dimensions)>,
     pub chip_ordering: HashMap<String, usize>,
 }
@@ -97,6 +106,40 @@ impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
 impl<SC: StarkGenericConfig> Debug for StarkVerifyingKey<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VerifyingKey").finish()
+    }
+}
+
+impl<
+        SC: StarkGenericConfig<Val = BabyBear, Domain = TwoAdicMultiplicativeCoset<BabyBear>>,
+        A: MachineAir<BabyBear>,
+    > StarkMachine<SC, A>
+where
+    <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: AsRef<[BabyBear; DIGEST_SIZE]>,
+{
+    /// Hash the verifying key, producing a single commitment that uniquely identifies the program
+    /// being proven.
+    ///
+    /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g} )
+    pub fn hash_vkey(&self, vkey: &StarkVerifyingKey<SC>) -> [BabyBear; DIGEST_SIZE] {
+        let prep_domains = self.preprocessed_chip_ids().into_iter().map(|chip_idx| {
+            let name = self.chips[chip_idx].name().clone();
+            let prep_sorted_idx = vkey.chip_ordering[&name];
+            vkey.chip_information[prep_sorted_idx].1
+        });
+        let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
+        let mut inputs = Vec::with_capacity(num_inputs);
+        inputs.extend(vkey.commit.as_ref());
+        inputs.push(vkey.pc_start);
+        for domain in prep_domains {
+            inputs.push(BabyBear::from_canonical_usize(domain.log_n));
+            let size = 1 << domain.log_n;
+            inputs.push(BabyBear::from_canonical_usize(size));
+            let g = BabyBear::two_adic_generator(domain.log_n);
+            inputs.push(domain.shift);
+            inputs.push(g);
+        }
+
+        poseidon2_hash(inputs)
     }
 }
 
@@ -336,7 +379,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     let deferred_proofs_digest: [u32; 8] = public_values
                         .deferred_proofs_digest
                         .iter()
-                        .map(|w| w.to_u32())
+                        .map(|w| w.to_string().parse::<u32>().unwrap())
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
@@ -351,7 +394,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             "non incremental shard index",
                         ));
                     }
-                    // Next pc should be what the next pc declared in the previous shard was.
+                    // Start pc should be what the next pc declared in the previous shard was.
                     if public_values.start_pc != prev_public_values.next_pc {
                         return Err(ProgramVerificationError::InvalidShardTransition(
                             "pc mismatch",

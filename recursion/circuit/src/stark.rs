@@ -1,5 +1,6 @@
 use std::marker::PhantomData;
 
+use crate::fri::verify_two_adic_pcs;
 use crate::types::OuterDigestVariable;
 use crate::witness::Witnessable;
 use p3_air::Air;
@@ -13,7 +14,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
@@ -22,7 +23,6 @@ use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
-use crate::fri::verify_two_adic_pcs;
 use crate::types::TwoAdicPcsMatsVariable;
 use crate::types::TwoAdicPcsRoundVariable;
 use crate::{challenger::MultiField32ChallengerVariable, types::RecursionShardProofVariable};
@@ -247,6 +247,8 @@ pub fn build_wrap_circuit(
     let preprocessed_commit: OuterDigestVariable<OuterC> =
         [builder.eval(preprocessed_commit_val[0])];
     challenger.observe_commitment(&mut builder, preprocessed_commit);
+    let pc_start: Felt<_> = builder.eval(vk.pc_start);
+    challenger.observe(&mut builder, pc_start);
 
     let chips = outer_machine
         .shard_chips_ordered(&dummy_proof.chip_ordering)
@@ -298,15 +300,15 @@ pub(crate) mod tests {
     use crate::witness::Witnessable;
     use p3_baby_bear::DiffusionMatrixBabybear;
     use p3_field::PrimeField32;
-    use serial_test::serial;
     use sp1_core::stark::{LocalProver, StarkGenericConfig};
+    use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::ir::Witness;
-    use sp1_recursion_compiler::{config::OuterConfig, constraints::groth16_ffi};
     use sp1_recursion_core::{
         cpu::Instruction,
         runtime::{Opcode, RecursionProgram, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
@@ -343,8 +345,6 @@ pub(crate) mod tests {
     }
 
     #[test]
-    #[serial]
-    #[ignore]
     fn test_recursive_verify_shard_v2() {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
@@ -359,12 +359,16 @@ pub(crate) mod tests {
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
-        let mut proofs = machine
-            .prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger)
-            .shard_proofs;
+        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
+        let mut proofs = proof.shard_proofs.clone();
 
         let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
         runtime.run();
+
+        // Uncomment these lines to verify the proof for debugging purposes.
+        //
+        // let mut challenger = machine.config().challenger();
+        // machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         let mut witness = Witness::default();
         let proof = proofs.pop().unwrap();
@@ -372,6 +376,6 @@ pub(crate) mod tests {
 
         let constraints = build_wrap_circuit(&vk, proof);
 
-        groth16_ffi::prove::<OuterConfig>(constraints, witness);
+        Groth16Prover::test::<OuterConfig>(constraints, witness);
     }
 }
