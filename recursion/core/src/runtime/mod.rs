@@ -214,8 +214,7 @@ where
         }
     }
 
-    fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
-        let timestamp = self.timestamp(&position);
+    fn mr(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
         let entry = self
             .memory
             .entry(addr.as_canonical_u32() as usize)
@@ -232,33 +231,48 @@ where
             value: prev_value,
             timestamp,
         };
+        (record, prev_value)
+    }
+
+    fn mr_cpu(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
+        let timestamp = self.timestamp(&position);
+        let (record, value) = self.mr(addr, timestamp);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
             MemoryAccessPosition::C => self.access.c = Some(record),
-            _ => unreachable!(),
+            MemoryAccessPosition::Memory => self.access.memory = Some(record),
         };
-        prev_value
+        value
     }
 
-    fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
+    fn mw(&mut self, addr: F, value: impl Into<Block<F>>, timestamp: F) -> MemoryRecord<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
-        let timestamp = self.timestamp(&position);
         let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
+        let value_as_block = value.into();
         let record = MemoryRecord {
             addr,
-            value,
+            value: value_as_block,
             timestamp,
             prev_value,
             prev_timestamp,
         };
-        *entry = MemoryEntry { value, timestamp };
+        *entry = MemoryEntry {
+            value: value_as_block,
+            timestamp,
+        };
+        record
+    }
+
+    fn mw_cpu(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
+        let timestamp = self.timestamp(&position);
+        let record = self.mw(addr, value, timestamp);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
             MemoryAccessPosition::C => self.access.c = Some(record),
-            _ => unreachable!(),
+            MemoryAccessPosition::Memory => self.access.memory = Some(record),
         };
     }
 
@@ -268,7 +282,7 @@ where
 
     // When we read the "a" position, it is never an immediate value, so we always read from memory.
     fn get_a(&mut self, instruction: &Instruction<F>) -> Block<F> {
-        self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)
+        self.mr_cpu(self.fp + instruction.op_a, MemoryAccessPosition::A)
     }
 
     // Useful to peek at the value of the "a" position without updating the access record.
@@ -290,7 +304,7 @@ where
         } else if instruction.imm_b {
             instruction.op_b
         } else {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
+            self.mr_cpu(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
         }
     }
 
@@ -300,7 +314,7 @@ where
         } else if instruction.imm_c {
             instruction.op_c
         } else {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
+            self.mr_cpu(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
         }
     }
 
@@ -353,20 +367,20 @@ where
                 Opcode::PrintF => {
                     self.nb_print_f += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
                     println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::PrintE => {
                     self.nb_print_e += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
                     println!("PRINTEF={:?}", a_val);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::CycleTracker => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
 
                     let name = instruction.debug.clone();
                     let entry = self.cycle_tracker.entry(name).or_default();
@@ -385,14 +399,14 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] + c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LessThanF => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = F::from_bool(b_val.0[0] < c_val.0[0]);
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::SUB => {
@@ -400,7 +414,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] - c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::MUL => {
@@ -408,7 +422,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] * c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::DIV => {
@@ -416,7 +430,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
                     a_val.0[0] = b_val.0[0] / c_val.0[0];
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EADD => {
@@ -424,7 +438,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(sum.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EMUL => {
@@ -432,7 +446,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(product.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::ESUB => {
@@ -440,7 +454,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(diff.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::EDIV => {
@@ -448,7 +462,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
                     let a_val = Block::from(quotient.as_base_slice());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LOAD => {
@@ -456,9 +470,9 @@ where
                     let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
                     let addr = Self::calculate_address(b_val, c_val, &instruction);
 
-                    let val = self.mr(addr, MemoryAccessPosition::B);
+                    let val = self.mr_cpu(addr, MemoryAccessPosition::B);
                     let a_val = val;
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::STORE => {
@@ -466,8 +480,8 @@ where
                     let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
                     let addr = Self::calculate_address(b_val, c_val, &instruction);
 
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
-                    self.mw(addr, a_val, MemoryAccessPosition::B);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    self.mw_cpu(addr, a_val, MemoryAccessPosition::B);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::BEQ => {
@@ -493,7 +507,7 @@ where
                     if a_val.0[0] != b_val.0[0] {
                         next_pc = self.pc + c_offset;
                     }
-                    self.mw(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                 }
                 Opcode::EBEQ => {
@@ -516,7 +530,7 @@ where
                     self.nb_branch_ops += 1;
                     let imm = instruction.op_b[0];
                     let a_ptr = instruction.op_a + self.fp;
-                    self.mw(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
                     next_pc = self.pc + imm;
                     self.fp += instruction.op_c[0];
                     (a, b, c) = (Block::from(a_ptr), Block::default(), Block::default());
@@ -526,10 +540,10 @@ where
                     let imm = instruction.op_c;
                     let b_ptr = instruction.op_b[0] + self.fp;
                     let a_ptr = instruction.op_a + self.fp;
-                    let b_val = self.mr(b_ptr, MemoryAccessPosition::B);
+                    let b_val = self.mr_cpu(b_ptr, MemoryAccessPosition::B);
                     let c_val = imm;
                     let a_val = Block::from(self.pc + F::one());
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     next_pc = b_val.0[0];
                     self.fp = c_val[0];
                     (a, b, c) = (a_val, b_val, c_val);
@@ -557,7 +571,7 @@ where
                 }
                 Opcode::Ext2Felt => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
                     let dst = a_val[0].as_canonical_u32() as usize;
                     self.memory.entry(dst).or_default().value[0] = b_val[0];
                     self.memory.entry(dst + 1).or_default().value[0] = b_val[1];
@@ -568,7 +582,7 @@ where
                 Opcode::Poseidon2Perm => {
                     self.nb_poseidons += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
 
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -600,7 +614,7 @@ where
                     self.nb_poseidons += 1;
 
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
 
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -640,7 +654,7 @@ where
                 Opcode::HintBits => {
                     self.nb_bit_decompositions += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
 
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -658,15 +672,15 @@ where
                 }
                 Opcode::HintLen => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    self.mr(a_ptr, MemoryAccessPosition::A);
+                    self.mr_cpu(a_ptr, MemoryAccessPosition::A);
                     let a_val: Block<F> =
                         F::from_canonical_usize(self.witness_stream[0].len()).into();
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Hint => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
                     let dst = a_val[0].as_canonical_u32() as usize;
                     let blocks = self.witness_stream.pop_front().unwrap();
                     for (i, block) in blocks.into_iter().enumerate() {
@@ -675,8 +689,8 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::FRIFold => {
-                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
-                    let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
+                    let a_val = self.mr_cpu(self.fp + instruction.op_a, MemoryAccessPosition::A);
+                    let b_val = self.mr_cpu(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
                     let c_val = Block::<F>::default();
 
                     let m = a_val[0].as_canonical_u32() as usize;
@@ -747,7 +761,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Commit => {
-                    let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+                    let a_val = self.mr_cpu(self.fp + instruction.op_a, MemoryAccessPosition::A);
                     let b_val = Block::<F>::default();
                     let c_val = Block::<F>::default();
 
