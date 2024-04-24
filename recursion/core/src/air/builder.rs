@@ -9,10 +9,14 @@ use sp1_core::{
 
 use super::Block;
 /// A trait which contains all helper methods for building SP1 recursion machine AIRs.
-pub trait SP1RecursionAirBuilder: MachineAirBuilder + RecursionMemoryAirBuilder {}
+pub trait SP1RecursionAirBuilder:
+    MachineAirBuilder + RecursionMemoryAirBuilder + RangeCheckAirBuilder
+{
+}
 
 impl<AB: AirBuilderWithPublicValues + RecursionMemoryAirBuilder> SP1RecursionAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RecursionMemoryAirBuilder for AB {}
+impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RangeCheckAirBuilder for AB {}
 
 pub trait RecursionMemoryAirBuilder: BaseAirBuilder {
     fn recursion_eval_memory_access<E: Into<Self::Expr> + Clone>(
@@ -96,5 +100,37 @@ pub trait RecursionMemoryAirBuilder: BaseAirBuilder {
         _is_real: impl Into<Self::Expr>,
     ) {
         // TODO: check that mem_access.prev_clk < clk if is_real.
+    }
+}
+
+pub trait RangeCheckAirBuilder: BaseAirBuilder {
+    /// Sends a range check operation to be processed.
+    fn send_range_check(
+        &mut self,
+        range_check_opcode: impl Into<Self::Expr>,
+        val: impl Into<Self::Expr>,
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let values = vec![range_check_opcode.into(), val.into()];
+        self.send(AirInteraction::new(
+            values,
+            is_real.into(),
+            InteractionKind::Range,
+        ));
+    }
+
+    /// Receives a range check operation to be processed.
+    fn receive_range_check(
+        &mut self,
+        range_check_opcode: impl Into<Self::Expr>,
+        val: impl Into<Self::Expr>,
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let values = vec![range_check_opcode.into(), val.into()];
+        self.receive(AirInteraction::new(
+            values,
+            is_real.into(),
+            InteractionKind::Range,
+        ));
     }
 }
