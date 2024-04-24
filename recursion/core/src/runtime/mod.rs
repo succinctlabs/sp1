@@ -399,14 +399,14 @@ where
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] + c_val.0[0];
+                    a_val[0] = b_val[0] + c_val[0];
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LessThanF => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = F::from_bool(b_val.0[0] < c_val.0[0]);
+                    a_val[0] = F::from_bool(b_val[0] < c_val[0]);
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -414,7 +414,7 @@ where
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] - c_val.0[0];
+                    a_val[0] = b_val[0] - c_val[0];
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -422,15 +422,15 @@ where
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] * c_val.0[0];
+                    a_val[0] = b_val[0] * c_val[0];
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::DIV => {
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] / c_val.0[0];
+                    let mut a_val: Block<F> = Block::default();
+                    a_val[0] = b_val[0] / c_val[0];
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -502,9 +502,9 @@ where
                     self.nb_branch_ops += 1;
                     let (_, b_val, c_offset) = self.alu_rr(&instruction);
                     let (a_ptr, mut a_val) = self.peek_a(&instruction);
-                    a_val.0[0] += F::one();
+                    a_val[0] += F::one();
                     if a_val != b_val {
-                        next_pc = self.pc + c_offset.0[0];
+                        next_pc = self.pc + c_offset[0];
                     }
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
@@ -514,8 +514,8 @@ where
                     let (a_ptr, b_val, c_offset) = self.alu_rr(&instruction);
                     let a_val = Block::from(self.pc);
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
-                    next_pc = self.pc + b_val.0[0];
-                    self.fp += c_offset.0[0];
+                    next_pc = self.pc + b_val[0];
+                    self.fp += c_offset[0];
                     (a, b, c) = (a_val, b_val, c_offset);
                 }
                 Opcode::JALR => {
@@ -523,7 +523,7 @@ where
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = Block::from(self.pc + F::one());
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
-                    next_pc = b_val.0[0];
+                    next_pc = b_val[0];
                     self.fp = c_val[0];
                     (a, b, c) = (a_val, b_val, c_val);
                 }
