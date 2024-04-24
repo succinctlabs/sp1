@@ -231,15 +231,15 @@ where
         );
 
         // Constraints on the memory column depending on load or store.
-        // // We read from memory when it is a load.
+        // We read from memory when it is a load.
         // builder
         //     .when(local.selectors.is_load)
-        //     .assert_block_eq(local.memory.prev_value, local.memory.value);
+        //     .assert_block_eq(local.memory.prev_value, *local.memory.value());
         // // When there is a store, we ensure that we are writing the value of the a operand to the memory.
         // builder
         //     .when(local.selectors.is_store)
         //     .assert_block_eq(local.a.value, local.memory.value);
-        // builder.send_program(local.instruction.clone(), local.is_real);
+        builder.send_program(local.instruction.clone(), local.is_real);
         // TODO: Issue lookups to the Poseidon + FRI Fold tables, depending on opcode.
     }
 }
