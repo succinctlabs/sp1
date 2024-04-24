@@ -29,7 +29,8 @@ use sp1_core::air::{PublicValues, SP1_PROOF_NUM_PV_ELTS, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::{inner_fri_config, sp1_fri_config, BabyBearPoseidon2Inner};
+use sp1_core::utils::baby_bear_poseidon2::{compressed_fri_config, default_fri_config};
+use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2Inner};
 use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
 use sp1_recursion_compiler::ir::{Array, Builder, Ext, ExtConst, Felt, Var};
@@ -84,10 +85,14 @@ impl ReduceProgram {
 
         // Initialize the sp1 and recursion configs as constants..
         let sp1_config = const_fri_config(&mut builder, sp1_fri_config());
-        let recursion_config = const_fri_config(&mut builder, inner_fri_config());
+        let recursion_config = const_fri_config(&mut builder, default_fri_config());
+        let recursion_compressed_config = const_fri_config(&mut builder, compressed_fri_config());
         let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };
         let recursion_pcs = TwoAdicFriPcsVariable {
             config: recursion_config,
+        };
+        let recursion_compressed_pcs = TwoAdicFriPcsVariable {
+            config: recursion_compressed_config,
         };
 
         // Allocate empty space on the stack for the inputs.
@@ -115,8 +120,8 @@ impl ReduceProgram {
         let deferred_sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
         let num_deferred_proofs: Var<_> = builder.uninit();
         let deferred_proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
-
         let is_complete: Var<_> = builder.uninit();
+        let is_compressed: Var<_> = builder.uninit();
 
         // Setup the memory for the prover.
         //
@@ -159,9 +164,12 @@ impl ReduceProgram {
             let num_deferred_proofs_var = deferred_proofs.len();
             builder.assign(num_deferred_proofs, num_deferred_proofs_var);
             usize::witness(&is_complete, &mut builder);
+            usize::witness(&is_compressed, &mut builder);
 
             return builder.compile_program();
         }
+
+        builder.print_v(is_compressed);
 
         let num_proofs = is_recursive_flags.len();
         let zero: Var<_> = builder.constant(F::zero());
@@ -453,6 +461,19 @@ impl ReduceProgram {
                     });
 
                     // Verify the shard.
+                    let pcs: TwoAdicFriPcsVariable<_> = builder.uninit();
+                    builder.if_eq(is_compressed, BabyBear::one()).then_or_else(
+                        |builder| {
+                            builder.print_debug(101);
+                            builder.assign(pcs.clone(), recursion_compressed_pcs.clone());
+                        },
+                        |builder| {
+                            builder.print_debug(102);
+                            builder.assign(pcs.clone(), recursion_pcs.clone());
+                        },
+                    );
+                    builder.print_v(pcs.config.log_blowup);
+                    builder.print_v(pcs.config.num_queries);
                     StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
                         builder,
                         &recursion_vk.clone(),

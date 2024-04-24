@@ -4,11 +4,12 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
 pub type DigestVariable<C: Config> = Array<C, Felt<C::F>>;
 
-#[derive(Clone)]
+#[derive(DslVariable, Clone)]
 pub struct FriConfigVariable<C: Config> {
-    pub log_blowup: usize,
-    pub num_queries: usize,
-    pub proof_of_work_bits: usize,
+    pub log_blowup: Var<C::N>,
+    pub blowup: Var<C::N>,
+    pub num_queries: Var<C::N>,
+    pub proof_of_work_bits: Var<C::N>,
     pub generators: Array<C, Felt<C::F>>,
     pub subgroups: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 }

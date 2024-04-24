@@ -52,9 +52,10 @@ pub fn const_fri_config(
         builder.set(&mut subgroups, i, domain_value);
     }
     FriConfigVariable {
-        log_blowup: config.log_blowup,
-        num_queries: config.num_queries,
-        proof_of_work_bits: config.proof_of_work_bits,
+        log_blowup: builder.eval(BabyBear::from_canonical_usize(config.log_blowup)),
+        blowup: builder.eval(BabyBear::from_canonical_usize(1 << config.log_blowup)),
+        num_queries: builder.eval(BabyBear::from_canonical_usize(config.num_queries)),
+        proof_of_work_bits: builder.eval(BabyBear::from_canonical_usize(config.proof_of_work_bits)),
         subgroups,
         generators,
     }

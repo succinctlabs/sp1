@@ -183,7 +183,9 @@ impl SP1Prover {
             SP1ReduceProofWrapper::Core(ref proof) => {
                 let state = ReduceState::from_core_start_state(&proof.proof);
                 let reconstruct_challenger = self.setup_initial_core_challenger(vk);
+                let config = InnerSC::default();
                 self.reduce_batch(
+                    config,
                     vk,
                     core_challenger,
                     reconstruct_challenger,
@@ -191,6 +193,7 @@ impl SP1Prover {
                     &[last_proof],
                     &deferred_proofs,
                     true,
+                    false,
                 )
             }
         }
@@ -256,7 +259,9 @@ impl SP1Prover {
             .zip(reconstruct_challengers.into_par_iter())
             .zip(start_states.into_par_iter())
             .map(|((chunk, reconstruct_challenger), start_state)| {
+                let config = InnerSC::default();
                 let proof = self.reduce_batch(
+                    config,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger,
@@ -264,6 +269,7 @@ impl SP1Prover {
                     chunk,
                     &[],
                     is_complete,
+                    false,
                 );
                 SP1ReduceProofWrapper::Recursive(proof)
             })
@@ -305,13 +311,16 @@ impl SP1Prover {
             .into_par_iter()
             .zip(start_states.into_par_iter())
             .map(|(proofs, state)| {
+                let config = InnerSC::default();
                 self.reduce_batch::<InnerSC>(
+                    config,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger.clone(),
                     state,
                     &[],
                     proofs,
+                    false,
                     false,
                 )
             })
@@ -329,6 +338,7 @@ impl SP1Prover {
     #[allow(clippy::too_many_arguments)]
     fn reduce_batch<SC>(
         &self,
+        config: SC,
         vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
         reconstruct_challenger: Challenger<CoreSC>,
@@ -336,9 +346,10 @@ impl SP1Prover {
         reduce_proofs: &[SP1ReduceProofWrapper],
         deferred_proofs: &[ShardProof<InnerSC>],
         is_complete: bool,
+        is_compressed: bool,
     ) -> SP1ReduceProof<SC>
     where
-        SC: StarkGenericConfig<Val = BabyBear> + Default,
+        SC: StarkGenericConfig<Val = BabyBear>,
         SC::Challenger: Clone,
         Com<SC>: Send + Sync,
         PcsProverData<SC>: Send + Sync,
@@ -411,6 +422,8 @@ impl SP1Prover {
         witness_stream.extend(deferred_proofs.to_vec().write());
         let is_complete = if is_complete { 1usize } else { 0 };
         witness_stream.extend(is_complete.write());
+        let is_compressed = if is_compressed { 1usize } else { 0 };
+        witness_stream.extend(is_compressed.write());
 
         let machine = RecursionAir::machine(InnerSC::default());
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
@@ -436,7 +449,7 @@ impl SP1Prover {
         runtime.print_stats();
 
         // Generate proof.
-        let machine = RecursionAir::machine(SC::default());
+        let machine = RecursionAir::machine(config);
         let (pk, _) = machine.setup(&self.reduce_program);
         let mut challenger = machine.config().challenger();
         let proof =
@@ -455,23 +468,47 @@ impl SP1Prover {
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
-    pub fn wrap_bn254(
+    pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
         reduced_proof: SP1ReduceProof<InnerSC>,
-    ) -> ShardProof<OuterSC> {
-        // Since the proof passed in should be complete already, the start reconstruct_challenger
-        // should be in initial state with only vk observed.
+    ) -> SP1ReduceProof<InnerSC> {
         let reconstruct_challenger = self.setup_initial_core_challenger(vk);
         let state = ReduceState::from_reduce_start_state(&reduced_proof);
-        self.reduce_batch::<OuterSC>(
+        let config = InnerSC::compressed();
+        self.reduce_batch::<InnerSC>(
+            config,
             vk,
             core_challenger,
             reconstruct_challenger,
             state,
             &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
             &[],
+            true,
+            false,
+        )
+    }
+
+    /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
+    pub fn wrap_bn254(
+        &self,
+        vk: &SP1VerifyingKey,
+        core_challenger: Challenger<CoreSC>,
+        reduced_proof: SP1ReduceProof<InnerSC>,
+    ) -> ShardProof<OuterSC> {
+        let reconstruct_challenger = self.setup_initial_core_challenger(vk);
+        let state = ReduceState::from_reduce_start_state(&reduced_proof);
+        let config = OuterSC::default();
+        self.reduce_batch::<OuterSC>(
+            config,
+            vk,
+            core_challenger,
+            reconstruct_challenger,
+            state,
+            &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
+            &[],
+            true,
             true,
         )
         .proof
