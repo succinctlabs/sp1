@@ -23,8 +23,6 @@ pub enum Opcode {
     // Branch instructions.
     BEQ = 6,
     BNE = 7,
-    EBEQ = 16,
-    EBNE = 17,
 
     // Jump instructions.
     JAL = 8,

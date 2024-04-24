@@ -299,9 +299,7 @@ where
     }
 
     fn get_b(&mut self, instruction: &Instruction<F>) -> Block<F> {
-        if instruction.imm_b_base() {
-            Block::from(instruction.op_b[0])
-        } else if instruction.imm_b {
+        if instruction.imm_b {
             instruction.op_b
         } else {
             self.mr_cpu(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
@@ -309,9 +307,7 @@ where
     }
 
     fn get_c(&mut self, instruction: &Instruction<F>) -> Block<F> {
-        if instruction.imm_c_base() {
-            Block::from(instruction.op_c[0])
-        } else if instruction.imm_c {
+        if instruction.imm_c {
             instruction.op_c
         } else {
             self.mr_cpu(self.fp + instruction.op_c[0], MemoryAccessPosition::C)
@@ -512,22 +508,6 @@ where
                     }
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                }
-                Opcode::EBEQ => {
-                    self.nb_branch_ops += 1;
-                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
-                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a == b {
-                        next_pc = self.pc + c_offset;
-                    }
-                }
-                Opcode::EBNE => {
-                    self.nb_branch_ops += 1;
-                    let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
-                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a != b {
-                        next_pc = self.pc + c_offset;
-                    }
                 }
                 Opcode::JAL => {
                     self.nb_branch_ops += 1;
