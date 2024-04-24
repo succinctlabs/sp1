@@ -36,7 +36,7 @@ pub fn main() {
     let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
 
     tracing::info!("reduce");
-    let reduced_proof = prover.reduce(&vk, core_proof);
+    let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
 
     tracing::info!("wrap");
     let wrapped_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);

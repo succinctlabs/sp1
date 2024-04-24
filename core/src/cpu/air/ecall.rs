@@ -90,7 +90,7 @@ impl CpuChip {
         builder: &mut AB,
         local: &CpuCols<AB::Var>,
         commit_digest: [Word<AB::Expr>; PV_DIGEST_NUM_WORDS],
-        deferred_proofs_digest: [Word<AB::Expr>; POSEIDON_NUM_WORDS],
+        deferred_proofs_digest: [AB::Expr; POSEIDON_NUM_WORDS],
     ) {
         let (is_commit, is_commit_deferred_proofs) =
             self.get_is_commit_related_syscall(builder, local);
@@ -155,11 +155,14 @@ impl CpuChip {
             .assert_word_eq(expected_pv_digest_word, *digest_word);
 
         let expected_deferred_proofs_digest_word =
-            builder.index_word_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
+            builder.index_array(&deferred_proofs_digest, &ecall_columns.index_bitmap);
 
         builder
             .when(local.selectors.is_ecall * is_commit_deferred_proofs)
-            .assert_word_eq(expected_deferred_proofs_digest_word, *digest_word);
+            .assert_eq(
+                expected_deferred_proofs_digest_word,
+                digest_word.reduce::<AB>(),
+            );
     }
 
     /// Constraint related to the halt and unimpl instruction.

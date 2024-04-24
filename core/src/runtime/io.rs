@@ -1,7 +1,7 @@
 use std::io::Read;
 
-use crate::stark::{MachineProof, StarkVerifyingKey};
-use crate::utils::BabyBearPoseidon2Inner;
+use crate::stark::{ShardProof, StarkVerifyingKey};
+use crate::utils::BabyBearPoseidon2;
 
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -34,8 +34,8 @@ impl Runtime {
 
     pub fn write_proof(
         &mut self,
-        proof: MachineProof<BabyBearPoseidon2Inner>,
-        vk: StarkVerifyingKey<BabyBearPoseidon2Inner>,
+        proof: ShardProof<BabyBearPoseidon2>,
+        vk: StarkVerifyingKey<BabyBearPoseidon2>,
     ) {
         self.state.proof_stream.push((proof, vk));
     }

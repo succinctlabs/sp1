@@ -37,9 +37,6 @@ pub const HASH_RATE: usize = 8;
 /// The current verifier implementation assumes that we are using a 256-bit hash with 32-bit elements.
 pub const DIGEST_SIZE: usize = 8;
 
-/// The max size of the public values buffer
-pub const PV_BUFFER_MAX_SIZE: usize = 1024;
-
 pub const NUM_BITS: usize = 31;
 
 pub const D: usize = 4;
@@ -731,15 +728,14 @@ where
                 }
                 Opcode::Commit => {
                     let a_val = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
-                    let b_val = Block::<F>::default();
+                    let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
                     let c_val = Block::<F>::default();
 
-                    let hash_ptr = a_val[0].as_canonical_u32() as usize;
+                    // Ensure that writes are in order (index should == public_values.len)
+                    let index = b_val[0].as_canonical_u32() as usize;
+                    debug_assert_eq!(index, self.record.public_values.len());
 
-                    for i in 0..DIGEST_SIZE {
-                        self.record.public_values_digest[i] =
-                            self.memory.entry(hash_ptr + i).or_default().value[0];
-                    }
+                    self.record.public_values.push(a_val[0]);
 
                     (a, b, c) = (a_val, b_val, c_val);
                 }
