@@ -163,7 +163,7 @@ mod tests {
     use sp1_recursion_compiler::ir::SymbolicExt;
     use sp1_recursion_compiler::ir::{Builder, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterChallenger};
-    use sp1_recursion_groth16_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     use super::reduce_32;
     use super::split_32;

@@ -7,7 +7,7 @@ use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_groth16_ffi::Groth16Prover;
+use sp1_recursion_gnark_ffi::Groth16Prover;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -61,6 +61,16 @@ pub fn main() {
 
     tracing::info!("sanity check gnark prove");
     let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
+
+    // tracing::info!("sanity check plonk bn254 build");
+    // PlonkBn254Prover::build(
+    //     constraints.clone(),
+    //     witness.clone(),
+    //     args.build_dir.clone().into(),
+    // );
+
+    // tracing::info!("sanity check plonk bn254 prove");
+    // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
     println!("{:?}", proof);
 }
