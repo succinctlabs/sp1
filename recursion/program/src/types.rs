@@ -1,7 +1,7 @@
 use p3_air::BaseAir;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::{
-    air::MachineAir,
+    air::{MachineAir, Word, PV_DIGEST_NUM_WORDS, WORD_SIZE},
     stark::{AirOpenedValues, Chip, ChipOpenedValues},
 };
 use sp1_recursion_compiler::prelude::*;
@@ -67,6 +67,24 @@ pub struct ChipOpenedValuesVariable<C: Config> {
 pub struct AirOpenedValuesVariable<C: Config> {
     pub local: Array<C, Ext<C::F, C::EF>>,
     pub next: Array<C, Ext<C::F, C::EF>>,
+}
+
+#[derive(DslVariable, Debug, Clone)]
+pub struct Sha256DigestVariable<C: Config> {
+    pub bytes: Array<C, Felt<C::F>>,
+}
+
+impl<C: Config> Sha256DigestVariable<C> {
+    pub fn from_words(builder: &mut Builder<C>, words: &[Word<Felt<C::F>>]) -> Self {
+        let mut bytes = builder.array(PV_DIGEST_NUM_WORDS * WORD_SIZE);
+        for (i, word) in words.iter().enumerate() {
+            for j in 0..WORD_SIZE {
+                let byte = word[j];
+                builder.set(&mut bytes, i * WORD_SIZE + j, byte);
+            }
+        }
+        Sha256DigestVariable { bytes }
+    }
 }
 
 impl<C: Config> ChipOpening<C> {

@@ -1,5 +1,5 @@
 [package]
-name = "sp1-recursion-groth16-ffi"
+name = "sp1-recursion-gnark-ffi"
 version = "0.1.0"
 edition = "2021"
 

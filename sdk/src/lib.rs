@@ -123,7 +123,7 @@ impl ProverClient {
     pub fn prove_local(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof> {
         let config = CoreSC::default();
         let program = Program::from(elf);
-        let (proof, public_values_stream) = run_and_prove(program.clone(), &stdin.buffer, config);
+        let (proof, public_values_stream) = run_and_prove(program.clone(), &stdin, config);
         let public_values = SP1PublicValues::from(&public_values_stream);
         Ok(SP1CoreProof {
             shard_proofs: proof.shard_proofs,

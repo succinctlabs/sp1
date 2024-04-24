@@ -287,11 +287,8 @@ mod tests {
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger = machine.config().challenger();
-        let (proof, _) = sp1_core::utils::run_and_prove(
-            Program::from(elf),
-            &SP1Stdin::new().buffer,
-            SC::default(),
-        );
+        let (proof, _) =
+            sp1_core::utils::run_and_prove(Program::from(elf), &SP1Stdin::new(), SC::default());
         machine.verify(&vk, &proof, &mut challenger).unwrap();
 
         println!("Proof generated and verified successfully");

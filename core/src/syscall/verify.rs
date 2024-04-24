@@ -1,6 +1,3 @@
-use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
-
 use crate::{
     runtime::{Syscall, SyscallContext},
     stark::{RiscvAir, StarkGenericConfig},
@@ -44,26 +41,9 @@ impl Syscall for SyscallVerifySP1Proof {
         // TODO: need to use RecursionAir here
         let machine = RiscvAir::machine(config);
 
+        // TODO: Need to import PublicValues from recursion.
         // Assert the commit in vkey from runtime inputs matches the one from syscall.
-        let proof_vk_words: &[BabyBear; 8] = proof_vk.commit.as_ref();
-        let vkey_babybear: [BabyBear; 8] = vkey
-            .iter()
-            .map(|&x| BabyBear::from_canonical_u32(x))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        assert_eq!(&vkey_babybear, proof_vk_words);
-
         // Assert that the public values digest from runtime inputs matches the one from syscall.
-        let proof_pv_digest = &proof.shard_proofs[0].public_values[0..8];
-        let pv_digest_babybear: [BabyBear; 8] = pv_digest
-            .iter()
-            .map(|&x| BabyBear::from_canonical_u32(x))
-            .collect::<Vec<_>>()
-            .try_into()
-            .unwrap();
-        assert_eq!(pv_digest_babybear, proof_pv_digest);
-        // proof.shard_proofs[0].public_values
 
         // TODO: Verify proof
         // machine

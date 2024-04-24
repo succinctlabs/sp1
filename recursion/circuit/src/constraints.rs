@@ -183,7 +183,7 @@ mod tests {
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
-    use sp1_recursion_groth16_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 

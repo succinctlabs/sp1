@@ -7,6 +7,7 @@ use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, 
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use crate::fri::types::DigestVariable;
+use crate::utils::felt2var;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
@@ -80,6 +81,49 @@ impl<C: Config> DuplexChallengerVariable<C> {
             nb_outputs,
             output_buffer,
         }
+    }
+
+    /// Asserts that the state of this challenger is equal to the state of another challenger.
+    pub fn assert_eq(&self, builder: &mut Builder<C>, other: &Self) {
+        builder.assert_var_eq(self.nb_inputs, other.nb_inputs);
+        builder.assert_var_eq(self.nb_outputs, other.nb_outputs);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            let element = builder.get(&self.sponge_state, i);
+            let other_element = builder.get(&other.sponge_state, i);
+            let element = felt2var(builder, element);
+            let other_element = felt2var(builder, other_element);
+            builder.assert_var_eq(element, other_element);
+        });
+        builder.range(0, self.nb_inputs).for_each(|i, builder| {
+            let element = builder.get(&self.input_buffer, i);
+            let other_element = builder.get(&other.input_buffer, i);
+            let element = felt2var(builder, element);
+            let other_element = felt2var(builder, other_element);
+            builder.assert_var_eq(element, other_element);
+        });
+        builder.range(0, self.nb_outputs).for_each(|i, builder| {
+            let element = builder.get(&self.output_buffer, i);
+            let other_element = builder.get(&other.output_buffer, i);
+            let element = felt2var(builder, element);
+            let other_element = felt2var(builder, other_element);
+            builder.assert_var_eq(element, other_element);
+        });
+    }
+
+    pub fn reset(&mut self, builder: &mut Builder<C>) {
+        let zero: Var<_> = builder.eval(C::N::zero());
+        let zero_felt: Felt<_> = builder.eval(C::F::zero());
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            builder.set(&mut self.sponge_state, i, zero_felt);
+        });
+        builder.assign(self.nb_inputs, zero);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            builder.set(&mut self.input_buffer, i, zero_felt);
+        });
+        builder.assign(self.nb_outputs, zero);
+        builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
+            builder.set(&mut self.output_buffer, i, zero_felt);
+        });
     }
 
     pub fn duplexing(&mut self, builder: &mut Builder<C>) {
