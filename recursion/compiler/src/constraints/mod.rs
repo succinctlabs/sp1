@@ -333,10 +333,17 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::WitnessE,
                     args: vec![vec![a.id()], vec![b.to_string()]],
                 }),
+                DslIr::CircuitCommitVkeyHash(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CommitVkeyHash,
+                    args: vec![vec![a.id()]],
+                }),
+                DslIr::CircuitCommitCommitedValuesDigest(a) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CommitCommitedValuesDigest,
+                    args: vec![vec![a.id()]],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }
-        println!("number of meta constraints: {}", constraints.len());
         constraints
     }
 }

@@ -155,6 +155,11 @@ pub enum DslIr<C: Config> {
     WitnessFelt(Felt<C::F>, u32),
     WitnessExt(Ext<C::F, C::EF>, u32),
     Commit(Felt<C::F>, Var<C::N>),
+
+    // Public inputs for circuits.
+    CircuitCommitVkeyHash(Var<C::N>),
+    CircuitCommitCommitedValuesDigest(Var<C::N>),
+
     // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
