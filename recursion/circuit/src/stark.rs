@@ -306,7 +306,7 @@ pub(crate) mod tests {
     use sp1_recursion_core::{
         cpu::Instruction,
         runtime::{Opcode, RecursionProgram, Runtime},
-        stark::{config::BabyBearPoseidon2Outer, RecursionAir},
+        stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
     };
     use sp1_recursion_gnark_ffi::Groth16Prover;
 
@@ -349,7 +349,7 @@ pub(crate) mod tests {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F>;
+        type A = RecursionAirWideDeg3<F>;
 
         sp1_core::utils::setup_logger();
         let program = basic_program::<F>();
