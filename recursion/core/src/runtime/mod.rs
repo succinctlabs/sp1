@@ -540,11 +540,7 @@ where
                 }
                 Opcode::JALR => {
                     self.nb_branch_ops += 1;
-                    let imm = instruction.op_c;
-                    let b_ptr = instruction.op_b[0] + self.fp;
-                    let a_ptr = instruction.op_a + self.fp;
-                    let b_val = self.mr_cpu(b_ptr, MemoryAccessPosition::B);
-                    let c_val = imm;
+                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let a_val = Block::from(self.pc + F::one());
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     next_pc = b_val.0[0];

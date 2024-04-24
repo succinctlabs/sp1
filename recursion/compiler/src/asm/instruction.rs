@@ -687,7 +687,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 F::zero(),
                 F::zero(),
                 false,
-                false,
+                true,
                 "".to_string(),
             ),
             AsmInstruction::Trap => Instruction::new(
