@@ -7,11 +7,9 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::AirInteraction;
 use sp1_core::air::BinomialExtension;
 use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::MachineAir;
-use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
 use std::borrow::Borrow;
@@ -20,10 +18,9 @@ use std::mem::transmute;
 use tracing::instrument;
 
 use super::columns::CpuCols;
-use crate::air::BinomialExtensionUtils;
-use crate::air::BlockBuilder;
-use crate::air::SP1RecursionAirBuilder;
+use crate::air::{BinomialExtensionUtils, BlockBuilder, SP1RecursionAirBuilder};
 use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::RecursionProgram;
 use crate::runtime::D;
@@ -79,13 +76,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     cols.b.populate(record);
                     cols.b.is_real = F::one();
                 } else {
-                    cols.b.value = event.instruction.op_b;
+                    *cols.b.value_mut() = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
                     cols.c.is_real = F::one();
                 } else {
-                    cols.c.value = event.instruction.op_c;
+                    *cols.c.value_mut() = event.instruction.op_c;
                 }
                 if let Some(record) = &event.memory_record {
                     cols.memory.populate(record);
@@ -93,7 +90,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 }
 
                 // cols.a_eq_b
-                //     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
+                //     .populate((cols.a.value()[0] - cols.b.value()[0]).as_canonical_u32());
 
                 // let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
                 // cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
@@ -165,15 +162,15 @@ where
         //     .assert_eq(local.pc + AB::F::one(), next.pc);
         // builder
         //     .when(local.beq + local.bne)
-        //     .assert_eq(next.pc, local.pc + local.c.value.0[0]);
+        //     .assert_eq(next.pc, local.pc + local.c.value()[0]);
 
         // Connect immediates.
         builder
             .when(local.instruction.imm_b)
-            .assert_block_eq::<AB::Var, AB::Var>(local.b.value, local.instruction.op_b);
+            .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
         builder
             .when(local.instruction.imm_c)
-            .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
+            .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
 
         builder.assert_eq(
             local.is_real * local.is_real * local.is_real,
@@ -185,115 +182,41 @@ where
         // Compute if a == b.
         // IsZeroOperation::<AB::F>::eval::<AB>(
         //     builder,
-        //     local.a.value.0[0] - local.b.value.0[0],
+        //     local.a.value[0] - local.b.value()[0],
         //     local.a_eq_b,
         //     local.is_real.into(),
         // );
 
-        // Receive C.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.c.addr.into(),
-                local.c.prev_timestamp.into(),
-                local.c.prev_value[0].into(),
-                local.c.prev_value[1].into(),
-                local.c.prev_value[2].into(),
-                local.c.prev_value[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_c.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.c.addr.into(),
-                local.c.timestamp.into(),
-                local.c.value[0].into(),
-                local.c.value[1].into(),
-                local.c.value[2].into(),
-                local.c.value[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_c.into(),
-            InteractionKind::Memory,
-        ));
-
-        // Receive B.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.b.addr.into(),
-                local.b.prev_timestamp.into(),
-                local.b.prev_value[0].into(),
-                local.b.prev_value[1].into(),
-                local.b.prev_value[2].into(),
-                local.b.prev_value[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_b.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.b.addr.into(),
-                local.b.timestamp.into(),
-                local.b.value[0].into(),
-                local.b.value[1].into(),
-                local.b.value[2].into(),
-                local.b.value[3].into(),
-            ],
-            AB::Expr::one() - local.instruction.imm_b.into(),
-            InteractionKind::Memory,
-        ));
-
-        // Receive A.
-        builder.receive(AirInteraction::new(
-            vec![
-                local.a.addr.into(),
-                local.a.prev_timestamp.into(),
-                local.a.prev_value[0].into(),
-                local.a.prev_value[1].into(),
-                local.a.prev_value[2].into(),
-                local.a.prev_value[3].into(),
-            ],
+        // Constraint all the memory access.
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.fp.into() + local.instruction.op_a.into(),
+            &local.a,
             local.is_real.into(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.a.addr.into(),
-                local.a.timestamp.into(),
-                local.a.value[0].into(),
-                local.a.value[1].into(),
-                local.a.value[2].into(),
-                local.a.value[3].into(),
-            ],
-            local.is_real.into(),
-            InteractionKind::Memory,
-        ));
+        );
 
-        // Receive Memory.
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.fp.into() + local.instruction.op_b[0].into(),
+            &local.b,
+            AB::Expr::one() - local.instruction.imm_b.into(),
+        );
+
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.fp.into() + local.instruction.op_c[0].into(),
+            &local.c,
+            AB::Expr::one() - local.instruction.imm_c.into(),
+        );
+
+        // Evaluate the memory column.
         let load_memory = local.selectors.is_load + local.selectors.is_store;
-        builder.receive(AirInteraction::new(
-            vec![
-                local.memory.addr.into(),
-                local.memory.prev_timestamp.into(),
-                local.memory.prev_value[0].into(),
-                local.memory.prev_value[1].into(),
-                local.memory.prev_value[2].into(),
-                local.memory.prev_value[3].into(),
-            ],
-            load_memory.clone(),
-            InteractionKind::Memory,
-        ));
-        builder.send(AirInteraction::new(
-            vec![
-                local.memory.addr.into(),
-                local.memory.timestamp.into(),
-                local.memory.value[0].into(),
-                local.memory.value[1].into(),
-                local.memory.value[2].into(),
-                local.memory.value[3].into(),
-            ],
-            load_memory,
-            InteractionKind::Memory,
-        ));
+        let index = local.c.value()[0];
+        let ptr = local.b.value()[0];
+        let memory_addr = ptr + index * local.instruction.size_imm + local.instruction.offset_imm;
+        builder.recursion_eval_memory_access(local.clk, memory_addr, &local.memory, load_memory);
+
+        // Constraints on the memory column depending on load or store.
         // // We read from memory when it is a load.
         // builder
         //     .when(local.selectors.is_load)
@@ -332,11 +255,11 @@ impl<F> CpuChip<F> {
     {
         // Convert register values from Block<Var> to BinomialExtension<Expr>.
         let a_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.b.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
         let c_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.c.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.c.value().map(|x| x.into()));
 
         // Flag to check if the instruction is a field operation
         let is_field_op = local.selectors.is_add

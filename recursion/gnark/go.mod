@@ -1,4 +1,4 @@
-module github.com/succinctlabs/sp1-recursion-groth16
+module github.com/succinctlabs/sp1-recursion-gnark
 
 go 1.20
 

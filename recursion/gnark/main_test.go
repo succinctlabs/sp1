@@ -9,7 +9,8 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/succinctlabs/sp1-recursion-groth16/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
 
 func TestMain(t *testing.T) {
@@ -28,7 +29,7 @@ func TestMain(t *testing.T) {
 	}
 
 	// Deserialize the JSON data into a slice of Instruction structs
-	var inputs Inputs
+	var inputs sp1.WitnessInput
 	err = json.Unmarshal(data, &inputs)
 	if err != nil {
 		panic(err)
@@ -48,10 +49,12 @@ func TestMain(t *testing.T) {
 	}
 
 	// Run some sanity checks.
-	circuit := Circuit{
-		Vars:  vars,
-		Felts: felts,
-		Exts:  exts,
+	circuit := sp1.Circuit{
+		Vars:                 vars,
+		Felts:                felts,
+		Exts:                 exts,
+		VkeyHash:             inputs.VkeyHash,
+		CommitedValuesDigest: inputs.CommitedValuesDigest,
 	}
 
 	// Compile the circuit.
@@ -81,10 +84,12 @@ func TestMain(t *testing.T) {
 	for i := 0; i < len(inputs.Exts); i++ {
 		exts[i] = babybear.NewE(inputs.Exts[i])
 	}
-	assignment := Circuit{
-		Vars:  vars,
-		Felts: felts,
-		Exts:  exts,
+	assignment := sp1.Circuit{
+		Vars:                 vars,
+		Felts:                felts,
+		Exts:                 exts,
+		VkeyHash:             inputs.VkeyHash,
+		CommitedValuesDigest: inputs.CommitedValuesDigest,
 	}
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {

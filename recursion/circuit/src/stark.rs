@@ -308,7 +308,7 @@ pub(crate) mod tests {
         runtime::{Opcode, RecursionProgram, Runtime},
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
-    use sp1_recursion_groth16_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];

@@ -167,7 +167,9 @@ pub enum AsmInstruction<F, EF> {
 
     // FRIFold(m, input).
     FriFold(i32, i32),
-    Commit(i32),
+
+    // Commit(val, index).
+    Commit(i32, i32),
 
     LessThan(i32, i32, i32),
 
@@ -822,14 +824,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
-            AsmInstruction::Commit(pv_hash) => Instruction::new(
+            AsmInstruction::Commit(val, index) => Instruction::new(
                 Opcode::Commit,
-                i32_f(pv_hash),
-                f_u32(F::zero()),
+                i32_f(val),
+                i32_f_arr(index),
                 f_u32(F::zero()),
                 F::zero(),
                 F::zero(),
-                true,
+                false,
                 true,
                 "".to_string(),
             ),
@@ -1095,8 +1097,8 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     result, src1, src2
                 )
             }
-            AsmInstruction::Commit(pv_hash) => {
-                write!(f, "commit ({})fp", pv_hash)
+            AsmInstruction::Commit(val, index) => {
+                write!(f, "commit ({})fp ({})fp", val, index)
             }
             AsmInstruction::CycleTracker(name) => {
                 write!(f, "cycle-tracker {}", name)

@@ -336,7 +336,7 @@ mod tests {
         ir::{Builder, ExtConst, Witness},
     };
     use sp1_recursion_core::stark::config::OuterChallenge;
-    use sp1_recursion_groth16_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     #[test]
     fn test_witness_simple() {
@@ -370,6 +370,8 @@ mod tests {
                 vars: vec![Bn254Fr::one(), Bn254Fr::two()],
                 felts: vec![BabyBear::one(), BabyBear::two()],
                 exts: vec![OuterChallenge::one(), OuterChallenge::two()],
+                vkey_hash: Bn254Fr::one(),
+                commited_values_digest: Bn254Fr::one(),
             },
         );
     }

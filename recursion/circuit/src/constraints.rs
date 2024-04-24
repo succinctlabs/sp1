@@ -8,8 +8,8 @@ use sp1_core::stark::AirOpenedValues;
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{MachineChip, StarkGenericConfig};
 use sp1_recursion_compiler::ir::Array;
+use sp1_recursion_compiler::ir::ExtensionOperand;
 use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::SymbolicExt;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
@@ -45,7 +45,7 @@ where
                             .iter()
                             .enumerate()
                             .map(|(e_i, &x)| {
-                                x * SymbolicExt::<C::F, C::EF>::Const(C::EF::monomial(e_i))
+                                x * SymbolicExt::<C::F, C::EF>::from_f(C::EF::monomial(e_i))
                             })
                             .sum::<SymbolicExt<_, _>>(),
                     )
@@ -101,8 +101,8 @@ where
                         // Calculate: other_domain.zp_at_point(zeta)
                         //     * other_domain.zp_at_point(domain.first_point()).inverse()
                         let first_point = domain.first_point(builder);
-                        let first_point: Ext<_, _> =
-                            builder.eval(SymbolicExt::Base(SymbolicFelt::Val(first_point).into()));
+                        let first_point_ext = first_point.to_operand().symbolic();
+                        let first_point: Ext<_, _> = builder.eval(first_point_ext);
                         let z = other_domain.zp_at_point(builder, first_point);
                         other_domain.zp_at_point(builder, zeta) * z.inverse()
                     })
@@ -183,7 +183,7 @@ mod tests {
         runtime::Runtime,
         stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
-    use sp1_recursion_groth16_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     use crate::stark::{tests::basic_program, StarkVerifierCircuit};
 

@@ -9,19 +9,23 @@ use serde::Serialize;
 use sp1_recursion_compiler::ir::Config;
 use sp1_recursion_compiler::ir::Witness;
 
+/// A witness that can be used to initialize values for witness generation inside Gnark.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct Groth16Witness {
+pub struct GnarkWitness {
     pub vars: Vec<String>,
     pub felts: Vec<String>,
     pub exts: Vec<Vec<String>>,
+    pub vkey_hash: String,
+    pub commited_values_digest: String,
 }
 
-impl<C: Config> From<Witness<C>> for Groth16Witness {
-    fn from(mut witness: Witness<C>) -> Self {
+impl GnarkWitness {
+    /// Creates a new witness from a given [Witness].
+    pub fn new<C: Config>(mut witness: Witness<C>) -> Self {
         witness.vars.push(C::N::from_canonical_usize(999));
         witness.felts.push(C::F::from_canonical_usize(999));
         witness.exts.push(C::EF::from_canonical_usize(999));
-        Groth16Witness {
+        GnarkWitness {
             vars: witness
                 .vars
                 .into_iter()
@@ -42,11 +46,15 @@ impl<C: Config> From<Witness<C>> for Groth16Witness {
                         .collect()
                 })
                 .collect(),
+            vkey_hash: witness.vkey_hash.as_canonical_biguint().to_string(),
+            commited_values_digest: witness
+                .commited_values_digest
+                .as_canonical_biguint()
+                .to_string(),
         }
     }
-}
 
-impl Groth16Witness {
+    /// Saves the witness to a given path.
     pub fn save(&self, path: &str) {
         let serialized = serde_json::to_string(self).unwrap();
         let mut file = File::create(path).unwrap();

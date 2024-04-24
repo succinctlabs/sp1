@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 
 use crate::{
-    stark::{MachineProof, StarkVerifyingKey},
-    utils::BabyBearPoseidon2Inner,
+    stark::{ShardProof, StarkVerifyingKey},
+    utils::BabyBearPoseidon2,
 };
 
 use super::{ExecutionRecord, MemoryAccessRecord, MemoryRecord};
@@ -45,8 +45,8 @@ pub struct ExecutionState {
     /// A stream of proofs inputted to the program.
     #[serde(skip)] // TODO: fix serialization for VerifyingKey
     pub proof_stream: Vec<(
-        MachineProof<BabyBearPoseidon2Inner>,
-        StarkVerifyingKey<BabyBearPoseidon2Inner>,
+        ShardProof<BabyBearPoseidon2>,
+        StarkVerifyingKey<BabyBearPoseidon2>,
     )>,
 
     /// A ptr to the current position in the proof stream, incremented after verifying a proof.
