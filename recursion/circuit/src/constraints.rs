@@ -165,7 +165,7 @@ where
 mod tests {
 
     use itertools::{izip, Itertools};
-    use p3_baby_bear::DiffusionMatrixBabybear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_commit::{Pcs, PolynomialSpace};
     use serde::{de::DeserializeOwned, Serialize};
@@ -291,7 +291,7 @@ mod tests {
         sp1_core::utils::setup_logger();
         let program = basic_program::<F>();
         let config = SC::new();
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabybear>::new_no_perm(&program);
+        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
         runtime.run();
         let machine = A::machine(config);
         let (pk, vk) = machine.setup(&program);

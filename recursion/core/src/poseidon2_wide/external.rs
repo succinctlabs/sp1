@@ -348,7 +348,7 @@ mod tests {
     use std::time::Instant;
 
     use itertools::Itertools;
-    use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_field::AbstractField;
     use p3_matrix::dense::RowMajorMatrix;
     use p3_matrix::Matrix;
@@ -376,7 +376,7 @@ mod tests {
         let gt: Poseidon2<
             BabyBear,
             Poseidon2ExternalMatrixGeneral,
-            DiffusionMatrixBabybear,
+            DiffusionMatrixBabyBear,
             16,
             7,
         > = inner_perm();
