@@ -34,7 +34,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     }
 
     assert_eq!(proof.query_proofs.len(), config.num_queries);
-
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
@@ -242,16 +241,16 @@ pub mod tests {
     use p3_fri::{verifier, TwoAdicFriPcsProof};
     use p3_matrix::dense::RowMajorMatrix;
     use rand::rngs::OsRng;
-    use serial_test::serial;
     use sp1_recursion_compiler::{
         config::OuterConfig,
-        constraints::{groth16_ffi, ConstraintCompiler},
+        constraints::ConstraintCompiler,
         ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
     use sp1_recursion_core::stark::config::{
         outer_perm, test_fri_config, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
         OuterCompress, OuterDft, OuterFriProof, OuterHash, OuterPcs, OuterVal, OuterValMmcs,
     };
+    use sp1_recursion_groth16_ffi::Groth16Prover;
 
     use super::{verify_shape_and_sample_challenges, verify_two_adic_pcs, TwoAdicPcsRoundVariable};
     use crate::{
@@ -402,7 +401,6 @@ pub mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_fri_verify_shape_and_sample_challenges() {
         let mut rng = &mut OsRng;
         let log_degrees = &[16, 9, 7, 4, 2];
@@ -485,11 +483,10 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
     #[test]
-    #[serial]
     fn test_verify_two_adic_pcs() {
         let mut rng = &mut OsRng;
         let log_degrees = &[19, 19];
@@ -559,6 +556,6 @@ pub mod tests {
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
-        groth16_ffi::prove::<OuterConfig>(constraints, Witness::default());
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

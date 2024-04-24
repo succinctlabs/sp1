@@ -262,12 +262,6 @@ where
         };
     }
 
-    fn get_memory_entry(&mut self, addr: F) -> &mut MemoryEntry<F> {
-        self.memory
-            .entry(addr.as_canonical_u32() as usize)
-            .or_default()
-    }
-
     fn timestamp(&self, position: &MemoryAccessPosition) -> F {
         self.clk + F::from_canonical_u32(*position as u32)
     }
@@ -301,59 +295,24 @@ where
         (a_ptr, b_val, c_val)
     }
 
-    /// Fetch the destination address input operand values for a load instruction (from heap).
-    fn load_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
+    /// Fetch the destination address input operand values for a store instruction (from stack).
+    fn mem_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>, Block<F>) {
         let a_ptr = self.fp + instruction.op_a;
+        let c_val = self.get_c(instruction);
+        let b_val = self.get_b(instruction);
 
-        let index = if instruction.imm_c {
-            instruction.op_c[0]
-        } else {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
-        };
-
-        let offset = instruction.offset_imm;
-        let size = instruction.size_imm;
-
-        let b = if instruction.imm_b_base() {
-            Block::from(instruction.op_b[0])
-        } else if instruction.imm_b {
-            instruction.op_b
-        } else {
-            let address = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-            self.mr(address[0] + index * size + offset, MemoryAccessPosition::A)
-        };
-
-        (a_ptr, b)
+        (a_ptr, b_val, c_val)
     }
 
-    /// Fetch the destination address input operand values for a store instruction (from stack).
-    fn store_rr(&mut self, instruction: &Instruction<F>) -> (F, Block<F>) {
-        let index = if instruction.imm_c {
-            instruction.op_c[0]
-        } else {
-            self.mr(self.fp + instruction.op_c[0], MemoryAccessPosition::C)[0]
-        };
+    // A function to calculate the memory address for both load and store opcodes.
+    fn calculate_address(b_val: Block<F>, c_val: Block<F>, instruction: &Instruction<F>) -> F {
+        let index = c_val[0];
+        let ptr = b_val[0];
 
         let offset = instruction.offset_imm;
         let size = instruction.size_imm;
 
-        let a_ptr = if instruction.imm_b {
-            // If b is an immediate, then we store the value at the address in a.
-            self.fp + instruction.op_a
-        } else {
-            // Load without touching access. This assumes that the caller will call mw on a_ptr.
-            self.get_memory_entry(self.fp + instruction.op_a).value[0] + index * size + offset
-        };
-
-        let b = if instruction.imm_b_base() {
-            Block::from(instruction.op_b[0])
-        } else if instruction.imm_b {
-            instruction.op_b
-        } else {
-            self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B)
-        };
-
-        (a_ptr, b)
+        ptr + index * size + offset
     }
 
     /// Fetch the input operand values for a branch instruction.
@@ -366,6 +325,8 @@ where
     }
 
     pub fn run(&mut self) {
+        let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
+            .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
@@ -442,7 +403,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EADD | Opcode::EFADD => {
+                Opcode::EADD => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let sum = EF::from_base_slice(&b_val.0) + EF::from_base_slice(&c_val.0);
@@ -450,7 +411,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EMUL | Opcode::EFMUL => {
+                Opcode::EMUL => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let product = EF::from_base_slice(&b_val.0) * EF::from_base_slice(&c_val.0);
@@ -458,7 +419,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::ESUB | Opcode::EFSUB | Opcode::FESUB => {
+                Opcode::ESUB => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let diff = EF::from_base_slice(&b_val.0) - EF::from_base_slice(&c_val.0);
@@ -466,7 +427,7 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::EDIV | Opcode::EFDIV | Opcode::FEDIV => {
+                Opcode::EDIV => {
                     self.nb_ext_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let quotient = EF::from_base_slice(&b_val.0) / EF::from_base_slice(&c_val.0);
@@ -474,35 +435,24 @@ where
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::LW => {
+                Opcode::LOAD => {
                     self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let prev_a = self.get_memory_entry(a_ptr).value;
-                    let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
+                    let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
+                    let addr = Self::calculate_address(b_val, c_val, &instruction);
+
+                    let val = self.mr(addr, MemoryAccessPosition::B);
+                    let a_val = val;
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::LE => {
+                Opcode::STORE => {
                     self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.load_rr(&instruction);
-                    let a_val = b_val;
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
-                }
-                Opcode::SW => {
-                    self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let prev_a = self.get_memory_entry(a_ptr).value;
-                    let a_val = Block::from([b_val[0], prev_a[1], prev_a[2], prev_a[3]]);
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
-                }
-                Opcode::SE => {
-                    self.nb_memory_ops += 1;
-                    let (a_ptr, b_val) = self.store_rr(&instruction);
-                    let a_val = b_val;
-                    self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::default());
+                    let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
+                    let addr = Self::calculate_address(b_val, c_val, &instruction);
+
+                    let a_val = self.mr(a_ptr, MemoryAccessPosition::A);
+                    self.mw(addr, a_val, MemoryAccessPosition::B);
+                    (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::BEQ => {
                     self.nb_branch_ops += 1;
@@ -906,6 +856,10 @@ where
             self.clk += F::from_canonical_u32(4);
             self.timestamp += 1;
             self.access = CpuRecord::default();
+
+            if self.timestamp >= early_exit_ts {
+                break;
+            }
         }
 
         // Collect all used memory addresses.

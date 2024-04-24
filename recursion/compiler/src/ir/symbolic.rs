@@ -1101,7 +1101,7 @@ impl<N: Field> Sub for SymbolicUsize<N> {
                 SymbolicUsize::Var(a - N::from_canonical_usize(b))
             }
             (SymbolicUsize::Const(a), SymbolicUsize::Var(b)) => {
-                SymbolicUsize::Var(b - N::from_canonical_usize(a))
+                SymbolicUsize::Var(SymbolicVar::from(N::from_canonical_usize(a)) - b)
             }
             (SymbolicUsize::Var(a), SymbolicUsize::Var(b)) => SymbolicUsize::Var(a - b),
         }
@@ -1189,7 +1189,7 @@ impl<N: Field> Sub<Usize<N>> for Usize<N> {
 
 impl<F: Field> MulAssign<Felt<F>> for SymbolicFelt<F> {
     fn mul_assign(&mut self, rhs: Felt<F>) {
-        *self = Self::from(rhs);
+        *self = self.clone() * Self::from(rhs);
     }
 }
 

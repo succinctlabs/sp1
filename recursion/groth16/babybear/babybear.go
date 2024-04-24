@@ -293,3 +293,9 @@ func InvEHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
 func (c *Chip) Ext2Felt(in *ExtensionVariable) [4]*Variable {
 	return in.Value
 }
+
+func (c *Chip) Reduce(in *Variable) *Variable {
+	return &Variable{
+		Value: c.field.Reduce(in.Value),
+	}
+}

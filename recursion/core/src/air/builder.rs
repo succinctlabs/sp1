@@ -1,16 +1,20 @@
 use crate::memory::{MemoryAccessTimestampCols, MemoryCols};
 use core::iter::{once, repeat};
+use p3_air::AirBuilderWithPublicValues;
 use p3_field::AbstractField;
 use sp1_core::{
-    air::{AirInteraction, BaseAirBuilder, SP1AirBuilder},
+    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
     lookup::InteractionKind,
 };
 
 use super::Block;
+/// A trait which contains all helper methods for building SP1 recursion machine AIRs.
+pub trait SP1RecursionAirBuilder: MachineAirBuilder + RecursionMemoryAirBuilder {}
 
-impl<AB: SP1AirBuilder> RecursionAirBuilder for AB {}
+impl<AB: AirBuilderWithPublicValues + RecursionMemoryAirBuilder> SP1RecursionAirBuilder for AB {}
+impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RecursionMemoryAirBuilder for AB {}
 
-pub trait RecursionAirBuilder: BaseAirBuilder {
+pub trait RecursionMemoryAirBuilder: BaseAirBuilder {
     fn recursion_eval_memory_access<E: Into<Self::Expr> + Clone>(
         &mut self,
         timestamp: impl Into<Self::Expr>,

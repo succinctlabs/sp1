@@ -8,13 +8,13 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BinomialExtension, MachineAir, SP1AirBuilder};
+use sp1_core::air::{BinomialExtension, MachineAir};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use crate::air::RecursionAirBuilder;
+use crate::air::SP1RecursionAirBuilder;
 use crate::memory::MemoryRecord;
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
@@ -149,7 +149,7 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
 
 impl<AB> Air<AB> for FriFoldChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();

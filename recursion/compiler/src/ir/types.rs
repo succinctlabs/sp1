@@ -47,6 +47,18 @@ pub struct Witness<C: Config> {
     pub vars: Vec<C::N>,
     pub felts: Vec<C::F>,
     pub exts: Vec<C::EF>,
+    pub vkey_hash: C::N,
+    pub commited_values_digest: C::N,
+}
+
+impl<C: Config> Witness<C> {
+    pub fn set_vkey_hash(&mut self, vkey_hash: C::N) {
+        self.vkey_hash = vkey_hash;
+    }
+
+    pub fn set_commited_values_digest(&mut self, commited_values_digest: C::N) {
+        self.commited_values_digest = commited_values_digest
+    }
 }
 
 impl<N: AbstractField> Usize<N> {
@@ -491,7 +503,7 @@ impl<C: Config> MemVariable<C> for Var<C::N> {
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIr::StoreV(ptr, *self, index));
+        builder.push(DslIr::StoreV(*self, ptr, index));
     }
 }
 
@@ -834,7 +846,7 @@ impl<C: Config> MemVariable<C> for Felt<C::F> {
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIr::StoreF(ptr, *self, index));
+        builder.push(DslIr::StoreF(*self, ptr, index));
     }
 }
 
@@ -1232,7 +1244,7 @@ impl<C: Config> MemVariable<C> for Ext<C::F, C::EF> {
     }
 
     fn store(&self, ptr: Ptr<<C as Config>::N>, index: MemIndex<C::N>, builder: &mut Builder<C>) {
-        builder.push(DslIr::StoreE(ptr, *self, index));
+        builder.push(DslIr::StoreE(*self, ptr, index));
     }
 }
 

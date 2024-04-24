@@ -454,6 +454,15 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIr::Commit(pv_hash.clone()));
     }
 
+    pub fn commit_vkey_hash_circuit(&mut self, var: Var<C::N>) {
+        self.operations.push(DslIr::CircuitCommitVkeyHash(var));
+    }
+
+    pub fn commit_commited_values_digest_circuit(&mut self, var: Var<C::N>) {
+        self.operations
+            .push(DslIr::CircuitCommitCommitedValuesDigest(var));
+    }
+
     pub fn cycle_tracker(&mut self, name: &str) {
         self.operations.push(DslIr::CycleTracker(name.to_string()));
     }
@@ -482,7 +491,7 @@ impl<'a, C: Config> IfBuilder<'a, C> {
         // Get the condition reduced from the expressions for lhs and rhs.
         let condition = self.condition();
 
-        // Execute the `then`` block and collect the instructions.
+        // Execute the `then` block and collect the instructions.
         let mut f_builder = Builder::<C>::new(
             self.builder.var_count,
             self.builder.felt_count,
