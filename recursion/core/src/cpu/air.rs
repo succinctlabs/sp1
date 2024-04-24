@@ -168,20 +168,7 @@ where
             .when(local.instruction.imm_c)
             .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
 
-        builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
-        );
-
         self.eval_alu(builder, local);
-
-        // Compute if a == b.
-        // IsZeroOperation::<AB::F>::eval::<AB>(
-        //     builder,
-        //     local.a.value.0[0] - local.b.value.0[0],
-        //     local.a_eq_b,
-        //     local.is_real.into(),
-        // );
 
         // Receive C.
         builder.receive(AirInteraction::new(
