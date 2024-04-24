@@ -72,7 +72,7 @@ impl<N: Field> Usize<N> {
     pub fn materialize<C: Config<N = N>>(&self, builder: &mut Builder<C>) -> Var<C::N> {
         match self {
             Usize::Const(c) => builder.eval(C::N::from_canonical_usize(*c)),
-            Usize::Var(v) => v.clone(),
+            Usize::Var(v) => *v,
         }
     }
 }
@@ -223,51 +223,51 @@ impl<N: Field> Var<N> {
         builder: &mut Builder<C>,
         cache: &mut HashMap<SymbolicVar<N>, Self>,
     ) {
-        // if let Some(v) = cache.get(&src) {
-        //     builder
-        //         .operations
-        //         .push(DslIr::AddVI(*self, *v, C::N::zero()));
-        //     return;
-        // }
+        if let Some(v) = cache.get(&src) {
+            builder
+                .operations
+                .push(DslIr::AddVI(*self, *v, C::N::zero()));
+            return;
+        }
         match src {
-            SymbolicVar::Const(c, digest) => {
+            SymbolicVar::Const(c, _) => {
                 builder.operations.push(DslIr::ImmV(*self, c));
             }
-            SymbolicVar::Val(v, digest) => {
+            SymbolicVar::Val(v, _) => {
                 builder
                     .operations
                     .push(DslIr::AddVI(*self, v, C::N::zero()));
             }
-            SymbolicVar::Add(lhs, rhs, sum_digest) => match (&*lhs, &*rhs) {
-                (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+            SymbolicVar::Add(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _)) => {
                     let sum = *lhs + *rhs;
                     builder.operations.push(DslIr::ImmV(*self, sum));
                 }
-                (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+                (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _)) => {
                     builder.operations.push(DslIr::AddVI(*self, *rhs, *lhs));
                 }
-                (SymbolicVar::Const(lhs, lhs_d), rhs) => {
+                (SymbolicVar::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign(rhs.clone(), builder);
                     builder.push(DslIr::AddVI(*self, rhs_value, *lhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+                (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _)) => {
                     builder.push(DslIr::AddVI(*self, *lhs, *rhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+                (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _)) => {
                     builder.push(DslIr::AddV(*self, *lhs, *rhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), rhs) => {
+                (SymbolicVar::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign(rhs.clone(), builder);
                     builder.push(DslIr::AddV(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicVar::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicVar::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign(lhs.clone(), builder);
                     builder.push(DslIr::AddVI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicVar::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicVar::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign(lhs.clone(), builder);
                     builder.push(DslIr::AddV(*self, lhs_value, *rhs));
@@ -275,121 +275,121 @@ impl<N: Field> Var<N> {
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::AddV(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicVar::Mul(lhs, rhs, prod_digest) => match (&*lhs, &*rhs) {
-                (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+            SymbolicVar::Mul(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _)) => {
                     let product = *lhs * *rhs;
                     builder.push(DslIr::ImmV(*self, product));
                 }
-                (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+                (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _)) => {
                     builder.push(DslIr::MulVI(*self, *rhs, *lhs));
                 }
-                (SymbolicVar::Const(lhs, lhs_d), rhs) => {
+                (SymbolicVar::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulVI(*self, rhs_value, *lhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+                (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _)) => {
                     builder.push(DslIr::MulVI(*self, *lhs, *rhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+                (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _)) => {
                     builder.push(DslIr::MulV(*self, *lhs, *rhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), rhs) => {
+                (SymbolicVar::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulV(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicVar::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicVar::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::MulVI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicVar::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicVar::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::MulV(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulV(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicVar::Sub(lhs, rhs, sub_digest) => match (&*lhs, &*rhs) {
-                (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+            SymbolicVar::Sub(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _)) => {
                     let difference = *lhs - *rhs;
                     builder.push(DslIr::ImmV(*self, difference));
                 }
-                (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+                (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _)) => {
                     builder.push(DslIr::SubVIN(*self, *lhs, *rhs));
                 }
-                (SymbolicVar::Const(lhs, lhs_d), rhs) => {
+                (SymbolicVar::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubVIN(*self, *lhs, rhs_value));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+                (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _)) => {
                     builder.push(DslIr::SubVI(*self, *lhs, *rhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+                (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _)) => {
                     builder.push(DslIr::SubV(*self, *lhs, *rhs));
                 }
-                (SymbolicVar::Val(lhs, lhs_d), rhs) => {
+                (SymbolicVar::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubV(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicVar::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicVar::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::SubVI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicVar::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicVar::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::SubV(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubV(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicVar::Neg(operand, neg_digest) => match &*operand {
-                SymbolicVar::Const(operand, d) => {
+            SymbolicVar::Neg(operand, _) => match &*operand {
+                SymbolicVar::Const(operand, _) => {
                     let negated = -*operand;
                     builder.push(DslIr::ImmV(*self, negated));
                 }
-                SymbolicVar::Val(operand, d) => {
+                SymbolicVar::Val(operand, _) => {
                     builder.push(DslIr::SubVIN(*self, C::N::zero(), *operand));
                 }
                 operand => {
                     let operand_value = Self::uninit(builder);
                     operand_value.assign_with_cache(operand.clone(), builder, cache);
-                    // cache.insert(operand.clone(), operand_value);
+                    cache.insert(operand.clone(), operand_value);
                     builder.push(DslIr::SubVIN(*self, C::N::zero(), operand_value));
                 }
             },
@@ -419,24 +419,24 @@ impl<C: Config> Variable<C> for Var<C::N> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _)) => {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _)) => {
                 builder.push(DslIr::AssertEqVI(rhs, lhs));
             }
-            (SymbolicVar::Const(lhs, lhs_d), rhs) => {
+            (SymbolicVar::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertEqVI(rhs_value, lhs));
             }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _)) => {
                 builder.push(DslIr::AssertEqVI(lhs, rhs));
             }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _)) => {
                 builder.push(DslIr::AssertEqV(lhs, rhs));
             }
-            (SymbolicVar::Val(lhs, lhs_d), rhs) => {
+            (SymbolicVar::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertEqV(lhs, rhs_value));
@@ -460,24 +460,24 @@ impl<C: Config> Variable<C> for Var<C::N> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _)) => {
                 assert_ne!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _)) => {
                 builder.push(DslIr::AssertNeVI(rhs, lhs));
             }
-            (SymbolicVar::Const(lhs, lhs_d), rhs) => {
+            (SymbolicVar::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertNeVI(rhs_value, lhs));
             }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d)) => {
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _)) => {
                 builder.push(DslIr::AssertNeVI(lhs, rhs));
             }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d)) => {
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _)) => {
                 builder.push(DslIr::AssertNeV(lhs, rhs));
             }
-            (SymbolicVar::Val(lhs, lhs_d), rhs) => {
+            (SymbolicVar::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertNeV(lhs, rhs_value));
@@ -514,225 +514,225 @@ impl<F: Field> Felt<F> {
         builder: &mut Builder<C>,
         cache: &mut HashMap<SymbolicFelt<F>, Self>,
     ) {
-        // if let Some(v) = cache.get(&src) {
-        //     builder
-        //         .operations
-        //         .push(DslIr::AddFI(*self, *v, C::F::zero()));
-        //     return;
-        // }
+        if let Some(v) = cache.get(&src) {
+            builder
+                .operations
+                .push(DslIr::AddFI(*self, *v, C::F::zero()));
+            return;
+        }
         match src {
-            SymbolicFelt::Const(c, d) => {
+            SymbolicFelt::Const(c, _) => {
                 builder.operations.push(DslIr::ImmF(*self, c));
             }
-            SymbolicFelt::Val(v, d) => {
+            SymbolicFelt::Val(v, _) => {
                 builder
                     .operations
                     .push(DslIr::AddFI(*self, v, C::F::zero()));
             }
-            SymbolicFelt::Add(lhs, rhs, sum_digest) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            SymbolicFelt::Add(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let sum = *lhs + *rhs;
                     builder.operations.push(DslIr::ImmF(*self, sum));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.operations.push(DslIr::AddFI(*self, *rhs, *lhs));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::AddFI(*self, rhs_value, *lhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIr::AddFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIr::AddF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::AddF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::AddFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::AddF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::AddF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Mul(lhs, rhs, prod_digest) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            SymbolicFelt::Mul(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let product = *lhs * *rhs;
                     builder.push(DslIr::ImmF(*self, product));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIr::MulFI(*self, *rhs, *lhs));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulFI(*self, rhs_value, *lhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIr::MulFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIr::MulF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::MulFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::MulF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Sub(lhs, rhs, sub_digest) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            SymbolicFelt::Sub(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let difference = *lhs - *rhs;
                     builder.push(DslIr::ImmF(*self, difference));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIr::SubFIN(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubFIN(*self, *lhs, rhs_value));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIr::SubFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIr::SubF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::SubFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::SubF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Div(lhs, rhs, div_digest) => match (&*lhs, &*rhs) {
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            SymbolicFelt::Div(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     let quotient = *lhs / *rhs;
                     builder.push(DslIr::ImmF(*self, quotient));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIr::DivFIN(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Const(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::DivFIN(*self, *lhs, rhs_value));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                     builder.push(DslIr::DivFI(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+                (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                     builder.push(DslIr::DivF(*self, *lhs, *rhs));
                 }
-                (SymbolicFelt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicFelt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::DivF(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicFelt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::DivFI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicFelt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicFelt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::DivF(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_cache(lhs.clone(), builder, cache);
-                    // cache.insert(lhs.clone(), lhs_value);
+                    cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_cache(rhs.clone(), builder, cache);
-                    // cache.insert(rhs.clone(), rhs_value);
+                    cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::DivF(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicFelt::Neg(operand, digest) => match &*operand {
-                SymbolicFelt::Const(operand, digest) => {
+            SymbolicFelt::Neg(operand, _) => match &*operand {
+                SymbolicFelt::Const(operand, _) => {
                     let negated = -*operand;
                     builder.push(DslIr::ImmF(*self, negated));
                 }
-                SymbolicFelt::Val(operand, digest) => {
+                SymbolicFelt::Val(operand, _) => {
                     builder.push(DslIr::SubFIN(*self, C::F::zero(), *operand));
                 }
                 operand => {
                     let operand_value = Self::uninit(builder);
                     operand_value.assign_with_cache(operand.clone(), builder, cache);
-                    // cache.insert(operand.clone(), operand_value);
+                    cache.insert(operand.clone(), operand_value);
                     builder.push(DslIr::SubFIN(*self, C::F::zero(), operand_value));
                 }
             },
@@ -762,24 +762,24 @@ impl<C: Config> Variable<C> for Felt<C::F> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertEqFI(rhs, lhs));
             }
-            (SymbolicFelt::Const(lhs, lhs_d), rhs) => {
+            (SymbolicFelt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertEqFI(rhs_value, lhs));
             }
-            (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 builder.push(DslIr::AssertEqFI(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertEqF(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs, lhs_d), rhs) => {
+            (SymbolicFelt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertEqF(lhs, rhs_value));
@@ -803,24 +803,24 @@ impl<C: Config> Variable<C> for Felt<C::F> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 assert_ne!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicFelt::Const(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+            (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertNeFI(rhs, lhs));
             }
-            (SymbolicFelt::Const(lhs, lhs_d), rhs) => {
+            (SymbolicFelt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertNeFI(rhs_value, lhs));
             }
-            (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Const(rhs, rhs_d)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
                 builder.push(DslIr::AssertNeFI(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs, lhs_d), SymbolicFelt::Val(rhs, rhs_d)) => {
+            (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertNeF(lhs, rhs));
             }
-            (SymbolicFelt::Val(lhs, lhs_d), rhs) => {
+            (SymbolicFelt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertNeF(lhs, rhs_value));
@@ -866,13 +866,13 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
         //     return;
         // }
         match src {
-            SymbolicExt::Base(v, digest) => match &*v {
-                SymbolicFelt::Const(c, c_d) => {
+            SymbolicExt::Base(v, _) => match &*v {
+                SymbolicFelt::Const(c, _) => {
                     builder
                         .operations
                         .push(DslIr::ImmE(*self, C::EF::from_base(*c)));
                 }
-                SymbolicFelt::Val(v, v_d) => {
+                SymbolicFelt::Val(v, _) => {
                     builder
                         .operations
                         .push(DslIr::AddEFFI(*self, *v, C::EF::zero()));
@@ -883,57 +883,53 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                     builder.push(DslIr::AddEFFI(*self, v_value, C::EF::zero()));
                 }
             },
-            SymbolicExt::Const(c, digest) => {
+            SymbolicExt::Const(c, _) => {
                 builder.operations.push(DslIr::ImmE(*self, c));
             }
-            SymbolicExt::Val(v, v_digest) => {
+            SymbolicExt::Val(v, _) => {
                 builder
                     .operations
                     .push(DslIr::AddEI(*self, v, C::EF::zero()));
             }
-            SymbolicExt::Add(lhs, rhs, sum_digest) => match (&*lhs, &*rhs) {
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            SymbolicExt::Add(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     let sum = *lhs + *rhs;
                     builder.operations.push(DslIr::ImmE(*self, sum));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.operations.push(DslIr::AddEI(*self, *rhs, *lhs));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Base(rhs, rhs_d)) => {
-                    match rhs.as_ref() {
-                        SymbolicFelt::Const(rhs, rhs_d) => {
-                            let sum = *lhs + C::EF::from_base(*rhs);
-                            builder.operations.push(DslIr::ImmE(*self, sum));
-                        }
-                        SymbolicFelt::Val(rhs, rhs_d) => {
-                            builder.operations.push(DslIr::AddEFFI(*self, *rhs, *lhs));
-                        }
-                        rhs => {
-                            let rhs_value: Felt<_> = Felt::uninit(builder);
-                            rhs_value.assign_with_cache(rhs.clone(), builder, base_cache);
-                            // base_cache.insert(rhs.clone(), rhs_value);
-                            builder
-                                .operations
-                                .push(DslIr::AddEFFI(*self, rhs_value, *lhs));
-                        }
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Base(rhs, _)) => match rhs.as_ref() {
+                    SymbolicFelt::Const(rhs, _) => {
+                        let sum = *lhs + C::EF::from_base(*rhs);
+                        builder.operations.push(DslIr::ImmE(*self, sum));
                     }
-                    // builder.operations.push(DslIR::AddEI(*self, *rhs, *lhs));
-                }
-                (SymbolicExt::Const(lhs, lhs_d), rhs) => {
+                    SymbolicFelt::Val(rhs, _) => {
+                        builder.operations.push(DslIr::AddEFFI(*self, *rhs, *lhs));
+                    }
+                    rhs => {
+                        let rhs_value: Felt<_> = Felt::uninit(builder);
+                        rhs_value.assign_with_cache(rhs.clone(), builder, base_cache);
+                        base_cache.insert(rhs.clone(), rhs_value);
+                        builder
+                            .operations
+                            .push(DslIr::AddEFFI(*self, rhs_value, *lhs));
+                    }
+                },
+                (SymbolicExt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::AddEI(*self, rhs_value, *lhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     builder.push(DslIr::AddEI(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Base(rhs, rhs_d)) => match rhs.as_ref()
-                {
-                    SymbolicFelt::Const(rhs, rhs_d) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Base(rhs, _)) => match rhs.as_ref() {
+                    SymbolicFelt::Const(rhs, _) => {
                         builder.push(DslIr::AddEFI(*self, *lhs, *rhs));
                     }
-                    SymbolicFelt::Val(rhs, rhs_d) => {
+                    SymbolicFelt::Val(rhs, _) => {
                         builder.push(DslIr::AddEF(*self, *lhs, *rhs));
                     }
                     rhs => {
@@ -941,186 +937,186 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                         builder.push(DslIr::AddEF(*self, *lhs, rhs));
                     }
                 },
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::AddE(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicExt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::AddE(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicExt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::AddEI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicExt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::AddE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::AddE(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicExt::Mul(lhs, rhs, prod_digest) => match (&*lhs, &*rhs) {
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            SymbolicExt::Mul(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     let product = *lhs * *rhs;
                     builder.push(DslIr::ImmE(*self, product));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::MulEI(*self, *rhs, *lhs));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), rhs) => {
+                (SymbolicExt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulEI(*self, rhs_value, *lhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     builder.push(DslIr::MulEI(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::MulE(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicExt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulE(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicExt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::MulEI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicExt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::MulE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::MulE(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicExt::Sub(lhs, rhs, sub_digest) => match (&*lhs, &*rhs) {
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            SymbolicExt::Sub(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     let difference = *lhs - *rhs;
                     builder.push(DslIr::ImmE(*self, difference));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::SubEIN(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), rhs) => {
+                (SymbolicExt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubEIN(*self, *lhs, rhs_value));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     builder.push(DslIr::SubEI(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::SubE(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicExt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::SubE(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicExt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::SubEI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicExt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::SubE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign(rhs.clone(), builder);
                     builder.push(DslIr::SubE(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicExt::Div(lhs, rhs, div_digest) => match (&*lhs, &*rhs) {
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            SymbolicExt::Div(lhs, rhs, _) => match (&*lhs, &*rhs) {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     let quotient = *lhs / *rhs;
                     builder.push(DslIr::ImmE(*self, quotient));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::DivEIN(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Const(lhs, lhs_d), rhs) => {
+                (SymbolicExt::Const(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::DivEIN(*self, *lhs, rhs_value));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
                     builder.push(DslIr::DivEI(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+                (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
                     builder.push(DslIr::DivE(*self, *lhs, *rhs));
                 }
-                (SymbolicExt::Val(lhs, lhs_d), rhs) => {
+                (SymbolicExt::Val(lhs, _), rhs) => {
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::DivE(*self, *lhs, rhs_value));
                 }
-                (lhs, SymbolicExt::Const(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Const(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::DivEI(*self, lhs_value, *rhs));
                 }
-                (lhs, SymbolicExt::Val(rhs, rhs_d)) => {
+                (lhs, SymbolicExt::Val(rhs, _)) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     builder.push(DslIr::DivE(*self, lhs_value, *rhs));
                 }
                 (lhs, rhs) => {
                     let lhs_value = Self::uninit(builder);
                     lhs_value.assign_with_caches(lhs.clone(), builder, ext_cache, base_cache);
-                    // ext_cache.insert(lhs.clone(), lhs_value);
+                    ext_cache.insert(lhs.clone(), lhs_value);
                     let rhs_value = Self::uninit(builder);
                     rhs_value.assign_with_caches(rhs.clone(), builder, ext_cache, base_cache);
-                    // ext_// cache.insert(rhs.clone(), rhs_value);
+                    ext_cache.insert(rhs.clone(), rhs_value);
                     builder.push(DslIr::DivE(*self, lhs_value, rhs_value));
                 }
             },
-            SymbolicExt::Neg(operand, neg_digest) => match &*operand {
-                SymbolicExt::Const(operand, d) => {
+            SymbolicExt::Neg(operand, _) => match &*operand {
+                SymbolicExt::Const(operand, _) => {
                     let negated = -*operand;
                     builder.push(DslIr::ImmE(*self, negated));
                 }
-                SymbolicExt::Val(operand, d) => {
+                SymbolicExt::Val(operand, _) => {
                     builder.push(DslIr::NegE(*self, *operand));
                 }
                 operand => {
@@ -1131,7 +1127,7 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                         ext_cache,
                         base_cache,
                     );
-                    // cache.insert(operand.clone(), operand_value);
+                    ext_cache.insert(operand.clone(), operand_value);
                     builder.push(DslIr::NegE(*self, operand_value));
                 }
             },
@@ -1161,24 +1157,24 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            (SymbolicExt::Const(lhs, _), SymbolicExt::Const(rhs, _)) => {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+            (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertEqEI(rhs, lhs));
             }
-            (SymbolicExt::Const(lhs, lhs_d), rhs) => {
+            (SymbolicExt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertEqEI(rhs_value, lhs));
             }
-            (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
                 builder.push(DslIr::AssertEqEI(lhs, rhs));
             }
-            (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+            (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertEqE(lhs, rhs));
             }
-            (SymbolicExt::Val(lhs, lhs_d), rhs) => {
+            (SymbolicExt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertEqE(lhs, rhs_value));
@@ -1202,24 +1198,24 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
         let rhs = rhs.into();
 
         match (lhs, rhs) {
-            (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            (SymbolicExt::Const(lhs, _), SymbolicExt::Const(rhs, _)) => {
                 assert_ne!(lhs, rhs, "Assertion failed at compile time");
             }
-            (SymbolicExt::Const(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+            (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertNeEI(rhs, lhs));
             }
-            (SymbolicExt::Const(lhs, lhs_d), rhs) => {
+            (SymbolicExt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertNeEI(rhs_value, lhs));
             }
-            (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Const(rhs, rhs_d)) => {
+            (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
                 builder.push(DslIr::AssertNeEI(lhs, rhs));
             }
-            (SymbolicExt::Val(lhs, lhs_d), SymbolicExt::Val(rhs, rhs_d)) => {
+            (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
                 builder.push(DslIr::AssertNeE(lhs, rhs));
             }
-            (SymbolicExt::Val(lhs, lhs_d), rhs) => {
+            (SymbolicExt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
                 builder.push(DslIr::AssertNeE(lhs, rhs_value));

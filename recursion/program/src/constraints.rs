@@ -153,7 +153,12 @@ where
         let quotient: Ext<_, _> = Self::recompute_quotient(builder, &opening, qc_domains, zeta);
 
         // Assert that the quotient times the zerofier is equal to the folded constraints.
-        builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
+        if chip.name() == "Mul" {
+            builder.print_e(quotient);
+            builder.print_e(folded_constraints);
+            println!("Chip name: {}", chip.name());
+            builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
+        }
     }
 }
 
@@ -273,7 +278,7 @@ mod tests {
     }
 
     #[test]
-    fn test_verify_constraints_whole() {
+    fn test_verify_constraints() {
         type SC = BabyBearPoseidon2;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;

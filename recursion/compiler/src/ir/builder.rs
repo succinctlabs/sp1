@@ -593,61 +593,59 @@ impl<'a, C: Config> IfBuilder<'a, C> {
 
     fn condition(&mut self) -> IfCondition<C::N> {
         match (self.lhs.clone(), self.rhs.clone(), self.is_eq) {
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d), true) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), true) => {
                 IfCondition::EqConst(lhs, rhs)
             }
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d), false) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Const(rhs, _), false) => {
                 IfCondition::NeConst(lhs, rhs)
             }
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d), true) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), true) => {
                 IfCondition::EqI(rhs, lhs)
             }
-            (SymbolicVar::Const(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d), false) => {
+            (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _), false) => {
                 IfCondition::NeI(rhs, lhs)
             }
-            (SymbolicVar::Const(lhs, lhs_d), rhs, true) => {
+            (SymbolicVar::Const(lhs, _), rhs, true) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
                 IfCondition::EqI(rhs, lhs)
             }
-            (SymbolicVar::Const(lhs, lhs_d), rhs, false) => {
+            (SymbolicVar::Const(lhs, _), rhs, false) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
                 IfCondition::NeI(rhs, lhs)
             }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d), true) => {
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), true) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 IfCondition::EqI(lhs, rhs)
             }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Const(rhs, rhs_d), false) => {
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _), false) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 IfCondition::NeI(lhs, rhs)
             }
-            (lhs, SymbolicVar::Const(rhs, rhs_d), true) => {
+            (lhs, SymbolicVar::Const(rhs, _), true) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 IfCondition::EqI(lhs, rhs)
             }
-            (lhs, SymbolicVar::Const(rhs, rhs_d), false) => {
+            (lhs, SymbolicVar::Const(rhs, _), false) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 IfCondition::NeI(lhs, rhs)
             }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d), true) => {
-                IfCondition::Eq(lhs, rhs)
-            }
-            (SymbolicVar::Val(lhs, lhs_d), SymbolicVar::Val(rhs, rhs_d), false) => {
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), true) => IfCondition::Eq(lhs, rhs),
+            (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _), false) => {
                 IfCondition::Ne(lhs, rhs)
             }
-            (SymbolicVar::Val(lhs, lhs_d), rhs, true) => {
+            (SymbolicVar::Val(lhs, _), rhs, true) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
                 IfCondition::Eq(lhs, rhs)
             }
-            (SymbolicVar::Val(lhs, lhs_d), rhs, false) => {
+            (SymbolicVar::Val(lhs, _), rhs, false) => {
                 let rhs: Var<C::N> = self.builder.eval(rhs);
                 IfCondition::Ne(lhs, rhs)
             }
-            (lhs, SymbolicVar::Val(rhs, rhs_d), true) => {
+            (lhs, SymbolicVar::Val(rhs, _), true) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 IfCondition::Eq(lhs, rhs)
             }
-            (lhs, SymbolicVar::Val(rhs, rhs_d), false) => {
+            (lhs, SymbolicVar::Val(rhs, _), false) => {
                 let lhs: Var<C::N> = self.builder.eval(lhs);
                 IfCondition::Ne(lhs, rhs)
             }
