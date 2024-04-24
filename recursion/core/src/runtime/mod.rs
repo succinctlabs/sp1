@@ -469,9 +469,7 @@ where
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
                     let addr = Self::calculate_address(b_val, c_val, &instruction);
-
-                    let val = self.mr_cpu(addr, MemoryAccessPosition::B);
-                    let a_val = val;
+                    let a_val = self.mr_cpu(addr, MemoryAccessPosition::Memory);
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -479,9 +477,8 @@ where
                     self.nb_memory_ops += 1;
                     let (a_ptr, b_val, c_val) = self.mem_rr(&instruction);
                     let addr = Self::calculate_address(b_val, c_val, &instruction);
-
                     let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
-                    self.mw_cpu(addr, a_val, MemoryAccessPosition::B);
+                    self.mw_cpu(addr, a_val, MemoryAccessPosition::Memory);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::BEQ => {
