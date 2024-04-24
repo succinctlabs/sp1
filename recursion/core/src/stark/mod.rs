@@ -1,4 +1,4 @@
-pub mod config;
+pub mod outer;
 pub mod poseidon2;
 
 use crate::{
@@ -20,17 +20,16 @@ use crate::runtime::D;
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
-pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
+pub enum RecursionAirWide<F: PrimeField32 + BinomiallyExtendable<D>> {
     Program(ProgramChip),
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    Poseidon2(Poseidon2WideChip),
+    // Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
-    // Poseidon2(Poseidon2Chip),
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirWide<F> {
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
             .into_iter()
@@ -40,16 +39,16 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
     }
 
     pub fn get_all() -> Vec<Self> {
-        once(RecursionAir::Program(ProgramChip))
-            .chain(once(RecursionAir::Cpu(CpuChip::default())))
-            .chain(once(RecursionAir::MemoryInit(MemoryGlobalChip {
+        once(RecursionAirWide::Program(ProgramChip))
+            .chain(once(RecursionAirWide::Cpu(CpuChip::default())))
+            .chain(once(RecursionAirWide::MemoryInit(MemoryGlobalChip {
                 kind: MemoryChipKind::Init,
             })))
-            .chain(once(RecursionAir::MemoryFinalize(MemoryGlobalChip {
+            .chain(once(RecursionAirWide::MemoryFinalize(MemoryGlobalChip {
                 kind: MemoryChipKind::Finalize,
             })))
-            .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip {})))
-            .chain(once(RecursionAir::FriFold(FriFoldChip {})))
+            // .chain(once(RecursionAirWide::Poseidon2(Poseidon2WideChip {})))
+            .chain(once(RecursionAirWide::FriFold(FriFoldChip {})))
             .collect()
     }
 }

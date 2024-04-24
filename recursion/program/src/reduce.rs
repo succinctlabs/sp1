@@ -36,7 +36,7 @@ use sp1_recursion_compiler::ir::{Array, Builder, Ext, ExtConst, Felt, Var};
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
-use sp1_recursion_core::stark::RecursionAir;
+use sp1_recursion_core::stark::RecursionAirWide;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::types::DigestVariable;
@@ -77,7 +77,7 @@ impl ReduceProgram {
     pub fn define(setup: bool) -> RecursionProgram<Val> {
         // Initialize the sp1 and recursion maachines.
         let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
-        let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
+        let recursion_machine = RecursionAirWide::machine(BabyBearPoseidon2Inner::default());
 
         // Initialize the builder.
         let mut builder = AsmBuilder::<F, EF>::default();

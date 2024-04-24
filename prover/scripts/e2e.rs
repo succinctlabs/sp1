@@ -38,29 +38,32 @@ pub fn main() {
     tracing::info!("reduce");
     let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
 
-    tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
+    tracing::info!("compress");
+    let _ = prover.compress(&vk, core_challenger, reduced_proof);
 
-    tracing::info!("building verifier constraints");
-    let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(&prover.reduce_vk_outer, wrapped_proof.clone()));
+    // tracing::info!("wrap");
+    // let wrapped_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
 
-    tracing::info!("building template witness");
-    let mut witness = Witness::default();
-    wrapped_proof.write(&mut witness);
+    // tracing::info!("building verifier constraints");
+    // let constraints = tracing::info_span!("wrap circuit")
+    //     .in_scope(|| build_wrap_circuit(&prover.reduce_vk_outer, wrapped_proof.clone()));
 
-    tracing::info!("sanity check gnark test");
-    Groth16Prover::test(constraints.clone(), witness.clone());
+    // tracing::info!("building template witness");
+    // let mut witness = Witness::default();
+    // wrapped_proof.write(&mut witness);
 
-    tracing::info!("sanity check gnark build");
-    Groth16Prover::build(
-        constraints.clone(),
-        witness.clone(),
-        args.build_dir.clone().into(),
-    );
+    // tracing::info!("sanity check gnark test");
+    // Groth16Prover::test(constraints.clone(), witness.clone());
 
-    tracing::info!("sanity check gnark prove");
-    let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
+    // tracing::info!("sanity check gnark build");
+    // Groth16Prover::build(
+    //     constraints.clone(),
+    //     witness.clone(),
+    //     args.build_dir.clone().into(),
+    // );
+
+    // tracing::info!("sanity check gnark prove");
+    // let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
@@ -72,5 +75,5 @@ pub fn main() {
     // tracing::info!("sanity check plonk bn254 prove");
     // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
-    println!("{:?}", proof);
+    // println!("{:?}", proof);
 }

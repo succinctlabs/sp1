@@ -7,7 +7,7 @@ use p3_matrix::Dimensions;
 use p3_util::log2_strict_usize;
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::prelude::*;
-use sp1_recursion_core::stark::config::OuterChallengeMmcs;
+use sp1_recursion_core::stark::outer::OuterChallengeMmcs;
 
 use crate::mmcs::verify_batch;
 use crate::types::FriChallenges;
@@ -246,7 +246,7 @@ pub mod tests {
         constraints::ConstraintCompiler,
         ir::{Builder, Ext, Felt, SymbolicExt, Var, Witness},
     };
-    use sp1_recursion_core::stark::config::{
+    use sp1_recursion_core::stark::outer::{
         outer_perm, test_fri_config, OuterChallenge, OuterChallengeMmcs, OuterChallenger,
         OuterCompress, OuterDft, OuterFriProof, OuterHash, OuterPcs, OuterVal, OuterValMmcs,
     };

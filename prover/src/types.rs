@@ -9,7 +9,7 @@ use sp1_core::{
 };
 use sp1_recursion_core::air::RecursionPublicValues;
 
-use crate::{CoreSC, InnerSC};
+use crate::{CoreSC, ReduceSC};
 
 /// The information necessary to generate a proof for a given RISC-V program.
 pub struct SP1ProvingKey {
@@ -42,7 +42,7 @@ pub struct SP1ReduceProof<SC: StarkGenericConfig> {
 #[derive(Serialize, Deserialize)]
 pub enum SP1ReduceProofWrapper {
     Core(SP1ReduceProof<CoreSC>),
-    Recursive(SP1ReduceProof<InnerSC>),
+    Recursive(SP1ReduceProof<ReduceSC>),
 }
 
 /// Represents the state of reducing proofs together. This is used to track the current values since

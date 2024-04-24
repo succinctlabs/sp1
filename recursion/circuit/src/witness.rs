@@ -6,7 +6,7 @@ use sp1_recursion_compiler::{
     config::OuterConfig,
     ir::{Builder, Config, Ext, Felt, Var, Witness},
 };
-use sp1_recursion_core::stark::config::{
+use sp1_recursion_core::stark::outer::{
     BabyBearPoseidon2Outer, OuterBatchOpening, OuterChallenge, OuterCommitPhaseStep, OuterDigest,
     OuterFriProof, OuterPcsProof, OuterQueryProof, OuterVal,
 };
@@ -335,7 +335,7 @@ mod tests {
         constraints::ConstraintCompiler,
         ir::{Builder, ExtConst, Witness},
     };
-    use sp1_recursion_core::stark::config::OuterChallenge;
+    use sp1_recursion_core::stark::outer::OuterChallenge;
     use sp1_recursion_gnark_ffi::Groth16Prover;
 
     #[test]

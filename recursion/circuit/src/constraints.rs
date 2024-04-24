@@ -181,7 +181,7 @@ mod tests {
     };
     use sp1_recursion_core::{
         runtime::Runtime,
-        stark::{config::BabyBearPoseidon2Outer, RecursionAir},
+        stark::{outer::BabyBearPoseidon2Outer, RecursionAirWide},
     };
     use sp1_recursion_gnark_ffi::Groth16Prover;
 
@@ -189,11 +189,11 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
-        machine: &'a StarkMachine<SC, RecursionAir<SC::Val>>,
+        machine: &'a StarkMachine<SC, RecursionAirWide<SC::Val>>,
         proof: &'a ShardProof<SC>,
         challenger: &mut SC::Challenger,
     ) -> (
-        Vec<&'a Chip<SC::Val, RecursionAir<SC::Val>>>,
+        Vec<&'a Chip<SC::Val, RecursionAirWide<SC::Val>>>,
         Vec<Dom<SC>>,
         Vec<Vec<Dom<SC>>>,
         Vec<SC::Challenge>,
@@ -286,7 +286,7 @@ mod tests {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F>;
+        type A = RecursionAirWide<F>;
 
         sp1_core::utils::setup_logger();
         let program = basic_program::<F>();

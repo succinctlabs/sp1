@@ -44,7 +44,7 @@ use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::{
     air::RecursionPublicValues,
     runtime::Runtime as RecursionRuntime,
-    stark::{config::BabyBearPoseidon2Outer, RecursionAir},
+    stark::{outer::BabyBearPoseidon2Outer, RecursionAirWide},
 };
 use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
@@ -58,8 +58,8 @@ use crate::utils::get_sorted_indices;
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
 
-/// The configuration for the recursive prover.
-pub type InnerSC = BabyBearPoseidon2;
+/// The configuration for the reduce prover.
+pub type ReduceSC = BabyBearPoseidon2;
 
 /// The configuration for the outer prover.
 pub type OuterSC = BabyBearPoseidon2Outer;
@@ -68,13 +68,13 @@ pub type OuterSC = BabyBearPoseidon2Outer;
 pub struct SP1Prover {
     pub reduce_program: RecursionProgram<BabyBear>,
     pub reduce_setup_program: RecursionProgram<BabyBear>,
-    pub reduce_vk_inner: StarkVerifyingKey<InnerSC>,
+    pub reduce_vk_inner: StarkVerifyingKey<ReduceSC>,
     pub reduce_vk_outer: StarkVerifyingKey<OuterSC>,
     pub core_machine: StarkMachine<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>,
     pub inner_recursion_machine:
-        StarkMachine<InnerSC, RecursionAir<<InnerSC as StarkGenericConfig>::Val>>,
+        StarkMachine<ReduceSC, RecursionAirWide<<ReduceSC as StarkGenericConfig>::Val>>,
     pub outer_recursion_machine:
-        StarkMachine<OuterSC, RecursionAir<<OuterSC as StarkGenericConfig>::Val>>,
+        StarkMachine<OuterSC, RecursionAirWide<<OuterSC as StarkGenericConfig>::Val>>,
 }
 
 impl SP1Prover {
@@ -84,11 +84,13 @@ impl SP1Prover {
         // Load program from reduce.bin if it exists
         let reduce_program = ReduceProgram::build();
         println!("program size: {}", reduce_program.instructions.len());
-        let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
-        let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
+        let (_, reduce_vk_inner) =
+            RecursionAirWide::machine(ReduceSC::default()).setup(&reduce_program);
+        let (_, reduce_vk_outer) =
+            RecursionAirWide::machine(OuterSC::default()).setup(&reduce_program);
         let core_machine = RiscvAir::machine(CoreSC::default());
-        let inner_recursion_machine = RecursionAir::machine(InnerSC::default());
-        let outer_recursion_machine = RecursionAir::machine(OuterSC::default());
+        let inner_recursion_machine = RecursionAirWide::machine(ReduceSC::default());
+        let outer_recursion_machine = RecursionAirWide::machine(OuterSC::default());
         Self {
             reduce_setup_program,
             reduce_program,
@@ -138,8 +140,8 @@ impl SP1Prover {
         &self,
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
-        mut deferred_proofs: Vec<ShardProof<InnerSC>>,
-    ) -> SP1ReduceProof<InnerSC> {
+        mut deferred_proofs: Vec<ShardProof<ReduceSC>>,
+    ) -> SP1ReduceProof<ReduceSC> {
         // Observe all commitments and public values.
         //
         // This challenger will be witnessed into reduce program and used to verify sp1 proofs. It
@@ -163,7 +165,6 @@ impl SP1Prover {
 
         // Keep reducing until we have only one shard.
         while reduce_proofs.len() > 1 {
-            println!("new layer {}", reduce_proofs.len());
             let layer_deferred_proofs = std::mem::take(&mut deferred_proofs);
             reduce_proofs = self.reduce_layer(
                 vk,
@@ -183,7 +184,9 @@ impl SP1Prover {
             SP1ReduceProofWrapper::Core(ref proof) => {
                 let state = ReduceState::from_core_start_state(&proof.proof);
                 let reconstruct_challenger = self.setup_initial_core_challenger(vk);
+                let config = ReduceSC::default();
                 self.reduce_batch(
+                    config,
                     vk,
                     core_challenger,
                     reconstruct_challenger,
@@ -203,7 +206,7 @@ impl SP1Prover {
         vk: &SP1VerifyingKey,
         sp1_challenger: Challenger<CoreSC>,
         proofs: Vec<SP1ReduceProofWrapper>,
-        deferred_proofs: Vec<ShardProof<InnerSC>>,
+        deferred_proofs: Vec<ShardProof<ReduceSC>>,
         batch_size: usize,
     ) -> Vec<SP1ReduceProofWrapper> {
         // OPT: If there's only one proof in the last batch, we could push it to the next layer.
@@ -256,7 +259,9 @@ impl SP1Prover {
             .zip(reconstruct_challengers.into_par_iter())
             .zip(start_states.into_par_iter())
             .map(|((chunk, reconstruct_challenger), start_state)| {
+                let config = ReduceSC::default();
                 let proof = self.reduce_batch(
+                    config,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger,
@@ -305,7 +310,9 @@ impl SP1Prover {
             .into_par_iter()
             .zip(start_states.into_par_iter())
             .map(|(proofs, state)| {
-                self.reduce_batch::<InnerSC>(
+                let config = ReduceSC::default();
+                self.reduce_batch::<ReduceSC>(
+                    config,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger.clone(),
@@ -329,21 +336,22 @@ impl SP1Prover {
     #[allow(clippy::too_many_arguments)]
     fn reduce_batch<SC>(
         &self,
+        config: SC,
         vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
         reconstruct_challenger: Challenger<CoreSC>,
         state: ReduceState,
         reduce_proofs: &[SP1ReduceProofWrapper],
-        deferred_proofs: &[ShardProof<InnerSC>],
+        deferred_proofs: &[ShardProof<ReduceSC>],
         is_complete: bool,
     ) -> SP1ReduceProof<SC>
     where
-        SC: StarkGenericConfig<Val = BabyBear> + Default,
+        SC: StarkGenericConfig<Val = BabyBear>,
         SC::Challenger: Clone,
         Com<SC>: Send + Sync,
         PcsProverData<SC>: Send + Sync,
         ShardMainData<SC>: Serialize + DeserializeOwned,
-        LocalProver<SC, RecursionAir<BabyBear>>: Prover<SC, RecursionAir<BabyBear>>,
+        LocalProver<SC, RecursionAirWide<BabyBear>>: Prover<SC, RecursionAirWide<BabyBear>>,
     {
         // Compute inputs.
         let is_recursive_flags: Vec<usize> = reduce_proofs
@@ -368,7 +376,7 @@ impl SP1Prover {
             get_preprocessed_data(&self.core_machine, &vk.vk);
         let (recursion_prep_sorted_indices, recursion_prep_domains): (
             Vec<usize>,
-            Vec<Domain<InnerSC>>,
+            Vec<Domain<ReduceSC>>,
         ) = get_preprocessed_data(&self.inner_recursion_machine, &self.reduce_vk_inner);
         let deferred_sorted_indices: Vec<Vec<usize>> = deferred_proofs
             .iter()
@@ -412,8 +420,8 @@ impl SP1Prover {
         let is_complete = if is_complete { 1usize } else { 0 };
         witness_stream.extend(is_complete.write());
 
-        let machine = RecursionAir::machine(InnerSC::default());
-        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+        let machine = RecursionAirWide::machine(ReduceSC::default());
+        let mut runtime = RecursionRuntime::<Val<ReduceSC>, Challenge<ReduceSC>, _>::new(
             &self.reduce_setup_program,
             machine.config().perm.clone(),
         );
@@ -423,8 +431,8 @@ impl SP1Prover {
         let mut checkpoint = runtime.memory.clone();
 
         // Execute runtime.
-        let machine = RecursionAir::machine(InnerSC::default());
-        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+        let machine = RecursionAirWide::machine(ReduceSC::default());
+        let mut runtime = RecursionRuntime::<Val<ReduceSC>, Challenge<ReduceSC>, _>::new(
             &self.reduce_program,
             machine.config().perm.clone(),
         );
@@ -436,7 +444,7 @@ impl SP1Prover {
         runtime.print_stats();
 
         // Generate proof.
-        let machine = RecursionAir::machine(SC::default());
+        let machine = RecursionAirWide::machine(config);
         let (pk, _) = machine.setup(&self.reduce_program);
         let mut challenger = machine.config().challenger();
         let proof =
@@ -454,18 +462,40 @@ impl SP1Prover {
         SP1ReduceProof { proof }
     }
 
+    /// Compress a reduce proof to a proof that is more efficient to verify.
+    pub fn compress(
+        &self,
+        vk: &SP1VerifyingKey,
+        core_challenger: Challenger<CoreSC>,
+        reduced_proof: SP1ReduceProof<ReduceSC>,
+    ) -> SP1ReduceProof<ReduceSC> {
+        let reconstruct_challenger = self.setup_initial_core_challenger(vk);
+        let state = ReduceState::from_reduce_start_state(&reduced_proof);
+        let config = ReduceSC::compressed();
+        self.reduce_batch::<ReduceSC>(
+            config,
+            vk,
+            core_challenger,
+            reconstruct_challenger,
+            state,
+            &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
+            &[],
+            true,
+        )
+    }
+
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
     pub fn wrap_bn254(
         &self,
         vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
-        reduced_proof: SP1ReduceProof<InnerSC>,
+        reduced_proof: SP1ReduceProof<ReduceSC>,
     ) -> ShardProof<OuterSC> {
-        // Since the proof passed in should be complete already, the start reconstruct_challenger
-        // should be in initial state with only vk observed.
         let reconstruct_challenger = self.setup_initial_core_challenger(vk);
         let state = ReduceState::from_reduce_start_state(&reduced_proof);
+        let config = OuterSC::default();
         self.reduce_batch::<OuterSC>(
+            config,
             vk,
             core_challenger,
             reconstruct_challenger,
