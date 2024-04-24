@@ -427,10 +427,10 @@ pub mod baby_bear_poseidon2 {
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => 33,
+            Err(_) => 25,
         };
         FriConfig {
-            log_blowup: 3,
+            log_blowup: 4,
             num_queries,
             proof_of_work_bits: 16,
             mmcs: challenge_mmcs,
