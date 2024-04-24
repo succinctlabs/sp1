@@ -292,8 +292,8 @@ mod tests {
         challenger.observe(&mut builder, c);
         let result2 = challenger.sample_ext(&mut builder);
 
-        builder.assert_ext_eq(SymbolicExt::Const(gt1), result1);
-        builder.assert_ext_eq(SymbolicExt::Const(gt2), result2);
+        builder.assert_ext_eq(SymbolicExt::from_f(gt1), result1);
+        builder.assert_ext_eq(SymbolicExt::from_f(gt2), result2);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);

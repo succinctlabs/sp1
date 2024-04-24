@@ -10,7 +10,7 @@ pub struct Ptr<N> {
     pub address: Var<N>,
 }
 
-pub struct SymbolicPtr<N> {
+pub struct SymbolicPtr<N: Field> {
     pub address: SymbolicVar<N>,
 }
 
@@ -77,15 +77,15 @@ impl<C: Config> MemVariable<C> for Ptr<C::N> {
     }
 }
 
-impl<N> From<Ptr<N>> for SymbolicPtr<N> {
+impl<N: Field> From<Ptr<N>> for SymbolicPtr<N> {
     fn from(ptr: Ptr<N>) -> Self {
         SymbolicPtr {
-            address: SymbolicVar::Val(ptr.address),
+            address: SymbolicVar::from(ptr.address),
         }
     }
 }
 
-impl<N> Add for Ptr<N> {
+impl<N: Field> Add for Ptr<N> {
     type Output = SymbolicPtr<N>;
 
     fn add(self, rhs: Self) -> Self::Output {
@@ -95,7 +95,7 @@ impl<N> Add for Ptr<N> {
     }
 }
 
-impl<N> Sub for Ptr<N> {
+impl<N: Field> Sub for Ptr<N> {
     type Output = SymbolicPtr<N>;
 
     fn sub(self, rhs: Self) -> Self::Output {
@@ -105,7 +105,7 @@ impl<N> Sub for Ptr<N> {
     }
 }
 
-impl<N> Add for SymbolicPtr<N> {
+impl<N: Field> Add for SymbolicPtr<N> {
     type Output = Self;
 
     fn add(self, rhs: Self) -> Self {
@@ -115,7 +115,7 @@ impl<N> Add for SymbolicPtr<N> {
     }
 }
 
-impl<N> Sub for SymbolicPtr<N> {
+impl<N: Field> Sub for SymbolicPtr<N> {
     type Output = Self;
 
     fn sub(self, rhs: Self) -> Self {
@@ -125,7 +125,7 @@ impl<N> Sub for SymbolicPtr<N> {
     }
 }
 
-impl<N> Add<Ptr<N>> for SymbolicPtr<N> {
+impl<N: Field> Add<Ptr<N>> for SymbolicPtr<N> {
     type Output = Self;
 
     fn add(self, rhs: Ptr<N>) -> Self {
@@ -135,7 +135,7 @@ impl<N> Add<Ptr<N>> for SymbolicPtr<N> {
     }
 }
 
-impl<N> Sub<Ptr<N>> for SymbolicPtr<N> {
+impl<N: Field> Sub<Ptr<N>> for SymbolicPtr<N> {
     type Output = Self;
 
     fn sub(self, rhs: Ptr<N>) -> Self {
@@ -145,7 +145,7 @@ impl<N> Sub<Ptr<N>> for SymbolicPtr<N> {
     }
 }
 
-impl<N> Add<SymbolicPtr<N>> for Ptr<N> {
+impl<N: Field> Add<SymbolicPtr<N>> for Ptr<N> {
     type Output = SymbolicPtr<N>;
 
     fn add(self, rhs: SymbolicPtr<N>) -> SymbolicPtr<N> {
@@ -155,7 +155,7 @@ impl<N> Add<SymbolicPtr<N>> for Ptr<N> {
     }
 }
 
-impl<N> Add<SymbolicVar<N>> for Ptr<N> {
+impl<N: Field> Add<SymbolicVar<N>> for Ptr<N> {
     type Output = SymbolicPtr<N>;
 
     fn add(self, rhs: SymbolicVar<N>) -> SymbolicPtr<N> {
@@ -165,7 +165,7 @@ impl<N> Add<SymbolicVar<N>> for Ptr<N> {
     }
 }
 
-impl<N> Sub<SymbolicVar<N>> for Ptr<N> {
+impl<N: Field> Sub<SymbolicVar<N>> for Ptr<N> {
     type Output = SymbolicPtr<N>;
 
     fn sub(self, rhs: SymbolicVar<N>) -> SymbolicPtr<N> {
@@ -175,7 +175,7 @@ impl<N> Sub<SymbolicVar<N>> for Ptr<N> {
     }
 }
 
-impl<N> Sub<SymbolicPtr<N>> for Ptr<N> {
+impl<N: Field> Sub<SymbolicPtr<N>> for Ptr<N> {
     type Output = SymbolicPtr<N>;
 
     fn sub(self, rhs: SymbolicPtr<N>) -> SymbolicPtr<N> {
