@@ -1,7 +1,7 @@
 use p3_field::Field;
 use serde::{Deserialize, Serialize};
 
-use crate::{bytes::NUM_BYTE_OPS, runtime::Opcode};
+use crate::range_check::NUM_RANGE_CHECK_OPS;
 
 /// A byte opcode which the chip can process.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]

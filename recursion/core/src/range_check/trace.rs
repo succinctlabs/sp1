@@ -1,19 +1,20 @@
 use std::borrow::BorrowMut;
 
-use p3_field::Field;
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
+use sp1_core::air::MachineAir;
 
 use super::{
-    columns::{ByteMultCols, NUM_BYTE_MULT_COLS, NUM_BYTE_PREPROCESSED_COLS},
-    ByteChip,
+    columns::{RangeCheckMultCols, NUM_RANGE_CHECK_MULT_COLS, NUM_RANGE_CHECK_PREPROCESSED_COLS},
+    RangeCheckChip,
 };
+use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_ROWS: usize = 1 << 16;
 
-impl<F: Field> MachineAir<F> for RangeCheckChip<F> {
-    type Record = ExecutionRecord;
-
-    type Program = Program;
+impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
+    type Record = ExecutionRecord<F>;
+    type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
         "RangeCheck".to_string()
@@ -26,21 +27,21 @@ impl<F: Field> MachineAir<F> for RangeCheckChip<F> {
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         // TODO: We should be able to make this a constant. Also, trace / map should be separate.
         // Since we only need the trace and not the map, we can just pass 0 as the shard.
-        let (trace, _) = Self::trace_and_map(0);
+        let (trace, _) = Self::trace_and_map();
 
         Some(trace)
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord, _output: &mut ExecutionRecord) {
+    fn generate_dependencies(&self, _input: &ExecutionRecord<F>, _output: &mut ExecutionRecord<F>) {
         // Do nothing since this chip has no dependencies.
     }
 
     fn generate_trace(
         &self,
-        input: &ExecutionRecord,
-        _output: &mut ExecutionRecord,
+        input: &ExecutionRecord<F>,
+        _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let (_, event_map) = Self::trace_and_map(shard);
+        let (_, event_map) = Self::trace_and_map();
 
         let mut trace = RowMajorMatrix::new(
             vec![F::zero(); NUM_RANGE_CHECK_MULT_COLS * NUM_ROWS],

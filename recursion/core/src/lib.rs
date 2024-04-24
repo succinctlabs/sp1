@@ -9,3 +9,5 @@ pub mod range_check;
 pub mod program;
 pub mod runtime;
 pub mod stark;
+
+extern crate alloc;

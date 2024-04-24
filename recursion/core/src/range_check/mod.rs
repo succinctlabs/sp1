@@ -11,13 +11,11 @@ use alloc::collections::BTreeMap;
 use core::borrow::BorrowMut;
 use std::marker::PhantomData;
 
-use itertools::Itertools;
 use p3_field::Field;
 use p3_matrix::dense::RowMajorMatrix;
 
-use self::columns::{BytePreprocessedCols, NUM_BYTE_PREPROCESSED_COLS};
-use self::utils::shr_carry;
-use crate::bytes::trace::NUM_ROWS;
+use self::columns::{RangeCheckPreprocessedCols, NUM_RANGE_CHECK_PREPROCESSED_COLS};
+use crate::range_check::trace::NUM_ROWS;
 
 /// The number of different range check operations.
 pub const NUM_RANGE_CHECK_OPS: usize = 2;
@@ -36,12 +34,7 @@ impl<F: Field> RangeCheckChip<F> {
     ///  - `trace` is a matrix containing all possible range check values.
     /// - `map` is a map from a range check lookup to the value's corresponding row it appears in the table and
     /// the index of the result in the array of multiplicities.
-    pub fn trace_and_map(
-        shard: u32,
-    ) -> (
-        RowMajorMatrix<F>,
-        BTreeMap<RangeCheckLookupEvent, (usize, usize)>,
-    ) {
+    pub fn trace_and_map() -> (RowMajorMatrix<F>, BTreeMap<RangeCheckEvent, (usize, usize)>) {
         // A map from a byte lookup to its corresponding row in the table and index in the array of
         // multiplicities.
         let mut event_map = BTreeMap::new();
@@ -65,11 +58,11 @@ impl<F: Field> RangeCheckChip<F> {
 
             // Iterate over all operations for results and updating the table map.
             for (i, opcode) in opcodes.iter().enumerate() {
-                if opcode == RangeCheckOpcode::U12 {
+                if *opcode == RangeCheckOpcode::U12 {
                     col.u12_out_range = F::from_bool(val > 0xFFF);
                 }
 
-                let event = RangeCheckLookupEvent::new(*opcode, val);
+                let event = RangeCheckEvent::new(*opcode, val);
                 event_map.insert(event, (row_index, i));
             }
         }
