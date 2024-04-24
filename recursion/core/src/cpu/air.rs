@@ -90,6 +90,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 }
                 if let Some(record) = &event.memory_record {
                     cols.memory.populate(record);
+                    cols.memory_addr = record.addr;
                     // cols.memory.is_real = F::one();
                 }
 
@@ -218,7 +219,13 @@ where
         let index = local.c.value()[0];
         let ptr = local.b.value()[0];
         let memory_addr = ptr + index * local.instruction.size_imm + local.instruction.offset_imm;
-        builder.recursion_eval_memory_access(local.clk, memory_addr, &local.memory, load_memory);
+        // TODO: constraint memory_addr = local.memory_addr
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.memory_addr,
+            &local.memory,
+            load_memory,
+        );
 
         // Constraints on the memory column depending on load or store.
         // // We read from memory when it is a load.
@@ -229,7 +236,7 @@ where
         // builder
         //     .when(local.selectors.is_store)
         //     .assert_block_eq(local.a.value, local.memory.value);
-        builder.send_program(local.instruction.clone(), local.is_real);
+        // builder.send_program(local.instruction.clone(), local.is_real);
         // TODO: Issue lookups to the Poseidon + FRI Fold tables, depending on opcode.
     }
 }

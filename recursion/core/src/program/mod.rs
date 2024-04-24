@@ -155,7 +155,7 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        builder.receive_program(prep_local.instruction.clone(), mult_local.multiplicity);
+        // builder.receive_program(prep_local.instruction.clone(), mult_local.multiplicity);
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
