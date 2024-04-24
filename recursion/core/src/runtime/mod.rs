@@ -356,6 +356,15 @@ where
         (a, b, c)
     }
 
+    /// Read all the values for an instruction.
+    fn all_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, Block<F>) {
+        let a_val = self.get_a(instruction);
+        let b_val = self.get_b(instruction);
+        let c_val = self.get_c(instruction);
+
+        (a_val, b_val, c_val)
+    }
+
     pub fn run(&mut self) {
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
@@ -366,22 +375,18 @@ where
             match instruction.opcode {
                 Opcode::PrintF => {
                     self.nb_print_f += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     println!("PRINTF={}, clk={}", a_val[0], self.timestamp);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::PrintE => {
                     self.nb_print_e += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     println!("PRINTEF={:?}", a_val);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::CycleTracker => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
-
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let name = instruction.debug.clone();
                     let entry = self.cycle_tracker.entry(name).or_default();
                     if !entry.span_entered {
