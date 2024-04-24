@@ -2,12 +2,9 @@ SHELL := /bin/bash
 
 all:
 	@for dir in */ ; do \
-		if [ -d "$${dir}" ]; then \
-			echo "Building in $${dir}program..."; \
-			cd $${dir} && cargo clean && cargo prove build && cd ../; \
-		else \
-			echo "No program directory in $${dir}, skipping..."; \
-		fi; \
+		echo "Building in $${dir}..."; \
+		cd $${dir} && cargo prove build; \
+		cd ..; \
 	done
 
 .PHONY: all
