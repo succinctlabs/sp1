@@ -49,6 +49,7 @@ pub struct CpuRecord<F> {
     pub a: Option<MemoryRecord<F>>,
     pub b: Option<MemoryRecord<F>>,
     pub c: Option<MemoryRecord<F>>,
+    pub memory: Option<MemoryRecord<F>>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -265,6 +266,24 @@ where
         self.clk + F::from_canonical_u32(*position as u32)
     }
 
+    // When we read the "a" position, it is never an immediate value, so we always read from memory.
+    fn get_a(&mut self, instruction: &Instruction<F>) -> Block<F> {
+        self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A)
+    }
+
+    // Useful to peek at the value of the "a" position without updating the access record.
+    // This assumes that there will be a write later, which is why it also returns the addr.
+    fn peek_a(&self, instruction: &Instruction<F>) -> (F, Block<F>) {
+        let addr = self.fp + instruction.op_a;
+        (
+            addr,
+            self.memory
+                .get(&(addr.as_canonical_u32() as usize))
+                .map(|entry| entry.value)
+                .unwrap_or_else(Block::default),
+        )
+    }
+
     fn get_b(&mut self, instruction: &Instruction<F>) -> Block<F> {
         if instruction.imm_b_base() {
             Block::from(instruction.op_b[0])
@@ -316,7 +335,7 @@ where
 
     /// Fetch the input operand values for a branch instruction.
     fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
-        let a = self.mr(self.fp + instruction.op_a, MemoryAccessPosition::A);
+        let a = self.get_a(instruction);
         let b = self.get_b(instruction);
 
         let c = instruction.op_c[0];
