@@ -30,7 +30,7 @@ use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::baby_bear_poseidon2::{compressed_fri_config, default_fri_config};
-use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2Inner};
+use sp1_core::utils::sp1_fri_config;
 use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
 use sp1_recursion_compiler::ir::{Array, Builder, Ext, ExtConst, Felt, Var};
@@ -77,22 +77,23 @@ impl ReduceProgram {
     /// A definition for the program.
     pub fn define(setup: bool) -> RecursionProgram<Val> {
         // Initialize the sp1 and recursion maachines.
-        let sp1_machine = RiscvAir::machine(BabyBearPoseidon2::default());
-        let recursion_machine = RecursionAir::machine(BabyBearPoseidon2Inner::default());
+        let core_machine = RiscvAir::machine(BabyBearPoseidon2::default());
+        let reduce_machine = RecursionAir::machine(BabyBearPoseidon2::default());
+        let compress_machine = RecursionAir::machine(BabyBearPoseidon2::compressed());
 
         // Initialize the builder.
         let mut builder = AsmBuilder::<F, EF>::default();
 
         // Initialize the sp1 and recursion configs as constants..
         let sp1_config = const_fri_config(&mut builder, sp1_fri_config());
-        let recursion_config = const_fri_config(&mut builder, default_fri_config());
-        let recursion_compressed_config = const_fri_config(&mut builder, compressed_fri_config());
+        let reduce_config = const_fri_config(&mut builder, default_fri_config());
+        let compress_config = const_fri_config(&mut builder, compressed_fri_config());
         let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };
-        let recursion_pcs = TwoAdicFriPcsVariable {
-            config: recursion_config,
+        let reduce_pcs = TwoAdicFriPcsVariable {
+            config: reduce_config,
         };
-        let recursion_compressed_pcs = TwoAdicFriPcsVariable {
-            config: recursion_compressed_config,
+        let compress_pcs = TwoAdicFriPcsVariable {
+            config: compress_config,
         };
 
         // Allocate empty space on the stack for the inputs.
@@ -105,11 +106,14 @@ impl ReduceProgram {
         let reconstruct_challenger: DuplexChallengerVariable<_> = builder.uninit();
         let prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
         let prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
-        let recursion_prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
-        let recursion_prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> =
+        let reduce_prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
+        let reduce_prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
+        let compress_prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
+        let compress_prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> =
             builder.uninit();
         let sp1_vk: VerifyingKeyVariable<_> = builder.uninit();
-        let recursion_vk: VerifyingKeyVariable<_> = builder.uninit();
+        let reduce_vk: VerifyingKeyVariable<_> = builder.uninit();
+        let compress_vk: VerifyingKeyVariable<_> = builder.uninit();
         let initial_committed_values_digest: Sha256DigestVariable<_> = builder.uninit();
         let initial_deferred_proofs_digest: DigestVariable<_> = builder.uninit();
         let initial_start_pc: Felt<_> = builder.uninit();
@@ -134,13 +138,19 @@ impl ReduceProgram {
             DuplexChallenger::witness(&reconstruct_challenger, &mut builder);
             Vec::<usize>::witness(&prep_sorted_indices, &mut builder);
             Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(&prep_domains, &mut builder);
-            Vec::<usize>::witness(&recursion_prep_sorted_indices, &mut builder);
+            Vec::<usize>::witness(&reduce_prep_sorted_indices, &mut builder);
             Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(
-                &recursion_prep_domains,
+                &reduce_prep_domains,
+                &mut builder,
+            );
+            Vec::<usize>::witness(&compress_prep_sorted_indices, &mut builder);
+            Vec::<TwoAdicMultiplicativeCoset<BabyBear>>::witness(
+                &compress_prep_domains,
                 &mut builder,
             );
             StarkVerifyingKey::<SC>::witness(&sp1_vk, &mut builder);
-            StarkVerifyingKey::<SC>::witness(&recursion_vk, &mut builder);
+            StarkVerifyingKey::<SC>::witness(&reduce_vk, &mut builder);
+            StarkVerifyingKey::<SC>::witness(&compress_vk, &mut builder);
             <[Word<BabyBear>; PV_DIGEST_NUM_WORDS] as Hintable<C>>::witness(
                 &initial_committed_values_digest,
                 &mut builder,
@@ -169,8 +179,6 @@ impl ReduceProgram {
             return builder.compile_program();
         }
 
-        builder.print_v(is_compressed);
-
         let num_proofs = is_recursive_flags.len();
         let zero: Var<_> = builder.constant(F::zero());
         let zero_felt: Felt<_> = builder.constant(F::zero());
@@ -181,15 +189,15 @@ impl ReduceProgram {
         builder.cycle_tracker("stage-b-setup-recursion-challenger");
         let mut recursion_challenger = DuplexChallengerVariable::new(&mut builder);
         for j in 0..DIGEST_SIZE {
-            let element = builder.get(&recursion_vk.commitment, j);
+            let element = builder.get(&reduce_vk.commitment, j);
             recursion_challenger.observe(&mut builder, element);
         }
-        recursion_challenger.observe(&mut builder, recursion_vk.pc_start);
+        recursion_challenger.observe(&mut builder, reduce_vk.pc_start);
         builder.cycle_tracker("stage-b-setup-recursion-challenger");
 
         // Hash vkey + pc_start + prep_domains into a single digest.
         let sp1_vk_digest = hash_vkey(&mut builder, &sp1_vk, &prep_domains);
-        let recursion_vk_digest = hash_vkey(&mut builder, &recursion_vk, &recursion_prep_domains);
+        let recursion_vk_digest = hash_vkey(&mut builder, &reduce_vk, &reduce_prep_domains);
 
         // Global variables that will be commmitted to at the end.
         let global_committed_values_digest: Sha256DigestVariable<_> =
@@ -371,7 +379,7 @@ impl ReduceProgram {
                         builder,
                         &sp1_vk.clone(),
                         &sp1_pcs,
-                        &sp1_machine,
+                        &core_machine,
                         &mut current_challenger,
                         &proof,
                         sorted_indices.clone(),
@@ -460,31 +468,34 @@ impl ReduceProgram {
                         current_challenger.observe(builder, element);
                     });
 
-                    // Verify the shard.
-                    let pcs: TwoAdicFriPcsVariable<_> = builder.uninit();
                     builder.if_eq(is_compressed, BabyBear::one()).then_or_else(
                         |builder| {
-                            builder.print_debug(101);
-                            builder.assign(pcs.clone(), recursion_compressed_pcs.clone());
+                            StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
+                                builder,
+                                &compress_vk,
+                                &compress_pcs,
+                                &compress_machine,
+                                &mut current_challenger.clone(),
+                                &proof,
+                                sorted_indices.clone(),
+                                reduce_prep_sorted_indices.clone(),
+                                reduce_prep_domains.clone(),
+                            );
                         },
                         |builder| {
-                            builder.print_debug(102);
-                            builder.assign(pcs.clone(), recursion_pcs.clone());
+                            StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
+                                builder,
+                                &reduce_vk,
+                                &reduce_pcs,
+                                &reduce_machine,
+                                &mut current_challenger.clone(),
+                                &proof,
+                                sorted_indices.clone(),
+                                reduce_prep_sorted_indices.clone(),
+                                reduce_prep_domains.clone(),
+                            );
                         },
-                    );
-                    builder.print_v(pcs.config.log_blowup);
-                    builder.print_v(pcs.config.num_queries);
-                    StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
-                        builder,
-                        &recursion_vk.clone(),
-                        &recursion_pcs,
-                        &recursion_machine,
-                        &mut current_challenger,
-                        &proof,
-                        sorted_indices.clone(),
-                        recursion_prep_sorted_indices.clone(),
-                        recursion_prep_domains.clone(),
-                    );
+                    )
                 },
             );
         });
@@ -527,16 +538,16 @@ impl ReduceProgram {
                 }
 
                 // Verify the shard.
-                StarkVerifier::<C, BabyBearPoseidon2Inner>::verify_shard(
+                StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                     builder,
-                    &recursion_vk.clone(),
-                    &recursion_pcs,
-                    &recursion_machine,
+                    &reduce_vk.clone(),
+                    &reduce_pcs,
+                    &reduce_machine,
                     &mut challenger,
                     &proof,
                     sorted_indices.clone(),
-                    recursion_prep_sorted_indices.clone(),
-                    recursion_prep_domains.clone(),
+                    reduce_prep_sorted_indices.clone(),
+                    reduce_prep_domains.clone(),
                 );
 
                 // Update deferred proof digest

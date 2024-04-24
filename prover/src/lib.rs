@@ -69,10 +69,11 @@ pub struct SP1Prover {
     pub reduce_program: RecursionProgram<BabyBear>,
     pub reduce_setup_program: RecursionProgram<BabyBear>,
     pub reduce_vk_inner: StarkVerifyingKey<InnerSC>,
-    pub reduce_vk_outer: StarkVerifyingKey<OuterSC>,
+    pub compress_vk_inner: StarkVerifyingKey<InnerSC>,
+    pub wrap_vk_outer: StarkVerifyingKey<OuterSC>,
     pub core_machine: StarkMachine<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>,
-    pub inner_recursion_machine:
-        StarkMachine<InnerSC, RecursionAir<<InnerSC as StarkGenericConfig>::Val>>,
+    pub reduce_machine: StarkMachine<InnerSC, RecursionAir<<InnerSC as StarkGenericConfig>::Val>>,
+    pub compress_machine: StarkMachine<InnerSC, RecursionAir<<InnerSC as StarkGenericConfig>::Val>>,
     pub outer_recursion_machine:
         StarkMachine<OuterSC, RecursionAir<<OuterSC as StarkGenericConfig>::Val>>,
 }
@@ -86,16 +87,21 @@ impl SP1Prover {
         println!("program size: {}", reduce_program.instructions.len());
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
+        let (_, compress_vk_inner) =
+            RecursionAir::machine(InnerSC::compressed()).setup(&reduce_program);
         let core_machine = RiscvAir::machine(CoreSC::default());
-        let inner_recursion_machine = RecursionAir::machine(InnerSC::default());
+        let reduce_machine = RecursionAir::machine(InnerSC::default());
+        let compress_machine = RecursionAir::machine(InnerSC::compressed());
         let outer_recursion_machine = RecursionAir::machine(OuterSC::default());
         Self {
             reduce_setup_program,
             reduce_program,
             reduce_vk_inner,
-            reduce_vk_outer,
+            wrap_vk_outer: reduce_vk_outer,
+            compress_vk_inner,
             core_machine,
-            inner_recursion_machine,
+            reduce_machine,
+            compress_machine,
             outer_recursion_machine,
         }
     }
@@ -371,20 +377,22 @@ impl SP1Prover {
                     get_sorted_indices(&self.core_machine, &reduce_proof.proof)
                 }
                 SP1ReduceProofWrapper::Recursive(reduce_proof) => {
-                    get_sorted_indices(&self.inner_recursion_machine, &reduce_proof.proof)
+                    get_sorted_indices(&self.reduce_machine, &reduce_proof.proof)
                 }
             })
             .collect();
         let (prep_sorted_indices, prep_domains): (Vec<usize>, Vec<Domain<CoreSC>>) =
             get_preprocessed_data(&self.core_machine, &vk.vk);
-        let (recursion_prep_sorted_indices, recursion_prep_domains): (
+        let (reduce_prep_sorted_indices, reduce_prep_domains): (Vec<usize>, Vec<Domain<InnerSC>>) =
+            get_preprocessed_data(&self.reduce_machine, &self.reduce_vk_inner);
+        let (compress_prep_sorted_indices, compress_prep_domains): (
             Vec<usize>,
             Vec<Domain<InnerSC>>,
-        ) = get_preprocessed_data(&self.inner_recursion_machine, &self.reduce_vk_inner);
+        ) = get_preprocessed_data(&self.compress_machine, &self.compress_vk_inner);
         let deferred_sorted_indices: Vec<Vec<usize>> = deferred_proofs
             .iter()
             .map(|proof| {
-                let indices = get_sorted_indices(&self.inner_recursion_machine, proof);
+                let indices = get_sorted_indices(&self.reduce_machine, proof);
                 println!("indices = {:?}", indices);
                 indices
             })
@@ -398,10 +406,13 @@ impl SP1Prover {
         witness_stream.extend(reconstruct_challenger.write());
         witness_stream.extend(prep_sorted_indices.write());
         witness_stream.extend(prep_domains.write());
-        witness_stream.extend(recursion_prep_sorted_indices.write());
-        witness_stream.extend(recursion_prep_domains.write());
+        witness_stream.extend(reduce_prep_sorted_indices.write());
+        witness_stream.extend(reduce_prep_domains.write());
+        witness_stream.extend(compress_prep_sorted_indices.write()); // NEW
+        witness_stream.extend(compress_prep_domains.write()); // NEW
         witness_stream.extend(vk.vk.write());
         witness_stream.extend(self.reduce_vk_inner.write());
+        witness_stream.extend(self.compress_vk_inner.write()); // NEW
         witness_stream.extend(state.committed_values_digest.write());
         witness_stream.extend(state.deferred_proofs_digest.write());
         witness_stream.extend(Hintable::write(&state.start_pc));
@@ -450,7 +461,7 @@ impl SP1Prover {
 
         // Generate proof.
         let machine = RecursionAir::machine(config);
-        let (pk, _) = machine.setup(&self.reduce_program);
+        let (pk, vk) = machine.setup(&self.reduce_program);
         let mut challenger = machine.config().challenger();
         let proof =
             machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
@@ -518,7 +529,7 @@ impl SP1Prover {
     pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>) {
         let mut witness = Witness::default();
         proof.write(&mut witness);
-        let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
+        let constraints = build_wrap_circuit(&self.wrap_vk_outer, proof);
         Groth16Prover::test(constraints, witness);
     }
 
