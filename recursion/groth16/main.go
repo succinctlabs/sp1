@@ -228,6 +228,15 @@ func main() {
 		pk := groth16.NewProvingKey(ecc.BN254)
 		pk.ReadFrom(pkFile)
 
+		// Read the verifier key.
+		fmt.Println("Reading vk...")
+		vkFile, err := os.Open(buildDir + "/vk.bin")
+		if err != nil {
+			panic(err)
+		}
+		vk := groth16.NewVerifyingKey(ecc.BN254)
+		vk.ReadFrom(vkFile)
+
 		// Generate the witness.
 		fmt.Println("Generating witness...")
 		data, err := os.ReadFile(witnessPath)
@@ -268,10 +277,20 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		publicWitness, err := witness.Public()
+		if err != nil {
+			panic(err)
+		}
 
 		// Generate the proof.
 		fmt.Println("Generating proof...")
 		proof, err := groth16.Prove(r1cs, pk, witness)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("Verifying proof...")
+		err = groth16.Verify(proof, vk, publicWitness)
 		if err != nil {
 			panic(err)
 		}
@@ -391,6 +410,14 @@ func main() {
 		}
 		pk.WriteTo(pkFile)
 		pkFile.Close()
+
+		// Write the verifier key.
+		vkFile, err := os.Create(buildDir + "/vk.bin")
+		if err != nil {
+			panic(err)
+		}
+		vk.WriteTo(vkFile)
+		vkFile.Close()
 
 		// Write the solidity verifier.
 		solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")

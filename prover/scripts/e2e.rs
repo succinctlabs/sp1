@@ -61,5 +61,6 @@ pub fn main() {
 
     tracing::info!("sanity check gnark prove");
     let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
+
     println!("{:?}", proof);
 }

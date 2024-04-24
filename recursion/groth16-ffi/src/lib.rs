@@ -27,6 +27,7 @@ pub struct Groth16Proof {
     a: [String; 2],
     b: [[String; 2]; 2],
     c: [String; 2],
+    inputs: [String; 2],
 }
 
 impl Groth16Prover {
