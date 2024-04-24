@@ -6,7 +6,7 @@ use crate::{
     cpu::CpuChip,
     fri_fold::FriFoldChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
-    poseidon2_wide::Poseidon2WideChip,
+    // poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
     range_check::RangeCheckChip,
 };
@@ -68,7 +68,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirWideDeg3<F> {
                     kind: MemoryChipKind::Finalize,
                 },
             )))
-            .chain(once(RecursionAirWideDeg3::Poseidon2(Poseidon2WideChip {})))
+            // .chain(once(RecursionAirWideDeg3::Poseidon2(Poseidon2WideChip {})))
             .chain(once(RecursionAirWideDeg3::FriFold(FriFoldChip {})))
             .chain(once(RecursionAirWideDeg3::RangeCheck(
                 RangeCheckChip::default(),

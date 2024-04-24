@@ -14,6 +14,8 @@ use proto::network::{ProofStatus, TransactionStatus};
 use sp1_core::runtime::Program;
 use sp1_core::utils::run_and_prove;
 pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
+use sp1_recursion_compiler::ir::{Config, Witness};
+use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
 use std::env;
 use std::time::Duration;
 use tokio::runtime;
@@ -196,6 +198,12 @@ impl ProverClient {
 
             Ok(tx_ids)
         })
+    }
+
+    pub fn wrap_proof<C: Config>(&self, witness: Witness<C>) -> Result<Groth16Proof> {
+        let groth16_prover = Groth16Prover::new();
+        let wrapped_proof = groth16_prover.prove(witness.clone());
+        Ok(wrapped_proof)
     }
 
     pub fn verify(&self, _elf: &[u8], _proof: &SP1CoreProof) -> Result<()> {

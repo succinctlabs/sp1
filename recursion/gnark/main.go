@@ -8,6 +8,7 @@ import "C"
 
 import (
 	"bytes"
+	"context"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
@@ -24,6 +25,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
+	"github.com/succinctlabs/sp1-recursion-gnark/server"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
 
@@ -44,6 +46,12 @@ func main() {
 	provePlonkBn254DataDirFlag := provePlonkBn254Cmd.String("data", "", "Data directory path")
 	provePlonkBn254WitnessPathFlag := provePlonkBn254Cmd.String("witness", "", "Path to witness")
 	provePlonkBn254ProofPathFlag := provePlonkBn254Cmd.String("proof", "", "Path to proof")
+
+	serveCmd := flag.NewFlagSet("serve", flag.ExitOnError)
+	serveCircuitBucketFlag := serveCmd.String("bucket", "sp1-circuits", "Bucket to download circuit from")
+	serveCircuitTypeFlag := serveCmd.String("type", "", "Type of circuit to download")
+	serveCircuitVersionFlag := serveCmd.String("version", "", "Version of circuit to download")
+	servePortFlag := serveCmd.String("port", "8080", "host port to listen on")
 
 	if len(os.Args) < 2 {
 		fmt.Println("expected 'build-groth16', 'prove-groth16', 'build-plonk-bn254', or 'prove-plonk-bn254' subcommand")
@@ -370,6 +378,37 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+	case "serve":
+		serveCmd.Parse(os.Args[2:])
+		fmt.Printf("Running 'serve' with type=%s, version=%s\n", *serveCircuitTypeFlag, *serveCircuitVersionFlag)
+		circuitBucket := *serveCircuitBucketFlag
+		circuitType := *serveCircuitTypeFlag
+		circuitVersion := *serveCircuitVersionFlag
+		serveHostPort := *servePortFlag
+
+		if circuitBucket == "" {
+			fmt.Println("Error: bucket flag is required")
+			os.Exit(1)
+		}
+		if circuitType == "" {
+			fmt.Println("Error: type flag is required")
+			os.Exit(1)
+		}
+		if circuitVersion == "" {
+			fmt.Println("Error: version flag is required")
+			os.Exit(1)
+		}
+		if serveHostPort == "" {
+			fmt.Println("Error: host port flag is required")
+			os.Exit(1)
+		}
+
+		s, err := server.New(context.Background(), circuitBucket, circuitType, circuitVersion)
+		if err != nil {
+			panic(fmt.Errorf("initializing server: %w", err))
+		}
+		s.Start(serveHostPort)
+
 	default:
 		fmt.Println("expected 'prove' or 'build' subcommand")
 		os.Exit(1)
