@@ -12,7 +12,7 @@ use crate::stark::PROOF_MAX_NUM_PVS;
 /// The number of non padded elements in the SP1 proofs public values vec.
 pub const SP1_PROOF_NUM_PV_ELTS: usize = size_of::<PublicValues<Word<u8>, u8>>();
 
-/// The number of 32 bit words in the SP1 proof's commited value digest.
+/// The number of 32 bit words in the SP1 proof's committed value digest.
 pub const PV_DIGEST_NUM_WORDS: usize = 8;
 
 pub const POSEIDON_NUM_WORDS: usize = 8;

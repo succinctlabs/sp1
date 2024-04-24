@@ -159,7 +159,7 @@ pub enum AsmInstruction<F, EF> {
     /// Convert an extension element to field elements.
     Ext2Felt(i32, i32),
 
-    /// Hint the lenght of the next vector of blocks.
+    /// Hint the length of the next vector of blocks.
     HintLen(i32),
 
     /// Hint a vector of blocks.

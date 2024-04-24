@@ -16,7 +16,7 @@ use crate::lookup::InteractionKind;
 use crate::memory::MemoryAccessCols;
 use crate::{bytes::ByteOpcode, memory::MemoryCols};
 
-/// A Builder with the ability to encode the existance of interactions with other AIRs by sending
+/// A Builder with the ability to encode the existence of interactions with other AIRs by sending
 /// and receiving messages.
 pub trait MessageBuilder<M> {
     fn send(&mut self, message: M);
