@@ -1,7 +1,12 @@
 mod air;
 mod columns;
 
-use crate::air::Block;
+use p3_field::PrimeField32;
+
+use crate::{
+    air::Block,
+    range_check::{RangeCheckEvent, RangeCheckOpcode},
+};
 pub use columns::*;
 
 #[allow(clippy::manual_non_exhaustive)]
@@ -45,33 +50,61 @@ impl<F: Clone> MemoryRecord<F> {
     }
 }
 
-impl<T: Clone> MemoryReadWriteCols<T> {
-    pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.access.prev_timestamp = record.prev_timestamp.clone();
-        self.access.value = record.value.clone();
+impl<T: PrimeField32> MemoryReadWriteCols<T> {
+    pub fn populate(&mut self, record: &MemoryRecord<T>, output: &mut Vec<RangeCheckEvent>) {
         self.prev_value = record.prev_value.clone();
+        self.access.populate(record.value.clone(), record, output);
     }
 }
 
-impl<T: Clone> MemoryReadCols<T> {
-    pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.access.prev_timestamp = record.prev_timestamp.clone();
-        self.access.value = record.value.clone();
+impl<T: PrimeField32> MemoryReadCols<T> {
+    pub fn populate(&mut self, record: &MemoryRecord<T>, output: &mut Vec<RangeCheckEvent>) {
+        self.access.populate(record.value.clone(), record, output);
     }
 }
 
-impl<T: Clone> MemoryReadWriteSingleCols<T> {
-    pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.access.prev_timestamp = record.prev_timestamp.clone();
-        self.access.value = record.value[0].clone();
+impl<T: PrimeField32> MemoryReadWriteSingleCols<T> {
+    pub fn populate(&mut self, record: &MemoryRecord<T>, output: &mut Vec<RangeCheckEvent>) {
         self.prev_value = record.prev_value[0].clone();
+        self.access
+            .populate(record.value[0].clone(), record, output);
     }
 }
 
-impl<T: Clone> MemoryReadSingleCols<T> {
-    pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.access.prev_timestamp = record.prev_timestamp.clone();
-        self.access.value = record.value[0].clone();
+impl<T: PrimeField32> MemoryReadSingleCols<T> {
+    pub fn populate(&mut self, record: &MemoryRecord<T>, output: &mut Vec<RangeCheckEvent>) {
+        self.access
+            .populate(record.value[0].clone(), record, output);
+    }
+}
+
+impl<F: PrimeField32, TValue> MemoryAccessCols<F, TValue> {
+    pub fn populate(
+        &mut self,
+        value: TValue,
+        record: &MemoryRecord<F>,
+        output: &mut Vec<RangeCheckEvent>,
+    ) {
+        self.value = value;
+        self.prev_timestamp = record.prev_timestamp;
+
+        // Calculate the diff between the current and previous timestamps and subtract 1.
+        // We need to subtract 1 since we can to make sure that the ts diff is [1, 2^28].
+        let diff_minus_one =
+            record.timestamp.as_canonical_u32() - record.prev_timestamp.as_canonical_u32() - 1;
+        let diff_16bit_limb = diff_minus_one & 0xffff;
+        self.diff_16bit_limb = F::from_canonical_u32(diff_16bit_limb);
+        let diff_12bit_limb = (diff_minus_one >> 16) & 0xfff;
+        self.diff_12bit_limb = F::from_canonical_u32(diff_12bit_limb);
+
+        output.push(RangeCheckEvent::new(
+            RangeCheckOpcode::U16,
+            diff_16bit_limb as u16,
+        ));
+        output.push(RangeCheckEvent::new(
+            RangeCheckOpcode::U12,
+            diff_12bit_limb as u16,
+        ));
     }
 }
 

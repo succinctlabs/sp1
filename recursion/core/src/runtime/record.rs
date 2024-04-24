@@ -30,6 +30,14 @@ pub struct ExecutionRecord<F: Default> {
     pub public_values: Vec<F>,
 }
 
+impl<F: Default> ExecutionRecord<F> {
+    pub fn add_range_check_events(&mut self, events: Vec<RangeCheckEvent>) {
+        for event in events {
+            *self.range_check_events.entry(event).or_insert(0) += 1;
+        }
+    }
+}
+
 impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     type Config = ();
 

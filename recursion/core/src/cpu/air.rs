@@ -46,8 +46,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
-        _: &mut ExecutionRecord<F>,
+        output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
+        let mut new_range_check_events = Vec::new();
+
         let mut rows = input
             .cpu_events
             .iter()
@@ -69,15 +71,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 cols.instruction.imm_c = F::from_canonical_u32(event.instruction.imm_c as u32);
 
                 if let Some(record) = &event.a_record {
-                    cols.a.populate(record);
+                    cols.a.populate(record, &mut new_range_check_events);
                 }
                 if let Some(record) = &event.b_record {
-                    cols.b.populate(record);
+                    cols.b.populate(record, &mut new_range_check_events);
                 } else {
                     *cols.b.value_mut() = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
-                    cols.c.populate(record);
+                    cols.c.populate(record, &mut new_range_check_events);
                 } else {
                     *cols.c.value_mut() = event.instruction.op_c;
                 }
@@ -93,6 +95,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 row
             })
             .collect::<Vec<_>>();
+
+        output.add_range_check_events(new_range_check_events);
 
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_CPU_COLS];

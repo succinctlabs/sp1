@@ -92,8 +92,10 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
-        _: &mut ExecutionRecord<F>,
+        output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
+        let mut new_range_check_events = Vec::new();
+
         let trace_values = input
             .fri_fold_events
             .iter()
@@ -106,25 +108,36 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                 cols.m = event.m;
                 cols.input_ptr = event.input_ptr;
 
-                cols.z.populate(&event.z);
-                cols.alpha.populate(&event.alpha);
-                cols.x.populate(&event.x);
-                cols.log_height.populate(&event.log_height);
-                cols.mat_opening_ptr.populate(&event.mat_opening_ptr);
-                cols.ps_at_z_ptr.populate(&event.ps_at_z_ptr);
-                cols.alpha_pow_ptr.populate(&event.alpha_pow_ptr);
-                cols.ro_ptr.populate(&event.ro_ptr);
+                cols.z.populate(&event.z, &mut new_range_check_events);
+                cols.alpha
+                    .populate(&event.alpha, &mut new_range_check_events);
+                cols.x.populate(&event.x, &mut new_range_check_events);
+                cols.log_height
+                    .populate(&event.log_height, &mut new_range_check_events);
+                cols.mat_opening_ptr
+                    .populate(&event.mat_opening_ptr, &mut new_range_check_events);
+                cols.ps_at_z_ptr
+                    .populate(&event.ps_at_z_ptr, &mut new_range_check_events);
+                cols.alpha_pow_ptr
+                    .populate(&event.alpha_pow_ptr, &mut new_range_check_events);
+                cols.ro_ptr
+                    .populate(&event.ro_ptr, &mut new_range_check_events);
 
-                cols.p_at_x.populate(&event.p_at_x);
-                cols.p_at_z.populate(&event.p_at_z);
+                cols.p_at_x
+                    .populate(&event.p_at_x, &mut new_range_check_events);
+                cols.p_at_z
+                    .populate(&event.p_at_z, &mut new_range_check_events);
 
                 cols.alpha_pow_at_log_height
-                    .populate(&event.alpha_pow_at_log_height);
-                cols.ro_at_log_height.populate(&event.ro_at_log_height);
+                    .populate(&event.alpha_pow_at_log_height, &mut new_range_check_events);
+                cols.ro_at_log_height
+                    .populate(&event.ro_at_log_height, &mut new_range_check_events);
 
                 row.into_iter()
             })
             .collect_vec();
+
+        output.add_range_check_events(new_range_check_events);
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(trace_values, NUM_FRI_FOLD_COLS);
