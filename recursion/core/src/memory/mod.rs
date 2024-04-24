@@ -63,15 +63,15 @@ impl<T: Clone> MemoryReadCols<T> {
 impl<T: Clone> MemoryReadWriteSingleCols<T> {
     pub fn populate(&mut self, record: &MemoryRecord<T>) {
         self.access.prev_timestamp = record.prev_timestamp.clone();
-        self.access.value = record.value.0[0].clone();
-        self.prev_value = record.prev_value.0[0].clone();
+        self.access.value = record.value[0].clone();
+        self.prev_value = record.prev_value[0].clone();
     }
 }
 
 impl<T: Clone> MemoryReadSingleCols<T> {
     pub fn populate(&mut self, record: &MemoryRecord<T>) {
         self.access.prev_timestamp = record.prev_timestamp.clone();
-        self.access.value = record.value.0[0].clone();
+        self.access.value = record.value[0].clone();
     }
 }
 

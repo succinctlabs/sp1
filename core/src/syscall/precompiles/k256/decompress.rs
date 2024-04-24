@@ -254,7 +254,7 @@ impl<V: Copy> K256DecompressCols<V> {
         for i in 0..8 {
             builder.when(self.is_real).assert_bool(self.y_least_bits[i]);
         }
-        let y_least_byte = self.y.multiplication.result.0[0];
+        let y_least_byte = self.y.multiplication.result[0];
         let powers_of_two = [1, 2, 4, 8, 16, 32, 64, 128].map(AB::F::from_canonical_u32);
         let recomputed_byte: AB::Expr = self
             .y_least_bits

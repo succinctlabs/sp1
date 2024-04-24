@@ -366,14 +366,14 @@ where
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] + c_val.0[0];
+                    a_val[0] = b_val[0] + c_val[0];
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::LessThanF => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = F::from_bool(b_val.0[0] < c_val.0[0]);
+                    a_val[0] = F::from_bool(b_val[0] < c_val[0]);
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -381,7 +381,7 @@ where
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] - c_val.0[0];
+                    a_val[0] = b_val[0] - c_val[0];
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -389,7 +389,7 @@ where
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] * c_val.0[0];
+                    a_val[0] = b_val[0] * c_val[0];
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -397,7 +397,7 @@ where
                     self.nb_base_ops += 1;
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
                     let mut a_val = Block::default();
-                    a_val.0[0] = b_val.0[0] / c_val.0[0];
+                    a_val[0] = b_val[0] / c_val[0];
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -456,7 +456,7 @@ where
                     self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a.0[0] == b.0[0] {
+                    if a[0] == b[0] {
                         next_pc = self.pc + c_offset;
                     }
                 }
@@ -464,15 +464,15 @@ where
                     self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a.0[0] != b.0[0] {
+                    if a[0] != b[0] {
                         next_pc = self.pc + c_offset;
                     }
                 }
                 Opcode::BNEINC => {
                     self.nb_branch_ops += 1;
                     let (mut a_val, b_val, c_offset) = self.branch_rr(&instruction);
-                    a_val.0[0] += F::one();
-                    if a_val.0[0] != b_val.0[0] {
+                    a_val[0] += F::one();
+                    if a_val[0] != b_val[0] {
                         next_pc = self.pc + c_offset;
                     }
                     self.mw(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
@@ -512,7 +512,7 @@ where
                     let c_val = imm;
                     let a_val = Block::from(self.pc + F::one());
                     self.mw(a_ptr, a_val, MemoryAccessPosition::A);
-                    next_pc = b_val.0[0];
+                    next_pc = b_val[0];
                     self.fp = c_val[0];
                     (a, b, c) = (a_val, b_val, c_val);
                 }
@@ -676,22 +676,22 @@ where
                     let alpha: EF = alpha.ext();
                     ptr += F::one();
                     let (x_record, x) = self.mr_record(ptr, timestamp);
-                    let x = x.0[0];
+                    let x = x[0];
                     ptr += F::one();
                     let (log_height_record, log_height) = self.mr_record(ptr, timestamp);
-                    let log_height = log_height.0[0];
+                    let log_height = log_height[0];
                     ptr += F::one();
                     let (mat_opening_ptr_record, mat_opening_ptr) = self.mr_record(ptr, timestamp);
-                    let mat_opening_ptr = mat_opening_ptr.0[0];
+                    let mat_opening_ptr = mat_opening_ptr[0];
                     ptr += F::two();
                     let (ps_at_z_ptr_record, ps_at_z_ptr) = self.mr_record(ptr, timestamp);
-                    let ps_at_z_ptr = ps_at_z_ptr.0[0];
+                    let ps_at_z_ptr = ps_at_z_ptr[0];
                     ptr += F::two();
                     let (alpha_pow_ptr_record, alpha_pow_ptr) = self.mr_record(ptr, timestamp);
-                    let alpha_pow_ptr = alpha_pow_ptr.0[0];
+                    let alpha_pow_ptr = alpha_pow_ptr[0];
                     ptr += F::two();
                     let (ro_ptr_record, ro_ptr) = self.mr_record(ptr, timestamp);
-                    let ro_ptr = ro_ptr.0[0];
+                    let ro_ptr = ro_ptr[0];
 
                     // Get the opening values.
                     let (p_at_x_record, p_at_x) = self.mr_record(mat_opening_ptr + m, timestamp);

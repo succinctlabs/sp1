@@ -83,7 +83,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 }
 
                 // cols.a_eq_b
-                //     .populate((cols.a.value().0[0] - cols.b.value().0[0]).as_canonical_u32());
+                //     .populate((cols.a.value()[0] - cols.b.value()[0]).as_canonical_u32());
 
                 // let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
                 // cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
@@ -155,7 +155,7 @@ where
         //     .assert_eq(local.pc + AB::F::one(), next.pc);
         // builder
         //     .when(local.beq + local.bne)
-        //     .assert_eq(next.pc, local.pc + local.c.value().0[0]);
+        //     .assert_eq(next.pc, local.pc + local.c.value()[0]);
 
         // Connect immediates.
         builder
@@ -175,7 +175,7 @@ where
         // Compute if a == b.
         // IsZeroOperation::<AB::F>::eval::<AB>(
         //     builder,
-        //     local.a.value.0[0] - local.b.value().0[0],
+        //     local.a.value[0] - local.b.value()[0],
         //     local.a_eq_b,
         //     local.is_real.into(),
         // );
@@ -183,7 +183,7 @@ where
         // Receive C.
         builder.recursion_eval_memory_access(
             local.clk,
-            local.fp.into() + local.instruction.op_c.0[0].into(),
+            local.fp.into() + local.instruction.op_c[0].into(),
             &local.c,
             AB::Expr::one() - local.instruction.imm_c.into(),
         );
@@ -191,7 +191,7 @@ where
         // Receive B.
         builder.recursion_eval_memory_access(
             local.clk,
-            local.fp.into() + local.instruction.op_b.0[0].into(),
+            local.fp.into() + local.instruction.op_b[0].into(),
             &local.b,
             AB::Expr::one() - local.instruction.imm_b.into(),
         );
