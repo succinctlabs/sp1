@@ -73,33 +73,33 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip<F> {
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
                 } else {
-                    cols.b.value = event.instruction.op_b;
+                    cols.b.access.value = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
                 } else {
-                    cols.c.value = event.instruction.op_c;
+                    cols.c.access.value = event.instruction.op_c;
                 }
 
                 let alu_cols = cols.opcode_specific.alu_mut();
                 if cols.selectors.is_add.is_one() {
-                    alu_cols.add_scratch.0[0] = cols.b.value.0[0] + cols.c.value.0[0];
-                    alu_cols.sub_scratch.0[0] = cols.b.value.0[0] - cols.c.value.0[0];
-                    alu_cols.mul_scratch.0[0] = cols.b.value.0[0] * cols.c.value.0[0];
+                    alu_cols.add_scratch.0[0] = cols.b.access.value.0[0] + cols.c.access.value.0[0];
+                    alu_cols.sub_scratch.0[0] = cols.b.access.value.0[0] - cols.c.access.value.0[0];
+                    alu_cols.mul_scratch.0[0] = cols.b.access.value.0[0] * cols.c.access.value.0[0];
                 } else if cols.selectors.is_eadd.is_one() || cols.selectors.is_efadd.is_one() {
-                    alu_cols.add_scratch = (BinomialExtension::from_block(cols.b.value)
-                        + BinomialExtension::from_block(cols.c.value))
+                    alu_cols.add_scratch = (BinomialExtension::from_block(cols.b.access.value)
+                        + BinomialExtension::from_block(cols.c.access.value))
                     .as_block();
-                    alu_cols.sub_scratch = (BinomialExtension::from_block(cols.b.value)
-                        - BinomialExtension::from_block(cols.c.value))
+                    alu_cols.sub_scratch = (BinomialExtension::from_block(cols.b.access.value)
+                        - BinomialExtension::from_block(cols.c.access.value))
                     .as_block();
-                    alu_cols.mul_scratch = (BinomialExtension::from_block(cols.b.value)
-                        * BinomialExtension::from_block(cols.c.value))
+                    alu_cols.mul_scratch = (BinomialExtension::from_block(cols.b.access.value)
+                        * BinomialExtension::from_block(cols.c.access.value))
                     .as_block();
                 }
 
                 // cols.a_eq_b
-                //     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
+                //     .populate((cols.a.access.value.0[0] - cols.b.access.value.0[0]).as_canonical_u32());
 
                 // let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
                 // cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
@@ -171,28 +171,28 @@ where
         //     .assert_eq(local.pc + AB::F::one(), next.pc);
         // builder
         //     .when(local.beq + local.bne)
-        //     .assert_eq(next.pc, local.pc + local.c.value.0[0]);
+        //     .assert_eq(next.pc, local.pc + local.c.access.value.0[0]);
 
         // Connect immediates.
         builder
             .when(local.instruction.imm_b)
-            .assert_block_eq::<AB::Var, AB::Var>(local.b.value, local.instruction.op_b);
+            .assert_block_eq::<AB::Var, AB::Var>(local.b.access.value, local.instruction.op_b);
         builder
             .when(local.instruction.imm_c)
-            .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
+            .assert_block_eq::<AB::Var, AB::Var>(local.c.access.value, local.instruction.op_c);
 
         // Compute ALU.
         let alu_cols = local.opcode_specific.alu();
         builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] + local.c.value.0[0],
+            local.b.access.value.0[0] + local.c.access.value.0[0],
             alu_cols.add_scratch[0],
         );
         builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] - local.c.value.0[0],
+            local.b.access.value.0[0] - local.c.access.value.0[0],
             alu_cols.sub_scratch[0],
         );
         builder.when(local.selectors.is_add).assert_eq(
-            local.b.value.0[0] * local.c.value.0[0],
+            local.b.access.value.0[0] * local.c.access.value.0[0],
             alu_cols.mul_scratch[0],
         );
 
@@ -203,15 +203,15 @@ where
 
         // // Compute extension ALU.
         // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() + local.c.value.as_extension::<AB>(),
+        //     local.b.access.value.as_extension::<AB>() + local.c.access.value.as_extension::<AB>(),
         //     local.add_ext_scratch.as_extension::<AB>(),
         // );
         // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() - local.c.value.as_extension::<AB>(),
+        //     local.b.access.value.as_extension::<AB>() - local.c.access.value.as_extension::<AB>(),
         //     local.sub_ext_scratch.as_extension::<AB>(),
         // );
         // builder.assert_ext_eq(
-        //     local.b.value.as_extension::<AB>() * local.c.value.as_extension::<AB>(),
+        //     local.b.access.value.as_extension::<AB>() * local.c.access.value.as_extension::<AB>(),
         //     local.mul_ext_scratch.as_extension::<AB>(),
         // );
 
@@ -258,13 +258,14 @@ where
         // Compute if a == b.
         // IsZeroOperation::<AB::F>::eval::<AB>(
         //     builder,
-        //     local.a.value.0[0] - local.b.value.0[0],
+        //     local.a.value.0[0] - local.b.access.value.0[0],
         //     local.a_eq_b,
         //     local.is_real.into(),
         // );
 
         // Receive C.
         builder.recursion_eval_memory_access(
+            local.clk,
             local.c_addr,
             &local.c,
             AB::Expr::one() - local.instruction.imm_c.into(),
@@ -272,13 +273,19 @@ where
 
         // Receive B.
         builder.recursion_eval_memory_access(
+            local.clk,
             local.b_addr,
             &local.b,
             AB::Expr::one() - local.instruction.imm_b.into(),
         );
 
         // Receive A.
-        builder.recursion_eval_memory_access(local.a_addr, &local.a, local.is_real.into());
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.a_addr,
+            &local.a,
+            local.is_real.into(),
+        );
 
         // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
         // prog_interaction_vals.push(local.instruction.op_a.into());

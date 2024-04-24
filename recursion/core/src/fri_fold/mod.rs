@@ -25,6 +25,7 @@ pub struct FriFoldChip;
 
 #[derive(Debug, Clone)]
 pub struct FriFoldEvent<F> {
+    pub clk: F,
     pub m: F,
     pub input_ptr: F,
 
@@ -101,6 +102,7 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
 
                 let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
 
+                cols.clk = event.clk;
                 cols.m = event.m;
                 cols.input_ptr = event.input_ptr;
 
@@ -160,6 +162,7 @@ where
 
         // Constrain read for `z` at `ptr + 1`
         builder.recursion_eval_memory_access(
+            cols.clk,
             cols.input_ptr + AB::Expr::one(),
             &cols.z,
             AB::Expr::one(),
@@ -167,6 +170,7 @@ where
 
         // Constrain read for `alpha` at `ptr + 2`
         builder.recursion_eval_memory_access(
+            cols.clk,
             cols.input_ptr + AB::Expr::two(),
             &cols.alpha,
             AB::Expr::one(),
@@ -174,6 +178,7 @@ where
 
         // Constrain read for `x`
         builder.recursion_eval_memory_access_single(
+            cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(3),
             &cols.x,
             AB::Expr::one(),
@@ -181,6 +186,7 @@ where
 
         // Constrain read for `log_height`
         builder.recursion_eval_memory_access_single(
+            cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(4),
             &cols.log_height,
             AB::Expr::one(),
@@ -188,6 +194,7 @@ where
 
         // Constrain read for `mat_opening_ptr`
         builder.recursion_eval_memory_access_single(
+            cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(5),
             &cols.mat_opening_ptr,
             AB::Expr::one(),
@@ -195,6 +202,7 @@ where
 
         // Constrain read for `ps_at_z_ptr`
         builder.recursion_eval_memory_access_single(
+            cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(7),
             &cols.ps_at_z_ptr,
             AB::Expr::one(),
@@ -202,6 +210,7 @@ where
 
         // Constrain read for `alpha_pow_ptr`
         builder.recursion_eval_memory_access_single(
+            cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(9),
             &cols.ps_at_z_ptr,
             AB::Expr::one(),
@@ -209,6 +218,7 @@ where
 
         // Constrain read for `ro_ptr`
         builder.recursion_eval_memory_access_single(
+            cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(11),
             &cols.ro_ptr,
             AB::Expr::one(),
@@ -216,14 +226,16 @@ where
 
         // Constrain read for `p_at_x`
         builder.recursion_eval_memory_access(
-            cols.mat_opening_ptr.value.into() + cols.m.into(),
+            cols.clk,
+            cols.mat_opening_ptr.access.value.into() + cols.m.into(),
             &cols.p_at_x,
             AB::Expr::one(),
         );
 
         // Constrain read for `p_at_z`
         builder.recursion_eval_memory_access(
-            cols.ps_at_z_ptr.value.into() + cols.m.into(),
+            cols.clk,
+            cols.ps_at_z_ptr.access.value.into() + cols.m.into(),
             &cols.p_at_z,
             AB::Expr::one(),
         );
@@ -231,15 +243,20 @@ where
         // Update alpha_pow_at_log_height.
         // 1. Constrain old and new value against memory
         builder.recursion_eval_memory_access(
-            cols.alpha_pow_ptr.value.into() + cols.log_height.value.into(),
+            cols.clk,
+            cols.alpha_pow_ptr.access.value.into() + cols.log_height.access.value.into(),
             &cols.alpha_pow_at_log_height,
             AB::Expr::one(),
         );
 
         // 2. Constrain new_value = old_value * alpha.
-        let alpha = cols.alpha.value.as_extension::<AB>();
+        let alpha = cols.alpha.access.value.as_extension::<AB>();
         let alpha_pow_at_log_height = cols.alpha_pow_at_log_height.prev_value.as_extension::<AB>();
-        let new_alpha_pow_at_log_height = cols.alpha_pow_at_log_height.value.as_extension::<AB>();
+        let new_alpha_pow_at_log_height = cols
+            .alpha_pow_at_log_height
+            .access
+            .value
+            .as_extension::<AB>();
         builder.assert_ext_eq(
             alpha_pow_at_log_height.clone() * alpha,
             new_alpha_pow_at_log_height,
@@ -248,7 +265,8 @@ where
         // Update ro_at_log_height.
         // 1. Constrain old and new value against memory.
         builder.recursion_eval_memory_access(
-            cols.ro_ptr.value.into() + cols.log_height.value.into(),
+            cols.clk,
+            cols.ro_ptr.access.value.into() + cols.log_height.access.value.into(),
             &cols.ro_at_log_height,
             AB::Expr::one(),
         );
@@ -256,13 +274,13 @@ where
         // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
         // where quotient = (p_at_x - p_at_z) / (x - z)
         // <=> (new_value - old_value) * (z - x) = old_alpha_pow_at_log_height * (p_at_x - p_at_z)
-        let p_at_z = cols.p_at_z.value.as_extension::<AB>();
-        let p_at_x = cols.p_at_x.value.as_extension::<AB>();
-        let z = cols.z.value.as_extension::<AB>();
-        let x = cols.x.value.into();
+        let p_at_z = cols.p_at_z.access.value.as_extension::<AB>();
+        let p_at_x = cols.p_at_x.access.value.as_extension::<AB>();
+        let z = cols.z.access.value.as_extension::<AB>();
+        let x = cols.x.access.value.into();
 
         let ro_at_log_height = cols.ro_at_log_height.prev_value.as_extension::<AB>();
-        let new_ro_at_log_height = cols.ro_at_log_height.value.as_extension::<AB>();
+        let new_ro_at_log_height = cols.ro_at_log_height.access.value.as_extension::<AB>();
         builder.assert_ext_eq(
             (new_ro_at_log_height - ro_at_log_height) * (BinomialExtension::from_base(x) - z),
             (p_at_x - p_at_z) * alpha_pow_at_log_height,

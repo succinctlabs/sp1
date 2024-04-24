@@ -791,6 +791,7 @@ where
                         prev_timestamp: F::zero(),
                     };
                     self.record.fri_fold_events.push(FriFoldEvent {
+                        clk: self.clk,
                         m: F::from_canonical_usize(m),
                         input_ptr: F::from_canonical_usize(input_ptr),
                         z: MemoryRecord {
