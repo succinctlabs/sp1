@@ -7,6 +7,7 @@ use crate::{
     memory::{MemoryChipKind, MemoryGlobalChip},
     poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
+    range_check::RangeCheckChip,
 };
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
@@ -27,6 +28,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     MemoryFinalize(MemoryGlobalChip),
     Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
+    RangeCheck(RangeCheckChip<F>),
     // Poseidon2(Poseidon2Chip),
 }
 
@@ -50,6 +52,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
             })))
             .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip {})))
             .chain(once(RecursionAir::FriFold(FriFoldChip {})))
+            .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()
     }
 }
