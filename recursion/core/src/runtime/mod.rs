@@ -490,7 +490,7 @@ where
                     self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a.0[0] == b.0[0] {
+                    if a == b {
                         next_pc = self.pc + c_offset;
                     }
                 }
@@ -498,18 +498,19 @@ where
                     self.nb_branch_ops += 1;
                     let (a_val, b_val, c_offset) = self.branch_rr(&instruction);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
-                    if a.0[0] != b.0[0] {
+                    if a != b {
                         next_pc = self.pc + c_offset;
                     }
                 }
                 Opcode::BNEINC => {
                     self.nb_branch_ops += 1;
-                    let (mut a_val, b_val, c_offset) = self.branch_rr(&instruction);
+                    let (_, b_val, c_offset) = self.alu_rr(&instruction);
+                    let (a_ptr, mut a_val) = self.peek_a(&instruction);
                     a_val.0[0] += F::one();
-                    if a_val.0[0] != b_val.0[0] {
-                        next_pc = self.pc + c_offset;
+                    if a_val != b_val {
+                        next_pc = self.pc + c_offset.0[0];
                     }
-                    self.mw_cpu(self.fp + instruction.op_a, a_val, MemoryAccessPosition::A);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, Block::from(c_offset));
                 }
                 Opcode::EBEQ => {
