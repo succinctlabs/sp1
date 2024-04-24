@@ -15,8 +15,8 @@ pub struct ExecutionRecord<F: Default> {
     pub cpu_events: Vec<CpuEvent<F>>,
     pub poseidon2_events: Vec<Poseidon2Event<F>>,
 
-    // (address)
-    pub first_memory_record: Vec<F>,
+    // (address, value)
+    pub first_memory_record: Vec<(F, Block<F>)>,
 
     // (address, last_timestamp, last_value)
     pub last_memory_record: Vec<(F, F, Block<F>)>,

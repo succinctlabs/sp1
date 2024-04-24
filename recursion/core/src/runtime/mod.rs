@@ -782,10 +782,17 @@ where
 
         // Collect all used memory addresses.
         for (addr, v) in self.memory.iter() {
-            let entry = self.memory.get(addr).unwrap();
+            // Get the initial value of the memory address from either the uninitialized memory
+            // or set it as a default to 0.
+            let init_value = self
+                .uninitialized_memory
+                .get(addr)
+                .unwrap_or(&Block::from(F::zero()));
             self.record
                 .first_memory_record
-                .push(F::from_canonical_usize(*addr));
+                .push((F::from_canonical_usize(*addr), *init_value));
+
+            let entry = self.memory.get(addr).unwrap();
             self.record.last_memory_record.push((
                 F::from_canonical_usize(*addr),
                 entry.timestamp,

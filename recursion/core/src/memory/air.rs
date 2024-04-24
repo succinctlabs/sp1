@@ -45,12 +45,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 let addresses = &input.first_memory_record;
                 addresses
                     .iter()
-                    .map(|addr| {
+                    .map(|(addr, value)| {
                         let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                         let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                         cols.addr = *addr;
                         cols.timestamp = F::zero();
-                        cols.value = Block::from(F::zero());
+                        cols.value = value;
                         cols.is_real = F::one();
                         row
                     })
