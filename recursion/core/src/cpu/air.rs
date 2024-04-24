@@ -22,6 +22,7 @@ use tracing::instrument;
 use super::columns::CpuCols;
 use crate::air::BinomialExtensionUtils;
 use crate::air::BlockBuilder;
+use crate::air::IsExtZeroOperation;
 use crate::air::SP1RecursionAirBuilder;
 use crate::cpu::CpuChip;
 use crate::runtime::ExecutionRecord;
@@ -63,6 +64,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 cols.pc = event.pc;
                 cols.fp = event.fp;
 
+                // Populate the instruction related columns.
                 cols.selectors.populate(&event.instruction);
 
                 cols.instruction.opcode = F::from_canonical_u32(event.instruction.opcode as u32);
@@ -72,6 +74,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 cols.instruction.imm_b = F::from_canonical_u32(event.instruction.imm_b as u32);
                 cols.instruction.imm_c = F::from_canonical_u32(event.instruction.imm_c as u32);
 
+                // Populate the register columns.
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
                 }
@@ -87,14 +90,28 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 }
 
                 // Populate the branch columns.
-                if matches!(event.instruction.opcode, Opcode::BEQ | Opcode::BNE) {
+                if matches!(
+                    event.instruction.opcode,
+                    Opcode::BEQ | Opcode::BNE | Opcode::BNEINC
+                ) {
                     let branch_cols = cols.opcode_specific.branch_mut();
                     let a_ext: BinomialExtension<F> =
                         BinomialExtensionUtils::from_block(cols.a.value);
                     let b_ext: BinomialExtension<F> =
                         BinomialExtensionUtils::from_block(cols.b.value);
 
-                    branch_cols.is_eq_zero.populate((a_ext - b_ext).as_block());
+                    let comparison_diff = match event.instruction.opcode {
+                        Opcode::BEQ | Opcode::BNE => a_ext - b_ext,
+                        Opcode::BNEINC => {
+                            let base_element_one = BinomialExtension::<F>::from_base(F::one());
+                            a_ext + base_element_one - b_ext
+                        }
+                        _ => unreachable!(),
+                    };
+
+                    branch_cols
+                        .comparison_diff
+                        .populate((comparison_diff).as_block());
                 }
 
                 cols.is_real = F::one();
@@ -174,6 +191,8 @@ where
             .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
 
         self.eval_alu(builder, local);
+
+        self.eval_branch(builder, local, next);
 
         // Receive C.
         builder.receive(AirInteraction::new(
@@ -316,5 +335,53 @@ impl<F> CpuChip<F> {
         builder
             .when(local.selectors.is_div + local.selectors.is_ediv)
             .assert_ext_eq(b_ext, a_ext * c_ext);
+    }
+
+    /// Eval all the branch operations.
+    fn eval_branch<AB>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        let branch_cols = local.opcode_specific.branch();
+        let is_branch_instruction =
+            local.selectors.is_beq + local.selectors.is_bne + local.selectors.is_bneinc;
+
+        let a_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.a.value.map(|x| x.into()));
+        let b_ext: BinomialExtension<AB::Expr> =
+            BinomialExtensionUtils::from_block(local.b.value.map(|x| x.into()));
+        let base_element_one = BinomialExtension::<AB::Expr>::from_base(AB::Expr::one());
+
+        let mut comparison_diff = a_ext - b_ext;
+        comparison_diff += comparison_diff + base_element_one * local.selectors.is_bneinc;
+
+        IsExtZeroOperation::eval(
+            builder,
+            comparison_diff,
+            branch_cols.comparison_diff,
+            local.is_real.into(),
+        );
+
+        let four = AB::Expr::from_canonical_u32(4);
+
+        let mut pc_diff =
+            local.selectors.is_beq * branch_cols.comparison_diff.result * local.c.value.0[0] - four;
+
+        pc_diff += local.selectors.is_bne
+            * (AB::Expr::one() - branch_cols.comparison_diff.result)
+            * local.c.value.0[0]
+            - four;
+
+        pc_diff += local.selectors.is_bneinc
+            * (branch_cols.comparison_diff.result - AB::Expr::one())
+            * local.c.value.0[0]
+            - four;
+
+        pc_diff
     }
 }

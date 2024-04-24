@@ -10,5 +10,5 @@ pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BranchCols<T> {
-    pub(crate) is_eq_zero: IsExtZeroOperation<T>,
+    pub(crate) comparison_diff: IsExtZeroOperation<T>,
 }
