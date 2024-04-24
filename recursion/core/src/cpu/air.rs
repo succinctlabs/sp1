@@ -25,6 +25,7 @@ use crate::air::BlockBuilder;
 use crate::air::SP1RecursionAirBuilder;
 use crate::cpu::CpuChip;
 use crate::runtime::ExecutionRecord;
+use crate::runtime::Opcode;
 use crate::runtime::RecursionProgram;
 use crate::runtime::D;
 
@@ -85,12 +86,16 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     cols.c.value = event.instruction.op_c;
                 }
 
-                // cols.a_eq_b
-                //     .populate((cols.a.value.0[0] - cols.b.value.0[0]).as_canonical_u32());
+                // Populate the branch columns.
+                if matches!(event.instruction.opcode, Opcode::BEQ | Opcode::BNE) {
+                    let branch_cols = cols.opcode_specific.branch_mut();
+                    let a_ext: BinomialExtension<F> =
+                        BinomialExtensionUtils::from_block(cols.a.value);
+                    let b_ext: BinomialExtension<F> =
+                        BinomialExtensionUtils::from_block(cols.b.value);
 
-                // let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
-                // cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
-                // cols.bne = cols.is_bne * (F::one() - cols.a_eq_b.result) * (F::one() - is_last_row);
+                    branch_cols.is_eq_zero.populate((a_ext - b_ext).as_block());
+                }
 
                 cols.is_real = F::one();
                 row

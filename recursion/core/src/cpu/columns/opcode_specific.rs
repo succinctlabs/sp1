@@ -6,7 +6,6 @@ use super::branch::BranchCols;
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 
 /// Shared columns whose interpretation depends on the instruction being executed.
-/// TODO: Remove this struct if we end up not needed any opcode-specific columns.
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub union OpcodeSpecificCols<T: Copy> {
