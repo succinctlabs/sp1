@@ -1,16 +1,20 @@
-use std::marker::PhantomData;
+#![allow(unused_variables)]
 
-use anyhow::Result;
+use std::{env, path::PathBuf, time::Duration};
+
+use anyhow::{Context, Result};
 use p3_field::PrimeField32;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sp1_core::{
-    stark::ShardProof,
-    utils::{BabyBearPoseidon2, BabyBearPoseidon2Inner},
-};
-use sp1_prover::{CoreSC, InnerSC, OuterSC, SP1CoreProof, SP1Prover, SP1ReduceProof};
+use sp1_core::stark::ShardProof;
+use sp1_prover::{CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1Prover};
+use tokio::{runtime, time::sleep};
 
-use crate::{SP1PublicValues, SP1Stdin};
+use crate::{
+    client::NetworkClient,
+    proto::network::{ProofStatus, TransactionStatus},
+    SP1PublicValues, SP1Stdin,
+};
 
 #[derive(Serialize, Deserialize)]
 pub struct ProofStatistics {
@@ -21,58 +25,64 @@ pub struct ProofStatistics {
 }
 
 /// A proof of a RISCV ELF execution with given inputs and outputs.
-// #[derive(Serialize, Deserialize)]
-pub struct SP1ProofWithMetadata<P>
-where
-    P: Serialize + DeserializeOwned,
-{
+#[derive(Serialize, Deserialize)]
+#[serde(bound(serialize = "P: Serialize"))]
+#[serde(bound(deserialize = "P: DeserializeOwned"))]
+pub struct SP1ProofWithMetadata<P> {
     pub proof: P,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
 }
 
+pub type SP1DefaultProof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
+
 pub type SP1CompressedProof = SP1ProofWithMetadata<ShardProof<InnerSC>>;
 
-pub type SP1DefaultProof = SP1ProofWithMetadata<ShardProof<CoreSC>>;
+pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
+
+pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
 
 pub trait Prover {
-    type DefaultProof: Serialize + DeserializeOwned;
+    /// Prove the execution of a RISCV ELF with the given inputs.
+    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof>;
 
-    type CompressedProof: Serialize + DeserializeOwned;
+    /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
+    fn prove_compressed(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
-    type PlonkProof: Serialize + DeserializeOwned;
+    /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
+    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PlonkProof>;
 
-    fn prove(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithMetadata<Self::DefaultProof>>;
-
-    fn prove_compressed(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithMetadata<Self::CompressedProof>>;
-
-    // fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWIthMetadata<Self::PlonkProof>>;
+    /// Given an SP1 program and input, generate a Groth16 proof that can be verified on-chain.
+    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
 }
 
 pub struct LocalProver {
     pub(crate) prover: SP1Prover,
 }
 
+impl Default for LocalProver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl LocalProver {
+    pub fn new() -> Self {
+        Self {
+            prover: SP1Prover::new(),
+        }
+    }
+
+    /// Get artifacts dir from SP1_CIRCUIT_DIR env var.
+    fn get_artifacts_dir(&self) -> PathBuf {
+        let artifacts_dir =
+            std::env::var("SP1_CIRCUIT_DIR").expect("SP1_CIRCUIT_DIR env var not set");
+        PathBuf::from(artifacts_dir)
+    }
+}
+
 impl Prover for LocalProver {
-    type DefaultProof = Vec<ShardProof<CoreSC>>;
-
-    type CompressedProof = ShardProof<InnerSC>;
-
-    type PlonkProof = ShardProof<OuterSC>; //TODO
-
-    fn prove(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>> {
+    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
         let (pk, _) = self.prover.setup(elf);
         let proof = self.prover.prove_core(&pk, &stdin);
         Ok(SP1ProofWithMetadata {
@@ -94,26 +104,59 @@ impl Prover for LocalProver {
             public_values,
         })
     }
+
+    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+        let artifacts_dir = self.get_artifacts_dir();
+        let (pk, vk) = self.prover.setup(elf);
+        let proof = self.prover.prove_core(&pk, &stdin);
+        let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
+        let public_values = proof.public_values.clone();
+        let reduce_proof = self.prover.reduce(&vk, proof, deferred_proofs);
+        let outer_proof = self.prover.wrap_bn254(&vk, reduce_proof);
+        let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
+        Ok(SP1ProofWithMetadata {
+            proof,
+            stdin,
+            public_values,
+        })
+    }
+
+    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+        let artifacts_dir = self.get_artifacts_dir();
+        let (pk, vk) = self.prover.setup(elf);
+        println!("Proving core");
+        let proof = self.prover.prove_core(&pk, &stdin);
+        let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
+        let public_values = proof.public_values.clone();
+        println!("Reducing");
+        let reduce_proof = self.prover.reduce(&vk, proof, deferred_proofs);
+        println!("Wrapping bn254");
+        let outer_proof = self.prover.wrap_bn254(&vk, reduce_proof);
+        println!("Wrapping plonk");
+        let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
+        println!("Done");
+        Ok(SP1ProofWithMetadata {
+            proof,
+            stdin,
+            public_values,
+        })
+    }
 }
 
 pub struct MockProver {
     pub(crate) prover: SP1Prover,
 }
 
-enum MockProofCode {
+pub enum MockProofCode {
     Default = 0,
     Compressed = 1,
-    Plonk = 2,
+    Groth16 = 2,
+    Plonk = 3,
 }
 
-impl Prover for MockProver {
-    type DefaultProof = [u8; 32];
-
-    type CompressedProof = [u8; 32];
-
-    type PlonkProof = [u8; 32];
-
-    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithMetadata<[u8; 32]>> {
+impl MockProver {
+    /// Executes the program and returns vkey_digest and public values.
+    fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> (Vec<u8>, SP1PublicValues) {
         let (_, vkey) = self.prover.setup(elf);
         let vkey_digest = self
             .prover
@@ -121,11 +164,21 @@ impl Prover for MockProver {
             .into_iter()
             .flat_map(|b| b.as_canonical_u32().to_le_bytes())
             .collect::<Vec<_>>();
+        let public_values = SP1Prover::execute(elf, stdin);
+        (vkey_digest, public_values)
+    }
+}
+
+pub type MockProof = [u8; 32];
+
+impl MockProver {
+    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithMetadata<MockProof>> {
+        let (vkey_digest, public_values) = self.execute(elf, &stdin);
         let mut hasher_input = Vec::new();
         hasher_input.push(MockProofCode::Default as u8);
         hasher_input.extend_from_slice(&vkey_digest);
-        let public_values = SP1Prover::execute(elf, &stdin);
-        hasher_input.extend_from_slice(&stdin.buffer.iter().flatten().cloned().collect::<Vec<_>>());
+        let pv_digest = Sha256::digest(&public_values.buffer.data);
+        hasher_input.extend_from_slice(&pv_digest);
         let proof = Sha256::digest(&hasher_input).into();
         Ok(SP1ProofWithMetadata {
             proof,
@@ -134,24 +187,56 @@ impl Prover for MockProver {
         })
     }
 
-    fn prove_compressed(
+    pub fn prove_compressed(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithMetadata<Self::CompressedProof>> {
-        let (_, vkey) = self.prover.setup(elf);
-        let vkey_digest = self
-            .prover
-            .hash_vkey(&vkey.vk)
-            .into_iter()
-            .flat_map(|b| b.as_canonical_u32().to_le_bytes())
-            .collect::<Vec<_>>();
+    ) -> Result<SP1ProofWithMetadata<MockProof>> {
+        // TODO: we could check that deferred proofs are correct here.
+        let (vkey_digest, public_values) = self.execute(elf, &stdin);
         let mut hasher_input = Vec::new();
         hasher_input.push(MockProofCode::Compressed as u8);
         hasher_input.extend_from_slice(&vkey_digest);
-        // TODO: we could check that deferred proofs are correct here.
-        let public_values = SP1Prover::execute(elf, &stdin);
-        hasher_input.extend_from_slice(&stdin.buffer.iter().flatten().cloned().collect::<Vec<_>>());
+        let pv_digest = Sha256::digest(&public_values.buffer.data);
+        hasher_input.extend_from_slice(&pv_digest);
+        let proof = Sha256::digest(&hasher_input).into();
+        Ok(SP1ProofWithMetadata {
+            proof,
+            stdin,
+            public_values,
+        })
+    }
+
+    pub fn prove_groth16(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<SP1ProofWithMetadata<MockProof>> {
+        let (vkey_digest, public_values) = self.execute(elf, &stdin);
+        let mut hasher_input = Vec::new();
+        hasher_input.push(MockProofCode::Groth16 as u8);
+        hasher_input.extend_from_slice(&vkey_digest);
+        let pv_digest = Sha256::digest(&public_values.buffer.data);
+        hasher_input.extend_from_slice(&pv_digest);
+        let proof = Sha256::digest(&hasher_input).into();
+        Ok(SP1ProofWithMetadata {
+            proof,
+            stdin,
+            public_values,
+        })
+    }
+
+    pub fn prove_plonk(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+    ) -> Result<SP1ProofWithMetadata<MockProof>> {
+        let (vkey_digest, public_values) = self.execute(elf, &stdin);
+        let mut hasher_input = Vec::new();
+        hasher_input.push(MockProofCode::Plonk as u8);
+        hasher_input.extend_from_slice(&vkey_digest);
+        let pv_digest = Sha256::digest(&public_values.buffer.data);
+        hasher_input.extend_from_slice(&pv_digest);
         let proof = Sha256::digest(&hasher_input).into();
         Ok(SP1ProofWithMetadata {
             proof,
@@ -161,155 +246,143 @@ impl Prover for MockProver {
     }
 }
 
-pub struct NetworkProver {}
+pub struct NetworkProver {
+    client: NetworkClient,
+}
 
-impl Prover for NetworkProver {}
+impl Default for NetworkProver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
-// pub struct LocalProver {
-//     pub mode: ProofMode,
-// }
+impl NetworkProver {
+    pub fn new() -> Self {
+        let private_key = env::var("SP1_PRIVATE_KEY")
+            .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
+        Self {
+            client: NetworkClient::new(&private_key),
+        }
+    }
 
-// impl LocalProver {
-//     pub fn new(mode: ProofMode) -> Self {
-//         Self { mode }
-//     }
-// }
+    pub async fn prove_async(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+        let client = &self.client;
+        // Execute the runtime before creating the proof request.
+        // TODO: Maybe we don't want to always do this locally, with large programs. Or we may want
+        // to disable events at least.
+        let public_values = SP1Prover::execute(elf, &stdin);
+        println!("Simulation complete");
 
-// impl Prover for LocalProver {
-//     // Depending on the mode, will run the prover locally
-//     // And will return the correct variant of the SP1Proof
-//     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Proof> {
-//         match self.mode {
-//             ProofMode::Default => {
-//                 let proof = SP1Prover::prove(elf, &stdin.buffer);
-//                 Ok(SP1Proof::Default(SP1ProofWithMetadata {
-//                     proof,
-//                     stdin: stdin.clone(),
-//                     public_values: ProverClient::execute(elf, stdin)?,
-//                 }))
-//             }
-//             // TODO: Add this when there's a nice API for local proving to fully recursed.
-//             ProofMode::Compressed => unimplemented!(),
-//             // TODO: Add this when there's a nice API for local groth16 proving.
-//             ProofMode::Groth16 => unimplemented!(),
-//         }
-//     }
-// }
+        let proof_id = client.create_proof(elf, &stdin).await?;
+        println!("Proof request ID: {:?}", proof_id);
 
-// pub struct MockProver {
-//     pub mode: ProofMode,
-// }
+        let mut is_claimed = false;
+        loop {
+            let (status, maybe_proof) = client.get_proof_status(&proof_id).await?;
 
-// impl MockProver {
-//     pub fn new() -> Self {
-//         Self {
-//             mode: ProofMode::Default,
-//         }
-//     }
-// }
+            match status.status() {
+                ProofStatus::ProofFulfilled => {
+                    return Ok(SP1ProofWithMetadata {
+                        proof: maybe_proof.unwrap().shard_proofs,
+                        stdin,
+                        public_values,
+                    });
+                }
+                ProofStatus::ProofClaimed => {
+                    if !is_claimed {
+                        println!("Proving...");
+                        is_claimed = true;
+                    }
+                }
+                ProofStatus::ProofFailed => {
+                    return Err(anyhow::anyhow!("Proof generation failed"));
+                }
+                _ => {
+                    sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
+    }
 
-// impl Prover for MockProver {
-//     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Proof> {
-//         // Execute the proof to get the public values.
-//         let public_values = ProverClient::execute(elf, stdin.clone())?;
-//         let proof_with_metadata = SP1ProofWithMetadata {
-//             proof: PhantomData::<()>,
-//             stdin: stdin.clone(),
-//             public_values,
-//         };
-//         Ok(SP1Proof::Mock(proof_with_metadata))
-//     }
-// }
+    /// Remotely relay a proof to a set of chains with their callback contracts.
+    pub fn remote_relay(
+        &self,
+        proof_id: &str,
+        chain_ids: Vec<u32>,
+        callbacks: Vec<[u8; 20]>,
+        callback_datas: Vec<Vec<u8>>,
+    ) -> Result<Vec<String>> {
+        let rt = runtime::Runtime::new()?;
+        rt.block_on(async {
+            let client = &self.client;
 
-// pub struct ProverClient {
-//     pub prover: Box<dyn Prover>,
-// }
+            let verifier = NetworkClient::get_sp1_verifier_address();
 
-// /// Initialize a ProverClient with a mode: {Default, Compressed, Groth16} and it will generate the
-// /// corresponding proof. Additionally, a ProverClient will
-// impl ProverClient {
-//     pub fn new(mode: ProofMode) -> Self {
-//         // Read environment variables.
-//         let remote_prove = std::env::var("REMOTE_PROVE")
-//             .map(|r| r == "true")
-//             .unwrap_or(false);
-//         let local_prove = std::env::var("LOCAL_PROVE")
-//             .map(|r| r == "true")
-//             .unwrap_or(false);
+            let mut tx_details = Vec::new();
+            for ((i, callback), callback_data) in
+                callbacks.iter().enumerate().zip(callback_datas.iter())
+            {
+                if let Some(&chain_id) = chain_ids.get(i) {
+                    let tx_id = client
+                        .relay_proof(proof_id, chain_id, verifier, *callback, callback_data)
+                        .await
+                        .with_context(|| format!("Failed to relay proof to chain {}", chain_id))?;
+                    tx_details.push((tx_id.clone(), chain_id));
+                }
+            }
 
-//         let prover: Box<dyn Prover> = if remote_prove {
-//             Box::new(NetworkProver::new(mode))
-//         } else if local_prove {
-//             Box::new(LocalProver::new(mode))
-//         } else {
-//             Box::new(MockProver::new())
-//         };
+            let mut tx_ids = Vec::new();
+            for (tx_id, chain_id) in tx_details.iter() {
+                loop {
+                    let (status_res, maybe_tx_hash, maybe_simulation_url) =
+                        client.get_relay_status(tx_id).await?;
 
-//         Self { prover }
-//     }
+                    match status_res.status() {
+                        TransactionStatus::TransactionFinalized => {
+                            println!(
+                                "Relaying to chain {} succeeded with tx hash: {:?}",
+                                chain_id,
+                                maybe_tx_hash.as_deref().unwrap_or("None")
+                            );
+                            tx_ids.push(tx_id.clone());
+                            break;
+                        }
+                        TransactionStatus::TransactionFailed
+                        | TransactionStatus::TransactionTimedout => {
+                            return Err(anyhow::anyhow!(
+                                "Relaying to chain {} failed with tx hash: {:?}, simulation url: {:?}",
+                                chain_id,
+                                maybe_tx_hash.as_deref().unwrap_or("None"),
+                                maybe_simulation_url.as_deref().unwrap_or("None")
+                            ));
+                        }
+                        _ => {
+                            sleep(Duration::from_secs(5)).await;
+                        }
+                    }
+                }
+            }
 
-//     /// Given an ELF and a SP1Stdin, will execute the program and return the public values.
-//     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
-//         // Execute is the same for all provers.
-//         unimplemented!()
-//     }
+            Ok(tx_ids)
+        })
+    }
+}
 
-//     /// Given an ELF and a SP1Stdin, it will generate a proof using the stored prover.
-//     pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Proof> {
-//         // Call prove on the prover.
-//         self.prover.prove(elf, stdin)
-//     }
+impl Prover for NetworkProver {
+    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async { self.prove_async(elf, stdin).await })
+    }
 
-//     pub fn prove_from_id(&self, id: &[u8]) -> Result<SP1Proof> {
-//         // TODO: Implement this when there's a nice API for proving from id (program hash).
-//         unimplemented!()
-//     }
+    fn prove_compressed(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+        todo!()
+    }
 
-//     pub fn verify_groth16(
-//         &self,
-//         elf: &[u8],
-//         proof: &SP1ProofWithIO<BabyBearPoseidon2>,
-//     ) -> Result<DeferredDigest, ProgramVerificationError> {
-//         self.verify_with_config(elf, proof, BabyBearPoseidon2::new())
-//     }
+    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+        todo!()
+    }
 
-//     pub fn verify_<SC: StarkGenericConfig>(
-//         &self,
-//         elf: &[u8],
-//         proof: &SP1ProofWithIO<SC>,
-//         config: SC,
-//     ) -> Result<DeferredDigest, ProgramVerificationError>
-//     where
-//         SC::Challenger: Clone,
-//         OpeningProof<SC>: Send + Sync,
-//         Com<SC>: Send + Sync,
-//         PcsProverData<SC>: Send + Sync,
-//         ShardMainData<SC>: Serialize + DeserializeOwned,
-//         SC::Val: p3_field::PrimeField32,
-//     {
-//         let mut challenger = config.challenger();
-//         let machine = RiscvAir::machine(config);
-
-//         let (_, vk) = machine.setup(&Program::from(elf));
-//         let (pv_digest, deferred_digest) = machine.verify(&vk, &proof.proof, &mut challenger)?;
-
-//         let recomputed_hash = Sha256::digest(&proof.public_values.buffer.data);
-//         if recomputed_hash.as_slice() != pv_digest.0.as_slice() {
-//             return Err(ProgramVerificationError::InvalidPublicValuesDigest);
-//         }
-
-//         Result::Ok(deferred_digest)
-//     }
-
-//     pub fn relay() -> Result<()> {
-//         unimplemented!()
-//     }
-
-//     pub fn get_program_hash(elf: &[u8]) -> bytes32 {}
-
-//     /// Gets the Groth16 verification key for the given ELF.
-//     pub fn get_vkey(elf: &[u8]) -> VerificationKey {
-//         // TODO: We should return the Groth16 verification key here.
-//         unimplemented!()
-//     }
-// }
+    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+        todo!()
+    }
+}

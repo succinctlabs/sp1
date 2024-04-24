@@ -17,6 +17,11 @@ mod types;
 mod utils;
 mod verify;
 
+use std::path::PathBuf;
+
+pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
+use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
+pub use sp1_recursion_gnark_ffi::Groth16Proof;
 pub use types::*;
 
 use p3_baby_bear::BabyBear;
@@ -37,7 +42,6 @@ use sp1_core::{
     utils::{run_and_prove, BabyBearPoseidon2},
 };
 use sp1_primitives::hash_deferred_proof;
-use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
@@ -474,9 +478,13 @@ impl SP1Prover {
     pub fn wrap_bn254(
         &self,
         vk: &SP1VerifyingKey,
-        core_challenger: Challenger<CoreSC>,
         reduced_proof: SP1ReduceProof<InnerSC>,
     ) -> ShardProof<OuterSC> {
+        // Get verify_start_challenger from the reduce proof's public values.
+        let pv = RecursionPublicValues::from_vec(reduced_proof.proof.public_values.clone());
+        let mut core_challenger = self.core_machine.config().challenger();
+        pv.verify_start_challenger
+            .set_challenger(&mut core_challenger);
         // Since the proof passed in should be complete already, the start reconstruct_challenger
         // should be in initial state with only vk observed.
         let reconstruct_challenger = self.setup_initial_core_challenger(vk);
@@ -494,11 +502,16 @@ impl SP1Prover {
     }
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
-    pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>) {
+    pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
         let mut witness = Witness::default();
         proof.write(&mut witness);
-        let constraints = build_wrap_circuit(&self.reduce_vk_outer, proof);
-        Groth16Prover::test(constraints, witness);
+        Groth16Prover::prove(witness, build_dir)
+    }
+
+    pub fn wrap_plonk(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> PlonkBn254Proof {
+        let mut witness = Witness::default();
+        proof.write(&mut witness);
+        PlonkBn254Prover::prove(witness, build_dir)
     }
 
     pub fn setup_initial_core_challenger(&self, vk: &SP1VerifyingKey) -> Challenger<CoreSC> {
@@ -555,17 +568,14 @@ mod tests {
         tracing::info!("verify core");
         core_proof.verify(&vk).unwrap();
 
-        // TODO: Get rid of this method by reading it from public values.
-        let core_challenger = prover.setup_core_challenger(&vk, &core_proof);
-
         tracing::info!("reduce");
         let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
 
         tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
+        let wrapped_bn254_proof = prover.wrap_bn254(&vk, reduced_proof);
 
         tracing::info!("groth16");
-        prover.wrap_groth16(wrapped_bn254_proof);
+        prover.wrap_groth16(wrapped_bn254_proof, PathBuf::from("build"));
     }
 
     #[test]
@@ -677,10 +687,9 @@ mod tests {
         println!("complete: {:?}", reduce_pv.is_complete);
 
         println!("wrap");
-        let challenger = prover.setup_core_challenger(&verify_vk, &verify_proof);
-        let wrapped = prover.wrap_bn254(&verify_vk, challenger, verify_reduce);
+        let wrapped = prover.wrap_bn254(&verify_vk, verify_reduce);
 
         tracing::info!("groth16");
-        prover.wrap_groth16(wrapped);
+        prover.wrap_groth16(wrapped, PathBuf::from("build"));
     }
 }
