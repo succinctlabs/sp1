@@ -100,6 +100,10 @@ pub struct Runtime<F: PrimeField32, EF: ExtensionField<F>, Diffusion> {
     // pub memory: Vec<MemoryEntry<F>>,
     pub memory: HashMap<usize, MemoryEntry<F>>,
 
+    /// Uninitialized memory addresses that have a specific value they should be initialized with.
+    /// The Opcodes that start with Hint* utilize this to set memory values.
+    pub uninitialized_memory: HashMap<usize, Block<F>>, // TODO: add "HashNoHasher" back to this
+
     /// The execution record.
     pub record: ExecutionRecord<F>,
 
@@ -163,6 +167,7 @@ where
             fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
             memory: HashMap::new(),
+            uninitialized_memory: HashMap::new(),
             record,
             perm: Some(perm),
             access: CpuRecord::default(),
@@ -192,6 +197,7 @@ where
             fp: F::from_canonical_usize(STACK_SIZE),
             pc: F::zero(),
             memory: HashMap::new(),
+            uninitialized_memory: HashMap::new(),
             record,
             perm: None,
             access: CpuRecord::default(),
@@ -212,6 +218,23 @@ where
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
             println!("> {}: {}", name, entry.cumulative_cycles);
         }
+    }
+
+    // Write to uninitialized memory.
+    fn mw_uninitialized(&mut self, addr: usize, value: Block<F>) {
+        // Write it to uninitialized memory for creating MemoryInit table later.
+        self.uninitialized_memory
+            .entry(addr)
+            .and_modify(|_| panic!("address already initialized"))
+            .or_insert(value);
+        // Also write it to the memory map so that it can be read later.
+        self.memory
+            .entry(addr)
+            .and_modify(|_| panic!("address already initialized"))
+            .or_insert(MemoryEntry {
+                value,
+                timestamp: F::zero(),
+            });
     }
 
     fn mr(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
@@ -537,19 +560,18 @@ where
                     exit(1);
                 }
                 Opcode::Ext2Felt => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let dst = a_val[0].as_canonical_u32() as usize;
-                    self.memory.entry(dst).or_default().value[0] = b_val[0];
-                    self.memory.entry(dst + 1).or_default().value[0] = b_val[1];
-                    self.memory.entry(dst + 2).or_default().value[0] = b_val[2];
-                    self.memory.entry(dst + 3).or_default().value[0] = b_val[3];
+                    // TODO: this should be a hint and perhaps the compiler needs to change to make it a hint?
+                    self.mw_uninitialized(dst, Block::from(b_val[0]));
+                    self.mw_uninitialized(dst + 1, Block::from(b_val[1]));
+                    self.mw_uninitialized(dst + 2, Block::from(b_val[2]));
+                    self.mw_uninitialized(dst + 3, Block::from(b_val[3]));
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Poseidon2Perm => {
                     self.nb_poseidons += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -580,8 +602,7 @@ where
                 Opcode::Poseidon2Compress => {
                     self.nb_poseidons += 1;
 
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -620,8 +641,7 @@ where
                 }
                 Opcode::HintBits => {
                     self.nb_bit_decompositions += 1;
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Get the dst array ptr.
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -632,26 +652,23 @@ where
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
                     // Write the bits to the array at dst.
                     for (i, bit) in bits.iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value[0] =
-                            F::from_canonical_u32(*bit);
+                        self.mw_uninitialized(dst + i, Block::from(F::from_canonical_u32(*bit)));
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintLen => {
                     let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    self.mr_cpu(a_ptr, MemoryAccessPosition::A);
                     let a_val: Block<F> =
                         F::from_canonical_usize(self.witness_stream[0].len()).into();
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Hint => {
-                    let (a_ptr, b_val, c_val) = self.alu_rr(&instruction);
-                    let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let dst = a_val[0].as_canonical_u32() as usize;
                     let blocks = self.witness_stream.pop_front().unwrap();
                     for (i, block) in blocks.into_iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value = block;
+                        self.mw_uninitialized(dst + i, block);
                     }
                     (a, b, c) = (a_val, b_val, c_val);
                 }
