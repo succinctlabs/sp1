@@ -290,7 +290,7 @@ pub fn build_wrap_circuit(
     );
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
-    backend.emit(builder.operations)
+    backend.emit(builder.operations_clone())
 }
 
 #[cfg(test)]

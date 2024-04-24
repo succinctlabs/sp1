@@ -14,14 +14,14 @@ impl<C: Config> Builder<C> {
     /// Select a variable based on a condition.
     pub fn select_v(&mut self, cond: Var<C::N>, a: Var<C::N>, b: Var<C::N>) -> Var<C::N> {
         let c = self.uninit();
-        self.operations.push(DslIr::CircuitSelectV(cond, a, b, c));
+        self.push(DslIr::CircuitSelectV(cond, a, b, c));
         c
     }
 
     /// Select a felt based on a condition.
     pub fn select_f(&mut self, cond: Var<C::N>, a: Felt<C::F>, b: Felt<C::F>) -> Felt<C::F> {
         let c = self.uninit();
-        self.operations.push(DslIr::CircuitSelectF(cond, a, b, c));
+        self.push(DslIr::CircuitSelectF(cond, a, b, c));
         c
     }
 
@@ -33,7 +33,7 @@ impl<C: Config> Builder<C> {
         b: Ext<C::F, C::EF>,
     ) -> Ext<C::F, C::EF> {
         let c = self.uninit();
-        self.operations.push(DslIr::CircuitSelectE(cond, a, b, c));
+        self.push(DslIr::CircuitSelectE(cond, a, b, c));
         c
     }
 
@@ -194,7 +194,7 @@ impl<C: Config> Builder<C> {
     /// Converts an ext to a slice of felts.
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);
-        self.operations.push(DslIr::Ext2Felt(result.clone(), value));
+        self.push(DslIr::Ext2Felt(result.clone(), value));
         result
     }
 
@@ -204,8 +204,7 @@ impl<C: Config> Builder<C> {
         let b = self.uninit();
         let c = self.uninit();
         let d = self.uninit();
-        self.operations
-            .push(DslIr::CircuitExt2Felt([a, b, c, d], value));
+        self.push(DslIr::CircuitExt2Felt([a, b, c, d], value));
         [a, b, c, d]
     }
 }

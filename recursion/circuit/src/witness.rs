@@ -363,7 +363,7 @@ mod tests {
         builder.print_e(b);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.operations_clone());
         Groth16Prover::test::<OuterConfig>(
             constraints,
             Witness {

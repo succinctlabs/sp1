@@ -212,27 +212,23 @@ impl<N: Field> Var<N> {
         cache: &mut HashMap<SymbolicVar<N>, Self>,
     ) {
         if let Some(v) = cache.get(&src) {
-            builder
-                .operations
-                .push(DslIr::AddVI(*self, *v, C::N::zero()));
+            builder.push(DslIr::AddVI(*self, *v, C::N::zero()));
             return;
         }
         match src {
             SymbolicVar::Const(c) => {
-                builder.operations.push(DslIr::ImmV(*self, c));
+                builder.push(DslIr::ImmV(*self, c));
             }
             SymbolicVar::Val(v) => {
-                builder
-                    .operations
-                    .push(DslIr::AddVI(*self, v, C::N::zero()));
+                builder.push(DslIr::AddVI(*self, v, C::N::zero()));
             }
             SymbolicVar::Add(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicVar::Const(lhs), SymbolicVar::Const(rhs)) => {
                     let sum = *lhs + *rhs;
-                    builder.operations.push(DslIr::ImmV(*self, sum));
+                    builder.push(DslIr::ImmV(*self, sum));
                 }
                 (SymbolicVar::Const(lhs), SymbolicVar::Val(rhs)) => {
-                    builder.operations.push(DslIr::AddVI(*self, *rhs, *lhs));
+                    builder.push(DslIr::AddVI(*self, *rhs, *lhs));
                 }
                 (SymbolicVar::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
@@ -389,8 +385,8 @@ impl<C: Config> Variable<C> for Var<C::N> {
     type Expression = SymbolicVar<C::N>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let var = Var(builder.var_count, PhantomData);
-        builder.var_count += 1;
+        let var = Var(builder.var_count(), PhantomData);
+        builder.increment_var_count();
         var
     }
 
@@ -503,27 +499,23 @@ impl<F: Field> Felt<F> {
         cache: &mut HashMap<SymbolicFelt<F>, Self>,
     ) {
         if let Some(v) = cache.get(&src) {
-            builder
-                .operations
-                .push(DslIr::AddFI(*self, *v, C::F::zero()));
+            builder.push(DslIr::AddFI(*self, *v, C::F::zero()));
             return;
         }
         match src {
             SymbolicFelt::Const(c) => {
-                builder.operations.push(DslIr::ImmF(*self, c));
+                builder.push(DslIr::ImmF(*self, c));
             }
             SymbolicFelt::Val(v) => {
-                builder
-                    .operations
-                    .push(DslIr::AddFI(*self, v, C::F::zero()));
+                builder.push(DslIr::AddFI(*self, v, C::F::zero()));
             }
             SymbolicFelt::Add(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Const(rhs)) => {
                     let sum = *lhs + *rhs;
-                    builder.operations.push(DslIr::ImmF(*self, sum));
+                    builder.push(DslIr::ImmF(*self, sum));
                 }
                 (SymbolicFelt::Const(lhs), SymbolicFelt::Val(rhs)) => {
-                    builder.operations.push(DslIr::AddFI(*self, *rhs, *lhs));
+                    builder.push(DslIr::AddFI(*self, *rhs, *lhs));
                 }
                 (SymbolicFelt::Const(lhs), rhs) => {
                     let rhs_value = Self::uninit(builder);
@@ -732,8 +724,8 @@ impl<C: Config> Variable<C> for Felt<C::F> {
     type Expression = SymbolicFelt<C::F>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let felt = Felt(builder.felt_count, PhantomData);
-        builder.felt_count += 1;
+        let felt = Felt(builder.felt_count(), PhantomData);
+        builder.increment_felt_count();
         felt
     }
 
@@ -848,22 +840,16 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
         base_cache: &mut HashMap<SymbolicFelt<F>, Felt<F>>,
     ) {
         if let Some(v) = ext_cache.get(&src) {
-            builder
-                .operations
-                .push(DslIr::AddEI(*self, *v, C::EF::zero()));
+            builder.push(DslIr::AddEI(*self, *v, C::EF::zero()));
             return;
         }
         match src {
             SymbolicExt::Base(v) => match &*v {
                 SymbolicFelt::Const(c) => {
-                    builder
-                        .operations
-                        .push(DslIr::ImmE(*self, C::EF::from_base(*c)));
+                    builder.push(DslIr::ImmE(*self, C::EF::from_base(*c)));
                 }
                 SymbolicFelt::Val(v) => {
-                    builder
-                        .operations
-                        .push(DslIr::AddEFFI(*self, *v, C::EF::zero()));
+                    builder.push(DslIr::AddEFFI(*self, *v, C::EF::zero()));
                 }
                 v => {
                     let v_value = Felt::uninit(builder);
@@ -872,37 +858,33 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
                 }
             },
             SymbolicExt::Const(c) => {
-                builder.operations.push(DslIr::ImmE(*self, c));
+                builder.push(DslIr::ImmE(*self, c));
             }
             SymbolicExt::Val(v) => {
-                builder
-                    .operations
-                    .push(DslIr::AddEI(*self, v, C::EF::zero()));
+                builder.push(DslIr::AddEI(*self, v, C::EF::zero()));
             }
             SymbolicExt::Add(lhs, rhs) => match (&*lhs, &*rhs) {
                 (SymbolicExt::Const(lhs), SymbolicExt::Const(rhs)) => {
                     let sum = *lhs + *rhs;
-                    builder.operations.push(DslIr::ImmE(*self, sum));
+                    builder.push(DslIr::ImmE(*self, sum));
                 }
                 (SymbolicExt::Const(lhs), SymbolicExt::Val(rhs)) => {
-                    builder.operations.push(DslIr::AddEI(*self, *rhs, *lhs));
+                    builder.push(DslIr::AddEI(*self, *rhs, *lhs));
                 }
                 (SymbolicExt::Const(lhs), SymbolicExt::Base(rhs)) => {
                     match rhs.as_ref() {
                         SymbolicFelt::Const(rhs) => {
                             let sum = *lhs + C::EF::from_base(*rhs);
-                            builder.operations.push(DslIr::ImmE(*self, sum));
+                            builder.push(DslIr::ImmE(*self, sum));
                         }
                         SymbolicFelt::Val(rhs) => {
-                            builder.operations.push(DslIr::AddEFFI(*self, *rhs, *lhs));
+                            builder.push(DslIr::AddEFFI(*self, *rhs, *lhs));
                         }
                         rhs => {
                             let rhs_value: Felt<_> = Felt::uninit(builder);
                             rhs_value.assign_with_cache(rhs.clone(), builder, base_cache);
                             base_cache.insert(rhs.clone(), rhs_value);
-                            builder
-                                .operations
-                                .push(DslIr::AddEFFI(*self, rhs_value, *lhs));
+                            builder.push(DslIr::AddEFFI(*self, rhs_value, *lhs));
                         }
                     }
                     // builder.operations.push(DslIR::AddEI(*self, *rhs, *lhs));
@@ -1130,8 +1112,8 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
     type Expression = SymbolicExt<C::F, C::EF>;
 
     fn uninit(builder: &mut Builder<C>) -> Self {
-        let ext = Ext(builder.ext_count, PhantomData);
-        builder.ext_count += 1;
+        let ext = Ext(builder.ext_count(), PhantomData);
+        builder.increment_ext_count();
         ext
     }
 

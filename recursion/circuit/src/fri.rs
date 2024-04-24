@@ -482,7 +482,7 @@ pub mod tests {
         }
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.operations_clone());
         Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 
@@ -555,7 +555,7 @@ pub mod tests {
         verify_two_adic_pcs(&mut builder, &config, &proof, &mut challenger, rounds);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
-        let constraints = backend.emit(builder.operations);
+        let constraints = backend.emit(builder.operations_clone());
         Groth16Prover::test::<OuterConfig>(constraints.clone(), Witness::default());
     }
 }

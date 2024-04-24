@@ -217,11 +217,11 @@ fn test_compiler_bneinc() {
         builder.assign(i_counter, i_counter + F::one());
     });
 
-    let code = builder.clone().compile_asm();
+    let code = builder.compile_asm();
 
     println!("{}", code);
 
-    let program = builder.compile_program();
+    let program = code.machine_code();
 
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());

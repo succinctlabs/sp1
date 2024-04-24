@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use p3_field::{ExtensionField, PrimeField32, TwoAdicField};
 use sp1_recursion_core::runtime::RecursionProgram;
 
@@ -12,14 +14,18 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmBu
     /// Compile to assembly code.
     pub fn compile_asm(self) -> AssemblyCode<F, EF> {
         let mut compiler = AsmCompiler::new();
-        compiler.build(self.operations);
+
+        let operations = Rc::into_inner(self.inner).unwrap().into_inner().operations;
+        compiler.build(operations);
         compiler.code()
     }
 
     /// Compile to a program that can be executed in the recursive zkVM.
     pub fn compile_program(self) -> RecursionProgram<F> {
         let mut compiler = AsmCompiler::new();
-        compiler.build(self.operations);
+
+        let operations = Rc::into_inner(self.inner).unwrap().into_inner().operations;
+        compiler.build(operations);
         compiler.compile()
     }
 }

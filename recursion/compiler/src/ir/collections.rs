@@ -73,7 +73,7 @@ impl<C: Config, V: MemVariable<C>> Array<C, V> {
                 }
             }
             Self::Dyn(_, len) => {
-                if builder.debug {
+                if builder.debug() {
                     let start_v = start.materialize(builder);
                     let end_v = end.materialize(builder);
                     let valid = builder.lt(start_v, end_v);
@@ -137,7 +137,7 @@ impl<C: Config> Builder<C> {
                 }
             }
             Array::Dyn(ptr, len) => {
-                if self.debug {
+                if self.debug() {
                     let index_v = index.materialize(self);
                     let len_v = len.materialize(self);
                     let valid = self.lt(index_v, len_v);
@@ -168,7 +168,7 @@ impl<C: Config> Builder<C> {
                 todo!()
             }
             Array::Dyn(ptr, len) => {
-                if self.debug {
+                if self.debug() {
                     let index_v = index.materialize(self);
                     let len_v = len.materialize(self);
                     let valid = self.lt(index_v, len_v);
