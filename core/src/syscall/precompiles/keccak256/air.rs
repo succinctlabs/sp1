@@ -93,10 +93,10 @@ where
             let least_sig_word = local.state_mem[(i * 2) as usize].value();
             let most_sig_word = local.state_mem[(i * 2 + 1) as usize].value();
             let memory_limbs = [
-                least_sig_word.0[0] + least_sig_word.0[1] * expr_2_pow_8.clone(),
-                least_sig_word.0[2] + least_sig_word.0[3] * expr_2_pow_8.clone(),
-                most_sig_word.0[0] + most_sig_word.0[1] * expr_2_pow_8.clone(),
-                most_sig_word.0[2] + most_sig_word.0[3] * expr_2_pow_8.clone(),
+                least_sig_word[0] + least_sig_word[1] * expr_2_pow_8.clone(),
+                least_sig_word[2] + least_sig_word[3] * expr_2_pow_8.clone(),
+                most_sig_word[0] + most_sig_word[1] * expr_2_pow_8.clone(),
+                most_sig_word[2] + most_sig_word[3] * expr_2_pow_8.clone(),
             ];
 
             let y_idx = i / 5;

@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use super::RecursionProgram;
 use crate::air::Block;
 use crate::cpu::CpuEvent;
+use crate::fri_fold::FriFoldEvent;
 use crate::poseidon2::Poseidon2Event;
 
 #[derive(Default, Debug, Clone)]
@@ -14,6 +15,7 @@ pub struct ExecutionRecord<F: Default> {
     pub program: Arc<RecursionProgram<F>>,
     pub cpu_events: Vec<CpuEvent<F>>,
     pub poseidon2_events: Vec<Poseidon2Event<F>>,
+    pub fri_fold_events: Vec<FriFoldEvent<F>>,
 
     // (address)
     pub first_memory_record: Vec<F>,
