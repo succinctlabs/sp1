@@ -32,11 +32,21 @@ pub fn ext_elements<F: Field, EF: ExtensionField<F>>() -> Digest<EF> {
 }
 
 fn digest_id<F: Field>(id: u32) -> Digest<F> {
-    elements().exp_u64(id as u64)
+    let elements = elements();
+    Digest::from(elements.0.map(|e: F| {
+        (e + F::from_canonical_u32(id))
+            .try_inverse()
+            .unwrap_or(F::one())
+    }))
 }
 
 fn digest_id_ext<F: Field, EF: ExtensionField<F>>(id: u32) -> Digest<EF> {
-    ext_elements().exp_u64(id as u64)
+    let elements = ext_elements();
+    Digest::from(elements.0.map(|e: EF| {
+        (e + EF::from_canonical_u32(id))
+            .try_inverse()
+            .unwrap_or(EF::one())
+    }))
 }
 
 fn div_digests<F: Field>(a: Digest<F>, b: Digest<F>) -> Digest<F> {

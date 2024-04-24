@@ -859,12 +859,12 @@ impl<F: Field, EF: ExtensionField<F>> Ext<F, EF> {
         ext_cache: &mut HashMap<SymbolicExt<F, EF>, Ext<F, EF>>,
         base_cache: &mut HashMap<SymbolicFelt<F>, Felt<F>>,
     ) {
-        // if let Some(v) = ext_cache.get(&src) {
-        //     builder
-        //         .operations
-        //         .push(DslIr::AddEI(*self, *v, C::EF::zero()));
-        //     return;
-        // }
+        if let Some(v) = ext_cache.get(&src) {
+            builder
+                .operations
+                .push(DslIr::AddEI(*self, *v, C::EF::zero()));
+            return;
+        }
         match src {
             SymbolicExt::Base(v, _) => match &*v {
                 SymbolicFelt::Const(c, _) => {

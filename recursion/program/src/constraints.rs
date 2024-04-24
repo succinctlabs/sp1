@@ -153,12 +153,7 @@ where
         let quotient: Ext<_, _> = Self::recompute_quotient(builder, &opening, qc_domains, zeta);
 
         // Assert that the quotient times the zerofier is equal to the folded constraints.
-        if chip.name() == "Mul" {
-            builder.print_e(quotient);
-            builder.print_e(folded_constraints);
-            println!("Chip name: {}", chip.name());
-            builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
-        }
+        builder.assert_ext_eq(folded_constraints * sels.inv_zeroifier, quotient);
     }
 }
 
