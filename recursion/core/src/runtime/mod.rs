@@ -531,12 +531,12 @@ where
                 }
                 Opcode::JAL => {
                     self.nb_branch_ops += 1;
-                    let imm = instruction.op_b[0];
-                    let a_ptr = instruction.op_a + self.fp;
-                    self.mw_cpu(a_ptr, Block::from(self.pc), MemoryAccessPosition::A);
-                    next_pc = self.pc + imm;
-                    self.fp += instruction.op_c[0];
-                    (a, b, c) = (Block::from(a_ptr), Block::default(), Block::default());
+                    let (a_ptr, b_val, c_offset) = self.alu_rr(&instruction);
+                    let a_val = Block::from(self.pc);
+                    self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
+                    next_pc = self.pc + b_val.0[0];
+                    self.fp += c_offset.0[0];
+                    (a, b, c) = (a_val, b_val, c_offset);
                 }
                 Opcode::JALR => {
                     self.nb_branch_ops += 1;

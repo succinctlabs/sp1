@@ -674,7 +674,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     f_u32(offset),
                     F::zero(),
                     F::zero(),
-                    false,
+                    true,
                     true,
                     "".to_string(),
                 )
