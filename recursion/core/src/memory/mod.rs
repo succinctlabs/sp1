@@ -1,6 +1,8 @@
 mod air;
 mod columns;
 
+use core::time;
+
 use crate::air::Block;
 pub use columns::*;
 use p3_field::PrimeField32;
@@ -17,7 +19,7 @@ pub struct MemoryRecord<F> {
     _private: (),
 }
 
-impl<F: Clone> MemoryRecord<F> {
+impl<F: Clone + PartialOrd> MemoryRecord<F> {
     pub fn new_write(
         addr: F,
         value: Block<F>,
@@ -25,6 +27,7 @@ impl<F: Clone> MemoryRecord<F> {
         prev_value: Block<F>,
         prev_timestamp: F,
     ) -> Self {
+        assert!(timestamp > prev_timestamp);
         Self {
             addr,
             value,
@@ -36,6 +39,7 @@ impl<F: Clone> MemoryRecord<F> {
     }
 
     pub fn new_read(addr: F, value: Block<F>, timestamp: F, prev_timestamp: F) -> Self {
+        assert!(timestamp > prev_timestamp);
         Self {
             addr,
             value: value.clone(),

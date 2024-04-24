@@ -10,6 +10,7 @@ use p3_matrix::Matrix;
 use sp1_core::air::BinomialExtension;
 use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::MachineAir;
+use sp1_core::runtime::MemoryAccessPosition;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
 use sp1_core::{
@@ -194,21 +195,21 @@ where
 
         // Constraint all the memory access.
         builder.recursion_eval_memory_access(
-            local.clk,
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.fp.into() + local.instruction.op_a.into(),
             &local.a,
             local.is_real.into(),
         );
 
         builder.recursion_eval_memory_access(
-            local.clk,
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
             local.fp.into() + local.instruction.op_b[0].into(),
             &local.b,
             AB::Expr::one() - local.instruction.imm_b.into(),
         );
 
         builder.recursion_eval_memory_access(
-            local.clk,
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
             local.fp.into() + local.instruction.op_c[0].into(),
             &local.c,
             AB::Expr::one() - local.instruction.imm_c.into(),
@@ -221,7 +222,7 @@ where
         let memory_addr = ptr + index * local.instruction.size_imm + local.instruction.offset_imm;
         // TODO: constraint memory_addr = local.memory_addr
         builder.recursion_eval_memory_access(
-            local.clk,
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             local.memory_addr,
             &local.memory,
             load_memory,

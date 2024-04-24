@@ -108,8 +108,8 @@ where
             MemoryChipKind::Init => {
                 builder.send(AirInteraction::new(
                     vec![
-                        local.addr.into(),
                         local.timestamp.into(),
+                        local.addr.into(),
                         local.value[0].into(),
                         local.value[1].into(),
                         local.value[2].into(),
@@ -122,8 +122,8 @@ where
             MemoryChipKind::Finalize => {
                 builder.receive(AirInteraction::new(
                     vec![
-                        local.addr.into(),
                         local.timestamp.into(),
+                        local.addr.into(),
                         local.value[0].into(),
                         local.value[1].into(),
                         local.value[2].into(),

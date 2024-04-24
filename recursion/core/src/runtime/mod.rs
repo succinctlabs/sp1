@@ -355,19 +355,17 @@ where
 
     /// Fetch the input operand values for a branch instruction.
     fn branch_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, F) {
-        let a = self.get_a(instruction);
-        let b = self.get_b(instruction);
-
         let c = instruction.op_c[0];
+        let b = self.get_b(instruction);
+        let a = self.get_a(instruction);
         (a, b, c)
     }
 
     /// Read all the values for an instruction.
     fn all_rr(&mut self, instruction: &Instruction<F>) -> (Block<F>, Block<F>, Block<F>) {
-        let a_val = self.get_a(instruction);
-        let b_val = self.get_b(instruction);
         let c_val = self.get_c(instruction);
-
+        let b_val = self.get_b(instruction);
+        let a_val = self.get_a(instruction);
         (a_val, b_val, c_val)
     }
 

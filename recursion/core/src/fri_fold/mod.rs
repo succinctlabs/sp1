@@ -165,7 +165,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::one(),
             &cols.z,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `alpha` at `ptr + 2`
@@ -173,7 +173,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::two(),
             &cols.alpha,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `x`
@@ -181,7 +181,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(3),
             &cols.x,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `log_height`
@@ -189,7 +189,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(4),
             &cols.log_height,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `mat_opening_ptr`
@@ -197,7 +197,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(5),
             &cols.mat_opening_ptr,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `ps_at_z_ptr`
@@ -205,7 +205,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(7),
             &cols.ps_at_z_ptr,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `alpha_pow_ptr`
@@ -213,7 +213,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(9),
             &cols.ps_at_z_ptr,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `ro_ptr`
@@ -221,7 +221,7 @@ where
             cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(11),
             &cols.ro_ptr,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `p_at_x`
@@ -229,7 +229,7 @@ where
             cols.clk,
             cols.mat_opening_ptr.access.value.into() + cols.m.into(),
             &cols.p_at_x,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Constrain read for `p_at_z`
@@ -237,7 +237,7 @@ where
             cols.clk,
             cols.ps_at_z_ptr.access.value.into() + cols.m.into(),
             &cols.p_at_z,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // Update alpha_pow_at_log_height.
@@ -246,7 +246,7 @@ where
             cols.clk,
             cols.alpha_pow_ptr.access.value.into() + cols.log_height.access.value.into(),
             &cols.alpha_pow_at_log_height,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // 2. Constrain new_value = old_value * alpha.
@@ -268,7 +268,7 @@ where
             cols.clk,
             cols.ro_ptr.access.value.into() + cols.log_height.access.value.into(),
             &cols.ro_at_log_height,
-            AB::Expr::one(),
+            AB::Expr::zero(),
         );
 
         // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
