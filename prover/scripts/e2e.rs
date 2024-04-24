@@ -56,7 +56,7 @@ pub fn main() {
 
     tracing::info!("building verifier constraints");
     let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(&prover.wrap_vk_outer, wrapped_proof.clone()));
+        .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.clone()));
 
     tracing::info!("building template witness");
     let mut witness = Witness::default();
