@@ -37,16 +37,14 @@ pub extern "C" fn syscall_halt(exit_code: u8) -> ! {
             asm!("ecall", in("t0") crate::syscalls::COMMIT, in("a0") i, in("a1") pv_digest_words[i]);
         }
 
-        let deferred_proofs_digest;
-        unsafe {
-            deferred_proofs_digest = zkvm::DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
-        }
+        let deferred_proofs_digest = zkvm::DEFERRED_PROOFS_DIGEST.as_mut().unwrap();
         let deferred_proofs_digest_words = deferred_proofs_digest
             .iter()
-            .map(|baby_bear| baby_bear.as_canonical_u32());
+            .map(|baby_bear| baby_bear.as_canonical_u32())
+            .collect::<Vec<_>>();
 
         for i in 0..POSEIDON_NUM_WORDS {
-            asm!("ecall", in("t0") crate::syscalls::COMMIT_DEFERRED_PROOFS, in("a0") i, in("a1") pv_digest_words[i]);
+            asm!("ecall", in("t0") crate::syscalls::COMMIT_DEFERRED_PROOFS, in("a0") i, in("a1") deferred_proofs_digest_words[i]);
         }
 
         asm!(

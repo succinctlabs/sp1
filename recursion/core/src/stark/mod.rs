@@ -7,10 +7,10 @@ use crate::{
     program::ProgramChip,
 };
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
-use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine};
+use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
 
-use crate::runtime::{D, DIGEST_SIZE};
+use crate::runtime::D;
 
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
@@ -32,7 +32,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
-        StarkMachine::new(config, chips, DIGEST_SIZE)
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
     pub fn get_all() -> Vec<Self> {

@@ -655,6 +655,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "array-macro"
+version = "2.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "220a2c618ab466efe41d0eace94dfeff1c35e3aa47891bdb95e1c0fefffd3c99"
+
+[[package]]
 name = "arrayref"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -784,6 +790,7 @@ dependencies = [
  "miniz_oxide",
  "object",
  "rustc-demangle",
+ "serde",
 ]
 
 [[package]]
@@ -4463,6 +4470,7 @@ dependencies = [
  "serde_json",
  "sha2",
  "sp1-core",
+ "sp1-primitives",
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
@@ -4560,6 +4568,7 @@ dependencies = [
  "sp1-core",
  "sp1-derive",
  "sp1-primitives",
+ "static_assertions",
  "tracing",
  "zkhash",
 ]
@@ -4588,6 +4597,7 @@ dependencies = [
 name = "sp1-recursion-program"
 version = "0.1.0"
 dependencies = [
+ "array-macro",
  "itertools 0.12.1",
  "p3-air",
  "p3-baby-bear",

@@ -1,4 +1,5 @@
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use sp1_core::io::SP1Stdin;
 use sp1_core::runtime::{Program, Runtime};
 use sp1_core::utils::{run_and_prove, BabyBearPoseidon2};
 
@@ -21,8 +22,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
                 b.iter(|| {
                     run_and_prove(
                         black_box(program.clone()),
-                        #[allow(deprecated)]
-                        &[],
+                        &SP1Stdin::new(),
                         BabyBearPoseidon2::new(),
                     )
                 })

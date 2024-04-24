@@ -17,7 +17,7 @@ use serde::Deserialize;
 use serde::Serialize;
 use sp1_primitives::RC_16_30;
 
-const DIGEST_SIZE: usize = 8;
+pub const DIGEST_SIZE: usize = 8;
 
 /// A configuration for inner recursion.
 pub type InnerVal = BabyBear;
