@@ -70,23 +70,23 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
 
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
-                    cols.a.is_real = F::one();
+                    // cols.a.is_real = F::one();
                 }
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
-                    cols.b.is_real = F::one();
+                    // cols.b.is_real = F::one();
                 } else {
                     *cols.b.value_mut() = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
-                    cols.c.is_real = F::one();
+                    // cols.c.is_real = F::one();
                 } else {
                     *cols.c.value_mut() = event.instruction.op_c;
                 }
                 if let Some(record) = &event.memory_record {
                     cols.memory.populate(record);
-                    cols.memory.is_real = F::one();
+                    // cols.memory.is_real = F::one();
                 }
 
                 // cols.a_eq_b

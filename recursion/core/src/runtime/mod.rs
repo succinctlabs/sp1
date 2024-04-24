@@ -266,7 +266,8 @@ where
         let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let value_as_block = value.into();
-        let record = MemoryRecord::new(addr, value_as_block, timestamp, prev_value, prev_timestamp);
+        let record =
+            MemoryRecord::new_write(addr, value_as_block, timestamp, prev_value, prev_timestamp);
         *entry = MemoryEntry {
             value: value_as_block,
             timestamp,
@@ -804,14 +805,12 @@ where
             }
         }
 
+        let zero_block = Block::from(F::zero());
         // Collect all used memory addresses.
         for (addr, v) in self.memory.iter() {
             // Get the initial value of the memory address from either the uninitialized memory
             // or set it as a default to 0.
-            let init_value = self
-                .uninitialized_memory
-                .get(addr)
-                .unwrap_or(&Block::from(F::zero()));
+            let init_value = self.uninitialized_memory.get(addr).unwrap_or(&zero_block);
             self.record
                 .first_memory_record
                 .push((F::from_canonical_usize(*addr), *init_value));
