@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use p3_field::{AbstractField, PrimeField32};
-use sp1_core::stark::MachineRecord;
+use sp1_core::stark::{MachineRecord, PROOF_MAX_NUM_PVS};
 use std::collections::HashMap;
 
 use super::RecursionProgram;
@@ -51,13 +51,14 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     }
 
     fn public_values<T: AbstractField>(&self) -> Vec<T> {
-        let ret = self
+        let mut ret = self
             .public_values
             .iter()
             .map(|x| T::from_canonical_u32(x.as_canonical_u32()))
             .collect::<Vec<_>>();
 
-        // println!("public_values ret: {:?}", ret);
+        // Pad the public values to the correct number of public values, in case not all are used.
+        ret.resize(PROOF_MAX_NUM_PVS, T::zero());
 
         ret
     }
