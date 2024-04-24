@@ -68,9 +68,8 @@ impl Default for LocalProver {
 
 impl LocalProver {
     pub fn new() -> Self {
-        Self {
-            prover: SP1Prover::new(),
-        }
+        let prover = SP1Prover::new();
+        Self { prover }
     }
 
     /// Get artifacts dir from SP1_CIRCUIT_DIR env var.
