@@ -347,7 +347,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Verify the shard proofs.
         tracing::info!("verifying shard proofs");
-        let mut result = None;
         if proof.shard_proofs.is_empty() {
             return Err(ProgramVerificationError::InvalidShardTransition(
                 "no shards",
