@@ -57,15 +57,12 @@ where
             next: unflatten(&opening.permutation.next),
         };
 
-        let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-
         let mut folder_pv = Vec::new();
         for i in 0..PROOF_MAX_NUM_PVS {
             folder_pv.push(builder.get(&public_values, i));
         }
 
         let mut folder = RecursiveVerifierConstraintFolder {
-            builder,
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
@@ -76,11 +73,11 @@ where
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
             alpha,
-            accumulator: zero,
+            accumulator: SymbolicExt::zero(),
         };
 
         chip.eval(&mut folder);
-        folder.accumulator
+        builder.eval(folder.accumulator)
     }
 
     fn recompute_quotient(

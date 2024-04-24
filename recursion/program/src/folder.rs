@@ -5,12 +5,12 @@ use p3_matrix::dense::RowMajorMatrixView;
 use p3_matrix::stack::VerticalPair;
 use sp1_core::air::{EmptyMessageBuilder, MultiTableAirBuilder};
 use sp1_recursion_compiler::{
-    ir::{Builder, Config, Ext, Felt},
+    ir::{Config, Ext, Felt},
     prelude::SymbolicExt,
 };
 
 pub struct RecursiveVerifierConstraintFolder<'a, C: Config> {
-    pub builder: &'a mut Builder<C>,
+    // pub builder: &'a mut Builder<C>,
     pub preprocessed: VerticalPair<
         RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
         RowMajorMatrixView<'a, Ext<C::F, C::EF>>,
@@ -30,7 +30,7 @@ pub struct RecursiveVerifierConstraintFolder<'a, C: Config> {
     pub is_last_row: Ext<C::F, C::EF>,
     pub is_transition: Ext<C::F, C::EF>,
     pub alpha: Ext<C::F, C::EF>,
-    pub accumulator: Ext<C::F, C::EF>,
+    pub accumulator: SymbolicExt<C::F, C::EF>,
 }
 
 impl<'a, C: Config> AirBuilder for RecursiveVerifierConstraintFolder<'a, C> {
@@ -64,9 +64,8 @@ impl<'a, C: Config> AirBuilder for RecursiveVerifierConstraintFolder<'a, C> {
 
     fn assert_zero<I: Into<Self::Expr>>(&mut self, x: I) {
         let x: Self::Expr = x.into();
-        self.builder
-            .assign(self.accumulator, self.accumulator * self.alpha);
-        self.builder.assign(self.accumulator, self.accumulator + x);
+        self.accumulator *= self.alpha;
+        self.accumulator += x;
     }
 }
 
