@@ -12,6 +12,10 @@ use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::MachineAir;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
+use sp1_core::{
+    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
+    lookup::InteractionKind,
+};
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::mem::transmute;
@@ -149,7 +153,7 @@ where
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
 
-        // Increment clk by 4 every cycle..
+        // Increment clk by 4 every cycle.
         builder
             .when_transition()
             .when(next.is_real)
@@ -225,25 +229,8 @@ where
         // builder
         //     .when(local.selectors.is_store)
         //     .assert_block_eq(local.a.value, local.memory.value);
-
-        // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
-        // prog_interaction_vals.push(local.instruction.op_a.into());
-        // prog_interaction_vals.extend_from_slice(&local.instruction.op_b.map(|x| x.into()).0);
-        // prog_interaction_vals.extend_from_slice(&local.instruction.op_c.map(|x| x.into()).0);
-        // prog_interaction_vals.push(local.instruction.imm_b.into());
-        // prog_interaction_vals.push(local.instruction.imm_c.into());
-        // prog_interaction_vals.extend_from_slice(
-        //     &local
-        //         .selectors
-        //         .into_iter()
-        //         .map(|x| x.into())
-        //         .collect::<Vec<_>>(),
-        // );
-        // builder.send(AirInteraction::new(
-        //     prog_interaction_vals,
-        //     local.is_real.into(),
-        //     InteractionKind::Program,
-        // ));
+        builder.send_program(local.instruction.clone(), local.is_real);
+        // TODO: Issue lookups to the Poseidon + FRI Fold tables, depending on opcode.
     }
 }
 
