@@ -26,6 +26,7 @@ pub struct CpuCols<T: Copy> {
     pub a: MemoryReadWriteCols<T>,
     pub b: MemoryReadWriteCols<T>,
     pub c: MemoryReadWriteCols<T>,
+    pub memory: MemoryReadWriteCols<T>,
 
     pub opcode_specific: OpcodeSpecificCols<T>,
 

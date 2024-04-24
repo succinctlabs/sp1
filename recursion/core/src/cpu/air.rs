@@ -73,16 +73,23 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
 
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
+                    cols.a.is_real = F::one();
                 }
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
+                    cols.b.is_real = F::one();
                 } else {
                     cols.b.value = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
+                    cols.c.is_real = F::one();
                 } else {
                     cols.c.value = event.instruction.op_c;
+                }
+                if let Some(record) = &event.memory_record {
+                    cols.memory.populate(record);
+                    cols.memory.is_real = F::one();
                 }
 
                 // cols.a_eq_b
@@ -260,6 +267,41 @@ where
             local.is_real.into(),
             InteractionKind::Memory,
         ));
+
+        // Receive Memory.
+        let load_memory = local.selectors.is_load + local.selectors.is_store;
+        builder.receive(AirInteraction::new(
+            vec![
+                local.memory.addr.into(),
+                local.memory.prev_timestamp.into(),
+                local.memory.prev_value[0].into(),
+                local.memory.prev_value[1].into(),
+                local.memory.prev_value[2].into(),
+                local.memory.prev_value[3].into(),
+            ],
+            load_memory.clone(),
+            InteractionKind::Memory,
+        ));
+        builder.send(AirInteraction::new(
+            vec![
+                local.memory.addr.into(),
+                local.memory.timestamp.into(),
+                local.memory.value[0].into(),
+                local.memory.value[1].into(),
+                local.memory.value[2].into(),
+                local.memory.value[3].into(),
+            ],
+            load_memory,
+            InteractionKind::Memory,
+        ));
+        // // We read from memory when it is a load.
+        // builder
+        //     .when(local.selectors.is_load)
+        //     .assert_block_eq(local.memory.prev_value, local.memory.value);
+        // // When there is a store, we ensure that we are writing the value of the a operand to the memory.
+        // builder
+        //     .when(local.selectors.is_store)
+        //     .assert_block_eq(local.a.value, local.memory.value);
 
         // let mut prog_interaction_vals: Vec<AB::Expr> = vec![local.instruction.opcode.into()];
         // prog_interaction_vals.push(local.instruction.op_a.into());

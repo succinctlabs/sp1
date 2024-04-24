@@ -220,13 +220,7 @@ where
             .entry(addr.as_canonical_u32() as usize)
             .or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
-        let record = MemoryRecord {
-            addr,
-            value: prev_value,
-            timestamp,
-            prev_value,
-            prev_timestamp,
-        };
+        let record = MemoryRecord::new(addr, prev_value, timestamp, prev_value, prev_timestamp);
         *entry = MemoryEntry {
             value: prev_value,
             timestamp,
@@ -251,13 +245,7 @@ where
         let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let value_as_block = value.into();
-        let record = MemoryRecord {
-            addr,
-            value: value_as_block,
-            timestamp,
-            prev_value,
-            prev_timestamp,
-        };
+        let record = MemoryRecord::new(addr, value_as_block, timestamp, prev_value, prev_timestamp);
         *entry = MemoryEntry {
             value: value_as_block,
             timestamp,
@@ -766,6 +754,7 @@ where
                 b_record: self.access.b.clone(),
                 c,
                 c_record: self.access.c.clone(),
+                memory_record: self.access.memory.clone(),
             };
             self.pc = next_pc;
             self.record.cpu_events.push(event);
@@ -775,18 +764,16 @@ where
         }
 
         // Collect all used memory addresses.
-        for addr in 0..self.memory.len() {
-            let entry = self.memory.entry(addr).or_default();
-            if entry.timestamp != F::zero() {
-                self.record
-                    .first_memory_record
-                    .push(F::from_canonical_usize(addr));
-                self.record.last_memory_record.push((
-                    F::from_canonical_usize(addr),
-                    entry.timestamp,
-                    entry.value,
-                ))
-            }
+        for (addr, v) in self.memory.iter() {
+            let entry = self.memory.get(addr).unwrap();
+            self.record
+                .first_memory_record
+                .push(F::from_canonical_usize(*addr));
+            self.record.last_memory_record.push((
+                F::from_canonical_usize(*addr),
+                entry.timestamp,
+                entry.value,
+            ))
         }
     }
 }

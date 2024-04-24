@@ -58,7 +58,8 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program.instructions[0..32]
+        let rows = program
+            .instructions
             .iter()
             .enumerate()
             .map(|(i, instruction)| {
@@ -102,7 +103,9 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        let rows = input.program.instructions[0..32]
+        let rows = input
+            .program
+            .instructions
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -170,10 +173,10 @@ where
                 .map(|x| x.into())
                 .collect::<Vec<_>>(),
         );
-        builder.receive(AirInteraction::new(
-            interaction_vals,
-            mult_local.multiplicity.into(),
-            InteractionKind::Program,
-        ));
+        // builder.receive(AirInteraction::new(
+        //     interaction_vals,
+        //     mult_local.multiplicity.into(),
+        //     InteractionKind::Program,
+        // ));
     }
 }
