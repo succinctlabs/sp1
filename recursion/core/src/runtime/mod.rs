@@ -214,12 +214,7 @@ where
         }
     }
 
-    fn mr_record(
-        &mut self,
-        addr: F,
-        position: MemoryAccessPosition,
-    ) -> (MemoryRecord<F>, Block<F>) {
-        let timestamp = self.timestamp(&position);
+    fn mr_record(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
         let entry = self
             .memory
             .entry(addr.as_canonical_u32() as usize)
@@ -233,14 +228,8 @@ where
         (record, prev_value)
     }
 
-    fn mw_record(
-        &mut self,
-        addr: F,
-        value: Block<F>,
-        position: MemoryAccessPosition,
-    ) -> MemoryRecord<F> {
+    fn mw_record(&mut self, addr: F, value: Block<F>, timestamp: F) -> MemoryRecord<F> {
         let addr_usize = addr.as_canonical_u32() as usize;
-        let timestamp = self.timestamp(&position);
         let entry = self.memory.entry(addr_usize).or_default();
         let (prev_value, prev_timestamp) = (entry.value, entry.timestamp);
         let record = MemoryRecord::new_write(addr, value, timestamp, prev_value, prev_timestamp);
@@ -249,7 +238,8 @@ where
     }
 
     fn mr(&mut self, addr: F, position: MemoryAccessPosition) -> Block<F> {
-        let (record, value) = self.mr_record(addr, position);
+        let timestamp = self.timestamp(&position);
+        let (record, value) = self.mr_record(addr, timestamp);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
@@ -260,7 +250,8 @@ where
     }
 
     fn mw(&mut self, addr: F, value: Block<F>, position: MemoryAccessPosition) {
-        let record = self.mw_record(addr, value, position);
+        let timestamp = self.timestamp(&position);
+        let record = self.mw_record(addr, value, timestamp);
         match position {
             MemoryAccessPosition::A => self.access.a = Some(record),
             MemoryAccessPosition::B => self.access.b = Some(record),
@@ -670,58 +661,56 @@ where
                     let b_val = self.mr(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
                     let c_val = Block::<F>::default();
 
+                    // The timestamp for the memory reads for all of these operations will be self.clk.
+                    let timestamp = self.clk;
+
                     let m = a_val[0];
                     let input_ptr = b_val[0];
 
                     // Read the input values.
                     let mut ptr = input_ptr;
-                    let (z_record, z) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (z_record, z) = self.mr_record(ptr, timestamp);
                     let z: EF = z.ext();
                     ptr += F::one();
-                    let (alpha_record, alpha) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (alpha_record, alpha) = self.mr_record(ptr, timestamp);
                     let alpha: EF = alpha.ext();
                     ptr += F::one();
-                    let (x_record, x) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (x_record, x) = self.mr_record(ptr, timestamp);
                     let x = x.0[0];
                     ptr += F::one();
-                    let (log_height_record, log_height) =
-                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (log_height_record, log_height) = self.mr_record(ptr, timestamp);
                     let log_height = log_height.0[0];
                     ptr += F::one();
-                    let (mat_opening_ptr_record, mat_opening_ptr) =
-                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (mat_opening_ptr_record, mat_opening_ptr) = self.mr_record(ptr, timestamp);
                     let mat_opening_ptr = mat_opening_ptr.0[0];
                     ptr += F::two();
-                    let (ps_at_z_ptr_record, ps_at_z_ptr) =
-                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (ps_at_z_ptr_record, ps_at_z_ptr) = self.mr_record(ptr, timestamp);
                     let ps_at_z_ptr = ps_at_z_ptr.0[0];
                     ptr += F::two();
-                    let (alpha_pow_ptr_record, alpha_pow_ptr) =
-                        self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (alpha_pow_ptr_record, alpha_pow_ptr) = self.mr_record(ptr, timestamp);
                     let alpha_pow_ptr = alpha_pow_ptr.0[0];
                     ptr += F::two();
-                    let (ro_ptr_record, ro_ptr) = self.mr_record(ptr, MemoryAccessPosition::Memory);
+                    let (ro_ptr_record, ro_ptr) = self.mr_record(ptr, timestamp);
                     let ro_ptr = ro_ptr.0[0];
 
                     // Get the opening values.
-                    let (p_at_x_record, p_at_x) =
-                        self.mr_record(mat_opening_ptr + m, MemoryAccessPosition::Memory);
+                    let (p_at_x_record, p_at_x) = self.mr_record(mat_opening_ptr + m, timestamp);
                     let p_at_x: EF = p_at_x.ext();
 
-                    let (p_at_z_record, p_at_z) =
-                        self.mr_record(ps_at_z_ptr + m, MemoryAccessPosition::Memory);
+                    let (p_at_z_record, p_at_z) = self.mr_record(ps_at_z_ptr + m, timestamp);
                     let p_at_z: EF = p_at_z.ext();
 
                     // Calculate the quotient and update the values
                     let quotient = (-p_at_z + p_at_x) / (-z + x);
 
+                    // TODO: these will have to be changed to be "peek", because we write to them later
                     // Modify the ro and alpha pow values.
                     let (_, alpha_pow_at_log_height) =
-                        self.mr_record(alpha_pow_ptr + log_height, MemoryAccessPosition::Memory);
+                        self.mr_record(alpha_pow_ptr + log_height, timestamp);
                     let alpha_pow_at_log_height: EF = alpha_pow_at_log_height.ext();
 
-                    let (_, ro_at_log_height) =
-                        self.mr_record(ro_ptr + log_height, MemoryAccessPosition::Memory);
+                    // TODO: change this to "peek", because we will write it later.
+                    let (_, ro_at_log_height) = self.mr_record(ro_ptr + log_height, timestamp);
                     let ro_at_log_height: EF = ro_at_log_height.ext();
 
                     let new_ro_at_log_height =
@@ -731,13 +720,13 @@ where
                     let ro_at_log_height_record = self.mw_record(
                         ro_ptr + log_height,
                         Block::from(new_ro_at_log_height.as_base_slice()),
-                        MemoryAccessPosition::Memory,
+                        timestamp,
                     );
 
                     let alpha_pow_at_log_height_record = self.mw_record(
                         alpha_pow_ptr + log_height,
                         Block::from(new_alpha_pow_at_log_height.as_base_slice()),
-                        MemoryAccessPosition::Memory,
+                        timestamp,
                     );
 
                     self.record.fri_fold_events.push(FriFoldEvent {
