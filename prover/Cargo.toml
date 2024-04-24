@@ -10,7 +10,7 @@ sp1-recursion-program = { path = "../recursion/program" }
 sp1-recursion-circuit = { path = "../recursion/circuit" }
 sp1-recursion-compiler = { path = "../recursion/compiler" }
 sp1-recursion-core = { path = "../recursion/core" }
-sp1-recursion-groth16-ffi = { path = "../recursion/groth16-ffi" }
+sp1-recursion-gnark-ffi = { path = "../recursion/gnark-ffi" }
 sp1-core = { path = "../core" }
 p3-field = { workspace = true }
 p3-challenger = { workspace = true }

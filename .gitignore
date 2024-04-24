@@ -22,5 +22,5 @@ benchmark.csv
 .env
 
 # Build Artifacts
-recursion/groth16-ffi/build
+recursion/gnark-ffi/build
 prover/build

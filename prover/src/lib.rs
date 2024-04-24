@@ -43,7 +43,7 @@ use sp1_recursion_core::{
     runtime::Runtime as RecursionRuntime,
     stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
-use sp1_recursion_groth16_ffi::Groth16Prover;
+use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::reduce::ReduceProgram;
 use sp1_recursion_program::{hints::Hintable, stark::EMPTY};
 

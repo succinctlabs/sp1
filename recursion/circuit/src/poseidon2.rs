@@ -62,7 +62,7 @@ pub mod tests {
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
     use sp1_recursion_compiler::ir::{Builder, Felt, Var, Witness};
     use sp1_recursion_core::stark::config::{outer_perm, OuterCompress, OuterHash};
-    use sp1_recursion_groth16_ffi::Groth16Prover;
+    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     use crate::poseidon2::Poseidon2CircuitBuilder;
     use crate::types::OuterDigestVariable;

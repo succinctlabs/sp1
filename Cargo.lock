@@ -4466,7 +4466,7 @@ dependencies = [
  "sp1-recursion-circuit",
  "sp1-recursion-compiler",
  "sp1-recursion-core",
- "sp1-recursion-groth16-ffi",
+ "sp1-recursion-gnark-ffi",
  "sp1-recursion-program",
  "tracing",
  "tracing-appender",
@@ -4499,7 +4499,7 @@ dependencies = [
  "sp1-recursion-compiler",
  "sp1-recursion-core",
  "sp1-recursion-derive",
- "sp1-recursion-groth16-ffi",
+ "sp1-recursion-gnark-ffi",
  "sp1-recursion-program",
  "zkhash",
 ]
@@ -4574,7 +4574,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "sp1-recursion-groth16-ffi"
+name = "sp1-recursion-gnark-ffi"
 version = "0.1.0"
 dependencies = [
  "p3-field",

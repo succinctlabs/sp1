@@ -102,10 +102,14 @@ func (c *Chip) AssertIsEqualV(a, b *Variable) {
 }
 
 func (c *Chip) AssertIsEqualE(a, b *ExtensionVariable) {
-	c.field.AssertIsEqual(c.field.Reduce(a.Value[0].Value), c.field.Reduce(b.Value[0].Value))
-	c.field.AssertIsEqual(c.field.Reduce(a.Value[1].Value), c.field.Reduce(b.Value[1].Value))
-	c.field.AssertIsEqual(c.field.Reduce(a.Value[2].Value), c.field.Reduce(b.Value[2].Value))
-	c.field.AssertIsEqual(c.field.Reduce(a.Value[3].Value), c.field.Reduce(b.Value[3].Value))
+	// c.field.AssertIsEqual(c.field.Reduce(a.Value[0].Value), c.field.Reduce(b.Value[0].Value))
+	// c.field.AssertIsEqual(c.field.Reduce(a.Value[1].Value), c.field.Reduce(b.Value[1].Value))
+	// c.field.AssertIsEqual(c.field.Reduce(a.Value[2].Value), c.field.Reduce(b.Value[2].Value))
+	// c.field.AssertIsEqual(c.field.Reduce(a.Value[3].Value), c.field.Reduce(b.Value[3].Value))
+	c.field.AssertIsEqual(a.Value[0].Value, b.Value[0].Value)
+	c.field.AssertIsEqual(a.Value[1].Value, b.Value[1].Value)
+	c.field.AssertIsEqual(a.Value[2].Value, b.Value[2].Value)
+	c.field.AssertIsEqual(a.Value[3].Value, b.Value[3].Value)
 }
 
 func (c *Chip) AssertNe(a, b *Variable) {
