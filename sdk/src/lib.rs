@@ -7,6 +7,7 @@ pub mod proto {
 }
 pub mod auth;
 pub mod client;
+pub mod types;
 pub mod utils;
 
 use anyhow::{Context, Ok, Result};

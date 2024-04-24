@@ -36,7 +36,7 @@ use sp1_core::{
     },
     utils::{run_and_prove, BabyBearPoseidon2},
 };
-use sp1_primitives::hash_deferred_proofs;
+use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
@@ -81,9 +81,7 @@ impl SP1Prover {
     /// Initializes a new [SP1Prover].
     pub fn new() -> Self {
         let reduce_setup_program = ReduceProgram::setup();
-        // Load program from reduce.bin if it exists
         let reduce_program = ReduceProgram::build();
-        println!("program size: {}", reduce_program.instructions.len());
         let (_, reduce_vk_inner) = RecursionAir::machine(InnerSC::default()).setup(&reduce_program);
         let (_, reduce_vk_outer) = RecursionAir::machine(OuterSC::default()).setup(&reduce_program);
         let core_machine = RiscvAir::machine(CoreSC::default());
@@ -103,12 +101,34 @@ impl SP1Prover {
     /// Creates a proving key and a verifying key for a given RISC-V ELF.
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         let program = Program::from(elf);
-        let config = CoreSC::default();
-        let machine = RiscvAir::machine(config);
-        let (pk, vk) = machine.setup(&program);
+        let (pk, vk) = self.core_machine.setup(&program);
         let pk = SP1ProvingKey { pk, program };
         let vk = SP1VerifyingKey { vk };
         (pk, vk)
+    }
+
+    /// Hash a verifying key, producing a single commitment that uniquely identifies the program
+    /// being proven.
+    pub fn hash_vkey(&self, vk: &StarkVerifyingKey<CoreSC>) -> [Val<CoreSC>; 8] {
+        self.core_machine.hash_vkey(vk)
+    }
+
+    /// Accumulate deferred proofs into a single digest.
+    pub fn hash_deferred_proofs(
+        prev_digest: [Val<CoreSC>; 8],
+        deferred_proofs: &[ShardProof<InnerSC>],
+    ) -> [Val<CoreSC>; 8] {
+        let mut digest = prev_digest;
+        for proof in deferred_proofs.iter() {
+            let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+            let committed_values_digest = words_to_bytes(&pv.committed_value_digest);
+            digest = hash_deferred_proof(
+                &digest,
+                &pv.sp1_vk_digest,
+                &committed_values_digest.try_into().unwrap(),
+            );
+        }
+        digest
     }
 
     /// Generate a proof of an SP1 program with the specified inputs.
@@ -116,6 +136,9 @@ impl SP1Prover {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&stdin.buffer);
+        for (proof, vkey) in stdin.proofs.iter() {
+            runtime.write_proof(proof.clone(), vkey.clone());
+        }
         runtime.run();
         SP1PublicValues::from(&runtime.state.public_values_stream)
     }
@@ -288,15 +311,8 @@ impl SP1Prover {
             .map(|chunk| {
                 let start_state = reduce_state.clone();
                 // Accumulate each deferred proof into the digest
-                for proof in chunk.iter() {
-                    let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
-                    let committed_values_digest = words_to_bytes(&pv.committed_value_digest);
-                    reduce_state.reconstruct_deferred_digest = hash_deferred_proofs(
-                        &reduce_state.reconstruct_deferred_digest,
-                        &pv.sp1_vk_digest,
-                        &committed_values_digest.try_into().unwrap(),
-                    );
-                }
+                reduce_state.reconstruct_deferred_digest =
+                    Self::hash_deferred_proofs(reduce_state.reconstruct_deferred_digest, chunk);
                 start_state
             })
             .collect::<Vec<_>>();

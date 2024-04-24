@@ -38,7 +38,7 @@ pub struct SP1ReduceProof<SC: StarkGenericConfig> {
     pub proof: ShardProof<SC>,
 }
 
-/// A wrapper to abstract proofs representing a range of shards with multiple proving configs.
+/// A proof that can be reduced along with other proofs into one proof.
 #[derive(Serialize, Deserialize)]
 pub enum SP1ReduceProofWrapper {
     Core(SP1ReduceProof<CoreSC>),

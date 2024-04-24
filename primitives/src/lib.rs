@@ -1151,7 +1151,8 @@ lazy_static! {
     > = poseidon2_hasher();
 }
 
-pub fn hash_deferred_proofs(
+/// Append a single deferred proof to a hash chain of deferred proofs.
+pub fn hash_deferred_proof(
     prev_digest: &[BabyBear; 8],
     vk_digest: &[BabyBear; 8],
     pv_digest: &[BabyBear; 32],
