@@ -252,10 +252,10 @@ func (c *Chip) PrintE(in *ExtensionVariable) {
 }
 
 func (c *Chip) InvE(in *ExtensionVariable) *ExtensionVariable {
-	x := c.field.Reduce(in.Value[0].Value)
-	y := c.field.Reduce(in.Value[1].Value)
-	z := c.field.Reduce(in.Value[2].Value)
-	l := c.field.Reduce(in.Value[3].Value)
+	x := in.Value[0].Value
+	y := in.Value[1].Value
+	z := in.Value[2].Value
+	l := in.Value[3].Value
 
 	result, err := c.api.Compiler().NewHint(InvEHint, 4, x.Limbs[0], y.Limbs[0], z.Limbs[0], l.Limbs[0])
 	if err != nil {
