@@ -4,6 +4,7 @@ pub mod two_adic_pcs;
 pub mod types;
 
 pub use domain::*;
+use sp1_recursion_compiler::ir::ExtensionOperand;
 #[cfg(test)]
 pub(crate) use two_adic_pcs::tests::*;
 pub use two_adic_pcs::*;
@@ -17,8 +18,6 @@ use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Config;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::SymbolicExt;
-use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
@@ -142,9 +141,9 @@ where
     builder.cycle_tracker("verify-query");
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
-    let two_adic_generator_ef: Ext<_, _> = builder.eval(SymbolicExt::Base(
-        SymbolicFelt::Val(two_adic_generator_f).into(),
-    ));
+
+    let two_adic_gen_ext = two_adic_generator_f.to_operand().symbolic();
+    let two_adic_generator_ef: Ext<_, _> = builder.eval(two_adic_gen_ext);
 
     let x = builder.exp_reverse_bits_len(two_adic_generator_ef, index_bits, log_max_height);
 
@@ -163,7 +162,7 @@ where
 
             let index_bit = builder.get(index_bits, i);
             let index_sibling_mod_2: Var<C::N> =
-                builder.eval(SymbolicVar::Const(C::N::one()) - index_bit);
+                builder.eval(SymbolicVar::from(C::N::one()) - index_bit);
             let i_plus_one = builder.eval(i + C::N::one());
             let index_pair = index_bits.shift(builder, i_plus_one);
 
