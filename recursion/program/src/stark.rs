@@ -300,7 +300,7 @@ pub(crate) mod tests {
 
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
 
-    use sp1_recursion_core::stark::RecursionAir;
+    use sp1_recursion_core::stark::RecursionAirWideDeg3;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -414,7 +414,7 @@ pub(crate) mod tests {
         println!("Execution took: {:?}", elapsed);
 
         let config = BabyBearPoseidon2::new();
-        let machine = RecursionAir::machine(config);
+        let machine = RecursionAirWideDeg3::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
 

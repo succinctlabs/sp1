@@ -22,9 +22,7 @@ use serde::Serialize;
 use sp1_primitives::poseidon2_hash;
 
 use super::debug_constraints;
-use super::DeferredDigest;
 use super::Dom;
-use super::PublicValuesDigest;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
 use crate::air::PublicValues;
@@ -382,7 +380,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         .collect::<Vec<_>>()
                         .try_into()
                         .unwrap();
-                    result = Some((pv_digest.into(), deferred_proofs_digest.into()));
                 } else {
                     let prev_shard_proof = &proof.shard_proofs[i - 1];
                     let prev_public_values =
