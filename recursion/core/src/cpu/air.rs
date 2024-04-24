@@ -220,7 +220,9 @@ where
         let index = local.c.value()[0];
         let ptr = local.b.value()[0];
         let memory_addr = ptr + index * local.instruction.size_imm + local.instruction.offset_imm;
-        // TODO: constraint memory_addr = local.memory_addr
+        // When load_memory is true, then we check that the local.memory_addr column equals the computed
+        // memory_addr column from the other columns. Otherwise it is 0.
+        builder.assert_eq(memory_addr * load_memory.clone(), local.memory_addr);
         builder.recursion_eval_memory_access(
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
             local.memory_addr,
