@@ -45,10 +45,10 @@ type Inputs struct {
 }
 
 type Groth16Proof struct {
-	A     [2]string    `json:"a"`
-	B     [2][2]string `json:"b"`
-	C     [2]string    `json:"c"`
-	Input [2]string    `json:"input"`
+	A            [2]string    `json:"a"`
+	B            [2][2]string `json:"b"`
+	C            [2]string    `json:"c"`
+	PublicInputs [2]string    `json:"public_inputs"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
@@ -302,10 +302,10 @@ func main() {
 		proofBytes := buf.Bytes()
 
 		var (
-			a     [2]string
-			b     [2][2]string
-			c     [2]string
-			input [2]string
+			a            [2]string
+			b            [2][2]string
+			c            [2]string
+			publicInputs [2]string
 		)
 		a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
 		a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
@@ -315,14 +315,14 @@ func main() {
 		b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
 		c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
 		c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
-		input[0] = inputs.VkeyHash
-		input[1] = inputs.CommitedValuesDigest
+		publicInputs[0] = inputs.VkeyHash
+		publicInputs[1] = inputs.CommitedValuesDigest
 
 		groth16Proof := Groth16Proof{
-			A:     a,
-			B:     b,
-			C:     c,
-			Input: input,
+			A:            a,
+			B:            b,
+			C:            c,
+			PublicInputs: publicInputs,
 		}
 
 		jsonData, err := json.Marshal(groth16Proof)
@@ -359,15 +359,12 @@ func main() {
 		for i := 0; i < len(witness.Vars); i++ {
 			vars[i] = frontend.Variable(witness.Vars[i])
 		}
-		fmt.Println("NbVars:", len(vars))
 		for i := 0; i < len(witness.Felts); i++ {
 			felts[i] = babybear.NewF(witness.Felts[i])
 		}
-		fmt.Println("NbFelts:", len(felts))
 		for i := 0; i < len(witness.Exts); i++ {
 			exts[i] = babybear.NewE(witness.Exts[i])
 		}
-		fmt.Println("NbExts:", len(exts))
 
 		// Initialize the circuit.
 		circuit := Circuit{
