@@ -14,10 +14,12 @@ pub struct Groth16Witness {
     pub vars: Vec<String>,
     pub felts: Vec<String>,
     pub exts: Vec<Vec<String>>,
+    pub vkey_hash: String,
+    pub commited_values_digest: String,
 }
 
-impl<C: Config> From<Witness<C>> for Groth16Witness {
-    fn from(mut witness: Witness<C>) -> Self {
+impl Groth16Witness {
+    pub fn new<C: Config>(mut witness: Witness<C>) -> Self {
         witness.vars.push(C::N::from_canonical_usize(999));
         witness.felts.push(C::F::from_canonical_usize(999));
         witness.exts.push(C::EF::from_canonical_usize(999));
@@ -42,6 +44,11 @@ impl<C: Config> From<Witness<C>> for Groth16Witness {
                         .collect()
                 })
                 .collect(),
+            vkey_hash: witness.vkey_hash.as_canonical_biguint().to_string(),
+            commited_values_digest: witness
+                .commited_values_digest
+                .as_canonical_biguint()
+                .to_string(),
         }
     }
 }

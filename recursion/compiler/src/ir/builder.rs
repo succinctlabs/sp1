@@ -454,6 +454,15 @@ impl<C: Config> Builder<C> {
         self.operations.push(DslIr::Commit(pv_hash.clone()));
     }
 
+    pub fn commit_vkey_hash_circuit(&mut self, var: Var<C::N>) {
+        self.operations.push(DslIr::CircuitCommitVkeyHash(var));
+    }
+
+    pub fn commit_commited_values_digest_circuit(&mut self, var: Var<C::N>) {
+        self.operations
+            .push(DslIr::CircuitCommitCommitedValuesDigest(var));
+    }
+
     pub fn cycle_tracker(&mut self, name: &str) {
         self.operations.push(DslIr::CycleTracker(name.to_string()));
     }

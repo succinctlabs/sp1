@@ -24,9 +24,11 @@ import (
 )
 
 type Circuit struct {
-	Vars  []frontend.Variable
-	Felts []*babybear.Variable
-	Exts  []*babybear.ExtensionVariable
+	Vars                 []frontend.Variable
+	Felts                []*babybear.Variable
+	Exts                 []*babybear.ExtensionVariable
+	VkeyHash             frontend.Variable `gnark:",public"`
+	CommitedValuesDigest frontend.Variable `gnark:",public"`
 }
 
 type Constraint struct {
@@ -35,15 +37,18 @@ type Constraint struct {
 }
 
 type Inputs struct {
-	Vars  []string   `json:"vars"`
-	Felts []string   `json:"felts"`
-	Exts  [][]string `json:"exts"`
+	Vars                 []string   `json:"vars"`
+	Felts                []string   `json:"felts"`
+	Exts                 [][]string `json:"exts"`
+	VkeyHash             string     `json:"vkey_hash"`
+	CommitedValuesDigest string     `json:"commited_values_digest"`
 }
 
 type Groth16Proof struct {
-	A [2]string    `json:"a"`
-	B [2][2]string `json:"b"`
-	C [2]string    `json:"c"`
+	A            [2]string    `json:"a"`
+	B            [2][2]string `json:"b"`
+	C            [2]string    `json:"c"`
+	PublicInputs [2]string    `json:"public_inputs"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
@@ -168,6 +173,12 @@ func (circuit *Circuit) Define(api frontend.API) error {
 				panic(err)
 			}
 			exts[cs.Args[0][0]] = circuit.Exts[i]
+		case "CommitVkeyHash":
+			element := vars[cs.Args[0][0]]
+			api.AssertIsEqual(circuit.VkeyHash, element)
+		case "CommitCommitedValuesDigest":
+			element := vars[cs.Args[0][0]]
+			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}
@@ -217,6 +228,15 @@ func main() {
 		pk := groth16.NewProvingKey(ecc.BN254)
 		pk.ReadFrom(pkFile)
 
+		// Read the verifier key.
+		fmt.Println("Reading vk...")
+		vkFile, err := os.Open(buildDir + "/vk.bin")
+		if err != nil {
+			panic(err)
+		}
+		vk := groth16.NewVerifyingKey(ecc.BN254)
+		vk.ReadFrom(vkFile)
+
 		// Generate the witness.
 		fmt.Println("Generating witness...")
 		data, err := os.ReadFile(witnessPath)
@@ -247,11 +267,17 @@ func main() {
 		// Generate witness.
 		fmt.Println("Generating witness...")
 		assignment := Circuit{
-			Vars:  vars,
-			Felts: felts,
-			Exts:  exts,
+			Vars:                 vars,
+			Felts:                felts,
+			Exts:                 exts,
+			VkeyHash:             inputs.VkeyHash,
+			CommitedValuesDigest: inputs.CommitedValuesDigest,
 		}
 		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		if err != nil {
+			panic(err)
+		}
+		publicWitness, err := witness.Public()
 		if err != nil {
 			panic(err)
 		}
@@ -263,6 +289,12 @@ func main() {
 			panic(err)
 		}
 
+		fmt.Println("Verifying proof...")
+		err = groth16.Verify(proof, vk, publicWitness)
+		if err != nil {
+			panic(err)
+		}
+
 		// Serialize the proof to JSON.
 		const fpSize = 4 * 8
 		var buf bytes.Buffer
@@ -270,9 +302,10 @@ func main() {
 		proofBytes := buf.Bytes()
 
 		var (
-			a [2]string
-			b [2][2]string
-			c [2]string
+			a            [2]string
+			b            [2][2]string
+			c            [2]string
+			publicInputs [2]string
 		)
 		a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
 		a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
@@ -282,11 +315,14 @@ func main() {
 		b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
 		c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
 		c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
+		publicInputs[0] = inputs.VkeyHash
+		publicInputs[1] = inputs.CommitedValuesDigest
 
 		groth16Proof := Groth16Proof{
-			A: a,
-			B: b,
-			C: c,
+			A:            a,
+			B:            b,
+			C:            c,
+			PublicInputs: publicInputs,
 		}
 
 		jsonData, err := json.Marshal(groth16Proof)
@@ -323,21 +359,20 @@ func main() {
 		for i := 0; i < len(witness.Vars); i++ {
 			vars[i] = frontend.Variable(witness.Vars[i])
 		}
-		fmt.Println("NbVars:", len(vars))
 		for i := 0; i < len(witness.Felts); i++ {
 			felts[i] = babybear.NewF(witness.Felts[i])
 		}
-		fmt.Println("NbFelts:", len(felts))
 		for i := 0; i < len(witness.Exts); i++ {
 			exts[i] = babybear.NewE(witness.Exts[i])
 		}
-		fmt.Println("NbExts:", len(exts))
 
 		// Initialize the circuit.
 		circuit := Circuit{
-			Vars:  vars,
-			Felts: felts,
-			Exts:  exts,
+			Vars:                 vars,
+			Felts:                felts,
+			Exts:                 exts,
+			VkeyHash:             witness.VkeyHash,
+			CommitedValuesDigest: witness.CommitedValuesDigest,
 		}
 
 		// Compile the circuit.
@@ -372,6 +407,14 @@ func main() {
 		}
 		pk.WriteTo(pkFile)
 		pkFile.Close()
+
+		// Write the verifier key.
+		vkFile, err := os.Create(buildDir + "/vk.bin")
+		if err != nil {
+			panic(err)
+		}
+		vk.WriteTo(vkFile)
+		vkFile.Close()
 
 		// Write the solidity verifier.
 		solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")

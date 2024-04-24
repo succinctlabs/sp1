@@ -324,6 +324,8 @@ where
     }
 
     pub fn run(&mut self) {
+        let early_exit_ts = std::env::var("RECURSION_EARLY_EXIT_TS")
+            .map_or(usize::MAX, |ts: String| ts.parse().unwrap());
         while self.pc < F::from_canonical_u32(self.program.instructions.len() as u32) {
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
@@ -760,6 +762,10 @@ where
             self.clk += F::from_canonical_u32(4);
             self.timestamp += 1;
             self.access = CpuRecord::default();
+
+            if self.timestamp >= early_exit_ts {
+                break;
+            }
         }
 
         // Collect all used memory addresses.

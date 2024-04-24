@@ -47,6 +47,18 @@ pub struct Witness<C: Config> {
     pub vars: Vec<C::N>,
     pub felts: Vec<C::F>,
     pub exts: Vec<C::EF>,
+    pub vkey_hash: C::N,
+    pub commited_values_digest: C::N,
+}
+
+impl<C: Config> Witness<C> {
+    pub fn set_vkey_hash(&mut self, vkey_hash: C::N) {
+        self.vkey_hash = vkey_hash;
+    }
+
+    pub fn set_commited_values_digest(&mut self, commited_values_digest: C::N) {
+        self.commited_values_digest = commited_values_digest
+    }
 }
 
 impl<N: AbstractField> Usize<N> {
