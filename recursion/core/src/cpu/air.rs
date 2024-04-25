@@ -115,6 +115,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     branch_cols
                         .comparison_diff
                         .populate((comparison_diff).as_block());
+                    branch_cols.comparison_diff_val = comparison_diff;
                 }
 
                 cols.is_real = F::one();
@@ -333,12 +334,17 @@ impl<F: Field> CpuChip<F> {
             comparison_diff.clone(),
         );
 
+        builder.when(is_branch_instruction.clone()).assert_ext_eq(
+            BinomialExtension::from(branch_cols.comparison_diff_val),
+            comparison_diff,
+        );
+
         // Verify the comparison_diff flag value.
         IsExtZeroOperation::<AB::F>::eval(
             builder,
-            comparison_diff,
+            BinomialExtension::from(branch_cols.comparison_diff_val),
             branch_cols.comparison_diff,
-            local.is_real.into(),
+            is_branch_instruction.clone(),
         );
 
         let one = AB::Expr::one();

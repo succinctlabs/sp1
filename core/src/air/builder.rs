@@ -1,3 +1,4 @@
+use std::array;
 use std::iter::once;
 
 use itertools::Itertools;
@@ -614,11 +615,9 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
         a: BinomialExtension<impl Into<Self::Expr> + Clone>,
         b: BinomialExtension<impl Into<Self::Expr> + Clone>,
     ) -> BinomialExtension<Self::Expr> {
-        let mut res = vec![];
-        for i in 0..a.0.len() {
-            res.push(self.if_else(condition.clone(), a.0[i].clone(), b.0[i].clone()));
-        }
-        BinomialExtension(res.try_into().unwrap())
+        BinomialExtension(array::from_fn(|i| {
+            self.if_else(condition.clone(), a.0[i].clone(), b.0[i].clone())
+        }))
     }
 }
 
