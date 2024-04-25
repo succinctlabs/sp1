@@ -338,7 +338,7 @@ func (c *Chip) Reduce(in *Variable) *Variable {
 }
 
 func (p *Chip) ReduceFast(x frontend.Variable) *Variable {
-	return p.ReduceWithMaxBits(x, uint64(144))
+	return p.ReduceWithMaxBits(x, uint64(80))
 }
 
 func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) *Variable {
