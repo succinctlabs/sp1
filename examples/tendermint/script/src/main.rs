@@ -2,11 +2,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 
 use reqwest::Client;
-<<<<<<< HEAD
-use sp1_sdk::{utils, ProverClient, SP1PublicValues, SP1Stdin};
-=======
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
->>>>>>> main
 
 use tendermint_light_client_verifier::options::Options;
 use tendermint_light_client_verifier::types::LightBlock;
@@ -78,11 +74,6 @@ fn main() {
     expected_public_values.extend(light_block_2.signed_header.header.hash().as_bytes());
     expected_public_values.extend(serde_cbor::to_vec(&expected_verdict).unwrap());
 
-<<<<<<< HEAD
-    let public_values_bytes = proof.shard_proofs[0].public_values.clone();
-    let public_values = SP1PublicValues::from_vec(public_values_bytes);
-=======
->>>>>>> main
     assert_eq!(
         proof.public_values.as_ref(),
         expected_public_values

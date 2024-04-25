@@ -272,6 +272,7 @@ where
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
+        let now = Instant::now();
         tracing::debug_span!("generate permutation traces").in_scope(|| {
             chips
                 .par_iter()
@@ -295,6 +296,10 @@ where
                 })
                 .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
         });
+        println!(
+            "generate permutation traces: {:?}",
+            now.elapsed().as_secs_f64()
+        );
 
         // Compute some statistics.
         for i in 0..chips.len() {
