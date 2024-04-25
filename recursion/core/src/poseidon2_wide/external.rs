@@ -1,3 +1,4 @@
+use crate::runtime::Opcode;
 use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -10,6 +11,11 @@ use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
+
+use crate::air::SP1RecursionAirBuilder;
+use crate::memory::MemoryCols;
+use crate::memory::MemoryReadSingleCols;
+use crate::memory::MemoryReadWriteSingleCols;
 
 use crate::poseidon2_wide::{external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
@@ -32,11 +38,14 @@ pub struct Poseidon2WideChip;
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2WideCols<T> {
-    pub input: [T; WIDTH],
-    pub output: [T; WIDTH],
+    pub timestamp: T,
+    pub dst: T,
+    pub left: T,
+    pub right: T,
+    pub input: [MemoryReadSingleCols<T>; WIDTH],
+    pub output: [MemoryReadWriteSingleCols<T>; WIDTH],
     external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
     internal_rounds: Poseidon2WideInternalRoundsCols<T>,
-
     pub is_real: T,
 }
 
@@ -83,10 +92,17 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];
             let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
 
-            // Apply the initial round.
-            cols.input = event.input;
-            cols.external_rounds[0].state = event.input;
+            cols.timestamp = event.clk;
+            cols.dst = event.dst;
+            cols.left = event.left;
+            cols.right = event.right;
             cols.is_real = F::one();
+
+            // Apply the initial round.
+            for i in 0..WIDTH {
+                cols.input[i].populate(&event.input_records[i]);
+            }
+            cols.external_rounds[0].state = event.input;
             external_linear_layer(&mut cols.external_rounds[0].state);
 
             // Apply the first half of external rounds.
@@ -107,10 +123,15 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
                 let next_state = populate_external_round(cols, r);
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
-                    cols.output = next_state;
+                    // Do nothing, since we set the cols.output by populating the output records
+                    // after this loop.
                 } else {
                     cols.external_rounds[r + 1].state = next_state;
                 }
+            }
+
+            for i in 0..WIDTH {
+                cols.output[i].populate(&event.result_records[i]);
             }
 
             rows.push(row);
@@ -248,7 +269,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
     let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
         &cols.internal_rounds.state
     } else if r == NUM_EXTERNAL_ROUNDS - 1 {
-        &cols.output
+        &core::array::from_fn(|i| *cols.output[i].value())
     } else {
         &cols.external_rounds[r + 1].state
     };
@@ -306,7 +327,7 @@ impl<F> BaseAir<F> for Poseidon2WideChip {
 
 impl<AB> Air<AB> for Poseidon2WideChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -316,7 +337,7 @@ where
         // Apply the initial round.
         let initial_round_output = {
             let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| cols.input[i].into());
+                core::array::from_fn(|i| (*cols.input[i].value()).into());
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
@@ -339,6 +360,43 @@ where
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
             eval_external_round(builder, cols, r, cols.is_real);
         }
+
+        // Evaluate all of the memory.
+        for i in 0..WIDTH {
+            let input_addr = if i < WIDTH / 2 {
+                cols.left + AB::F::from_canonical_usize(i)
+            } else {
+                cols.right + AB::F::from_canonical_usize(i - WIDTH / 2)
+            };
+
+            builder.recursion_eval_memory_access_single(
+                cols.timestamp,
+                input_addr,
+                &cols.input[i],
+                cols.is_real,
+            );
+
+            let output_addr = cols.dst + AB::F::from_canonical_usize(i);
+            builder.recursion_eval_memory_access_single(
+                cols.timestamp + AB::F::from_canonical_usize(1),
+                output_addr,
+                &cols.output[i],
+                cols.is_real,
+            );
+        }
+
+        // Constraint that the operands are sent from the CPU table.
+        let operands: [AB::Expr; 4] = [
+            cols.timestamp.into(),
+            cols.dst.into(),
+            cols.left.into(),
+            cols.right.into(),
+        ];
+        builder.receive_table(
+            Opcode::Poseidon2Compress.as_field::<AB::F>(),
+            &operands,
+            cols.is_real,
+        );
     }
 }
 
@@ -347,6 +405,10 @@ mod tests {
     use core::borrow::Borrow;
     use std::time::Instant;
 
+    use crate::memory::MemoryCols;
+    use crate::poseidon2::Poseidon2Event;
+    use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
+    use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_field::AbstractField;
@@ -357,10 +419,6 @@ mod tests {
     use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2Inner};
-
-    use crate::poseidon2::Poseidon2Event;
-    use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
-    use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
 
     /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
@@ -388,7 +446,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -398,7 +458,9 @@ mod tests {
         for (i, expected_output) in expected_outputs.iter().enumerate() {
             let row = trace.row(i).collect_vec();
             let cols: &Poseidon2WideCols<BabyBear> = row.as_slice().borrow();
-            assert_eq!(expected_output, &cols.output);
+            for i in 0..WIDTH {
+                assert_eq!(expected_output[i], *cols.output[i].value());
+            }
         }
     }
 
@@ -416,7 +478,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());

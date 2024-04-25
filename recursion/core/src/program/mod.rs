@@ -1,11 +1,11 @@
+use crate::air::SP1RecursionAirBuilder;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{AirInteraction, MachineAir, SP1AirBuilder};
-use sp1_core::lookup::InteractionKind;
+use sp1_core::air::MachineAir;
 use sp1_core::utils::pad_to_power_of_two;
 use std::collections::HashMap;
 
@@ -58,16 +58,17 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program.instructions[0..32]
+        let rows = program
+            .instructions
             .iter()
             .enumerate()
             .map(|(i, instruction)| {
-                let pc = i as u32 * 4;
+                let pc = i as u32;
                 let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
                 cols.selectors.populate(instruction);
-                cols.instruction.populate(instruction.clone());
+                cols.instruction.populate(instruction);
                 row
             })
             .collect::<Vec<_>>();
@@ -102,7 +103,9 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        let rows = input.program.instructions[0..32]
+        let rows = input
+            .program
+            .instructions
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -140,7 +143,7 @@ impl<F> BaseAir<F> for ProgramChip {
 
 impl<AB> Air<AB> for ProgramChip
 where
-    AB: SP1AirBuilder + PairBuilder,
+    AB: SP1RecursionAirBuilder + PairBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -151,29 +154,17 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
+        builder.receive_program(
+            prep_local.pc,
+            prep_local.instruction,
+            prep_local.selectors,
+            mult_local.multiplicity,
+        );
+
         // Dummy constraint of degree 3.
         builder.assert_eq(
             prep_local.pc * prep_local.pc * prep_local.pc,
             prep_local.pc * prep_local.pc * prep_local.pc,
         );
-
-        let mut interaction_vals: Vec<AB::Expr> = vec![prep_local.instruction.opcode.into()];
-        interaction_vals.push(prep_local.instruction.op_a.into());
-        interaction_vals.extend_from_slice(&prep_local.instruction.op_b.map(|x| x.into()).0);
-        interaction_vals.extend_from_slice(&prep_local.instruction.op_c.map(|x| x.into()).0);
-        interaction_vals.push(prep_local.instruction.imm_b.into());
-        interaction_vals.push(prep_local.instruction.imm_c.into());
-        interaction_vals.extend_from_slice(
-            &prep_local
-                .selectors
-                .into_iter()
-                .map(|x| x.into())
-                .collect::<Vec<_>>(),
-        );
-        builder.receive(AirInteraction::new(
-            interaction_vals,
-            mult_local.multiplicity.into(),
-            InteractionKind::Program,
-        ));
     }
 }

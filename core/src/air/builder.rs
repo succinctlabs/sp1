@@ -616,13 +616,18 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
 pub trait MachineAirBuilder:
-    BaseAirBuilder + ExtensionAirBuilder + ProgramAirBuilder + AirBuilderWithPublicValues
+    BaseAirBuilder + ExtensionAirBuilder + AirBuilderWithPublicValues
 {
 }
 
 /// A trait which contains all helper methods for building SP1 machine AIRs.
 pub trait SP1AirBuilder:
-    MachineAirBuilder + ByteAirBuilder + WordAirBuilder + AluAirBuilder + MemoryAirBuilder
+    MachineAirBuilder
+    + ByteAirBuilder
+    + WordAirBuilder
+    + AluAirBuilder
+    + MemoryAirBuilder
+    + ProgramAirBuilder
 {
 }
 
