@@ -56,7 +56,7 @@ impl<F: Clone + PrimeField32> MemoryRecord<F> {
         let (diff_16bit_limb, diff_12bit_limb) = compute_diff(timestamp, prev_timestamp);
         Self {
             addr,
-            value: value.clone(),
+            value,
             prev_value: value,
             timestamp,
             prev_timestamp,
@@ -69,27 +69,27 @@ impl<F: Clone + PrimeField32> MemoryRecord<F> {
 
 impl<T: PrimeField32> MemoryReadWriteCols<T> {
     pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.prev_value = record.prev_value.clone();
-        self.access.populate(record.value.clone(), record);
+        self.prev_value = record.prev_value;
+        self.access.populate(record.value, record);
     }
 }
 
 impl<T: PrimeField32> MemoryReadCols<T> {
     pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.access.populate(record.value.clone(), record);
+        self.access.populate(record.value, record);
     }
 }
 
 impl<T: PrimeField32> MemoryReadWriteSingleCols<T> {
     pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.prev_value = record.prev_value[0].clone();
-        self.access.populate(record.value[0].clone(), record);
+        self.prev_value = record.prev_value[0];
+        self.access.populate(record.value[0], record);
     }
 }
 
 impl<T: PrimeField32> MemoryReadSingleCols<T> {
     pub fn populate(&mut self, record: &MemoryRecord<T>) {
-        self.access.populate(record.value[0].clone(), record);
+        self.access.populate(record.value[0], record);
     }
 }
 
