@@ -214,7 +214,7 @@ where
         builder.recursion_eval_memory_access_single(
             cols.clk,
             cols.input_ptr + AB::Expr::from_canonical_u32(8),
-            &cols.ps_at_z_ptr,
+            &cols.alpha_pow_ptr,
             cols.is_real,
         );
 
