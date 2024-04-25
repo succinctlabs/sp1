@@ -42,4 +42,7 @@ pub enum ConstraintOpcode {
     WitnessV,
     WitnessF,
     WitnessE,
+    CommitVkeyHash,
+    CommitCommitedValuesDigest,
+    CircuitFelts2Ext,
 }

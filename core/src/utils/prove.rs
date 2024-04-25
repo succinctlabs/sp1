@@ -114,7 +114,7 @@ fn reset_seek(file: &mut File) {
 
 pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
-    stdin: &[Vec<u8>],
+    stdin: &SP1Stdin,
     config: SC,
 ) -> (crate::stark::MachineProof<SC>, Vec<u8>)
 where
@@ -129,7 +129,10 @@ where
 
     let machine = RiscvAir::machine(config);
     let mut runtime = Runtime::new(program.clone());
-    runtime.write_vecs(stdin);
+    runtime.write_vecs(&stdin.buffer);
+    for proof in stdin.proofs.iter() {
+        runtime.write_proof(proof.0.clone(), proof.1.clone());
+    }
     let (pk, _) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
@@ -278,6 +281,7 @@ where
 }
 
 #[cfg(debug_assertions)]
+#[cfg(not(doctest))]
 pub fn uni_stark_prove<SC, A>(
     config: &SC,
     air: &A,
@@ -309,6 +313,7 @@ where
 }
 
 #[cfg(debug_assertions)]
+#[cfg(not(doctest))]
 pub fn uni_stark_verify<SC, A>(
     config: &SC,
     air: &A,
@@ -347,7 +352,7 @@ use p3_uni_stark::Proof;
 
 pub mod baby_bear_poseidon2 {
 
-    use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+    use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
     use p3_challenger::DuplexChallenger;
     use p3_commit::ExtensionMmcs;
     use p3_dft::Radix2DitParallel;
@@ -363,14 +368,11 @@ pub mod baby_bear_poseidon2 {
     use crate::stark::StarkGenericConfig;
 
     pub type Val = BabyBear;
-
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
+    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
-
     pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
-
     pub type ValMmcs = FieldMerkleTreeMmcs<
         <Val as Field>::Packing,
         <Val as Field>::Packing,
@@ -379,18 +381,106 @@ pub mod baby_bear_poseidon2 {
         8,
     >;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
-
     pub type Dft = Radix2DitParallel;
-
     pub type Challenger = DuplexChallenger<Val, Perm, 16>;
-
     type Pcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
+
+    pub fn my_perm() -> Perm {
+        const ROUNDS_F: usize = 8;
+        const ROUNDS_P: usize = 22;
+        let mut round_constants = RC_16_30.to_vec();
+        let internal_start = ROUNDS_F / 2;
+        let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+        let internal_round_constants = round_constants
+            .drain(internal_start..internal_end)
+            .map(|vec| vec[0])
+            .collect::<Vec<_>>();
+        let external_round_constants = round_constants;
+        Perm::new(
+            ROUNDS_F,
+            external_round_constants,
+            Poseidon2ExternalMatrixGeneral,
+            ROUNDS_P,
+            internal_round_constants,
+            DiffusionMatrixBabyBear,
+        )
+    }
+
+    pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
+        let perm = my_perm();
+        let hash = MyHash::new(perm.clone());
+        let compress = MyCompress::new(perm.clone());
+        let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
+        let num_queries = match std::env::var("FRI_QUERIES") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => 100,
+        };
+        FriConfig {
+            log_blowup: 1,
+            num_queries,
+            proof_of_work_bits: 16,
+            mmcs: challenge_mmcs,
+        }
+    }
+
+    pub fn compressed_fri_config() -> FriConfig<ChallengeMmcs> {
+        let perm = my_perm();
+        let hash = MyHash::new(perm.clone());
+        let compress = MyCompress::new(perm.clone());
+        let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
+        let num_queries = match std::env::var("FRI_QUERIES") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => 25,
+        };
+        FriConfig {
+            log_blowup: 4,
+            num_queries,
+            proof_of_work_bits: 16,
+            mmcs: challenge_mmcs,
+        }
+    }
 
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
     pub struct BabyBearPoseidon2 {
         pub perm: Perm,
         pcs: Pcs,
+    }
+
+    impl BabyBearPoseidon2 {
+        pub fn new() -> Self {
+            let perm = my_perm();
+            let hash = MyHash::new(perm.clone());
+            let compress = MyCompress::new(perm.clone());
+            let val_mmcs = ValMmcs::new(hash, compress);
+            let dft = Dft {};
+            let fri_config = default_fri_config();
+            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
+            Self { pcs, perm }
+        }
+
+        pub fn compressed() -> Self {
+            let perm = my_perm();
+            let hash = MyHash::new(perm.clone());
+            let compress = MyCompress::new(perm.clone());
+            let val_mmcs = ValMmcs::new(hash, compress);
+            let dft = Dft {};
+            let fri_config = compressed_fri_config();
+            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
+            Self { pcs, perm }
+        }
+    }
+
+    impl Clone for BabyBearPoseidon2 {
+        fn clone(&self) -> Self {
+            Self::new()
+        }
+    }
+
+    impl Default for BabyBearPoseidon2 {
+        fn default() -> Self {
+            Self::new()
+        }
     }
 
     /// Implement serialization manually instead of using serde to avoid cloing the config.
@@ -405,65 +495,6 @@ pub mod baby_bear_poseidon2 {
 
     impl From<std::marker::PhantomData<BabyBearPoseidon2>> for BabyBearPoseidon2 {
         fn from(_: std::marker::PhantomData<BabyBearPoseidon2>) -> Self {
-            Self::new()
-        }
-    }
-
-    impl Clone for BabyBearPoseidon2 {
-        fn clone(&self) -> Self {
-            Self::new()
-        }
-    }
-
-    impl BabyBearPoseidon2 {
-        pub fn new() -> Self {
-            const ROUNDS_F: usize = 8;
-            const ROUNDS_P: usize = 22;
-            let mut round_constants = RC_16_30.to_vec();
-            let internal_start = ROUNDS_F / 2;
-            let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
-            let internal_round_constants = round_constants
-                .drain(internal_start..internal_end)
-                .map(|vec| vec[0])
-                .collect::<Vec<_>>();
-            let external_round_constants = round_constants;
-            let perm = Perm::new(
-                ROUNDS_F,
-                external_round_constants,
-                Poseidon2ExternalMatrixGeneral,
-                ROUNDS_P,
-                internal_round_constants,
-                DiffusionMatrixBabybear,
-            );
-
-            let hash = MyHash::new(perm.clone());
-
-            let compress = MyCompress::new(perm.clone());
-
-            let val_mmcs = ValMmcs::new(hash, compress);
-
-            let challenge_mmcs = ChallengeMmcs::new(val_mmcs.clone());
-
-            let dft = Dft {};
-
-            let num_queries = match std::env::var("FRI_QUERIES") {
-                Ok(value) => value.parse().unwrap(),
-                Err(_) => 100,
-            };
-            let fri_config = FriConfig {
-                log_blowup: 1,
-                num_queries,
-                proof_of_work_bits: 16,
-                mmcs: challenge_mmcs,
-            };
-            let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
-
-            Self { pcs, perm }
-        }
-    }
-
-    impl Default for BabyBearPoseidon2 {
-        fn default() -> Self {
             Self::new()
         }
     }

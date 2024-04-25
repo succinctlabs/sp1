@@ -1,7 +1,9 @@
+use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
+use sp1_core::air::{Word, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::{
     AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
 };
@@ -20,8 +22,8 @@ use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::types::{
-    AirOpenedValuesVariable, ChipOpenedValuesVariable, ShardCommitmentVariable,
-    ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
+    AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
+    ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
 
 pub trait Hintable<C: Config> {
@@ -72,6 +74,22 @@ impl Hintable<C> for InnerChallenge {
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         vec![vec![Block::from((*self).as_base_slice())]]
+    }
+}
+
+impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
+    type HintVariable = Sha256DigestVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let bytes = builder.hint_felts();
+        Sha256DigestVariable { bytes }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        vec![self
+            .iter()
+            .flat_map(|w| w.0.iter().map(|f| Block::from(*f)))
+            .collect::<Vec<_>>()]
     }
 }
 

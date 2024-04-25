@@ -53,6 +53,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         "Poseidon2".to_string()
     }
 
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
+    }
+
     #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
@@ -323,7 +327,7 @@ mod tests {
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabybear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
@@ -358,7 +362,7 @@ mod tests {
         let gt: Poseidon2<
             BabyBear,
             Poseidon2ExternalMatrixGeneral,
-            DiffusionMatrixBabybear,
+            DiffusionMatrixBabyBear,
             16,
             7,
         > = inner_perm();
@@ -370,7 +374,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -396,7 +402,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
@@ -413,7 +421,7 @@ mod tests {
 
         let mut challenger: p3_challenger::DuplexChallenger<
             BabyBear,
-            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
             16,
         > = config.challenger();
         let start = Instant::now();

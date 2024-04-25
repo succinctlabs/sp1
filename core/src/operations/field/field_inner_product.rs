@@ -269,12 +269,6 @@ mod tests {
             local
                 .a_ip_b
                 .eval(builder, &local.a, &local.b, AB::F::one(), AB::F::one());
-
-            // A dummy constraint to keep the degree 3.
-            builder.assert_zero(
-                local.a[0][0] * local.b[0][0] * local.a[0][0]
-                    - local.a[0][0] * local.b[0][0] * local.a[0][0],
-            )
         }
     }
 

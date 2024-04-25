@@ -32,8 +32,6 @@ pub struct OpcodeSelectorCols<T> {
     pub is_beq: T,
     pub is_bne: T,
     pub is_bneinc: T,
-    pub is_ebeq: T,
-    pub is_ebne: T,
 
     // Jump instructions.
     pub is_jal: T,
@@ -43,6 +41,7 @@ pub struct OpcodeSelectorCols<T> {
     pub is_trap: T,
     pub is_noop: T,
 
+    pub is_poseidon: T,
     pub is_fri_fold: T,
     pub is_commit: T,
 }
@@ -68,18 +67,16 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::BEQ => self.is_beq = F::one(),
             Opcode::BNE => self.is_bne = F::one(),
             Opcode::BNEINC => self.is_bneinc = F::one(),
-            Opcode::EBEQ => self.is_ebeq = F::one(),
-            Opcode::EBNE => self.is_ebne = F::one(),
             Opcode::JAL => self.is_jal = F::one(),
             Opcode::JALR => self.is_jalr = F::one(),
             Opcode::TRAP => self.is_trap = F::one(),
-            // TODO: FIX
+            Opcode::FRIFold => self.is_fri_fold = F::one(),
+            Opcode::Poseidon2Compress => self.is_poseidon = F::one(),
+            // TODO: Double-check that `is_noop` is constrained properly in the CPU air.
             Opcode::Ext2Felt => self.is_noop = F::one(),
-            Opcode::Poseidon2Perm => self.is_noop = F::one(),
             Opcode::HintBits => self.is_noop = F::one(),
             Opcode::PrintF => self.is_noop = F::one(),
             Opcode::PrintE => self.is_noop = F::one(),
-            Opcode::FRIFold => self.is_fri_fold = F::one(),
             Opcode::Commit => self.is_commit = F::one(),
             _ => {}
         }
@@ -106,12 +103,11 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_beq,
             self.is_bne,
             self.is_bneinc,
-            self.is_ebeq,
-            self.is_ebne,
             self.is_jal,
             self.is_jalr,
             self.is_trap,
             self.is_noop,
+            self.is_poseidon,
             self.is_fri_fold,
             self.is_commit,
         ]

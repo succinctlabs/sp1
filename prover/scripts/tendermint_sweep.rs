@@ -64,13 +64,14 @@ fn main() {
         let stdin = SP1Stdin {
             buffer: vec![bincode::serialize::<u32>(&iterations).unwrap()],
             ptr: 0,
+            proofs: vec![],
         };
         let leaf_proving_start = Instant::now();
         let proof = prover.prove_core(&pk, &stdin);
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
 
         let recursion_proving_start = Instant::now();
-        let _ = prover.reduce(&vk, proof);
+        let _ = prover.reduce(&vk, proof, vec![]);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
 
         lines.push(format!(

@@ -164,8 +164,5 @@ impl<F: Field> Add5Operation<F> {
                 builder_is_real.assert_eq(cols.carry[i] * base, overflow.clone());
             }
         }
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }
 }

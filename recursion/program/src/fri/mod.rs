@@ -4,8 +4,7 @@ pub mod two_adic_pcs;
 pub mod types;
 
 pub use domain::*;
-#[cfg(test)]
-pub(crate) use two_adic_pcs::tests::*;
+use sp1_recursion_compiler::ir::ExtensionOperand;
 pub use two_adic_pcs::*;
 
 use p3_field::AbstractField;
@@ -17,8 +16,6 @@ use sp1_recursion_compiler::ir::Builder;
 use sp1_recursion_compiler::ir::Config;
 use sp1_recursion_compiler::ir::Ext;
 use sp1_recursion_compiler::ir::Felt;
-use sp1_recursion_compiler::ir::SymbolicExt;
-use sp1_recursion_compiler::ir::SymbolicFelt;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Usize;
 use sp1_recursion_compiler::ir::Var;
@@ -54,10 +51,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
 
     let num_query_proofs = proof.query_proofs.len().materialize(builder);
     builder
-        .if_ne(
-            num_query_proofs,
-            C::N::from_canonical_usize(config.num_queries),
-        )
+        .if_ne(num_query_proofs, config.num_queries)
         .then(|builder| {
             builder.error();
         });
@@ -65,8 +59,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
     challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height: Var<_> =
-        builder.eval(num_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
+    let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);
     let mut query_indices = builder.array(config.num_queries);
     builder.range(0, config.num_queries).for_each(|i, builder| {
         let index_bits = challenger.sample_bits(builder, Usize::Var(log_max_height));
@@ -94,8 +87,7 @@ pub fn verify_challenges<C: Config>(
     C::EF: TwoAdicField,
 {
     let nb_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
-    let log_max_height =
-        builder.eval(nb_commit_phase_commits + C::N::from_canonical_usize(config.log_blowup));
+    let log_max_height = builder.eval(nb_commit_phase_commits + config.log_blowup);
     builder
         .range(0, challenges.query_indices.len())
         .for_each(|i, builder| {
@@ -142,9 +134,9 @@ where
     builder.cycle_tracker("verify-query");
     let folded_eval: Ext<C::F, C::EF> = builder.eval(C::F::zero());
     let two_adic_generator_f = config.get_two_adic_generator(builder, log_max_height);
-    let two_adic_generator_ef: Ext<_, _> = builder.eval(SymbolicExt::Base(
-        SymbolicFelt::Val(two_adic_generator_f).into(),
-    ));
+
+    let two_adic_gen_ext = two_adic_generator_f.to_operand().symbolic();
+    let two_adic_generator_ef: Ext<_, _> = builder.eval(two_adic_gen_ext);
 
     let x = builder.exp_reverse_bits_len(two_adic_generator_ef, index_bits, log_max_height);
 
@@ -163,7 +155,7 @@ where
 
             let index_bit = builder.get(index_bits, i);
             let index_sibling_mod_2: Var<C::N> =
-                builder.eval(SymbolicVar::Const(C::N::one()) - index_bit);
+                builder.eval(SymbolicVar::from(C::N::one()) - index_bit);
             let i_plus_one = builder.eval(i + C::N::one());
             let index_pair = index_bits.shift(builder, i_plus_one);
 

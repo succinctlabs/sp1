@@ -1,19 +1,19 @@
 [workspace]
 members = [
-    "cli",
-    "core",
-    "derive",
-    "eval",
-    "helper",
-    "primitives",
-    "prover",
-    "recursion/circuit",
-    "recursion/compiler",
-    "recursion/core",
-    "recursion/groth16-ffi",
-    "recursion/program",
-    "sdk",
-    "zkvm/*",
+  "cli",
+  "core",
+  "derive",
+  "eval",
+  "helper",
+  "primitives",
+  "prover",
+  "recursion/circuit",
+  "recursion/compiler",
+  "recursion/core",
+  "recursion/gnark-ffi",
+  "recursion/program",
+  "sdk",
+  "zkvm/*",
 ]
 exclude = ["examples/target"]
 resolver = "2"
@@ -53,7 +53,7 @@ p3-uni-stark = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" 
 p3-maybe-rayon = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-bn254-fr = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 
-# For local development.
+# For local development. 
 
 # p3-air = { path = "../Plonky3/air" }
 # p3-field = { path = "../Plonky3/field" }

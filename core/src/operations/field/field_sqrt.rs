@@ -266,11 +266,6 @@ mod tests {
             local
                 .sqrt
                 .eval(builder, &local.a, AB::F::zero(), AB::F::one(), AB::F::one());
-
-            // A dummy constraint to keep the degree 3.
-            builder.assert_zero(
-                local.a[0] * local.a[0] * local.a[0] - local.a[0] * local.a[0] * local.a[0],
-            )
         }
     }
 

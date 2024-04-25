@@ -130,12 +130,6 @@ where
         let local = main.row_slice(0);
         let local: &MemoryInitCols<AB::Var> = (*local).borrow();
 
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
-        );
-
         if self.kind == MemoryChipType::Initialize {
             let mut values = vec![AB::Expr::zero(), AB::Expr::zero(), local.addr.into()];
             values.extend(local.value.map(Into::into));

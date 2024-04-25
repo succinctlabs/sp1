@@ -9,7 +9,6 @@ use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
 use std::borrow::{Borrow, BorrowMut};
 
 use super::columns::MemoryInitCols;
-use crate::air::Block;
 use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
 use crate::runtime::{ExecutionRecord, RecursionProgram};
@@ -34,6 +33,10 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         }
     }
 
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
+    }
+
     #[allow(unused_variables)]
     fn generate_trace(
         &self,
@@ -45,12 +48,12 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                 let addresses = &input.first_memory_record;
                 addresses
                     .iter()
-                    .map(|addr| {
+                    .map(|(addr, value)| {
                         let mut row = [F::zero(); NUM_MEMORY_INIT_COLS];
                         let cols: &mut MemoryInitCols<F> = row.as_mut_slice().borrow_mut();
                         cols.addr = *addr;
                         cols.timestamp = F::zero();
-                        cols.value = Block::from(F::zero());
+                        cols.value = *value;
                         cols.is_real = F::one();
                         row
                     })
@@ -108,12 +111,12 @@ where
             MemoryChipKind::Init => {
                 builder.send(AirInteraction::new(
                     vec![
-                        local.addr.into(),
                         local.timestamp.into(),
-                        local.value.0[0].into(),
-                        local.value.0[1].into(),
-                        local.value.0[2].into(),
-                        local.value.0[3].into(),
+                        local.addr.into(),
+                        local.value[0].into(),
+                        local.value[1].into(),
+                        local.value[2].into(),
+                        local.value[3].into(),
                     ],
                     local.is_real.into(),
                     InteractionKind::Memory,
@@ -122,23 +125,17 @@ where
             MemoryChipKind::Finalize => {
                 builder.receive(AirInteraction::new(
                     vec![
-                        local.addr.into(),
                         local.timestamp.into(),
-                        local.value.0[0].into(),
-                        local.value.0[1].into(),
-                        local.value.0[2].into(),
-                        local.value.0[3].into(),
+                        local.addr.into(),
+                        local.value[0].into(),
+                        local.value[1].into(),
+                        local.value[2].into(),
+                        local.value[3].into(),
                     ],
                     local.is_real.into(),
                     InteractionKind::Memory,
                 ));
             }
         };
-
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
-        );
     }
 }

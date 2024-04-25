@@ -240,11 +240,6 @@ where
 
         let is_real = local.is_slt + local.is_sltu;
 
-        // Dummy degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
-        );
-
         // We can compute the signed set-less-than as follows:
         // SLT (signed) = b_s * (1 - c_s) + (b_s == c_s) * SLTU(b_<s, c_<s)
         // Source: Jolt 5.3: Set Less Than (https://people.cs.georgetown.edu/jthaler/Jolt-paper.pdf)
