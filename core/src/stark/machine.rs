@@ -366,20 +366,20 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             "wrong pc_start",
                         ));
                     }
-                    let pv_digest: [u32; 8] = public_values
-                        .committed_value_digest
-                        .iter()
-                        .map(|w| w.to_u32())
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    let deferred_proofs_digest: [u32; 8] = public_values
-                        .deferred_proofs_digest
-                        .iter()
-                        .map(|w| w.to_string().parse::<u32>().unwrap())
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
+                    // let pv_digest: [u32; 8] = public_values
+                    //     .committed_value_digest
+                    //     .iter()
+                    //     .map(|w| w.to_u32())
+                    //     .collect::<Vec<_>>()
+                    //     .try_into()
+                    //     .unwrap();
+                    // let deferred_proofs_digest: [u32; 8] = public_values
+                    //     .deferred_proofs_digest
+                    //     .iter()
+                    //     .map(|w| w.to_string().parse::<u32>().unwrap())
+                    //     .collect::<Vec<_>>()
+                    //     .try_into()
+                    //     .unwrap();
                 } else {
                     let prev_shard_proof = &proof.shard_proofs[i - 1];
                     let prev_public_values =
