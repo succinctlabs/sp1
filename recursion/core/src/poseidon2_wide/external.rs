@@ -5,7 +5,7 @@ use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{MachineAir, SP1AirBuilder};
+use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
@@ -237,7 +237,6 @@ fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) ->
     state
 }
 
-#[allow(dead_code)]
 fn eval_external_round<AB: SP1AirBuilder>(
     builder: &mut AB,
     cols: &Poseidon2WideCols<AB::Var>,
@@ -283,7 +282,6 @@ fn eval_external_round<AB: SP1AirBuilder>(
     }
 }
 
-#[allow(dead_code)]
 fn eval_internal_rounds<AB: SP1AirBuilder>(
     builder: &mut AB,
     cols: &Poseidon2WideCols<AB::Var>,
@@ -335,7 +333,6 @@ impl<AB> Air<AB> for Poseidon2WideChip
 where
     AB: SP1RecursionAirBuilder,
 {
-    #[allow(unused_variables)]
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let cols = main.row_slice(0);
@@ -348,24 +345,21 @@ where
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
-        for i in 0..WIDTH {
-            // builder.when(cols.is_real).assert_eq(
-            //     cols.external_rounds[0].state[i],
-            //     initial_round_output[i].clone(),
-            // );
-        }
+        builder
+            .when(cols.is_real)
+            .assert_all_eq(cols.external_rounds[0].state, initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            // eval_external_round(builder, cols, r, cols.is_real);
+            eval_external_round(builder, cols, r, cols.is_real);
         }
 
         // Apply the internal rounds.
-        // eval_internal_rounds(builder, cols, cols.is_real);
+        eval_internal_rounds(builder, cols, cols.is_real);
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            // eval_external_round(builder, cols, r, cols.is_real);
+            eval_external_round(builder, cols, r, cols.is_real);
         }
 
         // Evaluate all of the memory.
