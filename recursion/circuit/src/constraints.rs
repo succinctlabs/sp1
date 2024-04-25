@@ -13,7 +13,8 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::SymbolicExt;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
+
+use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
 
 use crate::domain::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifierCircuit;
@@ -57,15 +58,12 @@ where
             next: unflatten(&opening.permutation.next),
         };
 
-        let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-
         let mut folder_pv = Vec::new();
         for i in 0..PROOF_MAX_NUM_PVS {
             folder_pv.push(builder.get(&public_values, i));
         }
 
-        let mut folder = RecursiveVerifierConstraintFolder {
-            builder,
+        let mut folder = RecursiveVerifierConstraintFolder::<C> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
@@ -76,11 +74,12 @@ where
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
             alpha,
-            accumulator: zero,
+            accumulator: SymbolicExt::zero(),
+            _marker: std::marker::PhantomData,
         };
 
         chip.eval(&mut folder);
-        folder.accumulator
+        builder.eval(folder.accumulator)
     }
 
     fn recompute_quotient(
