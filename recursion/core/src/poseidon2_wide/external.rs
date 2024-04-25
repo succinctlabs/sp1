@@ -1,6 +1,6 @@
 use core::borrow::Borrow;
 use core::mem::size_of;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -238,6 +238,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
     builder: &mut AB,
     cols: &Poseidon2WideCols<AB::Var>,
     r: usize,
+    is_real: AB::Var,
 ) {
     let round_cols = cols.external_rounds[r];
 
@@ -248,7 +249,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
         r + NUM_INTERNAL_ROUNDS
     };
     let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-        round_cols.state[i].into() + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][i])
+        round_cols.state[i].into() + is_real * AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
     });
 
     // Apply the sboxes.
@@ -279,7 +280,11 @@ fn eval_external_round<AB: SP1AirBuilder>(
     }
 }
 
-fn eval_internal_rounds<AB: SP1AirBuilder>(builder: &mut AB, cols: &Poseidon2WideCols<AB::Var>) {
+fn eval_internal_rounds<AB: SP1AirBuilder>(
+    builder: &mut AB,
+    cols: &Poseidon2WideCols<AB::Var>,
+    is_real: AB::Var,
+) {
     let round_cols = &cols.internal_rounds;
     let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| round_cols.state[i].into());
     for r in 0..NUM_INTERNAL_ROUNDS {
@@ -289,7 +294,7 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(builder: &mut AB, cols: &Poseidon2Wid
             state[0].clone()
         } else {
             round_cols.s0[r - 1].into()
-        } + AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+        } + is_real * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
         let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
         builder.assert_eq(round_cols.sbox_deg_3[r], sbox_deg_3);
@@ -339,7 +344,7 @@ where
             initial_round_output
         };
         for i in 0..WIDTH {
-            builder.assert_eq(
+            builder.when(cols.is_real).assert_eq(
                 cols.external_rounds[0].state[i],
                 initial_round_output[i].clone(),
             );
@@ -347,15 +352,15 @@ where
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            eval_external_round(builder, cols, r);
+            eval_external_round(builder, cols, r, cols.is_real);
         }
 
         // Apply the internal rounds.
-        eval_internal_rounds(builder, cols);
+        eval_internal_rounds(builder, cols, cols.is_real);
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, cols, r);
+            eval_external_round(builder, cols, r, cols.is_real);
         }
 
         // Evaluate all of the memory.
@@ -448,18 +453,18 @@ mod tests {
 
     /// A test proving 2^10 permuations
     #[test]
-    fn prove_babybear() {
+    fn poseidon2_wide_prove_babybear() {
         let config = BabyBearPoseidon2Inner::new();
         let mut challenger = config.challenger();
 
         let chip = Poseidon2WideChip;
 
-        let test_inputs = (0..1024)
+        let test_inputs = (0..1000)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
             .collect_vec();
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for input in test_inputs.iter().cloned() {
+        for input in test_inputs {
             input_exec.poseidon2_events.push(Poseidon2Event { input });
         }
         let trace: RowMajorMatrix<BabyBear> =
