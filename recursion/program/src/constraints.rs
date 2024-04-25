@@ -170,7 +170,7 @@ mod tests {
         },
         utils::BabyBearPoseidon2,
     };
-    use sp1_recursion_core::runtime::Runtime;
+    use sp1_recursion_core::{runtime::Runtime, stark::utils::debug_constraints};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
@@ -358,5 +358,7 @@ mod tests {
             "The program executed successfully, number of cycles: {}",
             runtime.clk.as_canonical_u32() / 4
         );
+
+        debug_constraints(program, runtime.record);
     }
 }
