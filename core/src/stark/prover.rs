@@ -248,7 +248,6 @@ where
             .map(|degree| log2_strict_usize(*degree))
             .collect::<Vec<_>>();
 
-        // TODO: read dynamically from Chip.
         let log_quotient_degrees = chips
             .iter()
             .map(|chip| chip.log_quotient_degree())
