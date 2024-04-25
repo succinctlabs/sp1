@@ -617,6 +617,7 @@ pub mod tests {
     use crate::utils;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
+    use crate::utils::tests::TENDERMINT_BENCHMARK_ELF;
 
     #[test]
     fn test_simple_prove() {
@@ -757,6 +758,14 @@ pub mod tests {
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    #[ignore]
+    fn test_tendermint_benchmark_prove() {
+        setup_logger();
+        let program = Program::from(TENDERMINT_BENCHMARK_ELF);
         run_test(program).unwrap();
     }
 
