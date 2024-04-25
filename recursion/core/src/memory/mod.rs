@@ -19,6 +19,11 @@ pub struct MemoryRecord<F> {
     _private: (),
 }
 
+/// Computes the difference between the current memory access timestamp and the previous one's.
+/// 
+/// This function will compute the difference minus one and then decompose the result into a 16 bit 
+/// limb and 12 bit limb.  The minus one is needed since a difference of zero is not valid.  Also,
+/// we assume that the clk/timestamp value will always be less than 2^28.
 fn compute_diff<F: PrimeField32>(timestamp: F, prev_timestamp: F) -> (F, F) {
     let diff_minus_one = timestamp.as_canonical_u32() - prev_timestamp.as_canonical_u32() - 1;
     let diff_16bit_limb = diff_minus_one & 0xffff;
@@ -94,6 +99,7 @@ impl<T: PrimeField32> MemoryReadSingleCols<T> {
 }
 
 impl<F: PrimeField32, TValue> MemoryAccessCols<F, TValue> {
+    /// Populate the memory access columns.
     pub fn populate(&mut self, value: TValue, record: &MemoryRecord<F>) {
         self.value = value;
         self.prev_timestamp = record.prev_timestamp;

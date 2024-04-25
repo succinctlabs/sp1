@@ -25,8 +25,6 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
     }
 
     fn generate_preprocessed_trace(&self, _program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        // TODO: We should be able to make this a constant. Also, trace / map should be separate.
-        // Since we only need the trace and not the map, we can just pass 0 as the shard.
         let (trace, _) = Self::trace_and_map();
 
         Some(trace)

@@ -48,15 +48,15 @@ impl<F: Field> RangeCheckChip<F> {
         // Record all the necessary operations for each range check lookup.
         let opcodes = RangeCheckOpcode::all();
 
-        // Iterate over all options for pairs of bytes `a` and `b`.
+        // Iterate over all U16 values.
         for (row_index, val) in (0..=u16::MAX).enumerate() {
             let col: &mut RangeCheckPreprocessedCols<F> =
                 initial_trace.row_mut(row_index).borrow_mut();
 
-            // Set the values of `b` and `c`.
+            // Set the u16 value.
             col.value_u16 = F::from_canonical_u16(val);
 
-            // Iterate over all operations for results and updating the table map.
+            // Iterate over all range check operations to update col values and the table map.
             for (i, opcode) in opcodes.iter().enumerate() {
                 if *opcode == RangeCheckOpcode::U12 {
                     col.u12_out_range = F::from_bool(val > 0xFFF);

@@ -59,7 +59,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         self.last_memory_record
             .append(&mut other.last_memory_record);
 
-        // Merge the byte lookups.
+        // Merge the range check lookups.
         for (range_check_event, count) in std::mem::take(&mut other.range_check_events).into_iter()
         {
             *self

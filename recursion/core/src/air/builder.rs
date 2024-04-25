@@ -95,12 +95,14 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
         ));
     }
 
+    /// Verifies that the memory access happends after the previous memory access.
     fn eval_memory_access_timestamp<E: Into<Self::Expr> + Clone>(
         &mut self,
         timestamp: impl Into<Self::Expr>,
         mem_access: &impl MemoryAccessTimestampCols<E>,
         is_real: impl Into<Self::Expr> + Clone,
     ) {
+        // We substract one since a diff of zero is not valid.
         let diff_minus_one: Self::Expr =
             timestamp.into() - mem_access.prev_timestamp().clone().into() - Self::Expr::one();
 
@@ -157,9 +159,8 @@ pub trait RangeCheckAirBuilder: BaseAirBuilder {
         val: impl Into<Self::Expr>,
         is_real: impl Into<Self::Expr>,
     ) {
-        let values = vec![range_check_opcode.into(), val.into()];
         self.send(AirInteraction::new(
-            values,
+            vec![range_check_opcode.into(), val.into()],
             is_real.into(),
             InteractionKind::Range,
         ));
@@ -172,9 +173,8 @@ pub trait RangeCheckAirBuilder: BaseAirBuilder {
         val: impl Into<Self::Expr>,
         is_real: impl Into<Self::Expr>,
     ) {
-        let values = vec![range_check_opcode.into(), val.into()];
         self.receive(AirInteraction::new(
-            values,
+            vec![range_check_opcode.into(), val.into()],
             is_real.into(),
             InteractionKind::Range,
         ));
