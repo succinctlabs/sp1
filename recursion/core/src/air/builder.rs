@@ -2,7 +2,7 @@ use crate::cpu::{InstructionCols, OpcodeSelectorCols};
 use crate::memory::{MemoryAccessTimestampCols, MemoryCols};
 use crate::range_check::RangeCheckOpcode;
 use core::iter::{once, repeat};
-use p3_air::AirBuilderWithPublicValues;
+use p3_air::{AirBuilder, AirBuilderWithPublicValues};
 use p3_field::AbstractField;
 use sp1_core::{
     air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
@@ -122,17 +122,17 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
     /// the clk is within 24 bits.
     fn eval_range_check_28bits(
         &mut self,
-        _value: impl Into<Self::Expr>,
+        value: impl Into<Self::Expr>,
         limb_16: impl Into<Self::Expr> + Clone,
         limb_12: impl Into<Self::Expr> + Clone,
         is_real: impl Into<Self::Expr> + Clone,
     ) {
-        // TODO: Verify that value = limb_16 + limb_8 * 2^16.
-        // self.when(is_real.clone()).assert_eq(
-        //     value,
-        //     limb_16.clone().into()
-        //         + limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
-        // );
+        // Verify that value = limb_16 + limb_8 * 2^16.
+        self.when(is_real.clone()).assert_eq(
+            value,
+            limb_16.clone().into()
+                + limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+        );
 
         // Send the range checks for the limbs.
         self.send_range_check(
