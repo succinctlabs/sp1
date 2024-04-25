@@ -69,7 +69,6 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::TRAP => self.is_trap = F::one(),
             // TODO: FIX
             Opcode::Ext2Felt => self.is_noop = F::one(),
-            Opcode::Poseidon2Perm => self.is_noop = F::one(),
             Opcode::HintBits => self.is_noop = F::one(),
             Opcode::PrintF => self.is_noop = F::one(),
             Opcode::PrintE => self.is_noop = F::one(),

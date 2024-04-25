@@ -9,7 +9,7 @@ use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
 #[allow(clippy::manual_non_exhaustive)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MemoryRecord<F> {
     pub addr: F,
     pub value: Block<F>,

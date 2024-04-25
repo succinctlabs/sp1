@@ -11,6 +11,10 @@ use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
+use crate::memory::MemoryCols;
+use crate::memory::MemoryReadSingleCols;
+use crate::memory::MemoryReadWriteSingleCols;
+
 use crate::poseidon2_wide::{external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
@@ -32,8 +36,8 @@ pub struct Poseidon2WideChip;
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2WideCols<T> {
-    pub input: [T; WIDTH],
-    pub output: [T; WIDTH],
+    pub input: [MemoryReadSingleCols<T>; WIDTH],
+    pub output: [MemoryReadWriteSingleCols<T>; WIDTH],
     external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
     internal_rounds: Poseidon2WideInternalRoundsCols<T>,
 }
@@ -82,7 +86,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
 
             // Apply the initial round.
-            cols.input = event.input;
+            // cols.input = event.input;
+            for i in 0..WIDTH {
+                cols.input[i].populate(&event.input_records[i]);
+            }
             cols.external_rounds[0].state = event.input;
             external_linear_layer(&mut cols.external_rounds[0].state);
 
@@ -104,10 +111,16 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
                 let next_state = populate_external_round(cols, r);
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
-                    cols.output = next_state;
+                    // DO nothing.
+                    // cols.output = next_state;
                 } else {
                     cols.external_rounds[r + 1].state = next_state;
                 }
+            }
+
+            // TODO: check that result_records is consistent with cols.output
+            for i in 0..WIDTH {
+                cols.output[i].populate(&event.result_records[i]);
             }
 
             rows.push(row);
@@ -244,7 +257,8 @@ fn eval_external_round<AB: SP1AirBuilder>(
     let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
         &cols.internal_rounds.state
     } else if r == NUM_EXTERNAL_ROUNDS - 1 {
-        &cols.output
+        &core::array::from_fn(|i| *cols.output[i].value())
+        // &output_values
     } else {
         &cols.external_rounds[r + 1].state
     };
@@ -308,7 +322,7 @@ where
         // Apply the initial round.
         let initial_round_output = {
             let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| cols.input[i].into());
+                core::array::from_fn(|i| (*cols.input[i].value()).into());
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };

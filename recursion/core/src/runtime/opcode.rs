@@ -32,7 +32,7 @@ pub enum Opcode {
     TRAP = 30,
 
     // Hash instructions.
-    Poseidon2Perm = 31,
+    Poseidon2Compress = 39,
 
     // Bit instructions.
     HintBits = 32,
@@ -44,7 +44,6 @@ pub enum Opcode {
     FRIFold = 36,
     HintLen = 37,
     Hint = 38,
-    Poseidon2Compress = 39,
     BNEINC = 40,
     Commit = 41,
     LessThanF = 42,

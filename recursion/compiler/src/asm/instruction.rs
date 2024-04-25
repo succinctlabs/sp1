@@ -715,14 +715,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::Poseidon2Permute(dst, src) => Instruction::new(
-                Opcode::Poseidon2Perm,
+                Opcode::Poseidon2Compress,
                 i32_f(dst),
                 i32_f_arr(src),
-                f_u32(F::zero()),
-                F::zero(),
+                i32_f_arr(src),
+                F::from_canonical_u32(8),
                 F::zero(),
                 false,
-                true,
+                false,
                 "".to_string(),
             ),
             AsmInstruction::PrintF(dst) => Instruction::new(

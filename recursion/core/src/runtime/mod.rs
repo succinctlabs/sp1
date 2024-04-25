@@ -218,6 +218,17 @@ where
         }
     }
 
+    // Peek at the memory without touching the record.
+    fn peek(&mut self, addr: F) -> (F, Block<F>) {
+        (
+            addr,
+            self.memory
+                .get(&(addr.as_canonical_u32() as usize))
+                .unwrap()
+                .value,
+        )
+    }
+
     // Write to uninitialized memory.
     fn mw_uninitialized(&mut self, addr: usize, value: Block<F>) {
         // Write it to uninitialized memory for creating MemoryInit table later.
@@ -568,74 +579,63 @@ where
                     self.mw_uninitialized(dst + 3, Block::from(b_val[3]));
                     (a, b, c) = (a_val, b_val, c_val);
                 }
-                Opcode::Poseidon2Perm => {
-                    self.nb_poseidons += 1;
-                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
-
-                    // Get the dst array ptr.
-                    let dst = a_val[0].as_canonical_u32() as usize;
-                    // Get the src array ptr.
-                    let src = b_val[0].as_canonical_u32() as usize;
-
-                    let array: [_; PERMUTATION_WIDTH] = (src..(src + PERMUTATION_WIDTH))
-                        .map(|addr| self.memory.entry(addr).or_default().value[0])
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-
-                    // Perform the permutation.
-                    let result = self.perm.as_ref().unwrap().permute(array);
-
-                    // Write the value back to the array at ptr.
-                    // TODO: fix the timestamp as part of integrating the precompile if needed.
-                    for (i, value) in result.iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value[0] = *value;
-                    }
-
-                    self.record
-                        .poseidon2_events
-                        .push(Poseidon2Event { input: array });
-
-                    (a, b, c) = (a_val, b_val, c_val);
-                }
                 Opcode::Poseidon2Compress => {
                     self.nb_poseidons += 1;
 
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Get the dst array ptr.
-                    let dst = a_val[0].as_canonical_u32() as usize;
+                    let dst = a_val[0];
                     // Get the src array ptr.
-                    let left = b_val[0].as_canonical_u32() as usize;
-                    let right = c_val[0].as_canonical_u32() as usize;
+                    let left = b_val[0];
+                    let right = c_val[0] + instruction.offset_imm;
 
-                    let left_array: [_; PERMUTATION_WIDTH / 2] = (left..left
-                        + PERMUTATION_WIDTH / 2)
-                        .map(|addr| self.memory.entry(addr).or_default().value[0])
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    let right_array: [_; PERMUTATION_WIDTH / 2] = (right
-                        ..right + PERMUTATION_WIDTH / 2)
-                        .map(|addr| self.memory.entry(addr).or_default().value[0])
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
+                    let timestamp = self.clk;
+
+                    let mut left_records = vec![];
+                    let mut right_records = vec![];
+                    let mut left_array: [F; PERMUTATION_WIDTH / 2] =
+                        [F::zero(); PERMUTATION_WIDTH / 2];
+                    let mut right_array: [F; PERMUTATION_WIDTH / 2] =
+                        [F::zero(); PERMUTATION_WIDTH / 2];
+
+                    for i in 0..PERMUTATION_WIDTH / 2 {
+                        let f_i = F::from_canonical_u32(i as u32);
+                        let left_val = self.mr(left + f_i, timestamp);
+                        let right_val = self.mr(right + f_i, timestamp);
+                        left_array[i] = left_val.1 .0[0];
+                        right_array[i] = right_val.1 .0[0];
+                        left_records.push(left_val.0);
+                        right_records.push(right_val.0);
+                    }
                     let array: [_; PERMUTATION_WIDTH] =
                         [left_array, right_array].concat().try_into().unwrap();
+                    let input_records: [_; PERMUTATION_WIDTH] =
+                        [left_records, right_records].concat().try_into().unwrap();
 
                     // Perform the permutation.
                     let result = self.perm.as_ref().unwrap().permute(array);
 
                     // Write the value back to the array at ptr.
-                    // TODO: fix the timestamp as part of integrating the precompile if needed.
+                    let mut result_records = vec![];
                     for (i, value) in result.iter().enumerate() {
-                        self.memory.entry(dst + i).or_default().value[0] = *value;
+                        result_records.push(self.mw(
+                            dst + F::from_canonical_usize(i),
+                            Block::from(*value),
+                            timestamp + F::one(),
+                        ));
                     }
 
-                    self.record
-                        .poseidon2_events
-                        .push(Poseidon2Event { input: array });
+                    self.record.poseidon2_events.push(Poseidon2Event {
+                        clk: timestamp,
+                        dst,
+                        left,
+                        right,
+                        input: array,
+                        result_array: result,
+                        input_records,
+                        result_records: result_records.try_into().unwrap(),
+                    });
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {
@@ -718,14 +718,14 @@ where
                     // Calculate the quotient and update the values
                     let quotient = (-p_at_z + p_at_x) / (-z + x);
 
-                    // TODO: these will have to be changed to be "peek", because we write to them later
                     // Modify the ro and alpha pow values.
-                    let (_, alpha_pow_at_log_height) =
-                        self.mr(alpha_pow_ptr + log_height, timestamp);
+
+                    // First we peek to get the current value.
+                    let (alpha_pow_ptr_plus_log_height, alpha_pow_at_log_height) =
+                        self.peek(alpha_pow_ptr + log_height);
                     let alpha_pow_at_log_height: EF = alpha_pow_at_log_height.ext();
 
-                    // TODO: change this to "peek", because we will write it later.
-                    let (_, ro_at_log_height) = self.mr(ro_ptr + log_height, timestamp);
+                    let (ro_ptr_plus_log_height, ro_at_log_height) = self.peek(ro_ptr + log_height);
                     let ro_at_log_height: EF = ro_at_log_height.ext();
 
                     let new_ro_at_log_height =
@@ -733,13 +733,13 @@ where
                     let new_alpha_pow_at_log_height = alpha_pow_at_log_height * alpha;
 
                     let ro_at_log_height_record = self.mw(
-                        ro_ptr + log_height,
+                        ro_ptr_plus_log_height,
                         Block::from(new_ro_at_log_height.as_base_slice()),
                         timestamp,
                     );
 
                     let alpha_pow_at_log_height_record = self.mw(
-                        alpha_pow_ptr + log_height,
+                        alpha_pow_ptr_plus_log_height,
                         Block::from(new_alpha_pow_at_log_height.as_base_slice()),
                         timestamp,
                     );
@@ -765,9 +765,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Commit => {
-                    let a_val = self.mr_cpu(self.fp + instruction.op_a, MemoryAccessPosition::A);
-                    let b_val = Block::<F>::default();
-                    let c_val = Block::<F>::default();
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // Ensure that writes are in order (index should == public_values.len)
                     let index = b_val[0].as_canonical_u32() as usize;
