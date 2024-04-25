@@ -1,11 +1,11 @@
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
 use core::mem::size_of;
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{MachineAir, SP1AirBuilder};
+use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
@@ -345,12 +345,9 @@ where
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
-        for i in 0..WIDTH {
-            builder.when(cols.is_real).assert_eq(
-                cols.external_rounds[0].state[i],
-                initial_round_output[i].clone(),
-            );
-        }
+        builder
+            .when(cols.is_real)
+            .assert_all_eq(cols.external_rounds[0].state, initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {

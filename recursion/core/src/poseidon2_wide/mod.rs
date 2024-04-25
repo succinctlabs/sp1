@@ -2,12 +2,13 @@
 
 use crate::poseidon2_wide::external::WIDTH;
 use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
+use p3_field::AbstractField;
 use p3_field::PrimeField32;
-use p3_field::{AbstractField, Field};
 
 pub mod external;
 
 pub use external::Poseidon2WideChip;
+use p3_poseidon2::matmul_internal;
 
 #[derive(Debug, Clone)]
 pub struct Poseidon2Event<F> {
@@ -31,17 +32,6 @@ where
     x[2] = t01233 + t23; // x[0] + x[1] + 2*x[2] + 3*x[3]
 }
 
-// TODO: Make this public inside Plonky3 and import directly.
-pub fn matmul_internal<F: Field, AF: AbstractField<F = F>, const WIDTH: usize>(
-    state: &mut [AF; WIDTH],
-    mat_internal_diag_m_1: [F; WIDTH],
-) {
-    let sum: AF = state.iter().cloned().sum();
-    for i in 0..WIDTH {
-        state[i] *= AF::from_f(mat_internal_diag_m_1[i]);
-        state[i] += sum.clone();
-    }
-}
 pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) {
     for j in (0..WIDTH).step_by(4) {
         apply_m_4(&mut state[j..j + 4]);
