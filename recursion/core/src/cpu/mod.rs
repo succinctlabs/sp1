@@ -1,6 +1,5 @@
 pub mod air;
 pub mod columns;
-pub mod trace;
 
 use crate::air::Block;
 pub use crate::{memory::MemoryRecord, runtime::Instruction};
@@ -20,6 +19,7 @@ pub struct CpuEvent<F> {
     pub b_record: Option<MemoryRecord<F>>,
     pub c: Block<F>,
     pub c_record: Option<MemoryRecord<F>>,
+    pub memory_record: Option<MemoryRecord<F>>,
 }
 
 #[derive(Default)]

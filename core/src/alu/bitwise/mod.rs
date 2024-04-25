@@ -162,11 +162,6 @@ where
         builder.assert_bool(local.is_or);
         builder.assert_bool(local.is_and);
         builder.assert_bool(is_real);
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
-        );
     }
 }
 

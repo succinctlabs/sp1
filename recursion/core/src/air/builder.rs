@@ -1,13 +1,13 @@
+use crate::cpu::{InstructionCols, OpcodeSelectorCols};
+use crate::memory::{MemoryAccessTimestampCols, MemoryCols};
+use crate::range_check::RangeCheckOpcode;
 use core::iter::{once, repeat};
-use p3_air::{AirBuilder, AirBuilderWithPublicValues};
+use p3_air::AirBuilderWithPublicValues;
 use p3_field::AbstractField;
 use sp1_core::{
     air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
     lookup::InteractionKind,
 };
-
-use crate::memory::{MemoryAccessTimestampCols, MemoryCols};
-use crate::range_check::RangeCheckOpcode;
 
 use super::Block;
 /// A trait which contains all helper methods for building SP1 recursion machine AIRs.
@@ -122,12 +122,12 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
     /// the clk is within 24 bits.
     fn eval_range_check_28bits(
         &mut self,
-        value: impl Into<Self::Expr>,
+        _value: impl Into<Self::Expr>,
         limb_16: impl Into<Self::Expr> + Clone,
         limb_12: impl Into<Self::Expr> + Clone,
         is_real: impl Into<Self::Expr> + Clone,
     ) {
-        // Verify that value = limb_16 + limb_8 * 2^16.
+        // TODO: Verify that value = limb_16 + limb_8 * 2^16.
         // self.when(is_real.clone()).assert_eq(
         //     value,
         //     limb_16.clone().into()
@@ -177,6 +177,72 @@ pub trait RangeCheckAirBuilder: BaseAirBuilder {
             values,
             is_real.into(),
             InteractionKind::Range,
+        ));
+    }
+
+    fn send_program<E: Into<Self::Expr> + Copy>(
+        &mut self,
+        pc: impl Into<Self::Expr>,
+        instruction: InstructionCols<E>,
+        selectors: OpcodeSelectorCols<E>,
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let program_interaction_vals = once(pc.into())
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .collect::<Vec<_>>();
+        self.send(AirInteraction::new(
+            program_interaction_vals,
+            is_real.into(),
+            InteractionKind::Program,
+        ));
+    }
+
+    fn receive_program<E: Into<Self::Expr> + Copy>(
+        &mut self,
+        pc: impl Into<Self::Expr>,
+        instruction: InstructionCols<E>,
+        selectors: OpcodeSelectorCols<E>,
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let program_interaction_vals = once(pc.into())
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
+            .collect::<Vec<_>>();
+        self.receive(AirInteraction::new(
+            program_interaction_vals,
+            is_real.into(),
+            InteractionKind::Program,
+        ));
+    }
+
+    fn send_table<E: Into<Self::Expr> + Clone>(
+        &mut self,
+        opcode: impl Into<Self::Expr>,
+        table: &[E],
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let table_interaction_vals = table.iter().map(|x| x.clone().into());
+        let values = once(opcode.into()).chain(table_interaction_vals).collect();
+        self.send(AirInteraction::new(
+            values,
+            is_real.into(),
+            InteractionKind::Syscall,
+        ));
+    }
+
+    fn receive_table<E: Into<Self::Expr> + Clone>(
+        &mut self,
+        opcode: impl Into<Self::Expr>,
+        table: &[E],
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let table_interaction_vals = table.iter().map(|x| x.clone().into());
+        let values = once(opcode.into()).chain(table_interaction_vals).collect();
+        self.receive(AirInteraction::new(
+            values,
+            is_real.into(),
+            InteractionKind::Syscall,
         ));
     }
 }

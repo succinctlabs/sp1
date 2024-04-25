@@ -4,7 +4,7 @@ use core::fmt;
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::Opcode;
+use sp1_recursion_core::runtime::{Opcode, PERMUTATION_WIDTH};
 
 use super::A0;
 use crate::util::canonical_i32_to_field;
@@ -610,7 +610,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBNE,
+                    Opcode::BNE,
                     i32_f(lhs),
                     i32_f_arr(rhs),
                     f_u32(offset),
@@ -625,7 +625,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBNE,
+                    Opcode::BNE,
                     i32_f(lhs),
                     rhs.as_base_slice().try_into().unwrap(),
                     f_u32(offset),
@@ -640,7 +640,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBEQ,
+                    Opcode::BEQ,
                     i32_f(lhs),
                     i32_f_arr(rhs),
                     f_u32(offset),
@@ -655,7 +655,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 let offset =
                     F::from_canonical_usize(label_to_pc[&label]) - F::from_canonical_usize(pc);
                 Instruction::new(
-                    Opcode::EBEQ,
+                    Opcode::BEQ,
                     i32_f(lhs),
                     rhs.as_base_slice().try_into().unwrap(),
                     f_u32(offset),
@@ -676,7 +676,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                     f_u32(offset),
                     F::zero(),
                     F::zero(),
-                    false,
+                    true,
                     true,
                     "".to_string(),
                 )
@@ -689,7 +689,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 F::zero(),
                 F::zero(),
                 false,
-                false,
+                true,
                 "".to_string(),
             ),
             AsmInstruction::Trap => Instruction::new(
@@ -715,14 +715,14 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 "".to_string(),
             ),
             AsmInstruction::Poseidon2Permute(dst, src) => Instruction::new(
-                Opcode::Poseidon2Perm,
+                Opcode::Poseidon2Compress,
                 i32_f(dst),
                 i32_f_arr(src),
-                f_u32(F::zero()),
-                F::zero(),
+                i32_f_arr(src),
+                F::from_canonical_usize(PERMUTATION_WIDTH / 2),
                 F::zero(),
                 false,
-                true,
+                false,
                 "".to_string(),
             ),
             AsmInstruction::PrintF(dst) => Instruction::new(

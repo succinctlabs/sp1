@@ -20,8 +20,8 @@ pub struct ExecutionRecord<F: Default> {
     pub fri_fold_events: Vec<FriFoldEvent<F>>,
     pub range_check_events: BTreeMap<RangeCheckEvent, usize>,
 
-    // (address)
-    pub first_memory_record: Vec<F>,
+    // (address, value)
+    pub first_memory_record: Vec<(F, Block<F>)>,
 
     // (address, last_timestamp, last_value)
     pub last_memory_record: Vec<(F, F, Block<F>)>,
@@ -31,9 +31,9 @@ pub struct ExecutionRecord<F: Default> {
 }
 
 impl<F: Default> ExecutionRecord<F> {
-    pub fn add_range_check_events(&mut self, events: Vec<RangeCheckEvent>) {
+    pub fn add_range_check_events(&mut self, events: &[RangeCheckEvent]) {
         for event in events {
-            *self.range_check_events.entry(event).or_insert(0) += 1;
+            *self.range_check_events.entry(*event).or_insert(0) += 1;
         }
     }
 }
@@ -51,6 +51,7 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
         HashMap::new()
     }
 
+    // NOTE: This should be unused.
     fn append(&mut self, other: &mut Self) {
         self.cpu_events.append(&mut other.cpu_events);
         self.first_memory_record

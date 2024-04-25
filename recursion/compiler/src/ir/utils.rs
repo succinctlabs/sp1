@@ -191,6 +191,13 @@ impl<C: Config> Builder<C> {
         self.eval(res)
     }
 
+    pub fn felts2ext(&mut self, felts: &[Felt<C::F>]) -> Ext<C::F, C::EF> {
+        assert_eq!(felts.len(), 4);
+        let out: Ext<C::F, C::EF> = self.uninit();
+        self.push(DslIr::CircuitFelts2Ext(felts.try_into().unwrap(), out));
+        out
+    }
+
     /// Converts an ext to a slice of felts.
     pub fn ext2felt(&mut self, value: Ext<C::F, C::EF>) -> Array<C, Felt<C::F>> {
         let result = self.dyn_array(4);

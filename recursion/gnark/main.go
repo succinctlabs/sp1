@@ -78,6 +78,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
 		// Stop the profiler.
 		if *buildGroth16ProfileFlag {

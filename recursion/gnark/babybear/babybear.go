@@ -12,9 +12,11 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/std/math/emulated"
+	"github.com/consensys/gnark/std/rangecheck"
 )
 
 var MODULUS = new(big.Int).SetUint64(2013265921)
+var W = new(big.Int).SetUint64(11)
 
 type Params struct{}
 
@@ -26,6 +28,7 @@ func (fp Params) NumElmsPerBN254Elm() uint { return 8 }
 
 func init() {
 	solver.RegisterHint(InvEHint)
+	solver.RegisterHint(ReduceHint)
 }
 
 type Variable struct {
@@ -37,8 +40,9 @@ type ExtensionVariable struct {
 }
 
 type Chip struct {
-	api   frontend.API
-	field *emulated.Field[Params]
+	api          frontend.API
+	field        *emulated.Field[Params]
+	rangeChecker frontend.Rangechecker
 }
 
 func NewChip(api frontend.API) *Chip {
@@ -47,8 +51,9 @@ func NewChip(api frontend.API) *Chip {
 		panic(err)
 	}
 	return &Chip{
-		api:   api,
-		field: field,
+		api:          api,
+		field:        field,
+		rangeChecker: rangecheck.New(api),
 	}
 }
 
@@ -67,6 +72,10 @@ func NewE(value []string) *ExtensionVariable {
 	return &ExtensionVariable{Value: [4]*Variable{a, b, c, d}}
 }
 
+func Felts2Ext(a, b, c, d *Variable) *ExtensionVariable {
+	return &ExtensionVariable{Value: [4]*Variable{a, b, c, d}}
+}
+
 func (c *Chip) AddF(a, b *Variable) *Variable {
 	return &Variable{
 		Value: c.field.Add(a.Value, b.Value),
@@ -81,7 +90,7 @@ func (c *Chip) SubF(a, b *Variable) *Variable {
 
 func (c *Chip) MulF(a, b *Variable) *Variable {
 	return &Variable{
-		Value: c.field.Mul(a.Value, b.Value),
+		Value: c.field.MulMod(a.Value, b.Value),
 	}
 }
 
@@ -156,25 +165,53 @@ func (c *Chip) SubE(a, b *ExtensionVariable) *ExtensionVariable {
 }
 
 func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
-	w := NewF("11")
-	v := [4]*Variable{
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
-		NewF("0"),
+	a1 := c.field.Reduce(a.Value[0].Value).Limbs[0]
+	a2 := c.field.Reduce(a.Value[1].Value).Limbs[0]
+	a3 := c.field.Reduce(a.Value[2].Value).Limbs[0]
+	a4 := c.field.Reduce(a.Value[3].Value).Limbs[0]
+
+	b1 := c.field.Reduce(b.Value[0].Value).Limbs[0]
+	b2 := c.field.Reduce(b.Value[1].Value).Limbs[0]
+	b3 := c.field.Reduce(b.Value[2].Value).Limbs[0]
+	b4 := c.field.Reduce(b.Value[3].Value).Limbs[0]
+
+	in1 := [4]frontend.Variable{
+		a1,
+		a2,
+		a3,
+		a4,
+	}
+	in2 := [4]frontend.Variable{
+		b1,
+		b2,
+		b3,
+		b4,
 	}
 
+	v2 := [4]frontend.Variable{
+		"0",
+		"0",
+		"0",
+		"0",
+	}
+
+	eleven := frontend.Variable("11")
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
-				v[i+j-4] = c.AddF(v[i+j-4], c.MulF(c.MulF(a.Value[i], b.Value[j]), w))
+				v2[i+j-4] = c.api.Add(v2[i+j-4], c.api.Mul(c.api.Mul(in1[i], in2[j]), eleven))
 			} else {
-				v[i+j] = c.AddF(v[i+j], c.MulF(a.Value[i], b.Value[j]))
+				v2[i+j] = c.api.Add(v2[i+j], c.api.Mul(in1[i], in2[j]))
 			}
 		}
 	}
 
-	return &ExtensionVariable{Value: v}
+	x := c.ReduceFast(v2[0])
+	y := c.ReduceFast(v2[1])
+	z := c.ReduceFast(v2[2])
+	e := c.ReduceFast(v2[3])
+
+	return &ExtensionVariable{Value: [4]*Variable{x, y, z, e}}
 }
 
 func (c *Chip) DivE(a, b *ExtensionVariable) *ExtensionVariable {
@@ -298,4 +335,40 @@ func (c *Chip) Reduce(in *Variable) *Variable {
 	return &Variable{
 		Value: c.field.Reduce(in.Value),
 	}
+}
+
+func (p *Chip) ReduceFast(x frontend.Variable) *Variable {
+	return p.ReduceWithMaxBits(x, uint64(80))
+}
+
+func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) *Variable {
+	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
+	if err != nil {
+		panic(err)
+	}
+
+	quotient := result[0]
+	p.rangeChecker.Check(quotient, int(maxNbBits))
+
+	p.rangeChecker.Check(result[1], int(maxNbBits))
+	remainder := p.field.NewElement(result[1])
+
+	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, MODULUS), result[1]))
+
+	return &Variable{
+		Value: remainder,
+	}
+}
+
+// The hint used to compute Reduce.
+func ReduceHint(_ *big.Int, inputs []*big.Int, results []*big.Int) error {
+	if len(inputs) != 1 {
+		panic("ReduceHint expects 1 input operand")
+	}
+	input := inputs[0]
+	quotient := new(big.Int).Div(input, MODULUS)
+	remainder := new(big.Int).Rem(input, MODULUS)
+	results[0] = quotient
+	results[1] = remainder
+	return nil
 }

@@ -3,6 +3,7 @@ use std::hash::Hash;
 use p3_air::{Air, BaseAir, PairBuilder};
 use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
+use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
 use crate::{
@@ -10,7 +11,10 @@ use crate::{
     lookup::{Interaction, InteractionBuilder, InteractionKind},
 };
 
-use super::{eval_permutation_constraints, generate_permutation_trace, permutation_trace_width};
+use super::{
+    eval_permutation_constraints, generate_permutation_trace, permutation_trace_width,
+    PROOF_MAX_NUM_PVS,
+};
 
 /// An Air that encodes lookups based on interactions.
 pub struct Chip<F: Field, A> {
@@ -55,15 +59,20 @@ where
     /// Records the interactions and constraint degree from the air and crates a new chip.
     pub fn new(air: A) -> Self
     where
-        A: MachineAir<F> + Air<InteractionBuilder<F>>,
+        A: MachineAir<F> + Air<InteractionBuilder<F>> + Air<SymbolicAirBuilder<F>>,
     {
         // Todo: correct values
         let mut builder = InteractionBuilder::new(air.preprocessed_width(), air.width());
         air.eval(&mut builder);
         let (sends, receives) = builder.interactions();
 
-        // TODO: count constraints from the air.
-        let max_constraint_degree = 3;
+        // TODO: enable different numbers of public values.
+        let mut max_constraint_degree =
+            get_max_constraint_degree(&air, air.preprocessed_width(), PROOF_MAX_NUM_PVS);
+
+        if !sends.is_empty() || !receives.is_empty() {
+            max_constraint_degree = max_constraint_degree.max(3);
+        }
         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
 
         Self {
@@ -124,8 +133,7 @@ where
 
     #[inline]
     pub fn logup_batch_size(&self) -> usize {
-        // TODO: calculate by log_quotient_degree.
-        2
+        1 << self.log_quotient_degree
     }
 }
 

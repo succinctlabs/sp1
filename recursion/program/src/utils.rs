@@ -1,4 +1,4 @@
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_commit::{ExtensionMmcs, TwoAdicMultiplicativeCoset};
 use p3_field::extension::BinomialExtensionField;
 use p3_field::{AbstractField, Field, TwoAdicField};
@@ -24,7 +24,7 @@ type EF = <SC as StarkGenericConfig>::Challenge;
 type C = AsmConfig<F, EF>;
 type Val = BabyBear;
 type Challenge = BinomialExtensionField<Val, 4>;
-type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
+type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
 type Hash = PaddingFreeSponge<Perm, 16, 8, 8>;
 type Compress = TruncatedPermutation<Perm, 2, 8, 16>;
 type ValMmcs =
@@ -52,9 +52,10 @@ pub fn const_fri_config(
         builder.set(&mut subgroups, i, domain_value);
     }
     FriConfigVariable {
-        log_blowup: config.log_blowup,
-        num_queries: config.num_queries,
-        proof_of_work_bits: config.proof_of_work_bits,
+        log_blowup: builder.eval(BabyBear::from_canonical_usize(config.log_blowup)),
+        blowup: builder.eval(BabyBear::from_canonical_usize(1 << config.log_blowup)),
+        num_queries: builder.eval(BabyBear::from_canonical_usize(config.num_queries)),
+        proof_of_work_bits: builder.eval(BabyBear::from_canonical_usize(config.proof_of_work_bits)),
         subgroups,
         generators,
     }

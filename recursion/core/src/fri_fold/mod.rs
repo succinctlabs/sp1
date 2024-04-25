@@ -1,6 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
+use crate::runtime::Opcode;
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
@@ -71,6 +72,8 @@ pub struct FriFoldCols<T> {
     /// The values here are read and then written.
     pub alpha_pow_at_log_height: MemoryReadWriteCols<T>,
     pub ro_at_log_height: MemoryReadWriteCols<T>,
+
+    pub is_real: T,
 }
 
 impl<F> BaseAir<F> for FriFoldChip {
@@ -92,10 +95,8 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
-        output: &mut ExecutionRecord<F>,
+        _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let mut new_range_check_events = Vec::new();
-
         let trace_values = input
             .fri_fold_events
             .iter()
@@ -107,41 +108,27 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                 cols.clk = event.clk;
                 cols.m = event.m;
                 cols.input_ptr = event.input_ptr;
+                cols.is_real = F::one();
 
-                cols.z.populate(&event.z, &mut new_range_check_events);
-                cols.alpha
-                    .populate(&event.alpha, &mut new_range_check_events);
-                cols.x.populate(&event.x, &mut new_range_check_events);
-                cols.log_height
-                    .populate(&event.log_height, &mut new_range_check_events);
-                cols.mat_opening_ptr
-                    .populate(&event.mat_opening_ptr, &mut new_range_check_events);
-                cols.ps_at_z_ptr
-                    .populate(&event.ps_at_z_ptr, &mut new_range_check_events);
-                cols.alpha_pow_ptr
-                    .populate(&event.alpha_pow_ptr, &mut new_range_check_events);
-                cols.ro_ptr
-                    .populate(&event.ro_ptr, &mut new_range_check_events);
+                cols.z.populate(&event.z);
+                cols.alpha.populate(&event.alpha);
+                cols.x.populate(&event.x);
+                cols.log_height.populate(&event.log_height);
+                cols.mat_opening_ptr.populate(&event.mat_opening_ptr);
+                cols.ps_at_z_ptr.populate(&event.ps_at_z_ptr);
+                cols.alpha_pow_ptr.populate(&event.alpha_pow_ptr);
+                cols.ro_ptr.populate(&event.ro_ptr);
 
-                cols.p_at_x
-                    .populate(&event.p_at_x, &mut new_range_check_events);
-                cols.p_at_z
-                    .populate(&event.p_at_z, &mut new_range_check_events);
+                cols.p_at_x.populate(&event.p_at_x);
+                cols.p_at_z.populate(&event.p_at_z);
 
                 cols.alpha_pow_at_log_height
-                    .populate(&event.alpha_pow_at_log_height, &mut new_range_check_events);
-                cols.ro_at_log_height
-                    .populate(&event.ro_at_log_height, &mut new_range_check_events);
+                    .populate(&event.alpha_pow_at_log_height);
+                cols.ro_at_log_height.populate(&event.ro_at_log_height);
 
                 row.into_iter()
             })
             .collect_vec();
-
-        output.add_range_check_events(new_range_check_events);
-        println!(
-            "fri fold range check event len is {:?}",
-            output.range_check_events.len()
-        );
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(trace_values, NUM_FRI_FOLD_COLS);
@@ -173,72 +160,77 @@ where
         let cols = main.row_slice(0);
         let cols: &FriFoldCols<AB::Var> = (*cols).borrow();
 
-        // TODO
-        // Constrain `m`
-        // Constrain `ptr`
+        // Constraint that the operands are sent from the CPU table.
+        let operands = [
+            cols.clk.into(),
+            cols.m.into(),
+            cols.input_ptr.into(),
+            AB::Expr::zero(),
+        ];
+        builder.receive_table(Opcode::FRIFold.as_field::<AB::F>(), &operands, cols.is_real);
 
-        // Constrain read for `z` at `ptr + 1`
+        // Constrain read for `z` at `input_ptr`
+        builder.recursion_eval_memory_access(
+            cols.clk,
+            cols.input_ptr + AB::Expr::zero(),
+            &cols.z,
+            cols.is_real,
+        );
+
+        // Constrain read for `alpha`
         builder.recursion_eval_memory_access(
             cols.clk,
             cols.input_ptr + AB::Expr::one(),
-            &cols.z,
-            AB::Expr::one(),
-        );
-
-        // Constrain read for `alpha` at `ptr + 2`
-        builder.recursion_eval_memory_access(
-            cols.clk,
-            cols.input_ptr + AB::Expr::two(),
             &cols.alpha,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Constrain read for `x`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(3),
+            cols.input_ptr + AB::Expr::from_canonical_u32(2),
             &cols.x,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Constrain read for `log_height`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(4),
+            cols.input_ptr + AB::Expr::from_canonical_u32(3),
             &cols.log_height,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Constrain read for `mat_opening_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(5),
+            cols.input_ptr + AB::Expr::from_canonical_u32(4),
             &cols.mat_opening_ptr,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Constrain read for `ps_at_z_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(7),
+            cols.input_ptr + AB::Expr::from_canonical_u32(6),
             &cols.ps_at_z_ptr,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Constrain read for `alpha_pow_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(9),
-            &cols.ps_at_z_ptr,
-            AB::Expr::one(),
+            cols.input_ptr + AB::Expr::from_canonical_u32(8),
+            &cols.alpha_pow_ptr,
+            cols.is_real,
         );
 
         // Constrain read for `ro_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(11),
+            cols.input_ptr + AB::Expr::from_canonical_u32(10),
             &cols.ro_ptr,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Constrain read for `p_at_x`
@@ -246,7 +238,7 @@ where
             cols.clk,
             cols.mat_opening_ptr.access.value.into() + cols.m.into(),
             &cols.p_at_x,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Constrain read for `p_at_z`
@@ -254,7 +246,7 @@ where
             cols.clk,
             cols.ps_at_z_ptr.access.value.into() + cols.m.into(),
             &cols.p_at_z,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // Update alpha_pow_at_log_height.
@@ -263,7 +255,7 @@ where
             cols.clk,
             cols.alpha_pow_ptr.access.value.into() + cols.log_height.access.value.into(),
             &cols.alpha_pow_at_log_height,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // 2. Constrain new_value = old_value * alpha.
@@ -285,7 +277,7 @@ where
             cols.clk,
             cols.ro_ptr.access.value.into() + cols.log_height.access.value.into(),
             &cols.ro_at_log_height,
-            AB::Expr::one(),
+            cols.is_real,
         );
 
         // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,

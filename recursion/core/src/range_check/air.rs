@@ -36,11 +36,5 @@ impl<AB: SP1RecursionAirBuilder + PairBuilder> Air<AB> for RangeCheckChip<AB::F>
 
             builder.receive_range_check(field_op, local.value_u16, mult);
         }
-
-        // Dummy constraint for normalizing to degree 3.
-        builder.assert_zero(
-            local.value_u16 * local.value_u16 * local.value_u16
-                - local.value_u16 * local.value_u16 * local.value_u16,
-        );
     }
 }
