@@ -68,15 +68,15 @@ pub fn main() {
     tracing::info!("sanity check gnark test");
     Groth16Prover::test(constraints.clone(), witness.clone());
 
-    // tracing::info!("sanity check gnark build");
-    // Groth16Prover::build(
-    //     constraints.clone(),
-    //     witness.clone(),
-    //     args.build_dir.clone().into(),
-    // );
+    tracing::info!("sanity check gnark build");
+    Groth16Prover::build(
+        constraints.clone(),
+        witness.clone(),
+        args.build_dir.clone().into(),
+    );
 
-    // tracing::info!("sanity check gnark prove");
-    // let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
+    tracing::info!("sanity check gnark prove");
+    let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
@@ -88,5 +88,5 @@ pub fn main() {
     // tracing::info!("sanity check plonk bn254 prove");
     // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
-    // println!("{:?}", proof);
+    println!("{:?}", proof);
 }
