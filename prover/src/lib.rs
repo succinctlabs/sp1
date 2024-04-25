@@ -22,7 +22,6 @@ use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 pub use sp1_recursion_gnark_ffi::Groth16Proof;
-use sp1_recursion_program::commit;
 pub use types::*;
 
 use p3_baby_bear::BabyBear;
@@ -614,6 +613,7 @@ impl SP1Prover {
     pub fn wrap_plonk(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> PlonkBn254Proof {
         let mut witness = Witness::default();
         proof.write(&mut witness);
+        // TODO: write pv and vkey into witness
         PlonkBn254Prover::prove(witness, build_dir)
     }
 

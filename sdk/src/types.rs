@@ -1,13 +1,19 @@
 #![allow(unused_variables)]
 
-use std::{env, path::PathBuf, time::Duration};
+use std::{
+    env,
+    fs::File,
+    path::{Path, PathBuf},
+    time::Duration,
+};
 
 use anyhow::{Context, Result};
 use p3_field::PrimeField32;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use sp1_core::stark::ShardProof;
-use sp1_prover::{CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1Prover};
+use sp1_core::stark::{MachineProof, ShardProof};
+use sp1_core::{air::PublicValues, stark::StarkGenericConfig};
+use sp1_prover::{CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1Prover, SP1VerifyingKey};
 use tokio::{runtime, time::sleep};
 
 use crate::{
@@ -32,6 +38,18 @@ pub struct SP1ProofWithMetadata<P> {
     pub proof: P,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
+}
+
+impl<P: Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
+        bincode::serialize_into(File::create(path).expect("failed to open file"), self)
+            .map_err(Into::into)
+    }
+
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        bincode::deserialize_from(File::open(path).expect("failed to open file"))
+            .map_err(Into::into)
+    }
 }
 
 impl<P: std::fmt::Debug> std::fmt::Debug for SP1ProofWithMetadata<P> {
@@ -62,6 +80,18 @@ pub trait Prover: Send + Sync {
 
     /// Given an SP1 program and input, generate a Groth16 proof that can be verified on-chain.
     fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
+
+    /// Verify that an SP1 proof is valid given its vkey and metadata.
+    fn verify(&self, proof: SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()>;
+
+    /// Verify that a compressed SP1 proof is valid given its vkey and metadata.
+    fn verify_compressed(&self, proof: SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()>;
+
+    /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
+    fn verify_plonk(&self, proof: SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()>;
+
+    /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
+    fn verify_groth16(&self, proof: SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()>;
 }
 
 pub struct LocalProver {
@@ -143,12 +173,41 @@ impl Prover for LocalProver {
             public_values,
         })
     }
+
+    fn verify(&self, proof: SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
+        let pv_digest: [u8; 32] = Sha256::digest(proof.public_values.buffer.data).into();
+        if pv_digest != *pv.commit_digest_bytes() {
+            return Err(anyhow::anyhow!("Public values digest mismatch"));
+        }
+        let machine_proof = MachineProof {
+            shard_proofs: proof.proof,
+        };
+        let mut challenger = self.prover.core_machine.config().challenger();
+        Ok(self
+            .prover
+            .core_machine
+            .verify(&vkey.vk, &machine_proof, &mut challenger)?)
+    }
+
+    fn verify_compressed(&self, proof: SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
+
+    fn verify_groth16(&self, proof: SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
+
+    fn verify_plonk(&self, proof: SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
 }
 
 pub struct MockProver {
     pub(crate) prover: SP1Prover,
 }
 
+#[derive(Clone)]
 pub enum MockProofCode {
     Default = 0,
     Compressed = 1,
@@ -268,6 +327,7 @@ impl MockProver {
 
 pub struct NetworkProver {
     client: NetworkClient,
+    local_prover: LocalProver,
 }
 
 impl Default for NetworkProver {
@@ -280,8 +340,10 @@ impl NetworkProver {
     pub fn new() -> Self {
         let private_key = env::var("SP1_PRIVATE_KEY")
             .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
+        let local_prover = LocalProver::new();
         Self {
             client: NetworkClient::new(&private_key),
+            local_prover,
         }
     }
 
@@ -403,6 +465,22 @@ impl Prover for NetworkProver {
     }
 
     fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+        todo!()
+    }
+
+    fn verify(&self, proof: SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        self.local_prover.verify(proof, vkey)
+    }
+
+    fn verify_compressed(&self, proof: SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
+
+    fn verify_plonk(&self, proof: SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
+
+    fn verify_groth16(&self, proof: SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 }

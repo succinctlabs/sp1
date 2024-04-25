@@ -68,4 +68,36 @@ impl Prover for ProverClient {
     fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<types::SP1PlonkProof> {
         self.prover.prove_plonk(elf, stdin)
     }
+
+    fn verify(
+        &self,
+        proof: types::SP1DefaultProof,
+        vkey: &sp1_prover::SP1VerifyingKey,
+    ) -> Result<()> {
+        self.prover.verify(proof, vkey)
+    }
+
+    fn verify_compressed(
+        &self,
+        proof: types::SP1CompressedProof,
+        vkey: &sp1_prover::SP1VerifyingKey,
+    ) -> Result<()> {
+        self.prover.verify_compressed(proof, vkey)
+    }
+
+    fn verify_plonk(
+        &self,
+        proof: types::SP1PlonkProof,
+        vkey: &sp1_prover::SP1VerifyingKey,
+    ) -> Result<()> {
+        self.prover.verify_plonk(proof, vkey)
+    }
+
+    fn verify_groth16(
+        &self,
+        proof: types::SP1Groth16Proof,
+        vkey: &sp1_prover::SP1VerifyingKey,
+    ) -> Result<()> {
+        self.prover.verify_groth16(proof, vkey)
+    }
 }
