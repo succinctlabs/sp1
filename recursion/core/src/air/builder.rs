@@ -105,7 +105,7 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
             timestamp.into() - mem_access.prev_timestamp().clone().into() - Self::Expr::one();
 
         // Verify that mem_access.ts_diff = mem_access.ts_diff_16bit_limb
-        // + mem_access.ts_diff_8bit_limb * 2^16.
+        // + mem_access.ts_diff_12bit_limb * 2^16.
         self.eval_range_check_28bits(
             diff_minus_one,
             mem_access.diff_16bit_limb().clone(),
@@ -114,12 +114,12 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
         );
     }
 
-    /// Verifies the inputted value is within 24 bits.
+    /// Verifies the inputted value is within 28 bits.
     ///
-    /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 8 bit range
+    /// This method verifies that the inputted is less than 2^24 by doing a 16 bit and 12 bit range
     /// check on it's limbs.  It will also verify that the limbs are correct.  This method is needed
-    /// since the memory access timestamp check (see [Self::verify_mem_access_ts]) needs to assume
-    /// the clk is within 24 bits.
+    /// since the memory access timestamp check (see [Self::eval_memory_access_timestamp]) needs to assume
+    /// the clk is within 28 bits.
     fn eval_range_check_28bits(
         &mut self,
         value: impl Into<Self::Expr>,
@@ -127,7 +127,7 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
         limb_12: impl Into<Self::Expr> + Clone,
         is_real: impl Into<Self::Expr> + Clone,
     ) {
-        // Verify that value = limb_16 + limb_8 * 2^16.
+        // Verify that value = limb_16 + limb_12 * 2^16.
         self.when(is_real.clone()).assert_eq(
             value,
             limb_16.clone().into()
