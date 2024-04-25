@@ -1,10 +1,3 @@
-use super::columns::CpuCols;
-use crate::air::{BinomialExtensionUtils, BlockBuilder, SP1RecursionAirBuilder};
-use crate::cpu::CpuChip;
-use crate::memory::MemoryCols;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::RecursionProgram;
-use crate::runtime::D;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -31,6 +24,7 @@ use crate::air::BlockBuilder;
 use crate::air::IsExtZeroOperation;
 use crate::air::SP1RecursionAirBuilder;
 use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Opcode;
 use crate::runtime::RecursionProgram;
@@ -104,9 +98,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 ) {
                     let branch_cols = cols.opcode_specific.branch_mut();
                     let a_ext: BinomialExtension<F> =
-                        BinomialExtensionUtils::from_block(cols.a.value);
+                        BinomialExtensionUtils::from_block(*cols.a.value());
                     let b_ext: BinomialExtension<F> =
-                        BinomialExtensionUtils::from_block(cols.b.value);
+                        BinomialExtensionUtils::from_block(*cols.b.value());
 
                     let comparison_diff = match event.instruction.opcode {
                         Opcode::BEQ | Opcode::BNE => a_ext - b_ext,
@@ -186,9 +180,12 @@ where
 
         // TODO: we also need to constraint the transition of `fp`.
 
+        // Expression for the expected next_pc.
+        let mut next_pc = AB::Expr::zero();
+
         self.eval_alu(builder, local);
 
-        self.eval_branch(builder, local, next);
+        self.eval_branch(builder, local, &mut next_pc);
 
         // Constraint all the memory access.
 
@@ -309,12 +306,7 @@ impl<F> CpuChip<F> {
     }
 
     /// Eval all the branch operations.
-    fn eval_branch<AB>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        next: &CpuCols<AB::Var>,
-    ) -> AB::Expr
+    fn eval_branch<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>, next_pc: &mut AB::Expr)
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
@@ -323,14 +315,21 @@ impl<F> CpuChip<F> {
             local.selectors.is_beq + local.selectors.is_bne + local.selectors.is_bneinc;
 
         let a_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.b.value.map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
         let base_element_one = BinomialExtension::<AB::Expr>::from_base(AB::Expr::one());
 
         let mut comparison_diff = a_ext - b_ext;
-        comparison_diff += comparison_diff + base_element_one * local.selectors.is_bneinc;
 
+        // For the BNEINC operation, add one to the comparison_diff.
+        comparison_diff = builder.if_else(
+            local.selectors.is_bneinc,
+            comparison_diff + base_element_one,
+            comparison_diff,
+        );
+
+        // Verify the comparison_diff flag value.
         IsExtZeroOperation::eval(
             builder,
             comparison_diff,
@@ -338,21 +337,13 @@ impl<F> CpuChip<F> {
             local.is_real.into(),
         );
 
-        let four = AB::Expr::from_canonical_u32(4);
+        let one = AB::Expr::one();
 
-        let mut pc_diff =
-            local.selectors.is_beq * branch_cols.comparison_diff.result * local.c.value.0[0] - four;
+        let mut do_branch = local.selectors.is_beq.clone() * branch_cols.comparison_diff.result;
+        do_branch += local.selectors.is_bne.clone() * (one - branch_cols.comparison_diff.result);
+        do_branch += local.selectors.is_bneinc.clone() * (one - branch_cols.comparison_diff.result);
 
-        pc_diff += local.selectors.is_bne
-            * (AB::Expr::one() - branch_cols.comparison_diff.result)
-            * local.c.value.0[0]
-            - four;
-
-        pc_diff += local.selectors.is_bneinc
-            * (branch_cols.comparison_diff.result - AB::Expr::one())
-            * local.c.value.0[0]
-            - four;
-
-        pc_diff
+        let pc_offset = local.c.value().0[0];
+        *next_pc += is_branch_instruction * (builder.if_else(do_branch, pc_offset, one));
     }
 }

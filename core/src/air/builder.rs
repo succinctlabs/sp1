@@ -606,6 +606,20 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
             self.assert_zero(coeff.clone().into());
         });
     }
+
+    /// Performs an if else on extension elements.
+    fn if_else_ext(
+        &mut self,
+        condition: impl Into<Self::Expr> + Clone,
+        a: BinomialExtension<impl Into<Self::Expr> + Clone>,
+        b: BinomialExtension<impl Into<Self::Expr> + Clone>,
+    ) -> BinomialExtension<Self::Expr> {
+        let mut res = vec![];
+        for i in 0..a.0.len() {
+            res.push(self.if_else(condition.clone(), a.0[i].clone(), b.0[i].clone()));
+        }
+        BinomialExtension(res.try_into().unwrap())
+    }
 }
 
 pub trait MultiTableAirBuilder: PermutationAirBuilder {
