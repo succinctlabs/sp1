@@ -85,9 +85,7 @@ impl<C: Config> Builder<C> {
                 builder.range(0, HASH_RATE).for_each(|j, builder| {
                     let index: Var<_> = builder.eval(i + j);
                     let element = builder.get(array, index);
-                    // builder.print_f(element);
                     builder.set_value(&mut state, j, element);
-                    // builder.print_v(j);
                     builder.if_eq(index, last_index).then(|builder| {
                         builder.assign(break_flag, C::N::one());
                         builder.break_loop();
@@ -111,6 +109,8 @@ impl<C: Config> Builder<C> {
         let idx: Var<_> = self.eval(C::N::zero());
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
+            let len = subarray.len().materialize(builder);
+            builder.print_v(len);
             builder.range(0, subarray.len()).for_each(|j, builder| {
                 let element = builder.get(&subarray, j);
                 builder.set_value(&mut state, idx, element);
