@@ -154,26 +154,6 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-<<<<<<< HEAD
-        let mut interaction_vals: Vec<AB::Expr> = vec![prep_local.instruction.opcode.into()];
-        interaction_vals.push(prep_local.instruction.op_a.into());
-        interaction_vals.extend_from_slice(&prep_local.instruction.op_b.map(|x| x.into()).0);
-        interaction_vals.extend_from_slice(&prep_local.instruction.op_c.map(|x| x.into()).0);
-        interaction_vals.push(prep_local.instruction.imm_b.into());
-        interaction_vals.push(prep_local.instruction.imm_c.into());
-        interaction_vals.extend_from_slice(
-            &prep_local
-                .selectors
-                .into_iter()
-                .map(|x| x.into())
-                .collect::<Vec<_>>(),
-        );
-        builder.receive(AirInteraction::new(
-            interaction_vals,
-            mult_local.multiplicity.into(),
-            InteractionKind::Program,
-        ));
-=======
         builder.receive_program(
             prep_local.pc,
             prep_local.instruction,
@@ -186,6 +166,5 @@ where
             prep_local.pc * prep_local.pc * prep_local.pc,
             prep_local.pc * prep_local.pc * prep_local.pc,
         );
->>>>>>> origin/main
     }
 }
