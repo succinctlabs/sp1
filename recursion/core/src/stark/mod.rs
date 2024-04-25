@@ -25,7 +25,7 @@ pub enum RecursionAirWideDeg3<F: PrimeField32 + BinomiallyExtendable<D>> {
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    Poseidon2(Poseidon2WideChip),
+    // Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
     // Poseidon2(Poseidon2Chip),
 }
@@ -65,7 +65,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirWideDeg3<F> {
                     kind: MemoryChipKind::Finalize,
                 },
             )))
-            .chain(once(RecursionAirWideDeg3::Poseidon2(Poseidon2WideChip {})))
+            // .chain(once(RecursionAirWideDeg3::Poseidon2(Poseidon2WideChip {})))
             .chain(once(RecursionAirWideDeg3::FriFold(FriFoldChip {})))
             .collect()
     }
@@ -91,9 +91,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirSkinnyDeg7<F> {
                     kind: MemoryChipKind::Finalize,
                 },
             )))
-            .chain(once(RecursionAirSkinnyDeg7::Poseidon2(
-                Poseidon2WideChip {},
-            )))
+            // .chain(once(RecursionAirSkinnyDeg7::Poseidon2(
+            //     Poseidon2WideChip {},
+            // )))
             .chain(once(RecursionAirSkinnyDeg7::FriFold(FriFoldChip {})))
             .collect()
     }

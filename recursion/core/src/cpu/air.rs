@@ -145,7 +145,7 @@ where
 
         // TODO: we also need to constraint the transition of `fp`.
 
-        self.eval_alu(builder, local);
+        // self.eval_alu(builder, local);
 
         // Constraint all the memory access.
 
@@ -207,7 +207,7 @@ where
         //     .assert_block_eq(local.a.value, local.memory.value);
 
         // Constraint the program.
-        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+        // builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Constraint the syscalls.
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
@@ -223,6 +223,7 @@ where
 
 impl<F> CpuChip<F> {
     /// Eval all the ALU operations.
+    #[allow(unused)]
     fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,

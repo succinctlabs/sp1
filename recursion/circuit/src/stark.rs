@@ -207,6 +207,7 @@ where
         for (i, sorted_chip) in sorted_chips.iter().enumerate() {
             for chip in machine.chips() {
                 if chip.name() == *sorted_chip {
+                    println!("chip = {:?}", chip.name());
                     let values = &opened_values.chips[i];
                     let trace_domain = &trace_domains[i];
                     let quotient_domain = &quotient_domains[i];
