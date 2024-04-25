@@ -4,6 +4,7 @@ use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
+use p3_field::Field;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -263,7 +264,7 @@ where
     }
 }
 
-impl<F> CpuChip<F> {
+impl<F: Field> CpuChip<F> {
     /// Eval all the ALU operations.
     #[allow(unused)]
     fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
@@ -326,14 +327,14 @@ impl<F> CpuChip<F> {
         let mut comparison_diff = a_ext - b_ext;
 
         // For the BNEINC operation, add one to the comparison_diff.
-        comparison_diff = builder.if_else(
+        comparison_diff = builder.if_else_ext(
             local.selectors.is_bneinc,
-            comparison_diff + base_element_one,
-            comparison_diff,
+            comparison_diff.clone() + base_element_one,
+            comparison_diff.clone(),
         );
 
         // Verify the comparison_diff flag value.
-        IsExtZeroOperation::eval(
+        IsExtZeroOperation::<AB::F>::eval(
             builder,
             comparison_diff,
             branch_cols.comparison_diff,
@@ -343,8 +344,10 @@ impl<F> CpuChip<F> {
         let one = AB::Expr::one();
 
         let mut do_branch = local.selectors.is_beq.clone() * branch_cols.comparison_diff.result;
-        do_branch += local.selectors.is_bne.clone() * (one - branch_cols.comparison_diff.result);
-        do_branch += local.selectors.is_bneinc.clone() * (one - branch_cols.comparison_diff.result);
+        do_branch +=
+            local.selectors.is_bne.clone() * (one.clone() - branch_cols.comparison_diff.result);
+        do_branch +=
+            local.selectors.is_bneinc.clone() * (one.clone() - branch_cols.comparison_diff.result);
 
         let pc_offset = local.c.value().0[0];
         *next_pc += is_branch_instruction * (builder.if_else(do_branch, pc_offset, one));
