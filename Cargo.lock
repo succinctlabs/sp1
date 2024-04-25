@@ -70,7 +70,7 @@ dependencies = [
  "alloy-signer",
  "alloy-signer-wallet",
  "alloy-transport-http",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
 ]
 
 [[package]]
@@ -106,9 +106,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-core"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fcbd9ee412dfb4e81d23cd1ae816d828c494a77d1eb00358035043695d4c5808"
+checksum = "ba1c115a94254b998be1e0318f06af03b72f54c631669cbd7801056a1bbd5701"
 dependencies = [
  "alloy-dyn-abi",
  "alloy-json-abi",
@@ -118,9 +118,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-dyn-abi"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "872f239c15befa27cc4f0d3d82a70b3365c2d0202562bf906eb93b299fa31882"
+checksum = "22ab339ca7b4ea9115f0578c941abc80a171edf8e5eadd01e6c4237b68db8083"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -158,9 +158,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-abi"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83a35ddfd27576474322a5869e4c123e5f3e7b2177297c18e4e82ea501cb125b"
+checksum = "44294729c145cf7ae65feab544b5b81fb2bb7e2fd060214842eb3989a1e9d882"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-type-parser",
@@ -198,9 +198,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-primitives"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "99bbad0a6b588ef4aec1b5ddbbfdacd9ef04e00b979617765b03174318ee1f3a"
+checksum = "50c715249705afa1e32be79dabfd35e2ef0f1cc02ad2cf48c9d1e20026ee637b"
 dependencies = [
  "alloy-rlp",
  "bytes",
@@ -237,7 +237,7 @@ dependencies = [
  "dashmap",
  "futures",
  "lru",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
  "serde_json",
  "tokio",
  "tracing",
@@ -263,7 +263,7 @@ checksum = "1a047897373be4bbb0224c1afdabca92648dc57a9c9ef6e7b0be3aff7a859c83"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -276,7 +276,7 @@ dependencies = [
  "alloy-transport-http",
  "futures",
  "pin-project",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
  "serde",
  "serde_json",
  "tokio",
@@ -356,9 +356,9 @@ dependencies = [
 
 [[package]]
 name = "alloy-sol-macro"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "452d929748ac948a10481fff4123affead32c553cf362841c5103dd508bdfc16"
+checksum = "bef9a94a27345fb31e3fcb5f5e9f592bb4847493b07fa1e47dd9fde2222f2e28"
 dependencies = [
  "alloy-json-abi",
  "alloy-sol-macro-input",
@@ -368,16 +368,16 @@ dependencies = [
  "proc-macro-error",
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
  "syn-solidity",
  "tiny-keccak",
 ]
 
 [[package]]
 name = "alloy-sol-macro-input"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "df64e094f6d2099339f9e82b5b38440b159757b6920878f28316243f8166c8d1"
+checksum = "c31fe73cd259527e24dc2dbfe64bc95e5ddfcd2b2731f670a11ff72b2be2c25b"
 dependencies = [
  "alloy-json-abi",
  "const-hex",
@@ -386,24 +386,24 @@ dependencies = [
  "proc-macro2",
  "quote",
  "serde_json",
- "syn 2.0.59",
+ "syn 2.0.60",
  "syn-solidity",
 ]
 
 [[package]]
 name = "alloy-sol-type-parser"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "715f4d09a330cc181fc7c361b5c5c2766408fa59a0bac60349dcb7baabd404cc"
+checksum = "8c8d6e74e4feeaa2bcfdecfd3da247ab53c67bd654ba1907270c32e02b142331"
 dependencies = [
  "winnow 0.6.6",
 ]
 
 [[package]]
 name = "alloy-sol-types"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "43bc2d6dfc2a19fd56644494479510f98b1ee929e04cf0d4aa45e98baa3e545b"
+checksum = "afaffed78bfb17526375754931e045f96018aa810844b29c7aef823266dd4b4b"
 dependencies = [
  "alloy-json-abi",
  "alloy-primitives",
@@ -437,7 +437,7 @@ source = "git+https://github.com/alloy-rs/alloy?rev=bfd0fda#bfd0fda492e560c3463d
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
- "reqwest 0.12.3",
+ "reqwest 0.12.4",
  "serde_json",
  "tower",
  "url",
@@ -691,7 +691,7 @@ checksum = "16e62a023e7c117e27523144c5d2459f4397fcc3cab0085af8e2224f643a0193"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -702,7 +702,7 @@ checksum = "c6fa2087f2753a7da8cc1c0dbfcf89579dd57458e36769de5ac750b4671737ca"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -713,7 +713,7 @@ checksum = "3c87f3f15e7794432337fc718554eaa4dc8f04c9677a950ffe366f20a162ae42"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -1019,12 +1019,13 @@ checksum = "37b2a672a2cb129a2e41c10b1224bb368f9f37a2b16b612598138befd7b37eb5"
 
 [[package]]
 name = "cc"
-version = "1.0.94"
+version = "1.0.95"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17f6e324229dc011159fcc089755d1e2e216a90d43a7dea6853ca740b84f35e7"
+checksum = "d32a725bc159af97c3e629873bb9f88fb8cf8a4867175f76dc987815ea07c83b"
 dependencies = [
  "jobserver",
  "libc",
+ "once_cell",
 ]
 
 [[package]]
@@ -1104,7 +1105,7 @@ dependencies = [
  "heck 0.5.0",
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -1340,7 +1341,7 @@ checksum = "f46882e17999c6cc590af592290432be3bce0428cb0d5f8b6715e4dc7b383eb3"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -1364,7 +1365,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "strsim 0.10.0",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -1375,7 +1376,7 @@ checksum = "a668eda54683121533a393014d8692171709ff57a7d61f187b6e782719f8933f"
 dependencies = [
  "darling_core",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -1583,7 +1584,7 @@ dependencies = [
  "heck 0.4.1",
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -1661,9 +1662,9 @@ dependencies = [
 
 [[package]]
 name = "fiat-crypto"
-version = "0.2.7"
+version = "0.2.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c007b1ae3abe1cb6f85a16305acd418b7ca6343b953633fee2b76d8f108b830f"
+checksum = "38793c55593b33412e3ae40c2c9781ffaa6f438f6f8c10f24e71846fbd7ae01e"
 
 [[package]]
 name = "filetime"
@@ -1791,7 +1792,7 @@ checksum = "87750cf4b7a4c0625b1529e4c543c2182106e4dedc60a2a6455e00d212c489ac"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -2038,9 +2039,9 @@ checksum = "6fe2267d4ed49bc07b63801559be28c718ea06c4738b7a03c94df7386d2cde46"
 
 [[package]]
 name = "hickory-proto"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "091a6fbccf4860009355e3efc52ff4acf37a63489aad7435372d44ceeb6fbbcf"
+checksum = "07698b8420e2f0d6447a436ba999ec85d8fbf2a398bbd737b82cac4a2e96e512"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -2062,9 +2063,9 @@ dependencies = [
 
 [[package]]
 name = "hickory-resolver"
-version = "0.24.0"
+version = "0.24.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "35b8f021164e6a984c9030023544c57789c51760065cd510572fedcfb04164e8"
+checksum = "28757f23aa75c98f254cf0405e6d8c25b831b32921b050a66692427679b1f243"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -2442,15 +2443,6 @@ dependencies = [
 
 [[package]]
 name = "itertools"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1c173a5686ce8bfa551b3563d0c2170bf24ca44da99c7ca4bfdab5418c3fe57"
-dependencies = [
- "either",
-]
-
-[[package]]
-name = "itertools"
 version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
@@ -2466,9 +2458,9 @@ checksum = "49f1f14873335454500d59611f1cf4a4b0f786f9ac11f4312a78e4cf2566695b"
 
 [[package]]
 name = "jobserver"
-version = "0.1.30"
+version = "0.1.31"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "685a7d121ee3f65ae4fddd72b25a04bb36b6af81bc0828f7d5434c0fe60fa3a2"
+checksum = "d2b099aaa34a9751c5bf0878add70444e1ed2dd73f347be99003d4577277de6e"
 dependencies = [
  "libc",
 ]
@@ -2924,7 +2916,7 @@ checksum = "a948666b637a0f465e8564c73e89d4dde00d72d4d473cc972f390fc3dcee7d9c"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -2954,7 +2946,7 @@ checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 [[package]]
 name = "p3-air"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -2963,7 +2955,7 @@ dependencies = [
 [[package]]
 name = "p3-baby-bear"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "num-bigint 0.4.4",
  "p3-field",
@@ -2977,7 +2969,7 @@ dependencies = [
 [[package]]
 name = "p3-blake3"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "blake3",
  "p3-symmetric",
@@ -2986,7 +2978,7 @@ dependencies = [
 [[package]]
 name = "p3-bn254-fr"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "ff 0.13.0",
  "num-bigint 0.4.4",
@@ -3000,7 +2992,7 @@ dependencies = [
 [[package]]
 name = "p3-challenger"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "p3-field",
  "p3-maybe-rayon",
@@ -3012,7 +3004,7 @@ dependencies = [
 [[package]]
 name = "p3-commit"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -3025,7 +3017,7 @@ dependencies = [
 [[package]]
 name = "p3-dft"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -3037,7 +3029,7 @@ dependencies = [
 [[package]]
 name = "p3-field"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "itertools 0.12.1",
  "num-bigint 0.4.4",
@@ -3050,7 +3042,7 @@ dependencies = [
 [[package]]
 name = "p3-fri"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "itertools 0.12.1",
  "p3-challenger",
@@ -3068,7 +3060,7 @@ dependencies = [
 [[package]]
 name = "p3-interpolation"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "p3-field",
  "p3-matrix",
@@ -3078,7 +3070,7 @@ dependencies = [
 [[package]]
 name = "p3-keccak"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "p3-symmetric",
  "tiny-keccak",
@@ -3087,11 +3079,12 @@ dependencies = [
 [[package]]
 name = "p3-keccak-air"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "p3-air",
  "p3-field",
  "p3-matrix",
+ "p3-maybe-rayon",
  "p3-util",
  "tracing",
 ]
@@ -3099,7 +3092,7 @@ dependencies = [
 [[package]]
 name = "p3-matrix"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -3113,7 +3106,7 @@ dependencies = [
 [[package]]
 name = "p3-maybe-rayon"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "rayon",
 ]
@@ -3121,9 +3114,9 @@ dependencies = [
 [[package]]
 name = "p3-mds"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
- "itertools 0.11.0",
+ "itertools 0.12.1",
  "p3-dft",
  "p3-field",
  "p3-matrix",
@@ -3135,7 +3128,7 @@ dependencies = [
 [[package]]
 name = "p3-merkle-tree"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "itertools 0.12.1",
  "p3-commit",
@@ -3151,7 +3144,7 @@ dependencies = [
 [[package]]
 name = "p3-poseidon2"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "gcd",
  "p3-field",
@@ -3163,7 +3156,7 @@ dependencies = [
 [[package]]
 name = "p3-symmetric"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "itertools 0.12.1",
  "p3-field",
@@ -3173,7 +3166,7 @@ dependencies = [
 [[package]]
 name = "p3-uni-stark"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "itertools 0.12.1",
  "p3-air",
@@ -3191,7 +3184,7 @@ dependencies = [
 [[package]]
 name = "p3-util"
 version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#056f328a5096049b2b308fb6dc3497249e81d354"
+source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
 dependencies = [
  "serde",
 ]
@@ -3324,7 +3317,7 @@ checksum = "2f38a4412a78282e09a2cf38d195ea5420d15ba0602cb375210efbc877243965"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -3464,9 +3457,9 @@ dependencies = [
 
 [[package]]
 name = "proc-macro2"
-version = "1.0.80"
+version = "1.0.81"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a56dea16b0a29e94408b9aa5e2940a4eedbd128a1ba20e8f7ae60fd3d465af0e"
+checksum = "3d1597b0c024618f09a9c3b8655b7e430397a36d23fdafec26d6965e9eec3eba"
 dependencies = [
  "unicode-ident",
 ]
@@ -3511,7 +3504,7 @@ dependencies = [
  "itertools 0.12.1",
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -3726,9 +3719,9 @@ dependencies = [
 
 [[package]]
 name = "reqwest"
-version = "0.12.3"
+version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e6cc1e89e689536eb5aeede61520e874df5a4707df811cd5da4aa5fbb2aae19"
+checksum = "566cafdd92868e0939d3fb961bd0dc25fcfaaed179291093b3d43e6b3150ea10"
 dependencies = [
  "base64 0.22.0",
  "bytes",
@@ -3895,9 +3888,9 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "0.38.32"
+version = "0.38.34"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65e04861e65f21776e67888bfbea442b3642beaa0138fdb1dd7a84a52dffdb89"
+checksum = "70dc5ec042f7a43c4a73241207cecc9873a06d45debb38b329f8541d85c2730f"
 dependencies = [
  "bitflags 2.5.0",
  "errno",
@@ -3908,9 +3901,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.21.10"
+version = "0.21.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9d5a6813c0759e4609cd494e8e725babae6a2ca7b62a5536a13daaec6fcb7ba"
+checksum = "7fecbfb7b1444f477b345853b1fce097a2c6fb637b2bfb87e6bc5db0f043fae4"
 dependencies = [
  "log",
  "ring",
@@ -3939,9 +3932,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.4.1"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ecd36cc4259e3e4514335c4a138c6b43171a8d61d8f5c9348f9fc7529416f247"
+checksum = "beb461507cee2c2ff151784c52762cf4d9ff6a61f3e80968600ed24fa837fa54"
 
 [[package]]
 name = "rustls-webpki"
@@ -4011,6 +4004,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scc"
+version = "2.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ec96560eea317a9cc4e0bb1f6a2c93c09a19b8c4fc5cb3fcc0ec1c094cd783e2"
+dependencies = [
+ "sdd",
+]
+
+[[package]]
 name = "schannel"
 version = "0.1.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4034,6 +4036,12 @@ dependencies = [
  "ring",
  "untrusted",
 ]
+
+[[package]]
+name = "sdd"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b84345e4c9bd703274a082fb80caaa99b7612be48dfaa1dd9266577ec412309d"
 
 [[package]]
 name = "sec1"
@@ -4116,7 +4124,7 @@ checksum = "e88edab869b01783ba905e7d0153f9fc1a6505a96e4ad3018011eedb838566d9"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -4154,11 +4162,11 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.7.0"
+version = "3.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ee80b0e361bbf88fd2f6e242ccd19cfda072cb0faa6ae694ecee08199938569a"
+checksum = "2c85f8e96d1d6857f13768fcbd895fcb06225510022a2774ed8b5150581847b0"
 dependencies = [
- "base64 0.21.7",
+ "base64 0.22.0",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -4172,39 +4180,39 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.7.0"
+version = "3.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6561dc161a9224638a31d876ccdfefbc1df91d3f3a8342eddb35f055d48c7655"
+checksum = "c8b3a576c4eb2924262d5951a3b737ccaf16c931e39a2810c36f9a7e25575557"
 dependencies = [
  "darling",
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
 name = "serial_test"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "953ad9342b3aaca7cb43c45c097dd008d4907070394bd0751a0aa8817e5a018d"
+checksum = "adb86f9315df5df6a70eae0cc22395a44e544a0d8897586820770a35ede74449"
 dependencies = [
- "dashmap",
  "futures",
- "lazy_static",
  "log",
+ "once_cell",
  "parking_lot",
+ "scc",
  "serial_test_derive",
 ]
 
 [[package]]
 name = "serial_test_derive"
-version = "3.0.0"
+version = "3.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b93fb4adc70021ac1b47f7d45e8cc4169baaa7ea58483bc5b721d19a26202212"
+checksum = "a9bb72430492e9549b0c4596725c0f82729bff861c45aa8099c0a8e67fc3b721"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -4249,9 +4257,9 @@ dependencies = [
 
 [[package]]
 name = "signal-hook-registry"
-version = "1.4.1"
+version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8229b473baa5980ac72ef434c4415e70c4b5e71b423043adb4ba059f89c99a1"
+checksum = "a9e9e0b4211b72e7b8b6e85c807d36c212bdb33ea8587f7569562a84df5465b1"
 dependencies = [
  "libc",
 ]
@@ -4725,7 +4733,7 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -4747,9 +4755,9 @@ dependencies = [
 
 [[package]]
 name = "syn"
-version = "2.0.59"
+version = "2.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a6531ffc7b071655e4ce2e04bd464c4830bb585a61cabb96cf808f05172615a"
+checksum = "909518bc7b1c9b779f1bbf07f2929d35af9f0f37e47c6e9ef7f9dddc1e1821f3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4758,14 +4766,14 @@ dependencies = [
 
 [[package]]
 name = "syn-solidity"
-version = "0.7.0"
+version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4497156948bd342b52038035a6fa514a89626e37af9d2c52a5e8d8ebcc7ee479"
+checksum = "70aba06097b6eda3c15f6eebab8a6339e121475bcf08bbe6758807e716c372a1"
 dependencies = [
  "paste",
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -4841,22 +4849,22 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.58"
+version = "1.0.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03468839009160513471e86a034bb2c5c0e4baae3b43f79ffc55c4a5427b3297"
+checksum = "f0126ad08bff79f29fc3ae6a55cc72352056dfff61e3ff8bb7129476d44b23aa"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.58"
+version = "1.0.59"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c61f3ba182994efc43764a46c018c347bc492c79f024e705f46567b418f6d4f7"
+checksum = "d1cd413b5d558b4c5bf3680e324a6fa5014e7b7c067a51e69dbdf47eb7148b66"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -4972,7 +4980,7 @@ checksum = "5b8a1e28f2deaa14e508979454cb3a223b10b938b45af148bc0986de36f1923b"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -5109,7 +5117,7 @@ checksum = "34704c8d6ebcbc939824180af020566b01a7c01f80641264eba0999f6c2b6be7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
@@ -5173,7 +5181,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 [[package]]
 name = "twirp"
 version = "0.3.0"
-source = "git+https://github.com/github/twirp-rs.git#ef4005ad63dfccdde073f165a7f940c90310a4b4"
+source = "git+https://github.com/github/twirp-rs.git#93d4e4b4a48f9112c943d2925e8dbb1106bd6a18"
 dependencies = [
  "async-trait",
  "axum",
@@ -5367,7 +5375,7 @@ dependencies = [
  "once_cell",
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
  "wasm-bindgen-shared",
 ]
 
@@ -5401,7 +5409,7 @@ checksum = "e94f17b526d0a461a191c78ea52bbce64071ed5c04c9ffe424dcb38f74171bb7"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
  "wasm-bindgen-backend",
  "wasm-bindgen-shared",
 ]
@@ -5475,11 +5483,11 @@ checksum = "ac3b87c63620426dd9b991e5ce0329eff545bccbbb34f3be09ff6fb6ab51b7b6"
 
 [[package]]
 name = "winapi-util"
-version = "0.1.6"
+version = "0.1.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f29e6f9198ba0d26b4c9f07dbe6f9ed633e1f3d5b8b414090084349e46a52596"
+checksum = "4d4cc384e1e73b93bafa6fb4f1df8c41695c8a91cf9c4c64358067d15a7b6c6b"
 dependencies = [
- "winapi",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5717,14 +5725,14 @@ checksum = "9ce1b18ccd8e73a9321186f97e46f9f04b778851177567b1975109d26a08d2a6"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
 name = "zeroize"
-version = "1.7.0"
+version = "1.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "525b4ec142c6b68a2d10f01f7bbf6755599ca3f81ea53b8431b7dd348f5fdb2d"
+checksum = "63381fa6624bf92130a6b87c0d07380116f80b565c42cf0d754136f0238359ef"
 dependencies = [
  "zeroize_derive",
 ]
@@ -5737,7 +5745,7 @@ checksum = "ce36e65b0d2999d2aafac989fb249189a141aee1f53c612c1f37d72631959f69"
 dependencies = [
  "proc-macro2",
  "quote",
- "syn 2.0.59",
+ "syn 2.0.60",
 ]
 
 [[package]]
