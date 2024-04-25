@@ -119,7 +119,7 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 ) -> RowMajorMatrix<EF> {
     // Generate the RLC elements to uniquely identify each interaction.
     let alphas = generate_interaction_rlc_elements(sends, receives, random_elements[0]);
-
+    let chunk_rate = 1 << 8;
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
     let betas = random_elements[1].powers();
 
@@ -182,7 +182,10 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                 });
         }
     }
-    batch_multiplicative_inverse_inplace(&mut prepermutation_trace.values);
+    prepermutation_trace
+        .values
+        .par_chunks_mut(chunk_rate)
+        .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
 
     match preprocessed {
         Some(prep) => prepermutation_trace
