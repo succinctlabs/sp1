@@ -165,7 +165,6 @@ func (c *Chip) SubE(a, b *ExtensionVariable) *ExtensionVariable {
 }
 
 func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
-
 	v2 := [4]frontend.Variable{
 		"0",
 		"0",
@@ -184,20 +183,10 @@ func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
 		}
 	}
 
-	// for i := 0; i < 4; i++ {
-	// 	for j := 0; j < 4; j++ {
-	// 		if i+j >= 4 {
-	// 			v[i+j-4] = c.AddF(v[i+j-4], c.MulFConst(c.MulF(a.Value[i], b.Value[j]), W))
-	// 		} else {
-	// 			v[i+j] = c.AddF(v[i+j], c.MulF(a.Value[i], b.Value[j]))
-	// 		}
-	// 	}
-	// }
-
-	x := c.ReduceFast(&Variable{Value: c.field.NewElement(v2[0])})
-	y := c.ReduceFast(&Variable{Value: c.field.NewElement(v2[1])})
-	z := c.ReduceFast(&Variable{Value: c.field.NewElement(v2[2])})
-	e := c.ReduceFast(&Variable{Value: c.field.NewElement(v2[3])})
+	x := c.ReduceFast(v2[0])
+	y := c.ReduceFast(v2[1])
+	z := c.ReduceFast(v2[2])
+	e := c.ReduceFast(v2[3])
 
 	return &ExtensionVariable{Value: [4]*Variable{x, y, z, e}}
 }
@@ -325,23 +314,23 @@ func (c *Chip) Reduce(in *Variable) *Variable {
 	}
 }
 
-func (p *Chip) ReduceFast(x *Variable) *Variable {
+func (p *Chip) ReduceFast(x frontend.Variable) *Variable {
 	return p.ReduceWithMaxBits(x, uint64(80))
 }
 
-func (p *Chip) ReduceWithMaxBits(x *Variable, maxNbBits uint64) *Variable {
-	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x.Value.Limbs[0])
+func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) *Variable {
+	result, err := p.api.Compiler().NewHint(ReduceHint, 2, x)
 	if err != nil {
 		panic(err)
 	}
 
-	// quotient := result[0]
-	// p.rangeChecker.Check(quotient, int(maxNbBits))
+	quotient := result[0]
+	p.rangeChecker.Check(quotient, int(maxNbBits))
 
-	// p.rangeChecker.Check(result[1], int(maxNbBits))
+	p.rangeChecker.Check(result[1], int(maxNbBits))
 	remainder := p.field.NewElement(result[1])
 
-	// p.api.AssertIsEqual(x.Value.Limbs[0], p.api.Add(p.api.Mul(quotient, MODULUS), remainder))
+	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, MODULUS), result[1]))
 
 	return &Variable{
 		Value: remainder,
