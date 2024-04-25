@@ -4478,6 +4478,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "size",
  "sp1-core",
  "sp1-primitives",
  "sp1-recursion-circuit",

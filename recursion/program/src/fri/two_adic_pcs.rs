@@ -29,6 +29,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     C::F: TwoAdicField,
     C::EF: TwoAdicField,
 {
+    let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
     let log_blowup = config.log_blowup;
     let blowup = config.log_blowup;
     let alpha = challenger.sample_ext(builder);
@@ -139,7 +140,6 @@ pub fn verify_two_adic_pcs<C: Config>(
                                 ro: ro.clone(),
                             };
 
-                            let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
                             builder.set_value(&mut input_ptr, 0, input);
 
                             builder.range(0, ps_at_z.len()).for_each(|m, builder| {

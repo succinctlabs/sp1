@@ -279,15 +279,15 @@ pub fn build_wrap_circuit(
     );
     challenger.observe_slice(&mut builder, pv_slice);
 
-    // StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
-    //     &mut builder,
-    //     vk,
-    //     &outer_machine,
-    //     &mut challenger.clone(),
-    //     &proof,
-    //     chips,
-    //     sorted_indices,
-    // );
+    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+        &mut builder,
+        vk,
+        &outer_machine,
+        &mut challenger.clone(),
+        &proof,
+        chips,
+        sorted_indices,
+    );
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
