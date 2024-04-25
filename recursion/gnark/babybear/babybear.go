@@ -90,7 +90,7 @@ func (c *Chip) SubF(a, b *Variable) *Variable {
 
 func (c *Chip) MulF(a, b *Variable) *Variable {
 	return &Variable{
-		Value: c.field.Mul(a.Value, b.Value),
+		Value: c.field.MulMod(a.Value, b.Value),
 	}
 }
 
@@ -165,6 +165,29 @@ func (c *Chip) SubE(a, b *ExtensionVariable) *ExtensionVariable {
 }
 
 func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
+	a1 := c.field.Reduce(a.Value[0].Value).Limbs[0]
+	a2 := c.field.Reduce(a.Value[1].Value).Limbs[0]
+	a3 := c.field.Reduce(a.Value[2].Value).Limbs[0]
+	a4 := c.field.Reduce(a.Value[3].Value).Limbs[0]
+
+	b1 := c.field.Reduce(b.Value[0].Value).Limbs[0]
+	b2 := c.field.Reduce(b.Value[1].Value).Limbs[0]
+	b3 := c.field.Reduce(b.Value[2].Value).Limbs[0]
+	b4 := c.field.Reduce(b.Value[3].Value).Limbs[0]
+
+	in1 := [4]frontend.Variable{
+		a1,
+		a2,
+		a3,
+		a4,
+	}
+	in2 := [4]frontend.Variable{
+		b1,
+		b2,
+		b3,
+		b4,
+	}
+
 	v2 := [4]frontend.Variable{
 		"0",
 		"0",
@@ -176,9 +199,9 @@ func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
 	for i := 0; i < 4; i++ {
 		for j := 0; j < 4; j++ {
 			if i+j >= 4 {
-				v2[i+j-4] = c.api.Add(v2[i+j-4], c.api.Mul(c.api.Mul(a.Value[i].Value.Limbs[0], b.Value[j].Value.Limbs[0]), eleven))
+				v2[i+j-4] = c.api.Add(v2[i+j-4], c.api.Mul(c.api.Mul(in1[i], in2[j]), eleven))
 			} else {
-				v2[i+j] = c.api.Add(v2[i+j], c.api.Mul(a.Value[i].Value.Limbs[0], b.Value[j].Value.Limbs[0]))
+				v2[i+j] = c.api.Add(v2[i+j], c.api.Mul(in1[i], in2[j]))
 			}
 		}
 	}
@@ -315,7 +338,7 @@ func (c *Chip) Reduce(in *Variable) *Variable {
 }
 
 func (p *Chip) ReduceFast(x frontend.Variable) *Variable {
-	return p.ReduceWithMaxBits(x, uint64(80))
+	return p.ReduceWithMaxBits(x, uint64(144))
 }
 
 func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) *Variable {
