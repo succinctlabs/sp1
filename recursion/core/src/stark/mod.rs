@@ -1,5 +1,6 @@
 pub mod config;
 pub mod poseidon2;
+pub mod utils;
 
 use crate::{
     cpu::CpuChip,
@@ -7,6 +8,7 @@ use crate::{
     memory::{MemoryChipKind, MemoryGlobalChip},
     poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
+    range_check::RangeCheckChip,
 };
 use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
@@ -27,7 +29,7 @@ pub enum RecursionAirWideDeg3<F: PrimeField32 + BinomiallyExtendable<D>> {
     MemoryFinalize(MemoryGlobalChip),
     Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
-    // Poseidon2(Poseidon2Chip),
+    RangeCheck(RangeCheckChip<F>),
 }
 
 #[derive(MachineAir)]
@@ -42,6 +44,7 @@ pub enum RecursionAirSkinnyDeg7<F: PrimeField32 + BinomiallyExtendable<D>> {
     MemoryFinalize(MemoryGlobalChip),
     Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
+    RangeCheck(RangeCheckChip<F>),
     // Poseidon2(Poseidon2Chip),
 }
 
@@ -67,6 +70,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirWideDeg3<F> {
             )))
             .chain(once(RecursionAirWideDeg3::Poseidon2(Poseidon2WideChip {})))
             .chain(once(RecursionAirWideDeg3::FriFold(FriFoldChip {})))
+            .chain(once(RecursionAirWideDeg3::RangeCheck(
+                RangeCheckChip::default(),
+            )))
             .collect()
     }
 }
@@ -95,6 +101,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirSkinnyDeg7<F> {
                 Poseidon2WideChip {},
             )))
             .chain(once(RecursionAirSkinnyDeg7::FriFold(FriFoldChip {})))
+            .chain(once(RecursionAirSkinnyDeg7::RangeCheck(
+                RangeCheckChip::default(),
+            )))
             .collect()
     }
 }

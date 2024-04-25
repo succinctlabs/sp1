@@ -91,6 +91,10 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
         "FriFold".to_string()
     }
 
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
+    }
+
     #[instrument(name = "generate fri fold trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,

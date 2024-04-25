@@ -23,6 +23,7 @@ use crate::cpu::CpuEvent;
 use crate::fri_fold::FriFoldEvent;
 use crate::memory::MemoryRecord;
 use crate::poseidon2::Poseidon2Event;
+use crate::range_check::{RangeCheckEvent, RangeCheckOpcode};
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_core::runtime::MemoryAccessPosition;
@@ -246,6 +247,21 @@ where
             });
     }
 
+    /// Given a MemoryRecord event, track the range checks for the memory access.
+    /// This will be used later to set the multiplicities in the range check table.
+    fn track_memory_range_checks(&mut self, record: &MemoryRecord<F>) {
+        let diff_16bit_limb_event = RangeCheckEvent::new(
+            RangeCheckOpcode::U16,
+            record.diff_16bit_limb.as_canonical_u32() as u16,
+        );
+        let diff_12bit_limb_event = RangeCheckEvent::new(
+            RangeCheckOpcode::U12,
+            record.diff_12bit_limb.as_canonical_u32() as u16,
+        );
+        self.record
+            .add_range_check_events(&[diff_16bit_limb_event, diff_12bit_limb_event]);
+    }
+
     fn mr(&mut self, addr: F, timestamp: F) -> (MemoryRecord<F>, Block<F>) {
         let entry = self
             .memory
@@ -257,6 +273,7 @@ where
             value: prev_value,
             timestamp,
         };
+        self.track_memory_range_checks(&record);
         (record, prev_value)
     }
 
@@ -283,6 +300,7 @@ where
             value: value_as_block,
             timestamp,
         };
+        self.track_memory_range_checks(&record);
         record
     }
 

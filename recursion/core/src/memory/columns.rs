@@ -61,8 +61,8 @@ pub struct MemoryAccessCols<T, TValue> {
     /// This column is the least significant 16 bit limb of current access timestamp - prev access timestamp.
     pub diff_16bit_limb: T,
 
-    /// This column is the most signficant 8 bit limb of current access timestamp - prev access timestamp.
-    pub diff_8bit_limb: T,
+    /// This column is the most signficant 12 bit limb of current access timestamp - prev access timestamp.
+    pub diff_12bit_limb: T,
 }
 
 /// The common columns for all memory access types.
@@ -85,7 +85,7 @@ pub trait MemoryAccessTimestampCols<T> {
 
     fn diff_16bit_limb(&self) -> &T;
 
-    fn diff_8bit_limb(&self) -> &T;
+    fn diff_12bit_limb(&self) -> &T;
 }
 
 impl<T> MemoryAccessTimestampCols<T> for MemoryAccessCols<T, Block<T>> {
@@ -97,8 +97,8 @@ impl<T> MemoryAccessTimestampCols<T> for MemoryAccessCols<T, Block<T>> {
         &self.diff_16bit_limb
     }
 
-    fn diff_8bit_limb(&self) -> &T {
-        &self.diff_8bit_limb
+    fn diff_12bit_limb(&self) -> &T {
+        &self.diff_12bit_limb
     }
 }
 
@@ -111,8 +111,8 @@ impl<T> MemoryAccessTimestampCols<T> for MemoryAccessCols<T, T> {
         &self.diff_16bit_limb
     }
 
-    fn diff_8bit_limb(&self) -> &T {
-        &self.diff_8bit_limb
+    fn diff_12bit_limb(&self) -> &T {
+        &self.diff_12bit_limb
     }
 }
 

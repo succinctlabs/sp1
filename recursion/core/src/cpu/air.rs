@@ -1,3 +1,10 @@
+use super::columns::CpuCols;
+use crate::air::{BinomialExtensionUtils, BlockBuilder, SP1RecursionAirBuilder};
+use crate::cpu::CpuChip;
+use crate::memory::MemoryCols;
+use crate::runtime::ExecutionRecord;
+use crate::runtime::RecursionProgram;
+use crate::runtime::D;
 use core::mem::size_of;
 use p3_air::Air;
 use p3_air::AirBuilder;
@@ -18,14 +25,6 @@ use std::borrow::BorrowMut;
 use std::mem::transmute;
 use tracing::instrument;
 
-use super::columns::CpuCols;
-use crate::air::{BinomialExtensionUtils, BlockBuilder, SP1RecursionAirBuilder};
-use crate::cpu::CpuChip;
-use crate::memory::MemoryCols;
-use crate::runtime::ExecutionRecord;
-use crate::runtime::RecursionProgram;
-use crate::runtime::D;
-
 pub const NUM_CPU_COLS: usize = size_of::<CpuCols<u8>>();
 
 const fn make_col_map() -> CpuCols<usize> {
@@ -41,6 +40,10 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
 
     fn name(&self) -> String {
         "CPU".to_string()
+    }
+
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // There are no dependencies, since we do it all in the runtime. This is just a placeholder.
     }
 
     #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
