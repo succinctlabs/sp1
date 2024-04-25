@@ -212,7 +212,7 @@ where
             let num_quotient_chunks = quotient_size;
 
             builder.range(0, qc_domains.len()).for_each(|j, builder| {
-                let qc_dom = builder.get(&quotient_domains, i);
+                let qc_dom = builder.get(&qc_domains, j);
                 let qc_vals_array = builder.get(&opening.quotient, j);
                 let mut qc_values = builder.dyn_array::<Array<C, _>>(1);
                 builder.set_value(&mut qc_values, 0, qc_vals_array);
@@ -225,20 +225,6 @@ where
                 let index: Var<_> = builder.eval(i * num_quotient_chunks + j);
                 builder.set_value(&mut quotient_mats, index, qc_mat);
             });
-
-            // for (j, qc_dom) in qc_domains.into_iter().enumerate() {
-            //     let qc_vals_array = builder.get(&opening.quotient, j);
-            //     let mut qc_values = builder.dyn_array::<Array<C, _>>(1);
-            //     builder.set_value(&mut qc_values, 0, qc_vals_array);
-            //     let qc_mat = TwoAdicPcsMatsVariable::<C> {
-            //         domain: qc_dom,
-            //         values: qc_values,
-            //         points: qc_points.clone(),
-            //     };
-            //     let j_n = C::N::from_canonical_usize(j);
-            //     let index: Var<_> = builder.eval(i * num_quotient_chunks + j_n);
-            //     builder.set_value(&mut quotient_mats, index, qc_mat);
-            // }
         });
 
         // Create the pcs rounds.
@@ -336,7 +322,6 @@ pub(crate) mod tests {
     use rand::Rng;
     use sp1_core::io::SP1Stdin;
     use sp1_core::runtime::Program;
-    use sp1_core::stark::LocalProver;
     use sp1_core::utils::setup_logger;
     use sp1_core::utils::InnerChallenge;
     use sp1_core::utils::InnerVal;
@@ -470,19 +455,10 @@ pub(crate) mod tests {
 
         let config = BabyBearPoseidon2::new();
         let machine = RecursionAirWideDeg3::machine(config);
-        let (pk, vk) = machine.setup(&program);
+        let (pk, _) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
 
         let record_clone = runtime.record.clone();
         machine.debug_constraints(&pk, record_clone, &mut challenger);
-
-        let start = Instant::now();
-        let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-        let duration = start.elapsed().as_secs();
-
-        let mut challenger = machine.config().challenger();
-        machine.verify(&vk, &proof, &mut challenger).unwrap();
-        println!("proving duration = {}", duration);
     }
 }

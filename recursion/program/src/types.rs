@@ -25,6 +25,12 @@ pub struct QuotientData<C: Config> {
     pub quotient_size: Var<C::N>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuotientDataValues {
+    pub log_quotient_degree: usize,
+    pub quotient_size: usize,
+}
+
 /// Reference: [sp1_core::stark::VerifyingKey]
 #[derive(DslVariable, Clone)]
 pub struct VerifyingKeyVariable<C: Config> {

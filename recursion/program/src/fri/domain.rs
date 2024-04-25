@@ -114,8 +114,8 @@ where
                 shift: builder.eval(self.shift * domain_power),
                 g,
             };
-            builder.assign(domain_power, domain_power * g_dom);
             builder.set(&mut domains, i, domain);
+            builder.assign(domain_power, domain_power * g_dom);
         });
 
         // for _ in 0..num_chunks {
@@ -267,11 +267,10 @@ pub(crate) mod tests {
             }
 
             // Test the splitting of domains by the builder.
-            let qc_domains = disjoint_domain.split_domains(
-                &mut builder,
-                log_quotient_degree,
-                1 << log_quotient_degree,
-            );
+            let quotient_size: Usize<_> = builder.eval(1 << log_quotient_degree);
+            let log_quotient_degree: Usize<_> = builder.eval(log_quotient_degree);
+            let qc_domains =
+                disjoint_domain.split_domains(&mut builder, log_quotient_degree, quotient_size);
             for (i, dom_val) in qc_domains_val.iter().enumerate() {
                 let dom = builder.get(&qc_domains, i);
                 domain_assertions(&mut builder, &dom, dom_val, zeta_val);

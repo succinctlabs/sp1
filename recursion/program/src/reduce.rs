@@ -45,7 +45,7 @@ use crate::fri::TwoAdicFriPcsVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
-use crate::types::{QuotientData, VerifyingKeyVariable};
+use crate::types::{QuotientData, QuotientDataValues, VerifyingKeyVariable};
 use crate::types::{Sha256DigestVariable, ShardProofVariable};
 use crate::utils::{
     assert_challenger_eq_pv, assign_challenger_from_pv, clone_array, commit_challenger,
@@ -101,8 +101,8 @@ impl ReduceProgram {
         // In the case where setup is not true, the values on the stack will all be witnessed
         // with the appropriate values using the hinting API.
         let is_recursive_flags: Array<_, Var<_>> = builder.uninit();
+        let chip_quotient_data: Array<_, Array<_, QuotientData<_>>> = builder.uninit();
         let sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
-        let chip_quotient_data: Array<_, QuotientData<_>> = builder.uninit();
         let verify_start_challenger: DuplexChallengerVariable<_> = builder.uninit();
         let reconstruct_challenger: DuplexChallengerVariable<_> = builder.uninit();
         let prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
@@ -134,6 +134,7 @@ impl ReduceProgram {
         // and setup the correct state of memory.
         if setup {
             Vec::<usize>::witness(&is_recursive_flags, &mut builder);
+            Vec::<Vec<QuotientDataValues>>::witness(&chip_quotient_data, &mut builder);
             Vec::<Vec<usize>>::witness(&sorted_indices, &mut builder);
             DuplexChallenger::witness(&verify_start_challenger, &mut builder);
             DuplexChallenger::witness(&reconstruct_challenger, &mut builder);
@@ -282,6 +283,7 @@ impl ReduceProgram {
         builder.range(0, num_proofs).for_each(|i, builder| {
             let proof = builder.get(&proofs, i);
             let sorted_indices = builder.get(&sorted_indices, i);
+            let chip_quotient_data = builder.get(&chip_quotient_data, i);
             let is_recursive = builder.get(&is_recursive_flags, i);
 
             builder.if_eq(is_recursive, zero).then_or_else(
@@ -516,6 +518,7 @@ impl ReduceProgram {
             .for_each(|i, builder| {
                 let proof = builder.get(&deferred_proofs, i);
                 let sorted_indices = builder.get(&deferred_sorted_indices, i);
+                let chip_quotient_data = builder.get(&chip_quotient_data, i);
                 let mut challenger = recursion_challenger.copy(builder);
                 for j in 0..DIGEST_SIZE {
                     let element = builder.get(&proof.commitment.main_commit, j);
