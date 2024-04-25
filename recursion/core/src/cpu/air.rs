@@ -184,25 +184,13 @@ where
         //     .when(local.beq + local.bne)
         //     .assert_eq(next.pc, local.pc + local.c.value()[0]);
 
-<<<<<<< HEAD
-        // Connect immediates.
-        builder
-            .when(local.instruction.imm_b)
-            .assert_block_eq::<AB::Var, AB::Var>(local.b.value, local.instruction.op_b);
-        builder
-            .when(local.instruction.imm_c)
-            .assert_block_eq::<AB::Var, AB::Var>(local.c.value, local.instruction.op_c);
-
-        self.eval_alu(builder, local);
-
-        self.eval_branch(builder, local, next);
-=======
         // TODO: we also need to constraint the transition of `fp`.
 
         self.eval_alu(builder, local);
 
+        self.eval_branch(builder, local, next);
+
         // Constraint all the memory access.
->>>>>>> main
 
         // Constraint the case of immediates for the b and c operands.
         builder
