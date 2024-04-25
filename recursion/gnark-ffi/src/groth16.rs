@@ -14,7 +14,7 @@ use sp1_recursion_compiler::{
     ir::{Config, Witness},
 };
 use std::thread;
-
+use rand::Rng;
 use crate::witness::GnarkWitness;
 
 /// A prover that can generate proofs with the Groth16 protocol using bindings to Gnark.
@@ -36,7 +36,8 @@ impl Groth16Prover {
     pub fn new() -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
-        let port = env::var("HOST_PORT").unwrap_or_else(|_| "8080".to_string());
+        let port = env::var("HOST_PORT")
+            .unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
         thread::spawn(move || {
@@ -218,6 +219,13 @@ impl Groth16Prover {
         proof
     }
 }
+
+/// Generate a random port.
+fn generate_random_port() -> u16 {
+    let mut rng = rand::thread_rng();
+    rng.gen_range(1024..49152)
+}
+
 
 impl Default for Groth16Prover {
     fn default() -> Self {

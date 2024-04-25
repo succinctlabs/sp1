@@ -8,6 +8,7 @@ pub mod proto {
 pub mod auth;
 pub mod client;
 pub mod utils;
+pub mod wrapper;
 
 use anyhow::{Context, Ok, Result};
 use proto::network::{ProofStatus, TransactionStatus};
