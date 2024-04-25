@@ -2,6 +2,7 @@ use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::AirBuilder;
 use p3_air::{Air, BaseAir};
+use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -15,7 +16,6 @@ use tracing::instrument;
 
 use crate::poseidon2_wide::{
     apply_m_4, external_linear_layer, internal_linear_layer, matmul_internal,
-    MATRIX_DIAG_16_BABYBEAR_U32,
 };
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
@@ -276,13 +276,19 @@ where
             // Use a simple matrix multiplication as the permutation.
             let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
             let matmul_constants: [<<AB as AirBuilder>::Expr as AbstractField>::F; WIDTH] =
-                MATRIX_DIAG_16_BABYBEAR_U32
+                POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY
                     .iter()
-                    .map(|x| <<AB as AirBuilder>::Expr as AbstractField>::F::from_wrapped_u32(*x))
+                    .map(|x| {
+                        <<AB as AirBuilder>::Expr as AbstractField>::F::from_wrapped_u32(
+                            x.as_canonical_u32(),
+                        )
+                    })
                     .collect::<Vec<_>>()
                     .try_into()
                     .unwrap();
             matmul_internal(&mut state, matmul_constants);
+            let monty_inverse = AB::Expr::from_wrapped_u32(MONTY_INVERSE.as_canonical_u32());
+            state.iter_mut().for_each(|i| *i *= monty_inverse.clone());
             for i in 0..WIDTH {
                 builder
                     .when(local.is_internal)
