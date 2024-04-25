@@ -89,7 +89,6 @@ fn main() {
     // Load the program.
     let elf_path = &args.elf_path;
     let elf = fs::read(elf_path).expect("Failed to read ELF file");
-    let program = Program::from(&elf);
     let cycles = get_cycles(&elf);
 
     // Initialize total duration counters.
@@ -98,6 +97,7 @@ fn main() {
     let mut total_verify_duration = 0f64;
 
     // Perform runs.
+    let program = Program::from(&elf);
     for _ in 0..args.runs {
         let elf = fs::read(elf_path).expect("Failed to read ELF file");
         let (execution_duration, prove_duration, verify_duration) =
