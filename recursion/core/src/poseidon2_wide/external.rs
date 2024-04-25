@@ -91,6 +91,12 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];
             let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
 
+            cols.timestamp = event.clk;
+            cols.dst = event.dst;
+            cols.left = event.left;
+            cols.right = event.right;
+            cols.is_real = F::one();
+
             // Apply the initial round.
             // cols.input = event.input;
             for i in 0..WIDTH {
