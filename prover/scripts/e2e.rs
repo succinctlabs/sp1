@@ -41,16 +41,6 @@ pub fn main() {
     tracing::info!("compress");
     let compressed_proof = prover.compress(&vk, core_challenger.clone(), reduced_proof);
 
-    println!(
-        "compressed proof: {:?}",
-        compressed_proof
-            .proof
-            .opening_proof
-            .fri_proof
-            .query_proofs
-            .len()
-    );
-
     tracing::info!("wrap");
     let wrapped_proof = prover.wrap_bn254(&vk, core_challenger, compressed_proof);
 
