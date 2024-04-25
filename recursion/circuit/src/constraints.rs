@@ -13,7 +13,8 @@ use sp1_recursion_compiler::ir::Felt;
 use sp1_recursion_compiler::ir::{Builder, Config, Ext};
 use sp1_recursion_compiler::prelude::SymbolicExt;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
-use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
+
+use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
 
 use crate::domain::TwoAdicMultiplicativeCosetVariable;
 use crate::stark::StarkVerifierCircuit;
@@ -57,15 +58,12 @@ where
             next: unflatten(&opening.permutation.next),
         };
 
-        let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-
         let mut folder_pv = Vec::new();
         for i in 0..PROOF_MAX_NUM_PVS {
             folder_pv.push(builder.get(&public_values, i));
         }
 
-        let mut folder = RecursiveVerifierConstraintFolder {
-            builder,
+        let mut folder = RecursiveVerifierConstraintFolder::<C> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
@@ -76,11 +74,12 @@ where
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
             alpha,
-            accumulator: zero,
+            accumulator: SymbolicExt::zero(),
+            _marker: std::marker::PhantomData,
         };
 
         chip.eval(&mut folder);
-        folder.accumulator
+        builder.eval(folder.accumulator)
     }
 
     fn recompute_quotient(
@@ -181,7 +180,7 @@ mod tests {
     };
     use sp1_recursion_core::{
         runtime::Runtime,
-        stark::{config::BabyBearPoseidon2Outer, RecursionAir},
+        stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
     };
     use sp1_recursion_gnark_ffi::Groth16Prover;
 
@@ -189,11 +188,11 @@ mod tests {
 
     #[allow(clippy::type_complexity)]
     fn get_shard_data<'a, SC>(
-        machine: &'a StarkMachine<SC, RecursionAir<SC::Val>>,
+        machine: &'a StarkMachine<SC, RecursionAirWideDeg3<SC::Val>>,
         proof: &'a ShardProof<SC>,
         challenger: &mut SC::Challenger,
     ) -> (
-        Vec<&'a Chip<SC::Val, RecursionAir<SC::Val>>>,
+        Vec<&'a Chip<SC::Val, RecursionAirWideDeg3<SC::Val>>>,
         Vec<Dom<SC>>,
         Vec<Vec<Dom<SC>>>,
         Vec<SC::Challenge>,
@@ -286,7 +285,7 @@ mod tests {
         type SC = BabyBearPoseidon2Outer;
         type F = <SC as StarkGenericConfig>::Val;
         type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAir<F>;
+        type A = RecursionAirWideDeg3<F>;
 
         sp1_core::utils::setup_logger();
         let program = basic_program::<F>();

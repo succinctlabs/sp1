@@ -4,19 +4,23 @@ use p3_field::AbstractField;
 use p3_field::TwoAdicField;
 use sp1_core::air::MachineAir;
 use sp1_core::stark::Com;
+use sp1_core::stark::GenericVerifierConstraintFolder;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::StarkMachine;
+
 use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::Ext;
+use sp1_recursion_compiler::ir::SymbolicExt;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_compiler::ir::{Builder, Config, Usize};
+use sp1_recursion_compiler::prelude::Felt;
+
 use sp1_recursion_core::runtime::DIGEST_SIZE;
 
 use crate::challenger::CanObserveVariable;
 use crate::challenger::DuplexChallengerVariable;
 use crate::challenger::FeltChallenger;
 use crate::commit::PolynomialSpaceVariable;
-use crate::folder::RecursiveVerifierConstraintFolder;
 use crate::fri::types::TwoAdicPcsMatsVariable;
 use crate::fri::types::TwoAdicPcsRoundVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
@@ -30,6 +34,15 @@ pub const EMPTY: usize = 0x_1111_1111;
 pub struct StarkVerifier<C: Config, SC: StarkGenericConfig> {
     _phantom: std::marker::PhantomData<(C, SC)>,
 }
+
+pub type RecursiveVerifierConstraintFolder<'a, C> = GenericVerifierConstraintFolder<
+    'a,
+    <C as Config>::F,
+    <C as Config>::EF,
+    Felt<<C as Config>::F>,
+    Ext<<C as Config>::F, <C as Config>::EF>,
+    SymbolicExt<<C as Config>::F, <C as Config>::EF>,
+>;
 
 impl<C: Config, SC: StarkGenericConfig> StarkVerifier<C, SC>
 where
@@ -300,7 +313,7 @@ pub(crate) mod tests {
 
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
 
-    use sp1_recursion_core::stark::RecursionAir;
+    use sp1_recursion_core::stark::RecursionAirWideDeg3;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -414,7 +427,7 @@ pub(crate) mod tests {
         println!("Execution took: {:?}", elapsed);
 
         let config = BabyBearPoseidon2::new();
-        let machine = RecursionAir::machine(config);
+        let machine = RecursionAirWideDeg3::machine(config);
         let (pk, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
 

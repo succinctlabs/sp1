@@ -19,6 +19,7 @@ pub struct CpuEvent<F> {
     pub b_record: Option<MemoryRecord<F>>,
     pub c: Block<F>,
     pub c_record: Option<MemoryRecord<F>>,
+    pub memory_record: Option<MemoryRecord<F>>,
 }
 
 #[derive(Default)]

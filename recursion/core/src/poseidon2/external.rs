@@ -370,7 +370,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -396,7 +398,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());

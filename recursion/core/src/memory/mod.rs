@@ -5,7 +5,7 @@ use crate::air::Block;
 pub use columns::*;
 
 #[allow(clippy::manual_non_exhaustive)]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub struct MemoryRecord<F> {
     pub addr: F,
     pub value: Block<F>,
@@ -15,7 +15,7 @@ pub struct MemoryRecord<F> {
     _private: (),
 }
 
-impl<F: Clone> MemoryRecord<F> {
+impl<F: Clone + PartialOrd> MemoryRecord<F> {
     pub fn new_write(
         addr: F,
         value: Block<F>,
@@ -23,6 +23,7 @@ impl<F: Clone> MemoryRecord<F> {
         prev_value: Block<F>,
         prev_timestamp: F,
     ) -> Self {
+        assert!(timestamp > prev_timestamp);
         Self {
             addr,
             value,
@@ -34,6 +35,7 @@ impl<F: Clone> MemoryRecord<F> {
     }
 
     pub fn new_read(addr: F, value: Block<F>, timestamp: F, prev_timestamp: F) -> Self {
+        assert!(timestamp > prev_timestamp);
         Self {
             addr,
             value: value.clone(),
