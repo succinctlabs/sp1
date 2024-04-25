@@ -28,7 +28,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>> {
     MemoryFinalize(MemoryGlobalChip),
     Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
-    // RangeCheck(RangeCheckChip<F>),
+    RangeCheck(RangeCheckChip<F>),
     // Poseidon2(Poseidon2Chip),
 }
 
@@ -52,7 +52,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAir<F> {
             })))
             .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip {})))
             .chain(once(RecursionAir::FriFold(FriFoldChip {})))
-            // .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
+            .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()
     }
 }

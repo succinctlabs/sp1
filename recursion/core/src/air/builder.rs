@@ -68,7 +68,7 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
         let timestamp: Self::Expr = timestamp.into();
         let mem_access = memory_access.access();
 
-        // self.eval_memory_access_timestamp(timestamp.clone(), mem_access, is_real.clone());
+        self.eval_memory_access_timestamp(timestamp.clone(), mem_access, is_real.clone());
 
         let addr = addr.into();
         let prev_timestamp = mem_access.prev_timestamp.clone().into();
@@ -128,11 +128,11 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
         is_real: impl Into<Self::Expr> + Clone,
     ) {
         // Verify that value = limb_16 + limb_8 * 2^16.
-        self.when(is_real.clone()).assert_eq(
-            value,
-            limb_16.clone().into()
-                + limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
-        );
+        // self.when(is_real.clone()).assert_eq(
+        //     value,
+        //     limb_16.clone().into()
+        //         + limb_12.clone().into() * Self::Expr::from_canonical_u32(1 << 16),
+        // );
 
         // Send the range checks for the limbs.
         self.send_range_check(

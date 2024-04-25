@@ -92,10 +92,16 @@ impl<F: PrimeField32, TValue> MemoryAccessCols<F, TValue> {
         // We need to subtract 1 since we can to make sure that the ts diff is [1, 2^28].
         let diff_minus_one =
             record.timestamp.as_canonical_u32() - record.prev_timestamp.as_canonical_u32() - 1;
+
+        // assert!(record.timestamp.as_canonical_u32() > record.prev_timestamp.as_canonical_u32());
+
         let diff_16bit_limb = diff_minus_one & 0xffff;
         self.diff_16bit_limb = F::from_canonical_u32(diff_16bit_limb);
         let diff_12bit_limb = (diff_minus_one >> 16) & 0xfff;
         self.diff_12bit_limb = F::from_canonical_u32(diff_12bit_limb);
+        // println!("diff_minus_one: {}", diff_minus_one);
+        // println!("diff_16bit_limb: {}", diff_16bit_limb);
+        // println!("diff_12bit_limb: {}", diff_12bit_limb);
 
         output.push(RangeCheckEvent::new(
             RangeCheckOpcode::U16,
