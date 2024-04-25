@@ -7,13 +7,13 @@ pub mod proto {
 }
 pub mod auth;
 pub mod client;
-pub mod types;
+pub mod prove;
 pub mod utils;
 
 use anyhow::{Ok, Result};
+use prove::{LocalProver, NetworkProver, Prover};
 pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
 use std::env;
-use types::{LocalProver, NetworkProver, Prover};
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {
@@ -53,25 +53,25 @@ impl ProverClient {
 }
 
 impl Prover for ProverClient {
-    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<types::SP1DefaultProof> {
+    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1DefaultProof> {
         self.prover.prove(elf, stdin)
     }
 
-    fn prove_compressed(&self, elf: &[u8], stdin: SP1Stdin) -> Result<types::SP1CompressedProof> {
+    fn prove_compressed(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1CompressedProof> {
         self.prover.prove_compressed(elf, stdin)
     }
 
-    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<types::SP1Groth16Proof> {
+    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1Groth16Proof> {
         self.prover.prove_groth16(elf, stdin)
     }
 
-    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<types::SP1PlonkProof> {
+    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1PlonkProof> {
         self.prover.prove_plonk(elf, stdin)
     }
 
     fn verify(
         &self,
-        proof: types::SP1DefaultProof,
+        proof: prove::SP1DefaultProof,
         vkey: &sp1_prover::SP1VerifyingKey,
     ) -> Result<()> {
         self.prover.verify(proof, vkey)
@@ -79,7 +79,7 @@ impl Prover for ProverClient {
 
     fn verify_compressed(
         &self,
-        proof: types::SP1CompressedProof,
+        proof: prove::SP1CompressedProof,
         vkey: &sp1_prover::SP1VerifyingKey,
     ) -> Result<()> {
         self.prover.verify_compressed(proof, vkey)
@@ -87,7 +87,7 @@ impl Prover for ProverClient {
 
     fn verify_plonk(
         &self,
-        proof: types::SP1PlonkProof,
+        proof: prove::SP1PlonkProof,
         vkey: &sp1_prover::SP1VerifyingKey,
     ) -> Result<()> {
         self.prover.verify_plonk(proof, vkey)
@@ -95,7 +95,7 @@ impl Prover for ProverClient {
 
     fn verify_groth16(
         &self,
-        proof: types::SP1Groth16Proof,
+        proof: prove::SP1Groth16Proof,
         vkey: &sp1_prover::SP1VerifyingKey,
     ) -> Result<()> {
         self.prover.verify_groth16(proof, vkey)
