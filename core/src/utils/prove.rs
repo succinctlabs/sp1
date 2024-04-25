@@ -281,6 +281,7 @@ where
 }
 
 #[cfg(debug_assertions)]
+#[cfg(not(doctest))]
 pub fn uni_stark_prove<SC, A>(
     config: &SC,
     air: &A,
@@ -312,6 +313,7 @@ where
 }
 
 #[cfg(debug_assertions)]
+#[cfg(not(doctest))]
 pub fn uni_stark_verify<SC, A>(
     config: &SC,
     air: &A,
