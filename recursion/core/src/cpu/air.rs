@@ -69,24 +69,20 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
 
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
-                    // cols.a.is_real = F::one();
                 }
                 if let Some(record) = &event.b_record {
                     cols.b.populate(record);
-                    // cols.b.is_real = F::one();
                 } else {
                     *cols.b.value_mut() = event.instruction.op_b;
                 }
                 if let Some(record) = &event.c_record {
                     cols.c.populate(record);
-                    // cols.c.is_real = F::one();
                 } else {
                     *cols.c.value_mut() = event.instruction.op_c;
                 }
                 if let Some(record) = &event.memory_record {
                     cols.memory.populate(record);
                     cols.memory_addr = record.addr;
-                    // cols.memory.is_real = F::one();
                 }
 
                 // cols.a_eq_b
@@ -234,8 +230,13 @@ where
         // builder
         //     .when(local.selectors.is_store)
         //     .assert_block_eq(local.a.value, local.memory.value);
-        builder.send_program(local.instruction.clone(), local.is_real);
-        // TODO: Issue lookups to the Poseidon + FRI Fold tables, depending on opcode.
+
+        builder.send_program(
+            local.pc,
+            local.instruction.clone(),
+            local.selectors.clone(),
+            local.is_real,
+        );
 
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
         let operands = [

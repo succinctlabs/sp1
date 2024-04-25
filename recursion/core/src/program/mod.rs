@@ -64,7 +64,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             .iter()
             .enumerate()
             .map(|(i, instruction)| {
-                let pc = i as u32 * 4;
+                let pc = i as u32;
                 let mut row = [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS];
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
@@ -155,7 +155,12 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        builder.receive_program(prep_local.instruction.clone(), mult_local.multiplicity);
+        builder.receive_program(
+            prep_local.pc,
+            prep_local.instruction.clone(),
+            prep_local.selectors.clone(),
+            mult_local.multiplicity,
+        );
 
         // Dummy constraint of degree 3.
         builder.assert_eq(

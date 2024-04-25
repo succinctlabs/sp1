@@ -1,4 +1,5 @@
 use crate::cpu::InstructionCols;
+use crate::cpu::OpcodeSelectorCols;
 use crate::memory::{MemoryAccessTimestampCols, MemoryCols};
 use core::iter::{once, repeat};
 use p3_air::AirBuilderWithPublicValues;
@@ -99,37 +100,40 @@ pub trait RecursionMemoryAirBuilder: BaseAirBuilder {
         // TODO: check that mem_access.prev_clk < clk if is_real.
     }
 
-    fn send_program<E: Into<Self::Expr>>(
+    fn send_program<E: Into<Self::Expr> + Copy>(
         &mut self,
+        pc: impl Into<Self::Expr>,
         instruction: InstructionCols<E>,
+        selectors: OpcodeSelectorCols<E>,
         is_real: impl Into<Self::Expr>,
     ) {
-        let program_interaction_vals = instruction
-            .into_iter()
-            .map(|x| x.into())
+        let program_interaction_vals = once(pc.into())
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
             .collect::<Vec<_>>();
-        // self.send(AirInteraction::new(
-        //     program_interaction_vals,
-        //     is_real.into(),
-        //     InteractionKind::Program,
-        // ));
+        self.send(AirInteraction::new(
+            program_interaction_vals,
+            is_real.into(),
+            InteractionKind::Program,
+        ));
     }
 
-    // TODO: include opcode columns
-    fn receive_program<E: Into<Self::Expr>>(
+    fn receive_program<E: Into<Self::Expr> + Copy>(
         &mut self,
+        pc: impl Into<Self::Expr>,
         instruction: InstructionCols<E>,
+        selectors: OpcodeSelectorCols<E>,
         is_real: impl Into<Self::Expr>,
     ) {
-        let program_interaction_vals = instruction
-            .into_iter()
-            .map(|x| x.into())
+        let program_interaction_vals = once(pc.into())
+            .chain(instruction.into_iter().map(|x| x.into()))
+            .chain(selectors.into_iter().map(|x| x.into()))
             .collect::<Vec<_>>();
-        // self.receive(AirInteraction::new(
-        //     program_interaction_vals,
-        //     is_real.into(),
-        //     InteractionKind::Program,
-        // ));
+        self.receive(AirInteraction::new(
+            program_interaction_vals,
+            is_real.into(),
+            InteractionKind::Program,
+        ));
     }
 
     fn send_table<E: Into<Self::Expr> + Clone>(
