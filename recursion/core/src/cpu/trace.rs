@@ -50,11 +50,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
 
         output.add_range_check_events(new_range_check_events);
 
-        println!(
-            "cpu range check event len is {:?}",
-            output.range_check_events.len()
-        );
-
         pad_rows(&mut rows, || {
             let mut row = [F::zero(); NUM_CPU_COLS];
             let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
@@ -95,6 +90,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
         events.into_iter().for_each(|range_check_events| {
             output.add_range_check_events(range_check_events);
         });
+
+        println!(
+            "cpu generate dependencies range check event len is {:?}",
+            output.range_check_events.len()
+        );
     }
 
     fn included(&self, _: &Self::Record) -> bool {

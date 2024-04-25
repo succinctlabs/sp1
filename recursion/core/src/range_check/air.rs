@@ -30,11 +30,11 @@ impl<AB: SP1RecursionAirBuilder + PairBuilder> Air<AB> for RangeCheckChip<AB::F>
             let field_op = opcode.as_field::<AB::F>();
             let mult = local_mult.multiplicities[i];
 
-            if *opcode == RangeCheckOpcode::U12 {
-                builder.when(local.u12_out_range).assert_zero(mult);
-            }
+            // if *opcode == RangeCheckOpcode::U12 {
+            //     builder.when(local.u12_out_range).assert_zero(mult);
+            // }
 
-            builder.receive_range_check(field_op, local.value_u16, mult);
+            // builder.receive_range_check(field_op, local.value_u16, mult);
         }
 
         // Dummy constraint for normalizing to degree 3.

@@ -44,7 +44,10 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
             NUM_RANGE_CHECK_MULT_COLS,
         );
 
-        println!("input.range_check_events: {:?}", input.range_check_events);
+        println!(
+            "input.range_check_events len is: {:?}",
+            input.range_check_events.len()
+        );
 
         for (lookup, mult) in input.range_check_events.iter() {
             let (row, index) = event_map[lookup];

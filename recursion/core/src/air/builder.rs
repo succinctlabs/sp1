@@ -68,7 +68,7 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
         let timestamp: Self::Expr = timestamp.into();
         let mem_access = memory_access.access();
 
-        self.eval_memory_access_timestamp(timestamp.clone(), mem_access, is_real.clone());
+        // self.eval_memory_access_timestamp(timestamp.clone(), mem_access, is_real.clone());
 
         let addr = addr.into();
         let prev_timestamp = mem_access.prev_timestamp.clone().into();

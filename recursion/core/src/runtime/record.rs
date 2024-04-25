@@ -57,6 +57,15 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
             .append(&mut other.first_memory_record);
         self.last_memory_record
             .append(&mut other.last_memory_record);
+
+        // Merge the byte lookups.
+        for (range_check_event, count) in std::mem::take(&mut other.range_check_events).into_iter()
+        {
+            *self
+                .range_check_events
+                .entry(range_check_event)
+                .or_insert(0) += count;
+        }
     }
 
     fn shard(self, _: &Self::Config) -> Vec<Self> {
