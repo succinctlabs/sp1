@@ -56,7 +56,7 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
             builder.error();
         });
 
-    challenger.check_witness(builder, 16, proof.pow_witness);
+    challenger.check_witness(builder, config.proof_of_work_bits, proof.pow_witness);
 
     let num_commit_phase_commits = proof.commit_phase_commits.len().materialize(builder);
     let log_max_height: Var<_> = builder.eval(num_commit_phase_commits + config.log_blowup);

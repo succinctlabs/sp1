@@ -62,9 +62,6 @@ pub fn main() {
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    let bytes = bincode::serialize(&wrapped_proof).unwrap();
-    println!("bn254 proof size = {}", bytes.len());
-
     tracing::info!("sanity check gnark test");
     Groth16Prover::test(constraints.clone(), witness.clone());
 
