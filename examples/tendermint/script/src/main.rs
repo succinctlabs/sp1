@@ -2,7 +2,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 
 use reqwest::Client;
-use sp1_sdk::{utils, ProverClient, PublicValues, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1PublicValues, SP1Stdin};
 
 use sha2::{Digest, Sha256};
 use tendermint_light_client_verifier::options::Options;
@@ -76,8 +76,8 @@ fn main() {
     pv_hasher.update(&serde_cbor::to_vec(&expected_verdict).unwrap());
     let expected_pv_digest: &[u8] = &pv_hasher.finalize();
 
-    let public_values_bytes = proof.proof.shard_proofs[0].public_values.clone();
-    let public_values = PublicValues::from_vec(public_values_bytes);
+    let public_values_bytes = proof.shard_proofs[0].public_values.clone();
+    let public_values = SP1PublicValues::from_vec(public_values_bytes);
     assert_eq!(
         public_values.commit_digest_bytes().as_slice(),
         expected_pv_digest

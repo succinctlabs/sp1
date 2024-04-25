@@ -2,7 +2,10 @@ use std::borrow::Borrow;
 
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
+use p3_field::{
+    batch_multiplicative_inverse, AbstractExtensionField, AbstractField, ExtensionField, Field,
+    Powers, PrimeField,
+};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
@@ -30,16 +33,14 @@ pub fn generate_interaction_rlc_elements<F: Field, AF: AbstractField>(
 
 #[inline]
 #[allow(clippy::too_many_arguments)]
-pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
+pub fn batch_and_mult<F: PrimeField, EF: ExtensionField<F>>(
     row: &mut [EF],
-    preprocessed_row: &[F],
-    main_row: &[F],
     sends: &[Interaction<F>],
     receives: &[Interaction<F>],
-    alphas: &[EF],
-    betas: Powers<EF>,
+    preprocessed_row: &[F],
+    main_row: &[F],
     batch_size: usize,
-) {
+) -> Vec<EF> {
     let interaction_chunks = &sends
         .iter()
         .map(|int| (int, true))
@@ -47,27 +48,39 @@ pub fn populate_permutation_row<F: PrimeField, EF: ExtensionField<F>>(
         .chunks(batch_size);
     let num_chunks = (sends.len() + receives.len() + 1) / batch_size;
     debug_assert_eq!(num_chunks + 1, row.len());
+    let mut new_row = Vec::<EF>::with_capacity(num_chunks);
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
-    for (value, chunk) in row.iter_mut().zip(interaction_chunks) {
-        *value = chunk
-            .into_iter()
-            .map(|(interaction, is_send)| {
-                let alpha = alphas[interaction.argument_index()];
-                let mut denominator = alpha;
-                for (columns, beta) in interaction.values.iter().zip(betas.clone()) {
-                    denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row)
-                }
-                let mut mult = interaction
-                    .multiplicity
-                    .apply::<F, F>(preprocessed_row, main_row);
+    for (value, chunk) in new_row.iter_mut().zip(row.iter().zip(interaction_chunks)) {
+        *value = chunk.into_iter().map(|(value, interaction_info)| {
+            let (interaction_info, is_send) = interaction_info;
+            let mut mult = interaction.multiplicity.apply::<F, F>(preprocessed_row, main_row); 
+    }
+    new_row
+}
 
-                if !is_send {
-                    mult = -mult;
-                }
+#[inline]
+#[allow(clippy::too_many_arguments)]
+pub fn populate_prepermutation_row<F: PrimeField, EF: ExtensionField<F>>(
+    row: &mut [EF],
+    preprocessed_row: &[F],
+    main_row: &[F],
+    sends: &[Interaction<F>],
+    receives: &[Interaction<F>],
+    alphas: &[EF],
+    betas: Powers<EF>,
+) {
+    let interaction_info = &sends.iter().chain(receives.iter());
+    // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
+    for (value, interaction) in row.iter_mut().zip(interaction_info.into_inter()) {
+        *value = {
+            let alpha = alphas[interaction.argument_index()];
+            let mut denominator = alpha;
+            for (columns, beta) in interaction.values.iter().zip(betas.clone()) {
+                denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row)
+            }
 
-                EF::from_base(mult) / denominator
-            })
-            .sum();
+            denominator
+        };
     }
 }
 
@@ -103,6 +116,13 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     let permutation_trace_width = permutation_trace_width(sends.len() + receives.len(), batch_size);
     let height = main.height();
 
+    let prepermutation_trace_width = (sends.len() + receives.len() + 1);
+
+    let mut prepermutation_trace = RowMajorMatrix::new(
+        vec![EF::zero(); prepermutation_trace_width * height],
+        prepermutation_trace_width,
+    );
+
     let mut permutation_trace = RowMajorMatrix::new(
         vec![EF::zero(); permutation_trace_width * height],
         permutation_trace_width,
@@ -112,12 +132,12 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
 
     match preprocessed {
         Some(prep) => {
-            permutation_trace
+            prepermutation_trace
                 .par_rows_mut()
                 .zip_eq(prep.par_rows())
                 .zip_eq(main.par_rows())
                 .for_each(|((row, prep_row), main_row)| {
-                    populate_permutation_row(
+                    populate_prepermutation_row(
                         row,
                         prep_row.collect::<Vec<_>>().as_slice(),
                         main_row.collect::<Vec<_>>().as_slice(),
@@ -125,16 +145,15 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         receives,
                         &alphas,
                         betas.clone(),
-                        batch_size,
                     )
                 });
         }
         None => {
-            permutation_trace
+            prepermutation_trace
                 .par_rows_mut()
                 .zip_eq(main.par_rows_mut())
                 .for_each(|(row, main_row)| {
-                    populate_permutation_row(
+                    populate_prepermutation_row(
                         row,
                         &[],
                         main_row,
@@ -142,11 +161,30 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
                         receives,
                         &alphas,
                         betas.clone(),
-                        batch_size,
                     )
                 });
         }
     }
+    prepermutation_trace.values = batch_multiplicative_inverse(&prepermutation_trace.values);
+
+    permutation_trace = match preprocessed {
+        Some(prep) => {
+            prepermutation_trace
+        .par_rows_mut()
+        .for_each(|row| batch_and_mult(row, sends, receives, preprocessed_row, main_row, batch_size));
+        }
+
+        None => {
+            prepermutation_trace.par_rows_mut().for_each(|row| {
+                batch_and_mult(row, sends, receives, &[], main_row, batch_size)
+            });
+
+        
+
+    };
+    permutation_trace = prepermutation_trace
+        .par_rows_mut()
+        .for_each(|row| batch_and_mult(row, sends, receives, preprocessed_row, main_row, batch_size));
 
     let zero = EF::zero();
     let cumulative_sums = permutation_trace
