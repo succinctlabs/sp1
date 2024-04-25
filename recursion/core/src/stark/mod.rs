@@ -5,6 +5,7 @@ use crate::{
     cpu::CpuChip,
     fri_fold::FriFoldChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
+    poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
 };
 use core::iter::once;
@@ -24,7 +25,7 @@ pub enum RecursionAirWideDeg3<F: PrimeField32 + BinomiallyExtendable<D>> {
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    // Poseidon2(Poseidon2WideChip),
+    Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
     // Poseidon2(Poseidon2Chip),
 }
@@ -39,7 +40,7 @@ pub enum RecursionAirSkinnyDeg7<F: PrimeField32 + BinomiallyExtendable<D>> {
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    // Poseidon2(Poseidon2WideChip),
+    Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
     // Poseidon2(Poseidon2Chip),
 }
