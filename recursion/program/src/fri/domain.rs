@@ -130,6 +130,29 @@ where
         domains
     }
 
+    fn split_domains_const(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
+        let num_chunks = 1 << log_num_chunks;
+        let log_n: Var<_> = builder.eval(self.log_n - C::N::from_canonical_usize(log_num_chunks));
+        let size = builder.sll(C::N::one(), Usize::Var(log_n));
+
+        let g_dom = self.gen();
+        let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks);
+
+        let domain_power: Felt<_> = builder.eval(C::F::one());
+        let mut domains = vec![];
+
+        for _ in 0..num_chunks {
+            domains.push(TwoAdicMultiplicativeCosetVariable {
+                log_n,
+                size,
+                shift: builder.eval(self.shift * domain_power),
+                g,
+            });
+            builder.assign(domain_power, domain_power * g_dom);
+        }
+        domains
+    }
+
     fn create_disjoint_domain(
         &self,
         builder: &mut Builder<C>,

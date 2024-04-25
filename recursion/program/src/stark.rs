@@ -289,11 +289,21 @@ where
                     let trace_domain = builder.get(&trace_domains, index);
                     let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
                         builder.get(&quotient_domains, index);
-                    let qc_domains = quotient_domain.split_domains(
-                        builder,
-                        chip.log_quotient_degree(),
-                        1 << chip.log_quotient_degree(),
+
+                    // Check that the quotient data matches the chip's data.
+                    let log_quotient_degree = chip.log_quotient_degree();
+                    let quotient_size = 1 << log_quotient_degree;
+                    let chip_quotient_data = builder.get(&chip_quotient_data, index);
+                    builder.assert_usize_eq(
+                        chip_quotient_data.log_quotient_degree,
+                        log_quotient_degree,
                     );
+                    builder.assert_usize_eq(chip_quotient_data.quotient_size, quotient_size);
+
+                    // Get the domains from the chip itself.
+                    let qc_domains =
+                        quotient_domain.split_domains_const(builder, log_quotient_degree);
+
                     Self::verify_constraints(
                         builder,
                         chip,

@@ -45,7 +45,7 @@ use crate::fri::TwoAdicFriPcsVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::StarkVerifier;
-use crate::types::VerifyingKeyVariable;
+use crate::types::{QuotientData, VerifyingKeyVariable};
 use crate::types::{Sha256DigestVariable, ShardProofVariable};
 use crate::utils::{
     assert_challenger_eq_pv, assign_challenger_from_pv, clone_array, commit_challenger,
@@ -102,6 +102,7 @@ impl ReduceProgram {
         // with the appropriate values using the hinting API.
         let is_recursive_flags: Array<_, Var<_>> = builder.uninit();
         let sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
+        let chip_quotient_data: Array<_, QuotientData<_>> = builder.uninit();
         let verify_start_challenger: DuplexChallengerVariable<_> = builder.uninit();
         let reconstruct_challenger: DuplexChallengerVariable<_> = builder.uninit();
         let prep_sorted_indices: Array<_, Var<_>> = builder.uninit();
@@ -382,6 +383,7 @@ impl ReduceProgram {
                         &core_machine,
                         &mut current_challenger,
                         &proof,
+                        chip_quotient_data.clone(),
                         sorted_indices.clone(),
                         prep_sorted_indices.clone(),
                         prep_domains.clone(),
@@ -477,6 +479,7 @@ impl ReduceProgram {
                                 &compress_machine,
                                 &mut current_challenger.clone(),
                                 &proof,
+                                chip_quotient_data.clone(),
                                 sorted_indices.clone(),
                                 reduce_prep_sorted_indices.clone(),
                                 reduce_prep_domains.clone(),
@@ -490,6 +493,7 @@ impl ReduceProgram {
                                 &reduce_machine,
                                 &mut current_challenger.clone(),
                                 &proof,
+                                chip_quotient_data.clone(),
                                 sorted_indices.clone(),
                                 reduce_prep_sorted_indices.clone(),
                                 reduce_prep_domains.clone(),
@@ -545,6 +549,7 @@ impl ReduceProgram {
                     &reduce_machine,
                     &mut challenger,
                     &proof,
+                    chip_quotient_data.clone(),
                     sorted_indices.clone(),
                     reduce_prep_sorted_indices.clone(),
                     reduce_prep_domains.clone(),

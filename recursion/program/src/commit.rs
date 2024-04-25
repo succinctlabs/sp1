@@ -23,6 +23,8 @@ pub trait PolynomialSpaceVariable<C: Config>: Sized + FromConstant<C> {
         num_chunks: impl Into<Usize<C::N>>,
     ) -> Array<C, Self>;
 
+    fn split_domains_const(&self, _: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self>;
+
     fn create_disjoint_domain(
         &self,
         builder: &mut Builder<C>,
