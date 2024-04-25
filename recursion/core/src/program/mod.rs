@@ -68,7 +68,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
                 cols.selectors.populate(instruction);
-                cols.instruction.populate(&instruction);
+                cols.instruction.populate(instruction);
                 row
             })
             .collect::<Vec<_>>();
@@ -156,8 +156,8 @@ where
 
         builder.receive_program(
             prep_local.pc,
-            prep_local.instruction.clone(),
-            prep_local.selectors.clone(),
+            prep_local.instruction,
+            prep_local.selectors,
             mult_local.multiplicity,
         );
 

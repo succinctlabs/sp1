@@ -315,7 +315,7 @@ where
             self.memory
                 .get(&(addr.as_canonical_u32() as usize))
                 .map(|entry| entry.value)
-                .unwrap_or_else(Block::default),
+                .unwrap_or_default(),
         )
     }
 
@@ -528,7 +528,7 @@ where
                         next_pc = self.pc + c_offset[0];
                     }
                     self.mw_cpu(a_ptr, a_val, MemoryAccessPosition::A);
-                    (a, b, c) = (a_val, b_val, Block::from(c_offset));
+                    (a, b, c) = (a_val, b_val, c_offset);
                 }
                 Opcode::JAL => {
                     self.nb_branch_ops += 1;
@@ -779,14 +779,14 @@ where
                 clk: self.clk,
                 pc: self.pc,
                 fp: self.fp,
-                instruction: instruction.clone(),
+                instruction,
                 a,
-                a_record: self.access.a.clone(),
+                a_record: self.access.a,
                 b,
-                b_record: self.access.b.clone(),
+                b_record: self.access.b,
                 c,
-                c_record: self.access.c.clone(),
-                memory_record: self.access.memory.clone(),
+                c_record: self.access.c,
+                memory_record: self.access.memory,
             };
             self.pc = next_pc;
             self.record.cpu_events.push(event);
