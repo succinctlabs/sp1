@@ -6,7 +6,6 @@
 pub mod challenger;
 pub mod commit;
 pub mod constraints;
-pub mod folder;
 pub mod fri;
 pub mod hints;
 pub mod reduce;

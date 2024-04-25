@@ -616,13 +616,18 @@ pub trait MultiTableAirBuilder: PermutationAirBuilder {
 
 /// A trait that contains the common helper methods for building `SP1 recursion` and SP1 machine AIRs.
 pub trait MachineAirBuilder:
-    BaseAirBuilder + ExtensionAirBuilder + ProgramAirBuilder + AirBuilderWithPublicValues
+    BaseAirBuilder + ExtensionAirBuilder + AirBuilderWithPublicValues
 {
 }
 
 /// A trait which contains all helper methods for building SP1 machine AIRs.
 pub trait SP1AirBuilder:
-    MachineAirBuilder + ByteAirBuilder + WordAirBuilder + AluAirBuilder + MemoryAirBuilder
+    MachineAirBuilder
+    + ByteAirBuilder
+    + WordAirBuilder
+    + AluAirBuilder
+    + MemoryAirBuilder
+    + ProgramAirBuilder
 {
 }
 
@@ -651,4 +656,5 @@ impl<'a, SC: StarkGenericConfig> EmptyMessageBuilder for VerifierConstraintFolde
 impl<F: Field> EmptyMessageBuilder for SymbolicAirBuilder<F> {}
 
 #[cfg(debug_assertions)]
+#[cfg(not(doctest))]
 impl<'a, F: Field> EmptyMessageBuilder for p3_uni_stark::DebugConstraintBuilder<'a, F> {}

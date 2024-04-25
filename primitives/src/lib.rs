@@ -2,7 +2,7 @@
 //! Because it is imported in the zkvm entrypoint, it should be kept minimal.
 
 use lazy_static::lazy_static;
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_field::AbstractField;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 
@@ -1100,7 +1100,7 @@ lazy_static! {
 }
 
 pub fn poseidon2_init(
-) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7> {
+) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7> {
     const ROUNDS_F: usize = 8;
     const ROUNDS_P: usize = 22;
     let mut round_constants = RC_16_30.to_vec();
@@ -1117,7 +1117,7 @@ pub fn poseidon2_init(
         Poseidon2ExternalMatrixGeneral,
         ROUNDS_P,
         internal_round_constants,
-        DiffusionMatrixBabybear,
+        DiffusionMatrixBabyBear,
     )
 }
 
@@ -1128,14 +1128,14 @@ pub fn poseidon2_hash(input: Vec<BabyBear>) -> [BabyBear; 8] {
 }
 
 pub fn poseidon2_hasher() -> PaddingFreeSponge<
-    Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+    Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
     16,
     8,
     8,
 > {
     let hasher = poseidon2_init();
     PaddingFreeSponge::<
-        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
         16,
         8,
         8,
@@ -1144,7 +1144,7 @@ pub fn poseidon2_hasher() -> PaddingFreeSponge<
 
 lazy_static! {
     pub static ref POSEIDON2_HASHER: PaddingFreeSponge::<
-        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
         16,
         8,
         8,

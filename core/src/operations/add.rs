@@ -107,8 +107,5 @@ impl<F: Field> AddOperation<F> {
             builder.slice_range_check_u8(&b.0, shard, is_real.clone());
             builder.slice_range_check_u8(&cols.value.0, shard, is_real);
         }
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(a[0] * b[0] * cols.value[0] - a[0] * b[0] * cols.value[0]);
     }
 }

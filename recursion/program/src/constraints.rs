@@ -14,8 +14,8 @@ use sp1_recursion_compiler::prelude::ExtConst;
 use sp1_recursion_compiler::prelude::{Builder, Ext, SymbolicExt};
 
 use crate::commit::PolynomialSpaceVariable;
-use crate::folder::RecursiveVerifierConstraintFolder;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::stark::RecursiveVerifierConstraintFolder;
 use crate::stark::StarkVerifier;
 use crate::types::ChipOpenedValuesVariable;
 use crate::types::ChipOpening;
@@ -55,15 +55,14 @@ where
             next: unflatten(&opening.permutation.next),
         };
 
-        let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
+        // let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
 
         let mut folder_pv = Vec::new();
         for i in 0..PROOF_MAX_NUM_PVS {
             folder_pv.push(builder.get(&public_values, i));
         }
 
-        let mut folder = RecursiveVerifierConstraintFolder {
-            builder,
+        let mut folder = RecursiveVerifierConstraintFolder::<C> {
             preprocessed: opening.preprocessed.view(),
             main: opening.main.view(),
             perm: perm_opening.view(),
@@ -74,11 +73,12 @@ where
             is_last_row: selectors.is_last_row,
             is_transition: selectors.is_transition,
             alpha,
-            accumulator: zero,
+            accumulator: SymbolicExt::zero(),
+            _marker: std::marker::PhantomData,
         };
 
         chip.eval(&mut folder);
-        folder.accumulator
+        builder.eval(folder.accumulator)
     }
 
     fn recompute_quotient(
@@ -170,7 +170,7 @@ mod tests {
         },
         utils::BabyBearPoseidon2,
     };
-    use sp1_recursion_core::runtime::Runtime;
+    use sp1_recursion_core::{runtime::Runtime, stark::utils::debug_constraints};
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
@@ -358,5 +358,7 @@ mod tests {
             "The program executed successfully, number of cycles: {}",
             runtime.clk.as_canonical_u32() / 4
         );
+
+        debug_constraints(program, runtime.record);
     }
 }

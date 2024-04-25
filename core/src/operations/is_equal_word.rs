@@ -48,11 +48,5 @@ impl<F: Field> IsEqualWordOperation<F> {
 
         // Check if the difference is 0.
         IsZeroWordOperation::<AB::F>::eval(builder, diff, cols.is_diff_zero, is_real.clone());
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            is_real.clone() * is_real.clone() * is_real.clone()
-                - is_real.clone() * is_real.clone() * is_real.clone(),
-        );
     }
 }

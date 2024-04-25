@@ -1,9 +1,8 @@
-use crate::{air::IsExtZeroOperation, memory::MemoryReadWriteCols};
+use crate::memory::MemoryReadWriteCols;
 use sp1_derive::AlignedBorrow;
 
 mod branch;
 mod instruction;
-mod jump;
 mod opcode;
 mod opcode_specific;
 
@@ -24,15 +23,12 @@ pub struct CpuCols<T: Copy> {
     pub selectors: OpcodeSelectorCols<T>,
 
     pub a: MemoryReadWriteCols<T>,
-
     pub b: MemoryReadWriteCols<T>,
-
     pub c: MemoryReadWriteCols<T>,
+    pub memory_addr: T,
+    pub memory: MemoryReadWriteCols<T>,
 
     pub opcode_specific: OpcodeSpecificCols<T>,
-
-    // result = operand_1 == operand_2;
-    pub eq_1_2: IsExtZeroOperation<T>,
 
     pub is_real: T,
 }

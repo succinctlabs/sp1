@@ -341,6 +341,16 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     opcode: ConstraintOpcode::CommitCommitedValuesDigest,
                     args: vec![vec![a.id()]],
                 }),
+                DslIr::CircuitFelts2Ext(a, b) => constraints.push(Constraint {
+                    opcode: ConstraintOpcode::CircuitFelts2Ext,
+                    args: vec![
+                        vec![b.id()],
+                        vec![a[0].id()],
+                        vec![a[1].id()],
+                        vec![a[2].id()],
+                        vec![a[3].id()],
+                    ],
+                }),
                 _ => panic!("unsupported {:?}", instruction),
             };
         }

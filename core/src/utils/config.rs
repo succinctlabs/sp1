@@ -1,5 +1,5 @@
 use crate::stark::StarkGenericConfig;
-use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
+use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_challenger::DuplexChallenger;
 use p3_commit::ExtensionMmcs;
 use p3_dft::Radix2DitParallel;
@@ -23,7 +23,7 @@ pub const DIGEST_SIZE: usize = 8;
 pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
 pub type InnerPerm =
-    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>;
+    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
 pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
 pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
 pub type InnerDigest = [InnerVal; DIGEST_SIZE];
@@ -64,7 +64,7 @@ pub fn inner_perm() -> InnerPerm {
         Poseidon2ExternalMatrixGeneral,
         ROUNDS_P,
         internal_round_constants,
-        DiffusionMatrixBabybear,
+        DiffusionMatrixBabyBear,
     )
 }
 

@@ -38,12 +38,15 @@ pub fn main() {
     tracing::info!("reduce");
     let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
 
+    tracing::info!("compress");
+    let compressed_proof = prover.compress(&vk, core_challenger.clone(), reduced_proof);
+
     tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(&vk, core_challenger, reduced_proof);
+    let wrapped_proof = prover.wrap_bn254(&vk, core_challenger, compressed_proof);
 
     tracing::info!("building verifier constraints");
     let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(&prover.reduce_vk_outer, wrapped_proof.clone()));
+        .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.clone()));
 
     tracing::info!("building template witness");
     let mut witness = Witness::default();
