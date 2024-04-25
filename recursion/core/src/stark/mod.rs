@@ -27,7 +27,7 @@ pub enum RecursionAirWideDeg3<F: PrimeField32 + BinomiallyExtendable<D>> {
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    Poseidon2(Poseidon2WideChip),
+    // Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
     RangeCheck(RangeCheckChip<F>),
 }
