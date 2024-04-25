@@ -12,15 +12,15 @@ use sp1_core::{
 use super::Block;
 /// A trait which contains all helper methods for building SP1 recursion machine AIRs.
 pub trait SP1RecursionAirBuilder:
-    MachineAirBuilder + RecursionMemoryAirBuilder + RangeCheckAirBuilder
+    MachineAirBuilder + RecursionMemoryAirBuilder + RecursionInteractionAirBuilder
 {
 }
 
 impl<AB: AirBuilderWithPublicValues + RecursionMemoryAirBuilder> SP1RecursionAirBuilder for AB {}
 impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RecursionMemoryAirBuilder for AB {}
-impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RangeCheckAirBuilder for AB {}
+impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RecursionInteractionAirBuilder for AB {}
 
-pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
+pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
     fn recursion_eval_memory_access<E: Into<Self::Expr> + Clone>(
         &mut self,
         timestamp: impl Into<Self::Expr>,
@@ -151,7 +151,8 @@ pub trait RecursionMemoryAirBuilder: RangeCheckAirBuilder {
     }
 }
 
-pub trait RangeCheckAirBuilder: BaseAirBuilder {
+/// Builder trait containing helper functions to send/receive interactions.
+pub trait RecursionInteractionAirBuilder: BaseAirBuilder {
     /// Sends a range check operation to be processed.
     fn send_range_check(
         &mut self,
