@@ -69,6 +69,10 @@ pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
 pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
 
 pub trait Prover: Send + Sync {
+    fn setup(elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        SP1Prover::setup(&self, elf)
+    }
+
     /// Prove the execution of a RISCV ELF with the given inputs.
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof>;
 
