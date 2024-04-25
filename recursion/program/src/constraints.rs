@@ -171,11 +171,9 @@ mod tests {
         utils::BabyBearPoseidon2,
     };
     use sp1_recursion_core::runtime::Runtime;
-    use sp1_recursion_core::stark::RecursionAir;
 
     use p3_challenger::{CanObserve, FieldChallenger};
     use p3_field::PrimeField32;
-    use sp1_core::utils;
     use sp1_recursion_compiler::{asm::AsmBuilder, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
@@ -360,14 +358,5 @@ mod tests {
             "The program executed successfully, number of cycles: {}",
             runtime.clk.as_canonical_u32() / 4
         );
-
-        let machine = RecursionAir::machine(SC::default());
-        let (pk, _) = machine.setup(&program);
-        let mut challenger = machine.config().challenger();
-        // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
-        utils::setup_logger();
-        use std::env;
-        env::set_var("RUST_LOG", "debug");
-        machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
     }
 }

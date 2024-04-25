@@ -99,7 +99,6 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             cols.is_real = F::one();
 
             // Apply the initial round.
-            // cols.input = event.input;
             for i in 0..WIDTH {
                 cols.input[i].populate(&event.input_records[i]);
             }
@@ -124,14 +123,13 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
                 let next_state = populate_external_round(cols, r);
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
-                    // DO nothing.
-                    // cols.output = next_state;
+                    // Do nothing, since we set the cols.output by populating the output records
+                    // after this loop.
                 } else {
                     cols.external_rounds[r + 1].state = next_state;
                 }
             }
 
-            // TODO: check that result_records is consistent with cols.output
             for i in 0..WIDTH {
                 cols.output[i].populate(&event.result_records[i]);
             }
@@ -272,7 +270,6 @@ fn eval_external_round<AB: SP1AirBuilder>(
         &cols.internal_rounds.state
     } else if r == NUM_EXTERNAL_ROUNDS - 1 {
         &core::array::from_fn(|i| *cols.output[i].value())
-        // &output_values
     } else {
         &cols.external_rounds[r + 1].state
     };
@@ -388,6 +385,7 @@ where
             );
         }
 
+        // Constraint that the operands are sent from the CPU table.
         let operands: [AB::Expr; 4] = [
             cols.timestamp.into(),
             cols.dst.into(),
@@ -399,8 +397,6 @@ where
             &operands,
             cols.is_real,
         );
-
-        // TODO: constraint cols.timestamp, dst, left, right and is_real to the CPU table.
     }
 }
 
