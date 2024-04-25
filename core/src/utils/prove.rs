@@ -257,12 +257,11 @@ where
 {
     let mut challenger = config.challenger();
 
-    let start = Instant::now();
-
     let machine = RiscvAir::machine(config);
     let (pk, _) = machine.setup(runtime.program.as_ref());
 
     // Prove the program.
+    let start = Instant::now();
     let cycles = runtime.state.global_clk;
     let proof = tracing::info_span!("prove")
         .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
@@ -430,10 +429,10 @@ pub mod baby_bear_poseidon2 {
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => 25,
+            Err(_) => 33,
         };
         FriConfig {
-            log_blowup: 4,
+            log_blowup: 3,
             num_queries,
             proof_of_work_bits: 16,
             mmcs: challenge_mmcs,
