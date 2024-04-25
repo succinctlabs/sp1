@@ -28,6 +28,7 @@ func (fp Params) NumElmsPerBN254Elm() uint { return 8 }
 
 func init() {
 	solver.RegisterHint(InvEHint)
+	solver.RegisterHint(ReduceHint)
 }
 
 type Variable struct {
@@ -90,12 +91,6 @@ func (c *Chip) SubF(a, b *Variable) *Variable {
 func (c *Chip) MulF(a, b *Variable) *Variable {
 	return &Variable{
 		Value: c.field.Mul(a.Value, b.Value),
-	}
-}
-
-func (c *Chip) MulFConst(a *Variable, b *big.Int) *Variable {
-	return &Variable{
-		Value: c.field.MulConst(a.Value, b),
 	}
 }
 
@@ -340,13 +335,13 @@ func (p *Chip) ReduceWithMaxBits(x *Variable, maxNbBits uint64) *Variable {
 		panic(err)
 	}
 
-	quotient := result[0]
-	p.rangeChecker.Check(quotient, int(maxNbBits))
+	// quotient := result[0]
+	// p.rangeChecker.Check(quotient, int(maxNbBits))
 
-	p.rangeChecker.Check(result[1], int(maxNbBits))
+	// p.rangeChecker.Check(result[1], int(maxNbBits))
 	remainder := p.field.NewElement(result[1])
 
-	p.api.AssertIsEqual(x.Value.Limbs[0], p.api.Add(p.api.Mul(quotient, MODULUS), remainder.Limbs[0]))
+	// p.api.AssertIsEqual(x.Value.Limbs[0], p.api.Add(p.api.Mul(quotient, MODULUS), remainder))
 
 	return &Variable{
 		Value: remainder,

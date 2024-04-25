@@ -342,7 +342,7 @@ impl<C: Config + Debug> ConstraintCompiler<C> {
                     args: vec![vec![a.id()]],
                 }),
                 DslIr::CircuitFelts2Ext(a, b) => constraints.push(Constraint {
-                    opcode: ConstraintOpcode::Felts2Ext,
+                    opcode: ConstraintOpcode::CircuitFelts2Ext,
                     args: vec![
                         vec![b.id()],
                         vec![a[0].id()],
