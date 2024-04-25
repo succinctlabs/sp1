@@ -14,7 +14,7 @@
 #![allow(clippy::new_without_default)]
 
 mod types;
-mod utils;
+pub mod utils;
 mod verify;
 
 pub use types::*;
