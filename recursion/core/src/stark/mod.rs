@@ -65,7 +65,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirWideDeg3<F> {
                     kind: MemoryChipKind::Finalize,
                 },
             )))
-            // .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip {})))
+            .chain(once(RecursionAirWideDeg3::Poseidon2(Poseidon2WideChip {})))
             .chain(once(RecursionAirWideDeg3::FriFold(FriFoldChip {})))
             .collect()
     }
@@ -91,7 +91,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirSkinnyDeg7<F> {
                     kind: MemoryChipKind::Finalize,
                 },
             )))
-            // .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip {})))
+            .chain(once(RecursionAirSkinnyDeg7::Poseidon2(
+                Poseidon2WideChip {},
+            )))
             .chain(once(RecursionAirSkinnyDeg7::FriFold(FriFoldChip {})))
             .collect()
     }
