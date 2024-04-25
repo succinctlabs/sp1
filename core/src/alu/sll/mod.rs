@@ -343,11 +343,6 @@ where
             local.shard,
             local.is_real,
         );
-
-        // A dummy constraint to keep the degree at least 3.
-        builder.assert_zero(
-            local.a[0] * local.b[0] * local.c[0] - local.a[0] * local.b[0] * local.c[0],
-        );
     }
 }
 

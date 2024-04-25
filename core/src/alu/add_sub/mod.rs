@@ -180,12 +180,6 @@ where
         builder.assert_bool(local.is_add);
         builder.assert_bool(local.is_sub);
         builder.assert_bool(is_real);
-
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(
-            local.operand_1[0] * local.operand_1[0] * local.operand_1[0]
-                - local.operand_1[0] * local.operand_1[0] * local.operand_1[0],
-        );
     }
 }
 

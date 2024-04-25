@@ -134,11 +134,5 @@ where
                 ));
             }
         };
-
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
-        );
     }
 }

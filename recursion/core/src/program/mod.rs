@@ -151,12 +151,6 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            prep_local.pc * prep_local.pc * prep_local.pc,
-            prep_local.pc * prep_local.pc * prep_local.pc,
-        );
-
         let mut interaction_vals: Vec<AB::Expr> = vec![prep_local.instruction.opcode.into()];
         interaction_vals.push(prep_local.instruction.op_a.into());
         interaction_vals.extend_from_slice(&prep_local.instruction.op_b.map(|x| x.into()).0);
