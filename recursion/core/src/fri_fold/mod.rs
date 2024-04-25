@@ -165,7 +165,7 @@ where
         // Constrain read for `z` at `ptr + 1`
         builder.recursion_eval_memory_access(
             cols.clk,
-            cols.input_ptr + AB::Expr::one(),
+            cols.input_ptr + AB::Expr::zero(),
             &cols.z,
             cols.is_real,
         );
@@ -173,7 +173,7 @@ where
         // Constrain read for `alpha` at `ptr + 2`
         builder.recursion_eval_memory_access(
             cols.clk,
-            cols.input_ptr + AB::Expr::two(),
+            cols.input_ptr + AB::Expr::one(),
             &cols.alpha,
             cols.is_real,
         );
@@ -181,7 +181,7 @@ where
         // Constrain read for `x`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(3),
+            cols.input_ptr + AB::Expr::from_canonical_u32(2),
             &cols.x,
             cols.is_real,
         );
@@ -189,7 +189,7 @@ where
         // Constrain read for `log_height`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(4),
+            cols.input_ptr + AB::Expr::from_canonical_u32(3),
             &cols.log_height,
             cols.is_real,
         );
@@ -197,7 +197,7 @@ where
         // Constrain read for `mat_opening_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(5),
+            cols.input_ptr + AB::Expr::from_canonical_u32(4),
             &cols.mat_opening_ptr,
             cols.is_real,
         );
@@ -205,7 +205,7 @@ where
         // Constrain read for `ps_at_z_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(7),
+            cols.input_ptr + AB::Expr::from_canonical_u32(6),
             &cols.ps_at_z_ptr,
             cols.is_real,
         );
@@ -213,7 +213,7 @@ where
         // Constrain read for `alpha_pow_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(9),
+            cols.input_ptr + AB::Expr::from_canonical_u32(8),
             &cols.ps_at_z_ptr,
             cols.is_real,
         );
@@ -221,7 +221,7 @@ where
         // Constrain read for `ro_ptr`
         builder.recursion_eval_memory_access_single(
             cols.clk,
-            cols.input_ptr + AB::Expr::from_canonical_u32(11),
+            cols.input_ptr + AB::Expr::from_canonical_u32(10),
             &cols.ro_ptr,
             cols.is_real,
         );
