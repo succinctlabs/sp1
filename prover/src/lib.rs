@@ -25,6 +25,7 @@ use p3_field::AbstractField;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
+pub use sp1_core::air::PublicValues;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::{Challenge, Com, Domain, PcsProverData, Prover, ShardMainData};
