@@ -6,7 +6,7 @@ use crate::air::IsExtZeroOperation;
 #[allow(dead_code)]
 pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 
-/// The column layout for branching.
+/// TODO: we should incorporate these columns into the `OpcodeSpecificCols` union.
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BranchCols<T> {

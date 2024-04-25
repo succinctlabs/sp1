@@ -4,7 +4,8 @@ use std::mem::{size_of, transmute};
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 
 /// Shared columns whose interpretation depends on the instruction being executed.
-/// TODO: Remove this struct if we end up not needed any opcode-specific columns.
+/// TODO: we should put the `memory` access columns and the branch equality columns here.
+/// Instead we have only inlined the memory access columns in here.
 #[derive(Clone, Copy)]
 #[repr(C)]
 pub union OpcodeSpecificCols<T: Copy> {

@@ -208,9 +208,14 @@ impl<C: Config> DuplexChallengerVariable<C> {
         bits
     }
 
-    pub fn check_witness(&mut self, builder: &mut Builder<C>, nb_bits: usize, witness: Felt<C::F>) {
+    pub fn check_witness(
+        &mut self,
+        builder: &mut Builder<C>,
+        nb_bits: Var<C::N>,
+        witness: Felt<C::F>,
+    ) {
         self.observe(builder, witness);
-        let element_bits = self.sample_bits(builder, Usize::Const(nb_bits));
+        let element_bits = self.sample_bits(builder, nb_bits.into());
         builder.range(0, nb_bits).for_each(|i, builder| {
             let element = builder.get(&element_bits, i);
             builder.assert_var_eq(element, C::N::zero());

@@ -46,6 +46,10 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AssemblyCode<F, EF> {
         Self { blocks, labels }
     }
 
+    pub fn size(&self) -> usize {
+        self.blocks.iter().map(|block| block.0.len()).sum()
+    }
+
     /// Convert the assembly code to a program.
     pub fn machine_code(self) -> RecursionProgram<F> {
         let blocks = self.blocks;

@@ -6,17 +6,14 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{MachineAir, SP1AirBuilder};
+use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
-use crate::poseidon2_wide::{
-    apply_m_4, external_linear_layer, internal_linear_layer, matmul_internal,
-    MATRIX_DIAG_16_BABYBEAR_U32,
-};
+use crate::poseidon2_wide::{apply_m_4, external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
@@ -51,6 +48,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
 
     fn name(&self) -> String {
         "Poseidon2".to_string()
+    }
+
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
     }
 
     #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all)]
@@ -271,19 +272,10 @@ where
         {
             // Use a simple matrix multiplication as the permutation.
             let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
-            let matmul_constants: [<<AB as AirBuilder>::Expr as AbstractField>::F; WIDTH] =
-                MATRIX_DIAG_16_BABYBEAR_U32
-                    .iter()
-                    .map(|x| <<AB as AirBuilder>::Expr as AbstractField>::F::from_wrapped_u32(*x))
-                    .collect::<Vec<_>>()
-                    .try_into()
-                    .unwrap();
-            matmul_internal(&mut state, matmul_constants);
-            for i in 0..WIDTH {
-                builder
-                    .when(local.is_internal)
-                    .assert_eq(state[i].clone(), local.output[i]);
-            }
+            internal_linear_layer(&mut state);
+            builder
+                .when(local.is_internal)
+                .assert_all_eq(state.clone(), local.output);
         }
 
         // Range check all flags.
@@ -323,7 +315,7 @@ mod tests {
     use std::time::Instant;
 
     use p3_baby_bear::BabyBear;
-    use p3_baby_bear::DiffusionMatrixBabybear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
@@ -358,7 +350,7 @@ mod tests {
         let gt: Poseidon2<
             BabyBear,
             Poseidon2ExternalMatrixGeneral,
-            DiffusionMatrixBabybear,
+            DiffusionMatrixBabyBear,
             16,
             7,
         > = inner_perm();
@@ -370,7 +362,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -396,7 +390,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
@@ -413,7 +409,7 @@ mod tests {
 
         let mut challenger: p3_challenger::DuplexChallenger<
             BabyBear,
-            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabybear, 16, 7>,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
             16,
         > = config.challenger();
         let start = Instant::now();

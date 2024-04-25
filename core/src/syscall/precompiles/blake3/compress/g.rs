@@ -192,7 +192,5 @@ impl<F: Field> GOperation<F> {
                 builder.assert_eq(cols.result[i][j], results[i][j]);
             }
         }
-        // Degree 3 constraint to avoid "OodEvaluationMismatch".
-        builder.assert_zero(is_real * is_real * is_real - is_real * is_real * is_real);
     }
 }
