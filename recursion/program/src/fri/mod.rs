@@ -50,8 +50,6 @@ pub fn verify_shape_and_sample_challenges<C: Config>(
         });
 
     let num_query_proofs = proof.query_proofs.len().materialize(builder);
-    builder.print_v(num_query_proofs);
-    builder.print_v(config.num_queries);
     builder
         .if_ne(num_query_proofs, config.num_queries)
         .then(|builder| {
