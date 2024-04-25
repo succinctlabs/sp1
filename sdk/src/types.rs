@@ -50,7 +50,7 @@ pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
 
 pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
 
-pub trait Prover {
+pub trait Prover: Send + Sync {
     /// Prove the execution of a RISCV ELF with the given inputs.
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof>;
 
@@ -131,17 +131,12 @@ impl Prover for LocalProver {
     fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         let artifacts_dir = self.get_artifacts_dir();
         let (pk, vk) = self.prover.setup(elf);
-        println!("Proving core");
         let proof = self.prover.prove_core(&pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        println!("Reducing");
         let reduce_proof = self.prover.reduce(&vk, proof, deferred_proofs);
-        println!("Wrapping bn254");
         let outer_proof = self.prover.wrap_bn254(&vk, reduce_proof);
-        println!("Wrapping plonk");
         let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
-        println!("Done");
         Ok(SP1ProofWithMetadata {
             proof,
             stdin,
@@ -161,37 +156,53 @@ pub enum MockProofCode {
     Plonk = 3,
 }
 
+pub type MockProof = [u8; 32];
+
 impl MockProver {
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
     }
 
-    /// Executes the program and returns vkey_digest and public values.
-    fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> (Vec<u8>, SP1PublicValues) {
+    /// Returns the vkey digest for the given ELF.
+    pub fn get_vk_digest(&self, elf: &[u8]) -> Vec<u8> {
         let (_, vkey) = self.prover.setup(elf);
-        let vkey_digest = self
-            .prover
+        self.prover
             .hash_vkey(&vkey.vk)
             .into_iter()
             .flat_map(|b| b.as_canonical_u32().to_le_bytes())
-            .collect::<Vec<_>>();
+            .collect::<Vec<_>>()
+    }
+
+    /// Executes the program and returns vkey_digest and public values.
+    fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> (Vec<u8>, SP1PublicValues) {
+        let (_, vkey) = self.prover.setup(elf);
+        let vkey_digest = self.get_vk_digest(elf);
         let public_values = SP1Prover::execute(elf, stdin);
         (vkey_digest, public_values)
     }
-}
 
-pub type MockProof = [u8; 32];
+    /// Generates a mock proof which is sha256( code || vkey_digest || public_values ).
+    fn mock_proof(
+        &self,
+        code: MockProofCode,
+        vkey_digest: &[u8],
+        public_values: &[u8],
+    ) -> MockProof {
+        let mut hasher_input = Vec::new();
+        hasher_input.push(code as u8);
+        hasher_input.extend_from_slice(vkey_digest);
+        hasher_input.extend_from_slice(public_values);
+        Sha256::digest(&hasher_input).into()
+    }
 
-impl MockProver {
     pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithMetadata<MockProof>> {
         let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let mut hasher_input = Vec::new();
-        hasher_input.push(MockProofCode::Default as u8);
-        hasher_input.extend_from_slice(&vkey_digest);
-        let pv_digest = Sha256::digest(&public_values.buffer.data);
-        hasher_input.extend_from_slice(&pv_digest);
-        let proof = Sha256::digest(&hasher_input).into();
+        let proof = self.mock_proof(
+            MockProofCode::Default,
+            &vkey_digest,
+            &public_values.buffer.data,
+        );
         Ok(SP1ProofWithMetadata {
             proof,
             stdin,
@@ -206,12 +217,11 @@ impl MockProver {
     ) -> Result<SP1ProofWithMetadata<MockProof>> {
         // TODO: we could check that deferred proofs are correct here.
         let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let mut hasher_input = Vec::new();
-        hasher_input.push(MockProofCode::Compressed as u8);
-        hasher_input.extend_from_slice(&vkey_digest);
-        let pv_digest = Sha256::digest(&public_values.buffer.data);
-        hasher_input.extend_from_slice(&pv_digest);
-        let proof = Sha256::digest(&hasher_input).into();
+        let proof = self.mock_proof(
+            MockProofCode::Compressed,
+            &vkey_digest,
+            &public_values.buffer.data,
+        );
         Ok(SP1ProofWithMetadata {
             proof,
             stdin,
@@ -225,12 +235,11 @@ impl MockProver {
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithMetadata<MockProof>> {
         let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let mut hasher_input = Vec::new();
-        hasher_input.push(MockProofCode::Groth16 as u8);
-        hasher_input.extend_from_slice(&vkey_digest);
-        let pv_digest = Sha256::digest(&public_values.buffer.data);
-        hasher_input.extend_from_slice(&pv_digest);
-        let proof = Sha256::digest(&hasher_input).into();
+        let proof = self.mock_proof(
+            MockProofCode::Groth16,
+            &vkey_digest,
+            &public_values.buffer.data,
+        );
         Ok(SP1ProofWithMetadata {
             proof,
             stdin,
@@ -244,12 +253,11 @@ impl MockProver {
         stdin: SP1Stdin,
     ) -> Result<SP1ProofWithMetadata<MockProof>> {
         let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let mut hasher_input = Vec::new();
-        hasher_input.push(MockProofCode::Plonk as u8);
-        hasher_input.extend_from_slice(&vkey_digest);
-        let pv_digest = Sha256::digest(&public_values.buffer.data);
-        hasher_input.extend_from_slice(&pv_digest);
-        let proof = Sha256::digest(&hasher_input).into();
+        let proof = self.mock_proof(
+            MockProofCode::Plonk,
+            &vkey_digest,
+            &public_values.buffer.data,
+        );
         Ok(SP1ProofWithMetadata {
             proof,
             stdin,
