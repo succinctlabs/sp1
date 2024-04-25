@@ -28,6 +28,8 @@ use crate::types::ShardCommitmentVariable;
 use crate::types::VerifyingKeyVariable;
 use crate::{commit::PcsVariable, fri::TwoAdicFriPcsVariable, types::ShardProofVariable};
 
+use crate::types::QuotientData;
+
 pub const EMPTY: usize = 0x_1111_1111;
 
 #[derive(Debug, Clone, Copy)]
@@ -60,6 +62,7 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
+        chip_quotient_data: Array<C, QuotientData<C>>,
         chip_sorted_idxs: Array<C, Var<C::N>>,
         preprocessed_sorted_idxs: Array<C, Var<C::N>>,
         prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
@@ -83,7 +86,6 @@ where
             quotient_commit,
         } = commitment;
 
-        #[allow(unused_variables)]
         let permutation_challenges = (0..2)
             .map(|_| challenger.sample_ext(builder))
             .collect::<Vec<_>>();
@@ -106,9 +108,9 @@ where
         // TODO: note hardcoding of log_quotient_degree. The value comes from:
         //         let max_constraint_degree = 3;
         //         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-        let log_quotient_degree_val = 1;
-        let log_quotient_degree = C::N::from_canonical_usize(log_quotient_degree_val);
-        let num_quotient_chunks_val = 1 << log_quotient_degree_val;
+        // let log_quotient_degree_val = 1;
+        // let log_quotient_degree = C::N::from_canonical_usize(log_quotient_degree_val);
+        // let num_quotient_chunks_val = 1 << log_quotient_degree_val;
 
         let num_preprocessed_chips = machine.preprocessed_chip_ids().len();
 
@@ -117,7 +119,13 @@ where
         let mut main_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
         let mut perm_mats: Array<_, TwoAdicPcsMatsVariable<_>> = builder.dyn_array(num_shard_chips);
 
-        let num_quotient_mats: Usize<_> = builder.eval(num_shard_chips * num_quotient_chunks_val);
+        let num_quotient_mats: Var<_> = builder.eval(C::N::zero());
+        builder.range(0, num_shard_chips).for_each(|i, builder| {
+            let num_quotient_chunks = builder.get(&chip_quotient_data, i).quotient_size;
+            builder.assign(num_quotient_mats, num_quotient_mats + num_quotient_chunks);
+        });
+
+        // let num_quotient_mats: Usize<_> = builder.eval(num_shard_chips * num_quotient_chunks_val);
         let mut quotient_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
             builder.dyn_array(num_quotient_mats);
 
@@ -155,6 +163,10 @@ where
 
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
+            let QuotientData {
+                log_quotient_degree,
+                quotient_size,
+            } = builder.get(&chip_quotient_data, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
             builder.set_value(&mut trace_domains, i, domain.clone());
 
@@ -195,9 +207,12 @@ where
 
             // Get the quotient matrices and values.
 
-            let qc_domains = quotient_domain.split_domains(builder, log_quotient_degree_val);
-            let num_quotient_chunks = C::N::from_canonical_usize(1 << log_quotient_degree_val);
-            for (j, qc_dom) in qc_domains.into_iter().enumerate() {
+            let qc_domains =
+                quotient_domain.split_domains(builder, log_quotient_degree, quotient_size);
+            let num_quotient_chunks = quotient_size;
+
+            builder.range(0, qc_domains.len()).for_each(|j, builder| {
+                let qc_dom = builder.get(&quotient_domains, i);
                 let qc_vals_array = builder.get(&opening.quotient, j);
                 let mut qc_values = builder.dyn_array::<Array<C, _>>(1);
                 builder.set_value(&mut qc_values, 0, qc_vals_array);
@@ -206,10 +221,24 @@ where
                     values: qc_values,
                     points: qc_points.clone(),
                 };
-                let j_n = C::N::from_canonical_usize(j);
-                let index: Var<_> = builder.eval(i * num_quotient_chunks + j_n);
+                // let j_n = C::N::from_canonical_usize(j);
+                let index: Var<_> = builder.eval(i * num_quotient_chunks + j);
                 builder.set_value(&mut quotient_mats, index, qc_mat);
-            }
+            });
+
+            // for (j, qc_dom) in qc_domains.into_iter().enumerate() {
+            //     let qc_vals_array = builder.get(&opening.quotient, j);
+            //     let mut qc_values = builder.dyn_array::<Array<C, _>>(1);
+            //     builder.set_value(&mut qc_values, 0, qc_vals_array);
+            //     let qc_mat = TwoAdicPcsMatsVariable::<C> {
+            //         domain: qc_dom,
+            //         values: qc_values,
+            //         points: qc_points.clone(),
+            //     };
+            //     let j_n = C::N::from_canonical_usize(j);
+            //     let index: Var<_> = builder.eval(i * num_quotient_chunks + j_n);
+            //     builder.set_value(&mut quotient_mats, index, qc_mat);
+            // }
         });
 
         // Create the pcs rounds.
@@ -260,8 +289,11 @@ where
                     let trace_domain = builder.get(&trace_domains, index);
                     let quotient_domain: TwoAdicMultiplicativeCosetVariable<_> =
                         builder.get(&quotient_domains, index);
-                    let qc_domains =
-                        quotient_domain.split_domains(builder, chip.log_quotient_degree());
+                    let qc_domains = quotient_domain.split_domains(
+                        builder,
+                        chip.log_quotient_degree(),
+                        1 << chip.log_quotient_degree(),
+                    );
                     Self::verify_constraints(
                         builder,
                         chip,

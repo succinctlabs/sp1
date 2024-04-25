@@ -89,26 +89,44 @@ where
         builder.eval(unshifted_power - C::EF::one())
     }
 
-    fn split_domains(&self, builder: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
-        let num_chunks = 1 << log_num_chunks;
-        let log_n: Var<_> = builder.eval(self.log_n - C::N::from_canonical_usize(log_num_chunks));
+    fn split_domains(
+        &self,
+        builder: &mut Builder<C>,
+        log_num_chunks: impl Into<Usize<C::N>>,
+        num_chunks: impl Into<Usize<C::N>>,
+    ) -> Array<C, Self> {
+        let log_num_chunks = log_num_chunks.into();
+        let num_chunks = num_chunks.into();
+        let log_n: Var<_> = builder.eval(self.log_n - log_num_chunks);
         let size = builder.sll(C::N::one(), Usize::Var(log_n));
 
         let g_dom = self.gen();
         let g = builder.exp_power_of_2_v::<Felt<C::F>>(g_dom, log_num_chunks);
 
         let domain_power: Felt<_> = builder.eval(C::F::one());
-        let mut domains = vec![];
 
-        for _ in 0..num_chunks {
-            domains.push(TwoAdicMultiplicativeCosetVariable {
+        let mut domains = builder.dyn_array(num_chunks);
+
+        builder.range(0, num_chunks).for_each(|i, builder| {
+            let domain = TwoAdicMultiplicativeCosetVariable {
                 log_n,
                 size,
                 shift: builder.eval(self.shift * domain_power),
                 g,
-            });
+            };
             builder.assign(domain_power, domain_power * g_dom);
-        }
+            builder.set(&mut domains, i, domain);
+        });
+
+        // for _ in 0..num_chunks {
+        //     domains.push(TwoAdicMultiplicativeCosetVariable {
+        //         log_n,
+        //         size,
+        //         shift: builder.eval(self.shift * domain_power),
+        //         g,
+        //     });
+        //     builder.assign(domain_power, domain_power * g_dom);
+        // }
         domains
     }
 
@@ -127,7 +145,6 @@ where
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use itertools::Itertools;
     use sp1_core::utils::inner_fri_config;
     use sp1_recursion_compiler::asm::AsmBuilder;
 
@@ -227,9 +244,14 @@ pub(crate) mod tests {
             }
 
             // Test the splitting of domains by the builder.
-            let qc_domains = disjoint_domain.split_domains(&mut builder, log_quotient_degree);
-            for (dom, dom_val) in qc_domains.iter().zip_eq(qc_domains_val.iter()) {
-                domain_assertions(&mut builder, dom, dom_val, zeta_val);
+            let qc_domains = disjoint_domain.split_domains(
+                &mut builder,
+                log_quotient_degree,
+                1 << log_quotient_degree,
+            );
+            for (i, dom_val) in qc_domains_val.iter().enumerate() {
+                let dom = builder.get(&qc_domains, i);
+                domain_assertions(&mut builder, &dom, dom_val, zeta_val);
             }
         }
 
