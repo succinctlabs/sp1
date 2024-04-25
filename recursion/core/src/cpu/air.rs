@@ -13,10 +13,6 @@ use sp1_core::air::MachineAir;
 use sp1_core::runtime::MemoryAccessPosition;
 use sp1_core::utils::indices_arr;
 use sp1_core::utils::pad_rows;
-use sp1_core::{
-    air::{AirInteraction, BaseAirBuilder, MachineAirBuilder},
-    lookup::InteractionKind,
-};
 use std::borrow::Borrow;
 use std::borrow::BorrowMut;
 use std::mem::transmute;
@@ -85,13 +81,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     cols.memory_addr = record.addr;
                 }
 
-                // cols.a_eq_b
-                //     .populate((cols.a.value()[0] - cols.b.value()[0]).as_canonical_u32());
-
-                // let is_last_row = F::from_bool(i == input.cpu_events.len() - 1);
-                // cols.beq = cols.is_beq * cols.a_eq_b.result * (F::one() - is_last_row);
-                // cols.bne = cols.is_bne * (F::one() - cols.a_eq_b.result) * (F::one() - is_last_row);
-
                 cols.is_real = F::one();
                 row
             })
@@ -134,12 +123,6 @@ where
     AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        // Constraints for the CPU chip.
-        //
-        // - Constraints for fetching the instruction.
-        // - Constraints for incrementing the internal state consisting of the program counter
-        //   and the clock.
-
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
@@ -151,7 +134,7 @@ where
             .when(next.is_real)
             .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
-        // // Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
+        // TODO: Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
         // builder
         //     .when_transition()
         //     .when(next.is_real * (AB::Expr::one() - (local.is_beq + local.is_bne)))
@@ -160,7 +143,13 @@ where
         //     .when(local.beq + local.bne)
         //     .assert_eq(next.pc, local.pc + local.c.value()[0]);
 
-        // Connect immediates.
+        // TODO: we also need to constraint the transition of `fp`.
+
+        self.eval_alu(builder, local);
+
+        // Constraint all the memory access.
+
+        // Constraint the case of immediates for the b and c operands.
         builder
             .when(local.instruction.imm_b)
             .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
@@ -168,22 +157,7 @@ where
             .when(local.instruction.imm_c)
             .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
 
-        builder.assert_eq(
-            local.is_real * local.is_real * local.is_real,
-            local.is_real * local.is_real * local.is_real,
-        );
-
-        self.eval_alu(builder, local);
-
-        // Compute if a == b.
-        // IsZeroOperation::<AB::F>::eval::<AB>(
-        //     builder,
-        //     local.a.value[0] - local.b.value()[0],
-        //     local.a_eq_b,
-        //     local.is_real.into(),
-        // );
-
-        // Constraint all the memory access.
+        // Constraint the memory accesses.
         builder.recursion_eval_memory_access(
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
             local.fp.into() + local.instruction.op_a.into(),
@@ -209,7 +183,8 @@ where
         let load_memory = local.selectors.is_load + local.selectors.is_store;
         let index = local.c.value()[0];
         let ptr = local.b.value()[0];
-        let memory_addr = ptr + index * local.instruction.size_imm + local.instruction.offset_imm;
+        let _memory_addr = ptr + index * local.instruction.size_imm + local.instruction.offset_imm;
+        // TODO: comment this back in to constraint the memory_addr column.
         // When load_memory is true, then we check that the local.memory_addr column equals the computed
         // memory_addr column from the other columns. Otherwise it is 0.
         // builder.assert_eq(memory_addr * load_memory.clone(), local.memory_addr);
@@ -231,6 +206,7 @@ where
         //     .when(local.selectors.is_store)
         //     .assert_block_eq(local.a.value, local.memory.value);
 
+        // Constraint the program.
         builder.send_program(
             local.pc,
             local.instruction.clone(),
@@ -238,6 +214,7 @@ where
             local.is_real,
         );
 
+        // Constraint the syscalls.
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
         let operands = [
             local.clk.into(),

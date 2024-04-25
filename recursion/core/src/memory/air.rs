@@ -9,7 +9,6 @@ use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
 use std::borrow::{Borrow, BorrowMut};
 
 use super::columns::MemoryInitCols;
-use crate::air::Block;
 use crate::memory::MemoryChipKind;
 use crate::memory::MemoryGlobalChip;
 use crate::runtime::{ExecutionRecord, RecursionProgram};

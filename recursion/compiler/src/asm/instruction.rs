@@ -4,7 +4,7 @@ use core::fmt;
 
 use p3_field::{ExtensionField, PrimeField32};
 use sp1_recursion_core::cpu::Instruction;
-use sp1_recursion_core::runtime::Opcode;
+use sp1_recursion_core::runtime::{Opcode, PERMUTATION_WIDTH};
 
 use super::A0;
 use crate::util::canonical_i32_to_field;
@@ -719,7 +719,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 i32_f(dst),
                 i32_f_arr(src),
                 i32_f_arr(src),
-                F::from_canonical_u32(8),
+                F::from_canonical_usize(PERMUTATION_WIDTH / 2),
                 F::zero(),
                 false,
                 false,

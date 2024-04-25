@@ -70,7 +70,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::TRAP => self.is_trap = F::one(),
             Opcode::FRIFold => self.is_fri_fold = F::one(),
             Opcode::Poseidon2Compress => self.is_poseidon = F::one(),
-            // TODO: FIX
+            // TODO: Double-check that `is_noop` is constrained properly in the CPU air.
             Opcode::Ext2Felt => self.is_noop = F::one(),
             Opcode::HintBits => self.is_noop = F::one(),
             Opcode::PrintF => self.is_noop = F::one(),

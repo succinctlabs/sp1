@@ -21,6 +21,7 @@ pub struct Poseidon2Event<F> {
 }
 
 impl<F: PrimeField32> Poseidon2Event<F> {
+    /// A way to construct a dummy event from an input array, used for testing.
     pub fn dummy_from_input(input: [F; WIDTH]) -> Self {
         let dummy_record =
             MemoryRecord::new_read(F::zero(), Block::from(F::zero()), F::zero(), F::zero());

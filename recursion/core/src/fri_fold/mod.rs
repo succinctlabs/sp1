@@ -160,9 +160,16 @@ where
         let cols = main.row_slice(0);
         let cols: &FriFoldCols<AB::Var> = (*cols).borrow();
 
-        // TODO: Constraint clk, input_ptr, m, is_real to the CPU table.
+        // Constraint that the operands are sent from the CPU table.
+        let operands = [
+            cols.clk.into(),
+            cols.m.into(),
+            cols.input_ptr.into(),
+            AB::Expr::zero(),
+        ];
+        builder.receive_table(Opcode::FRIFold.as_field::<AB::F>(), &operands, cols.is_real);
 
-        // Constrain read for `z` at `ptr + 1`
+        // Constrain read for `z` at `input_ptr`
         builder.recursion_eval_memory_access(
             cols.clk,
             cols.input_ptr + AB::Expr::zero(),
@@ -170,7 +177,7 @@ where
             cols.is_real,
         );
 
-        // Constrain read for `alpha` at `ptr + 2`
+        // Constrain read for `alpha`
         builder.recursion_eval_memory_access(
             cols.clk,
             cols.input_ptr + AB::Expr::one(),
@@ -287,13 +294,5 @@ where
             (new_ro_at_log_height - ro_at_log_height) * (BinomialExtension::from_base(x) - z),
             (p_at_x - p_at_z) * alpha_pow_at_log_height,
         );
-
-        let operands = [
-            cols.clk.into(),
-            cols.m.into(),
-            cols.input_ptr.into(),
-            AB::Expr::zero(),
-        ];
-        builder.receive_table(Opcode::FRIFold.as_field::<AB::F>(), &operands, cols.is_real);
     }
 }

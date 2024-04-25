@@ -1,7 +1,6 @@
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use sp1_core::stark::StarkGenericConfig;
-use sp1_core::utils;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmBuilder;
 use sp1_recursion_compiler::asm::AsmConfig;
@@ -9,7 +8,6 @@ use sp1_recursion_compiler::ir::Array;
 use sp1_recursion_compiler::ir::SymbolicVar;
 use sp1_recursion_compiler::ir::Var;
 use sp1_recursion_core::runtime::Runtime;
-use sp1_recursion_core::stark::RecursionAir;
 
 #[test]
 fn test_compiler_for_loops() {
@@ -200,15 +198,6 @@ fn test_compiler_step_by() {
     let config = SC::default();
     let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
     runtime.run();
-
-    let machine = RecursionAir::machine(SC::default());
-    let (pk, _) = machine.setup(&program);
-    let mut challenger = machine.config().challenger();
-    // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
-    utils::setup_logger();
-    use std::env;
-    env::set_var("RUST_LOG", "debug");
-    machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
 }
 
 #[test]

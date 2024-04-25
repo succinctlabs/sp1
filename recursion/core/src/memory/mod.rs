@@ -1,12 +1,8 @@
 mod air;
 mod columns;
 
-use core::time;
-
 use crate::air::Block;
 pub use columns::*;
-use p3_field::PrimeField32;
-use sp1_derive::AlignedBorrow;
 
 #[allow(clippy::manual_non_exhaustive)]
 #[derive(Debug, Clone, Copy)]

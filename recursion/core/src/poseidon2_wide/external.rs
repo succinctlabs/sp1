@@ -409,6 +409,10 @@ mod tests {
     use core::borrow::Borrow;
     use std::time::Instant;
 
+    use crate::memory::MemoryCols;
+    use crate::poseidon2::Poseidon2Event;
+    use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
+    use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabybear};
     use p3_field::AbstractField;
@@ -419,10 +423,6 @@ mod tests {
     use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2Inner};
-
-    use crate::poseidon2::Poseidon2Event;
-    use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
-    use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
 
     /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
@@ -450,7 +450,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs.iter().cloned() {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -460,7 +462,9 @@ mod tests {
         for (i, expected_output) in expected_outputs.iter().enumerate() {
             let row = trace.row(i).collect_vec();
             let cols: &Poseidon2WideCols<BabyBear> = row.as_slice().borrow();
-            assert_eq!(expected_output, &cols.output);
+            for i in 0..WIDTH {
+                assert_eq!(expected_output[i], *cols.output[i].value());
+            }
         }
     }
 
@@ -478,7 +482,9 @@ mod tests {
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for input in test_inputs {
-            input_exec.poseidon2_events.push(Poseidon2Event { input });
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());

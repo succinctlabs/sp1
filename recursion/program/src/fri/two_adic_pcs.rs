@@ -303,8 +303,6 @@ pub mod tests {
     use crate::commit::PcsVariable;
     use crate::fri::TwoAdicFriPcsVariable;
 
-    use sp1_core::utils;
-
     pub fn const_fri_config(
         builder: &mut Builder<InnerConfig>,
         config: FriConfig<InnerChallengeMmcs>,
@@ -442,19 +440,5 @@ pub mod tests {
         runtime.witness_stream = witness;
         runtime.run();
         runtime.print_stats();
-
-        use sp1_core::utils;
-        use sp1_core::utils::BabyBearPoseidon2;
-        type SC = BabyBearPoseidon2;
-        use sp1_core::stark::StarkGenericConfig;
-        use sp1_recursion_core::stark::RecursionAir;
-        let machine = RecursionAir::machine(SC::default());
-        let (pk, _) = machine.setup(&program);
-        let mut challenger = machine.config().challenger();
-        // let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record.clone(), &mut challenger);
-        utils::setup_logger();
-        use std::env;
-        env::set_var("RUST_LOG", "debug");
-        machine.debug_constraints(&pk, runtime.record.clone(), &mut challenger);
     }
 }

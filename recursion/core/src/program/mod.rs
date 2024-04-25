@@ -1,4 +1,4 @@
-use crate::air::{BinomialExtensionUtils, BlockBuilder, SP1RecursionAirBuilder};
+use crate::air::SP1RecursionAirBuilder;
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
 use p3_air::{Air, BaseAir, PairBuilder};
@@ -6,7 +6,6 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
-use sp1_core::lookup::InteractionKind;
 use sp1_core::utils::pad_to_power_of_two;
 use std::collections::HashMap;
 
