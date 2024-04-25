@@ -11,7 +11,7 @@ pub mod utils;
 pub mod wrapper;
 
 use anyhow::{Context, Ok, Result};
-use proto::network::{ProofStatus, TransactionStatus};
+use proto::network::{ProofMode, ProofStatus, TransactionStatus};
 use sp1_core::runtime::Program;
 use sp1_core::utils::run_and_prove;
 pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
@@ -87,7 +87,17 @@ impl ProverClient {
         let _ = ProverClient::execute(elf, stdin.clone());
         println!("Simulation complete");
 
-        let proof_id = client.create_proof(elf, &stdin).await?;
+        // Get the proof mode from the environment.
+        let mode_str = env::var("PROOF_MODE").unwrap_or_default();
+        let mode = match mode_str.to_lowercase().as_str() {
+            "core" => ProofMode::Core,
+            "compressed" => ProofMode::Compressed,
+            "wrapped" => ProofMode::Wrapped,
+            _ => ProofMode::Wrapped,
+        };
+        println!("Proof mode: {}", mode.as_str_name());
+
+        let proof_id = client.create_proof(elf, &stdin, mode).await?;
         println!("Proof request ID: {:?}", proof_id);
 
         let mut is_claimed = false;

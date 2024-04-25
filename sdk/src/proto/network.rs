@@ -7,11 +7,14 @@ pub struct CreateProofRequest {
     /// The nonce for the account.
     #[prost(uint64, tag = "1")]
     pub nonce: u64,
+    /// The mode for proof generation.
+    #[prost(enumeration = "ProofMode", tag = "2")]
+    pub mode: i32,
     /// The deadline for the proof request, signifying the latest time a fulfillment would be valid.
-    #[prost(uint64, tag = "2")]
+    #[prost(uint64, tag = "3")]
     pub deadline: u64,
     /// The signature of the message.
-    #[prost(bytes = "vec", tag = "3")]
+    #[prost(bytes = "vec", tag = "4")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 /// The response for creating a proof.
@@ -194,6 +197,18 @@ pub struct GetProofRequestsRequest {
     #[prost(enumeration = "ProofStatus", tag = "1")]
     pub status: i32,
 }
+/// A proof request.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RequestedProof {
+    /// The proof identifier.
+    #[prost(string, tag = "1")]
+    pub proof_id: ::prost::alloc::string::String,
+    /// The mode for proof generation.
+    #[prost(enumeration = "ProofMode", tag = "2")]
+    pub mode: i32,
+}
 /// The response for getting proof requests by a given status.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -201,8 +216,8 @@ pub struct GetProofRequestsRequest {
 pub struct GetProofRequestsResponse {
     /// The proof identifiers of the proof requests. Limited to the 10 most recent proof requests with
     /// that status.
-    #[prost(string, repeated, tag = "1")]
-    pub proof_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, repeated, tag = "1")]
+    pub proofs: ::prost::alloc::vec::Vec<RequestedProof>,
 }
 /// The request to get the status of a relay request.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -228,20 +243,47 @@ pub struct GetRelayStatusResponse {
     #[prost(string, tag = "3")]
     pub simulation_url: ::prost::alloc::string::String,
 }
+/// The mode used when generating the proof.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
+#[repr(i32)]
+pub enum ProofMode {
+    /// Unspecified or invalid proof mode.
+    Unspecified = 0,
+    /// The proof mode for an SP1 core proof.
+    Core = 1,
+    /// The proof mode for a compressed proof.
+    Compressed = 2,
+    /// The proof mode for a wrapped proof.
+    Wrapped = 3,
+}
+impl ProofMode {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            ProofMode::Unspecified => "PROOF_MODE_UNSPECIFIED",
+            ProofMode::Core => "PROOF_MODE_CORE",
+            ProofMode::Compressed => "PROOF_MODE_COMPRESSED",
+            ProofMode::Wrapped => "PROOF_MODE_WRAPPED",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "PROOF_MODE_UNSPECIFIED" => Some(Self::Unspecified),
+            "PROOF_MODE_CORE" => Some(Self::Core),
+            "PROOF_MODE_COMPRESSED" => Some(Self::Compressed),
+            "PROOF_MODE_WRAPPED" => Some(Self::Wrapped),
+            _ => None,
+        }
+    }
+}
 /// The status of a proof request.
-#[derive(
-    serde::Serialize,
-    serde::Deserialize,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration,
-)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum ProofStatus {
     /// Unspecified or invalid status.
@@ -286,19 +328,8 @@ impl ProofStatus {
     }
 }
 /// The status of a relay request transaction.
-#[derive(
-    serde::Serialize,
-    serde::Deserialize,
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    ::prost::Enumeration,
-)]
+#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord, ::prost::Enumeration)]
 #[repr(i32)]
 pub enum TransactionStatus {
     /// Unspecified or invalid status.
@@ -321,7 +352,9 @@ impl TransactionStatus {
     /// (if the ProtoBuf definition does not change) and safe for programmatic use.
     pub fn as_str_name(&self) -> &'static str {
         match self {
-            TransactionStatus::TransactionUnspecifiedStatus => "TRANSACTION_UNSPECIFIED_STATUS",
+            TransactionStatus::TransactionUnspecifiedStatus => {
+                "TRANSACTION_UNSPECIFIED_STATUS"
+            }
             TransactionStatus::TransactionScheduled => "TRANSACTION_SCHEDULED",
             TransactionStatus::TransactionBroadcasted => "TRANSACTION_BROADCASTED",
             TransactionStatus::TransactionTimedout => "TRANSACTION_TIMEDOUT",
@@ -474,8 +507,10 @@ pub trait NetworkServiceClient: Send + Sync + std::fmt::Debug {
         &self,
         req: RelayProofRequest,
     ) -> Result<RelayProofResponse, twirp::ClientError>;
-    async fn get_nonce(&self, req: GetNonceRequest)
-        -> Result<GetNonceResponse, twirp::ClientError>;
+    async fn get_nonce(
+        &self,
+        req: GetNonceRequest,
+    ) -> Result<GetNonceResponse, twirp::ClientError>;
     async fn get_proof_status(
         &self,
         req: GetProofStatusRequest,
@@ -537,27 +572,21 @@ impl NetworkServiceClient for twirp::client::Client {
         &self,
         req: GetProofStatusRequest,
     ) -> Result<GetProofStatusResponse, twirp::ClientError> {
-        let url = self
-            .base_url
-            .join("network.NetworkService/GetProofStatus")?;
+        let url = self.base_url.join("network.NetworkService/GetProofStatus")?;
         self.request(url, req).await
     }
     async fn get_proof_requests(
         &self,
         req: GetProofRequestsRequest,
     ) -> Result<GetProofRequestsResponse, twirp::ClientError> {
-        let url = self
-            .base_url
-            .join("network.NetworkService/GetProofRequests")?;
+        let url = self.base_url.join("network.NetworkService/GetProofRequests")?;
         self.request(url, req).await
     }
     async fn get_relay_status(
         &self,
         req: GetRelayStatusRequest,
     ) -> Result<GetRelayStatusResponse, twirp::ClientError> {
-        let url = self
-            .base_url
-            .join("network.NetworkService/GetRelayStatus")?;
+        let url = self.base_url.join("network.NetworkService/GetRelayStatus")?;
         self.request(url, req).await
     }
 }

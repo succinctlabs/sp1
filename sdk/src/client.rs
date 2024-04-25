@@ -13,7 +13,8 @@ use crate::proto::network::{
     ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
     FulfillProofResponse, GetNonceRequest, GetProofRequestsRequest, GetProofRequestsResponse,
     GetProofStatusRequest, GetProofStatusResponse, GetRelayStatusRequest, GetRelayStatusResponse,
-    NetworkServiceClient, ProofStatus, RelayProofRequest, SubmitProofRequest, TransactionStatus,
+    NetworkServiceClient, ProofMode, ProofStatus, RelayProofRequest, SubmitProofRequest,
+    TransactionStatus,
 };
 
 /// The default RPC endpoint for the Succinct prover network.
@@ -163,7 +164,12 @@ impl NetworkClient {
     }
 
     /// Creates a proof request for the given ELF and stdin.
-    pub async fn create_proof(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<String> {
+    pub async fn create_proof(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        mode: ProofMode,
+    ) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start
             .duration_since(UNIX_EPOCH)
@@ -171,12 +177,16 @@ impl NetworkClient {
         let deadline = since_the_epoch.as_secs() + 1000;
 
         let nonce = self.get_nonce().await;
-        let create_proof_signature = self.auth.sign_create_proof_message(nonce, deadline).await?;
+        let create_proof_signature = self
+            .auth
+            .sign_create_proof_message(nonce, deadline, mode.into())
+            .await?;
         let res = self
             .rpc
             .create_proof(CreateProofRequest {
                 nonce,
                 deadline,
+                mode: mode.into(),
                 signature: create_proof_signature.to_vec(),
             })
             .await?;
