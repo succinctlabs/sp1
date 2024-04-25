@@ -102,10 +102,10 @@ func (c *Chip) AssertIsEqualV(a, b *Variable) {
 }
 
 func (c *Chip) AssertIsEqualE(a, b *ExtensionVariable) {
-	c.field.AssertIsEqual(a.Value[0].Value, c.field.Reduce(b.Value[0].Value))
-	c.field.AssertIsEqual(a.Value[1].Value, c.field.Reduce(b.Value[1].Value))
-	c.field.AssertIsEqual(a.Value[2].Value, c.field.Reduce(b.Value[2].Value))
-	c.field.AssertIsEqual(a.Value[3].Value, c.field.Reduce(b.Value[3].Value))
+	c.field.AssertIsEqual(c.field.Reduce(a.Value[0].Value), c.field.Reduce(b.Value[0].Value))
+	c.field.AssertIsEqual(c.field.Reduce(a.Value[1].Value), c.field.Reduce(b.Value[1].Value))
+	c.field.AssertIsEqual(c.field.Reduce(a.Value[2].Value), c.field.Reduce(b.Value[2].Value))
+	c.field.AssertIsEqual(c.field.Reduce(a.Value[3].Value), c.field.Reduce(b.Value[3].Value))
 }
 
 func (c *Chip) AssertNe(a, b *Variable) {
@@ -252,10 +252,10 @@ func (c *Chip) PrintE(in *ExtensionVariable) {
 }
 
 func (c *Chip) InvE(in *ExtensionVariable) *ExtensionVariable {
-	x := in.Value[0].Value
-	y := in.Value[1].Value
-	z := in.Value[2].Value
-	l := in.Value[3].Value
+	x := c.field.Reduce(in.Value[0].Value)
+	y := c.field.Reduce(in.Value[1].Value)
+	z := c.field.Reduce(in.Value[2].Value)
+	l := c.field.Reduce(in.Value[3].Value)
 
 	result, err := c.api.Compiler().NewHint(InvEHint, 4, x.Limbs[0], y.Limbs[0], z.Limbs[0], l.Limbs[0])
 	if err != nil {

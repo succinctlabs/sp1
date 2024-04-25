@@ -18,7 +18,7 @@ use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
-use sp1_recursion_core::stark::RecursionAirWideDeg3;
+use sp1_recursion_core::stark::{RecursionAirSkinnyDeg7, RecursionAirWideDeg3};
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::folder::RecursiveVerifierConstraintFolder;
 
@@ -238,7 +238,7 @@ pub fn build_wrap_circuit(
     dummy_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let outer_config = OuterSC::new();
-    let outer_machine = RecursionAirWideDeg3::<OuterF>::machine(outer_config);
+    let outer_machine = RecursionAirSkinnyDeg7::<OuterF>::machine(outer_config);
 
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);

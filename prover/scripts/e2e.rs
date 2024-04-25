@@ -62,15 +62,18 @@ pub fn main() {
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    // tracing::info!("sanity check gnark test");
-    // Groth16Prover::test(constraints.clone(), witness.clone());
+    let bytes = bincode::serialize(&wrapped_proof).unwrap();
+    println!("bn254 proof size = {}", bytes.len());
 
-    tracing::info!("sanity check gnark build");
-    Groth16Prover::build(
-        constraints.clone(),
-        witness.clone(),
-        args.build_dir.clone().into(),
-    );
+    tracing::info!("sanity check gnark test");
+    Groth16Prover::test(constraints.clone(), witness.clone());
+
+    // tracing::info!("sanity check gnark build");
+    // Groth16Prover::build(
+    //     constraints.clone(),
+    //     witness.clone(),
+    //     args.build_dir.clone().into(),
+    // );
 
     // tracing::info!("sanity check gnark prove");
     // let proof = Groth16Prover::prove(witness.clone(), args.build_dir.clone().into());
