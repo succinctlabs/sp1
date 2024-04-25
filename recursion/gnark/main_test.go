@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"testing"
 
@@ -63,6 +64,7 @@ func TestMain(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
+	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
 	// Run the dummy setup.
 	var pk groth16.ProvingKey

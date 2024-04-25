@@ -22,9 +22,7 @@ use serde::Serialize;
 use sp1_primitives::poseidon2_hash;
 
 use super::debug_constraints;
-use super::DeferredDigest;
 use super::Dom;
-use super::PublicValuesDigest;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
 use crate::air::PublicValues;
@@ -331,7 +329,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk: &StarkVerifyingKey<SC>,
         proof: &MachineProof<SC>,
         challenger: &mut SC::Challenger,
-    ) -> Result<(PublicValuesDigest, DeferredDigest), ProgramVerificationError<SC>>
+    ) -> Result<(), ProgramVerificationError<SC>>
     where
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -347,7 +345,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Verify the shard proofs.
         tracing::info!("verifying shard proofs");
-        let mut result = None;
         if proof.shard_proofs.is_empty() {
             return Err(ProgramVerificationError::InvalidShardTransition(
                 "no shards",
@@ -369,21 +366,20 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                             "wrong pc_start",
                         ));
                     }
-                    let pv_digest: [u32; 8] = public_values
-                        .committed_value_digest
-                        .iter()
-                        .map(|w| w.to_u32())
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    let deferred_proofs_digest: [u32; 8] = public_values
-                        .deferred_proofs_digest
-                        .iter()
-                        .map(|w| w.to_string().parse::<u32>().unwrap())
-                        .collect::<Vec<_>>()
-                        .try_into()
-                        .unwrap();
-                    result = Some((pv_digest.into(), deferred_proofs_digest.into()));
+                    // let pv_digest: [u32; 8] = public_values
+                    //     .committed_value_digest
+                    //     .iter()
+                    //     .map(|w| w.to_u32())
+                    //     .collect::<Vec<_>>()
+                    //     .try_into()
+                    //     .unwrap();
+                    // let deferred_proofs_digest: [u32; 8] = public_values
+                    //     .deferred_proofs_digest
+                    //     .iter()
+                    //     .map(|w| w.to_string().parse::<u32>().unwrap())
+                    //     .collect::<Vec<_>>()
+                    //     .try_into()
+                    //     .unwrap();
                 } else {
                     let prev_shard_proof = &proof.shard_proofs[i - 1];
                     let prev_public_values =
@@ -449,7 +445,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             sum += proof.cumulative_sum();
         }
         match sum.is_zero() {
-            true => Ok(result.unwrap()),
+            true => Ok(()),
             false => Err(ProgramVerificationError::NonZeroCumulativeSum),
         }
     }
