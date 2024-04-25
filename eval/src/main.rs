@@ -132,7 +132,7 @@ fn main() {
 }
 
 fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f64, f64) {
-    // TODO: While these benchmarks are useful for core proving, they are not useful for recursion
+    // Note: While these benchmarks are useful for core proving, they are not useful for recursion
     // or end to end proving as we only support Poseidon for now.
     match hashfn {
         HashFnId::Blake3 => {

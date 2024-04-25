@@ -20,6 +20,7 @@ impl SP1CoreProof {
     }
 }
 
+/// Get the number of cycles for a given program.
 pub fn get_cycles(elf: &[u8]) -> u64 {
     let program = Program::from(elf);
     let mut runtime = Runtime::new(program);
@@ -27,6 +28,7 @@ pub fn get_cycles(elf: &[u8]) -> u64 {
     runtime.state.global_clk
 }
 
+/// Load an ELF file from a given path.
 pub fn load_elf(path: &str) -> Result<Vec<u8>, std::io::Error> {
     let mut elf_code = Vec::new();
     File::open(path)?.read_to_end(&mut elf_code)?;
