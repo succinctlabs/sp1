@@ -247,7 +247,9 @@ where
         //     .assert_block_eq(local.a.value, local.memory.value);
 
         // Constraint the program.
-        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+        if std::env::var("MAX_RECURSION_PROGRAM_SIZE").is_err() {
+            builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+        }
 
         // Constraint the syscalls.
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
@@ -263,6 +265,7 @@ where
 
 impl<F> CpuChip<F> {
     /// Eval all the ALU operations.
+    #[allow(unused)]
     fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,

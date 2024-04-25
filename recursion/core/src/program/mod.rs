@@ -58,8 +58,11 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     }
 
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
-        let rows = program
-            .instructions
+        let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => program.instructions.len(),
+        };
+        let rows = program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, instruction)| {
@@ -94,8 +97,6 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         input: &ExecutionRecord<F>,
         _output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        // Generate the trace rows for each event.
-
         // Collect the number of times each instruction is called from the cpu events.
         // Store it as a map of PC -> count.
         let mut instruction_counts = HashMap::new();
@@ -107,9 +108,11 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 .or_insert(1);
         });
 
-        let rows = input
-            .program
-            .instructions
+        let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => input.program.instructions.len(),
+        };
+        let rows = input.program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -158,12 +161,14 @@ where
         let mult_local = main.row_slice(0);
         let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        builder.receive_program(
-            prep_local.pc,
-            prep_local.instruction,
-            prep_local.selectors,
-            mult_local.multiplicity,
-        );
+        if std::env::var("MAX_RECURSION_PROGRAM_SIZE").is_err() {
+            builder.receive_program(
+                prep_local.pc,
+                prep_local.instruction,
+                prep_local.selectors,
+                mult_local.multiplicity,
+            );
+        }
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
