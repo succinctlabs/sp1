@@ -4,7 +4,7 @@ use sp1_core::{
     air::{MachineAir, Word},
     stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val},
 };
-use sp1_recursion_program::stark::EMPTY;
+use sp1_recursion_program::{stark::EMPTY, types::QuotientDataValues};
 
 use crate::SP1CoreProof;
 
@@ -14,6 +14,22 @@ impl SP1CoreProof {
         fs::write(path, data).unwrap();
         Ok(())
     }
+}
+
+pub fn get_chip_quotient_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
+    machine: &StarkMachine<SC, A>,
+    proof: &ShardProof<SC>,
+) -> Vec<QuotientDataValues> {
+    machine
+        .shard_chips_ordered(&proof.chip_ordering)
+        .map(|chip| {
+            let log_quotient_degree = chip.log_quotient_degree();
+            QuotientDataValues {
+                log_quotient_degree,
+                quotient_size: 1 << log_quotient_degree,
+            }
+        })
+        .collect()
 }
 
 pub fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
