@@ -80,6 +80,10 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
         "Poseidon2Wide".to_string()
     }
 
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
+    }
+
     #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,

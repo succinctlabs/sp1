@@ -85,6 +85,10 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         Some(trace)
     }
 
+    fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
+        // This is a no-op.
+    }
+
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
