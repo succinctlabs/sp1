@@ -32,10 +32,6 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
         Some(trace)
     }
 
-    fn generate_dependencies(&self, _input: &ExecutionRecord<F>, _output: &mut ExecutionRecord<F>) {
-        // Do nothing since this chip has no dependencies.
-    }
-
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -47,6 +43,8 @@ impl<F: PrimeField32> MachineAir<F> for RangeCheckChip<F> {
             vec![F::zero(); NUM_RANGE_CHECK_MULT_COLS * NUM_ROWS],
             NUM_RANGE_CHECK_MULT_COLS,
         );
+
+        println!("input.range_check_events: {:?}", input.range_check_events);
 
         for (lookup, mult) in input.range_check_events.iter() {
             let (row, index) = event_map[lookup];

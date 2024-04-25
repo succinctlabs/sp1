@@ -1,5 +1,6 @@
 pub mod air;
 pub mod columns;
+pub mod trace;
 
 use crate::air::Block;
 pub use crate::{memory::MemoryRecord, runtime::Instruction};

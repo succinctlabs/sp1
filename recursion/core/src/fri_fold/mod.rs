@@ -138,6 +138,10 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
             .collect_vec();
 
         output.add_range_check_events(new_range_check_events);
+        println!(
+            "fri fold range check event len is {:?}",
+            output.range_check_events.len()
+        );
 
         // Convert the trace to a row major matrix.
         let mut trace = RowMajorMatrix::new(trace_values, NUM_FRI_FOLD_COLS);
