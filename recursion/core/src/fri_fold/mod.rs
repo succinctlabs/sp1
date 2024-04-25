@@ -1,6 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
+use crate::runtime::Opcode;
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
@@ -285,5 +286,13 @@ where
             (new_ro_at_log_height - ro_at_log_height) * (BinomialExtension::from_base(x) - z),
             (p_at_x - p_at_z) * alpha_pow_at_log_height,
         );
+
+        let operands = [
+            cols.clk.into(),
+            cols.m.into(),
+            cols.input_ptr.into(),
+            AB::Expr::zero(),
+        ];
+        builder.receive_table(Opcode::FRIFold.as_field::<AB::F>(), &operands, cols.is_real);
     }
 }

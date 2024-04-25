@@ -131,4 +131,34 @@ pub trait RecursionMemoryAirBuilder: BaseAirBuilder {
         //     InteractionKind::Program,
         // ));
     }
+
+    fn send_table<E: Into<Self::Expr> + Clone>(
+        &mut self,
+        opcode: impl Into<Self::Expr>,
+        table: &[E],
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let table_interaction_vals = table.iter().map(|x| x.clone().into());
+        let values = once(opcode.into()).chain(table_interaction_vals).collect();
+        self.send(AirInteraction::new(
+            values,
+            is_real.into(),
+            InteractionKind::Syscall,
+        ));
+    }
+
+    fn receive_table<E: Into<Self::Expr> + Clone>(
+        &mut self,
+        opcode: impl Into<Self::Expr>,
+        table: &[E],
+        is_real: impl Into<Self::Expr>,
+    ) {
+        let table_interaction_vals = table.iter().map(|x| x.clone().into());
+        let values = once(opcode.into()).chain(table_interaction_vals).collect();
+        self.receive(AirInteraction::new(
+            values,
+            is_real.into(),
+            InteractionKind::Syscall,
+        ));
+    }
 }

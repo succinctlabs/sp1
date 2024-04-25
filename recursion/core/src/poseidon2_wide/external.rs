@@ -1,3 +1,4 @@
+use crate::runtime::Opcode;
 use core::borrow::Borrow;
 use core::mem::size_of;
 use p3_air::{Air, AirBuilder, BaseAir};
@@ -386,6 +387,18 @@ where
                 cols.is_real,
             );
         }
+
+        let operands: [AB::Expr; 4] = [
+            cols.timestamp.into(),
+            cols.dst.into(),
+            cols.left.into(),
+            cols.right.into(),
+        ];
+        builder.receive_table(
+            Opcode::Poseidon2Compress.as_field::<AB::F>(),
+            &operands,
+            cols.is_real,
+        );
 
         // TODO: constraint cols.timestamp, dst, left, right and is_real to the CPU table.
     }

@@ -672,9 +672,7 @@ where
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::FRIFold => {
-                    let a_val = self.mr_cpu(self.fp + instruction.op_a, MemoryAccessPosition::A);
-                    let b_val = self.mr_cpu(self.fp + instruction.op_b[0], MemoryAccessPosition::B);
-                    let c_val = Block::<F>::default();
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
                     // The timestamp for the memory reads for all of these operations will be self.clk.
                     let timestamp = self.clk;

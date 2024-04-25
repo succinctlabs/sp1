@@ -242,6 +242,15 @@ where
         //     .assert_block_eq(local.a.value, local.memory.value);
         builder.send_program(local.instruction.clone(), local.is_real);
         // TODO: Issue lookups to the Poseidon + FRI Fold tables, depending on opcode.
+
+        let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
+        let operands = [
+            local.clk,
+            local.a.value()[0],
+            local.b.value()[0],
+            local.c.value()[0],
+        ];
+        builder.send_table(local.instruction.opcode, &operands, send_syscall);
     }
 }
 
