@@ -22,11 +22,14 @@ use std::path::PathBuf;
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 pub use sp1_recursion_gnark_ffi::Groth16Proof;
+use sp1_recursion_program::commit;
 pub use types::*;
 
 use p3_baby_bear::BabyBear;
+use p3_bn254_fr::Bn254Fr;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
+use p3_field::PrimeField32;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -503,8 +506,41 @@ impl SP1Prover {
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
+        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+
+        // Convert pv.vkey_digest to a bn254 field element
+        let mut vkey_hash = Bn254Fr::zero();
+        for (i, word) in pv.sp1_vk_digest.iter().enumerate() {
+            if i == 0 {
+                // Truncate top 3 bits
+                vkey_hash = Bn254Fr::from_canonical_u32(word.as_canonical_u32() & 0x1fffffffu32);
+            } else {
+                vkey_hash *= Bn254Fr::from_canonical_u64(1 << 32);
+                vkey_hash += Bn254Fr::from_canonical_u32(word.as_canonical_u32());
+            }
+        }
+
+        // Convert pv.committed_value_digest to a bn254 field element
+        let mut committed_values_digest = Bn254Fr::zero();
+        for (i, word) in pv.committed_value_digest.iter().enumerate() {
+            for (j, byte) in word.0.iter().enumerate() {
+                if i == 0 && j == 0 {
+                    // Truncate top 3 bits
+                    committed_values_digest =
+                        Bn254Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
+                } else {
+                    committed_values_digest *= Bn254Fr::from_canonical_u32(256);
+                    committed_values_digest += Bn254Fr::from_canonical_u32(byte.as_canonical_u32());
+                }
+            }
+        }
+
         let mut witness = Witness::default();
         proof.write(&mut witness);
+        witness.commited_values_digest = committed_values_digest;
+        witness.vkey_hash = vkey_hash;
+
+        // witness.commited_values_digest
         Groth16Prover::prove(witness, build_dir)
     }
 

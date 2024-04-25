@@ -34,6 +34,14 @@ pub struct SP1ProofWithMetadata<P> {
     pub public_values: SP1PublicValues,
 }
 
+impl<P: std::fmt::Debug> std::fmt::Debug for SP1ProofWithMetadata<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SP1ProofWithMetadata")
+            .field("proof", &self.proof)
+            .finish()
+    }
+}
+
 pub type SP1DefaultProof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
 
 pub type SP1CompressedProof = SP1ProofWithMetadata<ShardProof<InnerSC>>;
@@ -154,6 +162,11 @@ pub enum MockProofCode {
 }
 
 impl MockProver {
+    pub fn new() -> Self {
+        let prover = SP1Prover::new();
+        Self { prover }
+    }
+
     /// Executes the program and returns vkey_digest and public values.
     fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> (Vec<u8>, SP1PublicValues) {
         let (_, vkey) = self.prover.setup(elf);

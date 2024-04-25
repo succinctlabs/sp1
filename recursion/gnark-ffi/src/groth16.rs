@@ -26,7 +26,7 @@ pub struct Groth16Proof {
 }
 
 impl Groth16Prover {
-    /// Creates a nejw verifier.
+    /// Creates a new verifier.
     pub fn new() -> Self {
         Groth16Prover
     }
