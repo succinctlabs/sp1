@@ -23,7 +23,7 @@ use super::poseidon2::bn254_poseidon2_rc3;
 pub type OuterVal = BabyBear;
 pub type OuterChallenge = BinomialExtensionField<OuterVal, 4>;
 pub type OuterPerm = Poseidon2<Bn254Fr, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBN254, 3, 5>;
-pub type OuterHash = MultiField32PaddingFreeSponge<OuterVal, Bn254Fr, OuterPerm, 3, 8, 1>;
+pub type OuterHash = MultiField32PaddingFreeSponge<OuterVal, Bn254Fr, OuterPerm, 3, 14, 1>;
 pub type OuterDigestHash = Hash<Bn254Fr, Bn254Fr, 1>;
 pub type OuterDigest = [Bn254Fr; 1];
 pub type OuterCompress = TruncatedPermutation<OuterPerm, 2, 1, 3>;
@@ -70,10 +70,10 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
     let num_queries = match std::env::var("FRI_QUERIES") {
         Ok(value) => value.parse().unwrap(),
-        Err(_) => 33,
+        Err(_) => 50,
     };
     FriConfig {
-        log_blowup: 3,
+        log_blowup: 2,
         num_queries,
         proof_of_work_bits: 16,
         mmcs: challenge_mmcs,
