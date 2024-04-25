@@ -17,7 +17,7 @@ pub struct InstructionCols<T> {
 }
 
 impl<F: PrimeField> InstructionCols<F> {
-    pub fn populate(&mut self, instruction: Instruction<F>) {
+    pub fn populate(&mut self, instruction: &Instruction<F>) {
         self.opcode = instruction.opcode.as_field::<F>();
         self.op_a = instruction.op_a;
         self.op_b = instruction.op_b;

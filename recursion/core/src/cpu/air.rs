@@ -65,13 +65,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 cols.fp = event.fp;
 
                 cols.selectors.populate(&event.instruction);
-
-                cols.instruction.opcode = F::from_canonical_u32(event.instruction.opcode as u32);
-                cols.instruction.op_a = event.instruction.op_a;
-                cols.instruction.op_b = event.instruction.op_b;
-                cols.instruction.op_c = event.instruction.op_c;
-                cols.instruction.imm_b = F::from_canonical_u32(event.instruction.imm_b as u32);
-                cols.instruction.imm_c = F::from_canonical_u32(event.instruction.imm_c as u32);
+                cols.instruction.populate(&event.instruction);
 
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
@@ -245,10 +239,10 @@ where
 
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
         let operands = [
-            local.clk,
-            local.a.value()[0],
-            local.b.value()[0],
-            local.c.value()[0],
+            local.clk.into(),
+            local.a.value()[0].into(),
+            local.b.value()[0].into(),
+            local.c.value()[0] + local.instruction.offset_imm,
         ];
         builder.send_table(local.instruction.opcode, &operands, send_syscall);
     }

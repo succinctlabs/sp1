@@ -69,7 +69,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
                 let cols: &mut ProgramPreprocessedCols<F> = row.as_mut_slice().borrow_mut();
                 cols.pc = F::from_canonical_u32(pc);
                 cols.selectors.populate(instruction);
-                cols.instruction.populate(instruction.clone());
+                cols.instruction.populate(&instruction);
                 row
             })
             .collect::<Vec<_>>();

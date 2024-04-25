@@ -108,6 +108,7 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                 cols.clk = event.clk;
                 cols.m = event.m;
                 cols.input_ptr = event.input_ptr;
+                cols.is_real = F::one();
 
                 cols.z.populate(&event.z);
                 cols.alpha.populate(&event.alpha);
