@@ -8,7 +8,7 @@ pub struct WrapperClient {
 }
 
 impl WrapperClient {
-	pub fn new(private_key: &str) -> Self {
+	pub fn new() -> Self {
         let prover = Groth16Prover::new();
         Self { prover }
     }
