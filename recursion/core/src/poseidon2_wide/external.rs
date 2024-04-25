@@ -11,6 +11,7 @@ use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
+use crate::air::SP1RecursionAirBuilder;
 use crate::memory::MemoryCols;
 use crate::memory::MemoryReadSingleCols;
 use crate::memory::MemoryReadWriteSingleCols;
@@ -36,10 +37,15 @@ pub struct Poseidon2WideChip;
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2WideCols<T> {
+    pub timestamp: T,
+    pub dst: T,
+    pub left: T,
+    pub right: T,
     pub input: [MemoryReadSingleCols<T>; WIDTH],
     pub output: [MemoryReadWriteSingleCols<T>; WIDTH],
     external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
     internal_rounds: Poseidon2WideInternalRoundsCols<T>,
+    pub is_real: T,
 }
 
 /// A grouping of columns for a single external round.
@@ -312,7 +318,7 @@ impl<F> BaseAir<F> for Poseidon2WideChip {
 
 impl<AB> Air<AB> for Poseidon2WideChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
@@ -345,6 +351,32 @@ where
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
             eval_external_round(builder, cols, r);
         }
+
+        // Evaluate all of the memory.
+        for i in 0..WIDTH {
+            let input_addr = if i < WIDTH / 2 {
+                cols.left + AB::F::from_canonical_usize(i)
+            } else {
+                cols.right + AB::F::from_canonical_usize(i - WIDTH / 2)
+            };
+
+            builder.recursion_eval_memory_access_single(
+                cols.timestamp,
+                input_addr,
+                &cols.input[i],
+                cols.is_real,
+            );
+
+            let output_addr = cols.dst + AB::F::from_canonical_usize(i);
+            builder.recursion_eval_memory_access_single(
+                cols.timestamp + AB::F::from_canonical_usize(1),
+                output_addr,
+                &cols.output[i],
+                cols.is_real,
+            );
+        }
+
+        // TODO: constraint cols.timestamp, dst, left, right and is_real to the CPU table.
     }
 }
 
