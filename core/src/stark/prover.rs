@@ -94,7 +94,6 @@ where
         });
 
         let finished = AtomicU32::new(0);
-        let total = shards.len() as u32;
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
@@ -103,7 +102,6 @@ where
         let reconstruct_commitments = env::reconstruct_commitments();
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
         let shard_chunks = chunk_vec(shards, chunk_size);
-        log::info!("open shards");
         let shard_proofs = tracing::debug_span!("open shards").in_scope(|| {
             shard_data_chunks
                 .into_par_iter()
@@ -113,33 +111,27 @@ where
                         .into_iter()
                         .zip(shards)
                         .map(|(data, shard)| {
-                            let start = Instant::now();
-
-                            let idx = shard.index() as usize;
-                            let data = if reconstruct_commitments {
-                                Self::commit_main(config, machine, &shard, idx)
-                            } else {
-                                data.materialize()
-                                    .expect("failed to materialize shard main data")
-                            };
-                            let ordering = data.chip_ordering.clone();
-                            let chips = machine.shard_chips_ordered(&ordering).collect::<Vec<_>>();
-                            let proof = Self::prove_shard(
-                                config,
-                                pk,
-                                &chips,
-                                data,
-                                &mut challenger.clone(),
-                            );
-                            finished.fetch_add(1, Ordering::Relaxed);
-                            log::info!(
-                                "> finish ({}/{}): shard = {}, time = {:.2} secs",
-                                finished.load(Ordering::Relaxed),
-                                total,
-                                idx,
-                                start.elapsed().as_secs_f64()
-                            );
-                            proof
+                            tracing::debug_span!("generate shard proof").in_scope(|| {
+                                let idx = shard.index() as usize;
+                                let data = if reconstruct_commitments {
+                                    Self::commit_main(config, machine, &shard, idx)
+                                } else {
+                                    data.materialize()
+                                        .expect("failed to materialize shard main data")
+                                };
+                                let ordering = data.chip_ordering.clone();
+                                let chips =
+                                    machine.shard_chips_ordered(&ordering).collect::<Vec<_>>();
+                                let proof = Self::prove_shard(
+                                    config,
+                                    pk,
+                                    &chips,
+                                    data,
+                                    &mut challenger.clone(),
+                                );
+                                finished.fetch_add(1, Ordering::Relaxed);
+                                proof
+                            })
                         })
                         .collect::<Vec<_>>()
                 })
@@ -172,7 +164,7 @@ where
         let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
-        let parent_span = tracing::debug_span!("genreate traces for shard");
+        let parent_span = tracing::debug_span!("generate traces for shard");
         let mut named_traces = parent_span.in_scope(|| {
             shard_chips
                 .par_iter()
