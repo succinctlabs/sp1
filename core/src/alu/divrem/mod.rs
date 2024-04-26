@@ -71,7 +71,6 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
-use tracing::instrument;
 
 use self::utils::eval_abs_value;
 use crate::air::MachineAir;

@@ -15,7 +15,6 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use p3_maybe_rayon::prelude::ParallelSlice;
 use sp1_derive::AlignedBorrow;
-use tracing::instrument;
 
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;

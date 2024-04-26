@@ -311,7 +311,7 @@ where
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width + permutation_width;
             tracing::debug!(
-                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                "{:<15} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
                 chips[i].name(),
                 total_width,
                 traces[i].height(),
@@ -556,7 +556,6 @@ where
         let save_disk_threshold = env::save_disk_threshold();
         let reconstruct_commitments = env::reconstruct_commitments();
         let finished = AtomicU32::new(0);
-        let total = shards.len() as u32;
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) = shards
             .par_chunks(chunk_size)
