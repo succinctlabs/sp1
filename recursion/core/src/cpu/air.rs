@@ -7,7 +7,6 @@ use crate::runtime::RecursionProgram;
 use crate::runtime::D;
 use core::mem::size_of;
 use p3_air::Air;
-use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
