@@ -18,28 +18,18 @@ impl<F: Field> CpuChip<F> {
     ) where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        // Contribute to the `next_pc`` expression.
+        // Verify the next row's fp.
+        let not_jump_instruction = AB::Expr::one() - self.is_jump_instruction::<AB>(local);
+        let expected_next_fp = local.selectors.is_jal * (local.fp + local.c.value()[0])
+            + local.selectors.is_jalr * local.a.value()[0]
+            + not_jump_instruction * local.fp;
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(next.fp, expected_next_fp);
+
+        // Contribute to the `next_pc` expression.
         *next_pc += local.selectors.is_jal * (local.pc + local.b.value()[0]);
         *next_pc += local.selectors.is_jalr * local.b.value()[0];
-
-        let one: AB::Expr = AB::Expr::one();
-        let is_jump_instruction = self.is_jump_instruction::<AB>(local);
-
-        // Verify the next row's fp.
-        builder
-            .when_transition()
-            .when(local.selectors.is_jal)
-            .when(next.is_real)
-            .assert_eq(next.fp, local.fp + local.c.value()[0]);
-        builder
-            .when_transition()
-            .when(local.selectors.is_jalr)
-            .when(next.is_real)
-            .assert_eq(next.fp, local.a.value()[0]);
-        builder
-            .when_transition()
-            .when(one - is_jump_instruction)
-            .when(next.is_real)
-            .assert_eq(next.fp, local.fp);
     }
 }
