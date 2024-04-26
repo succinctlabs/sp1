@@ -21,8 +21,6 @@ pub fn main() {
     sp1_core::utils::setup_logger();
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
-    println!("{}", NUM_POSEIDON2_WIDE_COLS);
-
     let args = Args::parse();
 
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
