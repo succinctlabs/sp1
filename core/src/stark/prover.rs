@@ -132,7 +132,7 @@ where
                             );
                             finished.fetch_add(1, Ordering::Relaxed);
                             log::info!(
-                                "> open shards ({}/{}): shard = {}, time = {:.2} secs",
+                                "> finish ({}/{}): shard = {}, time = {:.2} secs",
                                 finished.load(Ordering::Relaxed),
                                 total,
                                 idx,
@@ -566,7 +566,7 @@ where
                                     Self::commit_main(config, machine, shard, index as usize);
                                 finished.fetch_add(1, Ordering::Relaxed);
                                 log::info!(
-                                    "> commit shards ({}/{}): shard = {}, time = {:.2} secs",
+                                    "> finish ({}/{}): shard = {}, time = {:.2} secs",
                                     finished.load(Ordering::Relaxed),
                                     total,
                                     index,

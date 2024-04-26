@@ -155,6 +155,36 @@ impl<C: Config> Builder<C> {
         }
     }
 
+    pub fn get_ptr<V: MemVariable<C>, I: Into<Usize<C::N>>>(
+        &mut self,
+        slice: &Array<C, V>,
+        index: I,
+    ) -> Ptr<C::N> {
+        let index = index.into();
+
+        match slice {
+            Array::Fixed(_) => {
+                todo!()
+            }
+            Array::Dyn(ptr, len) => {
+                if self.debug {
+                    let index_v = index.materialize(self);
+                    let len_v = len.materialize(self);
+                    let valid = self.lt(index_v, len_v);
+                    self.assert_var_eq(valid, C::N::one());
+                }
+                let index = MemIndex {
+                    index,
+                    offset: 0,
+                    size: V::size_of(),
+                };
+                let var: Ptr<C::N> = self.uninit();
+                self.load(var, *ptr, index);
+                var
+            }
+        }
+    }
+
     pub fn set<V: MemVariable<C>, I: Into<Usize<C::N>>, Expr: Into<V::Expression>>(
         &mut self,
         slice: &mut Array<C, V>,

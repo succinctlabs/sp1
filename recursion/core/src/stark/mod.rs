@@ -42,7 +42,7 @@ pub enum RecursionAirSkinnyDeg7<F: PrimeField32 + BinomiallyExtendable<D>> {
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    Poseidon2(Poseidon2WideChip),
+    // Poseidon2(Poseidon2WideChip),
     FriFold(FriFoldChip),
     RangeCheck(RangeCheckChip<F>),
     // Poseidon2(Poseidon2Chip),
@@ -97,9 +97,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirSkinnyDeg7<F> {
                     kind: MemoryChipKind::Finalize,
                 },
             )))
-            .chain(once(RecursionAirSkinnyDeg7::Poseidon2(
-                Poseidon2WideChip {},
-            )))
+            // .chain(once(RecursionAirSkinnyDeg7::Poseidon2(
+            //     Poseidon2WideChip {},
+            // )))
             .chain(once(RecursionAirSkinnyDeg7::FriFold(FriFoldChip {})))
             .chain(once(RecursionAirSkinnyDeg7::RangeCheck(
                 RangeCheckChip::default(),

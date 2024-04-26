@@ -55,8 +55,6 @@ where
             next: unflatten(&opening.permutation.next),
         };
 
-        // let zero: Ext<SC::Val, SC::Challenge> = builder.eval(SC::Val::zero());
-
         let mut folder_pv = Vec::new();
         for i in 0..PROOF_MAX_NUM_PVS {
             folder_pv.push(builder.get(&public_values, i));

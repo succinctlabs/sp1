@@ -162,7 +162,7 @@ where
             };
             perm_mats.push(perm_mat);
 
-            let qc_domains = quotient_domain.split_domains(builder, log_quotient_degree_val);
+            let qc_domains = quotient_domain.split_domains_const(builder, log_quotient_degree_val);
             for (j, qc_dom) in qc_domains.into_iter().enumerate() {
                 let qc_vals_array = opening.quotient[j].clone();
                 let qc_values = vec![qc_vals_array];
@@ -211,7 +211,7 @@ where
                     let trace_domain = &trace_domains[i];
                     let quotient_domain = &quotient_domains[i];
                     let qc_domains =
-                        quotient_domain.split_domains(builder, chip.log_quotient_degree());
+                        quotient_domain.split_domains_const(builder, chip.log_quotient_degree());
                     Self::verify_constraints(
                         builder,
                         chip,
