@@ -13,4 +13,5 @@ pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 pub struct BranchCols<T> {
     pub(crate) comparison_diff: IsExtZeroOperation<T>,
     pub(crate) comparison_diff_val: BinomialExtension<T>,
+    pub(crate) do_branch: T,
 }

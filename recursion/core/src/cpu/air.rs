@@ -103,11 +103,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     let b_ext: BinomialExtension<F> =
                         BinomialExtensionUtils::from_block(*cols.b.prev_value());
 
-                    let comparison_diff = match event.instruction.opcode {
-                        Opcode::BEQ | Opcode::BNE => a_ext - b_ext,
+                    let (comparison_diff, do_branch) = match event.instruction.opcode {
+                        Opcode::BEQ => (a_ext - b_ext, a_ext == b_ext),
+                        Opcode::BNE => (a_ext - b_ext, a_ext != b_ext),
                         Opcode::BNEINC => {
                             let base_element_one = BinomialExtension::<F>::from_base(F::one());
-                            a_ext + base_element_one - b_ext
+                            (
+                                a_ext + base_element_one - b_ext,
+                                a_ext + base_element_one != b_ext,
+                            )
                         }
                         _ => unreachable!(),
                     };
@@ -116,6 +120,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                         .comparison_diff
                         .populate((comparison_diff).as_block());
                     branch_cols.comparison_diff_val = comparison_diff;
+                    branch_cols.do_branch = F::from_bool(do_branch);
                 }
 
                 cols.is_real = F::one();
@@ -164,25 +169,32 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
+        let zero = AB::Expr::zero();
+        let one = AB::Expr::one();
 
         self.eval_operands(builder, local);
+
+        self.eval_memory(builder, local);
 
         self.eval_alu(builder, local);
 
         // Expression for the expected next_pc.
-        let mut next_pc = AB::Expr::zero();
+        let mut next_pc = zero;
 
-        self.eval_branch(builder, local, &mut next_pc);
+        self.eval_branch(builder, local, next, &mut next_pc);
 
-        // TODO: Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
-        // builder
-        //     .when_transition()
-        //     .when(next.is_real * (AB::Expr::one() - (local.is_beq + local.is_bne)))
-        //     .assert_eq(local.pc + AB::F::one(), next.pc);
-        // builder
-        //     .when(local.beq + local.bne)
-        //     .assert_eq(next.pc, local.pc + local.c.value()[0]);
-        // TODO: Assert next_pc == next.pc once eval_jump is implemented.
+        // TODO: in eval_jump, we need to constraint the transition of `fp`.
+        // self.eval_jump(builder, local, &mut next_pc);
+
+        // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
+        let not_branch_or_jump = one.clone()
+            - self.is_branch_instruction::<AB>(local)
+            - self.is_jump_instruction::<AB>(local);
+        next_pc += not_branch_or_jump.clone() * next.is_real * (local.pc + one);
+
+        // Verify next row's pc is correct.
+        // TODO: Uncomment once eval_jump is implemented.
+        // builder.when_transition().assert_eq(next_pc, next.pc);
 
         // Increment clk by 4 every cycle.
         builder
@@ -190,8 +202,71 @@ where
             .when(next.is_real)
             .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
-        // TODO: we also need to constraint the transition of `fp`.
+        // Constraint the program.
+        if std::env::var("MAX_RECURSION_PROGRAM_SIZE").is_err() {
+            builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+        }
 
+        // Constraint the syscalls.
+        let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
+        let operands = [
+            local.clk.into(),
+            local.a.value()[0].into(),
+            local.b.value()[0].into(),
+            local.c.value()[0] + local.instruction.offset_imm,
+        ];
+        builder.send_table(local.instruction.opcode, &operands, send_syscall);
+    }
+}
+
+impl<F: Field> CpuChip<F> {
+    /// Eval the operands.
+    fn eval_operands<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        // Constraint the case of immediates for the b and c operands.
+        builder
+            .when(local.instruction.imm_b)
+            .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
+        builder
+            .when(local.instruction.imm_c)
+            .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
+
+        // Constraint the operand accesses.
+        let a_addr = local.fp.into() + local.instruction.op_a.into();
+        builder.recursion_eval_memory_access(
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
+            a_addr,
+            &local.a,
+            local.is_real.into(),
+        );
+        // If the instruction only reads from operand A, then verify that previous and current values are equal.
+        let is_op_a_read_only = self.is_op_a_read_only_instruction::<AB>(local);
+        builder
+            .when(is_op_a_read_only)
+            .assert_block_eq(*local.a.prev_value(), *local.a.value());
+
+        builder.recursion_eval_memory_access(
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
+            local.fp.into() + local.instruction.op_b[0].into(),
+            &local.b,
+            AB::Expr::one() - local.instruction.imm_b.into(),
+        );
+
+        builder.recursion_eval_memory_access(
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
+            local.fp.into() + local.instruction.op_c[0].into(),
+            &local.c,
+            AB::Expr::one() - local.instruction.imm_c.into(),
+        );
+    }
+
+    // Eval the memory instructions.
+    fn eval_memory<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
         // Constraint all the memory access.
 
         // Evaluate the memory column.
@@ -220,77 +295,14 @@ where
         // builder
         //     .when(local.selectors.is_store)
         //     .assert_block_eq(local.a.value, local.memory.value);
-
-        // Constraint the program.
-        if std::env::var("MAX_RECURSION_PROGRAM_SIZE").is_err() {
-            builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
-        }
-
-        // Constraint the syscalls.
-        let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
-        let operands = [
-            local.clk.into(),
-            local.a.value()[0].into(),
-            local.b.value()[0].into(),
-            local.c.value()[0] + local.instruction.offset_imm,
-        ];
-        builder.send_table(local.instruction.opcode, &operands, send_syscall);
-    }
-}
-
-impl<F: Field> CpuChip<F> {
-    /// Eval the registers.
-    fn eval_operands<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
-    where
-        AB: SP1RecursionAirBuilder<F = F>,
-    {
-        // Constraint the case of immediates for the b and c operands.
-        builder
-            .when(local.instruction.imm_b)
-            .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
-        builder
-            .when(local.instruction.imm_c)
-            .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
-
-        // Constraint the operand accesses.
-        let a_addr = local.fp.into() + local.instruction.op_a.into();
-        builder.recursion_eval_memory_access(
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
-            a_addr,
-            &local.a,
-            local.is_real.into(),
-        );
-        // If the instruction only reads from operand A, then verify that previous and current values are equal.
-        builder
-            .when(
-                local.selectors.is_beq
-                    + local.selectors.is_bne
-                    + local.selectors.is_fri_fold
-                    + local.selectors.is_poseidon,
-            )
-            .assert_block_eq(*local.a.prev_value(), *local.a.value());
-
-        builder.recursion_eval_memory_access(
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
-            local.fp.into() + local.instruction.op_b[0].into(),
-            &local.b,
-            AB::Expr::one() - local.instruction.imm_b.into(),
-        );
-
-        builder.recursion_eval_memory_access(
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
-            local.fp.into() + local.instruction.op_c[0].into(),
-            &local.c,
-            AB::Expr::one() - local.instruction.imm_c.into(),
-        );
     }
 
-    /// Eval all the ALU operations.
+    /// Eval the ALU operations.
     fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        // Convert register values from Block<Var> to BinomialExtension<Expr>.
+        // Convert operand values from Block<Var> to BinomialExtension<Expr>.
         let a_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
@@ -328,20 +340,28 @@ impl<F: Field> CpuChip<F> {
             .assert_ext_eq(b_ext, a_ext * c_ext);
     }
 
-    /// Eval all the branch operations.
-    fn eval_branch<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>, next_pc: &mut AB::Expr)
-    where
+    /// Eval the branch operations.
+    fn eval_branch<AB>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+        next_pc: &mut AB::Expr,
+    ) where
         AB: SP1RecursionAirBuilder<F = F>,
     {
         let branch_cols = local.opcode_specific.branch();
-        let is_branch_instruction =
-            local.selectors.is_beq + local.selectors.is_bne + local.selectors.is_bneinc;
+        let is_branch_instruction = self.is_branch_instruction::<AB>(local);
 
+        // Convert operand values from Block<Var> to BinomialExtension<Expr>.  Note that it gets the
+        // previous value of the `a` and `b` operands, since BNENIC will modify `a`.
         let a_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.a.prev_value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.b.prev_value().map(|x| x.into()));
-        let base_element_one = BinomialExtension::<AB::Expr>::from_base(AB::Expr::one());
+
+        let one = AB::Expr::one();
+        let base_element_one = BinomialExtension::<AB::Expr>::from_base(one.clone());
 
         let mut comparison_diff = a_ext - b_ext;
 
@@ -365,20 +385,47 @@ impl<F: Field> CpuChip<F> {
             is_branch_instruction.clone(),
         );
 
-        let one = AB::Expr::one();
-
         let mut do_branch = local.selectors.is_beq.clone() * branch_cols.comparison_diff.result;
         do_branch +=
             local.selectors.is_bne.clone() * (one.clone() - branch_cols.comparison_diff.result);
         do_branch +=
             local.selectors.is_bneinc.clone() * (one.clone() - branch_cols.comparison_diff.result);
+        builder
+            .when(is_branch_instruction.clone())
+            .assert_eq(branch_cols.do_branch, do_branch);
 
         let pc_offset = local.c.value().0[0];
-        *next_pc += is_branch_instruction * (builder.if_else(do_branch, pc_offset, one.clone()));
+        *next_pc += is_branch_instruction.clone()
+            * (builder.if_else(branch_cols.do_branch, pc_offset, one.clone()));
 
         // If the instruction is a BNEINC, verify that the a value is incremented by one.
         builder
             .when(local.selectors.is_bneinc)
             .assert_eq(local.a.value()[0], local.a.prev_value()[0] + one);
+    }
+
+    fn is_branch_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_beq + local.selectors.is_bne + local.selectors.is_bneinc
+    }
+
+    fn is_jump_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_jal + local.selectors.is_jalr
+    }
+
+    fn is_op_a_read_only_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_beq
+            + local.selectors.is_bne
+            + local.selectors.is_fri_fold
+            + local.selectors.is_poseidon
+            + local.selectors.is_store
     }
 }
