@@ -15,6 +15,7 @@ use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},
 };
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 /// A prover that can generate proofs with the Groth16 protocol using bindings to Gnark.
@@ -40,7 +41,18 @@ impl Groth16Prover {
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
-        thread::spawn(move || {
+        println!(
+            "Starting Gnark server on port {} with data dir {}",
+            port,
+            build_dir.display()
+        );
+
+        // Use an Arc<Mutex<bool>> to signal if there's an error
+        let error_signal = Arc::new(Mutex::new(false));
+        let error_signal_clone = Arc::clone(&error_signal);
+
+        // Spawn a thread to run the command
+        let child_thread = thread::spawn(move || {
             let mut child = Command::new("go")
                 .args([
                     "run",
@@ -65,9 +77,20 @@ impl Groth16Prover {
             let exit_status = child.wait().unwrap();
 
             if !exit_status.success() {
-                panic!("Gnark server exited with an error: {:?}", exit_status);
+                // Indicate there's an error
+                let mut signal = error_signal_clone.lock().unwrap();
+                *signal = true;
             }
         });
+
+        // Join the thread to wait for completion
+        child_thread.join().unwrap();
+
+        // Check if there's an error signal
+        let signal = error_signal.lock().unwrap();
+        if *signal {
+            panic!("Gnark server exited with an error");
+        }
 
         let prover = Self { port: port_clone };
 
@@ -230,6 +253,6 @@ fn generate_random_port() -> u16 {
 
 impl Default for Groth16Prover {
     fn default() -> Self {
-        Self::new()
+        Self::new(PathBuf::from("build"))
     }
 }
