@@ -43,7 +43,6 @@ impl SP1VerifyingKey {
             inputs.push(g);
         }
 
-        println!("hash inputs: {:?}", inputs);
         poseidon2_hash(inputs)
     }
 }
