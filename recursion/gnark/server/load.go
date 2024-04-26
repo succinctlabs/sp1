@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -21,82 +20,8 @@ import (
 	"github.com/pkg/errors"
 )
 
-// func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
-// 	var r1cs constraint.ConstraintSystem
-// 	var pk groth16.ProvingKey
-// 	var err error
-
-// 	// Check if the data directory exists and is not empty.
-// 	filesExist := false
-// 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-// 		err := os.MkdirAll(dataDir, 0755)
-// 		if err != nil {
-// 			return nil, nil, errors.Wrap(err, "creating data directory")
-// 		}
-// 	} else {
-// 		// Check if the files exist in the data directory.
-// 		if _, err := os.Stat(dataDir + "/circuit_" + circuitType + ".bin"); os.IsNotExist(err) {
-
-// 		}
-
-// 		if _, err := os.Stat(dataDir + "/pk_" + circuitType + ".bin"); os.IsNotExist(err) {
-
-// 		}
-// 	}
-
-// 	// If the data directory is empty, download the circuit from the bucket.
-// 	if filesExist == false {
-// 		// Download the R1CS and proving key from the bucket.
-// 		r1cs, pk, err = downloadCircuit(ctx, dataDir, circuitBucket, circuitType, circuitVersion)
-// 		if err != nil {
-// 			return nil, nil, errors.Wrap(err, "failed to download circuit")
-// 		}
-// 	}
-
-// 	return r1cs, pk, nil
-// }
-
-// Helper function to check if a file exists.
-func fileExists(filePath string) bool {
-	_, err := os.Stat(filePath)
-	return !os.IsNotExist(err)
-}
-
-// LoadCircuit checks if the necessary files exist in the data directory, and if not, downloads them.
-func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
-	r1csPath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
-	pkPath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
-
-	// Ensure data directory exists, create if necessary.
-	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			return nil, nil, errors.Wrap(err, "creating data directory")
-		}
-	}
-
-	// Check if the R1CS and proving key files exist in the data directory.
-	filesExist := fileExists(r1csPath) && fileExists(pkPath)
-
-	var r1cs constraint.ConstraintSystem
-	var pk groth16.ProvingKey
-	var err error
-
-	if !filesExist {
-		// If files do not exist, download them from the S3 bucket.
-		fmt.Printf("Files not found in dataDir, downloading from bucket %s...\n", circuitBucket)
-		r1cs, pk, err = downloadCircuit(ctx, dataDir, circuitBucket, circuitType, circuitVersion)
-		if err != nil {
-			return nil, nil, errors.Wrap(err, "failed to download circuit")
-		}
-	} else {
-		fmt.Printf("Files found in dataDir. Loading from %s...\n", dataDir)
-	}
-
-	return r1cs, pk, nil
-}
-
-// DownloadCircuit downloads the R1CS and proving key and loads them into memory.
-func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
+// LoadCircuit downloads the R1CS and proving key and loads it into memory.
+func LoadCircuit(ctx context.Context, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
 	// Setup AWS S3 downloader.
 	awsConfig, err := config.LoadDefaultConfig(ctx)
 	if err != nil {
@@ -122,31 +47,30 @@ func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, c
 	}
 	fmt.Printf("Downloaded circuit tarball (%d bytes)\n", tarballSize)
 
+	// Decompress the gzip tarball.
 	gzipReader, err := gzip.NewReader(bytes.NewReader(tarballBuffer.Bytes()))
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "error decompressing gzip")
 	}
 
+	// Read the tarball.
 	tarReader := tar.NewReader(gzipReader)
 
-	// Create file paths in dataDir
-	r1csFilePath := fmt.Sprintf("%s/circuit_%s.bin", dataDir, circuitType)
-	pkFilePath := fmt.Sprintf("%s/pk_%s.bin", dataDir, circuitType)
-
-	// Create files in dataDir
-	r1csFile, err := os.Create(r1csFilePath)
+	// Temporary files to write and read to.
+	r1csTempFile, err := os.CreateTemp("", "r1cs")
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "creating R1CS file")
+		return nil, nil, errors.Wrap(err, "creating temp file for r1cs")
 	}
-	defer os.Remove(r1csFilePath)
-
-	pkFile, err := os.Create(pkFilePath)
+	defer os.Remove(r1csTempFile.Name())
+	pkTimeFile, err := os.CreateTemp("", "pk")
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "creating PK file")
+		return nil, nil, errors.Wrap(err, "creating temp file for proving key")
 	}
-	defer os.Remove(pkFilePath)
+	defer os.Remove(r1csTempFile.Name())
 
-	// Extract files from tarball and write to dataDir
+	r1csFileName := fmt.Sprintf("build/circuit_%s.bin", circuitType)
+	pkFileName := fmt.Sprintf("build/pk_%s.bin", circuitType)
+
 	var r1csExtracted, pkExtracted bool
 	for {
 		if r1csExtracted && pkExtracted {
@@ -157,62 +81,56 @@ func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, c
 		if err == io.EOF {
 			break
 		} else if err != nil {
-			return nil, nil, errors.Wrap(err, "error reading tarball")
+			return nil, nil, errors.Wrap(err, "reading tarball")
 		}
-
 		fileName := strings.ToLower(header.Name)
 
 		switch {
-		case strings.EqualFold(fileName, r1csFilePath):
-			_, err = io.Copy(r1csFile, tarReader)
+		case strings.EqualFold(fileName, r1csFileName):
+			_, err = io.Copy(r1csTempFile, tarReader)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "copying R1CS content")
+				return nil, nil, errors.Wrap(err, "copying r1cs to temp file")
 			}
-			r1csFile.Seek(0, io.SeekStart)
+			r1csTempFile.Seek(0, io.SeekStart)
 			r1csExtracted = true
 
-		case strings.EqualFold(fileName, pkFilePath):
-			_, err = io.Copy(pkFile, tarReader)
+		case strings.EqualFold(fileName, pkFileName):
+			_, err = io.Copy(pkTimeFile, tarReader)
 			if err != nil {
-				return nil, nil, errors.Wrap(err, "copying PK content")
+				return nil, nil, errors.Wrap(err, "copying pk to temp file")
 			}
-			pkFile.Seek(0, io.SeekStart)
+			pkTimeFile.Seek(0, io.SeekStart)
 			pkExtracted = true
 		}
 	}
 
 	if !r1csExtracted {
-		return nil, nil, errors.New("R1CS file not extracted")
+		return nil, nil, errors.New("r1cs file not extracted")
 	}
 	if !pkExtracted {
-		return nil, nil, errors.New("PK file not extracted")
+		return nil, nil, errors.New("pk file not extracted")
 	}
 
-	// Read the content from dataDir
-	r1csFile.Seek(0, io.SeekStart)
-	r1csContent, err := io.ReadAll(r1csFile)
+	r1csTempFile.Seek(0, io.SeekStart)
+	r1csContent, err := io.ReadAll(r1csTempFile)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "reading R1CS content")
+		return nil, nil, errors.Wrap(err, "reading r1cs content")
 	}
 
-	pkFile.Seek(0, io.SeekStart)
-	pkContent, err := io.ReadAll(pkFile)
+	pkTimeFile.Seek(0, io.SeekStart)
+	pkContent, err := io.ReadAll(pkTimeFile)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "reading PK content")
+		return nil, nil, errors.Wrap(err, "reading pk content")
 	}
 
-	// Load R1CS and PK into memory
+	// Load the r1cs and pk into memory.
 	r1cs := groth16.NewCS(ecc.BN254)
-	_, err = r1cs.ReadFrom(bytes.NewReader(r1csContent))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading R1CS content")
-	}
-
+	r1cs.ReadFrom(bytes.NewReader(r1csContent))
 	pk := groth16.NewProvingKey(ecc.BN254)
-	_, err = pk.ReadFrom(bytes.NewReader(pkContent))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading PK content")
-	}
+	pk.ReadFrom(bytes.NewReader(pkContent))
 
 	return r1cs, pk, nil
 }
+
+
+func 

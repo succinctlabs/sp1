@@ -39,31 +39,25 @@ pub struct Groth16Proof {
 
 impl Groth16Prover {
     /// Starts up the Gnark server using Groth16 on the given port and waits for it to be ready.
-    pub fn new(build_dir: PathBuf) -> Self {
+    pub fn new() -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
-        println!(
-            "Starting Gnark server on port {} with data dir {}",
-            port,
-            build_dir.display()
-        );
-
-        // Use an Arc<AtomicBool> to signal if there's an error
+        // If Gnark server exits, we want to panic the main thread. So watch for the server exit
+        // signal and panic if it's set.
         let server_signal = Arc::new(AtomicBool::new(false));
         let server_signal_clone = Arc::clone(&server_signal);
 
         // Spawn a thread to run the command
+        // TODO: version by commit hash instead of by incrementing
         thread::spawn(move || {
             let mut child = Command::new("go")
                 .args([
                     "run",
                     "main.go",
                     "serve",
-                    "--data",
-                    build_dir.to_str().unwrap(),
                     "--type",
                     "groth16",
                     "--version",
@@ -97,7 +91,7 @@ impl Groth16Prover {
         prover
     }
 
-    // Create a new thread to monitor the server signal.
+    /// Creates a new thread to monitor the server signal.
     fn monitor_server_signal(&self) {
         let server_signal = Arc::clone(&self.server_signal);
         thread::spawn(move || loop {
@@ -263,6 +257,6 @@ fn generate_random_port() -> u16 {
 
 impl Default for Groth16Prover {
     fn default() -> Self {
-        Self::new(PathBuf::from("build"))
+        Self::new()
     }
 }
