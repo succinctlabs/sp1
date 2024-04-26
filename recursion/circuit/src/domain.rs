@@ -109,7 +109,16 @@ where
         builder.eval(unshifted_power - C::EF::one())
     }
 
-    fn split_domains(&self, _: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
+    fn split_domains(
+        &self,
+        _builder: &mut Builder<C>,
+        _log_num_chunks: impl Into<Usize<<C as Config>::N>>,
+        _num_chunks: impl Into<Usize<<C as Config>::N>>,
+    ) -> Array<C, Self> {
+        unimplemented!("Not implemented for a circuit variable")
+    }
+
+    fn split_domains_const(&self, _: &mut Builder<C>, log_num_chunks: usize) -> Vec<Self> {
         let num_chunks = 1 << log_num_chunks;
         let log_n = self.log_n - log_num_chunks;
         let size = 1 << log_n;
