@@ -8,7 +8,7 @@ use crate::{
 };
 
 impl<F: Field> CpuChip<F> {
-    // Eval the memory instructions.
+    // Eval the MEMORY instructions.
     pub fn eval_memory<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,

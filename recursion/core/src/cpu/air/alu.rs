@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl<F: Field> CpuChip<F> {
-    /// Eval the ALU operations.
+    /// Eval the ALU instructions.
     pub fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,

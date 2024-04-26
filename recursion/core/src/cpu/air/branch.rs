@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl<F: Field> CpuChip<F> {
-    /// Eval the branch operations.
+    /// Eval the BRANCH operations.
     pub fn eval_branch<AB>(
         &self,
         builder: &mut AB,

@@ -8,7 +8,7 @@ use crate::{
 };
 
 impl<F: Field> CpuChip<F> {
-    /// Eval the ALU operations.
+    /// Eval the JUMP instructions.
     pub fn eval_jump<AB>(
         &self,
         builder: &mut AB,
@@ -18,12 +18,14 @@ impl<F: Field> CpuChip<F> {
     ) where
         AB: SP1RecursionAirBuilder<F = F>,
     {
+        // Constribute to the `next_pc`` expression.
         *next_pc = local.selectors.is_jal * (local.pc + local.b.value()[0]);
         *next_pc += local.selectors.is_jalr * local.b.value()[0];
 
         let one: AB::Expr = AB::Expr::one();
         let is_jump_instruction = self.is_jump_instruction::<AB>(local);
 
+        // Verify the next row's fp.
         builder
             .when_transition()
             .when(local.selectors.is_jal)

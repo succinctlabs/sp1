@@ -6,7 +6,7 @@ mod operands;
 
 use std::borrow::Borrow;
 
-use p3_air::Air;
+use p3_air::{Air, AirBuilder};
 use p3_field::{AbstractField, Field};
 use p3_matrix::Matrix;
 
@@ -48,11 +48,10 @@ where
         next_pc += not_branch_or_jump.clone() * (local.pc + one);
 
         // Verify next row's pc is correct.
-        // TODO: Uncomment once eval_jump is implemented.
-        // builder
-        //     .when_transition()
-        //     .when(next.is_real)
-        //     .assert_eq(next_pc, next.pc);
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(next_pc, next.pc);
 
         // // Increment clk by 4 every cycle.
         // builder
