@@ -22,12 +22,6 @@ use crate::{
 
 const LOG_DEGREE_BOUND: usize = 31;
 
-pub fn get_cycles(program: Program) -> u64 {
-    let mut runtime = Runtime::new(program);
-    runtime.run();
-    runtime.state.global_clk as u64
-}
-
 /// Runs a program and returns the public values stream.
 pub fn run_test_io(
     program: Program,

@@ -1,7 +1,12 @@
-use std::fs;
+use std::{
+    fs::{self, File},
+    io::Read,
+};
 
 use sp1_core::{
     air::{MachineAir, Word},
+    io::SP1Stdin,
+    runtime::{Program, Runtime},
     stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val},
 };
 use sp1_recursion_program::stark::EMPTY;
@@ -14,6 +19,22 @@ impl SP1CoreProof {
         fs::write(path, data).unwrap();
         Ok(())
     }
+}
+
+/// Get the number of cycles for a given program.
+pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
+    let program = Program::from(elf);
+    let mut runtime = Runtime::new(program);
+    runtime.write_vecs(&stdin.buffer);
+    runtime.run();
+    runtime.state.global_clk
+}
+
+/// Load an ELF file from a given path.
+pub fn load_elf(path: &str) -> Result<Vec<u8>, std::io::Error> {
+    let mut elf_code = Vec::new();
+    File::open(path)?.read_to_end(&mut elf_code)?;
+    Ok(elf_code)
 }
 
 pub fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
