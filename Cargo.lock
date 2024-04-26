@@ -4603,7 +4603,6 @@ dependencies = [
  "serde_json",
  "sp1-recursion-compiler",
  "tempfile",
- "tokio",
 ]
 
 [[package]]

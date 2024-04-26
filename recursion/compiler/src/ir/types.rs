@@ -42,7 +42,7 @@ pub enum Usize<N> {
     Var(Var<N>),
 }
 
-#[derive(Debug, Clone, Default, Serialize)]
+#[derive(Debug, Clone, Default)]
 pub struct Witness<C: Config> {
     pub vars: Vec<C::N>,
     pub felts: Vec<C::F>,
