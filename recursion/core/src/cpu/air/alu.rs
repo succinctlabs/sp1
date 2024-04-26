@@ -1,3 +1,4 @@
+use p3_air::AirBuilder;
 use p3_field::{AbstractField, Field};
 use sp1_core::air::{BinomialExtension, ExtensionAirBuilder};
 
@@ -14,6 +15,7 @@ impl<F: Field> CpuChip<F> {
         AB: SP1RecursionAirBuilder<F = F>,
     {
         let one = AB::Expr::one();
+        let is_alu_instruction = self.is_alu_instruction::<AB>(local);
 
         // Convert operand values from Block<Var> to BinomialExtension<Expr>.
         let a_ext: BinomialExtension<AB::Expr> =
@@ -25,9 +27,11 @@ impl<F: Field> CpuChip<F> {
 
         // Verify that the b and c registers are base elements for field operations.
         builder
+            .when(is_alu_instruction.clone())
             .when(one.clone() - local.selectors.is_ext)
             .assert_is_base_element(b_ext.clone());
         builder
+            .when(is_alu_instruction)
             .when(one - local.selectors.is_ext)
             .assert_is_base_element(c_ext.clone());
 

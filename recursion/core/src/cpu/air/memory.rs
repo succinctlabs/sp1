@@ -14,7 +14,6 @@ impl<F: Field> CpuChip<F> {
         AB: SP1RecursionAirBuilder<F = F>,
     {
         // Constraint all the memory access.
-        let memory_cols = local.opcode_specific.memory();
 
         // Evaluate the memory column.
         let load_memory = local.selectors.is_load + local.selectors.is_store;
@@ -25,6 +24,8 @@ impl<F: Field> CpuChip<F> {
         // When load_memory is true, then we check that the local.memory_addr column equals the computed
         // memory_addr column from the other columns. Otherwise it is 0.
         // builder.assert_eq(memory_addr * load_memory.clone(), local.memory_addr);
+
+        let memory_cols = local.opcode_specific.memory();
 
         builder.recursion_eval_memory_access(
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
