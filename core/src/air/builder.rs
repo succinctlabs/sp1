@@ -44,11 +44,10 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
     /// Asserts that an iterator of expressions are all equal.
     fn assert_all_eq<I1: Into<Self::Expr>, I2: Into<Self::Expr>>(
         &mut self,
-        left: impl IntoIterator<Item = I1> + Copy,
-        right: impl IntoIterator<Item = I2> + Copy,
+        left: impl IntoIterator<Item = I1>,
+        right: impl IntoIterator<Item = I2>,
     ) {
-        debug_assert_eq!(left.into_iter().count(), right.into_iter().count());
-        for (left, right) in left.into_iter().zip(right) {
+        for (left, right) in left.into_iter().zip_eq(right) {
             self.assert_eq(left, right);
         }
     }

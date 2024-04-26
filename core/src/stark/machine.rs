@@ -119,6 +119,7 @@ where
     ///
     /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g} )
     pub fn hash_vkey(&self, vkey: &StarkVerifyingKey<SC>) -> [BabyBear; DIGEST_SIZE] {
+        // TODO: this should live in SP1VerifyingKey
         let prep_domains = self.preprocessed_chip_ids().into_iter().map(|chip_idx| {
             let name = self.chips[chip_idx].name().clone();
             let prep_sorted_idx = vkey.chip_ordering[&name];

@@ -12,7 +12,7 @@ cfg_if::cfg_if! {
         use crate::zkvm::DEFERRED_PROOFS_DIGEST;
         use p3_baby_bear::BabyBear;
         use p3_field::AbstractField;
-        use sp1_primitives::hash_deferred_proofs;
+        use sp1_primitives::hash_deferred_proof;
     }
 }
 
@@ -52,7 +52,7 @@ pub fn syscall_verify_sp1_proof(vk_digest: &[u32; 8], pv_digest: &[u8; 32]) {
             .map(|b| BabyBear::from_canonical_u8(*b))
             .collect::<Vec<_>>();
 
-        *deferred_proofs_digest = hash_deferred_proofs(
+        *deferred_proofs_digest = hash_deferred_proof(
             deferred_proofs_digest,
             &vk_digest_babybear.try_into().unwrap(),
             &pv_digest_babybear.try_into().unwrap(),

@@ -5,7 +5,9 @@ use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::utils::{get_cycles, prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
+use sp1_core::utils::{prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
+use sp1_prover::utils::get_cycles;
+use sp1_prover::SP1Stdin;
 use std::fmt;
 use std::fs::OpenOptions;
 use std::io;
@@ -87,8 +89,8 @@ fn main() {
 
     // Load the program.
     let elf_path = &args.elf_path;
-    let program = Program::from_elf(elf_path);
-    let cycles = get_cycles(program.clone());
+    let elf = fs::read(elf_path).expect("Failed to read ELF file");
+    let cycles = get_cycles(&elf, &SP1Stdin::new());
 
     // Initialize total duration counters.
     let mut total_execution_duration = 0f64;
@@ -96,6 +98,7 @@ fn main() {
     let mut total_verify_duration = 0f64;
 
     // Perform runs.
+    let program = Program::from(&elf);
     for _ in 0..args.runs {
         let elf = fs::read(elf_path).expect("Failed to read ELF file");
         let (execution_duration, prove_duration, verify_duration) =
@@ -130,6 +133,8 @@ fn main() {
 }
 
 fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f64, f64) {
+    // Note: While these benchmarks are useful for core proving, they are not useful for recursion
+    // or end to end proving as we only support Poseidon for now.
     match hashfn {
         HashFnId::Blake3 => {
             let mut runtime = Runtime::new(program.clone());

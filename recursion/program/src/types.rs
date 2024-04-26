@@ -19,6 +19,18 @@ pub struct ShardProofVariable<C: Config> {
     pub public_values: Array<C, Felt<C::F>>,
 }
 
+#[derive(DslVariable, Clone, Copy)]
+pub struct QuotientData<C: Config> {
+    pub log_quotient_degree: Var<C::N>,
+    pub quotient_size: Var<C::N>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct QuotientDataValues {
+    pub log_quotient_degree: usize,
+    pub quotient_size: usize,
+}
+
 /// Reference: [sp1_core::stark::VerifyingKey]
 #[derive(DslVariable, Clone)]
 pub struct VerifyingKeyVariable<C: Config> {
