@@ -11,7 +11,10 @@ pub mod prove;
 pub mod utils;
 
 use anyhow::{Ok, Result};
-use prove::{LocalProver, NetworkProver, Prover};
+use prove::{
+    LocalProver, NetworkProver, Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof,
+    SP1PlonkProof,
+};
 pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
 use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use std::env;
@@ -81,38 +84,26 @@ impl ProverClient {
     }
 
     /// Verifies the given proof is valid and matches the given vkey.
-    pub fn verify(
-        &self,
-        proof: prove::SP1DefaultProof,
-        vkey: &sp1_prover::SP1VerifyingKey,
-    ) -> Result<()> {
+    pub fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify(proof, vkey)
     }
 
     /// Verifies the given compressed proof is valid and matches the given vkey.
     pub fn verify_compressed(
         &self,
-        proof: prove::SP1CompressedProof,
-        vkey: &sp1_prover::SP1VerifyingKey,
+        proof: &SP1CompressedProof,
+        vkey: &SP1VerifyingKey,
     ) -> Result<()> {
         self.prover.verify_compressed(proof, vkey)
     }
 
     /// Verifies the given groth16 proof is valid and matches the given vkey.
-    pub fn verify_plonk(
-        &self,
-        proof: prove::SP1PlonkProof,
-        vkey: &sp1_prover::SP1VerifyingKey,
-    ) -> Result<()> {
+    pub fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify_plonk(proof, vkey)
     }
 
     /// Verifies the given groth16 proof is valid and matches the given vkey.
-    pub fn verify_groth16(
-        &self,
-        proof: prove::SP1Groth16Proof,
-        vkey: &sp1_prover::SP1VerifyingKey,
-    ) -> Result<()> {
+    pub fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify_groth16(proof, vkey)
     }
 }

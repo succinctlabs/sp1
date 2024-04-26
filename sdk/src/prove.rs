@@ -184,12 +184,12 @@ impl Prover for LocalProver {
 
     fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
         let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
-        let pv_digest: [u8; 32] = Sha256::digest(proof.public_values.buffer.data).into();
+        let pv_digest: [u8; 32] = Sha256::digest(&proof.public_values.buffer.data).into();
         if pv_digest != *pv.commit_digest_bytes() {
             return Err(anyhow::anyhow!("Public values digest mismatch"));
         }
         let machine_proof = MachineProof {
-            shard_proofs: proof.proof,
+            shard_proofs: proof.proof.clone(),
         };
         let mut challenger = self.prover.core_machine.config().challenger();
         Ok(self
