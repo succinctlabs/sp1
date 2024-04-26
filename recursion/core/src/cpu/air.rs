@@ -7,7 +7,6 @@ use crate::runtime::RecursionProgram;
 use crate::runtime::D;
 use core::mem::size_of;
 use p3_air::Air;
-use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
@@ -129,13 +128,13 @@ where
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
-        let next: &CpuCols<AB::Var> = (*next).borrow();
+        let _next: &CpuCols<AB::Var> = (*next).borrow();
 
-        // Increment clk by 4 every cycle.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
+        // // Increment clk by 4 every cycle.
+        // builder
+        //     .when_transition()
+        //     .when(next.is_real)
+        //     .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
         // TODO: Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
         // builder
@@ -215,7 +214,8 @@ where
         }
 
         // Constraint the syscalls.
-        let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
+        // let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
+        let send_syscall = local.selectors.is_poseidon;
         let operands = [
             local.clk.into(),
             local.a.value()[0].into(),
