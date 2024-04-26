@@ -32,8 +32,6 @@ impl<T> From<Vec<T>> for TracedVec<T> {
     }
 }
 
-static mut CALLS: u64 = 0;
-
 impl<T> TracedVec<T> {
     pub fn new() -> Self {
         Self {
@@ -47,19 +45,18 @@ impl<T> TracedVec<T> {
         self.traces.push(None);
     }
 
+    /// Pushes a value to the vector and records a backtrace if SP1_DEBUG is enabled
     pub fn trace_push(&mut self, value: T) {
         self.vec.push(value);
-        unsafe {
-            CALLS += 1;
-            if CALLS % 10000 == 0 {
-                println!("Pushed {} elements", CALLS);
-            }
-        }
-        match std::env::var("SP1_DEBUG") {
-            Ok(_) => {
+        match std::env::var("SP1_DEBUG")
+            .unwrap_or("false".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "true" => {
                 self.traces.push(Some(Backtrace::new_unresolved()));
             }
-            Err(_) => {
+            _ => {
                 self.traces.push(None);
             }
         };
