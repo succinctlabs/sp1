@@ -154,15 +154,13 @@ impl SP1Prover {
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         let program = Program::from(elf);
         let (pk, vk) = self.core_machine.setup(&program);
-        let pk = SP1ProvingKey { pk, program };
         let vk = SP1VerifyingKey { vk };
+        let pk = SP1ProvingKey {
+            pk,
+            program,
+            vk: vk.clone(),
+        };
         (pk, vk)
-    }
-
-    /// Hash a verifying key, producing a single commitment that uniquely identifies the program
-    /// being proven.
-    pub fn hash_vkey(&self, vk: &StarkVerifyingKey<CoreSC>) -> [Val<CoreSC>; 8] {
-        self.core_machine.hash_vkey(vk)
     }
 
     /// Accumulate deferred proofs into a single digest.
@@ -485,6 +483,10 @@ impl SP1Prover {
                 indices
             })
             .collect();
+        let deferred_chip_quotient_data: Vec<Vec<QuotientDataValues>> = deferred_proofs
+            .iter()
+            .map(|p| get_chip_quotient_data(&self.reduce_machine, p))
+            .collect();
 
         // Convert the inputs into a witness stream.
         let mut witness_stream = Vec::new();
@@ -518,6 +520,7 @@ impl SP1Prover {
                 }
             }
         }
+        witness_stream.extend(deferred_chip_quotient_data.write());
         witness_stream.extend(deferred_sorted_indices.write());
         witness_stream.extend(deferred_proofs.to_vec().write());
         let is_complete = if is_complete { 1usize } else { 0 };
@@ -755,11 +758,14 @@ mod tests {
         prover.wrap_groth16(wrapped_bn254_proof, PathBuf::from("build"));
     }
 
+    /// This test ensures that a proof can be deferred in the core vm and verified in recursion.
     #[test]
-    #[ignore]
     fn test_deferred_verify() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
+        std::env::set_var("FRI_QUERIES", "1");
+        std::env::set_var("SHARD_SIZE", "262144");
+        std::env::set_var("MAX_RECURSION_PROGRAM_SIZE", "1");
 
         // Generate SP1 proof
         let keccak_elf = include_bytes!("../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
@@ -778,16 +784,7 @@ mod tests {
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
         // Read proof from p1.bin if exists
-        let p1_file = std::fs::File::open("p1.bin");
-        let deferred_proof_1 = match p1_file {
-            Ok(file) => bincode::deserialize_from(file).unwrap(),
-            Err(_) => {
-                let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
-                let file = std::fs::File::create("p1.bin").unwrap();
-                bincode::serialize_into(file, &deferred_proof_1).unwrap();
-                deferred_proof_1
-            }
-        };
+        let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
         let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
         println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
         let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32]
@@ -802,17 +799,7 @@ mod tests {
         stdin.write(&vec![0u8, 1, 2]);
         stdin.write(&vec![2, 3, 4]);
         stdin.write(&vec![5, 6, 7]);
-        // Read proof from p2.bin if exists
-        let p2_file = std::fs::File::open("p2.bin");
-        let deferred_proof_2 = match p2_file {
-            Ok(file) => bincode::deserialize_from(file).unwrap(),
-            Err(_) => {
-                let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
-                let file = std::fs::File::create("p2.bin").unwrap();
-                bincode::serialize_into(file, &deferred_proof_2).unwrap();
-                deferred_proof_2
-            }
-        };
+        let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
         let pv_2 = deferred_proof_2.public_values.buffer.data.clone();
         println!("proof 2 pv: {:?}", hex::encode(pv_2.clone()));
         let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32]
@@ -828,7 +815,7 @@ mod tests {
         let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
 
         let mut stdin = SP1Stdin::new();
-        let vkey_digest = &prover.core_machine.hash_vkey(&keccak_vk.vk);
+        let vkey_digest = keccak_vk.hash();
         let vkey_digest: [u32; 8] = vkey_digest
             .iter()
             .map(|n| n.as_canonical_u32())
