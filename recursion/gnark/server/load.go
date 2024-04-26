@@ -131,6 +131,3 @@ func LoadCircuit(ctx context.Context, circuitBucket, circuitType, circuitVersion
 
 	return r1cs, pk, nil
 }
-
-
-func 

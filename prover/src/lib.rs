@@ -727,7 +727,6 @@ mod tests {
     use sp1_core::utils::setup_logger;
 
     #[test]
-    #[ignore]
     fn test_prove_sp1() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");

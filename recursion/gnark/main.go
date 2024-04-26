@@ -54,7 +54,7 @@ func main() {
 	servePortFlag := serveCmd.String("port", "8080", "host port to listen on")
 
 	if len(os.Args) < 2 {
-		fmt.Println("expected 'build-groth16', 'prove-groth16', 'build-plonk-bn254', or 'prove-plonk-bn254' subcommand")
+		fmt.Println("expected 'build-groth16', 'prove-groth16', 'build-plonk-bn254', 'prove-plonk-bn254', or 'serve' subcommand")
 		os.Exit(1)
 	}
 
@@ -380,7 +380,7 @@ func main() {
 		}
 	case "serve":
 		serveCmd.Parse(os.Args[2:])
-		fmt.Printf("Running 'serve' with data=%s, type=%s, version=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag, *serveCircuitVersionFlag)
+		fmt.Printf("Running 'serve' with type=%s, version=%s\n", *serveCircuitTypeFlag, *serveCircuitVersionFlag)
 		circuitBucket := *serveCircuitBucketFlag
 		circuitType := *serveCircuitTypeFlag
 		circuitVersion := *serveCircuitVersionFlag
