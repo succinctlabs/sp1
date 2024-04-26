@@ -27,7 +27,7 @@ pub const NUM_POSEIDON2_WIDE_COLS: usize = size_of::<Poseidon2WideCols<u8>>();
 pub const WIDTH: usize = 16;
 
 pub const NUM_EXTERNAL_ROUNDS: usize = 8;
-pub const NUM_INTERNAL_ROUNDS: usize = 22;
+pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
