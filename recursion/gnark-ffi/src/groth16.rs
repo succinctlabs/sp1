@@ -214,7 +214,7 @@ impl Groth16Prover {
         let url = format!("http://localhost:{}/groth16/prove", self.port);
         let response = Client::new().post(&url).json(&witness).send().unwrap();
 
-        // Deserialize the JSON response back to Groth16Proof instance
+        // Deserialize the JSON response to a Groth16Proof instance
         let response = response.text().unwrap();
         let proof: Groth16Proof = serde_json::from_str(&response).expect("deserializing the proof");
 
