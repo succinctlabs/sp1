@@ -22,12 +22,6 @@ use crate::{
 
 const LOG_DEGREE_BOUND: usize = 31;
 
-pub fn get_cycles(program: Program) -> u64 {
-    let mut runtime = Runtime::new(program);
-    runtime.run();
-    runtime.state.global_clk as u64
-}
-
 /// Runs a program and returns the public values stream.
 pub fn run_test_io(
     program: Program,
@@ -386,7 +380,7 @@ pub mod baby_bear_poseidon2 {
 
     pub fn my_perm() -> Perm {
         const ROUNDS_F: usize = 8;
-        const ROUNDS_P: usize = 22;
+        const ROUNDS_P: usize = 13;
         let mut round_constants = RC_16_30.to_vec();
         let internal_start = ROUNDS_F / 2;
         let internal_end = (ROUNDS_F / 2) + ROUNDS_P;

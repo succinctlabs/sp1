@@ -30,6 +30,8 @@ pub fn verify_two_adic_pcs<C: Config>(
     C::EF: TwoAdicField,
 {
     let mut input_ptr = builder.array::<FriFoldInput<_>>(1);
+    let g = builder.generator();
+
     let log_blowup = config.log_blowup;
     let blowup = config.log_blowup;
     let alpha = challenger.sample_ext(builder);
@@ -116,19 +118,19 @@ pub fn verify_two_adic_pcs<C: Config>(
                             builder.eval(log_global_max_height - log_height);
                         let index_bits_shifted = index_bits.shift(builder, bits_reduced);
 
-                        let g = builder.generator();
                         let two_adic_generator = config.get_two_adic_generator(builder, log_height);
+                        builder.cycle_tracker("exp_reverse_bits_len");
                         let two_adic_generator_exp = builder.exp_reverse_bits_len(
                             two_adic_generator,
                             &index_bits_shifted,
                             log_height,
                         );
+                        builder.cycle_tracker("exp_reverse_bits_len");
                         let x: Felt<C::F> = builder.eval(two_adic_generator_exp * g);
 
                         builder.range(0, mat_points.len()).for_each(|l, builder| {
                             let z: Ext<C::F, C::EF> = builder.get(&mat_points, l);
                             let ps_at_z = builder.get(&mat_values, l);
-
                             let input = FriFoldInput {
                                 z,
                                 alpha,
@@ -139,12 +141,10 @@ pub fn verify_two_adic_pcs<C: Config>(
                                 alpha_pow: alpha_pow.clone(),
                                 ro: ro.clone(),
                             };
-
                             builder.set_value(&mut input_ptr, 0, input);
 
-                            builder.range(0, ps_at_z.len()).for_each(|m, builder| {
-                                builder.push(DslIr::FriFold(m, input_ptr.clone()));
-                            });
+                            let ps_at_z_len = ps_at_z.len().materialize(builder);
+                            builder.push(DslIr::FriFold(ps_at_z_len, input_ptr.clone()));
                         });
                     });
             });
