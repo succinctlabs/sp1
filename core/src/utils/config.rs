@@ -16,7 +16,6 @@ use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
 use sp1_primitives::poseidon2_init;
-use sp1_primitives::RC_16_30;
 
 pub const DIGEST_SIZE: usize = 8;
 

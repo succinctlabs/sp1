@@ -767,9 +767,9 @@ mod tests {
         std::env::set_var("SHARD_SIZE", "262144");
         std::env::set_var("MAX_RECURSION_PROGRAM_SIZE", "1");
 
-        // Generate SP1 proof
+        // keccak program which proves keccak of various inputs
         let keccak_elf = include_bytes!("../../tests/keccak256/elf/riscv32im-succinct-zkvm-elf");
-
+        // verify program which verifies proofs of a vkey and a list of committed inputs
         let verify_elf = include_bytes!("../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
@@ -779,11 +779,11 @@ mod tests {
         let (keccak_pk, keccak_vk) = prover.setup(keccak_elf);
         let (verify_pk, verify_vk) = prover.setup(verify_elf);
 
+        // Prove keccak of various inputs
         tracing::info!("prove subproof 1");
         let mut stdin = SP1Stdin::new();
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
-        // Read proof from p1.bin if exists
         let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
         let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
         println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
@@ -793,6 +793,7 @@ mod tests {
             .collect::<Vec<_>>();
         println!("proof 1 pv_digest: {:?}", hex::encode(pv_digest_1.clone()));
 
+        // Generate a second proof of keccak of various inputs
         tracing::info!("prove subproof 2");
         let mut stdin = SP1Stdin::new();
         stdin.write(&3usize);
@@ -808,12 +809,15 @@ mod tests {
             .collect::<Vec<_>>();
         println!("proof 2 pv_digest: {:?}", hex::encode(pv_digest_2.clone()));
 
+        // Generate recursive proof of first subproof
         println!("reduce subproof 1");
         let deferred_reduce_1 = prover.reduce(&keccak_vk, deferred_proof_1, vec![]);
 
+        // Generate recursive proof of second subproof
         println!("reduce subproof 2");
         let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
 
+        // Run verify program with keccak vkey, subproofs, and their committed values
         let mut stdin = SP1Stdin::new();
         let vkey_digest = keccak_vk.hash();
         let vkey_digest: [u32; 8] = vkey_digest
@@ -828,6 +832,7 @@ mod tests {
         stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
         stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
 
+        // Prove verify program
         println!("proving verify program (core)");
         let verify_proof = prover.prove_core(&verify_pk, &stdin);
         let pv = PublicValues::<Word<BabyBear>, BabyBear>::from_vec(
@@ -836,6 +841,7 @@ mod tests {
 
         println!("deferred_hash: {:?}", pv.deferred_proofs_digest);
 
+        // Generate recursive proof of verify program
         println!("proving verify program (recursion)");
         let verify_reduce = prover.reduce(
             &verify_vk,
@@ -850,10 +856,7 @@ mod tests {
         println!("deferred_hash: {:?}", reduce_pv.deferred_proofs_digest);
         println!("complete: {:?}", reduce_pv.is_complete);
 
-        println!("wrap");
-        let wrapped = prover.wrap_bn254(&verify_vk, verify_reduce);
-
-        tracing::info!("groth16");
-        prover.wrap_groth16(wrapped, PathBuf::from("build"));
+        // TODO: verify verify_reduce proof once shard transition logic is moved out of machine.verify
+        // prover.reduce_machine.verify(vk, proof, challenger)
     }
 }
