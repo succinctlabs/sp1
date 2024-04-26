@@ -1,5 +1,6 @@
 mod alu;
 mod branch;
+mod jump;
 mod memory;
 mod operands;
 
@@ -23,7 +24,7 @@ where
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
-        let _next: &CpuCols<AB::Var> = (*next).borrow();
+        let next: &CpuCols<AB::Var> = (*next).borrow();
         let zero = AB::Expr::zero();
         let one = AB::Expr::one();
 
@@ -38,8 +39,7 @@ where
 
         self.eval_branch(builder, local, &mut next_pc);
 
-        // TODO: in eval_jump, we need to constraint the transition of `fp`.
-        // self.eval_jump(builder, local, &mut next_pc);
+        self.eval_jump(builder, local, next, &mut next_pc);
 
         // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
         let not_branch_or_jump = one.clone()
@@ -98,7 +98,7 @@ impl<F: Field> CpuChip<F> {
     }
 
     /// Expr to check for jump instructions.
-    fn is_jump_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    pub fn is_jump_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
