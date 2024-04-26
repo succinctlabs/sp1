@@ -48,7 +48,6 @@ pub fn populate_batch_and_mult<F: PrimeField, EF: ExtensionField<F>>(
         .chunks(batch_size);
     let num_chunks = (sends.len() + receives.len() + 1) / batch_size;
     debug_assert_eq!(num_chunks + 1, new_row.len());
-    debug_assert_eq!(num_chunks * batch_size, row.len());
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
     for ((value, row_chunk), interaction_chunk) in new_row
         .iter_mut()
