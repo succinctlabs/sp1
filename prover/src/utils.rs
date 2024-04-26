@@ -5,6 +5,7 @@ use std::{
 
 use sp1_core::{
     air::{MachineAir, Word},
+    io::SP1Stdin,
     runtime::{Program, Runtime},
     stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val},
 };
@@ -21,9 +22,10 @@ impl SP1CoreProof {
 }
 
 /// Get the number of cycles for a given program.
-pub fn get_cycles(elf: &[u8]) -> u64 {
+pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
     let program = Program::from(elf);
     let mut runtime = Runtime::new(program);
+    runtime.write_vecs(&stdin.buffer);
     runtime.run();
     runtime.state.global_clk
 }
