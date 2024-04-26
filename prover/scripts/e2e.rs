@@ -7,7 +7,6 @@ use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_core::poseidon2_wide::external::NUM_POSEIDON2_WIDE_COLS;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
 #[derive(Parser, Debug)]
