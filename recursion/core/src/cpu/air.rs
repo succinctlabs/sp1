@@ -188,8 +188,6 @@ where
 
         self.eval_branch(builder, local, &mut next_pc);
 
-        // builder.when_first_row().assert_zero(next_pc.clone());
-
         // TODO: in eval_jump, we need to constraint the transition of `fp`.
         // self.eval_jump(builder, local, &mut next_pc);
 
@@ -397,11 +395,9 @@ impl<F: Field> CpuChip<F> {
         );
 
         // Verify branch_col.do_branch col.
-        let mut do_branch = local.selectors.is_beq.clone() * branch_cols.comparison_diff.result;
-        do_branch +=
-            local.selectors.is_bne.clone() * (one.clone() - branch_cols.comparison_diff.result);
-        do_branch +=
-            local.selectors.is_bneinc.clone() * (one.clone() - branch_cols.comparison_diff.result);
+        let mut do_branch = local.selectors.is_beq * branch_cols.comparison_diff.result;
+        do_branch += local.selectors.is_bne * (one.clone() - branch_cols.comparison_diff.result);
+        do_branch += local.selectors.is_bneinc * (one.clone() - branch_cols.comparison_diff.result);
         builder
             .when(is_branch_instruction.clone())
             .assert_eq(branch_cols.do_branch, do_branch);
