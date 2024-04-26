@@ -43,26 +43,26 @@ pub fn main() {
     tracing::info!("wrap");
     let wrapped_proof = prover.wrap_bn254(&vk, compressed_proof);
 
-    tracing::info!("building verifier constraints");
-    let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.clone()));
+    // tracing::info!("building verifier constraints");
+    // let constraints = tracing::info_span!("wrap circuit")
+    //     .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.clone()));
 
     tracing::info!("building template witness");
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    tracing::info!("sanity check gnark test");
-    Groth16Prover::test(constraints.clone(), witness.clone());
+    // tracing::info!("sanity check gnark test");
+    // Groth16Prover::test(constraints.clone(), witness.clone());
 
-    tracing::info!("sanity check gnark build");
-    Groth16Prover::build(
-        constraints.clone(),
-        witness.clone(),
-        args.build_dir.clone().into(),
-    );
+    // tracing::info!("sanity check gnark build");
+    // Groth16Prover::build(
+    //     constraints.clone(),
+    //     witness.clone(),
+    //     args.build_dir.clone().into(),
+    // );
 
     tracing::info!("sanity check gnark prove");
-    let groth16_prover = Groth16Prover::new();
+    let groth16_prover = Groth16Prover::new(args.build_dir.clone().into());
     tracing::info!("started gnark prover");
     let proof = groth16_prover.prove(witness.clone());
 
