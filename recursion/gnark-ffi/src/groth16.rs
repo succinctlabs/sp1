@@ -7,6 +7,8 @@ use std::{
     time::Duration,
 };
 
+use crate::witness::GnarkWitness;
+use rand::Rng;
 use reqwest::{blocking::Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::{
@@ -14,10 +16,9 @@ use sp1_recursion_compiler::{
     ir::{Config, Witness},
 };
 use std::thread;
-use rand::Rng;
-use crate::witness::GnarkWitness;
 
 /// A prover that can generate proofs with the Groth16 protocol using bindings to Gnark.
+#[derive(Debug, Clone)]
 pub struct Groth16Prover {
     pub port: String,
 }
@@ -36,8 +37,7 @@ impl Groth16Prover {
     pub fn new() -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
-        let port = env::var("HOST_PORT")
-            .unwrap_or_else(|_| generate_random_port().to_string());
+        let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
         thread::spawn(move || {
@@ -225,7 +225,6 @@ fn generate_random_port() -> u16 {
     let mut rng = rand::thread_rng();
     rng.gen_range(1024..49152)
 }
-
 
 impl Default for Groth16Prover {
     fn default() -> Self {
