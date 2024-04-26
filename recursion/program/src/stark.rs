@@ -105,13 +105,6 @@ where
         let mut quotient_domains =
             builder.dyn_array::<TwoAdicMultiplicativeCosetVariable<_>>(num_shard_chips);
 
-        // TODO: note hardcoding of log_quotient_degree. The value comes from:
-        //         let max_constraint_degree = 3;
-        //         let log_quotient_degree = log2_ceil_usize(max_constraint_degree - 1);
-        // let log_quotient_degree_val = 1;
-        // let log_quotient_degree = C::N::from_canonical_usize(log_quotient_degree_val);
-        // let num_quotient_chunks_val = 1 << log_quotient_degree_val;
-
         let num_preprocessed_chips = machine.preprocessed_chip_ids().len();
 
         let mut prep_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
@@ -125,7 +118,6 @@ where
             builder.assign(num_quotient_mats, num_quotient_mats + num_quotient_chunks);
         });
 
-        // let num_quotient_mats: Usize<_> = builder.eval(num_shard_chips * num_quotient_chunks_val);
         let mut quotient_mats: Array<_, TwoAdicPcsMatsVariable<_>> =
             builder.dyn_array(num_quotient_mats);
 

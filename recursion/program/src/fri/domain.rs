@@ -118,15 +118,6 @@ where
             builder.assign(domain_power, domain_power * g_dom);
         });
 
-        // for _ in 0..num_chunks {
-        //     domains.push(TwoAdicMultiplicativeCosetVariable {
-        //         log_n,
-        //         size,
-        //         shift: builder.eval(self.shift * domain_power),
-        //         g,
-        //     });
-        //     builder.assign(domain_power, domain_power * g_dom);
-        // }
         domains
     }
 

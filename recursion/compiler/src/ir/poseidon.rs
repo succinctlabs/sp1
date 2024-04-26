@@ -85,9 +85,7 @@ impl<C: Config> Builder<C> {
                 builder.range(0, HASH_RATE).for_each(|j, builder| {
                     let index: Var<_> = builder.eval(i + j);
                     let element = builder.get(array, index);
-                    // builder.print_f(element);
                     builder.set_value(&mut state, j, element);
-                    // builder.print_v(j);
                     builder.if_eq(index, last_index).then(|builder| {
                         builder.assign(break_flag, C::N::one());
                         builder.break_loop();
@@ -112,9 +110,11 @@ impl<C: Config> Builder<C> {
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
             builder.range(0, subarray.len()).for_each(|j, builder| {
+                builder.cycle_tracker("poseidon2-hash-setup");
                 let element = builder.get(&subarray, j);
                 builder.set_value(&mut state, idx, element);
                 builder.assign(idx, idx + C::N::one());
+                builder.cycle_tracker("poseidon2-hash-setup");
                 builder
                     .if_eq(idx, C::N::from_canonical_usize(HASH_RATE))
                     .then(|builder| {

@@ -5,6 +5,8 @@ pub mod types;
 
 pub use domain::*;
 use sp1_recursion_compiler::ir::ExtensionOperand;
+use sp1_recursion_compiler::ir::Ptr;
+use sp1_recursion_core::runtime::DIGEST_SIZE;
 pub use two_adic_pcs::*;
 
 use p3_field::AbstractField;
@@ -232,28 +234,36 @@ pub fn verify_batch<C: Config, const D: usize>(
     let current_height = builder.get(&dimensions, index).height;
 
     // Reduce all the tables that have the same height to a single root.
-    let mut root = reduce_fast::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+    let root = reduce_fast::<C, D>(builder, index, &dimensions, current_height, &opened_values);
+    let root_ptr = match root {
+        Array::Fixed(_) => panic!("root is fixed"),
+        Array::Dyn(ptr, _) => ptr,
+    };
 
     // For each sibling in the proof, reconstruct the root.
     let one: Var<_> = builder.eval(C::N::one());
-    let left: Array<C, Felt<C::F>> = builder.uninit();
-    let right: Array<C, Felt<C::F>> = builder.uninit();
+    let left: Ptr<C::N> = builder.uninit();
+    let right: Ptr<C::N> = builder.uninit();
     builder.range(0, proof.len()).for_each(|i, builder| {
-        let sibling = builder.get(proof, i);
+        let sibling = builder.get_ptr(proof, i);
         let bit = builder.get(&index_bits, i);
 
         builder.if_eq(bit, C::N::one()).then_or_else(
             |builder| {
-                builder.assign(left.clone(), sibling.clone());
-                builder.assign(right.clone(), root.clone());
+                builder.assign(left, sibling);
+                builder.assign(right, root_ptr);
             },
             |builder| {
-                builder.assign(left.clone(), root.clone());
-                builder.assign(right.clone(), sibling.clone());
+                builder.assign(left, root_ptr);
+                builder.assign(right, sibling);
             },
         );
 
-        builder.poseidon2_compress_x(&mut root, &left, &right);
+        builder.poseidon2_compress_x(
+            &mut Array::Dyn(root_ptr, Usize::Const(0)),
+            &Array::Dyn(left, Usize::Const(0)),
+            &Array::Dyn(right, Usize::Const(0)),
+        );
         builder.assign(current_height, current_height * (C::N::two().inverse()));
 
         builder.if_ne(index, dimensions.len()).then(|builder| {
@@ -276,11 +286,11 @@ pub fn verify_batch<C: Config, const D: usize>(
     });
 
     // Assert that the commitments match.
-    builder.range(0, commit.len()).for_each(|i, builder| {
+    for i in 0..DIGEST_SIZE {
         let e1 = builder.get(commit, i);
         let e2 = builder.get(&root, i);
         builder.assert_felt_eq(e1, e2);
-    });
+    }
     builder.cycle_tracker("verify-batch");
 }
 
@@ -296,6 +306,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
     let nb_opened_values: Var<_> = builder.eval(C::N::zero());
     let mut nested_opened_values: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(8192);
     let start_dim_idx: Var<_> = builder.eval(dim_idx);
+    builder.cycle_tracker("verify-batch-reduce-fast-setup");
     builder
         .range(start_dim_idx, dims.len())
         .for_each(|i, builder| {
@@ -311,6 +322,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
                 builder.assign(dim_idx, dim_idx + C::N::one());
             });
         });
+    builder.cycle_tracker("verify-batch-reduce-fast-setup");
 
     let h = if D == 1 {
         let nested_opened_values = match nested_opened_values {
