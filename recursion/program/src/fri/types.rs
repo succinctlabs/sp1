@@ -11,7 +11,6 @@ pub struct FriConfigVariable<C: Config> {
     pub num_queries: Var<C::N>,
     pub proof_of_work_bits: Var<C::N>,
     pub generators: Array<C, Felt<C::F>>,
-    pub generators_powers: Array<C, Array<C, Felt<C::F>>>,
     pub subgroups: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 }
 

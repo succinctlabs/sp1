@@ -3,7 +3,6 @@ mod opcode;
 mod program;
 mod record;
 
-use core::time;
 use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};

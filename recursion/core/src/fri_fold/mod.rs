@@ -1,7 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
-use crate::runtime::Opcode;
 use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};

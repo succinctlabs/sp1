@@ -129,7 +129,7 @@ where
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
-        let next: &CpuCols<AB::Var> = (*next).borrow();
+        let _next: &CpuCols<AB::Var> = (*next).borrow();
 
         // // Increment clk by 4 every cycle.
         // builder
