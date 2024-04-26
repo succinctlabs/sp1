@@ -25,6 +25,7 @@ use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
     ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
+use crate::types::{QuotientData, QuotientDataValues};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;
@@ -93,6 +94,28 @@ impl Hintable<C> for [Word<BabyBear>; PV_DIGEST_NUM_WORDS] {
     }
 }
 
+impl Hintable<C> for QuotientDataValues {
+    type HintVariable = QuotientData<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let log_quotient_degree = usize::read(builder);
+        let quotient_size = usize::read(builder);
+
+        QuotientData {
+            log_quotient_degree,
+            quotient_size,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut buffer = Vec::new();
+        buffer.extend(usize::write(&self.log_quotient_degree));
+        buffer.extend(usize::write(&self.quotient_size));
+
+        buffer
+    }
+}
+
 impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
     type HintVariable = TwoAdicMultiplicativeCosetVariable<C>;
 
@@ -127,6 +150,8 @@ impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
 impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2Inner> {}
 impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
+impl VecAutoHintable<C> for QuotientDataValues {}
+impl VecAutoHintable<C> for Vec<QuotientDataValues> {}
 
 impl<I: VecAutoHintable<C>> VecAutoHintable<C> for &I {}
 

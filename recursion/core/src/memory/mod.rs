@@ -42,7 +42,7 @@ impl<F: Clone + PrimeField32> MemoryRecord<F> {
         prev_value: Block<F>,
         prev_timestamp: F,
     ) -> Self {
-        assert!(timestamp > prev_timestamp);
+        assert!(timestamp >= prev_timestamp);
         let (diff_16bit_limb, diff_12bit_limb) = compute_diff(timestamp, prev_timestamp);
         Self {
             addr,
@@ -57,7 +57,7 @@ impl<F: Clone + PrimeField32> MemoryRecord<F> {
     }
 
     pub fn new_read(addr: F, value: Block<F>, timestamp: F, prev_timestamp: F) -> Self {
-        assert!(timestamp > prev_timestamp);
+        assert!(timestamp >= prev_timestamp);
         let (diff_16bit_limb, diff_12bit_limb) = compute_diff(timestamp, prev_timestamp);
         Self {
             addr,

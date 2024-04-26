@@ -1,10 +1,15 @@
-use std::fs;
+use std::{
+    fs::{self, File},
+    io::Read,
+};
 
 use sp1_core::{
     air::{MachineAir, Word},
+    io::SP1Stdin,
+    runtime::{Program, Runtime},
     stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val},
 };
-use sp1_recursion_program::stark::EMPTY;
+use sp1_recursion_program::{stark::EMPTY, types::QuotientDataValues};
 
 use crate::SP1CoreProof;
 
@@ -14,6 +19,38 @@ impl SP1CoreProof {
         fs::write(path, data).unwrap();
         Ok(())
     }
+}
+
+pub fn get_chip_quotient_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
+    machine: &StarkMachine<SC, A>,
+    proof: &ShardProof<SC>,
+) -> Vec<QuotientDataValues> {
+    machine
+        .shard_chips_ordered(&proof.chip_ordering)
+        .map(|chip| {
+            let log_quotient_degree = chip.log_quotient_degree();
+            QuotientDataValues {
+                log_quotient_degree,
+                quotient_size: 1 << log_quotient_degree,
+            }
+        })
+        .collect()
+}
+
+/// Get the number of cycles for a given program.
+pub fn get_cycles(elf: &[u8], stdin: &SP1Stdin) -> u64 {
+    let program = Program::from(elf);
+    let mut runtime = Runtime::new(program);
+    runtime.write_vecs(&stdin.buffer);
+    runtime.run();
+    runtime.state.global_clk
+}
+
+/// Load an ELF file from a given path.
+pub fn load_elf(path: &str) -> Result<Vec<u8>, std::io::Error> {
+    let mut elf_code = Vec::new();
+    File::open(path)?.read_to_end(&mut elf_code)?;
+    Ok(elf_code)
 }
 
 pub fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
