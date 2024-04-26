@@ -49,7 +49,7 @@ pub type InnerPcsProof =
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {
     const ROUNDS_F: usize = 8;
-    const ROUNDS_P: usize = 22;
+    const ROUNDS_P: usize = 13;
     let mut round_constants = RC_16_30.to_vec();
     let internal_start = ROUNDS_F / 2;
     let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
