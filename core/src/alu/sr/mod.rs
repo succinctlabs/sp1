@@ -135,7 +135,6 @@ impl<F: PrimeField> MachineAir<F> for ShiftRightChip {
         "ShiftRight".to_string()
     }
 
-    #[instrument(name = "generate sr trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

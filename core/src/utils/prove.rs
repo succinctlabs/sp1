@@ -60,35 +60,37 @@ pub fn run_test_core(
     crate::stark::ProgramVerificationError<BabyBearBlake3>,
 > {
     let config = BabyBearBlake3::new();
-    let machine = RiscvAir::machine(config);
-    let (pk, vk) = machine.setup(runtime.program.as_ref());
+    let machine =
+        tracing::info_span!("construct `RiscvAir` machine").in_scope(|| RiscvAir::machine(config));
+    let (pk, vk) = tracing::info_span!("setup `RiscvAir` machine")
+        .in_scope(|| machine.setup(runtime.program.as_ref()));
+
+    // #[cfg(feature = "debug")]
+    // {
+    //     let mut challenger_clone = machine.config().challenger();
+    //     let record_clone = runtime.record.clone();
+    //     tracing::debug_span!("debug_constraints")
+    //         .in_scope(|| machine.debug_constraints(&pk, record_clone, &mut challenger_clone));
+    //     log::debug!("debug_constraints done");
+    // }
+    // let start = Instant::now();
     let mut challenger = machine.config().challenger();
+    let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
 
-    #[cfg(feature = "debug")]
-    {
-        let mut challenger_clone = machine.config().challenger();
-        let record_clone = runtime.record.clone();
-        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
-        log::debug!("debug_constraints done");
-    }
-    let start = Instant::now();
-    let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+    // let cycles = runtime.state.global_clk;
+    // let time = start.elapsed().as_millis();
+    // let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
-    let cycles = runtime.state.global_clk;
-    let time = start.elapsed().as_millis();
-    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+    // let mut challenger = machine.config().challenger();
+    // machine.verify(&vk, &proof, &mut challenger)?;
 
-    let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger)?;
-
-    tracing::info!(
-        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-        cycles,
-        time,
-        (cycles as f64 / time as f64),
-        Size::from_bytes(nb_bytes),
-    );
+    // tracing::info!(
+    //     "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+    //     cycles,
+    //     time,
+    //     (cycles as f64 / time as f64),
+    //     Size::from_bytes(nb_bytes),
+    // );
 
     Ok(proof)
 }

@@ -280,11 +280,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         let chips = self.chips();
 
         // Generate the trace for each chip to collect events emitted from chips with dependencies.
-        chips.iter().for_each(|chip| {
-            let mut output = A::Record::default();
-            output.set_index(record.index());
-            chip.generate_dependencies(&record, &mut output);
-            record.append(&mut output);
+        tracing::debug_span!("collect record events from chips").in_scope(|| {
+            chips.iter().for_each(|chip| {
+                let mut output = A::Record::default();
+                output.set_index(record.index());
+                chip.generate_dependencies(&record, &mut output);
+                record.append(&mut output);
+            })
         });
 
         // Display some statistics about the workload.
@@ -301,6 +303,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
+    #[instrument("prove", level = "info", skip_all)]
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &StarkProvingKey<SC>,
@@ -313,11 +316,11 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        tracing::debug!("sharding the execution record");
-        let shards = self.shard(record, &<A::Record as MachineRecord>::Config::default());
+        let shards = tracing::info_span!("shard execution record")
+            .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
 
-        tracing::debug!("generating the shard proofs");
-        P::prove_shards(self, pk, shards, challenger)
+        tracing::info_span!("generate shard proofs")
+            .in_scope(|| P::prove_shards(self, pk, shards, challenger))
     }
 
     pub const fn config(&self) -> &SC {

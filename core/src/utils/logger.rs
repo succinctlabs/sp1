@@ -1,8 +1,9 @@
 use std::sync::Once;
 
-use tracing_subscriber::fmt::format::FmtSpan;
+use tracing_forest::ForestLayer;
+use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
-use tracing_subscriber::EnvFilter;
+use tracing_subscriber::{EnvFilter, Registry};
 
 static INIT: Once = Once::new();
 
@@ -18,14 +19,10 @@ pub fn setup_logger() {
             .add_directive("p3_fri=off".parse().unwrap())
             .add_directive("p3_dft=off".parse().unwrap())
             .add_directive("p3_challenger=off".parse().unwrap());
-        tracing_subscriber::fmt::Subscriber::builder()
-            .compact()
-            .with_file(false)
-            .with_target(false)
-            .with_thread_names(false)
-            .with_env_filter(env_filter)
-            .with_span_events(FmtSpan::CLOSE)
-            .finish()
+
+        Registry::default()
+            .with(env_filter)
+            .with(ForestLayer::default())
             .init();
     });
 }

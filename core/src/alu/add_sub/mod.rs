@@ -62,7 +62,6 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         "AddSub".to_string()
     }
 
-    #[instrument(name = "generate add_sub trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

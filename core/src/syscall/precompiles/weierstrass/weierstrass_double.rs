@@ -208,11 +208,6 @@ where
         }
     }
 
-    #[instrument(
-        name = "generate weierstrass double assign trace",
-        level = "debug",
-        skip_all
-    )]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
