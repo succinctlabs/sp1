@@ -7,47 +7,49 @@ pub mod proto {
 }
 pub mod auth;
 pub mod client;
-pub mod prove;
 pub mod utils;
 
-use anyhow::{Ok, Result};
-use prove::{
-    LocalProver, NetworkProver, Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof,
-    SP1PlonkProof,
-};
+use anyhow::{Context, Ok, Result};
+use proto::network::{ProofStatus, TransactionStatus};
+use sp1_core::runtime::Program;
+use sp1_core::utils::run_and_prove;
 pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
-use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use std::env;
+use std::time::Duration;
+use tokio::runtime;
+use tokio::time::sleep;
+
+use crate::client::NetworkClient;
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {
-    pub prover: Box<dyn Prover>,
-}
-
-impl Default for ProverClient {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// An optional Succinct prover network client used for remote operations.
+    pub client: Option<NetworkClient>,
 }
 
 impl ProverClient {
-    /// Creates a new ProverClient with the prover set to either local or remote based on the
-    /// SP1_PROVER environment variable.
+    #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         dotenv::dotenv().ok();
-        match env::var("SP1_PROVER")
-            .unwrap_or("local".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "local" => Self {
-                prover: Box::new(LocalProver::new()),
-            },
-            "remote" => Self {
-                prover: Box::new(NetworkProver::new()),
-            },
-            _ => panic!("Invalid SP1_PROVER value"),
+        let remote_proving = env::var("REMOTE_PROVE")
+            .unwrap_or_else(|_| String::from("false"))
+            .parse::<bool>()
+            .unwrap_or(false);
+
+        if remote_proving {
+            let private_key = env::var("PRIVATE_KEY")
+                .unwrap_or_else(|_| panic!("PRIVATE_KEY must be set for remote proving"));
+            Self {
+                client: Some(NetworkClient::new(&private_key)),
+            }
+        } else {
+            Self { client: None }
         }
+    }
+
+    pub fn with_network(mut self, private_key: &str) -> Self {
+        self.client = Some(NetworkClient::new(private_key));
+        self
     }
 
     /// Executes the elf with the given inputs and returns the output.
@@ -55,55 +57,149 @@ impl ProverClient {
         Ok(SP1Prover::execute(elf, &stdin))
     }
 
-    pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        self.prover.setup(elf)
+    /// Generate a proof for the execution of the ELF with the given public inputs. If a
+    /// NetworkClient is configured, it uses remote proving, otherwise, it proves locally.
+    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof> {
+        if self.client.is_some() {
+            println!("Proving remotely");
+            self.prove_remote(elf, stdin)
+        } else {
+            println!("Proving locally");
+            self.prove_local(elf, stdin)
+        }
     }
 
-    /// Proves the execution of the given elf with the given inputs.
-    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1DefaultProof> {
-        self.prover.prove(elf, stdin)
-    }
-
-    /// Generates a compressed proof for the given elf and stdin.
-    pub fn prove_compressed(
+    // Generate a proof remotely using the Succinct Network in an async context.
+    // Note: If the simulation of the runtime is expensive for user programs, we can add an optional
+    // flag to skip it. This shouldn't be the case for the vast majority of user programs.
+    pub async fn prove_remote_async(
         &self,
         elf: &[u8],
         stdin: SP1Stdin,
-    ) -> Result<prove::SP1CompressedProof> {
-        self.prover.prove_compressed(elf, stdin)
+    ) -> Result<SP1CoreProof, anyhow::Error> {
+        let client = self
+            .client
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
+
+        // Execute the runtime before creating the proof request.
+        let _ = ProverClient::execute(elf, stdin.clone());
+        println!("Simulation complete");
+
+        let proof_id = client.create_proof(elf, &stdin).await?;
+        println!("Proof request ID: {:?}", proof_id);
+
+        let mut is_claimed = false;
+        loop {
+            let (status, maybe_proof) = client.get_proof_status(&proof_id).await?;
+
+            match status.status() {
+                ProofStatus::ProofFulfilled => {
+                    return Ok(maybe_proof.unwrap());
+                }
+                ProofStatus::ProofClaimed => {
+                    if !is_claimed {
+                        println!("Proof request claimed");
+                        is_claimed = true;
+                    }
+                }
+                ProofStatus::ProofFailed => {
+                    return Err(anyhow::anyhow!("Proof generation failed"));
+                }
+                _ => {
+                    sleep(Duration::from_secs(1)).await;
+                }
+            }
+        }
     }
 
-    /// Generates a groth16 proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1Groth16Proof> {
-        self.prover.prove_groth16(elf, stdin)
+    // Generate a proof remotely using the Succinct Network in a sync context.
+    pub fn prove_remote(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof, anyhow::Error> {
+        let rt = runtime::Runtime::new()?;
+        rt.block_on(async { self.prove_remote_async(elf, stdin).await })
     }
 
-    /// Generates a PLONK proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1PlonkProof> {
-        self.prover.prove_plonk(elf, stdin)
+    // Generate a proof locally for the execution of the ELF with the given public inputs.
+    pub fn prove_local(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof> {
+        let config = CoreSC::default();
+        let program = Program::from(elf);
+        let (proof, public_values_stream) = run_and_prove(program.clone(), &stdin, config);
+        let public_values = SP1PublicValues::from(&public_values_stream);
+        Ok(SP1CoreProof {
+            shard_proofs: proof.shard_proofs,
+            stdin: stdin.clone(),
+            public_values,
+        })
     }
 
-    /// Verifies the given proof is valid and matches the given vkey.
-    pub fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.prover.verify(proof, vkey)
-    }
-
-    /// Verifies the given compressed proof is valid and matches the given vkey.
-    pub fn verify_compressed(
+    /// Remotely relay a proof to a set of chains with their callback contracts.
+    pub fn remote_relay(
         &self,
-        proof: &SP1CompressedProof,
-        vkey: &SP1VerifyingKey,
-    ) -> Result<()> {
-        self.prover.verify_compressed(proof, vkey)
+        proof_id: &str,
+        chain_ids: Vec<u32>,
+        callbacks: Vec<[u8; 20]>,
+        callback_datas: Vec<Vec<u8>>,
+    ) -> Result<Vec<String>> {
+        let rt = runtime::Runtime::new()?;
+        rt.block_on(async {
+            let client = self
+                .client
+                .as_ref()
+                .ok_or_else(|| anyhow::anyhow!("Network client not initialized"))?;
+
+            let verifier = NetworkClient::get_sp1_verifier_address();
+
+            let mut tx_details = Vec::new();
+            for ((i, callback), callback_data) in
+                callbacks.iter().enumerate().zip(callback_datas.iter())
+            {
+                if let Some(&chain_id) = chain_ids.get(i) {
+                    let tx_id = client
+                        .relay_proof(proof_id, chain_id, verifier, *callback, callback_data)
+                        .await
+                        .with_context(|| format!("Failed to relay proof to chain {}", chain_id))?;
+                    tx_details.push((tx_id.clone(), chain_id));
+                }
+            }
+
+            let mut tx_ids = Vec::new();
+            for (tx_id, chain_id) in tx_details.iter() {
+                loop {
+                    let (status_res, maybe_tx_hash, maybe_simulation_url) =
+                        client.get_relay_status(tx_id).await?;
+
+                    match status_res.status() {
+                        TransactionStatus::TransactionFinalized => {
+                            println!(
+                                "Relaying to chain {} succeeded with tx hash: {:?}",
+                                chain_id,
+                                maybe_tx_hash.as_deref().unwrap_or("None")
+                            );
+                            tx_ids.push(tx_id.clone());
+                            break;
+                        }
+                        TransactionStatus::TransactionFailed
+                        | TransactionStatus::TransactionTimedout => {
+                            return Err(anyhow::anyhow!(
+                                "Relaying to chain {} failed with tx hash: {:?}, simulation url: {:?}",
+                                chain_id,
+                                maybe_tx_hash.as_deref().unwrap_or("None"),
+                                maybe_simulation_url.as_deref().unwrap_or("None")
+                            ));
+                        }
+                        _ => {
+                            sleep(Duration::from_secs(5)).await;
+                        }
+                    }
+                }
+            }
+
+            Ok(tx_ids)
+        })
     }
 
-    /// Verifies the given groth16 proof is valid and matches the given vkey.
-    pub fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.prover.verify_plonk(proof, vkey)
-    }
-
-    /// Verifies the given groth16 proof is valid and matches the given vkey.
-    pub fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.prover.verify_groth16(proof, vkey)
+    pub fn verify(&self, _elf: &[u8], _proof: &SP1CoreProof) -> Result<()> {
+        // TODO:
+        Ok(())
     }
 }
