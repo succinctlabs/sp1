@@ -230,6 +230,6 @@ fn generate_random_port() -> u16 {
 
 impl Default for Groth16Prover {
     fn default() -> Self {
-        Self::new(PathBuf::from("build"))
+        Self::new()
     }
 }
