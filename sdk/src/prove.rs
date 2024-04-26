@@ -13,7 +13,9 @@ use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sp1_core::stark::{MachineProof, ShardProof};
 use sp1_core::{air::PublicValues, stark::StarkGenericConfig};
-use sp1_prover::{CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1Prover, SP1VerifyingKey};
+use sp1_prover::{
+    CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey, SP1VerifyingKey,
+};
 use tokio::{runtime, time::sleep};
 
 use crate::{
@@ -69,9 +71,7 @@ pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
 pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
 
 pub trait Prover: Send + Sync {
-    fn setup(elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
-        SP1Prover::setup(&self, elf)
-    }
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
     /// Prove the execution of a RISCV ELF with the given inputs.
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof>;
@@ -123,6 +123,10 @@ impl LocalProver {
 }
 
 impl Prover for LocalProver {
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
+    }
+
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
         let (pk, _) = self.prover.setup(elf);
         let proof = self.prover.prove_core(&pk, &stdin);
@@ -225,6 +229,10 @@ impl MockProver {
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
+    }
+
+    pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
     }
 
     /// Returns the vkey digest for the given ELF.
@@ -455,6 +463,10 @@ impl NetworkProver {
 }
 
 impl Prover for NetworkProver {
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.local_prover.setup(elf)
+    }
+
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async { self.prove_async(elf, stdin).await })

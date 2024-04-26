@@ -13,6 +13,7 @@ pub mod utils;
 use anyhow::{Ok, Result};
 use prove::{LocalProver, NetworkProver, Prover};
 pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
+use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
 use std::env;
 
 /// A client that can prove RISCV ELFs and verify those proofs.
@@ -53,6 +54,10 @@ impl ProverClient {
 }
 
 impl Prover for ProverClient {
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+        self.prover.setup(elf)
+    }
+
     fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1DefaultProof> {
         self.prover.prove(elf, stdin)
     }
