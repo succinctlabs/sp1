@@ -306,6 +306,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
     let nb_opened_values: Var<_> = builder.eval(C::N::zero());
     let mut nested_opened_values: Array<_, Array<_, Ext<_, _>>> = builder.dyn_array(8192);
     let start_dim_idx: Var<_> = builder.eval(dim_idx);
+    builder.cycle_tracker("verify-batch-reduce-fast-setup");
     builder
         .range(start_dim_idx, dims.len())
         .for_each(|i, builder| {
@@ -321,6 +322,7 @@ pub fn reduce_fast<C: Config, const D: usize>(
                 builder.assign(dim_idx, dim_idx + C::N::one());
             });
         });
+    builder.cycle_tracker("verify-batch-reduce-fast-setup");
 
     let h = if D == 1 {
         let nested_opened_values = match nested_opened_values {

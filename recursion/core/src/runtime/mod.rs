@@ -3,6 +3,7 @@ mod opcode;
 mod program;
 mod record;
 
+use core::time;
 use std::collections::VecDeque;
 use std::process::exit;
 use std::{marker::PhantomData, sync::Arc};
@@ -405,6 +406,7 @@ where
             let idx = self.pc.as_canonical_u32() as usize;
             let instruction = self.program.instructions[idx].clone();
 
+            let mut next_clk = self.clk + F::from_canonical_u32(4);
             let mut next_pc = self.pc + F::one();
             let (a, b, c): (Block<F>, Block<F>, Block<F>);
             match instruction.opcode {
@@ -692,92 +694,99 @@ where
                 Opcode::FRIFold => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
 
-                    // The timestamp for the memory reads for all of these operations will be self.clk.
-                    let timestamp = self.clk;
+                    // The timestamp for the memory reads for all of these operations will be self.clk
 
-                    let m = a_val[0];
+                    let ps_at_z_len = a_val[0];
                     let input_ptr = b_val[0];
 
+                    let mut timestamp = self.clk;
+
                     // Read the input values.
-                    let mut ptr = input_ptr;
-                    let (z_record, z) = self.mr(ptr, timestamp);
-                    let z: EF = z.ext();
-                    ptr += F::one();
-                    let (alpha_record, alpha) = self.mr(ptr, timestamp);
-                    let alpha: EF = alpha.ext();
-                    ptr += F::one();
-                    let (x_record, x) = self.mr(ptr, timestamp);
-                    let x = x[0];
-                    ptr += F::one();
-                    let (log_height_record, log_height) = self.mr(ptr, timestamp);
-                    let log_height = log_height[0];
-                    ptr += F::one();
-                    let (mat_opening_ptr_record, mat_opening_ptr) = self.mr(ptr, timestamp);
-                    let mat_opening_ptr = mat_opening_ptr[0];
-                    ptr += F::two();
-                    let (ps_at_z_ptr_record, ps_at_z_ptr) = self.mr(ptr, timestamp);
-                    let ps_at_z_ptr = ps_at_z_ptr[0];
-                    ptr += F::two();
-                    let (alpha_pow_ptr_record, alpha_pow_ptr) = self.mr(ptr, timestamp);
-                    let alpha_pow_ptr = alpha_pow_ptr[0];
-                    ptr += F::two();
-                    let (ro_ptr_record, ro_ptr) = self.mr(ptr, timestamp);
-                    let ro_ptr = ro_ptr[0];
+                    for m in 0..ps_at_z_len.as_canonical_u32() {
+                        let m = F::from_canonical_u32(m);
+                        let mut ptr = input_ptr;
+                        let (z_record, z) = self.mr(ptr, timestamp);
+                        let z: EF = z.ext();
+                        ptr += F::one();
+                        let (alpha_record, alpha) = self.mr(ptr, timestamp);
+                        let alpha: EF = alpha.ext();
+                        ptr += F::one();
+                        let (x_record, x) = self.mr(ptr, timestamp);
+                        let x = x[0];
+                        ptr += F::one();
+                        let (log_height_record, log_height) = self.mr(ptr, timestamp);
+                        let log_height = log_height[0];
+                        ptr += F::one();
+                        let (mat_opening_ptr_record, mat_opening_ptr) = self.mr(ptr, timestamp);
+                        let mat_opening_ptr = mat_opening_ptr[0];
+                        ptr += F::two();
+                        let (ps_at_z_ptr_record, ps_at_z_ptr) = self.mr(ptr, timestamp);
+                        let ps_at_z_ptr = ps_at_z_ptr[0];
+                        ptr += F::two();
+                        let (alpha_pow_ptr_record, alpha_pow_ptr) = self.mr(ptr, timestamp);
+                        let alpha_pow_ptr = alpha_pow_ptr[0];
+                        ptr += F::two();
+                        let (ro_ptr_record, ro_ptr) = self.mr(ptr, timestamp);
+                        let ro_ptr = ro_ptr[0];
 
-                    // Get the opening values.
-                    let (p_at_x_record, p_at_x) = self.mr(mat_opening_ptr + m, timestamp);
-                    let p_at_x: EF = p_at_x.ext();
+                        // Get the opening values.
+                        let (p_at_x_record, p_at_x) = self.mr(mat_opening_ptr + m, timestamp);
+                        let p_at_x: EF = p_at_x.ext();
 
-                    let (p_at_z_record, p_at_z) = self.mr(ps_at_z_ptr + m, timestamp);
-                    let p_at_z: EF = p_at_z.ext();
+                        let (p_at_z_record, p_at_z) = self.mr(ps_at_z_ptr + m, timestamp);
+                        let p_at_z: EF = p_at_z.ext();
 
-                    // Calculate the quotient and update the values
-                    let quotient = (-p_at_z + p_at_x) / (-z + x);
+                        // Calculate the quotient and update the values
+                        let quotient = (-p_at_z + p_at_x) / (-z + x);
 
-                    // Modify the ro and alpha pow values.
+                        // Modify the ro and alpha pow values.
 
-                    // First we peek to get the current value.
-                    let (alpha_pow_ptr_plus_log_height, alpha_pow_at_log_height) =
-                        self.peek(alpha_pow_ptr + log_height);
-                    let alpha_pow_at_log_height: EF = alpha_pow_at_log_height.ext();
+                        // First we peek to get the current value.
+                        let (alpha_pow_ptr_plus_log_height, alpha_pow_at_log_height) =
+                            self.peek(alpha_pow_ptr + log_height);
+                        let alpha_pow_at_log_height: EF = alpha_pow_at_log_height.ext();
 
-                    let (ro_ptr_plus_log_height, ro_at_log_height) = self.peek(ro_ptr + log_height);
-                    let ro_at_log_height: EF = ro_at_log_height.ext();
+                        let (ro_ptr_plus_log_height, ro_at_log_height) =
+                            self.peek(ro_ptr + log_height);
+                        let ro_at_log_height: EF = ro_at_log_height.ext();
 
-                    let new_ro_at_log_height =
-                        ro_at_log_height + alpha_pow_at_log_height * quotient;
-                    let new_alpha_pow_at_log_height = alpha_pow_at_log_height * alpha;
+                        let new_ro_at_log_height =
+                            ro_at_log_height + alpha_pow_at_log_height * quotient;
+                        let new_alpha_pow_at_log_height = alpha_pow_at_log_height * alpha;
 
-                    let ro_at_log_height_record = self.mw(
-                        ro_ptr_plus_log_height,
-                        Block::from(new_ro_at_log_height.as_base_slice()),
-                        timestamp,
-                    );
+                        let ro_at_log_height_record = self.mw(
+                            ro_ptr_plus_log_height,
+                            Block::from(new_ro_at_log_height.as_base_slice()),
+                            timestamp,
+                        );
 
-                    let alpha_pow_at_log_height_record = self.mw(
-                        alpha_pow_ptr_plus_log_height,
-                        Block::from(new_alpha_pow_at_log_height.as_base_slice()),
-                        timestamp,
-                    );
+                        let alpha_pow_at_log_height_record = self.mw(
+                            alpha_pow_ptr_plus_log_height,
+                            Block::from(new_alpha_pow_at_log_height.as_base_slice()),
+                            timestamp,
+                        );
 
-                    self.record.fri_fold_events.push(FriFoldEvent {
-                        clk: self.clk,
-                        m,
-                        input_ptr,
-                        z: z_record,
-                        alpha: alpha_record,
-                        x: x_record,
-                        log_height: log_height_record,
-                        mat_opening_ptr: mat_opening_ptr_record,
-                        ps_at_z_ptr: ps_at_z_ptr_record,
-                        alpha_pow_ptr: alpha_pow_ptr_record,
-                        ro_ptr: ro_ptr_record,
-                        p_at_x: p_at_x_record,
-                        p_at_z: p_at_z_record,
-                        alpha_pow_at_log_height: alpha_pow_at_log_height_record,
-                        ro_at_log_height: ro_at_log_height_record,
-                    });
+                        self.record.fri_fold_events.push(FriFoldEvent {
+                            clk: timestamp,
+                            m,
+                            input_ptr,
+                            z: z_record,
+                            alpha: alpha_record,
+                            x: x_record,
+                            log_height: log_height_record,
+                            mat_opening_ptr: mat_opening_ptr_record,
+                            ps_at_z_ptr: ps_at_z_ptr_record,
+                            alpha_pow_ptr: alpha_pow_ptr_record,
+                            ro_ptr: ro_ptr_record,
+                            p_at_x: p_at_x_record,
+                            p_at_z: p_at_z_record,
+                            alpha_pow_at_log_height: alpha_pow_at_log_height_record,
+                            ro_at_log_height: ro_at_log_height_record,
+                        });
+                        timestamp += F::one();
+                    }
 
+                    next_clk = timestamp;
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::Commit => {
@@ -808,7 +817,7 @@ where
             };
             self.pc = next_pc;
             self.record.cpu_events.push(event);
-            self.clk += F::from_canonical_u32(4);
+            self.clk = next_clk;
             self.timestamp += 1;
             self.access = CpuRecord::default();
 

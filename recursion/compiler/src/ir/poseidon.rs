@@ -109,12 +109,12 @@ impl<C: Config> Builder<C> {
         let idx: Var<_> = self.eval(C::N::zero());
         self.range(0, array.len()).for_each(|i, builder| {
             let subarray = builder.get(array, i);
-            let len = subarray.len().materialize(builder);
-            builder.print_v(len);
             builder.range(0, subarray.len()).for_each(|j, builder| {
+                builder.cycle_tracker("poseidon2-hash-setup");
                 let element = builder.get(&subarray, j);
                 builder.set_value(&mut state, idx, element);
                 builder.assign(idx, idx + C::N::one());
+                builder.cycle_tracker("poseidon2-hash-setup");
                 builder
                     .if_eq(idx, C::N::from_canonical_usize(HASH_RATE))
                     .then(|builder| {

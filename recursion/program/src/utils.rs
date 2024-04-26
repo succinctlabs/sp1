@@ -39,6 +39,7 @@ pub fn const_fri_config(
 ) -> FriConfigVariable<RecursionConfig> {
     let two_addicity = Val::TWO_ADICITY;
     let mut generators = builder.dyn_array(two_addicity);
+    let mut generators_powers = builder.dyn_array(two_addicity);
     let mut subgroups = builder.dyn_array(two_addicity);
     for i in 0..two_addicity {
         let constant_generator = Val::two_adic_generator(i);
@@ -50,6 +51,16 @@ pub fn const_fri_config(
         };
         let domain_value: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(constant_domain);
         builder.set(&mut subgroups, i, domain_value);
+
+        let mut generator_powers = builder.dyn_array(32);
+        for j in 0..32 {
+            builder.set(
+                &mut generator_powers,
+                j,
+                constant_generator.exp_u64(j as u64),
+            );
+        }
+        builder.set(&mut generators_powers, i, generator_powers);
     }
     FriConfigVariable {
         log_blowup: builder.eval(BabyBear::from_canonical_usize(config.log_blowup)),
@@ -58,6 +69,7 @@ pub fn const_fri_config(
         proof_of_work_bits: builder.eval(BabyBear::from_canonical_usize(config.proof_of_work_bits)),
         subgroups,
         generators,
+        generators_powers,
     }
 }
 

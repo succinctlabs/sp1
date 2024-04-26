@@ -164,14 +164,16 @@ where
         let cols = main.row_slice(0);
         let cols: &FriFoldCols<AB::Var> = (*cols).borrow();
 
+        // TODO: Handle the constraints for multiple rounds.
+
         // Constraint that the operands are sent from the CPU table.
-        let operands = [
-            cols.clk.into(),
-            cols.m.into(),
-            cols.input_ptr.into(),
-            AB::Expr::zero(),
-        ];
-        builder.receive_table(Opcode::FRIFold.as_field::<AB::F>(), &operands, cols.is_real);
+        // let operands = [
+        //     cols.clk.into(),
+        //     cols.m.into(),
+        //     cols.input_ptr.into(),
+        //     AB::Expr::zero(),
+        // ];
+        // builder.receive_table(Opcode::FRIFold.as_field::<AB::F>(), &operands, cols.is_real);
 
         // Constrain read for `z` at `input_ptr`
         builder.recursion_eval_memory_access(
