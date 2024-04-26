@@ -1,3 +1,4 @@
+use sp1_sdk::prove::Prover;
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
 /// The ELF we want to execute inside the zkVM.
