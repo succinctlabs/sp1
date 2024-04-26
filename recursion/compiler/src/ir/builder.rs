@@ -42,11 +42,21 @@ impl<T> TracedVec<T> {
 
     pub fn push(&mut self, value: T) {
         self.vec.push(value);
-        match std::env::var("SP1_DEBUG") {
-            Ok(_) => {
+        self.traces.push(None);
+    }
+
+    /// Pushes a value to the vector and records a backtrace if SP1_DEBUG is enabled
+    pub fn trace_push(&mut self, value: T) {
+        self.vec.push(value);
+        match std::env::var("SP1_DEBUG")
+            .unwrap_or("false".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "true" => {
                 self.traces.push(Some(Backtrace::new_unresolved()));
             }
-            Err(_) => {
+            _ => {
                 self.traces.push(None);
             }
         };
@@ -121,6 +131,11 @@ impl<C: Config> Builder<C> {
     /// Pushes an operation to the builder.
     pub fn push(&mut self, op: DslIr<C>) {
         self.operations.push(op);
+    }
+
+    /// Pushes an operation to the builder and records a trace if SP1_DEBUG.
+    pub fn trace_push(&mut self, op: DslIr<C>) {
+        self.operations.trace_push(op);
     }
 
     /// Creates an uninitialized variable.
@@ -394,7 +409,7 @@ impl<C: Config> Builder<C> {
 
     /// Throws an error.
     pub fn error(&mut self) {
-        self.operations.push(DslIr::Error());
+        self.operations.trace_push(DslIr::Error());
     }
 
     /// Materializes a usize into a variable.

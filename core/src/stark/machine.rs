@@ -4,22 +4,18 @@ use std::fmt::Debug;
 
 use itertools::Itertools;
 use p3_air::Air;
-use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
 use p3_challenger::FieldChallenger;
 use p3_commit::Pcs;
-use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
 use p3_field::Field;
 use p3_field::PrimeField32;
-use p3_field::TwoAdicField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Dimensions;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
-use sp1_primitives::poseidon2_hash;
 use tracing::instrument;
 
 use super::debug_constraints;
@@ -35,7 +31,6 @@ use crate::stark::DebugConstraintBuilder;
 use crate::stark::ProverConstraintFolder;
 use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
-use crate::utils::DIGEST_SIZE;
 
 use super::Chip;
 use super::Com;
@@ -105,41 +100,6 @@ impl<SC: StarkGenericConfig> StarkVerifyingKey<SC> {
 impl<SC: StarkGenericConfig> Debug for StarkVerifyingKey<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("VerifyingKey").finish()
-    }
-}
-
-impl<
-        SC: StarkGenericConfig<Val = BabyBear, Domain = TwoAdicMultiplicativeCoset<BabyBear>>,
-        A: MachineAir<BabyBear>,
-    > StarkMachine<SC, A>
-where
-    <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: AsRef<[BabyBear; DIGEST_SIZE]>,
-{
-    /// Hash the verifying key, producing a single commitment that uniquely identifies the program
-    /// being proven.
-    ///
-    /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g} )
-    pub fn hash_vkey(&self, vkey: &StarkVerifyingKey<SC>) -> [BabyBear; DIGEST_SIZE] {
-        // TODO: this should live in SP1VerifyingKey
-        let prep_domains = self.preprocessed_chip_ids().into_iter().map(|chip_idx| {
-            let name = self.chips[chip_idx].name().clone();
-            let prep_sorted_idx = vkey.chip_ordering[&name];
-            vkey.chip_information[prep_sorted_idx].1
-        });
-        let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
-        let mut inputs = Vec::with_capacity(num_inputs);
-        inputs.extend(vkey.commit.as_ref());
-        inputs.push(vkey.pc_start);
-        for domain in prep_domains {
-            inputs.push(BabyBear::from_canonical_usize(domain.log_n));
-            let size = 1 << domain.log_n;
-            inputs.push(BabyBear::from_canonical_usize(size));
-            let g = BabyBear::two_adic_generator(domain.log_n);
-            inputs.push(domain.shift);
-            inputs.push(g);
-        }
-
-        poseidon2_hash(inputs)
     }
 }
 

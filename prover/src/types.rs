@@ -1,12 +1,14 @@
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, TwoAdicField};
 use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     io::{SP1PublicValues, SP1Stdin},
     runtime::Program,
     stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val},
+    utils::DIGEST_SIZE,
 };
+use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::air::RecursionPublicValues;
 
 use crate::{CoreSC, InnerSC};
@@ -15,11 +17,34 @@ use crate::{CoreSC, InnerSC};
 pub struct SP1ProvingKey {
     pub pk: StarkProvingKey<CoreSC>,
     pub program: Program,
+    /// Verifying key is also included as we need it for recursion
+    pub vk: SP1VerifyingKey,
 }
 
 /// The information necessary to verify a proof for a given RISC-V program.
+#[derive(Clone)]
 pub struct SP1VerifyingKey {
     pub vk: StarkVerifyingKey<CoreSC>,
+}
+
+impl SP1VerifyingKey {
+    pub fn hash(&self) -> [BabyBear; 8] {
+        let prep_domains = self.vk.chip_information.iter().map(|(_, domain, _)| domain);
+        let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
+        let mut inputs = Vec::with_capacity(num_inputs);
+        inputs.extend(self.vk.commit.as_ref());
+        inputs.push(self.vk.pc_start);
+        for domain in prep_domains {
+            inputs.push(BabyBear::from_canonical_usize(domain.log_n));
+            let size = 1 << domain.log_n;
+            inputs.push(BabyBear::from_canonical_usize(size));
+            let g = BabyBear::two_adic_generator(domain.log_n);
+            inputs.push(domain.shift);
+            inputs.push(g);
+        }
+
+        poseidon2_hash(inputs)
+    }
 }
 
 /// A proof of a RISC-V execution with given inputs and outputs composed of multiple shard proofs.
