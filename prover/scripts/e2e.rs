@@ -62,7 +62,7 @@ pub fn main() {
     // );
 
     tracing::info!("sanity check gnark prove");
-    let groth16_prover = Groth16Prover::new(args.build_dir.clone().into());
+    let groth16_prover = Groth16Prover::new();
     tracing::info!("started gnark prover");
     let proof = groth16_prover.prove(witness.clone());
 
