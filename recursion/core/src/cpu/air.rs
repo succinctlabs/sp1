@@ -381,12 +381,13 @@ impl<F: Field> CpuChip<F> {
             comparison_diff.clone(),
         );
 
+        // Verify branch_cols.camparison_diff col.
         builder.when(is_branch_instruction.clone()).assert_ext_eq(
             BinomialExtension::from(branch_cols.comparison_diff_val),
             comparison_diff,
         );
 
-        // Verify the comparison_diff flag value.
+        // Verify branch_cols.comparison_diff.result col.
         IsExtZeroOperation::<AB::F>::eval(
             builder,
             BinomialExtension::from(branch_cols.comparison_diff_val),
@@ -413,6 +414,7 @@ impl<F: Field> CpuChip<F> {
         *next_pc = is_branch_instruction * branch_cols.next_pc;
     }
 
+    /// Expr to check for branch instructions.
     fn is_branch_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
     where
         AB: SP1RecursionAirBuilder<F = F>,
@@ -420,6 +422,7 @@ impl<F: Field> CpuChip<F> {
         local.selectors.is_beq + local.selectors.is_bne + local.selectors.is_bneinc
     }
 
+    /// Expr to check for jump instructions.
     fn is_jump_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
     where
         AB: SP1RecursionAirBuilder<F = F>,
@@ -427,6 +430,7 @@ impl<F: Field> CpuChip<F> {
         local.selectors.is_jal + local.selectors.is_jalr
     }
 
+    /// Expr to check for instructions that only read from operand `a`.
     fn is_op_a_read_only_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
     where
         AB: SP1RecursionAirBuilder<F = F>,
