@@ -1,5 +1,6 @@
 use core::mem::size_of;
 use p3_air::Air;
+use p3_air::AirBuilder;
 use p3_air::BaseAir;
 use p3_field::extension::BinomiallyExtendable;
 use p3_field::AbstractField;
@@ -172,7 +173,7 @@ where
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
-        let next: &CpuCols<AB::Var> = (*next).borrow();
+        let _next: &CpuCols<AB::Var> = (*next).borrow();
         let zero = AB::Expr::zero();
         let one = AB::Expr::one();
 
