@@ -72,11 +72,11 @@ impl<F: Field> OpcodeSelectorCols<F> {
             _ => {}
         }
 
-        if !matches!(
+        if matches!(
             instruction.opcode,
             Opcode::EADD | Opcode::ESUB | Opcode::EMUL | Opcode::EDIV
         ) {
-            self.is_ext = F::zero();
+            self.is_ext = F::one();
         }
     }
 }
