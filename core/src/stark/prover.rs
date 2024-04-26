@@ -181,7 +181,7 @@ where
 
                     // We need to create an outer span here because, for some reason,
                     // the #[instrument] macro on the chip impl isn't attaching its span to `parent_span`
-                    // to avoid the unnecessary span, remove the #[instrument] macro
+                    // to avoid the unnecessary span, remove the #[instrument] macro.
                     let trace =
                         tracing::debug_span!(parent: &parent_span, "generate trace for chip", %chip_name)
                             .in_scope(|| chip.generate_trace(shard, &mut A::Record::default()));
