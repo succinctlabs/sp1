@@ -18,8 +18,8 @@ impl<F: Field> CpuChip<F> {
     ) where
         AB: SP1RecursionAirBuilder<F = F>,
     {
-        // Constribute to the `next_pc`` expression.
-        *next_pc = local.selectors.is_jal * (local.pc + local.b.value()[0]);
+        // Contribute to the `next_pc`` expression.
+        *next_pc += local.selectors.is_jal * (local.pc + local.b.value()[0]);
         *next_pc += local.selectors.is_jalr * local.b.value()[0];
 
         let one: AB::Expr = AB::Expr::one();
