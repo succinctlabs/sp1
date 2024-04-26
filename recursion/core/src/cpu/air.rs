@@ -99,9 +99,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 ) {
                     let branch_cols = cols.opcode_specific.branch_mut();
                     let a_ext: BinomialExtension<F> =
-                        BinomialExtensionUtils::from_block(*cols.a.value());
+                        BinomialExtensionUtils::from_block(*cols.a.prev_value());
                     let b_ext: BinomialExtension<F> =
-                        BinomialExtensionUtils::from_block(*cols.b.value());
+                        BinomialExtensionUtils::from_block(*cols.b.prev_value());
 
                     let comparison_diff = match event.instruction.opcode {
                         Opcode::BEQ | Opcode::BNE => a_ext - b_ext,
@@ -165,6 +165,8 @@ where
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
 
+        self.eval_registers(builder, local);
+
         // Increment clk by 4 every cycle.
         builder
             .when_transition()
@@ -190,36 +192,6 @@ where
         self.eval_branch(builder, local, &mut next_pc);
 
         // Constraint all the memory access.
-
-        // Constraint the case of immediates for the b and c operands.
-        builder
-            .when(local.instruction.imm_b)
-            .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
-        builder
-            .when(local.instruction.imm_c)
-            .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
-
-        // Constraint the memory accesses.
-        builder.recursion_eval_memory_access(
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
-            local.fp.into() + local.instruction.op_a.into(),
-            &local.a,
-            local.is_real.into(),
-        );
-
-        builder.recursion_eval_memory_access(
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
-            local.fp.into() + local.instruction.op_b[0].into(),
-            &local.b,
-            AB::Expr::one() - local.instruction.imm_b.into(),
-        );
-
-        builder.recursion_eval_memory_access(
-            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
-            local.fp.into() + local.instruction.op_c[0].into(),
-            &local.c,
-            AB::Expr::one() - local.instruction.imm_c.into(),
-        );
 
         // Evaluate the memory column.
         let load_memory = local.selectors.is_load + local.selectors.is_store;
@@ -266,8 +238,53 @@ where
 }
 
 impl<F: Field> CpuChip<F> {
+    /// Eval the registers.
+    fn eval_registers<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        // Constraint the case of immediates for the b and c operands.
+        builder
+            .when(local.instruction.imm_b)
+            .assert_block_eq::<AB::Var, AB::Var>(*local.b.value(), local.instruction.op_b);
+        builder
+            .when(local.instruction.imm_c)
+            .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
+
+        // Constraint the memory accesses.
+        let a_addr = local.fp.into() + local.instruction.op_a.into();
+        builder.recursion_eval_memory_access(
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
+            a_addr,
+            &local.a,
+            local.is_real.into(),
+        );
+        // If the instruction only reads from register A, then verify that previous and current values are equal.
+        builder
+            .when(
+                local.selectors.is_beq
+                    + local.selectors.is_bne
+                    + local.selectors.is_fri_fold
+                    + local.selectors.is_poseidon,
+            )
+            .assert_block_eq(*local.a.prev_value(), *local.a.value());
+
+        builder.recursion_eval_memory_access(
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::B as u32),
+            local.fp.into() + local.instruction.op_b[0].into(),
+            &local.b,
+            AB::Expr::one() - local.instruction.imm_b.into(),
+        );
+
+        builder.recursion_eval_memory_access(
+            local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::C as u32),
+            local.fp.into() + local.instruction.op_c[0].into(),
+            &local.c,
+            AB::Expr::one() - local.instruction.imm_c.into(),
+        );
+    }
+
     /// Eval all the ALU operations.
-    #[allow(unused)]
     fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,
@@ -320,9 +337,9 @@ impl<F: Field> CpuChip<F> {
             local.selectors.is_beq + local.selectors.is_bne + local.selectors.is_bneinc;
 
         let a_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.a.prev_value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
-            BinomialExtensionUtils::from_block(local.b.value().map(|x| x.into()));
+            BinomialExtensionUtils::from_block(local.b.prev_value().map(|x| x.into()));
         let base_element_one = BinomialExtension::<AB::Expr>::from_base(AB::Expr::one());
 
         let mut comparison_diff = a_ext - b_ext;
@@ -356,6 +373,11 @@ impl<F: Field> CpuChip<F> {
             local.selectors.is_bneinc.clone() * (one.clone() - branch_cols.comparison_diff.result);
 
         let pc_offset = local.c.value().0[0];
-        *next_pc += is_branch_instruction * (builder.if_else(do_branch, pc_offset, one));
+        *next_pc += is_branch_instruction * (builder.if_else(do_branch, pc_offset, one.clone()));
+
+        // If the instruction is a BNEINC, verify that the a value is incremented by one.
+        builder
+            .when(local.selectors.is_bneinc)
+            .assert_eq(local.a.value()[0], local.a.prev_value()[0] + one);
     }
 }

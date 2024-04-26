@@ -1,4 +1,4 @@
-use crate::memory::MemoryReadWriteCols;
+use crate::memory::{MemoryReadCols, MemoryReadWriteCols};
 use sp1_derive::AlignedBorrow;
 
 mod branch;
@@ -23,8 +23,8 @@ pub struct CpuCols<T: Copy> {
     pub selectors: OpcodeSelectorCols<T>,
 
     pub a: MemoryReadWriteCols<T>,
-    pub b: MemoryReadWriteCols<T>,
-    pub c: MemoryReadWriteCols<T>,
+    pub b: MemoryReadCols<T>,
+    pub c: MemoryReadCols<T>,
     pub memory_addr: T,
     pub memory: MemoryReadWriteCols<T>,
 
