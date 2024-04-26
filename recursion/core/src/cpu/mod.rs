@@ -1,10 +1,10 @@
 pub mod air;
 pub mod columns;
+mod trace;
 
 use crate::air::Block;
 pub use crate::{memory::MemoryRecord, runtime::Instruction};
 
-pub use air::*;
 pub use columns::*;
 
 #[derive(Debug, Clone)]
