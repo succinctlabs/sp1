@@ -31,7 +31,7 @@ where
 
         self.eval_memory(builder, local);
 
-        self.eval_alu(builder, local);
+        //self.eval_alu(builder, local);
 
         // Expression for the expected next_pc.
         let mut next_pc = zero;
