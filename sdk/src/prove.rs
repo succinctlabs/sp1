@@ -86,16 +86,16 @@ pub trait Prover: Send + Sync {
     fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
-    fn verify(&self, proof: SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()>;
 
     /// Verify that a compressed SP1 proof is valid given its vkey and metadata.
-    fn verify_compressed(&self, proof: SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()>;
 
     /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
-    fn verify_plonk(&self, proof: SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()>;
 
     /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
-    fn verify_groth16(&self, proof: SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()>;
 }
 
 pub struct LocalProver {
@@ -182,7 +182,7 @@ impl Prover for LocalProver {
         })
     }
 
-    fn verify(&self, proof: SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
         let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
         let pv_digest: [u8; 32] = Sha256::digest(proof.public_values.buffer.data).into();
         if pv_digest != *pv.commit_digest_bytes() {
@@ -198,15 +198,15 @@ impl Prover for LocalProver {
             .verify(&vkey.vk, &machine_proof, &mut challenger)?)
     }
 
-    fn verify_compressed(&self, proof: SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_groth16(&self, proof: SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_plonk(&self, proof: SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 }
@@ -484,19 +484,19 @@ impl Prover for NetworkProver {
         todo!()
     }
 
-    fn verify(&self, proof: SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.local_prover.verify(proof, vkey)
     }
 
-    fn verify_compressed(&self, proof: SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_plonk(&self, proof: SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_groth16(&self, proof: SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 }
