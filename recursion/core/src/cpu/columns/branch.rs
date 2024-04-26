@@ -14,4 +14,5 @@ pub struct BranchCols<T> {
     pub(crate) comparison_diff: IsExtZeroOperation<T>,
     pub(crate) comparison_diff_val: BinomialExtension<T>,
     pub(crate) do_branch: T,
+    pub(crate) next_pc: T,
 }

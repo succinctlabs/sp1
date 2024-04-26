@@ -121,6 +121,11 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                         .populate((comparison_diff).as_block());
                     branch_cols.comparison_diff_val = comparison_diff;
                     branch_cols.do_branch = F::from_bool(do_branch);
+                    branch_cols.next_pc = if do_branch {
+                        event.pc + event.instruction.op_c[0]
+                    } else {
+                        event.pc + F::one()
+                    };
                 }
 
                 cols.is_real = F::one();
@@ -181,7 +186,9 @@ where
         // Expression for the expected next_pc.
         let mut next_pc = zero;
 
-        self.eval_branch(builder, local, next, &mut next_pc);
+        self.eval_branch(builder, local, &mut next_pc);
+
+        // builder.when_first_row().assert_zero(next_pc.clone());
 
         // TODO: in eval_jump, we need to constraint the transition of `fp`.
         // self.eval_jump(builder, local, &mut next_pc);
@@ -190,11 +197,14 @@ where
         let not_branch_or_jump = one.clone()
             - self.is_branch_instruction::<AB>(local)
             - self.is_jump_instruction::<AB>(local);
-        next_pc += not_branch_or_jump.clone() * next.is_real * (local.pc + one);
+        next_pc += not_branch_or_jump.clone() * (local.pc + one);
 
         // Verify next row's pc is correct.
         // TODO: Uncomment once eval_jump is implemented.
-        // builder.when_transition().assert_eq(next_pc, next.pc);
+        // builder
+        //     .when_transition()
+        //     .when(next.is_real)
+        //     .assert_eq(next_pc, next.pc);
 
         // Increment clk by 4 every cycle.
         builder
@@ -341,17 +351,20 @@ impl<F: Field> CpuChip<F> {
     }
 
     /// Eval the branch operations.
-    fn eval_branch<AB>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        next: &CpuCols<AB::Var>,
-        next_pc: &mut AB::Expr,
-    ) where
+    fn eval_branch<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>, next_pc: &mut AB::Expr)
+    where
         AB: SP1RecursionAirBuilder<F = F>,
     {
         let branch_cols = local.opcode_specific.branch();
         let is_branch_instruction = self.is_branch_instruction::<AB>(local);
+        let one = AB::Expr::one();
+        let base_element_one = BinomialExtension::<AB::Expr>::from_base(one.clone());
+
+        // If the instruction is a BNEINC, verify that the a value is incremented by one.
+        builder
+            .when(local.is_real)
+            .when(local.selectors.is_bneinc)
+            .assert_eq(local.a.value()[0], local.a.prev_value()[0] + one.clone());
 
         // Convert operand values from Block<Var> to BinomialExtension<Expr>.  Note that it gets the
         // previous value of the `a` and `b` operands, since BNENIC will modify `a`.
@@ -359,9 +372,6 @@ impl<F: Field> CpuChip<F> {
             BinomialExtensionUtils::from_block(local.a.prev_value().map(|x| x.into()));
         let b_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.b.prev_value().map(|x| x.into()));
-
-        let one = AB::Expr::one();
-        let base_element_one = BinomialExtension::<AB::Expr>::from_base(one.clone());
 
         let mut comparison_diff = a_ext - b_ext;
 
@@ -385,6 +395,7 @@ impl<F: Field> CpuChip<F> {
             is_branch_instruction.clone(),
         );
 
+        // Verify branch_col.do_branch col.
         let mut do_branch = local.selectors.is_beq.clone() * branch_cols.comparison_diff.result;
         do_branch +=
             local.selectors.is_bne.clone() * (one.clone() - branch_cols.comparison_diff.result);
@@ -394,14 +405,15 @@ impl<F: Field> CpuChip<F> {
             .when(is_branch_instruction.clone())
             .assert_eq(branch_cols.do_branch, do_branch);
 
+        // Verify branch_col.next_pc col.
         let pc_offset = local.c.value().0[0];
-        *next_pc += is_branch_instruction.clone()
-            * (builder.if_else(branch_cols.do_branch, pc_offset, one.clone()));
-
-        // If the instruction is a BNEINC, verify that the a value is incremented by one.
+        let expected_next_pc =
+            builder.if_else(branch_cols.do_branch, local.pc + pc_offset, local.pc + one);
         builder
-            .when(local.selectors.is_bneinc)
-            .assert_eq(local.a.value()[0], local.a.prev_value()[0] + one);
+            .when(is_branch_instruction.clone())
+            .assert_eq(branch_cols.next_pc, expected_next_pc);
+
+        *next_pc = is_branch_instruction * branch_cols.next_pc;
     }
 
     fn is_branch_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
