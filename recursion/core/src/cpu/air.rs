@@ -165,13 +165,14 @@ where
         let local: &CpuCols<AB::Var> = (*local).borrow();
         let next: &CpuCols<AB::Var> = (*next).borrow();
 
-        self.eval_registers(builder, local);
+        self.eval_operands(builder, local);
 
-        // Increment clk by 4 every cycle.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
+        self.eval_alu(builder, local);
+
+        // Expression for the expected next_pc.
+        let mut next_pc = AB::Expr::zero();
+
+        self.eval_branch(builder, local, &mut next_pc);
 
         // TODO: Increment pc by 1 every cycle unless it is a branch instruction that is satisfied.
         // builder
@@ -181,15 +182,15 @@ where
         // builder
         //     .when(local.beq + local.bne)
         //     .assert_eq(next.pc, local.pc + local.c.value()[0]);
+        // TODO: Assert next_pc == next.pc once eval_jump is implemented.
+
+        // Increment clk by 4 every cycle.
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
         // TODO: we also need to constraint the transition of `fp`.
-
-        // Expression for the expected next_pc.
-        let mut next_pc = AB::Expr::zero();
-
-        self.eval_alu(builder, local);
-
-        self.eval_branch(builder, local, &mut next_pc);
 
         // Constraint all the memory access.
 
@@ -239,7 +240,7 @@ where
 
 impl<F: Field> CpuChip<F> {
     /// Eval the registers.
-    fn eval_registers<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
+    fn eval_operands<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
@@ -251,7 +252,7 @@ impl<F: Field> CpuChip<F> {
             .when(local.instruction.imm_c)
             .assert_block_eq::<AB::Var, AB::Var>(*local.c.value(), local.instruction.op_c);
 
-        // Constraint the memory accesses.
+        // Constraint the operand accesses.
         let a_addr = local.fp.into() + local.instruction.op_a.into();
         builder.recursion_eval_memory_access(
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::A as u32),
@@ -259,7 +260,7 @@ impl<F: Field> CpuChip<F> {
             &local.a,
             local.is_real.into(),
         );
-        // If the instruction only reads from register A, then verify that previous and current values are equal.
+        // If the instruction only reads from operand A, then verify that previous and current values are equal.
         builder
             .when(
                 local.selectors.is_beq
