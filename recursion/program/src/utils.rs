@@ -198,10 +198,5 @@ pub fn hash_vkey<C: Config>(
         builder.set(&mut inputs, shift_index, domain.shift);
         builder.set(&mut inputs, g_index, domain.g);
     });
-    builder.print_debug(113123123);
-    builder.range(0, total_slots).for_each(|i, builder| {
-        let element = builder.get(&inputs, i);
-        builder.print_f(element);
-    });
     builder.poseidon2_hash(&inputs)
 }
