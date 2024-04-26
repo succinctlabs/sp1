@@ -2,10 +2,7 @@ use std::borrow::Borrow;
 
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{
-    batch_multiplicative_inverse, AbstractExtensionField, AbstractField, ExtensionField, Field,
-    Powers, PrimeField,
-};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
@@ -50,9 +47,8 @@ pub fn populate_batch_and_mult<F: PrimeField, EF: ExtensionField<F>>(
         .chain(receives.iter().map(|int| (int, false)))
         .chunks(batch_size);
     let num_chunks = (sends.len() + receives.len() + 1) / batch_size;
-    debug_assert_eq!(num_chunks + 1, row.len());
+    debug_assert_eq!(num_chunks + 1, new_row.len());
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
-
     for ((value, row_chunk), interaction_chunk) in new_row
         .iter_mut()
         .zip(&row.iter().chunks(batch_size))
@@ -69,7 +65,7 @@ pub fn populate_batch_and_mult<F: PrimeField, EF: ExtensionField<F>>(
                 if !is_send {
                     mult = -mult;
                 }
-                EF::from_base(mult) * *value
+                EF::from_base(mult) * *val
             })
             .sum();
     }
