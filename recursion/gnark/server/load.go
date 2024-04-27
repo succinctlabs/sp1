@@ -42,13 +42,13 @@ func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circu
 
 	if !filesExist {
 		// If files do not exist, download them from the S3 bucket.
-		fmt.Printf("Files not found in dataDir, downloading from bucket %s...\n", circuitBucket)
+		fmt.Printf("Files not found in data dir, downloading from bucket %s...\n", circuitBucket)
 		r1cs, pk, err = downloadCircuit(ctx, dataDir, circuitBucket, circuitType, circuitVersion)
 		if err != nil {
 			return nil, nil, errors.Wrap(err, "failed to download circuit")
 		}
 	} else {
-		fmt.Printf("Files found in dataDir. Loading from %s...\n", dataDir)
+		fmt.Printf("Files found in data dir. Loading from %s...\n", dataDir)
 	}
 
 	return r1cs, pk, nil

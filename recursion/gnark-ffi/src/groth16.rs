@@ -46,6 +46,7 @@ impl Groth16Prover {
     pub fn new(build_dir: PathBuf) -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
+        let version = env::var("WRAPPER_VERSION").unwrap_or_else(|_| "1".to_string());
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
@@ -64,7 +65,7 @@ impl Groth16Prover {
                     "--type",
                     "groth16",
                     "--version",
-                    "1",
+                    &version,
                     "--port",
                     &port,
                 ])
@@ -109,24 +110,24 @@ impl Groth16Prover {
         let client = Client::new();
         let url = format!("http://localhost:{}/healthz", self.port);
 
-        println!("Waiting for server to be healthy...");
+        println!("Waiting for Gnark server to be healthy...");
 
         loop {
             match client.get(&url).send() {
                 Ok(response) => {
                     if response.status() == StatusCode::OK {
-                        println!("Server is healthy!");
+                        println!("Gnark server is healthy!");
                         return Ok(());
                     } else {
-                        println!("Server is not healthy yet: {:?}", response.status());
+                        println!("Gnark server is not healthy yet: {:?}", response.status());
                     }
                 }
-                Err(err) => {
-                    println!("Server is not healthy yet: {:?}", err);
+                Err(_) => {
+                    println!("Gnark server is not healthy yet");
                 }
             }
 
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(3));
         }
     }
 
@@ -250,7 +251,7 @@ impl Groth16Prover {
         proof
     }
 
-    /// Cancels the running Go server thread.
+    /// Cancels the running Gnark server thread.
     pub fn cancel(&self) {
         let mut handle_opt = self.thread_handle.lock().unwrap();
 
