@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
@@ -63,19 +64,26 @@ func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, c
 		return nil, nil, errors.Wrap(err, "loading AWS config")
 	}
 	s3Downloader := manager.NewDownloader(s3.NewFromConfig(awsConfig), func(d *manager.Downloader) {
-		d.PartSize = 128 * 1024 * 1024 // 128MB per part
-		d.Concurrency = 32
+		d.PartSize = 256 * 1024 * 1024 // 256MB per part
+		d.Concurrency = 16
 	})
 
-	// Download the circuit tarball
+	// Create a WriteAtBuffer and wrap it with the ProgressTrackingWriter.
 	tarballBuffer := manager.NewWriteAtBuffer(nil)
-	_, err = s3Downloader.Download(ctx, tarballBuffer, &s3.GetObjectInput{
+	progressWriter := NewProgressTrackingWriter(tarballBuffer)
+
+	_, err = s3Downloader.Download(ctx, progressWriter, &s3.GetObjectInput{
 		Bucket: aws.String(circuitBucket),
 		Key:    aws.String(fmt.Sprintf("%s-build%s.tar.gz", circuitType, circuitVersion)),
 	})
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "downloading circuit")
 	}
+
+	// Retrieve the total bytes downloaded.
+	totalBytes := atomic.LoadInt64(&progressWriter.totalBytes)
+	fmt.Printf("Downloaded circuit tarball (%d bytes)\n", totalBytes)
+
 	tarballSize := len(tarballBuffer.Bytes())
 	if tarballSize == 0 {
 		return nil, nil, errors.New("downloaded tarball is empty")
@@ -181,4 +189,33 @@ func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, c
 func fileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return !os.IsNotExist(err)
+}
+
+// ProgressTrackingWriter wraps a `WriterAt` to track progress.
+type ProgressTrackingWriter struct {
+	underlying io.WriterAt
+	totalBytes int64
+}
+
+func (ptw *ProgressTrackingWriter) WriteAt(p []byte, offset int64) (int, error) {
+	n, err := ptw.underlying.WriteAt(p, offset)
+	atomic.AddInt64(&ptw.totalBytes, int64(n))
+	if os.Getenv("VERBOSE") == "true" {
+		offsetGB := bytesToGigabytes(offset)
+		fmt.Printf("Downloaded %.6f GB\n", offsetGB)
+	}
+	return n, err
+}
+
+func bytesToGigabytes(bytes int64) float64 {
+	const bytesPerGigabyte = 1024 * 1024 * 1024
+	return float64(bytes) / float64(bytesPerGigabyte)
+}
+
+// Creates a new `ProgressTrackingWriter` given an underlying `WriterAt`.
+func NewProgressTrackingWriter(writer io.WriterAt) *ProgressTrackingWriter {
+	return &ProgressTrackingWriter{
+		underlying: writer,
+		totalBytes: 0,
+	}
 }
