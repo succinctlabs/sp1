@@ -241,7 +241,9 @@ impl Groth16Prover {
     /// Generates a Groth16 proof by sending a request to the Gnark server.
     pub fn prove<C: Config>(&self, witness: Witness<C>) -> Groth16Proof {
         let url = format!("http://localhost:{}/groth16/prove", self.port);
-        let response = Client::new().post(url).json(&witness).send().unwrap();
+
+        let gnark_witness = GnarkWitness::new(witness);
+        let response = Client::new().post(url).json(&gnark_witness).send().unwrap();
 
         // Deserialize the JSON response to a Groth16Proof instance
         let response = response.text().unwrap();
