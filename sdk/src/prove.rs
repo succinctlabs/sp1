@@ -74,16 +74,16 @@ pub trait Prover: Send + Sync {
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
     /// Prove the execution of a RISCV ELF with the given inputs.
-    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof>;
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof>;
 
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
-    fn prove_compressed(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CompressedProof>;
+    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PlonkProof>;
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof>;
 
     /// Given an SP1 program and input, generate a Groth16 proof that can be verified on-chain.
-    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
+    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
     fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()>;
@@ -127,8 +127,7 @@ impl Prover for LocalProver {
         self.prover.setup(elf)
     }
 
-    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
-        let (pk, _) = self.prover.setup(elf);
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
         let proof = self.prover.prove_core(&pk, &stdin);
         Ok(SP1ProofWithMetadata {
             proof: proof.shard_proofs,
@@ -137,12 +136,11 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_compressed(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        let (pk, vk) = self.prover.setup(elf);
+    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
         let proof = self.prover.prove_core(&pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.reduce(&vk, proof, deferred_proofs);
+        let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
         Ok(SP1CompressedProof {
             proof: reduce_proof.proof,
             stdin,
@@ -150,14 +148,13 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         let artifacts_dir = self.get_artifacts_dir();
-        let (pk, vk) = self.prover.setup(elf);
         let proof = self.prover.prove_core(&pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.reduce(&vk, proof, deferred_proofs);
-        let outer_proof = self.prover.wrap_bn254(&vk, reduce_proof);
+        let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
+        let outer_proof = self.prover.wrap_bn254(&pk.vk, reduce_proof);
         let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
         Ok(SP1ProofWithMetadata {
             proof,
@@ -166,14 +163,13 @@ impl Prover for LocalProver {
         })
     }
 
-    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         let artifacts_dir = self.get_artifacts_dir();
-        let (pk, vk) = self.prover.setup(elf);
         let proof = self.prover.prove_core(&pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let reduce_proof = self.prover.reduce(&vk, proof, deferred_proofs);
-        let outer_proof = self.prover.wrap_bn254(&vk, reduce_proof);
+        let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
+        let outer_proof = self.prover.wrap_bn254(&pk.vk, reduce_proof);
         let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
         Ok(SP1ProofWithMetadata {
             proof,
@@ -238,8 +234,7 @@ impl MockProver {
     /// Returns the vkey digest for the given ELF.
     pub fn get_vk_digest(&self, elf: &[u8]) -> Vec<u8> {
         let (_, vkey) = self.prover.setup(elf);
-        self.prover
-            .hash_vkey(&vkey.vk)
+        vkey.hash()
             .into_iter()
             .flat_map(|b| b.as_canonical_u32().to_le_bytes())
             .collect::<Vec<_>>()
@@ -467,20 +462,20 @@ impl Prover for NetworkProver {
         self.local_prover.setup(elf)
     }
 
-    fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
         let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(elf, stdin).await })
+        rt.block_on(async { self.prove_async(&pk.elf, stdin).await })
     }
 
-    fn prove_compressed(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
         todo!()
     }
 
-    fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         todo!()
     }
 
-    fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         todo!()
     }
 

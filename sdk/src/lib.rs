@@ -60,27 +60,31 @@ impl ProverClient {
     }
 
     /// Proves the execution of the given elf with the given inputs.
-    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1DefaultProof> {
-        self.prover.prove(elf, stdin)
+    pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<prove::SP1DefaultProof> {
+        self.prover.prove(pk, stdin)
     }
 
     /// Generates a compressed proof for the given elf and stdin.
     pub fn prove_compressed(
         &self,
-        elf: &[u8],
+        pk: &SP1ProvingKey,
         stdin: SP1Stdin,
     ) -> Result<prove::SP1CompressedProof> {
-        self.prover.prove_compressed(elf, stdin)
+        self.prover.prove_compressed(pk, stdin)
     }
 
     /// Generates a groth16 proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_groth16(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1Groth16Proof> {
-        self.prover.prove_groth16(elf, stdin)
+    pub fn prove_groth16(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: SP1Stdin,
+    ) -> Result<prove::SP1Groth16Proof> {
+        self.prover.prove_groth16(pk, stdin)
     }
 
     /// Generates a PLONK proof, verifiable onchain, of the given elf and stdin.
-    pub fn prove_plonk(&self, elf: &[u8], stdin: SP1Stdin) -> Result<prove::SP1PlonkProof> {
-        self.prover.prove_plonk(elf, stdin)
+    pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<prove::SP1PlonkProof> {
+        self.prover.prove_plonk(pk, stdin)
     }
 
     /// Verifies the given proof is valid and matches the given vkey.
