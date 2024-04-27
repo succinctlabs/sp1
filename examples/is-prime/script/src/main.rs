@@ -18,7 +18,7 @@ fn main() {
     let (pk, vk) = client.setup(ELF);
     let mut proof = client.prove(&pk, stdin).unwrap();
 
-    let is_prime = proof.stdout.read::<bool>();
+    let is_prime = proof.public_values.read::<bool>();
     println!("Is 29 prime? {}", is_prime);
 
     client.verify(&proof, &vk).expect("verification failed");

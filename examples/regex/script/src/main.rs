@@ -27,9 +27,7 @@ fn main() {
     println!("res: {}", res);
 
     // Verify proof.
-    client
-        .verify(REGEX_IO_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof

@@ -66,7 +66,7 @@ fn main() {
 
     // Verify proof.
     client
-        .verify(TENDERMINT_ELF, &proof)
+        .verify(&proof, &vk)
         .expect("verification failed");
 
     // Verify the public values

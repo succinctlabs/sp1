@@ -1,6 +1,7 @@
 use sp1_sdk::{utils, ProverClient, SP1Stdin};
 
-const ED25519_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
+const TENDERMINT_BENCHMARK_ELF: &[u8] =
+    include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
 
 fn main() {
     // Setup logger.
@@ -9,13 +10,11 @@ fn main() {
     // Generate proof.
     let client = ProverClient::new();
     let stdin = SP1Stdin::new();
-    let (pk, vk) = client.setup(ED25519_ELF);
+    let (pk, vk) = client.setup(TENDERMINT_BENCHMARK_ELF);
     let proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Verify proof.
-    client
-        .verify(ED25519_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save proof.
     proof

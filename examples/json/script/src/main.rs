@@ -60,9 +60,7 @@ fn main() {
     );
 
     // Verify proof.
-    client
-        .verify(JSON_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save proof.
     proof
