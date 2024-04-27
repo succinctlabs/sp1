@@ -15,8 +15,9 @@ use prove::{
     LocalProver, NetworkProver, Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof,
     SP1PlonkProof,
 };
-pub use sp1_prover::{CoreSC, SP1CoreProof, SP1Prover, SP1PublicValues, SP1Stdin};
-use sp1_prover::{SP1ProvingKey, SP1VerifyingKey};
+pub use sp1_prover::{
+    CoreSC, SP1CoreProof, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+};
 use std::env;
 
 /// A client that can prove RISCV ELFs and verify those proofs.
