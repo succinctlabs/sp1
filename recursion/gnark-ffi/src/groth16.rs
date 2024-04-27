@@ -46,7 +46,7 @@ impl Groth16Prover {
     pub fn new(build_dir: PathBuf) -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
-        let version = env::var("WRAPPER_VERSION").unwrap_or_else(|_| "1".to_string());
+        let version = env::var("WRAPPER_VERSION").unwrap_or_else(|_| "3".to_string());
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
@@ -119,11 +119,11 @@ impl Groth16Prover {
                         println!("Gnark server is healthy!");
                         return Ok(());
                     } else {
-                        println!("Gnark server is not healthy yet: {:?}", response.status());
+                        println!("Gnark server is not healthy: {:?}", response.status());
                     }
                 }
                 Err(_) => {
-                    println!("Gnark server is not healthy yet");
+                    println!("Gnark server is ready yet");
                 }
             }
 
