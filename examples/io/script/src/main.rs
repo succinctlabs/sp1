@@ -32,14 +32,15 @@ fn main() {
 
     // Generate the proof for the given program.
     let client = ProverClient::new();
-    let mut proof = client.prove(ELF, stdin).unwrap();
+    let (pk, vk) = client.setup(ELF);
+    let mut proof = client.prove(&pk, stdin).unwrap();
 
     // Read the output.
     let r = proof.public_values.read::<MyPointUnaligned>();
     println!("r: {:?}", r);
 
     // Verify proof.
-    client.verify(ELF, &proof).expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof
