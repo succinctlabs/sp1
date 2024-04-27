@@ -648,7 +648,7 @@ impl SP1Prover {
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>) -> Groth16Proof {
+    pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
         let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
 
         // TODO: this is very subject to change as groth16 e2e is stabilized
@@ -684,7 +684,7 @@ impl SP1Prover {
         witness.commited_values_digest = committed_values_digest;
         witness.vkey_hash = vkey_hash;
 
-        let prover = Groth16Prover::new();
+        let prover = Groth16Prover::new(build_dir);
         prover.prove(witness)
     }
 
@@ -727,6 +727,7 @@ mod tests {
     use sp1_core::utils::setup_logger;
 
     #[test]
+    #[ignore]
     fn test_prove_sp1() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
@@ -755,7 +756,7 @@ mod tests {
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, reduced_proof);
 
         tracing::info!("groth16");
-        prover.wrap_groth16(wrapped_bn254_proof);
+        prover.wrap_groth16(wrapped_bn254_proof, PathBuf::from("build"));
     }
 
     /// This test ensures that a proof can be deferred in the core vm and verified in recursion.

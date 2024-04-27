@@ -34,7 +34,7 @@ pub struct Groth16Proof {
 
 impl Groth16Prover {
     /// Starts up the Gnark server using Groth16 on the given port and waits for it to be ready.
-    pub fn new() -> Self {
+    pub fn new(build_dir: PathBuf) -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
@@ -48,6 +48,8 @@ impl Groth16Prover {
                     "run",
                     "main.go",
                     "serve",
+                    "--data",
+                    build_dir.to_str().unwrap(),
                     "--type",
                     "groth16",
                     "--version",
@@ -216,6 +218,7 @@ impl Groth16Prover {
 
         // Deserialize the JSON response to a Groth16Proof instance
         let response = response.text().unwrap();
+        println!("response: {}", response);
         let proof: Groth16Proof = serde_json::from_str(&response).expect("deserializing the proof");
 
         proof
@@ -230,6 +233,6 @@ fn generate_random_port() -> u16 {
 
 impl Default for Groth16Prover {
     fn default() -> Self {
-        Self::new()
+        Self::new(PathBuf::from("build"))
     }
 }
