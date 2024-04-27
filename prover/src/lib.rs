@@ -685,7 +685,8 @@ impl SP1Prover {
         witness.commited_values_digest = committed_values_digest;
         witness.vkey_hash = vkey_hash;
 
-        Groth16Prover::prove(witness, build_dir)
+        let prover = Groth16Prover::new(build_dir);
+        prover.prove(witness)
     }
 
     pub fn wrap_plonk(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> PlonkBn254Proof {

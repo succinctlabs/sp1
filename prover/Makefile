@@ -4,6 +4,7 @@ all:
 	make fibonacci-groth16
 
 groth16:
+	mkdir -p build && \
 	RUSTFLAGS='-C target-cpu=native' \
 	cargo run -p sp1-prover --release --bin e2e -- \
 	--build-dir=./build
