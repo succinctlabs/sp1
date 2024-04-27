@@ -81,10 +81,6 @@ impl ReduceProgram {
         let reduce_machine = RecursionAirWideDeg3::machine(BabyBearPoseidon2::default());
         let compress_machine = RecursionAirSkinnyDeg7::machine(BabyBearPoseidon2::compressed());
 
-        compress_machine.chips().iter().for_each(|chip| {
-            println!("{}, {}", chip.name(), chip.log_quotient_degree());
-        });
-
         // Initialize the builder.
         let mut builder = AsmBuilder::<F, EF>::default();
 

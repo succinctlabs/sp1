@@ -469,10 +469,8 @@ impl SP1Prover {
                 }
                 SP1ReduceProofWrapper::Recursive(reduce_proof) => {
                     if verifying_compressed_proof {
-                        println!("using compress machine");
                         get_sorted_indices(&self.compress_machine, &reduce_proof.proof)
                     } else {
-                        println!("using non-compressed machine");
                         get_sorted_indices(&self.reduce_machine, &reduce_proof.proof)
                     }
                 }
