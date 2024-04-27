@@ -34,7 +34,8 @@ where
 
         self.eval_alu(builder, local);
 
-        // Expression for the expected next_pc.
+        // Expression for the expected next_pc.  This will be added to in `eval_branch` and `eval_jump`
+        // to account for possible jumps and branches.
         let mut next_pc = zero;
 
         self.eval_branch(builder, local, &mut next_pc);

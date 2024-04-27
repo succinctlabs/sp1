@@ -28,7 +28,7 @@ impl<F: Field> CpuChip<F> {
             .when(next.is_real)
             .assert_eq(next.fp, expected_next_fp);
 
-        // Contribute to the `next_pc` expression.
+        // Add to the `next_pc` expression.
         *next_pc += local.selectors.is_jal * (local.pc + local.b.value()[0]);
         *next_pc += local.selectors.is_jalr * local.b.value()[0];
     }
