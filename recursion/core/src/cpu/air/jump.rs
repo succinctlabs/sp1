@@ -10,6 +10,8 @@ use crate::{
 
 impl<F: Field> CpuChip<F> {
     /// Eval the JUMP instructions.
+    ///
+    /// This method will verify the fp column values and add to the `next_pc` expression.
     pub fn eval_jump<AB>(
         &self,
         builder: &mut AB,

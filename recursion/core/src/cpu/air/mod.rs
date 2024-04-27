@@ -39,11 +39,8 @@ where
             // to account for possible jumps and branches.
             let mut next_pc = zero;
 
-            // Eval all the branch instructions and add to the `next_pc` expression.
             self.eval_branch(builder, local, &mut next_pc);
 
-            // Eval all the jump instructions and add to the `next_pc` expression.  It will also
-            // verify fp column.
             self.eval_jump(builder, local, next, &mut next_pc);
 
             // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
