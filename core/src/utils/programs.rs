@@ -32,6 +32,10 @@ pub mod tests {
     pub const TENDERMINT_ELF: &[u8] =
         include_bytes!("../../../examples/tendermint/program/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const TENDERMINT_BENCHMARK_ELF: &[u8] = include_bytes!(
+        "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
+    );
+
     /// Tests.
 
     pub const BLAKE3_COMPRESS_ELF: &[u8] =
