@@ -271,6 +271,7 @@ impl SP1Prover {
                     &deferred_proofs,
                     true,
                     false,
+                    false,
                 )
             }
         }
@@ -350,6 +351,7 @@ impl SP1Prover {
                     &[],
                     is_complete,
                     false,
+                    false,
                 );
                 SP1ReduceProofWrapper::Recursive(proof)
             })
@@ -397,6 +399,7 @@ impl SP1Prover {
                     proofs,
                     false,
                     false,
+                    false,
                 )
             })
             .collect::<Vec<_>>();
@@ -422,7 +425,8 @@ impl SP1Prover {
         reduce_proofs: &[SP1ReduceProofWrapper],
         deferred_proofs: &[ShardProof<InnerSC>],
         is_complete: bool,
-        is_compressed: bool,
+        verifying_compressed_proof: bool,
+        proving_with_skinny: bool,
     ) -> SP1ReduceProof<SC>
     where
         SC: StarkGenericConfig<Val = BabyBear>,
@@ -449,7 +453,11 @@ impl SP1Prover {
                     get_chip_quotient_data(&self.core_machine, &reduce_proof.proof)
                 }
                 SP1ReduceProofWrapper::Recursive(reduce_proof) => {
-                    get_chip_quotient_data(&self.reduce_machine, &reduce_proof.proof)
+                    if verifying_compressed_proof {
+                        get_chip_quotient_data(&self.compress_machine, &reduce_proof.proof)
+                    } else {
+                        get_chip_quotient_data(&self.reduce_machine, &reduce_proof.proof)
+                    }
                 }
             })
             .collect();
@@ -460,7 +468,7 @@ impl SP1Prover {
                     get_sorted_indices(&self.core_machine, &reduce_proof.proof)
                 }
                 SP1ReduceProofWrapper::Recursive(reduce_proof) => {
-                    if is_compressed {
+                    if verifying_compressed_proof {
                         get_sorted_indices(&self.compress_machine, &reduce_proof.proof)
                     } else {
                         get_sorted_indices(&self.reduce_machine, &reduce_proof.proof)
@@ -526,7 +534,11 @@ impl SP1Prover {
         witness_stream.extend(deferred_proofs.to_vec().write());
         let is_complete = if is_complete { 1usize } else { 0 };
         witness_stream.extend(is_complete.write());
-        let is_compressed = if is_compressed { 1usize } else { 0 };
+        let is_compressed = if verifying_compressed_proof {
+            1usize
+        } else {
+            0
+        };
         witness_stream.extend(is_compressed.write());
 
         let machine = RecursionAirWideDeg3::machine(InnerSC::default());
@@ -558,7 +570,7 @@ impl SP1Prover {
 
         // Generate proof.
         let start = Instant::now();
-        let proof = if is_compressed == 1 {
+        let proof = if proving_with_skinny {
             let machine = RecursionAirSkinnyDeg7::machine(config);
             let mut challenger = machine.config().challenger();
             machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)
@@ -612,6 +624,7 @@ impl SP1Prover {
             &[],
             true,
             false,
+            true,
         )
     }
 
@@ -641,6 +654,7 @@ impl SP1Prover {
             state,
             &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
             &[],
+            true,
             true,
             true,
         )
