@@ -485,7 +485,6 @@ impl ReduceProgram {
 
                     builder.if_eq(is_compressed, BabyBear::one()).then_or_else(
                         |builder| {
-                            builder.print_debug(100);
                             StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                                 builder,
                                 &compress_vk,
@@ -500,7 +499,6 @@ impl ReduceProgram {
                             );
                         },
                         |builder| {
-                            builder.print_debug(101);
                             StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                                 builder,
                                 &reduce_vk,

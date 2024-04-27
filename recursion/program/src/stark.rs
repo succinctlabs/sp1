@@ -202,7 +202,6 @@ where
 
             let qc_domains =
                 quotient_domain.split_domains(builder, log_quotient_degree, quotient_size);
-            builder.print_v(log_quotient_degree);
 
             builder.range(0, qc_domains.len()).for_each(|j, builder| {
                 let qc_dom = builder.get(&qc_domains, j);
@@ -260,11 +259,6 @@ where
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
             }
 
-            if chip.name().contains("Pos") {
-                builder.print_debug(200);
-                builder.print_debug(chip.log_quotient_degree());
-            }
-
             builder
                 .if_ne(index, C::N::from_canonical_usize(EMPTY))
                 .then(|builder| {
@@ -275,17 +269,9 @@ where
 
                     // Check that the quotient data matches the chip's data.
                     let log_quotient_degree = chip.log_quotient_degree();
-                    if chip.name().contains("Pos") {
-                        builder.print_debug(200);
-                    }
-                    if chip.name().contains("Range") {
-                        builder.print_debug(300);
-                    }
+
                     let quotient_size = 1 << log_quotient_degree;
                     let chip_quotient_data = builder.get(&chip_quotient_data, index);
-                    let val: Var<_> = builder.eval(C::N::from_canonical_usize(log_quotient_degree));
-                    builder.print_v(chip_quotient_data.log_quotient_degree);
-                    builder.print_v(val);
                     builder.assert_usize_eq(
                         chip_quotient_data.log_quotient_degree,
                         log_quotient_degree,

@@ -282,6 +282,7 @@ pub fn build_wrap_circuit(
     let mut witness = Witness::default();
     dummy_proof.write(&mut witness);
     let proof = dummy_proof.read(&mut builder);
+
     let ShardCommitment { main_commit, .. } = &proof.commitment;
     challenger.observe_commitment(&mut builder, *main_commit);
     let pv_slice = proof.public_values.slice(
