@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::witness::GnarkWitness;
+use crossbeam::channel::{bounded, Sender};
 use rand::Rng;
 use reqwest::{blocking::Client, StatusCode};
 use serde::{Deserialize, Serialize};
@@ -15,7 +16,9 @@ use sp1_recursion_compiler::{
     constraints::Constraint,
     ir::{Config, Witness},
 };
-use std::thread;
+use std::sync::Arc;
+use std::sync::Mutex;
+use std::thread::{self, JoinHandle};
 
 /// A prover that can generate proofs with the Groth16 protocol using bindings to Gnark.
 #[derive(Debug, Clone)]
@@ -248,11 +251,11 @@ impl Groth16Prover {
     /// Cancels the running Go server thread.
     pub fn cancel(&self) {
         // Send a cancellation signal and wait for the thread to join
-        if let Ok(handle_opt) = self.thread_handle.lock() {
-            if let Some(handle) = &*handle_opt {
-                self.cancel_sender.send(()).unwrap();
-                handle.join().unwrap();
-            }
+        let mut handle_opt = self.thread_handle.lock().unwrap();
+
+        if let Some(handle) = handle_opt.take() {
+            self.cancel_sender.send(()).unwrap();
+            handle.join().unwrap();
         }
     }
 }
