@@ -77,8 +77,7 @@ where
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);
         // Generate and commit the traces for each segment.
-        let (shard_commits, shard_data) = tracing::debug_span!("commit to shards")
-            .in_scope(|| Self::commit_shards(machine, &shards));
+        let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
         // Observe the challenges for each segment.
         tracing::debug_span!("observing all challenges").in_scope(|| {
@@ -101,7 +100,8 @@ where
         let reconstruct_commitments = env::reconstruct_commitments();
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
         let shard_chunks = chunk_vec(shards, chunk_size);
-        let shard_proofs = tracing::debug_span!("open shards").in_scope(|| {
+        let parent_span = tracing::debug_span!("open_shards");
+        let shard_proofs = parent_span.in_scope(|| {
             shard_data_chunks
                 .into_par_iter()
                 .zip(shard_chunks.into_par_iter())
@@ -110,27 +110,28 @@ where
                         .into_iter()
                         .zip(shards)
                         .map(|(data, shard)| {
-                            tracing::debug_span!("generate shard proof").in_scope(|| {
-                                let idx = shard.index() as usize;
-                                let data = if reconstruct_commitments {
-                                    Self::commit_main(config, machine, &shard, idx)
-                                } else {
-                                    data.materialize()
-                                        .expect("failed to materialize shard main data")
-                                };
-                                let ordering = data.chip_ordering.clone();
-                                let chips =
-                                    machine.shard_chips_ordered(&ordering).collect::<Vec<_>>();
-                                let proof = Self::prove_shard(
-                                    config,
-                                    pk,
-                                    &chips,
-                                    data,
-                                    &mut challenger.clone(),
-                                );
-                                finished.fetch_add(1, Ordering::Relaxed);
-                                proof
-                            })
+                            tracing::debug_span!(parent: &parent_span, "prove shard opening")
+                                .in_scope(|| {
+                                    let idx = shard.index() as usize;
+                                    let data = if reconstruct_commitments {
+                                        Self::commit_main(config, machine, &shard, idx)
+                                    } else {
+                                        data.materialize()
+                                            .expect("failed to materialize shard main data")
+                                    };
+                                    let ordering = data.chip_ordering.clone();
+                                    let chips =
+                                        machine.shard_chips_ordered(&ordering).collect::<Vec<_>>();
+                                    let proof = Self::prove_shard(
+                                        config,
+                                        pk,
+                                        &chips,
+                                        data,
+                                        &mut challenger.clone(),
+                                    );
+                                    finished.fetch_add(1, Ordering::Relaxed);
+                                    proof
+                                })
                         })
                         .collect::<Vec<_>>()
                 })
@@ -344,39 +345,50 @@ where
 
         // Compute the quotient values.
         let alpha: SC::Challenge = challenger.sample_ext_element::<SC::Challenge>();
-        let quotient_values = tracing::debug_span!("compute quotient values").in_scope(|| {
+        let parent_span = tracing::debug_span!("compute quotient values");
+        let quotient_values = parent_span.in_scope(|| {
             quotient_domains
                 .into_par_iter()
                 .enumerate()
                 .map(|(i, quotient_domain)| {
-                    let preprocessed_trace_on_quotient_domains = pk
-                        .chip_ordering
-                        .get(&chips[i].name())
-                        .map(|&index| {
-                            pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
-                                .to_row_major_matrix()
+                    tracing::debug_span!(parent: &parent_span, "compute quotient values for domain")
+                        .in_scope(|| {
+                            let preprocessed_trace_on_quotient_domains = pk
+                                .chip_ordering
+                                .get(&chips[i].name())
+                                .map(|&index| {
+                                    pcs.get_evaluations_on_domain(&pk.data, index, *quotient_domain)
+                                        .to_row_major_matrix()
+                                })
+                                .unwrap_or_else(|| {
+                                    RowMajorMatrix::new_col(vec![
+                                        SC::Val::zero();
+                                        quotient_domain.size()
+                                    ])
+                                });
+                            let main_trace_on_quotient_domains = pcs
+                                .get_evaluations_on_domain(
+                                    &shard_data.main_data,
+                                    i,
+                                    *quotient_domain,
+                                )
+                                .to_row_major_matrix();
+                            let permutation_trace_on_quotient_domains = pcs
+                                .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
+                                .to_row_major_matrix();
+                            quotient_values(
+                                chips[i],
+                                cumulative_sums[i],
+                                trace_domains[i],
+                                *quotient_domain,
+                                preprocessed_trace_on_quotient_domains,
+                                main_trace_on_quotient_domains,
+                                permutation_trace_on_quotient_domains,
+                                &packed_perm_challenges,
+                                alpha,
+                                &shard_data.public_values,
+                            )
                         })
-                        .unwrap_or_else(|| {
-                            RowMajorMatrix::new_col(vec![SC::Val::zero(); quotient_domain.size()])
-                        });
-                    let main_trace_on_quotient_domains = pcs
-                        .get_evaluations_on_domain(&shard_data.main_data, i, *quotient_domain)
-                        .to_row_major_matrix();
-                    let permutation_trace_on_quotient_domains = pcs
-                        .get_evaluations_on_domain(&permutation_data, i, *quotient_domain)
-                        .to_row_major_matrix();
-                    quotient_values(
-                        chips[i],
-                        cumulative_sums[i],
-                        trace_domains[i],
-                        *quotient_domain,
-                        preprocessed_trace_on_quotient_domains,
-                        main_trace_on_quotient_domains,
-                        permutation_trace_on_quotient_domains,
-                        &packed_perm_challenges,
-                        alpha,
-                        &shard_data.public_values,
-                    )
                 })
                 .collect::<Vec<_>>()
         });
@@ -548,13 +560,15 @@ where
         let reconstruct_commitments = env::reconstruct_commitments();
         let finished = AtomicU32::new(0);
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
-        let (commitments, shard_main_data): (Vec<_>, Vec<_>) = shards
+        let parent_span = tracing::debug_span!("commit to all shards");
+        let (commitments, shard_main_data): (Vec<_>, Vec<_>) = parent_span.in_scope(|| {
+            shards
             .par_chunks(chunk_size)
             .map(|shard_batch| {
                 shard_batch
                     .iter()
                     .map(|shard| {
-                        tracing::debug_span!("commit to shard").in_scope(|| {
+                        tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(|| {
                             let index = shard.index();
                             let data = Self::commit_main(config, machine, shard, index as usize);
                             finished.fetch_add(1, Ordering::Relaxed);
@@ -563,7 +577,7 @@ where
                                 ShardMainDataWrapper::Empty()
                             } else if num_shards > save_disk_threshold {
                                 let file = tempfile::tempfile().unwrap();
-                                tracing::info_span!("saving trace to disk").in_scope(|| {
+                                tracing::info_span!(parent: &parent_span, "saving trace to disk").in_scope(|| {
                                     data.save(file).expect("failed to save shard main data")
                                 })
                             } else {
@@ -577,7 +591,8 @@ where
             .flatten()
             .collect::<Vec<_>>()
             .into_iter()
-            .unzip();
+            .unzip()
+        });
 
         (commitments, shard_main_data)
     }
