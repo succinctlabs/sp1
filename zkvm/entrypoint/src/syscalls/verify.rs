@@ -1,11 +1,6 @@
 #[cfg(target_os = "zkvm")]
 use core::arch::asm;
 
-/// The number of 32 bit words that the public values digest is composed of.
-pub const PV_DIGEST_NUM_WORDS: usize = 8;
-
-pub const POSEIDON_NUM_WORDS: usize = 8;
-
 cfg_if::cfg_if! {
     if #[cfg(target_os = "zkvm")] {
         use crate::syscalls::VERIFY_SP1_PROOF;

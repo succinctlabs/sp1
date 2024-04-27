@@ -7,12 +7,11 @@ fn main() {
     utils::setup_logger();
     let stdin = SP1Stdin::new();
     let client = ProverClient::new();
-    let proof = client.prove(ED25519_ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(ED25519_ELF);
+    let proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Verify proof.
-    client
-        .verify(ED25519_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save proof.
     proof
