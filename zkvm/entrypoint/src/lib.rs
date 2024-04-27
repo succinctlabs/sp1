@@ -32,6 +32,10 @@ macro_rules! entrypoint {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
+/// The number of 32 bit words that the public values digest is composed of.
+pub const PV_DIGEST_NUM_WORDS: usize = 8;
+pub const POSEIDON_NUM_WORDS: usize = 8;
+
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
@@ -50,10 +54,6 @@ mod zkvm {
     }
 
     pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
-
-    /// The number of 32 bit words that the public values digest is composed of.
-    pub const PV_DIGEST_NUM_WORDS: usize = 8;
-    pub const POSEIDON_NUM_WORDS: usize = 8;
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]

@@ -5,7 +5,7 @@ cfg_if! {
         use core::arch::asm;
         use sha2::Digest;
         use crate::zkvm;
-        use crate::zkvm::{PV_DIGEST_NUM_WORDS, POSEIDON_NUM_WORDS};
+        use crate::{PV_DIGEST_NUM_WORDS, POSEIDON_NUM_WORDS};
     }
 }
 
