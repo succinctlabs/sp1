@@ -57,7 +57,7 @@ impl Groth16Prover {
                     "--type",
                     "groth16",
                     "--version",
-                    "1",
+                    "2",
                     "--port",
                     &port,
                 ])
