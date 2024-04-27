@@ -423,30 +423,30 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
             (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _)) => {
-                builder.push(DslIr::AssertEqVI(rhs, lhs));
+                builder.trace_push(DslIr::AssertEqVI(rhs, lhs));
             }
             (SymbolicVar::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqVI(rhs_value, lhs));
+                builder.trace_push(DslIr::AssertEqVI(rhs_value, lhs));
             }
             (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _)) => {
-                builder.push(DslIr::AssertEqVI(lhs, rhs));
+                builder.trace_push(DslIr::AssertEqVI(lhs, rhs));
             }
             (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _)) => {
-                builder.push(DslIr::AssertEqV(lhs, rhs));
+                builder.trace_push(DslIr::AssertEqV(lhs, rhs));
             }
             (SymbolicVar::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqV(lhs, rhs_value));
+                builder.trace_push(DslIr::AssertEqV(lhs, rhs_value));
             }
             (lhs, rhs) => {
                 let lhs_value = Self::uninit(builder);
                 lhs_value.assign(lhs, builder);
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqV(lhs_value, rhs_value));
+                builder.trace_push(DslIr::AssertEqV(lhs_value, rhs_value));
             }
         }
     }
@@ -464,30 +464,30 @@ impl<C: Config> Variable<C> for Var<C::N> {
                 assert_ne!(lhs, rhs, "Assertion failed at compile time");
             }
             (SymbolicVar::Const(lhs, _), SymbolicVar::Val(rhs, _)) => {
-                builder.push(DslIr::AssertNeVI(rhs, lhs));
+                builder.trace_push(DslIr::AssertNeVI(rhs, lhs));
             }
             (SymbolicVar::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeVI(rhs_value, lhs));
+                builder.trace_push(DslIr::AssertNeVI(rhs_value, lhs));
             }
             (SymbolicVar::Val(lhs, _), SymbolicVar::Const(rhs, _)) => {
-                builder.push(DslIr::AssertNeVI(lhs, rhs));
+                builder.trace_push(DslIr::AssertNeVI(lhs, rhs));
             }
             (SymbolicVar::Val(lhs, _), SymbolicVar::Val(rhs, _)) => {
-                builder.push(DslIr::AssertNeV(lhs, rhs));
+                builder.trace_push(DslIr::AssertNeV(lhs, rhs));
             }
             (SymbolicVar::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeV(lhs, rhs_value));
+                builder.trace_push(DslIr::AssertNeV(lhs, rhs_value));
             }
             (lhs, rhs) => {
                 let lhs_value = Self::uninit(builder);
                 lhs_value.assign(lhs, builder);
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeV(lhs_value, rhs_value));
+                builder.trace_push(DslIr::AssertNeV(lhs_value, rhs_value));
             }
         }
     }
@@ -766,30 +766,30 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
             (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertEqFI(rhs, lhs));
+                builder.trace_push(DslIr::AssertEqFI(rhs, lhs));
             }
             (SymbolicFelt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqFI(rhs_value, lhs));
+                builder.trace_push(DslIr::AssertEqFI(rhs_value, lhs));
             }
             (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
-                builder.push(DslIr::AssertEqFI(lhs, rhs));
+                builder.trace_push(DslIr::AssertEqFI(lhs, rhs));
             }
             (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertEqF(lhs, rhs));
+                builder.trace_push(DslIr::AssertEqF(lhs, rhs));
             }
             (SymbolicFelt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqF(lhs, rhs_value));
+                builder.trace_push(DslIr::AssertEqF(lhs, rhs_value));
             }
             (lhs, rhs) => {
                 let lhs_value = Self::uninit(builder);
                 lhs_value.assign(lhs, builder);
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqF(lhs_value, rhs_value));
+                builder.trace_push(DslIr::AssertEqF(lhs_value, rhs_value));
             }
         }
     }
@@ -807,30 +807,30 @@ impl<C: Config> Variable<C> for Felt<C::F> {
                 assert_ne!(lhs, rhs, "Assertion failed at compile time");
             }
             (SymbolicFelt::Const(lhs, _), SymbolicFelt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertNeFI(rhs, lhs));
+                builder.trace_push(DslIr::AssertNeFI(rhs, lhs));
             }
             (SymbolicFelt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeFI(rhs_value, lhs));
+                builder.trace_push(DslIr::AssertNeFI(rhs_value, lhs));
             }
             (SymbolicFelt::Val(lhs, _), SymbolicFelt::Const(rhs, _)) => {
-                builder.push(DslIr::AssertNeFI(lhs, rhs));
+                builder.trace_push(DslIr::AssertNeFI(lhs, rhs));
             }
             (SymbolicFelt::Val(lhs, _), SymbolicFelt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertNeF(lhs, rhs));
+                builder.trace_push(DslIr::AssertNeF(lhs, rhs));
             }
             (SymbolicFelt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeF(lhs, rhs_value));
+                builder.trace_push(DslIr::AssertNeF(lhs, rhs_value));
             }
             (lhs, rhs) => {
                 let lhs_value = Self::uninit(builder);
                 lhs_value.assign(lhs, builder);
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeF(lhs_value, rhs_value));
+                builder.trace_push(DslIr::AssertNeF(lhs_value, rhs_value));
             }
         }
     }
@@ -1161,30 +1161,30 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 assert_eq!(lhs, rhs, "Assertion failed at compile time");
             }
             (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertEqEI(rhs, lhs));
+                builder.trace_push(DslIr::AssertEqEI(rhs, lhs));
             }
             (SymbolicExt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqEI(rhs_value, lhs));
+                builder.trace_push(DslIr::AssertEqEI(rhs_value, lhs));
             }
             (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
-                builder.push(DslIr::AssertEqEI(lhs, rhs));
+                builder.trace_push(DslIr::AssertEqEI(lhs, rhs));
             }
             (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertEqE(lhs, rhs));
+                builder.trace_push(DslIr::AssertEqE(lhs, rhs));
             }
             (SymbolicExt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqE(lhs, rhs_value));
+                builder.trace_push(DslIr::AssertEqE(lhs, rhs_value));
             }
             (lhs, rhs) => {
                 let lhs_value = Self::uninit(builder);
                 lhs_value.assign(lhs, builder);
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertEqE(lhs_value, rhs_value));
+                builder.trace_push(DslIr::AssertEqE(lhs_value, rhs_value));
             }
         }
     }
@@ -1202,30 +1202,30 @@ impl<C: Config> Variable<C> for Ext<C::F, C::EF> {
                 assert_ne!(lhs, rhs, "Assertion failed at compile time");
             }
             (SymbolicExt::Const(lhs, _), SymbolicExt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertNeEI(rhs, lhs));
+                builder.trace_push(DslIr::AssertNeEI(rhs, lhs));
             }
             (SymbolicExt::Const(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeEI(rhs_value, lhs));
+                builder.trace_push(DslIr::AssertNeEI(rhs_value, lhs));
             }
             (SymbolicExt::Val(lhs, _), SymbolicExt::Const(rhs, _)) => {
-                builder.push(DslIr::AssertNeEI(lhs, rhs));
+                builder.trace_push(DslIr::AssertNeEI(lhs, rhs));
             }
             (SymbolicExt::Val(lhs, _), SymbolicExt::Val(rhs, _)) => {
-                builder.push(DslIr::AssertNeE(lhs, rhs));
+                builder.trace_push(DslIr::AssertNeE(lhs, rhs));
             }
             (SymbolicExt::Val(lhs, _), rhs) => {
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeE(lhs, rhs_value));
+                builder.trace_push(DslIr::AssertNeE(lhs, rhs_value));
             }
             (lhs, rhs) => {
                 let lhs_value = Self::uninit(builder);
                 lhs_value.assign(lhs, builder);
                 let rhs_value = Self::uninit(builder);
                 rhs_value.assign(rhs, builder);
-                builder.push(DslIr::AssertNeE(lhs_value, rhs_value));
+                builder.trace_push(DslIr::AssertNeE(lhs_value, rhs_value));
             }
         }
     }

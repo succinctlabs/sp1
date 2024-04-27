@@ -16,7 +16,7 @@ pub mod witness;
 
 pub const SPONGE_SIZE: usize = 3;
 pub const DIGEST_SIZE: usize = 1;
-pub const RATE: usize = 14;
+pub const RATE: usize = 16;
 
 #[cfg(test)]
 mod tests {
