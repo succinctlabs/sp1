@@ -157,7 +157,7 @@ impl SP1Prover {
         let vk = SP1VerifyingKey { vk };
         let pk = SP1ProvingKey {
             pk,
-            program,
+            elf: elf.to_vec(),
             vk: vk.clone(),
         };
         (pk, vk)
@@ -199,7 +199,8 @@ impl SP1Prover {
     #[instrument(name = "prove_core", level = "info", skip_all)]
     pub fn prove_core(&self, pk: &SP1ProvingKey, stdin: &SP1Stdin) -> SP1CoreProof {
         let config = CoreSC::default();
-        let (proof, public_values_stream) = run_and_prove(pk.program.clone(), stdin, config);
+        let program = Program::from(&pk.elf);
+        let (proof, public_values_stream) = run_and_prove(program, stdin, config);
         let public_values = SP1PublicValues::from(&public_values_stream);
         SP1CoreProof {
             shard_proofs: proof.shard_proofs,
