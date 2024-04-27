@@ -14,14 +14,15 @@ fn main() {
     stdin.write(&san);
 
     let client = ProverClient::new();
-    let mut proof = client.prove(ELF, stdin).unwrap();
+    let (pk, vk) = client.setup(ELF);
+    let mut proof = client.prove(&pk, stdin).unwrap();
 
     // Read output.
     let is_valid_move = proof.public_values.read::<bool>();
     println!("is_valid_move: {}", is_valid_move);
 
     // Verify proof.
-    client.verify(ELF, &proof).expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save proof.
     proof

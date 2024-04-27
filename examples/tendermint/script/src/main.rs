@@ -61,7 +61,8 @@ fn main() {
     // let decoded: LightBlock = bincode::deserialize(&encoded[..]).unwrap();
 
     let client = ProverClient::new();
-    let proof = client.prove(TENDERMINT_ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(TENDERMINT_ELF);
+        let proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Verify proof.
     client

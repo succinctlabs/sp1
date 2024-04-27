@@ -10,7 +10,8 @@ fn main() {
     let n = 186u32;
     stdin.write(&n);
     let client = ProverClient::new();
-    let mut proof = client.prove(ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(ELF);
+    let mut proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Read output.
     let a = proof.public_values.read::<u128>();
@@ -19,7 +20,7 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof.
-    client.verify(ELF, &proof).expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save proof.
     proof

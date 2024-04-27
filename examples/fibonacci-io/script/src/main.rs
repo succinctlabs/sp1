@@ -20,7 +20,8 @@ fn main() {
 
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
-    let mut proof = client.prove(ELF, stdin).unwrap();
+    let (pk, vk) = client.setup(ELF);
+    let mut proof = client.prove(&pk, stdin).unwrap();
 
     println!("generated proof");
 
@@ -35,7 +36,7 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof and public values
-    client.verify(ELF, &proof).expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof
