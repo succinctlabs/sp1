@@ -25,7 +25,7 @@ use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::AbstractField;
-use sp1_core::air::{PublicValues, SP1_PROOF_NUM_PV_ELTS, WORD_SIZE};
+use sp1_core::air::{MachineAir, PublicValues, SP1_PROOF_NUM_PV_ELTS, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
@@ -80,6 +80,10 @@ impl ReduceProgram {
         let core_machine = RiscvAir::machine(BabyBearPoseidon2::default());
         let reduce_machine = RecursionAirWideDeg3::machine(BabyBearPoseidon2::default());
         let compress_machine = RecursionAirSkinnyDeg7::machine(BabyBearPoseidon2::compressed());
+
+        compress_machine.chips().iter().for_each(|chip| {
+            println!("{}, {}", chip.name(), chip.log_quotient_degree());
+        });
 
         // Initialize the builder.
         let mut builder = AsmBuilder::<F, EF>::default();
@@ -474,6 +478,7 @@ impl ReduceProgram {
 
                     builder.if_eq(is_compressed, BabyBear::one()).then_or_else(
                         |builder| {
+                            builder.print_debug(100);
                             StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                                 builder,
                                 &compress_vk,
@@ -488,6 +493,7 @@ impl ReduceProgram {
                             );
                         },
                         |builder| {
+                            builder.print_debug(101);
                             StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
                                 builder,
                                 &reduce_vk,

@@ -21,6 +21,7 @@ use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
+use sp1_recursion_program::types::QuotientDataValues;
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
 use crate::types::TwoAdicPcsMatsVariable;
@@ -46,6 +47,7 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
         proof: &RecursionShardProofVariable<C>,
+        chip_quotient_data: Vec<QuotientDataValues>,
         sorted_chips: Vec<String>,
         sorted_indices: Vec<usize>,
     ) where
@@ -82,8 +84,6 @@ where
         let num_shard_chips = opened_values.chips.len();
         let mut trace_domains = Vec::new();
         let mut quotient_domains = Vec::new();
-
-        let log_quotient_degree_val = 1;
 
         let mut prep_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
         let mut main_mats: Vec<TwoAdicPcsMatsVariable<_>> = Vec::new();
@@ -124,10 +124,11 @@ where
 
         for i in 0..num_shard_chips {
             let opening = &opened_values.chips[i];
+            let log_quotient_degree = chip_quotient_data[i].log_quotient_degree;
             let domain = new_coset(builder, opening.log_degree);
             trace_domains.push(domain.clone());
 
-            let log_quotient_size = opening.log_degree + log_quotient_degree_val;
+            let log_quotient_size = opening.log_degree + log_quotient_degree;
             let quotient_domain =
                 domain.create_disjoint_domain(builder, Usize::Const(log_quotient_size), None);
             quotient_domains.push(quotient_domain.clone());
@@ -162,7 +163,7 @@ where
             };
             perm_mats.push(perm_mat);
 
-            let qc_domains = quotient_domain.split_domains_const(builder, log_quotient_degree_val);
+            let qc_domains = quotient_domain.split_domains_const(builder, log_quotient_degree);
             for (j, qc_dom) in qc_domains.into_iter().enumerate() {
                 let qc_vals_array = opening.quotient[j].clone();
                 let qc_values = vec![qc_vals_array];
@@ -267,6 +268,17 @@ pub fn build_wrap_circuit(
         })
         .collect::<Vec<_>>();
 
+    let chip_quotient_data = outer_machine
+        .shard_chips_ordered(&dummy_proof.chip_ordering)
+        .map(|chip| {
+            let log_quotient_degree = chip.log_quotient_degree();
+            QuotientDataValues {
+                log_quotient_degree,
+                quotient_size: 1 << log_quotient_degree,
+            }
+        })
+        .collect();
+
     let mut witness = Witness::default();
     dummy_proof.write(&mut witness);
     let proof = dummy_proof.read(&mut builder);
@@ -285,6 +297,7 @@ pub fn build_wrap_circuit(
         &outer_machine,
         &mut challenger.clone(),
         &proof,
+        chip_quotient_data,
         chips,
         sorted_indices,
     );

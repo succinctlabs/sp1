@@ -57,6 +57,7 @@ pub fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
     machine: &StarkMachine<SC, A>,
     proof: &ShardProof<SC>,
 ) -> Vec<usize> {
+    println!("{:?}", proof.chip_ordering);
     machine
         .chips_sorted_indices(proof)
         .into_iter()
