@@ -1,0 +1,12 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "groth16-program"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../../zkvm/entrypoint" }
+ark-crypto-primitives = { version = "=0.4.0" }
+ark-groth16 = { version = "=0.4.0", default-features = false, features = ["parallel"] }
+ark-bn254 = { version = "=0.4.0" }
+lib = { path = "../lib" }

@@ -1,0 +1,19 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "groth16-script"
+edition = "2021"
+
+[dependencies]
+sp1-sdk = { path = "../../../sdk" }
+ark-circom = { git = "https://github.com/0xturboblitz/circom-compat.git" }
+ark-std = { version = "=0.4.0", default-features = false, features = ["parallel"] }
+ark-bn254 = { version = "=0.4.0" }
+ark-crypto-primitives = { version = "=0.4.0" }
+ark-groth16 = { version = "=0.4.0", default-features = false, features = [
+    "parallel",
+] }
+lib = { path = "../lib" }
+
+[build-dependencies]
+sp1-helper = { path = "../../../helper" }
