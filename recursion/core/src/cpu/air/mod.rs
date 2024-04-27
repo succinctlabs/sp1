@@ -34,27 +34,32 @@ where
 
         self.eval_alu(builder, local);
 
-        // Expression for the expected next_pc.  This will be added to in `eval_branch` and `eval_jump`
-        // to account for possible jumps and branches.
-        let mut next_pc = zero;
+        {
+            // Expression for the expected next_pc.  This will be added to in `eval_branch` and `eval_jump`
+            // to account for possible jumps and branches.
+            let mut next_pc = zero;
 
-        self.eval_branch(builder, local, &mut next_pc);
+            // Eval all the branch instructions and add to the `next_pc` expression.
+            self.eval_branch(builder, local, &mut next_pc);
 
-        self.eval_jump(builder, local, next, &mut next_pc);
+            // Eval all the jump instructions and add to the `next_pc` expression.  It will also
+            // verify fp column.
+            self.eval_jump(builder, local, next, &mut next_pc);
 
-        // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
-        let not_branch_or_jump = one.clone()
-            - self.is_branch_instruction::<AB>(local)
-            - self.is_jump_instruction::<AB>(local);
-        next_pc += not_branch_or_jump.clone() * (local.pc + one);
+            // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
+            let not_branch_or_jump = one.clone()
+                - self.is_branch_instruction::<AB>(local)
+                - self.is_jump_instruction::<AB>(local);
+            next_pc += not_branch_or_jump.clone() * (local.pc + one);
 
-        // Verify next row's pc is correct.
-        builder
-            .when_transition()
-            .when(next.is_real)
-            .assert_eq(next_pc, next.pc);
+            // Verify next row's pc is correct.
+            builder
+                .when_transition()
+                .when(next.is_real)
+                .assert_eq(next_pc, next.pc);
+        }
 
-        // // Increment clk by 4 every cycle.
+        // Increment clk by 4 every cycle.
         // builder
         //     .when_transition()
         //     .when(next.is_real)
@@ -103,6 +108,14 @@ impl<F: Field> CpuChip<F> {
         AB: SP1RecursionAirBuilder<F = F>,
     {
         local.selectors.is_jal + local.selectors.is_jalr
+    }
+
+    /// Expr to check for memory instructions.
+    pub fn is_memory_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_load + local.selectors.is_store
     }
 
     /// Expr to check for instructions that only read from operand `a`.

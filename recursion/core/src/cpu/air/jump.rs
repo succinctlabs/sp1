@@ -5,6 +5,7 @@ use crate::{
     air::SP1RecursionAirBuilder,
     cpu::{CpuChip, CpuCols},
     memory::MemoryCols,
+    runtime::STACK_SIZE,
 };
 
 impl<F: Field> CpuChip<F> {
@@ -19,6 +20,9 @@ impl<F: Field> CpuChip<F> {
         AB: SP1RecursionAirBuilder<F = F>,
     {
         // Verify the next row's fp.
+        builder
+            .when_first_row()
+            .assert_eq(local.fp, F::from_canonical_usize(STACK_SIZE));
         let not_jump_instruction = AB::Expr::one() - self.is_jump_instruction::<AB>(local);
         let expected_next_fp = local.selectors.is_jal * (local.fp + local.c.value()[0])
             + local.selectors.is_jalr * local.a.value()[0]
