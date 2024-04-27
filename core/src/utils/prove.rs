@@ -67,7 +67,7 @@ pub fn run_test_core(
     {
         let mut challenger_clone = machine.config().challenger();
         let record_clone = runtime.record.clone();
-        debug_constraints(&pk, record_clone, &mut challenger_clone);
+        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
     }
     let start = Instant::now();
     let mut challenger = machine.config().challenger();

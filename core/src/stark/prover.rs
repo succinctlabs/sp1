@@ -16,7 +16,6 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
-use web_time::Instant;
 
 use super::{quotient_values, PcsProverData, StarkMachine, Val};
 use super::{types::*, StarkGenericConfig};
