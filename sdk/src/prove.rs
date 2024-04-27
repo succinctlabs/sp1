@@ -128,7 +128,7 @@ impl Prover for LocalProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
-        let proof = self.prover.prove_core(&pk, &stdin);
+        let proof = self.prover.prove_core(pk, &stdin);
         Ok(SP1ProofWithMetadata {
             proof: proof.shard_proofs,
             stdin: proof.stdin,
@@ -137,7 +137,7 @@ impl Prover for LocalProver {
     }
 
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        let proof = self.prover.prove_core(&pk, &stdin);
+        let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
@@ -150,7 +150,7 @@ impl Prover for LocalProver {
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         let artifacts_dir = self.get_artifacts_dir();
-        let proof = self.prover.prove_core(&pk, &stdin);
+        let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
@@ -165,7 +165,7 @@ impl Prover for LocalProver {
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         let artifacts_dir = self.get_artifacts_dir();
-        let proof = self.prover.prove_core(&pk, &stdin);
+        let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
@@ -220,6 +220,12 @@ pub enum MockProofCode {
 }
 
 pub type MockProof = [u8; 32];
+
+impl Default for MockProver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl MockProver {
     pub fn new() -> Self {
