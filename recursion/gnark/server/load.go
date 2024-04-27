@@ -55,6 +55,7 @@ func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circu
 }
 
 // DownloadCircuit downloads the R1CS and proving key and loads them into memory.
+// TODO: split this function into two functions, one for downloading and one for loading.
 func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
 	// Setup AWS S3 downloader.
 	awsConfig, err := config.LoadDefaultConfig(ctx)
@@ -89,8 +90,8 @@ func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, c
 	tarReader := tar.NewReader(gzipReader)
 
 	// Create file paths in dataDir
-	r1csFilePath := fmt.Sprintf("%s/circuit_%s.bin", dataDir, circuitType)
-	pkFilePath := fmt.Sprintf("%s/pk_%s.bin", dataDir, circuitType)
+	r1csFilePath := fmt.Sprintf("build/circuit_%s.bin", circuitType)
+	pkFilePath := fmt.Sprintf("build/pk_%s.bin", circuitType)
 
 	// Create files in dataDir
 	r1csFile, err := os.Create(r1csFilePath)
@@ -176,7 +177,7 @@ func downloadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, c
 	return r1cs, pk, nil
 }
 
-// Check if a file exists.
+// Helper function to check if a file exists.
 func fileExists(filePath string) bool {
 	_, err := os.Stat(filePath)
 	return !os.IsNotExist(err)

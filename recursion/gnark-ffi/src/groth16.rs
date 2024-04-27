@@ -64,7 +64,7 @@ impl Groth16Prover {
                     "--type",
                     "groth16",
                     "--version",
-                    "2",
+                    "1",
                     "--port",
                     &port,
                 ])
@@ -77,7 +77,7 @@ impl Groth16Prover {
 
             loop {
                 if cancel_receiver.try_recv().is_ok() {
-                    child.kill().unwrap(); // Cancel the child process if needed
+                    child.kill().unwrap();
                     break;
                 }
 
