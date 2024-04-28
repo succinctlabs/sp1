@@ -747,7 +747,7 @@ dependencies = [
 [[package]]
 name = "sp1-precompiles"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1.git#0add69ba434d6624caf7d9b4ff6f92af95556de2"
+source = "git+https://github.com/succinctlabs/sp1.git#7ce13033a0557f964cd349393d367aa1bcf8fbe7"
 dependencies = [
  "anyhow",
  "bincode",
@@ -764,7 +764,7 @@ dependencies = [
 [[package]]
 name = "sp1-primitives"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1.git#0add69ba434d6624caf7d9b4ff6f92af95556de2"
+source = "git+https://github.com/succinctlabs/sp1.git#7ce13033a0557f964cd349393d367aa1bcf8fbe7"
 dependencies = [
  "itertools",
  "lazy_static",
@@ -777,7 +777,7 @@ dependencies = [
 [[package]]
 name = "sp1-zkvm"
 version = "0.1.0"
-source = "git+https://github.com/succinctlabs/sp1.git#0add69ba434d6624caf7d9b4ff6f92af95556de2"
+source = "git+https://github.com/succinctlabs/sp1.git#7ce13033a0557f964cd349393d367aa1bcf8fbe7"
 dependencies = [
  "bincode",
  "cfg-if",

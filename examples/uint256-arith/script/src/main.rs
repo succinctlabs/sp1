@@ -9,14 +9,11 @@ fn main() {
     let stdin = SP1Stdin::new();
 
     let client = ProverClient::new();
-    let proof = client
-        .prove(UINT256_ARITHMETIC_ELF, stdin)
-        .expect("proving failed");
+    let (pk, vk) = client.setup(UINT256_ARITHMETIC_ELF);
+    let proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Verify proof.
-    client
-        .verify(UINT256_ARITHMETIC_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save proof.
     proof

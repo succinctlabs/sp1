@@ -4,7 +4,6 @@ use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     io::{SP1PublicValues, SP1Stdin},
-    runtime::Program,
     stark::{ShardProof, StarkGenericConfig, StarkProvingKey, StarkVerifyingKey, Val},
     utils::DIGEST_SIZE,
 };
@@ -16,7 +15,7 @@ use crate::{CoreSC, InnerSC};
 /// The information necessary to generate a proof for a given RISC-V program.
 pub struct SP1ProvingKey {
     pub pk: StarkProvingKey<CoreSC>,
-    pub program: Program,
+    pub elf: Vec<u8>,
     /// Verifying key is also included as we need it for recursion
     pub vk: SP1VerifyingKey,
 }

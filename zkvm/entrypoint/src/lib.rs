@@ -32,24 +32,38 @@ macro_rules! entrypoint {
 #[cfg(all(target_os = "zkvm", feature = "libm"))]
 mod libm;
 
+/// The number of 32 bit words that the public values digest is composed of.
+pub const PV_DIGEST_NUM_WORDS: usize = 8;
+pub const POSEIDON_NUM_WORDS: usize = 8;
+
 #[cfg(target_os = "zkvm")]
 mod zkvm {
     use crate::syscalls::syscall_halt;
 
+    use cfg_if::cfg_if;
     use getrandom::{register_custom_getrandom, Error};
-    use p3_baby_bear::BabyBear;
-    use p3_field::AbstractField;
     use sha2::{Digest, Sha256};
 
+    cfg_if! {
+        if #[cfg(feature = "verify")] {
+            use p3_baby_bear::BabyBear;
+            use p3_field::AbstractField;
+
+            pub static mut DEFERRED_PROOFS_DIGEST: Option<[BabyBear; 8]> = None;
+        }
+    }
+
     pub static mut PUBLIC_VALUES_HASHER: Option<Sha256> = None;
-    pub static mut DEFERRED_PROOFS_DIGEST: Option<[BabyBear; 8]> = None;
 
     #[cfg(not(feature = "interface"))]
     #[no_mangle]
     unsafe extern "C" fn __start() {
         {
             PUBLIC_VALUES_HASHER = Some(Sha256::new());
-            DEFERRED_PROOFS_DIGEST = Some([BabyBear::zero(); 8]);
+            #[cfg(feature = "verify")]
+            {
+                DEFERRED_PROOFS_DIGEST = Some([BabyBear::zero(); 8]);
+            }
 
             extern "C" {
                 fn main();
