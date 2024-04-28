@@ -14,7 +14,6 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
-use tracing::instrument;
 
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -141,7 +140,6 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
         "EdAddAssign".to_string()
     }
 
-    #[instrument(name = "generate ed add trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

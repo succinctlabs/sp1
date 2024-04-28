@@ -9,6 +9,7 @@ use tracing_subscriber::{EnvFilter, Registry};
 /// A tracer to benchmark the performance of the vm.
 ///
 /// Set the `RUST_TRACER` environment variable to be set to `info` or `debug`.
+/// ! DEPRECATED: don't use this function, use `setup_logger` instead.
 pub fn setup_tracer() {
     let tracer_config = env::var("RUST_TRACER").unwrap_or_else(|_| "none".to_string());
     let mut env_filter = EnvFilter::builder()
