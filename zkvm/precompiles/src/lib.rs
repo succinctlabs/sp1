@@ -26,7 +26,7 @@ extern "C" {
     pub fn syscall_bls12381_add(p: *mut u32, q: *const u32);
     pub fn syscall_bls12381_double(p: *mut u32);
     pub fn syscall_keccak_permute(state: *mut u64);
-    pub fn syscall_uint256_mul(x: *mut u32, y: *const u32);
+    pub fn syscall_uint256_mul(x: *mut u32, y: *const u32, modulus: *const u32);
     pub fn syscall_blake3_compress_inner(p: *mut u32, q: *const u32);
     pub fn syscall_enter_unconstrained() -> bool;
     pub fn syscall_exit_unconstrained();

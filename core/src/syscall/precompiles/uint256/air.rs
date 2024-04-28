@@ -45,8 +45,11 @@ pub struct Uint256MulEvent {
     pub x: [u32; NUM_PHYSICAL_WORDS],
     pub y_ptr: u32,
     pub y: [u32; NUM_PHYSICAL_WORDS],
+    pub modulus_ptr: u32,
+    pub modulus: [u32; NUM_PHYSICAL_WORDS],
     pub x_memory_records: [MemoryWriteRecord; NUM_PHYSICAL_WORDS],
     pub y_memory_records: [MemoryReadRecord; NUM_PHYSICAL_WORDS],
+    pub modulus_memory_records: [MemoryReadRecord; NUM_PHYSICAL_WORDS],
 }
 
 #[derive(Default)]
@@ -71,12 +74,16 @@ pub struct Uint256MulCols<T> {
     /// The pointer to the first input.
     pub x_ptr: T,
 
-    /// The pointer to the second input..
+    /// The pointer to the second input.
     pub y_ptr: T,
+
+    // The pointer to the modulus.
+    pub modulus_ptr: T,
 
     // Memory columns.
     pub x_memory: [MemoryWriteCols<T>; NUM_PHYSICAL_WORDS],
     pub y_memory: [MemoryReadCols<T>; NUM_PHYSICAL_WORDS],
+    pub modulus_memory: [MemoryReadCols<T>; NUM_PHYSICAL_WORDS],
 
     // Output values.
     pub output: FieldOpCols<T, U256Field>,
@@ -115,14 +122,13 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
                         let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
 
-                        // // Assign basic values to the columns.
-                        // {
+                        // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
-                        // }
+                        cols.modulus_ptr = F::from_canonical_u32(event.modulus_ptr);
 
                         // Memory columns.
                         {
@@ -136,6 +142,11 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                                 // Populate the input_y columns.
                                 cols.y_memory[i].populate(
                                     event.y_memory_records[i],
+                                    &mut new_byte_lookup_events,
+                                );
+                                // Populate the modulus columns.
+                                cols.modulus_memory[i].populate(
+                                    event.modulus_memory_records[i],
                                     &mut new_byte_lookup_events,
                                 );
                             }
@@ -200,25 +211,30 @@ impl Syscall for Uint256MulChip {
             panic!();
         }
 
+        // We first read x from memory, but we will write to it later so we can use `slice_unsafe`.
         let x: [u32; 8] = rt.slice_unsafe(x_ptr, 8).try_into().unwrap();
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, 8);
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
         let y: [u32; 8] = y_vec.try_into().unwrap();
 
+        let (modulus_memory_records_vec, modulus_vec) = rt.mr_slice(modulus_ptr, 8);
+        let modulus_memory_records = modulus_memory_records_vec.try_into().unwrap();
+        let modulus: [u32; 8] = modulus_vec.try_into().unwrap();
+
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&x));
         let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&y));
 
-        // // Create a mask for the 256 bit number.
+        // Create a mask for the 256 bit number.
         let mask = BigUint::one() << 256;
 
-        // // Perform the multiplication and take the result modulo the mask.
+        // Perform the multiplication and take the result modulo the mask.
         let result: BigUint = (uint256_x * uint256_y) % mask;
 
         let mut result_bytes = result.to_bytes_le();
         result_bytes.resize(32, 0u8);
 
-        // // Convert the result to low endian u32 words.
+        // Convert the result to low endian u32 words.
         let result = bytes_to_words_le::<8>(&result_bytes);
 
         // write the state
@@ -234,6 +250,7 @@ impl Syscall for Uint256MulChip {
             x,
             y_ptr,
             y,
+            modulus_ptr: 0,
             x_memory_records,
             y_memory_records,
         });

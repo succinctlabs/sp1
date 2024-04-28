@@ -381,38 +381,49 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         let clk: Self::Expr = clk.into();
         let mem_access = memory_access.access();
 
+        // Send to the memory table.
         self.assert_bool(do_check.clone());
 
-        // Verify that the current memory access time is greater than the previous's.
-        self.eval_memory_access_timestamp(mem_access, do_check.clone(), shard.clone(), clk.clone());
-
-        // Add to the memory argument.
-        let addr = addr.into();
-        let prev_shard = mem_access.prev_shard.clone().into();
-        let prev_clk = mem_access.prev_clk.clone().into();
-        let prev_values = once(prev_shard)
-            .chain(once(prev_clk))
-            .chain(once(addr.clone()))
-            .chain(memory_access.prev_value().clone().map(Into::into))
-            .collect();
-        let current_values = once(shard)
-            .chain(once(clk))
-            .chain(once(addr.clone()))
-            .chain(memory_access.value().clone().map(Into::into))
-            .collect();
-
-        // The previous values get sent with multiplicity * 1, for "read".
         self.send(AirInteraction::new(
-            prev_values,
+            vec![
+                shard.clone(),
+                clk.clone(),
+                addr.clone(),
+                mem_access.value.clone().into(),
+                mem_access.prev_value(),
+            ],
             do_check.clone(),
-            InteractionKind::Memory,
+            InteractionKind::MemoryLocal,
         ));
+    }
 
-        // The current values get "received", i.e. multiplicity = -1
-        self.receive(AirInteraction::new(
-            current_values,
+    fn eval_memory_table<E: Into<Self::Expr> + Clone>(
+        &mut self,
+        shard: impl Into<Self::Expr>,
+        clk: impl Into<Self::Expr>,
+        addr: impl Into<Self::Expr>,
+        memory_access: &impl MemoryCols<E>,
+        do_check: impl Into<Self::Expr>,
+    ) {
+        let do_check: Self::Expr = do_check.into();
+        let shard: Self::Expr = shard.into();
+        let clk: Self::Expr = clk.into();
+        let mem_access = memory_access.access();
+
+        // Send to the memory table.
+
+        self.assert_bool(do_check.clone());
+
+        self.send(AirInteraction::new(
+            vec![
+                shard.clone(),
+                clk.clone(),
+                addr.clone(),
+                mem_access.value.clone().into(),
+                mem_access.prev_value(),
+            ],
             do_check.clone(),
-            InteractionKind::Memory,
+            InteractionKind::MemoryLocal,
         ));
     }
 

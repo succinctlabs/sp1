@@ -15,6 +15,8 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
     cfg_if::cfg_if! {
         if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
             let dividend = BigUint::from_bytes_le(x);
+            let mut modulus: [u8;32] = [0; 32];
+            modulus[31] = 1;
 
             unconstrained!{
                 let divisor = BigUint::from_bytes_le(y);
@@ -38,7 +40,7 @@ pub fn uint256_div(x: &mut [u8; 32], y: &[u8; 32]) -> [u8; 32] {
             *x = quotient_bytes;
 
             unsafe {
-                syscall_uint256_mul(quotient_bytes.as_mut_ptr() as *mut u32, y.as_ptr() as *const u32);
+                syscall_uint256_mul(quotient_bytes.as_mut_ptr() as *mut u32, y.as_ptr() as *const u32, modulus.as_ptr() as *const u32);
             }
 
             let quotient_times_divisor = BigUint::from_bytes_le(&quotient_bytes);
