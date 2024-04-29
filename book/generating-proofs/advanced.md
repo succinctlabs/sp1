@@ -6,56 +6,17 @@ We recommend that during development of large programs (> 1 million cycles) that
 Instead, you should have your script only execute the program with the RISC-V runtime and read `public_values`. Here is an example:
 
 ```rust,noplayground
-use sp1_sdk::{ProverClient, SP1Stdin};
-
-// The ELF file with the RISC-V bytecode of the program from above.
-const ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkvm-elf");
-
-fn main() {
-    let mut stdin = SP1Stdin::new();
-    let n = 5000u32;
-    stdin.write(&n);
-    let client = ProverClient::new();
-    let mut public_values = client.execute(ELF, stdin).expect("execution failed");
-    let a = public_values.read::<u32>();
-    let b = public_values.read::<u32>();
-
-    // Print the program's outputs in our script.
-    println!("a: {}", a);
-    println!("b: {}", b);
-    println!("successfully executed the program!")
-}
+{{#include ../../examples/fibonacci-io/script/bin/execute.rs}}
 ```
 
 If execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
 
-## Performance
+## Compressed Proofs
 
-For maximal performance, you should run proof generation with the following command and vary your `shard_size` depending on your program's number of cycles.
-
-```rust,noplayground
-SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
-```
-
-You can also use the `SAVE_DISK_THRESHOLD` env variable to control whether shards are saved to disk or not.
-This is useful for controlling memory usage.
+With the `ProverClient`, the default `prove` function generates a proof that is succinct, but can have size that scales with the number of cycles of the program. To generate a compressed proof of constant size, you can use the `prove_compressed` function instead. This will use STARK recursion to generate a proof that is constant size (around 7Kb), but will be slower than just calling `prove`, as it will use recursion to combine the core SP1 proof into a single constant-sized proof.
 
 ```rust,noplayground
-SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
-```
-
-#### Blake3 on ARM machines
-
-Blake3 on ARM machines requires using the `neon` feature of `sp1-core`. For examples in the sp1-core repo, you can use:
-
-```rust,noplayground
-SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release --features neon
-```
-
-Otherwise, make sure to include the "neon" feature when importing `sp1-zkvm` in your `Cargo.toml`:
-
-```toml,noplayground
-sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", features = [ "neon" ] }
+{{#include ../../examples/fibonacci-io/script/bin/compressed.rs}}
 ```
 
 ## Logging and Tracing Information
@@ -74,11 +35,27 @@ You must run your command with:
 RUST_LOG=info cargo run --release
 ```
 
-
 **Tracing:**
 
 To enable tracing information, which provides more detailed timing information, you can use the following environment variable: # TODO
 
 ```bash
 RUST_TRACER=info cargo run --release
+```
+
+## AVX-512 Acceleration
+
+## Performance
+
+For maximal performance, you should run proof generation with the following command and vary your `shard_size` depending on your program's number of cycles.
+
+```rust,noplayground
+SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
+```
+
+You can also use the `SAVE_DISK_THRESHOLD` env variable to control whether shards are saved to disk or not.
+This is useful for controlling memory usage.
+
+```rust,noplayground
+SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```

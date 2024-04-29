@@ -1,0 +1,53 @@
+{
+    "jsonrpc": "2.0",
+    "id": -1,
+    "result": {
+        "signed_header": {
+            "header": {
+                "version": {
+                    "block": "11",
+                    "app": "1"
+                },
+                "chain_id": "mocha-4",
+                "height": "5",
+                "time": "2023-09-06T04:55:46.17235145Z",
+                "last_block_id": {
+                    "hash": "7AF4A485BC82ECFD17101F0806EFE400E0579485621558561FB7905C80942620",
+                    "parts": {
+                        "total": 1,
+                        "hash": "D05AA31F6F6DBFAE1F3AE94EB6E30A051C4FEE62AAACAF2AA8BBAAEB60AA897B"
+                    }
+                },
+                "last_commit_hash": "FBBD710A0CC8C2FD4E6903A7501E07021A81F08493E7F01079B0FE947EFA6152",
+                "data_hash": "3D96B7D238E7E0456F6AF8E7CDF0A67BD6CF9C2089ECB559C659DCAA1F880353",
+                "validators_hash": "F2503B99B4525B920D13AA20C974C0536A5C30CCDD62F5B7F4F00D0D02921E08",
+                "next_validators_hash": "F2503B99B4525B920D13AA20C974C0536A5C30CCDD62F5B7F4F00D0D02921E08",
+                "consensus_hash": "C0B6A634B72AE9687EA53B6D277A73ABA1386BA3CFC6D0F26963602F7F6FFCD6",
+                "app_hash": "09B67FE1A5BBB0FA0898CABA78546F2A2333B16B53EA07D1A8FAF457F7E53480",
+                "last_results_hash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                "evidence_hash": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+                "proposer_address": "7619BFC85B72E319BF414A784D4DE40EE9B92C16"
+            },
+            "commit": {
+                "height": "5",
+                "round": 0,
+                "block_id": {
+                    "hash": "D947781E13F83F0DF257C34F5AC2CFF86C1E62713D079F9786EA37F4FBE119B5",
+                    "parts": {
+                        "total": 1,
+                        "hash": "85E8EC8E136D753C9D980D07C68F56845FCFE8644A931D5499B779C17D8D9953"
+                    }
+                },
+                "signatures": [
+                    {
+                        "block_id_flag": 2,
+                        "validator_address": "7619BFC85B72E319BF414A784D4DE40EE9B92C16",
+                        "timestamp": "2023-09-06T04:55:57.209067617Z",
+                        "signature": "EPuSTGftCv6I+uMe/5zCQWwjXMTMXnR/Nx+XMbTfmsYlqDctoleRSmn4t8TOpG6th13krC2PFpYm0hnM87lfBQ=="
+                    }
+                ]
+            }
+        },
+        "canonical": true
+    }
+}
