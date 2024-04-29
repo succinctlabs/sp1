@@ -5,7 +5,8 @@ use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use sp1_prover::{SP1CoreProof, SP1Stdin};
+use serde::de::DeserializeOwned;
+use sp1_prover::SP1Stdin;
 use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
 
@@ -13,7 +14,8 @@ use crate::proto::network::{
     ClaimProofRequest, ClaimProofResponse, CreateProofRequest, FulfillProofRequest,
     FulfillProofResponse, GetNonceRequest, GetProofRequestsRequest, GetProofRequestsResponse,
     GetProofStatusRequest, GetProofStatusResponse, GetRelayStatusRequest, GetRelayStatusResponse,
-    NetworkServiceClient, ProofStatus, RelayProofRequest, SubmitProofRequest, TransactionStatus,
+    NetworkServiceClient, ProofMode, ProofStatus, RelayProofRequest, SubmitProofRequest,
+    TransactionStatus,
 };
 
 /// The default RPC endpoint for the Succinct prover network.
@@ -89,10 +91,10 @@ impl NetworkClient {
     }
 
     // Get the status of a given proof. If the status is ProofFulfilled, the proof is also returned.
-    pub async fn get_proof_status(
+    pub async fn get_proof_status<P: DeserializeOwned>(
         &self,
         proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<SP1CoreProof>)> {
+    ) -> Result<(GetProofStatusResponse, Option<P>)> {
         let res = self
             .rpc
             .get_proof_status(GetProofStatusRequest {
@@ -163,7 +165,12 @@ impl NetworkClient {
     }
 
     /// Creates a proof request for the given ELF and stdin.
-    pub async fn create_proof(&self, elf: &[u8], stdin: &SP1Stdin) -> Result<String> {
+    pub async fn create_proof(
+        &self,
+        elf: &[u8],
+        stdin: &SP1Stdin,
+        mode: ProofMode,
+    ) -> Result<String> {
         let start = SystemTime::now();
         let since_the_epoch = start
             .duration_since(UNIX_EPOCH)
@@ -171,13 +178,17 @@ impl NetworkClient {
         let deadline = since_the_epoch.as_secs() + 1000;
 
         let nonce = self.get_nonce().await;
-        let create_proof_signature = self.auth.sign_create_proof_message(nonce, deadline).await?;
+        let create_proof_signature = self
+            .auth
+            .sign_create_proof_message(nonce, deadline, mode.into())
+            .await?;
         let res = self
             .rpc
             .create_proof(CreateProofRequest {
+                signature: create_proof_signature.to_vec(),
                 nonce,
                 deadline,
-                signature: create_proof_signature.to_vec(),
+                mode: mode.into(),
             })
             .await?;
 
@@ -197,9 +208,9 @@ impl NetworkClient {
             .await?;
         self.rpc
             .submit_proof(SubmitProofRequest {
+                signature: submit_proof_signature.to_vec(),
                 nonce,
                 proof_id: res.proof_id.clone(),
-                signature: submit_proof_signature.to_vec(),
             })
             .await?;
 
@@ -214,9 +225,9 @@ impl NetworkClient {
         let res = self
             .rpc
             .claim_proof(ClaimProofRequest {
+                signature,
                 nonce,
                 proof_id: proof_id.to_string(),
-                signature,
             })
             .await?;
 
@@ -234,9 +245,9 @@ impl NetworkClient {
         let res = self
             .rpc
             .fulfill_proof(FulfillProofRequest {
+                signature,
                 nonce,
                 proof_id: proof_id.to_string(),
-                signature,
             })
             .await?;
 
@@ -253,18 +264,18 @@ impl NetworkClient {
         callback_data: &[u8],
     ) -> Result<String> {
         let nonce = self.get_nonce().await;
-        let relay_proof_signature = self
+        let signature = self
             .auth
             .sign_relay_proof_message(nonce, proof_id, chain_id, verifier, callback, callback_data)
             .await?;
         let req = RelayProofRequest {
+            signature,
             nonce,
             proof_id: proof_id.to_string(),
             chain_id,
             verifier: verifier.to_vec(),
             callback: callback.to_vec(),
             callback_data: callback_data.to_vec(),
-            signature: relay_proof_signature.to_vec(),
         };
         let result = self.rpc.relay_proof(req).await?;
         Ok(result.tx_id)
