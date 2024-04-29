@@ -8,7 +8,6 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use p3_field::PrimeField32;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sp1_core::stark::{MachineProof, ShardProof};
