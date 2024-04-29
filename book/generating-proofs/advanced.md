@@ -19,6 +19,8 @@ With the `ProverClient`, the default `prove` function generates a proof that is 
 {{#include ../../examples/fibonacci/script/bin/compressed.rs}}
 ```
 
+You can run the above script with `RUST_LOG=info cargo run --bin compressed --release`.
+
 ## Logging and Tracing Information
 
 You can use `utils::setup_logger()` to enable logging information respectively. You should only use one or the other of these functions.
