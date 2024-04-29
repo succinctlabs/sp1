@@ -582,6 +582,7 @@ where
                                     "TRAP encountered at pc={}. Nearest trace at pc={}: {:?}",
                                     trap_pc, nearby_pc, trace
                                 );
+                                exit(1);
                             }
                         }
                         eprintln!("TRAP encountered. No backtrace available");

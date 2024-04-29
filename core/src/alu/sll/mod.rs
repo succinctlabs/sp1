@@ -39,7 +39,6 @@ use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_derive::AlignedBorrow;
-use tracing::instrument;
 
 use crate::air::MachineAir;
 use crate::air::{SP1AirBuilder, Word};
@@ -104,7 +103,6 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         "ShiftLeft".to_string()
     }
 
-    #[instrument(name = "generate sll trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,

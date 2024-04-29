@@ -32,21 +32,27 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2WideChip;
+pub struct Poseidon2WideChip<const DEGREE: usize>;
 
-/// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub struct Poseidon2WideCols<T> {
+pub struct Poseidon2MemCols<T> {
     pub timestamp: T,
     pub dst: T,
     pub left: T,
     pub right: T,
     pub input: [MemoryReadSingleCols<T>; WIDTH],
     pub output: [MemoryReadWriteSingleCols<T>; WIDTH],
+    pub is_real: T,
+}
+
+/// The column layout for the chip.
+#[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
+pub struct Poseidon2WideCols<T> {
+    memory: Poseidon2MemCols<T>,
     external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
     internal_rounds: Poseidon2WideInternalRoundsCols<T>,
-    pub is_real: T,
 }
 
 /// A grouping of columns for a single external round.
@@ -71,13 +77,13 @@ struct Poseidon2WideInternalRoundsCols<T> {
     sbox_deg_3: [T; NUM_INTERNAL_ROUNDS],
 }
 
-impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
+impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "Poseidon2Wide".to_string()
+        format!("Poseidon2Wide {}", DEGREE)
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -92,19 +98,21 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
+        println!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
+
         for event in &input.poseidon2_events {
             let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];
             let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
 
-            cols.timestamp = event.clk;
-            cols.dst = event.dst;
-            cols.left = event.left;
-            cols.right = event.right;
-            cols.is_real = F::one();
+            cols.memory.timestamp = event.clk;
+            cols.memory.dst = event.dst;
+            cols.memory.left = event.left;
+            cols.memory.right = event.right;
+            cols.memory.is_real = F::one();
 
             // Apply the initial round.
             for i in 0..WIDTH {
-                cols.input[i].populate(&event.input_records[i]);
+                cols.memory.input[i].populate(&event.input_records[i]);
             }
             cols.external_rounds[0].state = event.input;
             external_linear_layer(&mut cols.external_rounds[0].state);
@@ -135,7 +143,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2WideChip {
             }
 
             for i in 0..WIDTH {
-                cols.output[i].populate(&event.result_records[i]);
+                cols.memory.output[i].populate(&event.result_records[i]);
             }
 
             rows.push(row);
@@ -273,7 +281,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
     let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
         &cols.internal_rounds.state
     } else if r == NUM_EXTERNAL_ROUNDS - 1 {
-        &core::array::from_fn(|i| *cols.output[i].value())
+        &core::array::from_fn(|i| *cols.memory.output[i].value())
     } else {
         &cols.external_rounds[r + 1].state
     };
@@ -323,13 +331,52 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
     }
 }
 
-impl<F> BaseAir<F> for Poseidon2WideChip {
+impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {
         NUM_POSEIDON2_WIDE_COLS
     }
 }
 
-impl<AB> Air<AB> for Poseidon2WideChip
+fn eval_mem<AB: SP1RecursionAirBuilder>(builder: &mut AB, local: &Poseidon2MemCols<AB::Var>) {
+    // Evaluate all of the memory.
+    for i in 0..WIDTH {
+        let input_addr = if i < WIDTH / 2 {
+            local.left + AB::F::from_canonical_usize(i)
+        } else {
+            local.right + AB::F::from_canonical_usize(i - WIDTH / 2)
+        };
+
+        builder.recursion_eval_memory_access_single(
+            local.timestamp,
+            input_addr,
+            &local.input[i],
+            local.is_real,
+        );
+
+        let output_addr = local.dst + AB::F::from_canonical_usize(i);
+        builder.recursion_eval_memory_access_single(
+            local.timestamp + AB::F::from_canonical_usize(1),
+            output_addr,
+            &local.output[i],
+            local.is_real,
+        );
+    }
+
+    // Constraint that the operands are sent from the CPU table.
+    let operands: [AB::Expr; 4] = [
+        local.timestamp.into(),
+        local.dst.into(),
+        local.left.into(),
+        local.right.into(),
+    ];
+    builder.receive_table(
+        Opcode::Poseidon2Compress.as_field::<AB::F>(),
+        &operands,
+        local.is_real,
+    );
+}
+
+impl<AB, const DEGREE: usize> Air<AB> for Poseidon2WideChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder,
 {
@@ -338,66 +385,40 @@ where
         let cols = main.row_slice(0);
         let cols: &Poseidon2WideCols<AB::Var> = (*cols).borrow();
 
+        eval_mem(builder, &cols.memory);
+
+        // Dummy constraints to normalize to DEGREE.
+        let lhs = (0..DEGREE)
+            .map(|_| cols.memory.is_real.into())
+            .product::<AB::Expr>();
+        let rhs = (0..DEGREE)
+            .map(|_| cols.memory.is_real.into())
+            .product::<AB::Expr>();
+        builder.assert_eq(lhs, rhs);
+
         // Apply the initial round.
         let initial_round_output = {
             let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| (*cols.input[i].value()).into());
+                core::array::from_fn(|i| (*cols.memory.input[i].value()).into());
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
         builder
-            .when(cols.is_real)
+            .when(cols.memory.is_real)
             .assert_all_eq(cols.external_rounds[0].state, initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            eval_external_round(builder, cols, r, cols.is_real);
+            eval_external_round(builder, cols, r, cols.memory.is_real);
         }
 
         // Apply the internal rounds.
-        eval_internal_rounds(builder, cols, cols.is_real);
+        eval_internal_rounds(builder, cols, cols.memory.is_real);
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, cols, r, cols.is_real);
+            eval_external_round(builder, cols, r, cols.memory.is_real);
         }
-
-        // Evaluate all of the memory.
-        for i in 0..WIDTH {
-            let input_addr = if i < WIDTH / 2 {
-                cols.left + AB::F::from_canonical_usize(i)
-            } else {
-                cols.right + AB::F::from_canonical_usize(i - WIDTH / 2)
-            };
-
-            builder.recursion_eval_memory_access_single(
-                cols.timestamp,
-                input_addr,
-                &cols.input[i],
-                cols.is_real,
-            );
-
-            let output_addr = cols.dst + AB::F::from_canonical_usize(i);
-            builder.recursion_eval_memory_access_single(
-                cols.timestamp + AB::F::from_canonical_usize(1),
-                output_addr,
-                &cols.output[i],
-                cols.is_real,
-            );
-        }
-
-        // Constraint that the operands are sent from the CPU table.
-        let operands: [AB::Expr; 4] = [
-            cols.timestamp.into(),
-            cols.dst.into(),
-            cols.left.into(),
-            cols.right.into(),
-        ];
-        builder.receive_table(
-            Opcode::Poseidon2Compress.as_field::<AB::F>(),
-            &operands,
-            cols.is_real,
-        );
     }
 }
 
@@ -424,7 +445,7 @@ mod tests {
     /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
     fn generate_trace() {
-        let chip = Poseidon2WideChip;
+        let chip = Poseidon2WideChip::<3>;
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
             [BabyBear::from_canonical_u32(2); WIDTH],
@@ -460,7 +481,7 @@ mod tests {
             let row = trace.row(i).collect_vec();
             let cols: &Poseidon2WideCols<BabyBear> = row.as_slice().borrow();
             for i in 0..WIDTH {
-                assert_eq!(expected_output[i], *cols.output[i].value());
+                assert_eq!(expected_output[i], *cols.memory.output[i].value());
             }
         }
     }
@@ -471,7 +492,7 @@ mod tests {
         let config = BabyBearPoseidon2Inner::new();
         let mut challenger = config.challenger();
 
-        let chip = Poseidon2WideChip;
+        let chip = Poseidon2WideChip::<3>;
 
         let test_inputs = (0..1000)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])

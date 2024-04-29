@@ -122,6 +122,7 @@ impl ReduceProgram {
         let initial_start_shard: Felt<_> = builder.uninit();
         let mut reconstruct_deferred_digest: DigestVariable<_> = builder.uninit();
         let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
+        let deferred_chip_quotient_data: Array<_, Array<_, QuotientData<_>>> = builder.uninit();
         let deferred_sorted_indices: Array<_, Array<_, Var<_>>> = builder.uninit();
         let num_deferred_proofs: Var<_> = builder.uninit();
         let deferred_proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
@@ -171,6 +172,7 @@ impl ReduceProgram {
             });
             builder.assign(proofs.clone(), proofs_target);
 
+            Vec::<Vec<QuotientDataValues>>::witness(&deferred_chip_quotient_data, &mut builder);
             Vec::<Vec<usize>>::witness(&deferred_sorted_indices, &mut builder);
             Vec::<ShardProof<SC>>::witness(&deferred_proofs, &mut builder);
             let num_deferred_proofs_var = deferred_proofs.len();
@@ -198,8 +200,13 @@ impl ReduceProgram {
         builder.cycle_tracker("stage-b-setup-recursion-challenger");
 
         // Hash vkey + pc_start + prep_domains into a single digest.
-        let sp1_vk_digest = hash_vkey(&mut builder, &sp1_vk, &prep_domains);
-        let recursion_vk_digest = hash_vkey(&mut builder, &reduce_vk, &reduce_prep_domains);
+        let sp1_vk_digest = hash_vkey(&mut builder, &sp1_vk, &prep_domains, &prep_sorted_indices);
+        let recursion_vk_digest = hash_vkey(
+            &mut builder,
+            &reduce_vk,
+            &reduce_prep_domains,
+            &reduce_prep_sorted_indices,
+        );
 
         // Global variables that will be commmitted to at the end.
         let global_committed_values_digest: Sha256DigestVariable<_> =
@@ -518,7 +525,7 @@ impl ReduceProgram {
             .for_each(|i, builder| {
                 let proof = builder.get(&deferred_proofs, i);
                 let sorted_indices = builder.get(&deferred_sorted_indices, i);
-                let chip_quotient_data = builder.get(&chip_quotient_data, i);
+                let chip_quotient_data = builder.get(&deferred_chip_quotient_data, i);
                 let mut challenger = recursion_challenger.copy(builder);
                 for j in 0..DIGEST_SIZE {
                     let element = builder.get(&proof.commitment.main_commit, j);

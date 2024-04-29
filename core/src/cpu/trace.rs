@@ -30,7 +30,6 @@ impl<F: PrimeField32> MachineAir<F> for CpuChip {
         "CPU".to_string()
     }
 
-    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
     fn generate_trace(
         &self,
         input: &ExecutionRecord,
