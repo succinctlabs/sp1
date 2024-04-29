@@ -85,9 +85,9 @@ impl ReduceProgram {
         let mut builder = AsmBuilder::<F, EF>::default();
 
         // Initialize the sp1 and recursion configs as constants..
-        let sp1_config = const_fri_config(&mut builder, sp1_fri_config());
-        let reduce_config = const_fri_config(&mut builder, default_fri_config());
-        let compress_config = const_fri_config(&mut builder, compressed_fri_config());
+        let sp1_config = const_fri_config(&mut builder, &sp1_fri_config());
+        let reduce_config = const_fri_config(&mut builder, &default_fri_config());
+        let compress_config = const_fri_config(&mut builder, &compressed_fri_config());
         let sp1_pcs = TwoAdicFriPcsVariable { config: sp1_config };
         let reduce_pcs = TwoAdicFriPcsVariable {
             config: reduce_config,
