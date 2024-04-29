@@ -5,9 +5,6 @@ pub mod tests {
     pub const CHESS_ELF: &[u8] =
         include_bytes!("../../../examples/chess/program/elf/riscv32im-succinct-zkvm-elf");
 
-    pub const FIBONACCI_ELF: &[u8] =
-        include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
     pub const FIBONACCI_IO_ELF: &[u8] =
         include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -30,6 +27,9 @@ pub mod tests {
         include_bytes!("../../../examples/tendermint/program/elf/riscv32im-succinct-zkvm-elf");
 
     /// Tests.
+
+    pub const FIBONACCI_ELF: &[u8] =
+        include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
     pub const ED25519_ELF: &[u8] =
         include_bytes!("../../../tests/ed25519/elf/riscv32im-succinct-zkvm-elf");

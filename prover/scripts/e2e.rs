@@ -22,7 +22,7 @@ pub fn main() {
 
     let args = Args::parse();
 
-    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
     let prover = SP1Prover::new();

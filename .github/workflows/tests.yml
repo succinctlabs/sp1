@@ -10,7 +10,7 @@ on:
       - "core/**"
       - "recursion/**"
       - "sdk/**"
-      - "examples/fibonacci/**"
+      - "examples/fibonacci-io/**"
       - ".github/workflows/**"
 
 concurrency:
@@ -32,37 +32,11 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
-      - name: Run cargo test core
+      - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-core --release
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
-          FRI_QUERIES: 1
-
-  test:
-    name: Recursion
-    runs-on: warp-ubuntu-latest-arm64-32x
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PULL_TOKEN }}
-
-      - name: Run cargo test recursion
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: -p sp1-recursion-compiler -p sp1-recursion-program -p sp1-recursion-circuit --release
+          args: -p sp1-core -p sp1-recursion-compiler -p sp1-recursion-program -p sp1-recursion-circuit --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
@@ -90,7 +64,7 @@ jobs:
           echo "/root/.sp1/bin" >> $GITHUB_PATH
           /root/.sp1/bin/sp1up
 
-      - name: Run fibonacci example
+      - name: Run Fibonacci example
         uses: actions-rs/cargo@v1
         with:
           command: run
@@ -140,11 +114,11 @@ jobs:
           echo "/root/.sp1/bin" >> $GITHUB_PATH
           /root/.sp1/bin/sp1up
 
-      - name: Run fibonacci example
+      - name: Run fibonacci-io example
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --release --manifest-path examples/fibonacci/script/Cargo.toml
+          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
