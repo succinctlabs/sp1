@@ -154,7 +154,8 @@ impl Prover for LocalProver {
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
-        let outer_proof = self.prover.wrap_bn254(&pk.vk, reduce_proof);
+        let compress_proof = self.prover.compress(&pk.vk, reduce_proof);
+        let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
         let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
         Ok(SP1ProofWithMetadata {
             proof,
@@ -169,7 +170,8 @@ impl Prover for LocalProver {
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
-        let outer_proof = self.prover.wrap_bn254(&pk.vk, reduce_proof);
+        let compress_proof = self.prover.compress(&pk.vk, reduce_proof);
+        let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
         let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
         Ok(SP1ProofWithMetadata {
             proof,
