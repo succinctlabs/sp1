@@ -60,21 +60,7 @@ sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", features = [ "neon"
 
 ## Logging and Tracing Information
 
-You can either use `utils::setup_logger()` or `utils::setup_tracer()` to enable logging and tracing information respectively. You should only use one or the other of these functions.
-
-**Tracing:**
-
-Tracing will show more detailed timing information.
-
-```rust,noplayground
-utils::setup_tracer();
-```
-
-You must run your command with:
-
-```bash
-RUST_TRACER=info cargo run --release
-```
+You can use `utils::setup_logger()` to enable logging information respectively. You should only use one or the other of these functions.
 
 **Logging:**
 
@@ -86,4 +72,13 @@ You must run your command with:
 
 ```bash
 RUST_LOG=info cargo run --release
+```
+
+
+**Tracing:**
+
+To enable tracing information, which provides more detailed timing information, you can use the following environment variable: # TODO
+
+```bash
+RUST_TRACER=info cargo run --release
 ```
