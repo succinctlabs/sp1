@@ -3,7 +3,6 @@
 use std::{
     env,
     fs::File,
-    marker::PhantomData,
     path::{Path, PathBuf},
     time::Duration,
 };
