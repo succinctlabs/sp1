@@ -114,7 +114,8 @@ impl ProveCmd {
 
         let start_time = Instant::now();
         let client = ProverClient::new();
-        let proof = client.prove(&elf, stdin).unwrap();
+        let (pk, _) = client.setup(&elf);
+        let proof = client.prove(&pk, stdin).unwrap();
 
         if let Some(ref path) = self.output {
             proof

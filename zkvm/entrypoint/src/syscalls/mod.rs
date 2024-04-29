@@ -12,6 +12,7 @@ mod sha_extend;
 mod sys;
 mod uint256_mul;
 mod unconstrained;
+#[cfg(feature = "verify")]
 mod verify;
 
 pub use bls12381::*;
@@ -27,6 +28,7 @@ pub use sha_extend::*;
 pub use sys::*;
 pub use uint256_mul::*;
 pub use unconstrained::*;
+#[cfg(feature = "verify")]
 pub use verify::*;
 
 /// These codes MUST match the codes in `core/src/runtime/syscall.rs`. There is a derived test

@@ -62,18 +62,16 @@ pub fn run_test_core(
     let config = BabyBearBlake3::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
-    let mut challenger = machine.config().challenger();
 
     #[cfg(feature = "debug")]
     {
         let mut challenger_clone = machine.config().challenger();
         let record_clone = runtime.record.clone();
         machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
-        log::debug!("debug_constraints done");
     }
     let start = Instant::now();
-    let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+    let mut challenger = machine.config().challenger();
+    let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
 
     let cycles = runtime.state.global_clk;
     let time = start.elapsed().as_millis();
