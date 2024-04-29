@@ -1,3 +1,4 @@
+#![allow(unused_variables)]
 use std::path::PathBuf;
 
 use crate::{

@@ -1,5 +1,4 @@
 #![allow(incomplete_features)]
-#![allow(unused_variables)]
 #![feature(generic_const_exprs)]
 pub mod proto {
     #[rustfmt::skip]
