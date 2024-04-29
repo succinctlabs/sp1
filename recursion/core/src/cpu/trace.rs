@@ -49,7 +49,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 cols.selectors.populate(&event.instruction);
                 cols.instruction.populate(&event.instruction);
 
-                // Populate the register columns.
+                // Populate the operand columns.
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
                 }
@@ -75,20 +75,13 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 ) {
                     let branch_cols = cols.opcode_specific.branch_mut();
                     let a_ext: BinomialExtension<F> =
-                        BinomialExtensionUtils::from_block(*cols.a.prev_value());
+                        BinomialExtensionUtils::from_block(*cols.a.value());
                     let b_ext: BinomialExtension<F> =
-                        BinomialExtensionUtils::from_block(*cols.b.prev_value());
+                        BinomialExtensionUtils::from_block(*cols.b.value());
 
                     let (comparison_diff, do_branch) = match event.instruction.opcode {
                         Opcode::BEQ => (a_ext - b_ext, a_ext == b_ext),
-                        Opcode::BNE => (a_ext - b_ext, a_ext != b_ext),
-                        Opcode::BNEINC => {
-                            let base_element_one = BinomialExtension::<F>::from_base(F::one());
-                            (
-                                a_ext + base_element_one - b_ext,
-                                a_ext + base_element_one != b_ext,
-                            )
-                        }
+                        Opcode::BNE | Opcode::BNEINC => (a_ext - b_ext, a_ext != b_ext),
                         _ => unreachable!(),
                     };
 
