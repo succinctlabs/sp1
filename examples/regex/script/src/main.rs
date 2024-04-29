@@ -19,16 +19,15 @@ fn main() {
 
     // Generate the proof for the given program and input.
     let client = ProverClient::new();
-    let mut proof = client.prove(REGEX_IO_ELF, stdin).expect("proving failed");
+    let (pk, vk) = client.setup(REGEX_IO_ELF);
+    let mut proof = client.prove(&pk, stdin).expect("proving failed");
 
     // Read the output.
     let res = proof.public_values.read::<bool>();
     println!("res: {}", res);
 
     // Verify proof.
-    client
-        .verify(REGEX_IO_ELF, &proof)
-        .expect("verification failed");
+    client.verify(&proof, &vk).expect("verification failed");
 
     // Save the proof.
     proof
