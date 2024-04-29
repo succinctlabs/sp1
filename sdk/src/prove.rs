@@ -3,6 +3,7 @@
 use std::{
     env,
     fs::File,
+    marker::PhantomData,
     path::{Path, PathBuf},
     time::Duration,
 };
@@ -213,16 +214,6 @@ pub struct MockProver {
     pub(crate) prover: SP1Prover,
 }
 
-#[derive(Clone)]
-pub enum MockProofCode {
-    Default = 0,
-    Compressed = 1,
-    Groth16 = 2,
-    Plonk = 3,
-}
-
-pub type MockProof = [u8; 32];
-
 impl Default for MockProver {
     fn default() -> Self {
         Self::new()
@@ -234,109 +225,58 @@ impl MockProver {
         let prover = SP1Prover::new();
         Self { prover }
     }
+}
 
-    pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
+impl Prover for MockProver {
+    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
 
-    /// Returns the vkey digest for the given ELF.
-    pub fn get_vk_digest(&self, elf: &[u8]) -> Vec<u8> {
-        let (_, vkey) = self.prover.setup(elf);
-        vkey.hash()
-            .into_iter()
-            .flat_map(|b| b.as_canonical_u32().to_le_bytes())
-            .collect::<Vec<_>>()
-    }
-
-    /// Executes the program and returns vkey_digest and public values.
-    fn execute(&self, elf: &[u8], stdin: &SP1Stdin) -> (Vec<u8>, SP1PublicValues) {
-        let (_, vkey) = self.prover.setup(elf);
-        let vkey_digest = self.get_vk_digest(elf);
-        let public_values = SP1Prover::execute(elf, stdin);
-        (vkey_digest, public_values)
-    }
-
-    /// Generates a mock proof which is sha256( code || vkey_digest || public_values ).
-    fn mock_proof(
-        &self,
-        code: MockProofCode,
-        vkey_digest: &[u8],
-        public_values: &[u8],
-    ) -> MockProof {
-        let mut hasher_input = Vec::new();
-        hasher_input.push(code as u8);
-        hasher_input.extend_from_slice(vkey_digest);
-        hasher_input.extend_from_slice(public_values);
-        Sha256::digest(&hasher_input).into()
-    }
-
-    pub fn prove(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1ProofWithMetadata<MockProof>> {
-        let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let proof = self.mock_proof(
-            MockProofCode::Default,
-            &vkey_digest,
-            &public_values.buffer.data,
-        );
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+        let public_values = SP1Prover::execute(&pk.elf, &stdin);
         Ok(SP1ProofWithMetadata {
-            proof,
+            proof: vec![],
             stdin,
             public_values,
         })
     }
 
-    pub fn prove_compressed(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithMetadata<MockProof>> {
-        // TODO: we could check that deferred proofs are correct here.
-        let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let proof = self.mock_proof(
-            MockProofCode::Compressed,
-            &vkey_digest,
-            &public_values.buffer.data,
-        );
+    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+        unimplemented!()
+    }
+
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+        let public_values = SP1Prover::execute(&pk.elf, &stdin);
         Ok(SP1ProofWithMetadata {
-            proof,
+            proof: PlonkBn254Proof::default(),
             stdin,
             public_values,
         })
     }
 
-    pub fn prove_groth16(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithMetadata<MockProof>> {
-        let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let proof = self.mock_proof(
-            MockProofCode::Groth16,
-            &vkey_digest,
-            &public_values.buffer.data,
-        );
+    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+        let public_values = SP1Prover::execute(&pk.elf, &stdin);
         Ok(SP1ProofWithMetadata {
-            proof,
+            proof: Groth16Proof::default(),
             stdin,
             public_values,
         })
     }
 
-    pub fn prove_plonk(
-        &self,
-        elf: &[u8],
-        stdin: SP1Stdin,
-    ) -> Result<SP1ProofWithMetadata<MockProof>> {
-        let (vkey_digest, public_values) = self.execute(elf, &stdin);
-        let proof = self.mock_proof(
-            MockProofCode::Plonk,
-            &vkey_digest,
-            &public_values.buffer.data,
-        );
-        Ok(SP1ProofWithMetadata {
-            proof,
-            stdin,
-            public_values,
-        })
+    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        Ok(())
+    }
+
+    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        unimplemented!()
+    }
+
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        Ok(())
+    }
+
+    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        Ok(())
     }
 }
 
