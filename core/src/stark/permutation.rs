@@ -9,7 +9,7 @@ use rayon_scan::ScanParallelIterator;
 
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 
-use super::util::batch_multiplicative_inverse_inplace;
+use super::{util::batch_multiplicative_inverse_inplace, StarkGenericConfig};
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
@@ -105,14 +105,14 @@ pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize)
 ///
 /// The permutation trace has (N+1)*EF::NUM_COLS columns, where N is the number of interactions in
 /// the chip.
-pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
-    preprocessed: Option<&RowMajorMatrix<F>>,
-    main: &mut RowMajorMatrix<F>,
-    random_elements: &[EF],
+pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
+    sends: &[Interaction<SC::Val>],
+    receives: &[Interaction<SC::Val>],
+    preprocessed: Option<&RowMajorMatrix<SC::Val>>,
+    main: &mut RowMajorMatrix<SC::Val>,
+    random_elements: &[SC::Challenge],
     batch_size: usize,
-) -> RowMajorMatrix<EF> {
+) -> RowMajorMatrix<SC::Challenge> {
     // Generate the RLC elements to uniquely identify each interaction.
     let alphas = generate_interaction_rlc_elements(sends, receives, random_elements[0]);
     let chunk_rate = 1 << 8;
@@ -132,12 +132,12 @@ pub(crate) fn generate_permutation_trace<F: PrimeField, EF: ExtensionField<F>>(
     let prepermutation_trace_width = sends.len() + receives.len();
 
     let mut prepermutation_trace = RowMajorMatrix::new(
-        vec![EF::zero(); prepermutation_trace_width * height],
+        vec![SC::Challenge::zero(); prepermutation_trace_width * height],
         prepermutation_trace_width,
     );
 
-    let mut permutation_trace: p3_matrix::dense::DenseMatrix<EF> = RowMajorMatrix::new(
-        vec![EF::zero(); permutation_trace_width * height],
+    let mut permutation_trace: p3_matrix::dense::DenseMatrix<SC::Challenge> = RowMajorMatrix::new(
+        vec![SC::Challenge::zero(); permutation_trace_width * height],
         permutation_trace_width,
     );
 
@@ -359,4 +359,24 @@ pub fn eval_permutation_constraints<F, AB>(
     builder
         .when_last_row()
         .assert_eq_ext(*perm_local.last().unwrap(), cumulative_sum);
+}
+
+#[cfg(test)]
+mod tests {
+    use p3_baby_bear::BabyBear;
+    use p3_field::AbstractField;
+    use p3_field::PackedValue;
+
+    use crate::stark::PackedVal;
+    use crate::utils::BabyBearPoseidon2;
+
+    #[test]
+    fn test_packed() {
+        let a = vec![BabyBear::one(); 4];
+        let b = vec![BabyBear::two(); 4];
+        let packed_a = PackedVal::<BabyBearPoseidon2>::from_slice(&a);
+        let packed_b = PackedVal::<BabyBearPoseidon2>::from_slice(&b);
+        let packed_c = *packed_a + *packed_b;
+        println!("{:?}", packed_c);
+    }
 }
