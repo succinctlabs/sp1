@@ -54,6 +54,7 @@ pub trait BaseAirBuilder: AirBuilder + MessageBuilder<AirInteraction<Self::Expr>
 
     /// Will return `a` if `condition` is 1, else `b`.  This assumes that `condition` is already
     /// checked to be a boolean.
+    #[inline]
     fn if_else(
         &mut self,
         condition: impl Into<Self::Expr> + Clone,
@@ -208,11 +209,9 @@ pub trait WordAirBuilder: ByteAirBuilder {
         a: Word<impl Into<Self::Expr> + Clone>,
         b: Word<impl Into<Self::Expr> + Clone>,
     ) -> Word<Self::Expr> {
-        let mut res = vec![];
-        for i in 0..WORD_SIZE {
-            res.push(self.if_else(condition.clone(), a[i].clone(), b[i].clone()));
-        }
-        Word(res.try_into().unwrap())
+        Word(array::from_fn(|i| {
+            self.if_else(condition.clone(), a[i].clone(), b[i].clone())
+        }))
     }
 
     /// Check that each limb of the given slice is a u8.
@@ -402,7 +401,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             .chain(memory_access.value().clone().map(Into::into))
             .collect();
 
-        // The previous values get sent with multiplicity * 1, for "read".
+        // The previous values get sent with multiplicity = 1, for "read".
         self.send(AirInteraction::new(
             prev_values,
             do_check.clone(),
@@ -439,7 +438,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
 
     /// Verifies the memory access timestamp.
     ///
-    /// This method verifies that the current memory access happend after the previous one's.  
+    /// This method verifies that the current memory access happened after the previous one's.
     /// Specifically it will ensure that if the current and previous access are in the same shard,
     /// then the current's clk val is greater than the previous's.  If they are not in the same
     /// shard, then it will ensure that the current's shard val is greater than the previous's.

@@ -153,6 +153,7 @@ where
             builder.set_value(&mut prep_mats, preprocessed_sorted_id, main_mat);
         }
 
+        let qc_index: Var<_> = builder.eval(C::N::zero());
         builder.range(0, num_shard_chips).for_each(|i, builder| {
             let opening = builder.get(&opened_values.chips, i);
             let QuotientData {
@@ -168,7 +169,7 @@ where
                 domain.create_disjoint_domain(builder, log_quotient_size, Some(pcs.config.clone()));
             builder.set_value(&mut quotient_domains, i, quotient_domain.clone());
 
-            // let trace_opening_points
+            // Get trace_opening_points.
 
             let mut trace_points = builder.dyn_array::<Ext<_, _>>(2);
             let zeta_next = domain.next_point(builder, zeta);
@@ -201,7 +202,6 @@ where
 
             let qc_domains =
                 quotient_domain.split_domains(builder, log_quotient_degree, quotient_size);
-            let num_quotient_chunks = quotient_size;
 
             builder.range(0, qc_domains.len()).for_each(|j, builder| {
                 let qc_dom = builder.get(&qc_domains, j);
@@ -213,9 +213,8 @@ where
                     values: qc_values,
                     points: qc_points.clone(),
                 };
-                // let j_n = C::N::from_canonical_usize(j);
-                let index: Var<_> = builder.eval(i * num_quotient_chunks + j);
-                builder.set_value(&mut quotient_mats, index, qc_mat);
+                builder.set_value(&mut quotient_mats, qc_index, qc_mat);
+                builder.assign(qc_index, qc_index + C::N::one());
             });
         });
 
@@ -270,6 +269,7 @@ where
 
                     // Check that the quotient data matches the chip's data.
                     let log_quotient_degree = chip.log_quotient_degree();
+
                     let quotient_size = 1 << log_quotient_degree;
                     let chip_quotient_data = builder.get(&chip_quotient_data, index);
                     builder.assert_usize_eq(

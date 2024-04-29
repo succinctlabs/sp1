@@ -15,7 +15,7 @@ use p3_symmetric::Hash;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
-use sp1_primitives::RC_16_30;
+use sp1_primitives::poseidon2_init;
 
 pub const DIGEST_SIZE: usize = 8;
 
@@ -48,24 +48,7 @@ pub type InnerPcsProof =
 
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {
-    const ROUNDS_F: usize = 8;
-    const ROUNDS_P: usize = 13;
-    let mut round_constants = RC_16_30.to_vec();
-    let internal_start = ROUNDS_F / 2;
-    let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
-    let internal_round_constants = round_constants
-        .drain(internal_start..internal_end)
-        .map(|vec| vec[0])
-        .collect::<Vec<_>>();
-    let external_round_constants = round_constants;
-    InnerPerm::new(
-        ROUNDS_F,
-        external_round_constants,
-        Poseidon2ExternalMatrixGeneral,
-        ROUNDS_P,
-        internal_round_constants,
-        DiffusionMatrixBabyBear,
-    )
+    poseidon2_init()
 }
 
 /// The FRI config for sp1 proofs.
