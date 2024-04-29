@@ -1,5 +1,6 @@
 use core::fmt::Debug;
 use core::mem::size_of;
+use std::array;
 use std::iter::once;
 
 use itertools::Itertools;
@@ -78,10 +79,7 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
     pub fn from_vec(data: Vec<T>) -> Self {
         let mut iter = data.iter().cloned();
 
-        let mut committed_value_digest = Vec::new();
-        for _ in 0..PV_DIGEST_NUM_WORDS {
-            committed_value_digest.push(Word::from_iter(&mut iter));
-        }
+        let committed_value_digest = array::from_fn(|_| Word::from_iter(&mut iter));
 
         let deferred_proofs_digest = iter
             .by_ref()
@@ -103,7 +101,7 @@ impl<T: Clone + Debug> PublicValues<Word<T>, T> {
         };
 
         Self {
-            committed_value_digest: committed_value_digest.try_into().unwrap(),
+            committed_value_digest,
             deferred_proofs_digest,
             start_pc: start_pc.to_owned(),
             next_pc: next_pc.to_owned(),
