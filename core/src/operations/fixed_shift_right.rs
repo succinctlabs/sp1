@@ -118,13 +118,13 @@ impl<F: Field> FixedShiftRightOperation<F> {
         let carry_multiplier = AB::F::from_canonical_u32(Self::carry_multiplier(rotation));
 
         // Perform the byte shift.
-        let mut word = vec![AB::Expr::zero(); WORD_SIZE];
-        for i in 0..WORD_SIZE {
+        let input_bytes_rotated = Word(std::array::from_fn(|i| {
             if i + nb_bytes_to_shift < WORD_SIZE {
-                word[i] = input[(i + nb_bytes_to_shift) % WORD_SIZE].into();
+                input[(i + nb_bytes_to_shift) % WORD_SIZE].into()
+            } else {
+                AB::Expr::zero()
             }
-        }
-        let input_bytes_rotated = Word(word.try_into().unwrap());
+        }));
 
         // For each byte, calculate the shift and carry. If it's not the first byte, calculate the
         // new byte value using the current shifted byte and the last carry.
