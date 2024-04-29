@@ -64,8 +64,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                     *cols.c.value_mut() = event.instruction.op_c;
                 }
                 if let Some(record) = &event.memory_record {
-                    cols.memory.populate(record);
-                    cols.memory_addr = record.addr;
+                    let memory_cols = cols.opcode_specific.memory_mut();
+                    memory_cols.memory.populate(record);
+                    memory_cols.memory_addr = record.addr;
                 }
 
                 // Populate the branch columns.

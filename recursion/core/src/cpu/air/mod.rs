@@ -31,7 +31,7 @@ where
 
         self.eval_memory(builder, local);
 
-        //self.eval_alu(builder, local);
+        self.eval_alu(builder, local);
 
         // Expression for the expected next_pc.
         let mut next_pc = zero;
@@ -78,6 +78,17 @@ where
 }
 
 impl<F: Field> CpuChip<F> {
+    /// Expr to check for alu instructions.
+    pub fn is_alu_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_add
+            + local.selectors.is_sub
+            + local.selectors.is_mul
+            + local.selectors.is_div
+    }
+
     /// Expr to check for branch instructions.
     pub fn is_branch_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
     where

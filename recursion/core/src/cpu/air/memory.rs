@@ -25,10 +25,12 @@ impl<F: Field> CpuChip<F> {
         // memory_addr column from the other columns. Otherwise it is 0.
         // builder.assert_eq(memory_addr * load_memory.clone(), local.memory_addr);
 
+        let memory_cols = local.opcode_specific.memory();
+
         builder.recursion_eval_memory_access(
             local.clk + AB::F::from_canonical_u32(MemoryAccessPosition::Memory as u32),
-            local.memory_addr,
-            &local.memory,
+            memory_cols.memory_addr,
+            &memory_cols.memory,
             load_memory,
         );
 

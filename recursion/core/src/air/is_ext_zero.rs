@@ -59,7 +59,7 @@ impl<F: Field> IsExtZeroOperation<F> {
         // Assert that the `is_real` is a boolean.
         builder.assert_bool(is_real.clone());
         // Assert that the result is boolean.
-        builder.assert_bool(cols.result);
+        builder.when(is_real.clone()).assert_bool(cols.result);
 
         // 1. Input == 0 => is_zero = 1 regardless of the inverse.
         // 2. Input != 0

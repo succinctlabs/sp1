@@ -2,6 +2,7 @@ use std::fmt::{Debug, Formatter};
 use std::mem::{size_of, transmute};
 
 use super::branch::BranchCols;
+use super::memory::MemoryCols;
 
 pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 
@@ -10,6 +11,7 @@ pub const NUM_OPCODE_SPECIFIC_COLS: usize = size_of::<OpcodeSpecificCols<u8>>();
 #[repr(C)]
 pub union OpcodeSpecificCols<T: Copy> {
     branch: BranchCols<T>,
+    memory: MemoryCols<T>,
 }
 
 impl<T: Copy + Default> Default for OpcodeSpecificCols<T> {
@@ -35,5 +37,13 @@ impl<T: Copy> OpcodeSpecificCols<T> {
     }
     pub fn branch_mut(&mut self) -> &mut BranchCols<T> {
         unsafe { &mut self.branch }
+    }
+
+    pub fn memory(&self) -> &MemoryCols<T> {
+        unsafe { &self.memory }
+    }
+
+    pub fn memory_mut(&mut self) -> &mut MemoryCols<T> {
+        unsafe { &mut self.memory }
     }
 }
