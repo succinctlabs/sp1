@@ -19,8 +19,8 @@ pub fn main() {
     sp1_zkvm::io::commit(&n);
 
     // Compute the n'th fibonacci number, using normal Rust code.
-    let a = 0;
-    let b = 0;
+    let mut a = 0;
+    let mut b = 0;
     for _ in 0..n {
         let mut c = a + b;
         c %= 7919; // Modulus to prevent overflow.
