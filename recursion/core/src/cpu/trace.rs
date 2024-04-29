@@ -49,7 +49,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 cols.selectors.populate(&event.instruction);
                 cols.instruction.populate(&event.instruction);
 
-                // Populate the operand columns.
+                // Populate the register columns.
                 if let Some(record) = &event.a_record {
                     cols.a.populate(record);
                 }
