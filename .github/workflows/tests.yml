@@ -10,7 +10,7 @@ on:
       - "core/**"
       - "recursion/**"
       - "sdk/**"
-      - "examples/fibonacci-io/**"
+      - "examples/fibonacci/**"
       - ".github/workflows/**"
 
 concurrency:
@@ -64,11 +64,11 @@ jobs:
           echo "/root/.sp1/bin" >> $GITHUB_PATH
           /root/.sp1/bin/sp1up
 
-      - name: Run fibonacci-io example
+      - name: Run fibonacci example
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
+          args: --release --manifest-path examples/fibonacci/script/Cargo.toml
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
@@ -114,11 +114,11 @@ jobs:
           echo "/root/.sp1/bin" >> $GITHUB_PATH
           /root/.sp1/bin/sp1up
 
-      - name: Run fibonacci-io example
+      - name: Run fibonacci example
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
+          args: --release --manifest-path examples/fibonacci/script/Cargo.toml
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1

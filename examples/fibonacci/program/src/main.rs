@@ -19,17 +19,19 @@ pub fn main() {
     sp1_zkvm::io::commit(&n);
 
     // Compute the n'th fibonacci number, using normal Rust code.
-    let mut nums = vec![1, 1];
+    let a = 0;
+    let b = 0;
     for _ in 0..n {
-        let mut c = nums[nums.len() - 1] + nums[nums.len() - 2];
-        c %= 7919;
-        nums.push(c);
+        let mut c = a + b;
+        c %= 7919; // Modulus to prevent overflow.
+        a = b;
+        b = c;
     }
 
     // Write the output of the program.
     //
     // Behind the scenes, this also compiles down to a custom system call which handles writing
     // outputs to the prover.
-    sp1_zkvm::io::commit(&nums[nums.len() - 2]);
-    sp1_zkvm::io::commit(&nums[nums.len() - 1]);
+    sp1_zkvm::io::commit(&a);
+    sp1_zkvm::io::commit(&b);
 }

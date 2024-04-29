@@ -12,7 +12,7 @@ To make this more concrete, let's walk through a simple example of generating a 
 ## Fibonacci
 
 ```rust,noplayground
-{{#include ../../examples/fibonacci-io/script/src/main.rs}}
+{{#include ../../examples/fibonacci/script/src/main.rs}}
 ```
 
 You can run the above script with `RUST_LOG=info cargo run --release`.
@@ -33,7 +33,7 @@ After these steps, the circuit artifacts needed for the groth16 proof will be in
 ### Run the script
 
 ```rust,noplayground
-{{#include ../../examples/fibonacci-io/script/bin/groth16.rs}}
+{{#include ../../examples/fibonacci/script/bin/groth16.rs}}
 ```
 
 You can run the above script with `RUST_LOG=info cargo run --bin groth16 --release`.
@@ -44,7 +44,7 @@ You can run the above script with `RUST_LOG=info cargo run --bin groth16 --relea
 If you want your program crate to be built automatically whenever you build/run your script crate, you can add a `build.rs` file inside of `script/` (at the same level as `Cargo.toml`):
 
 ```rust,noplayground
-{{#include ../../examples/fibonacci-io/script/build.rs}}
+{{#include ../../examples/fibonacci/script/build.rs}}
 ```
 
 Make sure to also add `sp1-helper` as a build dependency in `script/Cargo.toml`:

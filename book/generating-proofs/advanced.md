@@ -6,7 +6,7 @@ We recommend that during development of large programs (> 1 million cycles) that
 Instead, you should have your script only execute the program with the RISC-V runtime and read `public_values`. Here is an example:
 
 ```rust,noplayground
-{{#include ../../examples/fibonacci-io/script/bin/execute.rs}}
+{{#include ../../examples/fibonacci/script/bin/execute.rs}}
 ```
 
 If execution of your program succeeds, then proof generation should succeed as well! (Unless there is a bug in our zkVM implementation.)
@@ -16,7 +16,7 @@ If execution of your program succeeds, then proof generation should succeed as w
 With the `ProverClient`, the default `prove` function generates a proof that is succinct, but can have size that scales with the number of cycles of the program. To generate a compressed proof of constant size, you can use the `prove_compressed` function instead. This will use STARK recursion to generate a proof that is constant size (around 7Kb), but will be slower than just calling `prove`, as it will use recursion to combine the core SP1 proof into a single constant-sized proof.
 
 ```rust,noplayground
-{{#include ../../examples/fibonacci-io/script/bin/compressed.rs}}
+{{#include ../../examples/fibonacci/script/bin/compressed.rs}}
 ```
 
 ## Logging and Tracing Information
@@ -44,6 +44,13 @@ RUST_TRACER=info cargo run --release
 ```
 
 ## AVX-512 Acceleration
+
+TODO:
+
+
+## Prover crate
+
+
 
 ## Performance
 
