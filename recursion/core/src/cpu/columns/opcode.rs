@@ -31,6 +31,7 @@ pub struct OpcodeSelectorCols<T> {
     // Branch instructions.
     pub is_beq: T,
     pub is_bne: T,
+    pub is_bneinc: T,
 
     // Jump instructions.
     pub is_jal: T,
@@ -65,6 +66,7 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::STORE => self.is_store = F::one(),
             Opcode::BEQ => self.is_beq = F::one(),
             Opcode::BNE => self.is_bne = F::one(),
+            Opcode::BNEINC => self.is_bneinc = F::one(),
             Opcode::JAL => self.is_jal = F::one(),
             Opcode::JALR => self.is_jalr = F::one(),
             Opcode::TRAP => self.is_trap = F::one(),
@@ -100,6 +102,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_store,
             self.is_beq,
             self.is_bne,
+            self.is_bneinc,
             self.is_jal,
             self.is_jalr,
             self.is_trap,

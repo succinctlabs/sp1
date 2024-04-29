@@ -25,6 +25,10 @@ impl<T> BinomialExtension<T> {
     pub fn as_base_slice(&self) -> &[T] {
         &self.0
     }
+
+    pub fn from<S: Into<T> + Clone>(from: BinomialExtension<S>) -> Self {
+        BinomialExtension(core::array::from_fn(|i| from.0[i].clone().into()))
+    }
 }
 
 impl<T: Add<Output = T> + Clone> Add for BinomialExtension<T> {

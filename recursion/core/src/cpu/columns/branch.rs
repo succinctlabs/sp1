@@ -1,3 +1,4 @@
+use sp1_core::air::BinomialExtension;
 use sp1_derive::AlignedBorrow;
 use std::mem::size_of;
 
@@ -10,5 +11,8 @@ pub const NUM_BRANCH_COLS: usize = size_of::<BranchCols<u8>>();
 #[derive(AlignedBorrow, Default, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct BranchCols<T> {
-    is_eq_zero: IsExtZeroOperation<T>,
+    pub(crate) comparison_diff: IsExtZeroOperation<T>,
+    pub(crate) comparison_diff_val: BinomialExtension<T>,
+    pub(crate) do_branch: T,
+    pub(crate) next_pc: T,
 }
