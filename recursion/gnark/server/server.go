@@ -20,12 +20,13 @@ import (
 type Server struct {
 	r1cs constraint.ConstraintSystem
 	pk   groth16.ProvingKey
+	vk   groth16.VerifyingKey
 }
 
 // New creates a new server instance with the R1CS and proving key for the given circuit type and
 // version.
 func New(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (*Server, error) {
-	r1cs, pk, err := LoadCircuit(ctx, dataDir, circuitBucket, circuitType, circuitVersion)
+	r1cs, pk, vk, err := LoadCircuit(ctx, dataDir, circuitBucket, circuitType, circuitVersion)
 	if err != nil {
 		return nil, errors.Wrap(err, "loading circuit")
 	}
@@ -34,6 +35,7 @@ func New(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersio
 	s := &Server{
 		r1cs: r1cs,
 		pk:   pk,
+		vk:   vk,
 	}
 	return s, nil
 }
@@ -43,6 +45,7 @@ func (s *Server) Start(port string) {
 	router := http.NewServeMux()
 	router.HandleFunc("GET /healthz", s.healthz)
 	router.HandleFunc("POST /groth16/prove", s.handleGroth16Prove)
+	router.HandleFunc("POST /groth16/verify", s.handleGroth16Verify)
 
 	fmt.Printf("Starting server on %s\n", port)
 	http.ListenAndServe(":"+port, router)
@@ -111,6 +114,27 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		B:            b,
 		C:            c,
 		PublicInputs: publicInputs,
+	}
+
+	ReturnJSON(w, groth16Proof, http.StatusOK)
+}
+
+// handleGroth16Verify accepts a POST request with a JSON body containing the witness and returns a JSON
+// body containing the proof using the Groth16 circuit.
+func (s *Server) handleGroth16Verify(w http.ResponseWriter, r *http.Request) {
+	var groth16Proof sp1.Groth16Proof
+	err := json.NewDecoder(r.Body).Decode(&groth16Proof)
+	if err != nil {
+		ReturnErrorJSON(w, "decoding request", http.StatusBadRequest)
+		return
+	}
+
+	// Verify the proof.
+	proof := groth16.NewProof(groth16Proof.A, groth16Proof.B, groth16Proof.C, groth16Proof.PublicInputs)
+	err := groth16.Verify(proof, s.vk, nil)
+	if err != nil {
+		ReturnErrorJSON(w, "verifying proof", http.StatusInternalServerError)
+		return
 	}
 
 	ReturnJSON(w, groth16Proof, http.StatusOK)
