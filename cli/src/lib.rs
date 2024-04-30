@@ -13,6 +13,15 @@ use std::process::{Command, Stdio};
 
 pub const RUSTUP_TOOLCHAIN_NAME: &str = "succinct";
 
+pub const SP1_VERSION_MESSAGE: &str = concat!(
+    "sp1",
+    " (",
+    env!("VERGEN_GIT_SHA"),
+    " ",
+    env!("VERGEN_BUILD_TIMESTAMP"),
+    ")"
+);
+
 trait CommandExecutor {
     fn run(&mut self) -> Result<()>;
 }
@@ -33,7 +42,7 @@ pub async fn url_exists(client: &Client, url: &str) -> bool {
     res.is_ok()
 }
 
-pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(), String> {
+pub async fn download_file(client: &Client, url: &str, file: &mut SyncFile) -> Result<(), String> {
     let res = client
         .get(url)
         .send()
@@ -49,7 +58,6 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
         .progress_chars("#>-"));
     println!("Downloading {}", url);
 
-    let mut file = SyncFile::create(path).or(Err(format!("Failed to create file '{}'", path)))?;
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
 
@@ -62,7 +70,7 @@ pub async fn download_file(client: &Client, url: &str, path: &str) -> Result<(),
         pb.set_position(new);
     }
 
-    pb.finish_with_message(&format!("Downloaded {} to {}", url, path));
+    pb.finish_with_message(&format!("Downloaded {} to {:?}", url, file));
     Ok(())
 }
 

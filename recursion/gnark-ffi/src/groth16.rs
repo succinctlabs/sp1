@@ -2,8 +2,9 @@ use std::{
     env,
     fs::File,
     io::Write,
+    panic,
     path::PathBuf,
-    process::{Command, Stdio},
+    process::{Child, Command, Stdio},
     time::Duration,
 };
 
@@ -53,6 +54,16 @@ impl Groth16Prover {
         // Create a channel for cancellation
         let (cancel_sender, cancel_receiver) = bounded(1);
 
+        // Catch panics and attempt to terminate the child process if main thread panics
+        let child_process = Arc::new(Mutex::new(None::<Child>));
+        let child_handle = child_process.clone();
+        panic::set_hook(Box::new(move |_info| {
+            let mut child = child_handle.lock().unwrap();
+            if let Some(ref mut child) = *child {
+                child.kill().unwrap();
+            }
+        }));
+
         // Spawn a thread to run the Go command and panic on errors
         let thread_handle = thread::spawn(move || {
             let mut child = Command::new("go")
@@ -76,18 +87,27 @@ impl Groth16Prover {
                 .spawn()
                 .unwrap();
 
+            *child_process.lock().unwrap() = Some(child);
+
             loop {
                 if cancel_receiver.try_recv().is_ok() {
-                    child.kill().unwrap();
+                    let mut child = child_process.lock().unwrap();
+                    if let Some(ref mut child) = *child {
+                        child.kill().unwrap();
+                    }
                     break;
                 }
 
-                if let Ok(Some(exit_status)) = child.try_wait() {
-                    if !exit_status.success() {
-                        println!("Gnark server exited with an error: {:?}", exit_status);
-                        exit(1);
+                if let mut child = child_process.lock().unwrap() {
+                    if let Some(ref mut child) = *child {
+                        if let Ok(Some(exit_status)) = child.try_wait() {
+                            if !exit_status.success() {
+                                println!("Gnark server exited with an error: {:?}", exit_status);
+                                exit(1);
+                            }
+                            break;
+                        }
                     }
-                    break;
                 }
 
                 thread::sleep(Duration::from_millis(100));
@@ -123,7 +143,7 @@ impl Groth16Prover {
                     }
                 }
                 Err(_) => {
-                    println!("Gnark server is ready yet");
+                    println!("Gnark server is not ready yet");
                 }
             }
 
@@ -243,7 +263,12 @@ impl Groth16Prover {
         let url = format!("http://localhost:{}/groth16/prove", self.port);
 
         let gnark_witness = GnarkWitness::new(witness);
-        let response = Client::new().post(url).json(&gnark_witness).send().unwrap();
+        let response = Client::new()
+            .post(url)
+            .json(&gnark_witness)
+            .timeout(Duration::from_secs(5 * 60))
+            .send()
+            .unwrap();
 
         // Deserialize the JSON response to a Groth16Proof instance
         let response = response.text().unwrap();
