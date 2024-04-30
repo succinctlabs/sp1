@@ -26,7 +26,6 @@ import (
 // downloads them if not, and loads them into memory.
 func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
 	r1csPath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
-	fmt.Println("r1csPath", r1csPath)
 	pkPath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
 
 	// Ensure data directory exists
