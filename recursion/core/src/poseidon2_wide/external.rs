@@ -100,44 +100,43 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
             // Apply the first half of external rounds.
             for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-                let next_state = populate_external_round(cols, r);
+                let next_state = populate_external_round(&mut cols, r);
 
                 if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-                    cols.internal_rounds.state = next_state;
+                    *cols.get_internal_state_mut() = next_state;
                 } else {
-                    cols.external_rounds[r + 1].state = next_state;
+                    *cols.get_external_state_mut(r + 1) = next_state;
                 }
             }
 
             // Apply the internal rounds.
-            cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state = populate_internal_rounds(cols);
+            *cols.get_external_state_mut(NUM_EXTERNAL_ROUNDS / 2) =
+                populate_internal_rounds(&mut cols);
 
             // Apply the second half of external rounds.
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-                let next_state = populate_external_round(cols, r);
+                let next_state = populate_external_round(&mut cols, r);
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
                     // Do nothing, since we set the cols.output by populating the output records
                     // after this loop.
                 } else {
-                    cols.external_rounds[r + 1].state = next_state;
+                    *cols.get_external_state_mut(r + 1) = next_state;
                 }
             }
 
             for i in 0..WIDTH {
-                cols.memory.output[i].populate(&event.result_records[i]);
+                memory.output[i].populate(&event.result_records[i]);
             }
 
             rows.push(row);
         }
 
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_POSEIDON2_WIDE_COLS,
-        );
+        let mut trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_POSEIDON2_WIDE_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<num_columns, F>(&mut trace.values);
 
         #[cfg(debug_assertions)]
         println!(
