@@ -144,24 +144,25 @@ func deserializeSP1Groth16Proof(sp1Proof sp1.Groth16Proof) (*groth16.Proof, erro
 // handleGroth16Verify accepts a POST request with a JSON body containing the proof and public witness and returns a JSON
 // body containing the verification result.
 func (s *Server) handleGroth16Verify(w http.ResponseWriter, r *http.Request) {
-	var verifyInput sp1.VerifierInput
+	var verifyInput sp1.VerifyInput
 	err := json.NewDecoder(r.Body).Decode(&verifyInput)
 	if err != nil {
 		ReturnErrorJSON(w, "decoding request", http.StatusBadRequest)
 		return
 	}
 
+	// Construct the public witness from the verify input.
 	assignment := sp1.Circuit{
 		VkeyHash:             verifyInput.VkeyHash,
 		CommitedValuesDigest: verifyInput.CommitedValuesDigest,
 	}
-
 	witnessPublic, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
 	if err != nil {
 		ReturnErrorJSON(w, "getting public witness", http.StatusInternalServerError)
 		return
 	}
 
+	// Convert the SP1 Groth16Proof to a groth16.Proof.
 	proof, err := deserializeSP1Groth16Proof(verifyInput.Proof)
 	if err != nil {
 		ReturnErrorJSON(w, "deserializing proof", http.StatusInternalServerError)
