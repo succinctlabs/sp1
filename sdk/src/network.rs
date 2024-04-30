@@ -1,6 +1,7 @@
 #![allow(unused_variables)]
 use std::{env, time::Duration};
 
+use crate::proto::network::ProofMode;
 use crate::{
     client::NetworkClient,
     local::LocalProver,
@@ -9,6 +10,7 @@ use crate::{
     SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::{Context, Result};
+use serde::de::DeserializeOwned;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
 
@@ -34,7 +36,12 @@ impl NetworkProver {
         }
     }
 
-    pub async fn prove_async(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    pub async fn prove_async<P: DeserializeOwned>(
+        &self,
+        elf: &[u8],
+        stdin: SP1Stdin,
+        mode: ProofMode,
+    ) -> Result<P> {
         let client = &self.client;
         // Execute the runtime before creating the proof request.
         // TODO: Maybe we don't want to always do this locally, with large programs. Or we may want
@@ -42,24 +49,20 @@ impl NetworkProver {
         let public_values = SP1Prover::execute(elf, &stdin);
         println!("Simulation complete");
 
-        let proof_id = client.create_proof(elf, &stdin).await?;
+        let proof_id = client.create_proof(elf, &stdin, mode).await?;
         println!("Proof request ID: {:?}", proof_id);
 
         let mut is_claimed = false;
         loop {
-            let (status, maybe_proof) = client.get_proof_status(&proof_id).await?;
+            let (status, maybe_proof) = client.get_proof_status::<P>(&proof_id).await?;
 
             match status.status() {
                 ProofStatus::ProofFulfilled => {
-                    return Ok(SP1ProofWithMetadata {
-                        proof: maybe_proof.unwrap().shard_proofs,
-                        stdin,
-                        public_values,
-                    });
+                    return Ok(maybe_proof.unwrap());
                 }
                 ProofStatus::ProofClaimed => {
                     if !is_claimed {
-                        println!("Proving...");
+                        println!("Proof request claimed, proving...");
                         is_claimed = true;
                     }
                 }
@@ -74,7 +77,7 @@ impl NetworkProver {
     }
 
     /// Remotely relay a proof to a set of chains with their callback contracts.
-    pub fn _remote_relay(
+    pub fn remote_relay(
         &self,
         proof_id: &str,
         chain_ids: Vec<u32>,
@@ -144,19 +147,25 @@ impl Prover for NetworkProver {
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
         let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin).await })
+        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Core).await })
     }
 
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        todo!()
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async {
+            self.prove_async(&pk.elf, stdin, ProofMode::Compressed)
+                .await
+        })
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        todo!()
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Plonk).await })
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        todo!()
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Groth16).await })
     }
 
     fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
