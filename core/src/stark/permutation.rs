@@ -2,7 +2,9 @@ use std::borrow::Borrow;
 
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, Powers, PrimeField};
+use p3_field::{
+    AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue, Powers, PrimeField,
+};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
@@ -34,13 +36,13 @@ pub fn generate_interaction_rlc_elements<F: Field, AF: AbstractField>(
 
 #[inline]
 #[allow(clippy::too_many_arguments)]
-pub fn populate_batch_and_mult<F: PrimeField, EF: ExtensionField<F>>(
-    row: &[EF],
-    new_row: &mut [EF],
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
-    preprocessed_row: &[F],
-    main_row: &[F],
+pub fn populate_batch_and_mult<SC: StarkGenericConfig>(
+    row: &[PackedChallenge<SC>],
+    new_row: &mut [PackedChallenge<SC>],
+    sends: &[Interaction<SC::Val>],
+    receives: &[Interaction<SC::Val>],
+    preprocessed_row: &[PackedVal<SC>],
+    main_row: &[SC::Val],
     batch_size: usize,
 ) {
     let interaction_chunks = &sends
@@ -63,7 +65,7 @@ pub fn populate_batch_and_mult<F: PrimeField, EF: ExtensionField<F>>(
                 let (interaction, is_send) = interaction_info;
                 let mut mult = interaction
                     .multiplicity
-                    .apply::<F, F>(preprocessed_row, main_row);
+                    .apply::<PackedVal<SC>, PackedChallenge<SC>>(preprocessed_row, main_row);
                 if !is_send {
                     mult = -mult;
                 }
@@ -75,23 +77,25 @@ pub fn populate_batch_and_mult<F: PrimeField, EF: ExtensionField<F>>(
 
 #[inline]
 #[allow(clippy::too_many_arguments)]
-pub fn populate_prepermutation_row<F: PrimeField, EF: ExtensionField<F>>(
-    row: &mut [EF],
-    preprocessed_row: &[F],
-    main_row: &[F],
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
-    alphas: &[EF],
-    betas: Powers<EF>,
+pub fn populate_prepermutation_row<SC: StarkGenericConfig>(
+    row: &mut [PackedChallenge<SC>],
+    preprocessed_row: &[PackedVal<SC>],
+    main_row: &[PackedVal<SC>],
+    sends: &[Interaction<SC::Val>],
+    receives: &[Interaction<SC::Val>],
+    alphas: &[SC::Challenge],
+    betas: Powers<SC::Challenge>,
 ) {
     let interaction_info = sends.iter().chain(receives.iter());
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
     for (value, interaction) in row.iter_mut().zip(interaction_info) {
         *value = {
             let alpha = alphas[interaction.argument_index()];
-            let mut denominator = alpha;
+            let packed_alpha = PackedChallenge::<SC>::from_f(alpha);
+            let mut denominator = packed_alpha;
             for (columns, beta) in interaction.values.iter().zip(betas.clone()) {
-                denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row)
+                denominator += PackedChallenge::<SC>::from_f(beta)
+                    * columns.apply::<PackedVal<SC>, PackedVal<SC>>(preprocessed_row, main_row)
             }
 
             denominator
@@ -135,12 +139,18 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
     let prepermutation_trace_width = sends.len() + receives.len();
 
     let mut prepermutation_trace = RowMajorMatrix::new(
-        vec![PackedVal::zero(); prepermutation_trace_width * height],
+        vec![
+            PackedChallenge::<SC>::zero();
+            prepermutation_trace_width * (height.div_ceil(PackedVal::<SC>::WIDTH))
+        ],
         prepermutation_trace_width,
     );
 
-    let mut permutation_trace: p3_matrix::dense::DenseMatrix<PackedVal> = RowMajorMatrix::new(
-        vec![SC::Challenge::zero(); permutation_trace_width * height],
+    let mut permutation_trace: RowMajorMatrix<PackedChallenge<SC>> = RowMajorMatrix::new(
+        vec![
+            PackedChallenge::<SC>::zero();
+            permutation_trace_width * (height.div_ceil(PackedVal::<SC>::WIDTH))
+        ],
         permutation_trace_width,
     );
 
@@ -150,8 +160,18 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
         Some(prep) => {
             prepermutation_trace
                 .par_rows_mut()
-                .zip_eq(prep.par_rows())
-                .zip_eq(main.par_rows())
+                .zip_eq(
+                    (0..height)
+                        .into_par_iter()
+                        .step_by(PackedVal::<SC>::WIDTH)
+                        .map(|r| prep.vertically_packed_row::<PackedVal<SC>>(r)),
+                )
+                .zip_eq(
+                    (0..height)
+                        .into_par_iter()
+                        .step_by(PackedVal::<SC>::WIDTH)
+                        .map(|r| main.vertically_packed_row(r)),
+                )
                 .for_each(|((row, prep_row), main_row)| {
                     populate_prepermutation_row(
                         row,
