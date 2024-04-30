@@ -68,7 +68,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: run
-          args: --release --manifest-path examples/fibonacci/script/Cargo.toml
+          args: --release --manifest-path examples/fibonacci/script/Cargo.toml --bin fibonacci-script
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: 1
@@ -81,7 +81,6 @@ jobs:
           cd cargo-prove-test
           cd script
           cargo run --release
-
 
   misc:
     name: Miscellaneous
@@ -96,7 +95,7 @@ jobs:
         uses: ./.github/actions/setup
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
-          
+
       - name: Run cargo test with no default features
         uses: actions-rs/cargo@v1
         with:
@@ -113,17 +112,6 @@ jobs:
           curl -L https://sp1.succinct.xyz | bash
           echo "/root/.sp1/bin" >> $GITHUB_PATH
           /root/.sp1/bin/sp1up
-
-      - name: Run fibonacci example
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --manifest-path examples/fibonacci/script/Cargo.toml
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
 
   lints:
     name: Formatting & Clippy
