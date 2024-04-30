@@ -9,7 +9,9 @@ use rayon_scan::ScanParallelIterator;
 
 use crate::{air::MultiTableAirBuilder, lookup::Interaction};
 
-use super::{util::batch_multiplicative_inverse_inplace, StarkGenericConfig};
+use super::{
+    util::batch_multiplicative_inverse_inplace, PackedChallenge, PackedVal, StarkGenericConfig,
+};
 
 /// Generates powers of a random element based on how many interactions there are in the chip.
 ///
@@ -98,32 +100,6 @@ pub fn populate_prepermutation_row<F: PrimeField, EF: ExtensionField<F>>(
 }
 
 #[inline]
-#[allow(clippy::too_many_arguments)]
-pub fn populate_prepermutation_row<F: PrimeField, EF: ExtensionField<F>>(
-    row: &mut [EF],
-    preprocessed_row: &[F],
-    main_row: &[F],
-    sends: &[Interaction<F>],
-    receives: &[Interaction<F>],
-    alphas: &[EF],
-    betas: Powers<EF>,
-) {
-    let interaction_info = sends.iter().chain(receives.iter());
-    // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
-    for (value, interaction) in row.iter_mut().zip(interaction_info) {
-        *value = {
-            let alpha = alphas[interaction.argument_index()];
-            let mut denominator = alpha;
-            for (columns, beta) in interaction.values.iter().zip(betas.clone()) {
-                denominator += beta * columns.apply::<F, F>(preprocessed_row, main_row)
-            }
-
-            denominator
-        };
-    }
-}
-
-#[inline]
 pub const fn permutation_trace_width(num_interactions: usize, batch_size: usize) -> usize {
     num_interactions.div_ceil(batch_size) + 1
 }
@@ -159,11 +135,11 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
     let prepermutation_trace_width = sends.len() + receives.len();
 
     let mut prepermutation_trace = RowMajorMatrix::new(
-        vec![SC::Challenge::zero(); prepermutation_trace_width * height],
+        vec![PackedVal::zero(); prepermutation_trace_width * height],
         prepermutation_trace_width,
     );
 
-    let mut permutation_trace: p3_matrix::dense::DenseMatrix<SC::Challenge> = RowMajorMatrix::new(
+    let mut permutation_trace: p3_matrix::dense::DenseMatrix<PackedVal> = RowMajorMatrix::new(
         vec![SC::Challenge::zero(); permutation_trace_width * height],
         permutation_trace_width,
     );
@@ -244,14 +220,14 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
             }),
     }
 
-    let zero = EF::zero();
+    let zero = SC::Challenge::zero();
     let cumulative_sums = permutation_trace
         .par_rows_mut()
         .map(|row| {
             row[0..permutation_trace_width - 1]
                 .iter()
                 .copied()
-                .sum::<EF>()
+                .sum::<SC::Challenge>()
         })
         .collect::<Vec<_>>();
 

@@ -282,7 +282,7 @@ where
                         .chip_ordering
                         .get(&chip.name())
                         .map(|&index| &pk.traces[index]);
-                    let perm_trace = chip.generate_permutation_trace(
+                    let perm_trace = chip.generate_permutation_trace::<SC>(
                         preprocessed_trace,
                         main_trace,
                         &permutation_challenges,
@@ -303,7 +303,7 @@ where
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width + permutation_width;
             tracing::debug!(
-                "{:<15} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                "{:<15} | Cols = {:<5} | Main Cols = {:<5} | Permutation Cols = {:<5}  | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
                 chips[i].name(),
                 total_width,
                 trace_width,

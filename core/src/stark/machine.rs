@@ -476,7 +476,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                     .par_iter()
                     .zip(traces.par_iter_mut())
                     .map(|(chip, (main_trace, pre_trace))| {
-                        let perm_trace = chip.generate_permutation_trace(
+                        let perm_trace = chip.generate_permutation_trace::<SC>(
                             *pre_trace,
                             main_trace,
                             &permutation_challenges,

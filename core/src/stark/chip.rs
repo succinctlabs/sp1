@@ -6,6 +6,8 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;
 
+use super::StarkGenericConfig;
+
 use crate::{
     air::{MachineAir, MultiTableAirBuilder, SP1AirBuilder},
     lookup::{Interaction, InteractionBuilder, InteractionKind},
@@ -98,17 +100,17 @@ where
         self.receives.iter().filter(|i| i.kind == kind).count()
     }
 
-    pub fn generate_permutation_trace<EF: ExtensionField<F>>(
+    pub fn generate_permutation_trace<SC: StarkGenericConfig<Val = F>>(
         &self,
         preprocessed: Option<&RowMajorMatrix<F>>,
         main: &mut RowMajorMatrix<F>,
-        random_elements: &[EF],
-    ) -> RowMajorMatrix<EF>
+        random_elements: &[SC::Challenge],
+    ) -> RowMajorMatrix<SC::Challenge>
     where
         F: PrimeField,
     {
         let batch_size = self.logup_batch_size();
-        generate_permutation_trace(
+        generate_permutation_trace::<SC>(
             &self.sends,
             &self.receives,
             preprocessed,
