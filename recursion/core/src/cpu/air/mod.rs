@@ -63,9 +63,7 @@ where
         //     .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
         // Constraint the program.
-        if std::env::var("MAX_RECURSION_PROGRAM_SIZE").is_err() {
-            builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
-        }
+        // builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Constraint the syscalls.
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
