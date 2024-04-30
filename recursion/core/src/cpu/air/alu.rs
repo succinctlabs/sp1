@@ -1,4 +1,5 @@
-use p3_field::Field;
+use p3_air::AirBuilder;
+use p3_field::{AbstractField, Field};
 use sp1_core::air::{BinomialExtension, ExtensionAirBuilder};
 
 use crate::{
@@ -8,11 +9,14 @@ use crate::{
 };
 
 impl<F: Field> CpuChip<F> {
-    /// Eval the ALU operations.
+    /// Eval the ALU instructions.
     pub fn eval_alu<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
+        let one = AB::Expr::one();
+        let is_alu_instruction = self.is_alu_instruction::<AB>(local);
+
         // Convert operand values from Block<Var> to BinomialExtension<Expr>.
         let a_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.a.value().map(|x| x.into()));
@@ -21,26 +25,22 @@ impl<F: Field> CpuChip<F> {
         let c_ext: BinomialExtension<AB::Expr> =
             BinomialExtensionUtils::from_block(local.c.value().map(|x| x.into()));
 
-        // Flag to check if the instruction is a field operation
-        let is_field_op = local.selectors.is_add
-            + local.selectors.is_sub
-            + local.selectors.is_mul
-            + local.selectors.is_div;
-
         // Verify that the b and c registers are base elements for field operations.
         builder
-            .when(is_field_op.clone())
+            .when(is_alu_instruction.clone())
+            .when(one.clone() - local.selectors.is_ext)
             .assert_is_base_element(b_ext.clone());
         builder
-            .when(is_field_op)
+            .when(is_alu_instruction)
+            .when(one - local.selectors.is_ext)
             .assert_is_base_element(c_ext.clone());
 
         // Verify the actual operation.
         builder
-            .when(local.selectors.is_add + local.selectors.is_eadd)
+            .when(local.selectors.is_add)
             .assert_ext_eq(a_ext.clone(), b_ext.clone() + c_ext.clone());
         builder
-            .when(local.selectors.is_sub + local.selectors.is_esub)
+            .when(local.selectors.is_sub)
             .assert_ext_eq(a_ext.clone(), b_ext.clone() - c_ext.clone());
         // TODO:  Figure out why this fails in the groth16 proof.
         // builder
@@ -48,7 +48,7 @@ impl<F: Field> CpuChip<F> {
         //     .assert_ext_eq(a_ext.clone(), b_ext.clone() * c_ext.clone());
         // // For div operation, we assert that b == a * c (equivalent to a == b / c).
         builder
-            .when(local.selectors.is_div + local.selectors.is_ediv)
+            .when(local.selectors.is_div)
             .assert_ext_eq(b_ext, a_ext * c_ext);
     }
 }

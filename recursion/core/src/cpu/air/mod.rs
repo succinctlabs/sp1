@@ -1,11 +1,12 @@
 mod alu;
 mod branch;
+mod jump;
 mod memory;
 mod operands;
 
 use std::borrow::Borrow;
 
-use p3_air::Air;
+use p3_air::{Air, AirBuilder};
 use p3_field::{AbstractField, Field};
 use p3_matrix::Matrix;
 
@@ -23,7 +24,7 @@ where
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &CpuCols<AB::Var> = (*local).borrow();
-        let _next: &CpuCols<AB::Var> = (*next).borrow();
+        let next: &CpuCols<AB::Var> = (*next).borrow();
         let zero = AB::Expr::zero();
         let one = AB::Expr::one();
 
@@ -31,39 +32,38 @@ where
 
         self.eval_memory(builder, local);
 
-        //self.eval_alu(builder, local);
+        self.eval_alu(builder, local);
 
-        // Expression for the expected next_pc.
-        let mut next_pc = zero;
+        {
+            // Expression for the expected next_pc.  This will be added to in `eval_branch` and `eval_jump`
+            // to account for possible jumps and branches.
+            let mut next_pc = zero;
 
-        self.eval_branch(builder, local, &mut next_pc);
+            self.eval_branch(builder, local, &mut next_pc);
 
-        // TODO: in eval_jump, we need to constraint the transition of `fp`.
-        // self.eval_jump(builder, local, &mut next_pc);
+            self.eval_jump(builder, local, next, &mut next_pc);
 
-        // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
-        let not_branch_or_jump = one.clone()
-            - self.is_branch_instruction::<AB>(local)
-            - self.is_jump_instruction::<AB>(local);
-        next_pc += not_branch_or_jump.clone() * (local.pc + one);
+            // If the instruction is not a jump or branch instruction, then next pc = pc + 1.
+            let not_branch_or_jump = one.clone()
+                - self.is_branch_instruction::<AB>(local)
+                - self.is_jump_instruction::<AB>(local);
+            next_pc += not_branch_or_jump.clone() * (local.pc + one);
 
-        // Verify next row's pc is correct.
-        // TODO: Uncomment once eval_jump is implemented.
-        // builder
-        //     .when_transition()
-        //     .when(next.is_real)
-        //     .assert_eq(next_pc, next.pc);
+            // Verify next row's pc is correct.
+            builder
+                .when_transition()
+                .when(next.is_real)
+                .assert_eq(next_pc, next.pc);
+        }
 
-        // // Increment clk by 4 every cycle.
+        // Increment clk by 4 every cycle.
         // builder
         //     .when_transition()
         //     .when(next.is_real)
         //     .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
         // Constraint the program.
-        if std::env::var("MAX_RECURSION_PROGRAM_SIZE").is_err() {
-            builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
-        }
+        // builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
 
         // Constraint the syscalls.
         let send_syscall = local.selectors.is_poseidon + local.selectors.is_fri_fold;
@@ -78,6 +78,17 @@ where
 }
 
 impl<F: Field> CpuChip<F> {
+    /// Expr to check for alu instructions.
+    pub fn is_alu_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_add
+            + local.selectors.is_sub
+            + local.selectors.is_mul
+            + local.selectors.is_div
+    }
+
     /// Expr to check for branch instructions.
     pub fn is_branch_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
     where
@@ -87,11 +98,19 @@ impl<F: Field> CpuChip<F> {
     }
 
     /// Expr to check for jump instructions.
-    fn is_jump_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    pub fn is_jump_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
         local.selectors.is_jal + local.selectors.is_jalr
+    }
+
+    /// Expr to check for memory instructions.
+    pub fn is_memory_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_load + local.selectors.is_store
     }
 
     /// Expr to check for instructions that only read from operand `a`.

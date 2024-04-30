@@ -17,12 +17,7 @@ pub struct OpcodeSelectorCols<T> {
     pub is_sub: T,
     pub is_mul: T,
     pub is_div: T,
-
-    // Arithmetic field extension operations.
-    pub is_eadd: T,
-    pub is_esub: T,
-    pub is_emul: T,
-    pub is_ediv: T,
+    pub is_ext: T,
 
     // Memory instructions.
     pub is_load: T,
@@ -54,14 +49,10 @@ impl<F: Field> OpcodeSelectorCols<F> {
     /// need to set the relevant opcode column to 1.
     pub fn populate(&mut self, instruction: &Instruction<F>) {
         match instruction.opcode {
-            Opcode::ADD => self.is_add = F::one(),
-            Opcode::SUB => self.is_sub = F::one(),
-            Opcode::MUL => self.is_mul = F::one(),
-            Opcode::DIV => self.is_div = F::one(),
-            Opcode::EADD => self.is_eadd = F::one(),
-            Opcode::ESUB => self.is_esub = F::one(),
-            Opcode::EMUL => self.is_emul = F::one(),
-            Opcode::EDIV => self.is_ediv = F::one(),
+            Opcode::ADD | Opcode::EADD => self.is_add = F::one(),
+            Opcode::SUB | Opcode::ESUB => self.is_sub = F::one(),
+            Opcode::MUL | Opcode::EMUL => self.is_mul = F::one(),
+            Opcode::DIV | Opcode::EDIV => self.is_div = F::one(),
             Opcode::LOAD => self.is_load = F::one(),
             Opcode::STORE => self.is_store = F::one(),
             Opcode::BEQ => self.is_beq = F::one(),
@@ -80,6 +71,13 @@ impl<F: Field> OpcodeSelectorCols<F> {
             Opcode::Commit => self.is_commit = F::one(),
             _ => {}
         }
+
+        if matches!(
+            instruction.opcode,
+            Opcode::EADD | Opcode::ESUB | Opcode::EMUL | Opcode::EDIV
+        ) {
+            self.is_ext = F::one();
+        }
     }
 }
 
@@ -94,10 +92,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_sub,
             self.is_mul,
             self.is_div,
-            self.is_eadd,
-            self.is_esub,
-            self.is_emul,
-            self.is_ediv,
+            self.is_ext,
             self.is_load,
             self.is_store,
             self.is_beq,

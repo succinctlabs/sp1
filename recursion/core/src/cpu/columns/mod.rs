@@ -7,6 +7,7 @@ use sp1_derive::AlignedBorrow;
 
 mod branch;
 mod instruction;
+mod memory;
 mod opcode;
 mod opcode_specific;
 
@@ -46,8 +47,6 @@ pub struct CpuCols<T: Copy> {
     pub a: MemoryReadWriteCols<T>,
     pub b: MemoryReadCols<T>,
     pub c: MemoryReadCols<T>,
-    pub memory_addr: T,
-    pub memory: MemoryReadWriteCols<T>,
 
     pub opcode_specific: OpcodeSpecificCols<T>,
 

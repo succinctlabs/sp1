@@ -9,7 +9,7 @@ use crate::{
 };
 
 impl<F: Field> CpuChip<F> {
-    /// Eval the branch operations.
+    /// Eval the BRANCH operations.
     pub fn eval_branch<AB>(
         &self,
         builder: &mut AB,
@@ -67,6 +67,7 @@ impl<F: Field> CpuChip<F> {
             .when(is_branch_instruction.clone())
             .assert_eq(branch_cols.next_pc, expected_next_pc);
 
+        // Add to the `next_pc` expression.
         *next_pc = is_branch_instruction * branch_cols.next_pc;
     }
 }

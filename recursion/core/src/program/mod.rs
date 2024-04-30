@@ -60,7 +60,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => program.instructions.len(),
+            Err(_) => std::cmp::min(524288, program.instructions.len()),
         };
         let rows = program.instructions[0..max_program_size]
             .iter()
@@ -110,7 +110,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => input.program.instructions.len(),
+            Err(_) => std::cmp::min(524288, input.program.instructions.len()),
         };
         let rows = input.program.instructions[0..max_program_size]
             .iter()
@@ -159,16 +159,14 @@ where
         let prep_local = preprocessed.row_slice(0);
         let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
         let mult_local = main.row_slice(0);
-        let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
+        let _mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        if std::env::var("MAX_RECURSION_PROGRAM_SIZE").is_err() {
-            builder.receive_program(
-                prep_local.pc,
-                prep_local.instruction,
-                prep_local.selectors,
-                mult_local.multiplicity,
-            );
-        }
+        // builder.receive_program(
+        //     prep_local.pc,
+        //     prep_local.instruction,
+        //     prep_local.selectors,
+        //     mult_local.multiplicity,
+        // );
 
         // Dummy constraint of degree 3.
         builder.assert_eq(
