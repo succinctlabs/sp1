@@ -1,56 +1,95 @@
 use std::mem::size_of;
 
-use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
 
 use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 
 use super::external::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
-pub const NUM_POSEIDON2_SBOX_COLS: usize = size_of::<Poseidon2SboxCols<u8>>();
-
 pub(crate) enum Poseidon2Columns<'a, T> {
     Wide(&'a mut Poseidon2SboxCols<T>),
     Narrow(&'a mut Poseidon2Cols<T>),
 }
 
-impl<F: PrimeField32> Poseidon2Columns<'_, F> {
-    pub fn get_memory_mut(&mut self) -> &mut Poseidon2MemCols<F> {
+impl<T> Poseidon2Columns<'_, T> {
+    pub fn get_memory(&self) -> &Poseidon2MemCols<T> {
+        match self {
+            Poseidon2Columns::Wide(cols) => &cols.memory,
+            Poseidon2Columns::Narrow(cols) => &cols.memory,
+        }
+    }
+
+    pub fn get_memory_mut(&mut self) -> &mut Poseidon2MemCols<T> {
         match self {
             Poseidon2Columns::Wide(cols) => &mut cols.memory,
             Poseidon2Columns::Narrow(cols) => &mut cols.memory,
         }
     }
 
-    pub fn get_external_state_mut(&mut self, round: usize) -> &mut [F; WIDTH] {
+    pub fn get_external_state(&self, round: usize) -> &[T; WIDTH] {
+        match self {
+            Poseidon2Columns::Wide(cols) => &cols.external_rounds[round].state,
+            Poseidon2Columns::Narrow(cols) => &cols.external_rounds[round].state,
+        }
+    }
+
+    pub fn get_external_state_mut(&mut self, round: usize) -> &mut [T; WIDTH] {
         match self {
             Poseidon2Columns::Wide(cols) => &mut cols.external_rounds[round].state,
             Poseidon2Columns::Narrow(cols) => &mut cols.external_rounds[round].state,
         }
     }
 
-    pub fn get_internal_state_mut(&mut self) -> &mut [F; WIDTH] {
+    pub fn get_internal_state(&self) -> &[T; WIDTH] {
+        match self {
+            Poseidon2Columns::Wide(cols) => &cols.internal_rounds.state,
+            Poseidon2Columns::Narrow(cols) => &cols.internal_rounds.state,
+        }
+    }
+
+    pub fn get_internal_state_mut(&mut self) -> &mut [T; WIDTH] {
         match self {
             Poseidon2Columns::Wide(cols) => &mut cols.internal_rounds.state,
             Poseidon2Columns::Narrow(cols) => &mut cols.internal_rounds.state,
         }
     }
 
-    pub fn get_internal_s0_mut(&mut self) -> &mut [F; NUM_INTERNAL_ROUNDS - 1] {
+    pub fn get_internal_s0(&self) -> &[T; NUM_INTERNAL_ROUNDS - 1] {
+        match self {
+            Poseidon2Columns::Wide(cols) => &cols.internal_rounds.s0,
+            Poseidon2Columns::Narrow(cols) => &cols.internal_rounds.s0,
+        }
+    }
+
+    pub fn get_internal_s0_mut(&mut self) -> &mut [T; NUM_INTERNAL_ROUNDS - 1] {
         match self {
             Poseidon2Columns::Wide(cols) => &mut cols.internal_rounds.s0,
             Poseidon2Columns::Narrow(cols) => &mut cols.internal_rounds.s0,
         }
     }
 
-    pub fn get_external_sbox_mut(&mut self, round: usize) -> Option<&mut [F; WIDTH]> {
+    pub fn get_external_sbox(&self, round: usize) -> Option<&[T; WIDTH]> {
+        match self {
+            Poseidon2Columns::Wide(cols) => Some(&cols.external_rounds[round].sbox_deg_3),
+            Poseidon2Columns::Narrow(_) => None,
+        }
+    }
+
+    pub fn get_external_sbox_mut(&mut self, round: usize) -> Option<&mut [T; WIDTH]> {
         match self {
             Poseidon2Columns::Wide(cols) => Some(&mut cols.external_rounds[round].sbox_deg_3),
             Poseidon2Columns::Narrow(_) => None,
         }
     }
 
-    pub fn get_internal_sbox_mut(&mut self) -> Option<&mut [F; NUM_INTERNAL_ROUNDS]> {
+    pub fn get_internal_sbox(&self) -> Option<&[T; NUM_INTERNAL_ROUNDS]> {
+        match self {
+            Poseidon2Columns::Wide(cols) => Some(&cols.internal_rounds.sbox_deg_3),
+            Poseidon2Columns::Narrow(_) => None,
+        }
+    }
+
+    pub fn get_internal_sbox_mut(&mut self) -> Option<&mut [T; NUM_INTERNAL_ROUNDS]> {
         match self {
             Poseidon2Columns::Wide(cols) => Some(&mut cols.internal_rounds.sbox_deg_3),
             Poseidon2Columns::Narrow(_) => None,
@@ -69,6 +108,8 @@ pub struct Poseidon2MemCols<T> {
     pub output: [MemoryReadWriteSingleCols<T>; WIDTH],
     pub is_real: T,
 }
+
+pub const NUM_POSEIDON2_SBOX_COLS: usize = size_of::<Poseidon2SboxCols<u8>>();
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Clone, Copy)]

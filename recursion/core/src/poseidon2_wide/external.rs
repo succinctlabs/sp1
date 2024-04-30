@@ -9,6 +9,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_core::cpu::air::memory;
 use sp1_core::utils::pad_to_power_of_two;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
@@ -246,22 +247,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
     r: usize,
     is_real: AB::Var,
 ) {
-    let (external_state, internal_state, memory, has_sbox_3) = match cols {
-        Poseidon2Columns::Wide(cols) => (
-            &cols.external_rounds[r].state,
-            &cols.internal_rounds.state,
-            &cols.memory,
-            true,
-        ),
-        Poseidon2Columns::Narrow(cols) => (
-            &cols.external_rounds[r].state,
-            &cols.internal_rounds.state,
-            &cols.memory,
-            false,
-        ),
-    };
-
-    let round_cols = cols.external_rounds[r];
+    let external_state = cols.get_external_state(r);
 
     // Add the round constants.
     let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
@@ -276,18 +262,13 @@ fn eval_external_round<AB: SP1AirBuilder>(
     // Apply the sboxes.
     // See `populate_external_round` for why we don't have columns for the sbox output here.
     let mut sbox_deg_7: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+    let mut sbox_deg_3: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+    let expected_sbox_deg_3 = cols.get_external_sbox(r);
     for i in 0..WIDTH {
-        if has_sbox_3 {
-            let sbox_deg_3 = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
-            builder.assert_eq(round_cols.sbox_deg_3[i], sbox_deg_3);
-
-            let sbox_deg_3 = round_cols.sbox_deg_3[i];
-            sbox_deg_7[i] = sbox_deg_3 * sbox_deg_3 * add_rc[i].clone();
-        } else {
-            sbox_deg_7[i] = add_rc[i].clone();
-            for i in 1..7 {
-                sbox_deg_7[i] *= add_rc[i].clone();
-            }
+        sbox_deg_3[i] = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
+        sbox_deg_7[i] = sbox_deg_3[i].clone() * sbox_deg_3[i].clone() * add_rc[i].clone();
+        if let Some(expected) = expected_sbox_deg_3 {
+            builder.assert_eq(expected[i], sbox_deg_3[i].clone());
         }
     }
 
@@ -296,11 +277,12 @@ fn eval_external_round<AB: SP1AirBuilder>(
     external_linear_layer(&mut state);
 
     let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-        &internal_state
+        cols.get_internal_state()
     } else if r == NUM_EXTERNAL_ROUNDS - 1 {
+        let memory = cols.get_memory();
         &core::array::from_fn(|i| *memory.output[i].value())
     } else {
-        &cols.external_rounds[r + 1].state
+        cols.get_external_state(r + 1)
     };
     for i in 0..WIDTH {
         builder.assert_eq(next_state_cols[i], state[i].clone());
@@ -309,26 +291,30 @@ fn eval_external_round<AB: SP1AirBuilder>(
 
 fn eval_internal_rounds<AB: SP1AirBuilder>(
     builder: &mut AB,
-    cols: &Poseidon2WideCols<AB::Var>,
+    cols: &Poseidon2Columns<AB::Var>,
     is_real: AB::Var,
 ) {
-    let round_cols = &cols.internal_rounds;
-    let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| round_cols.state[i].into());
+    let state = &cols.get_internal_state();
+    let s0 = cols.get_internal_s0();
+    let sbox_3 = cols.get_internal_sbox();
+    let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| state[i].into());
     for r in 0..NUM_INTERNAL_ROUNDS {
         // Add the round constant.
         let round = r + NUM_EXTERNAL_ROUNDS / 2;
         let add_rc = if r == 0 {
             state[0].clone()
         } else {
-            round_cols.s0[r - 1].into()
+            s0[r - 1].into()
         } + is_real * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
-        let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
-        builder.assert_eq(round_cols.sbox_deg_3[r], sbox_deg_3);
+        let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
+        if let Some(expected) = sbox_3 {
+            builder.assert_eq(expected[r], sbox_deg_3);
+            sbox_deg_3 = expected[r].into();
+        }
 
         // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
-        let sbox_deg_7 =
-            round_cols.sbox_deg_3[r].into() * round_cols.sbox_deg_3[r].into() * add_rc.clone();
+        let sbox_deg_7 = sbox_deg_3 * sbox_deg_3 * add_rc.clone();
 
         // Apply the linear layer.
         // See `populate_internal_rounds` for why we don't have columns for the new state here.
@@ -336,15 +322,13 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
         internal_linear_layer(&mut state);
 
         if r < NUM_INTERNAL_ROUNDS - 1 {
-            builder.assert_eq(round_cols.s0[r], state[0].clone());
+            builder.assert_eq(s0[r], state[0].clone());
         }
     }
 
+    let external_state = cols.get_external_state(NUM_EXTERNAL_ROUNDS / 2);
     for i in 0..WIDTH {
-        builder.assert_eq(
-            cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state[i],
-            state[i].clone(),
-        )
+        builder.assert_eq(external_state[i], state[i].clone())
     }
 }
 
