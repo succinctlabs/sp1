@@ -54,11 +54,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
         println!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
 
-        let use_sbox_3 = DEGREE > 7;
+        let use_sbox_3 = DEGREE < 7;
         let num_columns = if use_sbox_3 {
-            NUM_POSEIDON2_COLS
-        } else {
             NUM_POSEIDON2_SBOX_COLS
+        } else {
+            NUM_POSEIDON2_COLS
         };
 
         for event in &input.poseidon2_events {
@@ -326,11 +326,11 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {
-        let use_sbox_3 = DEGREE > 7;
+        let use_sbox_3 = DEGREE < 7;
         if use_sbox_3 {
-            NUM_POSEIDON2_COLS
-        } else {
             NUM_POSEIDON2_SBOX_COLS
+        } else {
+            NUM_POSEIDON2_COLS
         }
     }
 }
@@ -379,7 +379,7 @@ where
     AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        let use_sbox_3 = DEGREE > 7;
+        let use_sbox_3 = DEGREE < 7;
         let main = builder.main();
         let cols = main.row_slice(0);
         let cols = if use_sbox_3 {
@@ -456,15 +456,15 @@ mod tests {
     /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
     fn generate_trace() {
-        let chip = Poseidon2WideChip::<3>;
+        const DEGREE: usize = 3;
+
+        let chip = Poseidon2WideChip::<DEGREE>;
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
             [BabyBear::from_canonical_u32(2); WIDTH],
             [BabyBear::from_canonical_u32(3); WIDTH],
             [BabyBear::from_canonical_u32(4); WIDTH],
         ];
-
-        const DEGREE: usize = 7;
 
         let gt: Poseidon2<
             BabyBear,
@@ -491,7 +491,7 @@ mod tests {
 
         assert_eq!(trace.height(), test_inputs.len());
 
-        let use_sbox_3 = DEGREE > 7;
+        let use_sbox_3 = DEGREE < 7;
         for (i, expected_output) in expected_outputs.iter().enumerate() {
             let row = trace.row(i).collect_vec();
 
