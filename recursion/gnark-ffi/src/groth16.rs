@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use crate::{witness::GnarkWitness, GnarkVerifyInput};
+use crate::witness::GnarkWitness;
 use crossbeam::channel::{bounded, Sender};
 use rand::Rng;
 use reqwest::{blocking::Client, StatusCode};
@@ -257,28 +257,12 @@ impl Groth16Prover {
     }
 
     /// Generates a Groth16 proof by sending a request to the Gnark server.
-    pub fn verify(
-        // &self,
-        proof: Groth16Proof,
-        // // vkey_hash: String,
-        // // commited_values_digest: String,
-        build_dir: PathBuf,
-    ) -> bool {
+    pub fn verify(proof: Groth16Proof, build_dir: PathBuf) -> bool {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
         let cwd = std::env::current_dir().unwrap();
-
-        // let verify_input = GnarkVerifyInput {
-        //     proof,
-        //     vkey_hash,
-        //     commited_values_digest,
-        // };
-
-        // Write proof input.
-        let proof_input_path = build_dir.join("verify_input_groth16.json");
-        let mut file = File::create(&proof_input_path).unwrap();
-        let serialized = serde_json::to_string(&proof).unwrap();
-        file.write_all(serialized.as_bytes()).unwrap();
+        let data_dir = cwd.join(build_dir);
+        let data_dir_str = data_dir.to_str().unwrap();
 
         // Run `make`.
         let make = Command::new("make")
@@ -299,9 +283,13 @@ impl Groth16Prover {
                 "main.go",
                 "verify-groth16",
                 "--data",
-                cwd.join(build_dir).to_str().unwrap(),
-                "--verify-input",
-                cwd.join(proof_input_path).to_str().unwrap(),
+                data_dir_str,
+                "--encoded-proof",
+                &proof.encoded_proof,
+                "--vkey-hash",
+                &proof.public_inputs[0],
+                "--commited-values-digest",
+                &proof.public_inputs[1],
             ])
             .current_dir(gnark_dir)
             .stderr(Stdio::inherit())

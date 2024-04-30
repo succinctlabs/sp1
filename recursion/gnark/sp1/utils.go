@@ -14,7 +14,7 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
 )
 
-// Function to serialize a gnark groth16 proof to a sp1 groth16 proof.
+// Function to serialize a gnark groth16 proof to an SP1 Groth16Proof.
 func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput) (Groth16Proof, error) {
 	// Serialize the proof to JSON.
 	const fpSize = 4 * 8
@@ -50,7 +50,7 @@ func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput)
 	}, nil
 }
 
-// Function to deserialize SP1.Groth16Proof to Groth16Proof.
+// Function to deserialize a base64 encoded proof to a groth16.Proof.
 func DeserializeSP1Groth16Proof(encodedProof string) (*groth16.Proof, error) {
 	decodedBytes, err := base64.StdEncoding.DecodeString(encodedProof)
 	if err != nil {

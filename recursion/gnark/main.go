@@ -42,7 +42,9 @@ func main() {
 
 	verifyGroth16Cmd := flag.NewFlagSet("verify-groth16", flag.ExitOnError)
 	verifyGroth16DataDirFlag := verifyGroth16Cmd.String("data", "", "Data directory path")
-	verifyGroth16VerifyInputPathFlag := verifyGroth16Cmd.String("verify-input", "", "Path to verify input")
+	verifyGroth16EncodedProofFlag := verifyGroth16Cmd.String("encoded-proof", "", "Encoded proof")
+	verifyGroth16VkeyHashFlag := verifyGroth16Cmd.String("vkey-hash", "", "Vkey hash")
+	verifyGroth16CommitedValuesDigestFlag := verifyGroth16Cmd.String("commited-values-digest", "", "Commited values digest")
 
 	provePlonkBn254Cmd := flag.NewFlagSet("prove-plonk-bn254", flag.ExitOnError)
 	provePlonkBn254DataDirFlag := provePlonkBn254Cmd.String("data", "", "Data directory path")
@@ -291,7 +293,9 @@ func main() {
 		verifyGroth16Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'verify' with data=%s\n", *verifyGroth16DataDirFlag)
 		buildDir := *verifyGroth16DataDirFlag
-		verifyInputPath := *verifyGroth16VerifyInputPathFlag
+		encodedProof := *verifyGroth16EncodedProofFlag
+		vkeyHash := *verifyGroth16VkeyHashFlag
+		commitedValuesDigest := *verifyGroth16CommitedValuesDigestFlag
 
 		// Read the verifier key.
 		fmt.Println("Reading vk...")
@@ -303,16 +307,18 @@ func main() {
 		vk := groth16.NewVerifyingKey(ecc.BN254)
 		vk.ReadFrom(vkFile)
 
-		// Get the verify input.
-		verifyInput, err := sp1.LoadEncodedProofFromPath(verifyInputPath)
+		// Encoded proof to gnark groth16 proof.
+		proof, err := sp1.DeserializeSP1Groth16Proof(encodedProof)
 		if err != nil {
 			panic(err)
 		}
 
+		fmt.Println("proof", proof)
+
 		// Construct the public witness from the verify input.
 		assignment := sp1.Circuit{
-			VkeyHash:             verifyInput.PublicInputs[0],
-			CommitedValuesDigest: verifyInput.PublicInputs[1],
+			VkeyHash:             vkeyHash,
+			CommitedValuesDigest: commitedValuesDigest,
 		}
 		publicWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
 		if err != nil {
@@ -320,14 +326,6 @@ func main() {
 		}
 
 		fmt.Println("publicWitness", publicWitness)
-
-		// Convert the SP1 Groth16Proof to a groth16.Proof.
-		proof, err := sp1.DeserializeSP1Groth16Proof(verifyInput.EncodedProof)
-		if err != nil {
-			panic(err)
-		}
-
-		fmt.Println("proof", proof)
 
 		// Verify the proof.
 		err = groth16.Verify(*proof, vk, publicWitness)
