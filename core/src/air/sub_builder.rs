@@ -1,4 +1,5 @@
-use std::ops::Range;
+use std::iter::{Skip, Take};
+use std::ops::{Deref, Range};
 
 use p3_air::{AirBuilder, BaseAir};
 use p3_matrix::Matrix;
@@ -22,25 +23,27 @@ impl<M: Matrix<T>, T: Send + Sync> SubMatrixRowSlices<M, T> {
 
 /// Implement `Matrix` for `SubMatrixRowSlices`.
 impl<M: Matrix<T>, T: Send + Sync> Matrix<T> for SubMatrixRowSlices<M, T> {
-    type Row<'a> = M::Row<'a> where Self: 'a;
+    type Row<'a> = Skip<Take<M::Row<'a>>> where Self: 'a;
 
+    #[inline]
     fn row(&self, r: usize) -> Self::Row<'_> {
-        self.inner.row(r)
-    }
-
-    fn row_slice(&self, r: usize) -> impl std::ops::Deref<Target = [T]> {
         self.inner
             .row(r)
-            .enumerate()
-            .filter(|(i, _)| self.column_range.contains(i))
-            .map(|(_, el)| el)
-            .collect::<Vec<_>>()
+            .take(self.column_range.end)
+            .skip(self.column_range.start)
     }
 
+    #[inline]
+    fn row_slice(&self, r: usize) -> impl Deref<Target = [T]> {
+        self.row(r).collect::<Vec<_>>()
+    }
+
+    #[inline]
     fn width(&self) -> usize {
-        self.column_range.end - self.column_range.start
+        self.column_range.len()
     }
 
+    #[inline]
     fn height(&self) -> usize {
         self.inner.height()
     }
