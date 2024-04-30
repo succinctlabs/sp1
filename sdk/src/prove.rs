@@ -19,7 +19,7 @@ use sp1_prover::{
 use tokio::{runtime, time::sleep};
 
 use crate::{
-    artifacts::{get_artifacts_dir, install_circuit, WrapCircuitType},
+    artifacts::{get_artifacts_dir, install_circuit_artifacts, WrapCircuitType},
     client::NetworkClient,
     proto::network::{ProofStatus, TransactionStatus},
     SP1PublicValues, SP1Stdin,
@@ -144,7 +144,13 @@ impl Prover for LocalProver {
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         let artifacts_dir = get_artifacts_dir(WrapCircuitType::Groth16);
-        install_circuit(WrapCircuitType::Groth16, false, Some(artifacts_dir), None);
+        install_circuit_artifacts(
+            WrapCircuitType::Groth16,
+            false,
+            Some(artifacts_dir.clone()),
+            None,
+        )
+        .expect("Failed to install Groth16 circuit artifacts");
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
@@ -160,8 +166,14 @@ impl Prover for LocalProver {
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        install_circuit(WrapCircuitType::Plonk, false, Some(artifacts_dir), None);
         let artifacts_dir = get_artifacts_dir(WrapCircuitType::Plonk);
+        install_circuit_artifacts(
+            WrapCircuitType::Plonk,
+            false,
+            Some(artifacts_dir.clone()),
+            None,
+        )
+        .expect("Failed to install Plonk circuit artifacts");
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();

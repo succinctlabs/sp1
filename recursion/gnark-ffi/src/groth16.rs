@@ -281,12 +281,18 @@ impl Groth16Prover {
 
 impl Drop for Groth16Prover {
     fn drop(&mut self) {
-        let mut handle_opt = self.thread_handle.lock().and_then(|mut handle| {
-            handle
-                .take()
-                .map(|handle| self.cancel_sender.send(())?)
-                .ok_or("failed to process handle")
-        });
+        let mut handle_opt = self.thread_handle.lock().unwrap();
+        if let Some(handle) = handle_opt.take() {
+            let _ = self.cancel_sender.send(());
+            let _ = handle.join();
+        }
+
+        // let mut handle_opt = self.thread_handle.lock().and_then(|mut handle| {
+        //     handle
+        //         .take()
+        //         .map(|handle| self.cancel_sender.send(()).ok())
+        //         .ok_or("failed to process handle")
+        // });
     }
 }
 

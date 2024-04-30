@@ -75,9 +75,6 @@ pub fn build_groth16_artifacts(build_dir: PathBuf) {
 
     tracing::info!("gnark prove");
     groth16_prover.prove(witness.clone());
-
-    tracing::info!("gnark cancel");
-    groth16_prover.shutdown();
 }
 
 pub fn build_plonk_artifacts(build_dir: PathBuf) {

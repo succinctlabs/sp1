@@ -11,7 +11,7 @@ pub const GROTH16_CIRCUIT_VERSION: u32 = 1;
 
 pub const PLONK_BN254_CIRCUIT_VERSION: u32 = 1;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 pub enum WrapCircuitType {
     Groth16,
     Plonk,
@@ -33,7 +33,7 @@ const CIRCUIT_ARTIFACTS_URL: &str = "https://sp1-circuits.s3-us-east-2.amazonaws
 pub fn get_artifacts_dir(circuit_type: WrapCircuitType) -> PathBuf {
     let env_var = std::env::var("SP1_CIRCUIT_DIR");
 
-    env_var.unwrap_or_else(|| {
+    env_var.map(PathBuf::from).unwrap_or_else(|_| {
         dirs::home_dir()
             .expect("Failed to get home directory.")
             .join(".sp1")
@@ -51,7 +51,7 @@ pub fn get_artifacts_dir(circuit_type: WrapCircuitType) -> PathBuf {
 ///
 /// If build_dir is not provided, the artifacts are installed in ~/.sp1/circuits/<type>/<version>.
 /// If version is not provided, the latest version is installed.
-pub fn install_circuit(
+pub fn install_circuit_artifacts(
     circuit_type: WrapCircuitType,
     overwrite_existing: bool,
     build_dir: Option<PathBuf>,
@@ -96,7 +96,7 @@ pub fn install_circuit(
         "{}{}/{}.tar.gz",
         CIRCUIT_ARTIFACTS_URL, circuit_type, version_num
     );
-    println!("Downloading {} to {:?}", download_url, temp_file);
+    println!("Downloading {} to {:?}", download_url, temp_file_path);
 
     let rt = tokio::runtime::Runtime::new()?;
     let client = Client::builder().build()?;
