@@ -504,6 +504,7 @@ impl ReduceProgram {
         builder.commit_public_value(is_complete_felt);
     }
 
+    /// Reduce a set of recursive proofs into a single proof.
     fn reduce<A>(builder: &mut Builder<C>, machine: &StarkMachine<SC, A>)
     where
         SC: StarkGenericConfig<Val = Val>,
@@ -517,9 +518,9 @@ impl ReduceProgram {
 
         // Input for the sp1 and recursion machines.
         let sp1_vk: VerifyingKeyVariable<_> = builder.uninit();
+        let sp1_first_layer_vk: VerifyingKeyVariable<_> = builder.uninit();
+        let deffered_first_layer_vk: VerifyingKeyVariable<_> = builder.uninit();
         let reduce_vk: VerifyingKeyVariable<_> = builder.uninit();
-        // Whether we are verifying deferred proofs or core leaf proofs.
-        let is_verifying_deferred: Var<_> = builder.uninit();
 
         // Inputs related to verifying the stark proofs
         let chip_quotient_data: Array<_, Array<_, QuotientData<_>>> = builder.uninit();
@@ -537,6 +538,7 @@ impl ReduceProgram {
         let initial_start_shard: Felt<_> = builder.uninit();
         let mut reconstruct_deferred_digest: DigestVariable<_> = builder.uninit();
         let proofs: Array<_, ShardProofVariable<_>> = builder.uninit();
+        let is_sp1_layer: Var<_> = builder.uninit();
         let is_complete: Var<_> = builder.uninit();
 
         // Setup the recursive challenger.
@@ -550,20 +552,25 @@ impl ReduceProgram {
         builder.cycle_tracker("stage-b-setup-recursion-challenger");
 
         // Get the vk we are verifying.
-        let vk: VerifyingKeyVariable<_> = builder.uninit();
-        builder
-            .if_eq(is_verifying_deferred, Val::zero())
-            .then_or_else(
-                |builder| {
-                    builder.assign(vk.clone(), sp1_vk.clone());
-                },
-                |builder| {
-                    builder.assign(vk.clone(), reduce_vk.clone());
-                },
-            );
+        let vk: VerifyingKeyVariable<_> = reduce_vk;
 
         // Hash vkey + pc_start + prep_domains into a single digest.
         let vk_digest = hash_vkey(&mut builder, &vk, &prep_domains, &prep_sorted_indices);
+
+        // TODO
+        // Hash vkey + pc_start + prep_domains into a single digest.
+        // let sp1_vk_digest = hash_vkey(
+        //     &mut builder,
+        //     &sp1_vk,
+        //     &sp1_prep_domains,
+        //     &sp1_prep_sorted_indices,
+        // );
+        // let recursion_vk_digest = hash_vkey(
+        //     &mut builder,
+        //     &reduce_vk,
+        //     &reduce_prep_domains,
+        //     &reduce_prep_sorted_indices,
+        // );
 
         // Global variables that will be commmitted to at the end.
         let global_committed_values_digest: Sha256DigestVariable<_> =
@@ -652,158 +659,83 @@ impl ReduceProgram {
             let sorted_indices = builder.get(&sorted_indices, i);
             let chip_quotient_data = builder.get(&chip_quotient_data, i);
 
-            let mut challenger: DuplexChallengerVariable<_> = builder.uninit();
+            let mut reconstruct_challenger = reconstruct_challenger.clone();
+            let mut pv_elements = Vec::new();
+            for i in 0..PROOF_MAX_NUM_PVS {
+                let element = builder.get(&proof.public_values, i);
+                pv_elements.push(element);
+            }
+            let pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
 
-            builder
-                .if_eq(is_verifying_deferred, Val::zero())
-                .then_or_else(
-                    |builder| {
-                        // Clone the variable pointer to reconstruct_challenger.
-                        let reconstruct_challenger = reconstruct_challenger.clone();
-                        // Extract public values.
-                        let mut pv_elements = Vec::new();
-                        for i in 0..PROOF_MAX_NUM_PVS {
-                            let element = builder.get(&proof.public_values, i);
-                            pv_elements.push(element);
-                        }
-                        let pv = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
+            // Verify shard transitions.
+            constrain_shard_transitions(
+                i,
+                builder,
+                &pv.committed_value_digest,
+                pv.start_pc,
+                pv.next_pc,
+                pv.start_shard,
+                pv.next_shard,
+                pv.exit_code,
+            );
 
-                        // Verify shard transitions.
-                        let next_shard: Felt<_> = builder.uninit();
-                        let next_pc_var = felt2var(builder, pv.next_pc);
-                        builder.if_eq(next_pc_var, Val::zero()).then_or_else(
-                            // If next_pc is 0, then next_shard should be 0.
-                            |builder| {
-                                builder.assign(next_shard, Val::zero());
-                            },
-                            // Otherwise, next_shard should be shard + 1.
-                            |builder| {
-                                let shard_plus_one: Felt<_> = builder.eval(pv.shard + Val::one());
-                                builder.assign(next_shard, shard_plus_one);
-                            },
-                        );
-                        constrain_shard_transitions(
-                            i,
-                            builder,
-                            &pv.committed_value_digest,
-                            pv.start_pc,
-                            pv.next_pc,
-                            pv.shard,
-                            next_shard,
-                            pv.exit_code,
-                        );
+            // Assert that the current reconstruct_challenger is the same as the proof's
+            // start_reconstruct_challenger, then fast-forward to end_reconstruct_challenger.
+            assert_challenger_eq_pv(
+                builder,
+                &reconstruct_challenger,
+                pv.start_reconstruct_challenger,
+            );
+            assign_challenger_from_pv(
+                builder,
+                &mut reconstruct_challenger,
+                pv.end_reconstruct_challenger,
+            );
 
-                        // Need to convert the shard as a felt to a variable, since `if_eq` only handles
-                        // variables.
-                        let shard_f = pv.shard;
-                        let shard = felt2var(builder, shard_f);
-
-                        // Handle the case where the shard is the first shard.
-                        builder.if_eq(shard, one).then(|builder| {
-                            // This should be the first proof as well
-                            builder.assert_var_eq(i, Val::zero());
-
-                            // Start pc should be sp1_vk.pc_start
-                            builder.assert_felt_eq(pv.start_pc, sp1_vk.pc_start);
-
-                            // Clone the variable pointer to verify_start_challenger.
-                            let mut reconstruct_challenger = reconstruct_challenger.clone();
-                            // Initialize the reconstruct challenger from empty challenger.
-                            reconstruct_challenger.reset(builder);
-                            reconstruct_challenger.observe(builder, sp1_vk.commitment.clone());
-                            reconstruct_challenger.observe(builder, sp1_vk.pc_start);
-
-                            // Make sure the start reconstruct challenger is correct, since we will
-                            // commit to it in public values.
-                            start_reconstruct_challenger
-                                .assert_eq(builder, &reconstruct_challenger);
-
-                            // Make sure start reconstruct deferred digest is fully zero.
-                            for j in 0..POSEIDON_NUM_WORDS {
-                                let element = builder.get(&start_reconstruct_deferred_digest, j);
-                                builder.assert_felt_eq(element, Val::zero());
-                            }
-                        });
-
-                        // Observe current proof commit and public values into reconstruct challenger.
-                        for j in 0..DIGEST_SIZE {
-                            let element = builder.get(&proof.commitment.main_commit, j);
-                            reconstruct_challenger.clone().observe(builder, element);
-                        }
-                        for j in 0..SP1_PROOF_NUM_PV_ELTS {
-                            let element = builder.get(&proof.public_values, j);
-                            reconstruct_challenger.clone().observe(builder, element);
-                        }
-
-                        // Accumulate lookup bus.
-                        let num_chips = proof.opened_values.chips.len();
-                        builder.range(0, num_chips).for_each(|j, builder| {
-                            let chip = builder.get(&proof.opened_values.chips, j);
-                            let new_sum: Ext<_, _> =
-                                builder.eval(global_cumulative_sum + chip.cumulative_sum);
-                            builder.assign(global_cumulative_sum, new_sum);
-                        });
-
-                        // Verify proof with copy of witnessed challenger.
-                        // let mut current_challenger = verify_start_challenger.copy(builder);
-
-                        builder.assign(challenger.clone(), verify_start_challenger.clone());
-                    },
-                    |builder| {
-                        let mut deferred_challenger = recursion_challenger.copy(builder);
-                        for j in 0..DIGEST_SIZE {
-                            let element = builder.get(&proof.commitment.main_commit, j);
-                            deferred_challenger.observe(builder, element);
-                        }
-                        builder.range(0, PROOF_MAX_NUM_PVS).for_each(|j, builder| {
-                            let element = builder.get(&proof.public_values, j);
-                            deferred_challenger.observe(builder, element);
-                        });
-
-                        builder.assign(challenger.clone(), deferred_challenger.clone());
-
-                        // Validate proof public values.
-                        // 1) Ensure that the proof is complete.
-                        let mut pv_elements = Vec::new();
-                        for i in 0..PROOF_MAX_NUM_PVS {
-                            let element = builder.get(&proof.public_values, i);
-                            pv_elements.push(element);
-                        }
-                        let pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
-                        builder.assert_felt_eq(pv.is_complete, Val::one());
-                        // 2) Ensure recursion vkey is correct
-                        for j in 0..DIGEST_SIZE {
-                            let element = builder.get(&vk_digest, j);
-                            builder.assert_felt_eq(element, pv.recursion_vk_digest[j]);
-                        }
-
-                        // Update deferred proof digest
-                        // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
-                        let mut poseidon_inputs = builder.array(48);
-                        builder.range(0, 8).for_each(|j, builder| {
-                            let element = builder.get(&reconstruct_deferred_digest, j);
-                            builder.set(&mut poseidon_inputs, j, element);
-                        });
-                        for j in 0..DIGEST_SIZE {
-                            let input_index: Var<_> =
-                                builder.constant(F::from_canonical_usize(j + 8));
-                            builder.set(&mut poseidon_inputs, input_index, pv.sp1_vk_digest[j]);
-                        }
-                        for j in 0..PV_DIGEST_NUM_WORDS {
-                            for k in 0..WORD_SIZE {
-                                let input_index: Var<_> =
-                                    builder.eval(F::from_canonical_usize(j * WORD_SIZE + k + 16));
-                                let element = pv.committed_value_digest[j][k];
-                                builder.set(&mut poseidon_inputs, input_index, element);
-                            }
-                        }
-                        let new_digest = builder.poseidon2_hash(&poseidon_inputs);
-                        for j in 0..DIGEST_SIZE {
-                            let element = builder.get(&new_digest, j);
-                            builder.set(&mut reconstruct_deferred_digest, j, element);
-                        }
-                    },
+            // Assert that the current deferred_proof_digest is the same as the proof's
+            // start_reconstruct_deferred_digest, then fast-forward to end digest.
+            for j in 0..DIGEST_SIZE {
+                let element = builder.get(&reconstruct_deferred_digest, j);
+                builder.assert_felt_eq(element, pv.start_reconstruct_deferred_digest[j]);
+            }
+            for j in 0..DIGEST_SIZE {
+                builder.set(
+                    &mut reconstruct_deferred_digest,
+                    j,
+                    pv.end_reconstruct_deferred_digest[j],
                 );
+            }
+
+            // TODO: Assert that sp1_vk, recursion_vk, and verify_start_challenger are the same.
+            // for j in 0..DIGEST_SIZE {
+            //     let element = builder.get(&sp1_vk_digest, j);
+            //     builder.assert_felt_eq(element, pv.sp1_vk_digest[j]);
+            // }
+            // for j in 0..DIGEST_SIZE {
+            //     let element = builder.get(&recursion_vk_digest, j);
+            //     builder.assert_felt_eq(element, pv.recursion_vk_digest[j]);
+            // }
+            assert_challenger_eq_pv(
+                builder,
+                &verify_start_challenger,
+                pv.verify_start_challenger,
+            );
+
+            // Accumulate lookup bus.
+            let pv_cumulative_sum = builder.ext_from_base_slice(&pv.cumulative_sum);
+            let new_sum: Ext<_, _> = builder.eval(global_cumulative_sum + pv_cumulative_sum);
+            builder.assign(global_cumulative_sum, new_sum);
+
+            // Setup the recursive challenger to use for verifying.
+            let mut current_challenger = recursion_challenger.copy(builder);
+            for j in 0..DIGEST_SIZE {
+                let element = builder.get(&proof.commitment.main_commit, j);
+                current_challenger.observe(builder, element);
+            }
+            builder.range(0, PROOF_MAX_NUM_PVS).for_each(|j, builder| {
+                let element = builder.get(&proof.public_values, j);
+                current_challenger.observe(builder, element);
+            });
 
             // Verify the shard.
             StarkVerifier::<C, BabyBearPoseidon2>::verify_shard(
@@ -811,7 +743,7 @@ impl ReduceProgram {
                 &vk.clone(),
                 &pcs,
                 machine,
-                &mut challenger,
+                &mut current_challenger,
                 &proof,
                 chip_quotient_data.clone(),
                 sorted_indices.clone(),

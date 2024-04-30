@@ -25,13 +25,11 @@ use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterato
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
-use sp1_core::air::MachineAir;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::{
     Challenge, Com, Domain, PcsProverData, Prover, ShardMainData, StarkProvingKey,
 };
-use sp1_core::utils::baby_bear_poseidon2::Perm;
 use sp1_core::{
     runtime::Program,
     stark::{
@@ -43,8 +41,6 @@ use sp1_core::{
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_core::air::Block;
-use sp1_recursion_core::runtime::ExecutionRecord;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_core::{
@@ -59,7 +55,6 @@ use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
 use sp1_recursion_program::reduce::ReduceProgram;
 use sp1_recursion_program::types::QuotientDataValues;
-use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::time::Instant;
 use tracing::instrument;
@@ -79,13 +74,6 @@ pub type InnerSC = BabyBearPoseidon2;
 
 /// The configuration for the outer prover.
 pub type OuterSC = BabyBearPoseidon2Outer;
-
-enum MachineType {
-    Core,
-    Reduce,
-    Compress,
-    Wrap,
-}
 
 /// A end-to-end prover implementation for SP1.
 pub struct SP1Prover {
@@ -223,16 +211,6 @@ impl SP1Prover {
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
     #[instrument(name = "reduce", level = "info", skip_all)]
-    fn reduce_first_layer(
-        &self,
-        shard_proofs: Vec<ShardProof<InnerSC>>,
-        deferred_proofs: Vec<ShardProof<InnerSC>>,
-    ) -> Vec<SP1ReduceProof<InnerSC>> {
-        vec![]
-    }
-
-    /// Reduce shards proofs to a single shard proof using the recursion prover.
-    #[instrument(name = "reduce", level = "info", skip_all)]
     pub fn reduce(
         &self,
         vk: &SP1VerifyingKey,
@@ -282,7 +260,7 @@ impl SP1Prover {
                 let state = ReduceState::from_core_start_state(&proof.proof);
                 let reconstruct_challenger = self.setup_initial_core_challenger(vk);
                 let config = InnerSC::default();
-                self.verify_batcverify_batchh(
+                self.verify_batch(
                     config,
                     &self.reduce_pk,
                     vk,
@@ -432,95 +410,6 @@ impl SP1Prover {
                 .map(SP1ReduceProofWrapper::Recursive),
         );
         new_proofs
-    }
-
-    fn perm(&self) -> Perm {
-        self.reduce_machine.config().perm.clone()
-    }
-
-    fn verify_few<RecSC, RecA, SC, A>(
-        &self,
-        pk: &StarkProvingKey<RecSC>,
-        vk: &StarkVerifyingKey<SC>,
-        recursive_machine: &StarkMachine<RecSC, RecA>,
-        setup_program: &RecursionProgram<SC::Val>,
-        recursion_program: &RecursionProgram<SC::Val>,
-        input_machine: &StarkMachine<SC, A>,
-        proofs: &[SP1ReduceProof<SC>],
-        witness: impl Into<VecDeque<Vec<Block<RecSC::Val>>>>,
-    ) where
-        SC: StarkGenericConfig<Val = BabyBear>,
-        SC::Challenger: Clone,
-        RecSC: StarkGenericConfig<Val = BabyBear>,
-        RecSC::Challenger: Clone,
-        A: MachineAir<SC::Val>,
-        RecA: MachineAir<RecSC::Val, Record = ExecutionRecord<RecSC::Val>>,
-        Com<RecSC>: Send + Sync,
-        PcsProverData<RecSC>: Send + Sync,
-        ShardMainData<RecSC>: Serialize + DeserializeOwned,
-        LocalProver<RecSC, RecA>: Prover<RecSC, RecA>,
-    {
-        let (chip_quotient_data, sorted_indices): (Vec<_>, Vec<_>) = proofs
-            .iter()
-            .map(|p| {
-                (
-                    get_chip_quotient_data(input_machine, &p.proof),
-                    get_sorted_indices(input_machine, &p.proof),
-                )
-            })
-            .unzip();
-
-        let (prep_sorted_indices, prep_domains): (Vec<usize>, Vec<Domain<SC>>) =
-            get_preprocessed_data(&input_machine, vk);
-
-        // Convert the inputs into a witness stream.
-        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-            setup_program,
-            self.perm(),
-        );
-        runtime.witness_stream = witness.into();
-        runtime.run();
-        let mut checkpoint = runtime.memory.clone();
-
-        // Execute runtime.
-        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-            &recursion_program,
-            self.perm(),
-        );
-        checkpoint.iter_mut().for_each(|e| {
-            e.1.timestamp = BabyBear::zero();
-        });
-        runtime.memory = checkpoint;
-        runtime.run();
-        runtime.print_stats();
-        tracing::info!(
-            "runtime summary: cycles={}, nb_poseidons={}",
-            runtime.timestamp,
-            runtime.nb_poseidons
-        );
-
-        // Generate proof.
-        let start = Instant::now();
-        let mut challenger = recursive_machine.config().challenger();
-        let proof = recursive_machine.prove::<LocalProver<_, _>>(
-            pk,
-            runtime.record.clone(),
-            &mut challenger,
-        );
-        let elapsed = start.elapsed().as_secs_f64();
-
-        let proof_size = bincode::serialize(&proof).unwrap().len();
-        tracing::info!(
-            "proving summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-            runtime.timestamp,
-            elapsed,
-            (runtime.timestamp as f64 / elapsed) / 1000f64,
-            Size::from_bytes(proof_size),
-        );
-
-        // Return the reduced proof.
-        assert!(proof.shard_proofs.len() == 1);
-        proof.shard_proofs.into_iter().next().unwrap();
     }
 
     /// Verifies a batch of proofs using the recursion prover.
