@@ -60,7 +60,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => 524288,
+            Err(_) => std::cmp::min(524288, program.instructions.len()),
         };
         let rows = program.instructions[0..max_program_size]
             .iter()
@@ -110,7 +110,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => 524288,
+            Err(_) => std::cmp::min(524288, input.program.instructions.len()),
         };
         let rows = input.program.instructions[0..max_program_size]
             .iter()
