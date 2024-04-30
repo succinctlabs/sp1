@@ -19,6 +19,7 @@ use sp1_prover::{
 use tokio::{runtime, time::sleep};
 
 use crate::{
+    artifacts::{get_artifacts_dir, install_circuit, WrapCircuitType},
     client::NetworkClient,
     proto::network::{ProofStatus, TransactionStatus},
     SP1PublicValues, SP1Stdin,
@@ -113,13 +114,6 @@ impl LocalProver {
         let prover = SP1Prover::new();
         Self { prover }
     }
-
-    /// Get artifacts dir from SP1_CIRCUIT_DIR env var.
-    fn get_artifacts_dir(&self) -> PathBuf {
-        let artifacts_dir =
-            std::env::var("SP1_CIRCUIT_DIR").expect("SP1_CIRCUIT_DIR env var not set");
-        PathBuf::from(artifacts_dir)
-    }
 }
 
 impl Prover for LocalProver {
@@ -149,7 +143,8 @@ impl Prover for LocalProver {
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        let artifacts_dir = self.get_artifacts_dir();
+        let artifacts_dir = get_artifacts_dir(WrapCircuitType::Groth16);
+        install_circuit(WrapCircuitType::Groth16, false, Some(artifacts_dir), None);
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
@@ -165,7 +160,8 @@ impl Prover for LocalProver {
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let artifacts_dir = self.get_artifacts_dir();
+        install_circuit(WrapCircuitType::Plonk, false, Some(artifacts_dir), None);
+        let artifacts_dir = get_artifacts_dir(WrapCircuitType::Plonk);
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();

@@ -5,6 +5,7 @@ pub mod proto {
     #[allow(clippy::all)]
     pub mod network;
 }
+pub mod artifacts;
 pub mod auth;
 pub mod client;
 pub mod prove;

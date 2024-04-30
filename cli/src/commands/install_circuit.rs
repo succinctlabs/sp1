@@ -2,24 +2,10 @@ use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use reqwest::Client;
 use sp1_prover::build::{GROTH16_CIRCUIT_VERSION, PLONK_BN254_CIRCUIT_VERSION};
+use sp1_sdk::artifacts::WrapCircuitType;
 use std::process::Command;
 
 use crate::{download_file, CommandExecutor};
-
-#[derive(Clone, ValueEnum, Debug)]
-pub(crate) enum CircuitType {
-    Groth16,
-    Plonk,
-}
-
-impl std::fmt::Display for CircuitType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CircuitType::Groth16 => write!(f, "groth16"),
-            CircuitType::Plonk => write!(f, "plonk"),
-        }
-    }
-}
 
 #[derive(Parser)]
 #[command(
@@ -29,7 +15,7 @@ impl std::fmt::Display for CircuitType {
 pub struct InstallCircuitCmd {
     /// The type of circuit to build.
     #[clap(value_enum)]
-    circuit_type: CircuitType,
+    circuit_type: WrapCircuitType,
 
     /// The destination directory for the circuit artifacts to be in.
     /// Defaults to ~/.sp1/circuits/<type>/<CIRCUIT_VERSION>.

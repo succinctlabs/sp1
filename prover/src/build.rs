@@ -14,10 +14,6 @@ use sp1_recursion_gnark_ffi::Groth16Prover;
 
 use crate::{OuterSC, SP1Prover};
 
-pub const GROTH16_CIRCUIT_VERSION: u32 = 1;
-
-pub const PLONK_BN254_CIRCUIT_VERSION: u32 = 1;
-
 fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -78,10 +74,10 @@ pub fn build_groth16_artifacts(build_dir: PathBuf) {
     let groth16_prover = Groth16Prover::new(build_dir.clone().into());
 
     tracing::info!("gnark prove");
-    let proof = groth16_prover.prove(witness.clone());
+    groth16_prover.prove(witness.clone());
 
     tracing::info!("gnark cancel");
-    groth16_prover.cancel();
+    groth16_prover.shutdown();
 }
 
 pub fn build_plonk_artifacts(build_dir: PathBuf) {

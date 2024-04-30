@@ -277,15 +277,16 @@ impl Groth16Prover {
 
         proof
     }
+}
 
-    /// Cancels the running Gnark server thread.
-    pub fn cancel(&self) {
-        let mut handle_opt = self.thread_handle.lock().unwrap();
-
-        if let Some(handle) = handle_opt.take() {
-            self.cancel_sender.send(()).unwrap();
-            handle.join().unwrap();
-        }
+impl Drop for Groth16Prover {
+    fn drop(&mut self) {
+        let mut handle_opt = self.thread_handle.lock().and_then(|mut handle| {
+            handle
+                .take()
+                .map(|handle| self.cancel_sender.send(())?)
+                .ok_or("failed to process handle")
+        });
     }
 }
 

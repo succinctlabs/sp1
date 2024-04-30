@@ -41,11 +41,9 @@ p3-util = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-challenger = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-dft = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-fri = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-goldilocks = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-keccak = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-keccak-air = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-blake3 = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
-p3-mds = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-merkle-tree = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-poseidon2 = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
 p3-symmetric = { git = "https://github.com/Plonky3/Plonky3.git", branch = "sp1" }
