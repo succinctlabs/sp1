@@ -1,11 +1,9 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/http"
 
 	"github.com/pkg/errors"
@@ -45,7 +43,6 @@ func (s *Server) Start(port string) {
 	router := http.NewServeMux()
 	router.HandleFunc("GET /healthz", s.healthz)
 	router.HandleFunc("POST /groth16/prove", s.handleGroth16Prove)
-	router.HandleFunc("POST /groth16/verify", s.handleGroth16Verify)
 
 	fmt.Printf("Starting server on %s\n", port)
 	http.ListenAndServe(":"+port, router)
@@ -94,66 +91,18 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	ReturnJSON(w, groth16Proof, http.StatusOK)
-}
-
-// Function to deserialize SP1.Groth16Proof to Groth16Proof.
-func deserializeSP1Groth16Proof(sp1Proof sp1.Groth16Proof) (*groth16.Proof, error) {
-	const fpSize = 4 * 8
-	proofBytes := make([]byte, 8*fpSize)
-	for i, val := range []string{sp1Proof.A[0], sp1Proof.A[1], sp1Proof.B[0][0], sp1Proof.B[0][1], sp1Proof.B[1][0], sp1Proof.B[1][1], sp1Proof.C[0], sp1Proof.C[1]} {
-		bigInt, ok := new(big.Int).SetString(val, 10)
-		if !ok {
-			return nil, fmt.Errorf("invalid big.Int value: %s", val)
-		}
-		copy(proofBytes[fpSize*i:fpSize*(i+1)], bigInt.Bytes())
-	}
-
-	var buf bytes.Buffer
-	buf.Write(proofBytes)
-	proof := groth16.NewProof(ecc.BN254)
-
-	if _, err := proof.ReadFrom(&buf); err != nil {
-		return nil, fmt.Errorf("reading proof from buffer: %w", err)
-	}
-
-	return &proof, nil
-}
-
-// handleGroth16Verify accepts a POST request with a JSON body containing the proof and public witness and returns a JSON
-// body containing the verification result.
-func (s *Server) handleGroth16Verify(w http.ResponseWriter, r *http.Request) {
-	var verifyInput sp1.VerifyInput
-	err := json.NewDecoder(r.Body).Decode(&verifyInput)
-	if err != nil {
-		ReturnErrorJSON(w, "decoding request", http.StatusBadRequest)
-		return
-	}
-
-	// Construct the public witness from the verify input.
-	assignment := sp1.Circuit{
-		VkeyHash:             verifyInput.VkeyHash,
-		CommitedValuesDigest: verifyInput.CommitedValuesDigest,
-	}
-	witnessPublic, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+	witnessPublic, err := witness.Public()
 	if err != nil {
 		ReturnErrorJSON(w, "getting public witness", http.StatusInternalServerError)
 		return
 	}
 
-	// Convert the SP1 Groth16Proof to a groth16.Proof.
-	proof, err := deserializeSP1Groth16Proof(verifyInput.Proof)
-	if err != nil {
-		ReturnErrorJSON(w, "deserializing proof", http.StatusInternalServerError)
-		return
-	}
-
-	// Verify the proof.
-	err = groth16.Verify(*proof, s.vk, witnessPublic)
+	err = groth16.Verify(proof, s.vk, witnessPublic)
 	if err != nil {
 		ReturnErrorJSON(w, "verifying proof", http.StatusInternalServerError)
 		return
 	}
+	fmt.Println("Proof verified")
 
-	ReturnJSON(w, true, http.StatusOK)
+	ReturnJSON(w, groth16Proof, http.StatusOK)
 }

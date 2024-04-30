@@ -304,15 +304,15 @@ func main() {
 		vk.ReadFrom(vkFile)
 
 		// Get the verify input.
-		verifyInput, err := sp1.LoadVerifyInputFromPath(verifyInputPath)
+		verifyInput, err := sp1.LoadEncodedProofFromPath(verifyInputPath)
 		if err != nil {
 			panic(err)
 		}
 
 		// Construct the public witness from the verify input.
 		assignment := sp1.Circuit{
-			VkeyHash:             verifyInput.VkeyHash,
-			CommitedValuesDigest: verifyInput.CommitedValuesDigest,
+			VkeyHash:             verifyInput.PublicInputs[0],
+			CommitedValuesDigest: verifyInput.PublicInputs[1],
 		}
 		publicWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
 		if err != nil {
@@ -322,7 +322,7 @@ func main() {
 		fmt.Println("publicWitness", publicWitness)
 
 		// Convert the SP1 Groth16Proof to a groth16.Proof.
-		proof, err := sp1.DeserializeSP1Groth16Proof(verifyInput.Proof)
+		proof, err := sp1.DeserializeSP1Groth16Proof(verifyInput.EncodedProof)
 		if err != nil {
 			panic(err)
 		}

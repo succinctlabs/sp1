@@ -39,6 +39,7 @@ pub struct Groth16Proof {
     pub b: [[String; 2]; 2],
     pub c: [String; 2],
     pub public_inputs: [String; 2],
+    pub encoded_proof: String,
 }
 
 impl Groth16Prover {
@@ -125,7 +126,7 @@ impl Groth16Prover {
                     }
                 }
                 Err(_) => {
-                    println!("Gnark server is ready yet");
+                    println!("Gnark server is not ready yet");
                 }
             }
 
@@ -258,9 +259,9 @@ impl Groth16Prover {
     /// Generates a Groth16 proof by sending a request to the Gnark server.
     pub fn verify(
         // &self,
-        // proof: Groth16Proof,
-        // vkey_hash: String,
-        // commited_values_digest: String,
+        proof: Groth16Proof,
+        // // vkey_hash: String,
+        // // commited_values_digest: String,
         build_dir: PathBuf,
     ) -> bool {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -273,11 +274,11 @@ impl Groth16Prover {
         //     commited_values_digest,
         // };
 
-        // // Write verify input.
-        let verify_input_path = build_dir.join("verify_input_groth16.json");
-        // let mut file = File::create(&verify_input_path).unwrap();
-        // let serialized = serde_json::to_string(&verify_input).unwrap();
-        // file.write_all(serialized.as_bytes()).unwrap();
+        // Write proof input.
+        let proof_input_path = build_dir.join("verify_input_groth16.json");
+        let mut file = File::create(&proof_input_path).unwrap();
+        let serialized = serde_json::to_string(&proof).unwrap();
+        file.write_all(serialized.as_bytes()).unwrap();
 
         // Run `make`.
         let make = Command::new("make")
@@ -300,7 +301,7 @@ impl Groth16Prover {
                 "--data",
                 cwd.join(build_dir).to_str().unwrap(),
                 "--verify-input",
-                cwd.join(verify_input_path).to_str().unwrap(),
+                cwd.join(proof_input_path).to_str().unwrap(),
             ])
             .current_dir(gnark_dir)
             .stderr(Stdio::inherit())

@@ -69,7 +69,7 @@ pub fn main() {
 
     tracing::info!("gnark verify");
     let verified = Groth16Prover::verify(
-        // proof.clone(),
+        proof,
         // witness.vkey_hash.as_canonical_biguint().to_string(),
         // witness.commited_values_digest.as_canonical_biguint().to_string(),
         args.build_dir.clone().into(),

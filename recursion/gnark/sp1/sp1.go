@@ -43,6 +43,7 @@ type Groth16Proof struct {
 	B            [2][2]string `json:"b"`
 	C            [2]string    `json:"c"`
 	PublicInputs [2]string    `json:"public_inputs"`
+	EncodedProof string       `json:"encoded_proof"`
 }
 
 type PlonkBn254Proof struct {
