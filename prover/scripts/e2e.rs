@@ -51,15 +51,15 @@ pub fn main() {
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    // tracing::info!("sanity check gnark test");
-    // Groth16Prover::test(constraints.clone(), witness.clone());
+    tracing::info!("sanity check gnark test");
+    Groth16Prover::test(constraints.clone(), witness.clone());
 
-    // tracing::info!("sanity check gnark build");
-    // Groth16Prover::build(
-    //     constraints.clone(),
-    //     witness.clone(),
-    //     args.build_dir.clone().into(),
-    // );
+    tracing::info!("sanity check gnark build");
+    Groth16Prover::build(
+        constraints.clone(),
+        witness.clone(),
+        args.build_dir.clone().into(),
+    );
 
     tracing::info!("sanity check gnark prove");
     let groth16_prover = Groth16Prover::new(args.build_dir.clone().into());
@@ -68,16 +68,11 @@ pub fn main() {
     let proof = groth16_prover.prove(witness.clone());
 
     tracing::info!("gnark verify");
-    let verified = Groth16Prover::verify(
-        proof,
-        // witness.vkey_hash.as_canonical_biguint().to_string(),
-        // witness.commited_values_digest.as_canonical_biguint().to_string(),
-        args.build_dir.clone().into(),
-    );
+    let verified = Groth16Prover::verify(proof, args.build_dir.clone().into());
     tracing::info!("verified: {:?}", verified);
 
-    // tracing::info!("gnark cancel");
-    // groth16_prover.cancel();
+    tracing::info!("gnark cancel");
+    groth16_prover.cancel();
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
