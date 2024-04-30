@@ -24,11 +24,9 @@ use crate::air::MachineAir;
 use crate::air::MachineProgram;
 use crate::air::PublicValues;
 use crate::lookup::debug_interactions_with_all_chips;
-use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
 use crate::stark::record::MachineRecord;
 use crate::stark::DebugConstraintBuilder;
-use crate::stark::ProverConstraintFolder;
 use crate::stark::ShardProof;
 use crate::stark::VerifierConstraintFolder;
 
@@ -274,13 +272,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         pk: &StarkProvingKey<SC>,
         record: A::Record,
         challenger: &mut SC::Challenger,
-    ) -> MachineProof<SC>
-    where
-        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
-            + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>
-            + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
-    {
+    ) -> MachineProof<SC> {
         let shards = tracing::info_span!("shard execution record")
             .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
 

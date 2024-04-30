@@ -62,12 +62,12 @@ pub struct SP1ReduceProof<SC: StarkGenericConfig> {
     pub proof: ShardProof<SC>,
 }
 
-/// A proof that can be reduced along with other proofs into one proof.
-#[derive(Serialize, Deserialize)]
-pub enum SP1ReduceProofWrapper {
-    Core(SP1ReduceProof<CoreSC>),
-    Recursive(SP1ReduceProof<InnerSC>),
-}
+// /// A proof that can be reduced along with other proofs into one proof.
+// #[derive(Serialize, Deserialize)]
+// pub enum SP1ReduceProofWrapper {
+//     Core(SP1ReduceProof<CoreSC>),
+//     Recursive(SP1ReduceProof<InnerSC>),
+// }
 
 /// Represents the state of reducing proofs together. This is used to track the current values since
 /// some reduce batches may have only deferred proofs.

@@ -45,11 +45,7 @@ pub trait Prover<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> {
         pk: &StarkProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-    ) -> MachineProof<SC>
-    where
-        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
-            + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>;
+    ) -> MachineProof<SC>;
 }
 
 impl<SC, A> Prover<SC, A> for LocalProver<SC, A>
@@ -61,19 +57,17 @@ where
     PcsProverData<SC>: Send + Sync,
     OpeningProof<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
-    A: MachineAir<Val<SC>>,
+    A: MachineAir<Val<SC>>
+        + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + Air<InteractionBuilder<Val<SC>>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
 {
     fn prove_shards(
         machine: &StarkMachine<SC, A>,
         pk: &StarkProvingKey<SC>,
         shards: Vec<A::Record>,
         challenger: &mut SC::Challenger,
-    ) -> MachineProof<SC>
-    where
-        A: for<'a> Air<ProverConstraintFolder<'a, SC>>
-            + Air<InteractionBuilder<Val<SC>>>
-            + for<'a> Air<VerifierConstraintFolder<'a, SC>>,
-    {
+    ) -> MachineProof<SC> {
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);
         // Generate and commit the traces for each segment.
