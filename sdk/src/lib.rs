@@ -10,7 +10,6 @@ pub mod client;
 mod local;
 mod mock;
 mod network;
-pub mod prove;
 pub mod utils;
 
 use anyhow::{Ok, Result};
