@@ -91,18 +91,5 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	witnessPublic, err := witness.Public()
-	if err != nil {
-		ReturnErrorJSON(w, "getting public witness", http.StatusInternalServerError)
-		return
-	}
-
-	err = groth16.Verify(proof, s.vk, witnessPublic)
-	if err != nil {
-		ReturnErrorJSON(w, "verifying proof", http.StatusInternalServerError)
-		return
-	}
-	fmt.Println("Proof verified")
-
 	ReturnJSON(w, groth16Proof, http.StatusOK)
 }

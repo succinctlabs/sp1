@@ -65,23 +65,6 @@ func DeserializeSP1Groth16Proof(encodedProof string) (*groth16.Proof, error) {
 	return &proof, nil
 }
 
-func LoadEncodedProofFromPath(path string) (Groth16Proof, error) {
-	// Read the file.
-	data, err := os.ReadFile(path)
-	if err != nil {
-		panic(err)
-	}
-
-	// Deserialize the JSON data into a VerifyInput struct
-	var input Groth16Proof
-	err = json.Unmarshal(data, &input)
-	if err != nil {
-		panic(err)
-	}
-
-	return input, nil
-}
-
 func LoadWitnessInputFromPath(path string) (WitnessInput, error) {
 	// Read the file.
 	data, err := os.ReadFile(path)

@@ -67,10 +67,6 @@ pub fn main() {
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
 
-    tracing::info!("gnark verify");
-    let verified = Groth16Prover::verify(proof, args.build_dir.clone().into());
-    tracing::info!("verified: {:?}", verified);
-
     tracing::info!("gnark cancel");
     groth16_prover.cancel();
 
@@ -84,5 +80,5 @@ pub fn main() {
     // tracing::info!("sanity check plonk bn254 prove");
     // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
-    // println!("{:?}", proof);
+    println!("{:?}", proof);
 }

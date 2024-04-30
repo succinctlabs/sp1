@@ -11,12 +11,6 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
 )
 
-type VerifyInput struct {
-	Proof                Groth16Proof
-	VkeyHash             string `json:"vkey_hash"`
-	CommitedValuesDigest string `json:"commited_values_digest"`
-}
-
 type Circuit struct {
 	Vars                 []frontend.Variable
 	Felts                []*babybear.Variable
