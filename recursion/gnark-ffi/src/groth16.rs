@@ -1,6 +1,6 @@
 use std::{
     env,
-    fs::File,
+    fs::{self, File},
     io::Write,
     path::PathBuf,
     process::{Command, Stdio},
@@ -46,6 +46,7 @@ impl Groth16Prover {
     pub fn new(build_dir: PathBuf) -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
+        let build_dir = fs::canonicalize(build_dir).unwrap();
         let version = env::var("WRAPPER_VERSION").unwrap_or_else(|_| "3".to_string());
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
