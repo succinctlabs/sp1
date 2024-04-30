@@ -211,7 +211,7 @@ impl<F: PrimeField32> MachineAir<F> for LtChip {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_LT_COLS);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_LT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<F>(NUM_LT_COLS, &mut trace.values);
 
         trace
     }

@@ -86,7 +86,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<F>(NUM_MEMORY_PROGRAM_PREPROCESSED_COLS, &mut trace.values);
 
         Some(trace)
     }
@@ -133,7 +133,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryProgramChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_MEMORY_PROGRAM_MULT_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<F>(NUM_MEMORY_PROGRAM_MULT_COLS, &mut trace.values);
 
         trace
     }

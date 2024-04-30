@@ -29,13 +29,13 @@ pub const fn indices_arr<const N: usize>() -> [usize; N] {
     indices_arr
 }
 
-pub fn pad_to_power_of_two<const N: usize, T: Clone + Default>(values: &mut Vec<T>) {
-    debug_assert!(values.len() % N == 0);
-    let mut n_real_rows = values.len() / N;
+pub fn pad_to_power_of_two<T: Clone + Default>(num_columns: usize, values: &mut Vec<T>) {
+    debug_assert!(values.len() % num_columns == 0);
+    let mut n_real_rows = values.len() / num_columns;
     if n_real_rows == 0 || n_real_rows == 1 {
         n_real_rows = 8;
     }
-    values.resize(n_real_rows.next_power_of_two() * N, T::default());
+    values.resize(n_real_rows.next_power_of_two() * num_columns, T::default());
 }
 
 pub fn limbs_from_prev_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(

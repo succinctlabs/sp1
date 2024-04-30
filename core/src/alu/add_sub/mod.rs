@@ -118,7 +118,7 @@ impl<F: PrimeField> MachineAir<F> for AddSubChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_ADD_SUB_COLS, F>(&mut trace.values);
+        pad_to_power_of_two::<F>(NUM_ADD_SUB_COLS, &mut trace.values);
 
         trace
     }
