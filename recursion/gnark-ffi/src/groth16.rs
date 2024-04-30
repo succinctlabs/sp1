@@ -49,6 +49,7 @@ impl Groth16Prover {
         let version = env::var("WRAPPER_VERSION").unwrap_or_else(|_| "3".to_string());
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
+        let cwd = std::env::current_dir().unwrap();
 
         // Create a channel for cancellation
         let (cancel_sender, cancel_receiver) = bounded(1);
@@ -61,7 +62,7 @@ impl Groth16Prover {
                     "main.go",
                     "serve",
                     "--data",
-                    build_dir.to_str().unwrap(),
+                    cwd.join(build_dir).to_str().unwrap(),
                     "--type",
                     "groth16",
                     "--version",
