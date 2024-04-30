@@ -16,6 +16,7 @@ mod types;
 pub mod utils;
 mod verify;
 
+use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_challenger::CanObserve;
@@ -55,6 +56,7 @@ use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
 use sp1_recursion_program::reduce::ReduceProgram;
 use sp1_recursion_program::types::QuotientDataValues;
+use std::env;
 use std::path::PathBuf;
 use std::time::Instant;
 use tracing::instrument;
@@ -438,6 +440,10 @@ impl SP1Prover {
             Prover<SC, RecursionAirSkinnyDeg7<BabyBear>>,
         LocalProver<SC, RecursionAirWideDeg3<BabyBear>>: Prover<SC, RecursionAirWideDeg3<BabyBear>>,
     {
+        // Setup the prover parameters.
+        let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
+        env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
+
         // Compute inputs.
         let is_recursive_flags: Vec<usize> = reduce_proofs
             .iter()
@@ -589,6 +595,9 @@ impl SP1Prover {
             (runtime.timestamp as f64 / elapsed) / 1000f64,
             Size::from_bytes(proof_size),
         );
+
+        // Restore the prover parameters.
+        env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, rc);
 
         // Return the reduced proof.
         assert!(proof.shard_proofs.len() == 1);

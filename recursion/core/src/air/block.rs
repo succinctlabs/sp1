@@ -23,7 +23,7 @@ pub trait BlockBuilder: AirBuilder {
     fn assert_block_eq<Lhs: Into<Self::Expr>, Rhs: Into<Self::Expr>>(
         &mut self,
         lhs: Block<Lhs>,
-        rhs: Block<Lhs>,
+        rhs: Block<Rhs>,
     ) {
         for (l, r) in lhs.0.into_iter().zip(rhs.0) {
             self.assert_eq(l, r);

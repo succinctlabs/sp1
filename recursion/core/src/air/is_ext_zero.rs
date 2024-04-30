@@ -47,7 +47,9 @@ impl<F: Field + BinomiallyExtendable<D>> IsExtZeroOperation<F> {
 
         result
     }
+}
 
+impl<F: Field> IsExtZeroOperation<F> {
     pub fn eval<AB: SP1AirBuilder>(
         builder: &mut AB,
         a: BinomialExtension<AB::Expr>,
@@ -57,7 +59,7 @@ impl<F: Field + BinomiallyExtendable<D>> IsExtZeroOperation<F> {
         // Assert that the `is_real` is a boolean.
         builder.assert_bool(is_real.clone());
         // Assert that the result is boolean.
-        builder.assert_bool(cols.result);
+        builder.when(is_real.clone()).assert_bool(cols.result);
 
         // 1. Input == 0 => is_zero = 1 regardless of the inverse.
         // 2. Input != 0

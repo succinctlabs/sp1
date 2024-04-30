@@ -408,7 +408,6 @@ func main() {
 			fmt.Println("Error: host port flag is required")
 			os.Exit(1)
 		}
-
 		s, err := server.New(context.Background(), circuitDataDir, circuitBucket, circuitType, circuitVersion)
 		if err != nil {
 			panic(fmt.Errorf("initializing server: %w", err))
