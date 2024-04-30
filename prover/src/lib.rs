@@ -256,7 +256,7 @@ impl SP1Prover {
         // wrap it into a reduce shard.
         assert_eq!(reduce_proofs.len(), 1);
         let last_proof = reduce_proofs.into_iter().next().unwrap();
-        let result = match last_proof {
+        match last_proof {
             SP1ReduceProofWrapper::Recursive(proof) => proof,
             SP1ReduceProofWrapper::Core(ref proof) => {
                 let state = ReduceState::from_core_start_state(&proof.proof);
@@ -276,9 +276,7 @@ impl SP1Prover {
                     false,
                 )
             }
-        };
-
-        result
+        }
     }
 
     /// Reduce a set of shard proofs in groups of `batch_size` into a smaller set of shard proofs
