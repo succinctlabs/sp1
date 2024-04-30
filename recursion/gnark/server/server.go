@@ -129,6 +129,12 @@ func (s *Server) handleGroth16Verify(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		ReturnErrorJSON(w, "generating witness", http.StatusInternalServerError)
+		return
+	}
+
 	// Verify the proof.
 	proof := groth16.NewProof(groth16Proof.A, groth16Proof.B, groth16Proof.C, groth16Proof.PublicInputs)
 	err := groth16.Verify(proof, s.vk, nil)
