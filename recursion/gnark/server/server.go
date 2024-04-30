@@ -141,8 +141,8 @@ func deserializeSP1Groth16Proof(sp1Proof sp1.Groth16Proof) (*groth16.Proof, erro
 	return &proof, nil
 }
 
-// handleGroth16Verify accepts a POST request with a JSON body containing the witness and returns a JSON
-// body containing the proof using the Groth16 circuit.
+// handleGroth16Verify accepts a POST request with a JSON body containing the proof and public witness and returns a JSON
+// body containing the verification result.
 func (s *Server) handleGroth16Verify(w http.ResponseWriter, r *http.Request) {
 	var verifyInput sp1.VerifierInput
 	err := json.NewDecoder(r.Body).Decode(&verifyInput)
