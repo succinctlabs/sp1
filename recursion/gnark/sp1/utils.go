@@ -13,6 +13,40 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
 )
 
+// Function to serialize a gnark groth16 proof to a sp1 groth16 proof.
+func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput) (Groth16Proof, error) {
+	// Serialize the proof to JSON.
+	const fpSize = 4 * 8
+	var buf bytes.Buffer
+	(*proof).WriteRawTo(&buf)
+	proofBytes := buf.Bytes()
+	fmt.Println("proofBytes", len(proofBytes))
+	fmt.Println("proofBytes", proofBytes)
+	var (
+		a            [2]string
+		b            [2][2]string
+		c            [2]string
+		publicInputs [2]string
+	)
+	a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
+	a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
+	b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3]).String()
+	b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4]).String()
+	b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5]).String()
+	b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
+	c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
+	c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
+	publicInputs[0] = witnessInput.VkeyHash
+	publicInputs[1] = witnessInput.CommitedValuesDigest
+
+	return Groth16Proof{
+		A:            a,
+		B:            b,
+		C:            c,
+		PublicInputs: publicInputs,
+	}, nil
+}
+
 // Function to deserialize SP1.Groth16Proof to Groth16Proof.
 func DeserializeSP1Groth16Proof(sp1Proof Groth16Proof) (*groth16.Proof, error) {
 	const fpSize = 4 * 8

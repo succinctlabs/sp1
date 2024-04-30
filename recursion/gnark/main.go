@@ -7,13 +7,11 @@ package main
 import "C"
 
 import (
-	"bytes"
 	"context"
 	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"math/big"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -275,33 +273,9 @@ func main() {
 		}
 
 		// Serialize the proof to JSON.
-		const fpSize = 4 * 8
-		var buf bytes.Buffer
-		proof.WriteRawTo(&buf)
-		proofBytes := buf.Bytes()
-		fmt.Println("proofBytes", len(proofBytes))
-		var (
-			a            [2]string
-			b            [2][2]string
-			c            [2]string
-			publicInputs [2]string
-		)
-		a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
-		a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
-		b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3]).String()
-		b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4]).String()
-		b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5]).String()
-		b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
-		c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
-		c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
-		publicInputs[0] = witnessInput.VkeyHash
-		publicInputs[1] = witnessInput.CommitedValuesDigest
-
-		groth16Proof := sp1.Groth16Proof{
-			A:            a,
-			B:            b,
-			C:            c,
-			PublicInputs: publicInputs,
+		groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)
+		if err != nil {
+			panic(err)
 		}
 
 		jsonData, err := json.Marshal(groth16Proof)

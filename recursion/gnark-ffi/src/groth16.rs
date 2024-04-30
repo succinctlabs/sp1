@@ -102,7 +102,7 @@ impl Groth16Prover {
             cancel_sender,
         };
 
-        // prover.wait_for_healthy_server().unwrap();
+        prover.wait_for_healthy_server().unwrap();
 
         prover
     }
