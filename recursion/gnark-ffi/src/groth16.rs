@@ -7,7 +7,7 @@ use std::{
     time::Duration,
 };
 
-use crate::witness::GnarkWitness;
+use crate::{witness::GnarkWitness, GnarkVerifyInput};
 use crossbeam::channel::{bounded, Sender};
 use rand::Rng;
 use reqwest::{blocking::Client, StatusCode};
@@ -262,21 +262,19 @@ impl Groth16Prover {
     ) -> bool {
         let url = format!("http://localhost:{}/groth16/verify", self.port);
 
-        let verify_input = VerifyInput {
+        let verify_input = GnarkVerifyInput {
             proof,
             vkey_hash,
             commited_values_digest,
         };
 
-        let gnark_witness = GnarkWitness::new(witness);
-        let response = Client::new().post(url).json(&gnark_witness).send().unwrap();
+        let response = Client::new().post(url).json(&verify_input).send().unwrap();
 
-        // Deserialize the JSON response to a Groth16Proof instance
+        // Deserialize the JSON response to a bool
         let response = response.text().unwrap();
         println!("response: {}", response);
-        let proof: Groth16Proof = serde_json::from_str(&response).expect("deserializing the proof");
 
-        proof
+        response.parse::<bool>().unwrap()
     }
 
     /// Cancels the running Gnark server thread.
