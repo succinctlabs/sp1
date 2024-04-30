@@ -5,7 +5,7 @@ use crate::utils::log2_strict_usize;
 pub fn shard_size() -> usize {
     let value = match std::env::var("SHARD_SIZE") {
         Ok(val) => val.parse().unwrap(),
-        Err(_) => 1 << 19,
+        Err(_) => 1 << 22,
     };
 
     if value > MAX_SHARD_CLK {
