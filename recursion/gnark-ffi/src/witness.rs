@@ -9,6 +9,16 @@ use serde::Serialize;
 use sp1_recursion_compiler::ir::Config;
 use sp1_recursion_compiler::ir::Witness;
 
+use crate::Groth16Proof;
+
+/// A witness that can be used to initialize values for witness generation inside Gnark.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct GnarkVerifyInput {
+    pub proof: Groth16Proof,
+    pub vkey_hash: String,
+    pub commited_values_digest: String,
+}
+
 /// A witness that can be used to initialize values for witness generation inside Gnark.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GnarkWitness {

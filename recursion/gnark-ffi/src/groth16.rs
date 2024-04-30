@@ -253,6 +253,32 @@ impl Groth16Prover {
         proof
     }
 
+    /// Generates a Groth16 proof by sending a request to the Gnark server.
+    pub fn verify<C: Config>(
+        &self,
+        proof: Groth16Proof,
+        vkey_hash: String,
+        commited_values_digest: String,
+    ) -> bool {
+        let url = format!("http://localhost:{}/groth16/verify", self.port);
+
+        let verify_input = VerifyInput {
+            proof,
+            vkey_hash,
+            commited_values_digest,
+        };
+
+        let gnark_witness = GnarkWitness::new(witness);
+        let response = Client::new().post(url).json(&gnark_witness).send().unwrap();
+
+        // Deserialize the JSON response to a Groth16Proof instance
+        let response = response.text().unwrap();
+        println!("response: {}", response);
+        let proof: Groth16Proof = serde_json::from_str(&response).expect("deserializing the proof");
+
+        proof
+    }
+
     /// Cancels the running Gnark server thread.
     pub fn cancel(&self) {
         let mut handle_opt = self.thread_handle.lock().unwrap();
