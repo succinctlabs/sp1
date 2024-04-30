@@ -123,7 +123,7 @@ pub struct Poseidon2SboxCols<T> {
 /// A grouping of columns for a single external round.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-struct Poseidon2SBoxExternalRoundCols<T> {
+pub(crate) struct Poseidon2SBoxExternalRoundCols<T> {
     pub(crate) state: [T; WIDTH],
     pub(crate) sbox_deg_3: [T; WIDTH],
 }
@@ -138,7 +138,7 @@ pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 /// 2) the rest of the state elements at the beginning of the internal rounds
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-struct Poseidon2SBoxInternalRoundsCols<T> {
+pub(crate) struct Poseidon2SBoxInternalRoundsCols<T> {
     pub(crate) state: [T; WIDTH],
     pub(crate) s0: [T; NUM_INTERNAL_ROUNDS - 1],
     pub(crate) sbox_deg_3: [T; NUM_INTERNAL_ROUNDS],
@@ -156,7 +156,7 @@ pub struct Poseidon2Cols<T> {
 /// A grouping of columns for a single external round.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-struct Poseidon2ExternalRoundCols<T> {
+pub(crate) struct Poseidon2ExternalRoundCols<T> {
     pub(crate) state: [T; WIDTH],
 }
 
@@ -168,7 +168,7 @@ struct Poseidon2ExternalRoundCols<T> {
 /// 2) the rest of the state elements at the beginning of the internal rounds
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-struct Poseidon2InternalRoundsCols<T> {
+pub(crate) struct Poseidon2InternalRoundsCols<T> {
     pub(crate) state: [T; WIDTH],
     pub(crate) s0: [T; NUM_INTERNAL_ROUNDS - 1],
 }

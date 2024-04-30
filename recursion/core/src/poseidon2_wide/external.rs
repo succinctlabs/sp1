@@ -27,12 +27,6 @@ pub const NUM_EXTERNAL_ROUNDS: usize = 8;
 pub const NUM_INTERNAL_ROUNDS: usize = 13;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
-const fn use_sbox_3<const DEGREE: usize>() -> bool {
-    assert!(DEGREE >= 3);
-
-    DEGREE < 7
-}
-
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
 pub struct Poseidon2WideChip<const DEGREE: usize>;
@@ -71,7 +65,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             let mut row = Vec::new();
             row.resize(num_columns, F::zero());
 
-            let cols = if use_sbox_3 {
+            let mut cols = if use_sbox_3 {
                 let cols: &Poseidon2SboxCols<F> = row.as_slice().borrow();
                 Poseidon2Columns::Wide(*cols)
             } else {
@@ -79,21 +73,27 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 Poseidon2Columns::Narrow(*cols)
             };
 
-            let memory = cols.get_memory_mut();
-            memory.timestamp = event.clk;
-            memory.dst = event.dst;
-            memory.left = event.left;
-            memory.right = event.right;
-            memory.is_real = F::one();
+            {
+                let memory = cols.get_memory_mut();
+                memory.timestamp = event.clk;
+                memory.dst = event.dst;
+                memory.left = event.left;
+                memory.right = event.right;
+                memory.is_real = F::one();
 
-            // Apply the initial round.
-            for i in 0..WIDTH {
-                memory.input[i].populate(&event.input_records[i]);
+                // Apply the initial round.
+                for i in 0..WIDTH {
+                    memory.input[i].populate(&event.input_records[i]);
+                }
+
+                for i in 0..WIDTH {
+                    memory.output[i].populate(&event.result_records[i]);
+                }
             }
 
             let external_state_0 = cols.get_external_state_mut(0);
-            external_state_0 = &mut event.input;
-            external_linear_layer(&mut external_state_0);
+            *external_state_0 = event.input;
+            external_linear_layer(external_state_0);
 
             // Apply the first half of external rounds.
             for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
@@ -121,10 +121,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 }
             }
 
-            for i in 0..WIDTH {
-                memory.output[i].populate(&event.result_records[i]);
-            }
-
             rows.push(row);
         }
 
@@ -133,7 +129,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<num_columns, F>(&mut trace.values);
+        pad_to_power_of_two::<F>(num_columns, &mut trace.values);
 
         #[cfg(debug_assertions)]
         println!(
@@ -198,7 +194,7 @@ fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2Columns<F>) -> 
     let mut sbox_deg_3: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
 
     let state = {
-        let mut state = cols.get_internal_state_mut();
+        let state = cols.get_internal_state_mut();
         for r in 0..NUM_INTERNAL_ROUNDS {
             // Add the round constant to the 0th state element.
             // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
@@ -214,7 +210,7 @@ fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2Columns<F>) -> 
 
             // Apply the linear layer.
             state[0] = sbox_deg_7;
-            internal_linear_layer(&mut state);
+            internal_linear_layer(state);
 
             // Optimization: since we're only applying the sbox to the 0th state element, we only
             // need to have columns for the 0th state element at every step. This is because the
