@@ -37,22 +37,19 @@ You must run your command with:
 RUST_LOG=info cargo run --release
 ```
 
-**Tracing:**
+## CPU Acceleration
 
-To enable tracing information, which provides more detailed timing information, you can use the following environment variable: # TODO
+To enable CPU acceleration, you can use the `RUSTFLAGS` environment variable to enable the `target-cpu=native` flag. This will enable the compiler to generate code that is optimized for your CPU.
 
 ```bash
-RUST_TRACER=info cargo run --release
+RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```
 
-## AVX-512 Acceleration
+Currently there is support for AVX512 and NEON SIMD instructions. For NEON, you must also enable the `sp1-sdk` feature `neon` in your script crate's `Cargo.toml` file.
 
-TODO:
-
-
-## Prover crate
-
-
+```toml
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1", features = ["neon"] }
+```
 
 ## Performance
 
