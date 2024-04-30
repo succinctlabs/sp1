@@ -42,38 +42,6 @@ pub async fn url_exists(client: &Client, url: &str) -> bool {
     res.is_ok()
 }
 
-pub async fn download_file(client: &Client, url: &str, file: &mut SyncFile) -> Result<(), String> {
-    let res = client
-        .get(url)
-        .send()
-        .await
-        .or(Err(format!("Failed to GET from '{}'", &url)))?;
-    let total_size = res
-        .content_length()
-        .ok_or(format!("Failed to get content length from '{}'", &url))?;
-
-    let pb = ProgressBar::new(total_size);
-    pb.set_style(ProgressStyle::default_bar()
-        .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})")
-        .progress_chars("#>-"));
-    println!("Downloading {}", url);
-
-    let mut downloaded: u64 = 0;
-    let mut stream = res.bytes_stream();
-
-    while let Some(item) = stream.next().await {
-        let chunk = item.or(Err("Error while downloading file"))?;
-        file.write_all(&chunk)
-            .or(Err("Error while writing to file"))?;
-        let new = min(downloaded + (chunk.len() as u64), total_size);
-        downloaded = new;
-        pb.set_position(new);
-    }
-
-    pb.finish_with_message(&format!("Downloaded {} to {:?}", url, file));
-    Ok(())
-}
-
 pub fn get_target() -> String {
     target_lexicon::HOST.to_string()
 }

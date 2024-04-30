@@ -4,7 +4,7 @@ use reqwest::Client;
 use sp1_sdk::artifacts::{get_artifacts_dir, install_circuit_artifacts, WrapCircuitType};
 use std::{path::PathBuf, process::Command};
 
-use crate::{download_file, CommandExecutor};
+use crate::CommandExecutor;
 
 #[derive(Clone, Debug, Copy, ValueEnum)]
 pub enum ClapCircuitType {

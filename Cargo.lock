@@ -4676,6 +4676,7 @@ name = "sp1-recursion-gnark-ffi"
 version = "0.1.0"
 dependencies = [
  "crossbeam",
+ "log",
  "p3-field",
  "rand",
  "reqwest 0.11.27",

@@ -3,6 +3,7 @@ use clap::Parser;
 use dirs::home_dir;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
+use sp1_sdk::artifacts::download_file;
 use std::fs::{self};
 use std::io::Read;
 use std::process::Command;
@@ -11,8 +12,7 @@ use std::process::Command;
 use std::os::unix::fs::PermissionsExt;
 
 use crate::{
-    download_file, get_target, get_toolchain_download_url, url_exists, CommandExecutor,
-    RUSTUP_TOOLCHAIN_NAME,
+    get_target, get_toolchain_download_url, url_exists, CommandExecutor, RUSTUP_TOOLCHAIN_NAME,
 };
 
 #[derive(Parser)]

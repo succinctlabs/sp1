@@ -76,8 +76,6 @@ impl Groth16Prover {
                     cwd.join(build_dir).to_str().unwrap(),
                     "--type",
                     "groth16",
-                    "--version",
-                    &version,
                     "--port",
                     &port,
                 ])
@@ -131,20 +129,20 @@ impl Groth16Prover {
         let client = Client::new();
         let url = format!("http://localhost:{}/healthz", self.port);
 
-        println!("Waiting for Gnark server to be healthy...");
+        log::debug!("Waiting for Gnark server to be healthy...");
 
         loop {
             match client.get(&url).send() {
                 Ok(response) => {
                     if response.status() == StatusCode::OK {
-                        println!("Gnark server is healthy!");
+                        log::debug!("Gnark server is healthy!");
                         return Ok(());
                     } else {
-                        println!("Gnark server is not healthy: {:?}", response.status());
+                        log::debug!("Gnark server is not healthy: {:?}", response.status());
                     }
                 }
                 Err(_) => {
-                    println!("Gnark server is not ready yet");
+                    log::debug!("Gnark server is not ready yet");
                 }
             }
 

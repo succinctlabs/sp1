@@ -1,11 +1,9 @@
-use std::{cmp::min, fs::File, io::Write, path::PathBuf, process::Command};
+use std::{cmp::min, env, fs::File, io::Write, path::PathBuf, process::Command};
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
-
-use crate::ProverClient;
 
 pub const GROTH16_CIRCUIT_VERSION: u32 = 1;
 
@@ -59,12 +57,12 @@ pub fn install_circuit_artifacts(
 ) -> Result<()> {
     let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type));
 
-    // If dir exists, overwrite only if overwrite_existing is true.
     if build_dir.exists() {
+        // If dir exists and not overwrite_existing, just return.
         if !overwrite_existing {
-            bail!("Directory {} already exists", build_dir.display());
+            return Ok(());
         }
-        // Delete existing directory.
+        // Otherwise we will overwrite, so delete existing directory.
         std::fs::remove_dir_all(&build_dir)
             .context("Failed to remove existing build directory.")?;
     }
@@ -79,11 +77,11 @@ pub fn install_circuit_artifacts(
     std::fs::create_dir_all(&build_dir).context("Failed to create build directory.")?;
 
     // Download to a temporary file.
-    let temp_dir = tempfile::tempdir()?;
     let version_num = version.unwrap_or_else(|| match circuit_type {
         WrapCircuitType::Groth16 => GROTH16_CIRCUIT_VERSION,
         WrapCircuitType::Plonk => PLONK_BN254_CIRCUIT_VERSION,
     });
+    let temp_dir = tempfile::tempdir()?;
     let temp_file_path = temp_dir
         .path()
         .join(format!("{}-{}.tar.gz", circuit_type, version_num));
@@ -96,7 +94,6 @@ pub fn install_circuit_artifacts(
         "{}{}/{}.tar.gz",
         CIRCUIT_ARTIFACTS_URL, circuit_type, version_num
     );
-    println!("Downloading {} to {:?}", download_url, temp_file_path);
 
     let rt = tokio::runtime::Runtime::new()?;
     let client = Client::builder().build()?;
@@ -104,16 +101,27 @@ pub fn install_circuit_artifacts(
         .unwrap();
 
     // Extract the tarball to the build directory.
-    Command::new("tar")
-        .current_dir(temp_dir)
+    Command::new("ls")
+        .current_dir(&temp_dir)
+        .spawn()
+        .with_context(|| "while executing ls")?
+        .wait()
+        .with_context(|| "while waiting for ls")?;
+
+    let mut res = Command::new("tar")
+        .current_dir(&temp_dir)
         .args([
-            "-xzf",
+            "-Pxzf",
             temp_file_path.to_str().unwrap(),
             "-C",
             build_dir.to_str().unwrap(),
         ])
         .spawn()
         .with_context(|| "while executing tar")?;
+
+    res.wait()?;
+
+    temp_dir.close()?;
 
     Ok(())
 }

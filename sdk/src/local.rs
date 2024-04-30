@@ -1,7 +1,7 @@
 #![allow(unused_variables)]
-use std::path::PathBuf;
 
 use crate::{
+    artifacts::{get_artifacts_dir, install_circuit_artifacts, WrapCircuitType},
     Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
     SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
 };
@@ -27,13 +27,6 @@ impl LocalProver {
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
-    }
-
-    /// Get artifacts dir from SP1_CIRCUIT_DIR env var.
-    fn get_artifacts_dir(&self) -> PathBuf {
-        let artifacts_dir =
-            std::env::var("SP1_CIRCUIT_DIR").expect("SP1_CIRCUIT_DIR env var not set");
-        PathBuf::from(artifacts_dir)
     }
 }
 
@@ -64,7 +57,14 @@ impl Prover for LocalProver {
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        let artifacts_dir = self.get_artifacts_dir();
+        let artifacts_dir = get_artifacts_dir(WrapCircuitType::Groth16);
+        install_circuit_artifacts(
+            WrapCircuitType::Groth16,
+            false,
+            Some(artifacts_dir.clone()),
+            None,
+        )
+        .expect("Failed to install circuit artifacts");
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
@@ -80,7 +80,14 @@ impl Prover for LocalProver {
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let artifacts_dir = self.get_artifacts_dir();
+        let artifacts_dir = get_artifacts_dir(WrapCircuitType::Plonk);
+        install_circuit_artifacts(
+            WrapCircuitType::Plonk,
+            false,
+            Some(artifacts_dir.clone()),
+            None,
+        )
+        .expect("Failed to install circuit artifacts");
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();

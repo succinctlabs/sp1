@@ -15,6 +15,7 @@ pub mod utils;
 
 use anyhow::{Ok, Result};
 use local::LocalProver;
+use mock::MockProver;
 use network::NetworkProver;
 pub use sp1_prover::{
     CoreSC, SP1CoreProof, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,

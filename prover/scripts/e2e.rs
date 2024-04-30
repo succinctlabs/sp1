@@ -1,6 +1,8 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
+use std::path::PathBuf;
+
 use clap::Parser;
 use sp1_core::io::SP1Stdin;
 use sp1_core::utils::setup_logger;
@@ -15,7 +17,7 @@ use sp1_recursion_gnark_ffi::Groth16Prover;
 #[clap(author, version, about, long_about = None)]
 struct Args {
     #[clap(short, long)]
-    build_dir: String,
+    build_dir: PathBuf,
 }
 
 pub fn main() {
