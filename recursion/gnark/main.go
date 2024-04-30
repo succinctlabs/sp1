@@ -42,6 +42,10 @@ func main() {
 	proveGroth16WitnessPathFlag := proveGroth16Cmd.String("witness", "", "Path to witness")
 	proveGroth16ProofPathFlag := proveGroth16Cmd.String("proof", "", "Path to proof")
 
+	verifyGroth16Cmd := flag.NewFlagSet("verify-groth16", flag.ExitOnError)
+	verifyGroth16DataDirFlag := verifyGroth16Cmd.String("data", "", "Data directory path")
+	verifyGroth16VerifyInputPathFlag := verifyGroth16Cmd.String("verify-input", "", "Path to verify input")
+
 	provePlonkBn254Cmd := flag.NewFlagSet("prove-plonk-bn254", flag.ExitOnError)
 	provePlonkBn254DataDirFlag := provePlonkBn254Cmd.String("data", "", "Data directory path")
 	provePlonkBn254WitnessPathFlag := provePlonkBn254Cmd.String("witness", "", "Path to witness")
@@ -275,6 +279,7 @@ func main() {
 		var buf bytes.Buffer
 		proof.WriteRawTo(&buf)
 		proofBytes := buf.Bytes()
+		fmt.Println("proofBytes", len(proofBytes))
 		var (
 			a            [2]string
 			b            [2][2]string
@@ -308,6 +313,55 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+	case "verify-groth16":
+		verifyGroth16Cmd.Parse(os.Args[2:])
+		fmt.Printf("Running 'verify' with data=%s\n", *verifyGroth16DataDirFlag)
+		buildDir := *verifyGroth16DataDirFlag
+		verifyInputPath := *verifyGroth16VerifyInputPathFlag
+
+		// Read the verifier key.
+		fmt.Println("Reading vk...")
+		fmt.Println(buildDir + "/vk_groth16.bin")
+		vkFile, err := os.Open(buildDir + "/vk_groth16.bin")
+		if err != nil {
+			panic(err)
+		}
+		vk := groth16.NewVerifyingKey(ecc.BN254)
+		vk.ReadFrom(vkFile)
+
+		// Get the verify input.
+		verifyInput, err := sp1.LoadVerifyInputFromPath(verifyInputPath)
+		if err != nil {
+			panic(err)
+		}
+
+		// Construct the public witness from the verify input.
+		assignment := sp1.Circuit{
+			VkeyHash:             verifyInput.VkeyHash,
+			CommitedValuesDigest: verifyInput.CommitedValuesDigest,
+		}
+		publicWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("publicWitness", publicWitness)
+
+		// Convert the SP1 Groth16Proof to a groth16.Proof.
+		proof, err := sp1.DeserializeSP1Groth16Proof(verifyInput.Proof)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("proof", proof)
+
+		// Verify the proof.
+		err = groth16.Verify(*proof, vk, publicWitness)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("Proof verified successfully")
 	case "prove-plonk-bn254":
 		provePlonkBn254Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'prove' with data=%s\n", *provePlonkBn254DataDirFlag)

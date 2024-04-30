@@ -50,6 +50,8 @@ impl Groth16Prover {
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
+        let cwd = std::env::current_dir().unwrap();
+
         // Create a channel for cancellation
         let (cancel_sender, cancel_receiver) = bounded(1);
 
@@ -61,7 +63,7 @@ impl Groth16Prover {
                     "main.go",
                     "serve",
                     "--data",
-                    build_dir.to_str().unwrap(),
+                    cwd.join(build_dir).to_str().unwrap(),
                     "--type",
                     "groth16",
                     "--version",
@@ -100,7 +102,7 @@ impl Groth16Prover {
             cancel_sender,
         };
 
-        prover.wait_for_healthy_server().unwrap();
+        // prover.wait_for_healthy_server().unwrap();
 
         prover
     }
@@ -254,27 +256,63 @@ impl Groth16Prover {
     }
 
     /// Generates a Groth16 proof by sending a request to the Gnark server.
-    pub fn verify<C: Config>(
-        &self,
-        proof: Groth16Proof,
-        vkey_hash: String,
-        commited_values_digest: String,
+    pub fn verify(
+        // &self,
+        // proof: Groth16Proof,
+        // vkey_hash: String,
+        // commited_values_digest: String,
+        build_dir: PathBuf,
     ) -> bool {
-        let url = format!("http://localhost:{}/groth16/verify", self.port);
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let gnark_dir = manifest_dir.join("../gnark");
+        let cwd = std::env::current_dir().unwrap();
 
-        let verify_input = GnarkVerifyInput {
-            proof,
-            vkey_hash,
-            commited_values_digest,
-        };
+        // let verify_input = GnarkVerifyInput {
+        //     proof,
+        //     vkey_hash,
+        //     commited_values_digest,
+        // };
 
-        let response = Client::new().post(url).json(&verify_input).send().unwrap();
+        // // Write verify input.
+        let verify_input_path = build_dir.join("verify_input_groth16.json");
+        // let mut file = File::create(&verify_input_path).unwrap();
+        // let serialized = serde_json::to_string(&verify_input).unwrap();
+        // file.write_all(serialized.as_bytes()).unwrap();
 
-        // Deserialize the JSON response to a bool
-        let response = response.text().unwrap();
-        println!("response: {}", response);
+        // Run `make`.
+        let make = Command::new("make")
+            .current_dir(&gnark_dir)
+            .stderr(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stdin(Stdio::inherit())
+            .output()
+            .unwrap();
+        if !make.status.success() {
+            panic!("failed to run make");
+        }
 
-        response.parse::<bool>().unwrap()
+        // Run the verify script.
+        let result = Command::new("go")
+            .args([
+                "run",
+                "main.go",
+                "verify-groth16",
+                "--data",
+                cwd.join(build_dir).to_str().unwrap(),
+                "--verify-input",
+                cwd.join(verify_input_path).to_str().unwrap(),
+            ])
+            .current_dir(gnark_dir)
+            .stderr(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stdin(Stdio::inherit())
+            .output()
+            .unwrap();
+        if !result.status.success() {
+            panic!("failed to run build script");
+        }
+
+        true
     }
 
     /// Cancels the running Gnark server thread.

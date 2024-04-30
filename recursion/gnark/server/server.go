@@ -92,6 +92,8 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	var buf bytes.Buffer
 	proof.WriteRawTo(&buf)
 	proofBytes := buf.Bytes()
+	fmt.Println("proofBytes", len(proofBytes))
+
 	var (
 		a            [2]string
 		b            [2][2]string
@@ -134,6 +136,7 @@ func deserializeSP1Groth16Proof(sp1Proof sp1.Groth16Proof) (*groth16.Proof, erro
 	var buf bytes.Buffer
 	buf.Write(proofBytes)
 	proof := groth16.NewProof(ecc.BN254)
+
 	if _, err := proof.ReadFrom(&buf); err != nil {
 		return nil, fmt.Errorf("reading proof from buffer: %w", err)
 	}
