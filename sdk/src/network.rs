@@ -6,8 +6,8 @@ use crate::{
     client::NetworkClient,
     local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
-    SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
@@ -76,6 +76,7 @@ impl NetworkProver {
         }
     }
 
+    #[allow(dead_code)]
     /// Remotely relay a proof to a set of chains with their callback contracts.
     pub fn remote_relay(
         &self,
