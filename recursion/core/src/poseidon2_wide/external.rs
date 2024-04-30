@@ -137,6 +137,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
                     // Do nothing, since we set the cols.output by populating the output records
                     // after this loop.
+                    for i in 0..WIDTH {
+                        assert_eq!(event.result_records[i].value[0], next_state[i]);
+                    }
                 } else {
                     cols.external_rounds[r + 1].state = next_state;
                 }
@@ -424,12 +427,10 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::borrow::Borrow;
     use std::time::Instant;
 
-    use crate::memory::MemoryCols;
     use crate::poseidon2::Poseidon2Event;
-    use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
+    use crate::poseidon2_wide::external::WIDTH;
     use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -467,26 +468,18 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for input in test_inputs.iter().cloned() {
+        for (input, output) in test_inputs.clone().into_iter().zip_eq(expected_outputs) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input));
+                .push(Poseidon2Event::dummy_from_input(input, output));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
 
         assert_eq!(trace.height(), test_inputs.len());
-        for (i, expected_output) in expected_outputs.iter().enumerate() {
-            let row = trace.row(i).collect_vec();
-            let cols: &Poseidon2WideCols<BabyBear> = row.as_slice().borrow();
-            for i in 0..WIDTH {
-                assert_eq!(expected_output[i], *cols.memory.output[i].value());
-            }
-        }
     }
 
-    /// A test proving 2^10 permuations
     #[test]
     fn poseidon2_wide_prove_babybear() {
         let config = BabyBearPoseidon2Inner::new();
@@ -498,11 +491,24 @@ mod tests {
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
             .collect_vec();
 
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
+
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
+
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for input in test_inputs {
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input));
+                .push(Poseidon2Event::dummy_from_input(input, output));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
