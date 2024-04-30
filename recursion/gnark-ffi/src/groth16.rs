@@ -51,13 +51,13 @@ impl Groth16Prover {
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
 
-        let cwd = std::env::current_dir().unwrap();
-
         // Create a channel for cancellation
         let (cancel_sender, cancel_receiver) = bounded(1);
 
         // Spawn a thread to run the Go command and panic on errors
         let thread_handle = thread::spawn(move || {
+            let cwd = std::env::current_dir().unwrap();
+
             let mut child = Command::new("go")
                 .args([
                     "run",
