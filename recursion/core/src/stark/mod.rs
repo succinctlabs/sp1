@@ -6,6 +6,7 @@ use crate::{
     cpu::CpuChip,
     fri_fold::FriFoldChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
+    poseidon2::Poseidon2Chip,
     poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
     range_check::RangeCheckChip,
@@ -17,25 +18,22 @@ use sp1_derive::MachineAir;
 
 use crate::runtime::D;
 
-pub type RecursionAirWideDeg3<F> = RecursionAir<F, 3>;
-pub type RecursionAirSkinnyDeg7<F> = RecursionAir<F, 5>;
-
 #[derive(MachineAir)]
 #[sp1_core_path = "sp1_core"]
 #[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
 #[program_path = "crate::runtime::RecursionProgram<F>"]
 #[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
-pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
+pub enum RecursionAirWideDeg3<F: PrimeField32 + BinomiallyExtendable<D>> {
     Program(ProgramChip),
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    Poseidon2(Poseidon2WideChip<DEGREE>),
+    Poseidon2(Poseidon2WideChip<3>),
     FriFold(FriFoldChip),
     RangeCheck(RangeCheckChip<F>),
 }
 
-impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
+impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirWideDeg3<F> {
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
             .into_iter()
@@ -45,17 +43,67 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     }
 
     pub fn get_all() -> Vec<Self> {
-        once(RecursionAir::Program(ProgramChip))
-            .chain(once(RecursionAir::Cpu(CpuChip::default())))
-            .chain(once(RecursionAir::MemoryInit(MemoryGlobalChip {
+        once(RecursionAirWideDeg3::Program(ProgramChip))
+            .chain(once(RecursionAirWideDeg3::Cpu(CpuChip::default())))
+            .chain(once(RecursionAirWideDeg3::MemoryInit(MemoryGlobalChip {
                 kind: MemoryChipKind::Init,
             })))
-            .chain(once(RecursionAir::MemoryFinalize(MemoryGlobalChip {
-                kind: MemoryChipKind::Finalize,
+            .chain(once(RecursionAirWideDeg3::MemoryFinalize(
+                MemoryGlobalChip {
+                    kind: MemoryChipKind::Finalize,
+                },
+            )))
+            .chain(once(RecursionAirWideDeg3::Poseidon2(
+                Poseidon2WideChip::<3>,
+            )))
+            .chain(once(RecursionAirWideDeg3::FriFold(FriFoldChip {})))
+            .chain(once(RecursionAirWideDeg3::RangeCheck(
+                RangeCheckChip::default(),
+            )))
+            .collect()
+    }
+}
+
+#[derive(MachineAir)]
+#[sp1_core_path = "sp1_core"]
+#[execution_record_path = "crate::runtime::ExecutionRecord<F>"]
+#[program_path = "crate::runtime::RecursionProgram<F>"]
+#[builder_path = "crate::air::SP1RecursionAirBuilder<F = F>"]
+pub enum RecursionAirSkinnyDeg7<F: PrimeField32 + BinomiallyExtendable<D>> {
+    Program(ProgramChip),
+    Cpu(CpuChip<F>),
+    MemoryInit(MemoryGlobalChip),
+    MemoryFinalize(MemoryGlobalChip),
+    Poseidon2(Poseidon2Chip),
+    FriFold(FriFoldChip),
+    RangeCheck(RangeCheckChip<F>),
+}
+
+impl<F: PrimeField32 + BinomiallyExtendable<D>> RecursionAirSkinnyDeg7<F> {
+    pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
+        let chips = Self::get_all()
+            .into_iter()
+            .map(Chip::new)
+            .collect::<Vec<_>>();
+        StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
+    }
+
+    pub fn get_all() -> Vec<Self> {
+        once(RecursionAirSkinnyDeg7::Program(ProgramChip))
+            .chain(once(RecursionAirSkinnyDeg7::Cpu(CpuChip::default())))
+            .chain(once(RecursionAirSkinnyDeg7::MemoryInit(MemoryGlobalChip {
+                kind: MemoryChipKind::Init,
             })))
-            .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip::<DEGREE>)))
-            .chain(once(RecursionAir::FriFold(FriFoldChip {})))
-            .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
+            .chain(once(RecursionAirSkinnyDeg7::MemoryFinalize(
+                MemoryGlobalChip {
+                    kind: MemoryChipKind::Finalize,
+                },
+            )))
+            .chain(once(RecursionAirSkinnyDeg7::Poseidon2(Poseidon2Chip)))
+            .chain(once(RecursionAirSkinnyDeg7::FriFold(FriFoldChip {})))
+            .chain(once(RecursionAirSkinnyDeg7::RangeCheck(
+                RangeCheckChip::default(),
+            )))
             .collect()
     }
 }
