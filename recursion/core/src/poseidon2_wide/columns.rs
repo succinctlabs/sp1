@@ -6,12 +6,12 @@ use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 
 use super::external::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
-pub(crate) enum Poseidon2Columns<'a, T> {
-    Wide(&'a mut Poseidon2SboxCols<T>),
-    Narrow(&'a mut Poseidon2Cols<T>),
+pub(crate) enum Poseidon2Columns<T> {
+    Wide(Poseidon2SboxCols<T>),
+    Narrow(Poseidon2Cols<T>),
 }
 
-impl<T> Poseidon2Columns<'_, T> {
+impl<T> Poseidon2Columns<T> {
     pub fn get_memory(&self) -> &Poseidon2MemCols<T> {
         match self {
             Poseidon2Columns::Wide(cols) => &cols.memory,

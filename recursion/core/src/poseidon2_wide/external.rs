@@ -3,26 +3,22 @@ use crate::poseidon2_wide::columns::{
 };
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
-use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
-use sp1_core::cpu::air::memory;
 use sp1_core::utils::pad_to_power_of_two;
-use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
-use std::borrow::BorrowMut;
 use tracing::instrument;
 
 use crate::air::SP1RecursionAirBuilder;
 use crate::memory::MemoryCols;
-use crate::memory::MemoryReadSingleCols;
-use crate::memory::MemoryReadWriteSingleCols;
 
 use crate::poseidon2_wide::{external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
+
+use super::columns::Poseidon2MemCols;
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -76,11 +72,11 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             row.resize(num_columns, F::zero());
 
             let cols = if use_sbox_3 {
-                let cols: &mut Poseidon2SboxCols<F> = row.as_mut_slice().borrow_mut();
-                Poseidon2Columns::Wide(cols)
+                let cols: &Poseidon2SboxCols<F> = row.as_slice().borrow();
+                Poseidon2Columns::Wide(*cols)
             } else {
-                let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
-                Poseidon2Columns::Narrow(cols)
+                let cols: &Poseidon2Cols<F> = row.as_slice().borrow();
+                Poseidon2Columns::Narrow(*cols)
             };
 
             let memory = cols.get_memory_mut();
@@ -314,7 +310,7 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
         }
 
         // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
-        let sbox_deg_7 = sbox_deg_3 * sbox_deg_3 * add_rc.clone();
+        let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3 * add_rc.clone();
 
         // Apply the linear layer.
         // See `populate_internal_rounds` for why we don't have columns for the new state here.
@@ -334,7 +330,12 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {
-        NUM_POSEIDON2_WIDE_COLS
+        let use_sbox_3 = DEGREE > 7;
+        if use_sbox_3 {
+            NUM_POSEIDON2_COLS
+        } else {
+            NUM_POSEIDON2_SBOX_COLS
+        }
     }
 }
 
@@ -382,43 +383,55 @@ where
     AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
+        let use_sbox_3 = DEGREE > 7;
         let main = builder.main();
         let cols = main.row_slice(0);
-        let cols: &Poseidon2WideCols<AB::Var> = (*cols).borrow();
+        let cols = if use_sbox_3 {
+            let cols: &Poseidon2SboxCols<AB::Var> = (*cols).borrow();
+            Poseidon2Columns::Wide(*cols)
+        } else {
+            let cols: &Poseidon2Cols<AB::Var> = (*cols).borrow();
+            Poseidon2Columns::Narrow(*cols)
+        };
 
-        eval_mem(builder, &cols.memory);
+        let memory = cols.get_memory();
+        eval_mem(builder, memory);
 
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE)
-            .map(|_| cols.memory.is_real.into())
+            .map(|_| memory.is_real.into())
             .product::<AB::Expr>();
         let rhs = (0..DEGREE)
-            .map(|_| cols.memory.is_real.into())
+            .map(|_| memory.is_real.into())
             .product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
         // Apply the initial round.
         let initial_round_output = {
             let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| (*cols.memory.input[i].value()).into());
+                core::array::from_fn(|i| (*memory.input[i].value()).into());
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
+        let state_expr: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+            let state = cols.get_external_state(0);
+            state[i].into()
+        });
         builder
-            .when(cols.memory.is_real)
-            .assert_all_eq(cols.external_rounds[0].state, initial_round_output);
+            .when(memory.is_real)
+            .assert_all_eq(state_expr, initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            eval_external_round(builder, cols, r, cols.memory.is_real);
+            eval_external_round(builder, &cols, r, memory.is_real);
         }
 
         // Apply the internal rounds.
-        eval_internal_rounds(builder, cols, cols.memory.is_real);
+        eval_internal_rounds(builder, &cols, memory.is_real);
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, cols, r, cols.memory.is_real);
+            eval_external_round(builder, &cols, r, memory.is_real);
         }
     }
 }
@@ -430,7 +443,8 @@ mod tests {
 
     use crate::memory::MemoryCols;
     use crate::poseidon2::Poseidon2Event;
-    use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
+    use crate::poseidon2_wide::columns::{Poseidon2Cols, Poseidon2SboxCols};
+    use crate::poseidon2_wide::external::{Poseidon2Columns, WIDTH};
     use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -453,6 +467,8 @@ mod tests {
             [BabyBear::from_canonical_u32(3); WIDTH],
             [BabyBear::from_canonical_u32(4); WIDTH],
         ];
+
+        const DEGREE: usize = 7;
 
         let gt: Poseidon2<
             BabyBear,
@@ -478,11 +494,22 @@ mod tests {
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
 
         assert_eq!(trace.height(), test_inputs.len());
+
+        let use_sbox_3 = DEGREE > 7;
         for (i, expected_output) in expected_outputs.iter().enumerate() {
             let row = trace.row(i).collect_vec();
-            let cols: &Poseidon2WideCols<BabyBear> = row.as_slice().borrow();
+
+            let cols = if use_sbox_3 {
+                let cols: &Poseidon2SboxCols<BabyBear> = row.as_slice().borrow();
+                Poseidon2Columns::Wide(*cols)
+            } else {
+                let cols: &Poseidon2Cols<BabyBear> = row.as_slice().borrow();
+                Poseidon2Columns::Narrow(*cols)
+            };
+
+            let memory = cols.get_memory();
             for i in 0..WIDTH {
-                assert_eq!(expected_output[i], *cols.memory.output[i].value());
+                assert_eq!(expected_output[i], *memory.output[i].value());
             }
         }
     }
