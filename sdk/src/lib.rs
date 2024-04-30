@@ -46,6 +46,9 @@ impl ProverClient {
             .to_lowercase()
             .as_str()
         {
+            "mock" => Self {
+                prover: Box::new(MockProver::new()),
+            },
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
