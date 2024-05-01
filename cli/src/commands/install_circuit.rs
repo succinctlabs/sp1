@@ -43,7 +43,7 @@ impl InstallCircuitCmd {
         let build_dir = if let Some(build_dir) = self.build_dir.clone() {
             PathBuf::from(build_dir)
         } else {
-            get_artifacts_dir(self.circuit_type.into())
+            get_artifacts_dir(self.circuit_type.into(), false)
         };
 
         // If build_dir exists, confirm if user wants to overwrite

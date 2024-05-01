@@ -70,8 +70,7 @@ pub fn install_circuit_artifacts(
     build_dir: Option<PathBuf>,
     version: Option<u32>,
 ) -> Result<()> {
-    let is_dev_mode = get_dev_mode();
-    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, is_dev_mode));
+    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, false));
 
     if build_dir.exists() {
         // If dir exists and not overwrite_existing, just return.
