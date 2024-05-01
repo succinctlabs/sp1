@@ -104,10 +104,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Setup Environment
-        uses: ./.github/actions/setup
+      - name: Install Go 1.22
+        uses: actions/setup-go@v5
         with:
-          pull_token: ${{ secrets.PULL_TOKEN }}
+          go-version: "1.22"
+          cache-dependency-path: "**/go.sum"
+
+      - name: Print go version
+        shell: bash
+        run: go version
 
       - name: Install nightly toolchain
         id: rustc-toolchain
