@@ -17,7 +17,7 @@ use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
 use sp1_recursion_compiler::ir::{Builder, Config, Felt};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
+use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer, OuterDigest};
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
@@ -244,11 +244,14 @@ pub fn build_wrap_circuit(
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
-    let preprocessed_commit_val: [Bn254Fr; 1] = vk.commit.into();
+    let proof = dummy_proof.read(&mut builder);
+    let preprocessed_commit: OuterDigest = vk.commit.into();
+    let preprocessed_commit_val = preprocessed_commit.read(&mut builder);
+    let pc_start = vk.pc_start.read(&mut builder);
+
     let preprocessed_commit: OuterDigestVariable<OuterC> =
         [builder.eval(preprocessed_commit_val[0])];
     challenger.observe_commitment(&mut builder, preprocessed_commit);
-    let pc_start: Felt<_> = builder.eval(vk.pc_start);
     challenger.observe(&mut builder, pc_start);
 
     let chips = outer_machine
@@ -278,10 +281,6 @@ pub fn build_wrap_circuit(
             }
         })
         .collect();
-
-    let mut witness = Witness::default();
-    dummy_proof.write(&mut witness);
-    let proof = dummy_proof.read(&mut builder);
 
     let ShardCommitment { main_commit, .. } = &proof.commitment;
     challenger.observe_commitment(&mut builder, *main_commit);
@@ -320,7 +319,10 @@ pub(crate) mod tests {
     use sp1_recursion_core::{
         cpu::Instruction,
         runtime::{Opcode, RecursionProgram, Runtime},
-        stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
+        stark::{
+            config::{BabyBearPoseidon2Outer, OuterDigest},
+            RecursionAirWideDeg3,
+        },
     };
     use sp1_recursion_gnark_ffi::Groth16Prover;
 
@@ -387,6 +389,9 @@ pub(crate) mod tests {
         let mut witness = Witness::default();
         let proof = proofs.pop().unwrap();
         proof.write(&mut witness);
+        let vk_commit: OuterDigest = vk.commit.into();
+        vk_commit.write(&mut witness);
+        vk.pc_start.write(&mut witness);
 
         let constraints = build_wrap_circuit(&vk, proof);
 
