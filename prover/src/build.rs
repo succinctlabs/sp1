@@ -14,6 +14,8 @@ use sp1_recursion_gnark_ffi::Groth16Prover;
 
 use crate::{OuterSC, SP1Prover};
 
+/// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
+/// the proof.
 fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
@@ -39,6 +41,7 @@ fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     (prover.wrap_vk, wrapped_proof)
 }
 
+/// Build the verifier constraints and template witness for the circuit.
 fn build_circuit(
     wrap_vk: StarkVerifyingKey<OuterSC>,
     wrapped_proof: ShardProof<OuterSC>,
@@ -54,12 +57,14 @@ fn build_circuit(
     (constraints, witness)
 }
 
+/// Create a directory if it doesn't exist.
 fn mkdirs(dir: &PathBuf) {
     if !dir.exists() {
         std::fs::create_dir_all(dir).expect("Failed to create directory");
     }
 }
 
+/// Build the groth16 circuit artifacts.
 pub fn build_groth16_artifacts(build_dir: PathBuf) {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
@@ -81,6 +86,7 @@ pub fn build_groth16_artifacts(build_dir: PathBuf) {
     // groth16_prover.prove(witness.clone());
 }
 
+/// Build the plonk circuit artifacts.
 pub fn build_plonk_artifacts(build_dir: PathBuf) {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
