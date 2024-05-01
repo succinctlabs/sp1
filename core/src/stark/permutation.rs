@@ -237,8 +237,8 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
     unpacked_prepermutation_trace
         .par_chunks_mut(chunk_rate)
         .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
-    // Repack the permutation trace values.
 
+    // Repack the permutation trace values.
     prepermutation_trace = RowMajorMatrix::new(
         (0..unpacked_prepermutation_trace.clone().len())
             .step_by(PackedVal::<SC>::WIDTH)
