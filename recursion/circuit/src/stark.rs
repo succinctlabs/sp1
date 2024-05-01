@@ -43,6 +43,7 @@ where
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
+        // TODO: this is a bit suspicious
         vk: &StarkVerifyingKey<SC>,
         machine: &StarkMachine<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
@@ -235,8 +236,8 @@ type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
 pub fn build_wrap_circuit(
-    vk: &StarkVerifyingKey<OuterSC>,
-    dummy_proof: ShardProof<OuterSC>,
+    template_vk: &StarkVerifyingKey<OuterSC>,
+    template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let outer_config = OuterSC::new();
     let outer_machine = RecursionAirSkinnyDeg7::<OuterF>::wrap_machine(outer_config);
@@ -244,10 +245,10 @@ pub fn build_wrap_circuit(
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
-    let proof = dummy_proof.read(&mut builder);
-    let preprocessed_commit: OuterDigest = vk.commit.into();
+    let proof = template_proof.read(&mut builder);
+    let preprocessed_commit: OuterDigest = template_vk.commit.into();
     let preprocessed_commit_val = preprocessed_commit.read(&mut builder);
-    let pc_start = vk.pc_start.read(&mut builder);
+    let pc_start = template_vk.pc_start.read(&mut builder);
 
     let preprocessed_commit: OuterDigestVariable<OuterC> =
         [builder.eval(preprocessed_commit_val[0])];
@@ -255,7 +256,7 @@ pub fn build_wrap_circuit(
     challenger.observe(&mut builder, pc_start);
 
     let chips = outer_machine
-        .shard_chips_ordered(&dummy_proof.chip_ordering)
+        .shard_chips_ordered(&template_proof.chip_ordering)
         .map(|chip| chip.name())
         .collect::<Vec<_>>();
 
@@ -263,7 +264,7 @@ pub fn build_wrap_circuit(
         .chips()
         .iter()
         .map(|chip| {
-            dummy_proof
+            template_proof
                 .chip_ordering
                 .get(&chip.name())
                 .copied()
@@ -272,7 +273,7 @@ pub fn build_wrap_circuit(
         .collect::<Vec<_>>();
 
     let chip_quotient_data = outer_machine
-        .shard_chips_ordered(&dummy_proof.chip_ordering)
+        .shard_chips_ordered(&template_proof.chip_ordering)
         .map(|chip| {
             let log_quotient_degree = chip.log_quotient_degree();
             QuotientDataValues {
@@ -293,7 +294,7 @@ pub fn build_wrap_circuit(
 
     StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
         &mut builder,
-        vk,
+        template_vk,
         &outer_machine,
         &mut challenger.clone(),
         &proof,

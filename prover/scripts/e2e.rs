@@ -71,8 +71,8 @@ pub fn main() {
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
 
-    // tracing::info!("gnark cancel");
-    // groth16_prover.cancel();
+    tracing::info!("gnark cancel");
+    groth16_prover.cancel();
 
     let elf = include_bytes!(
         "../../../zkvm-perf/programs/sha2-chain/target/riscv32im-succinct-zkvm-elf/release/sha2-chain"
@@ -104,8 +104,14 @@ pub fn main() {
     vk_commit.write(&mut witness);
     prover.wrap_vk.pc_start.write(&mut witness);
 
+    tracing::info!("sanity check gnark prove");
+    let groth16_prover = Groth16Prover::new(args.build_dir.clone().into());
+
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
+
+    tracing::info!("gnark cancel");
+    groth16_prover.cancel();
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
