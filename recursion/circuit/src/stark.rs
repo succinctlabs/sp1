@@ -14,7 +14,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Felt};
+use sp1_recursion_compiler::ir::{Builder, Config};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
@@ -235,8 +235,8 @@ type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
 pub fn build_wrap_circuit(
-    vk: &StarkVerifyingKey<OuterSC>,
-    dummy_proof: ShardProof<OuterSC>,
+    template_vk: &StarkVerifyingKey<OuterSC>,
+    template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let dev_mode = std::env::var("SP1_DEV_WRAPPER")
         .unwrap_or("true".to_string())
@@ -244,21 +244,21 @@ pub fn build_wrap_circuit(
         .eq("true");
 
     let outer_config = OuterSC::new();
-    let outer_machine = RecursionAirSkinnyDeg7::<OuterF>::machine(outer_config);
+    let outer_machine = RecursionAirSkinnyDeg7::<OuterF>::wrap_machine(outer_config);
 
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
-    let preprocessed_commit_val: [Bn254Fr; 1] = vk.commit.into();
+    let preprocessed_commit_val: [Bn254Fr; 1] = template_vk.commit.into();
     let preprocessed_commit: OuterDigestVariable<OuterC> =
         [builder.eval(preprocessed_commit_val[0])];
     challenger.observe_commitment(&mut builder, preprocessed_commit);
-    let pc_start: Felt<_> = builder.eval(vk.pc_start);
+    let pc_start = builder.eval(template_vk.pc_start);
     challenger.observe(&mut builder, pc_start);
 
     if !dev_mode {
         let chips = outer_machine
-            .shard_chips_ordered(&dummy_proof.chip_ordering)
+            .shard_chips_ordered(&template_proof.chip_ordering)
             .map(|chip| chip.name())
             .collect::<Vec<_>>();
 
@@ -266,7 +266,7 @@ pub fn build_wrap_circuit(
             .chips()
             .iter()
             .map(|chip| {
-                dummy_proof
+                template_proof
                     .chip_ordering
                     .get(&chip.name())
                     .copied()
@@ -275,7 +275,7 @@ pub fn build_wrap_circuit(
             .collect::<Vec<_>>();
 
         let chip_quotient_data = outer_machine
-            .shard_chips_ordered(&dummy_proof.chip_ordering)
+            .shard_chips_ordered(&template_proof.chip_ordering)
             .map(|chip| {
                 let log_quotient_degree = chip.log_quotient_degree();
                 QuotientDataValues {
@@ -286,8 +286,8 @@ pub fn build_wrap_circuit(
             .collect();
 
         let mut witness = Witness::default();
-        dummy_proof.write(&mut witness);
-        let proof = dummy_proof.read(&mut builder);
+        template_proof.write(&mut witness);
+        let proof = template_proof.read(&mut builder);
 
         let ShardCommitment { main_commit, .. } = &proof.commitment;
         challenger.observe_commitment(&mut builder, *main_commit);
@@ -300,7 +300,7 @@ pub fn build_wrap_circuit(
 
         StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
             &mut builder,
-            vk,
+            template_vk,
             &outer_machine,
             &mut challenger.clone(),
             &proof,

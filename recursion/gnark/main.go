@@ -383,6 +383,7 @@ func main() {
 		circuitDataDir := *serveCircuitDataDirFlag
 		circuitType := *serveCircuitTypeFlag
 		serveHostPort := *servePortFlag
+		os.Setenv("CONSTRAINTS_JSON", circuitDataDir+"/constraints_groth16.json")
 
 		if circuitDataDir == "" {
 			fmt.Println("Error: data directory flag is required")

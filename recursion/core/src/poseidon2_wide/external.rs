@@ -6,7 +6,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
@@ -32,7 +32,9 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2WideChip<const DEGREE: usize>;
+pub struct Poseidon2WideChip<const DEGREE: usize> {
+    pub fixed_log2_rows: Option<usize>,
+}
 
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
@@ -90,7 +92,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         // This is a no-op.
     }
 
-    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all)]
+    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -149,14 +151,18 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             rows.push(row);
         }
 
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_POSEIDON2_WIDE_COLS],
+            self.fixed_log2_rows,
+        );
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        let trace = RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_POSEIDON2_WIDE_COLS,
         );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_POSEIDON2_WIDE_COLS, F>(&mut trace.values);
 
         #[cfg(debug_assertions)]
         println!(
@@ -445,7 +451,9 @@ mod tests {
     /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
     fn generate_trace() {
-        let chip = Poseidon2WideChip::<3>;
+        let chip = Poseidon2WideChip::<3> {
+            fixed_log2_rows: None,
+        };
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
             [BabyBear::from_canonical_u32(2); WIDTH],
@@ -492,7 +500,9 @@ mod tests {
         let config = BabyBearPoseidon2Inner::new();
         let mut challenger = config.challenger();
 
-        let chip = Poseidon2WideChip::<3>;
+        let chip = Poseidon2WideChip::<3> {
+            fixed_log2_rows: None,
+        };
 
         let test_inputs = (0..1000)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
