@@ -319,10 +319,7 @@ pub(crate) mod tests {
     use sp1_recursion_core::{
         cpu::Instruction,
         runtime::{Opcode, RecursionProgram, Runtime},
-        stark::{
-            config::{BabyBearPoseidon2Outer, OuterDigest},
-            RecursionAirWideDeg3,
-        },
+        stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
     };
     use sp1_recursion_gnark_ffi::Groth16Prover;
 

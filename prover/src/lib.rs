@@ -265,7 +265,6 @@ impl SP1Prover {
                 self.verify_batch(
                     config,
                     &self.reduce_pk,
-                    &self.reduce_vk,
                     vk,
                     core_challenger,
                     reconstruct_challenger,
@@ -346,7 +345,6 @@ impl SP1Prover {
                 let proof = self.verify_batch(
                     config,
                     &self.reduce_pk,
-                    &self.reduce_vk,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger,
@@ -395,7 +393,6 @@ impl SP1Prover {
                 self.verify_batch::<InnerSC>(
                     config,
                     &self.reduce_pk,
-                    &self.reduce_vk,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger.clone(),
@@ -423,7 +420,6 @@ impl SP1Prover {
         &self,
         config: SC,
         pk: &StarkProvingKey<SC>,
-        vk: &StarkVerifyingKey<SC>,
         core_vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
         reconstruct_challenger: Challenger<CoreSC>,
@@ -583,11 +579,7 @@ impl SP1Prover {
         let proof = if proving_with_skinny && verifying_compressed_proof {
             let machine = RecursionAirSkinnyDeg7::wrap_machine(config);
             let mut challenger = machine.config().challenger();
-            let proof =
-                machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger);
-            let mut challenger = machine.config().challenger();
-            machine.verify(vk, &proof, &mut challenger).unwrap();
-            proof
+            machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)
         } else if proving_with_skinny {
             let machine = RecursionAirSkinnyDeg7::machine(config);
             let mut challenger = machine.config().challenger();
@@ -637,7 +629,6 @@ impl SP1Prover {
         self.verify_batch::<InnerSC>(
             config,
             &self.compress_pk,
-            &self.compress_vk,
             vk,
             core_challenger,
             reconstruct_challenger,
@@ -670,7 +661,6 @@ impl SP1Prover {
         self.verify_batch::<OuterSC>(
             config,
             &self.wrap_pk,
-            &self.wrap_vk,
             vk,
             core_challenger,
             reconstruct_challenger,

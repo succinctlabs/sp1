@@ -51,8 +51,8 @@ pub fn main() {
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    // tracing::info!("sanity check gnark test");
-    // Groth16Prover::test(constraints.clone(), witness.clone());
+    tracing::info!("sanity check gnark test");
+    Groth16Prover::test(constraints.clone(), witness.clone());
 
     tracing::info!("sanity check gnark build");
     Groth16Prover::build(
