@@ -14,10 +14,10 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Felt};
-use sp1_recursion_compiler::ir::{Usize, Witness};
+use sp1_recursion_compiler::ir::Usize;
+use sp1_recursion_compiler::ir::{Builder, Config};
 use sp1_recursion_compiler::prelude::SymbolicVar;
-use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer, OuterDigest};
+use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
@@ -246,13 +246,12 @@ pub fn build_wrap_circuit(
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
     let proof = template_proof.read(&mut builder);
-    let preprocessed_commit: OuterDigest = template_vk.commit.into();
-    let preprocessed_commit_val = preprocessed_commit.read(&mut builder);
-    let pc_start = template_vk.pc_start.read(&mut builder);
+    let preprocessed_commit_val: [Bn254Fr; 1] = template_vk.commit.into();
 
     let preprocessed_commit: OuterDigestVariable<OuterC> =
         [builder.eval(preprocessed_commit_val[0])];
     challenger.observe_commitment(&mut builder, preprocessed_commit);
+    let pc_start = builder.eval(template_vk.pc_start);
     challenger.observe(&mut builder, pc_start);
 
     let chips = outer_machine
