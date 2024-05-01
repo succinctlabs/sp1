@@ -88,7 +88,10 @@ pub fn pad_rows_fixed<T: Clone, const N: usize>(
         Some(size_log2) => {
             let padded_nb_rows = 1 << size_log2;
             if nb_rows > padded_nb_rows {
-                panic!("fixed trace size is too small");
+                panic!(
+                    "fixed trace size is too small: got {}, expected {}",
+                    nb_rows, padded_nb_rows
+                );
             }
             rows.resize(padded_nb_rows, dummy_row);
         }
