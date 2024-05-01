@@ -454,15 +454,9 @@ mod tests {
     use p3_symmetric::Permutation;
     use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::{
-        inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2, BabyBearPoseidon2Inner,
-    };
+    use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2};
 
-    /// A test generating a trace for a single permutation that checks that the output is correct
-    #[test]
-    fn generate_trace() {
-        const DEGREE: usize = 7;
-
+    fn generate_trace_degree<const DEGREE: usize>() {
         let chip = Poseidon2WideChip::<DEGREE>;
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
@@ -497,8 +491,14 @@ mod tests {
         assert_eq!(trace.height(), test_inputs.len());
     }
 
+    /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
-    fn poseidon2_wide_prove_babybear() {
+    fn generate_trace() {
+        generate_trace_degree::<3>();
+        generate_trace_degree::<7>();
+    }
+
+    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>() {
         const DEGREE: usize = 7;
 
         let config = BabyBearPoseidon2::compressed();
@@ -549,5 +549,11 @@ mod tests {
 
         let duration = start.elapsed().as_secs_f64();
         println!("verify duration = {:?}", duration);
+    }
+
+    #[test]
+    fn poseidon2_wide_prove_babybear() {
+        poseidon2_wide_prove_babybear_degree::<3>();
+        poseidon2_wide_prove_babybear_degree::<7>();
     }
 }
