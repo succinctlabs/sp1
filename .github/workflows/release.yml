@@ -168,7 +168,7 @@ jobs:
       - name: Build groth16 and create tarball
         run: |
           cd prover
-          RUST_LOG=info RUST_BACKTRACE=1 make groth16
+          RUST_LOG=info RUST_BACKTRACE=1 RUST_BACKTRACE=1 MAX_RECURSION_PROGRAM_SIZE=1 FRI_QUERIES=1 make groth16
           cd build
           tar -czvf build.tar.gz .
 
