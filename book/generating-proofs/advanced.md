@@ -19,7 +19,7 @@ With the `ProverClient`, the default `prove` function generates a proof that is 
 {{#include ../../examples/fibonacci/script/bin/compressed.rs}}
 ```
 
-You can run the above script with `RUST_LOG=info cargo run --bin compressed --release`.
+You can run the above script with `RUST_LOG=info cargo run --bin compressed --release` from `examples/fibonacci/script`.
 
 ## Logging and Tracing Information
 
@@ -39,7 +39,7 @@ RUST_LOG=info cargo run --release
 
 ## CPU Acceleration
 
-To enable CPU acceleration, you can use the `RUSTFLAGS` environment variable to enable the `target-cpu=native` flag. This will enable the compiler to generate code that is optimized for your CPU.
+To enable CPU acceleration, you can use the `RUSTFLAGS` environment variable to enable the `target-cpu=native` flag when running your script. This will enable the compiler to generate code that is optimized for your CPU.
 
 ```bash
 RUSTFLAGS='-C target-cpu=native' cargo run --release
