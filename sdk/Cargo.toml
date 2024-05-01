@@ -36,3 +36,10 @@ dotenv = "0.15.0"
 sha2 = "0.10.8"
 dirs = "5.0.1"
 tempfile = "3.10.1"
+
+[build-dependencies]
+vergen = { version = "8", default-features = false, features = [
+    "build",
+    "git",
+    "git2",
+] }

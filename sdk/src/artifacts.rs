@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
+use sp1_prover::build::{build_groth16_artifacts, build_plonk_artifacts};
 
 pub const GROTH16_CIRCUIT_VERSION: u32 = 1;
 
@@ -28,8 +29,10 @@ const CIRCUIT_ARTIFACTS_URL: &str = "https://sp1-circuits.s3-us-east-2.amazonaws
 
 /// Returns the directory where the circuit artifacts are stored. If SP1_CIRCUIT_DIR is set, it
 /// returns that directory. Otherwise, it returns ~/.sp1/circuits/<type>/<version>.
-pub fn get_artifacts_dir(circuit_type: WrapCircuitType) -> PathBuf {
+pub fn get_artifacts_dir(circuit_type: WrapCircuitType, is_dev_mode: bool) -> PathBuf {
     let env_var = std::env::var("SP1_CIRCUIT_DIR");
+
+    let dev_suffix = if is_dev_mode { "_dev" } else { "" };
 
     env_var.map(PathBuf::from).unwrap_or_else(|_| {
         dirs::home_dir()
@@ -37,12 +40,24 @@ pub fn get_artifacts_dir(circuit_type: WrapCircuitType) -> PathBuf {
             .join(".sp1")
             .join("circuits")
             .join(match circuit_type {
-                WrapCircuitType::Groth16 => format!("{}/{}", circuit_type, GROTH16_CIRCUIT_VERSION),
+                WrapCircuitType::Groth16 => {
+                    format!("{}{}/{}", circuit_type, dev_suffix, GROTH16_CIRCUIT_VERSION)
+                }
                 WrapCircuitType::Plonk => {
-                    format!("{}/{}", circuit_type, PLONK_BN254_CIRCUIT_VERSION)
+                    format!(
+                        "{}{}/{}",
+                        circuit_type, dev_suffix, PLONK_BN254_CIRCUIT_VERSION
+                    )
                 }
             })
     })
+}
+
+pub fn get_dev_mode() -> bool {
+    std::env::var("SP1_DEV_WRAPPER")
+        .unwrap_or("true".to_string())
+        .to_lowercase()
+        == "true"
 }
 
 /// Installs the prebuilt artifacts for the given circuit type.
@@ -55,7 +70,8 @@ pub fn install_circuit_artifacts(
     build_dir: Option<PathBuf>,
     version: Option<u32>,
 ) -> Result<()> {
-    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type));
+    let is_dev_mode = get_dev_mode();
+    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, is_dev_mode));
 
     if build_dir.exists() {
         // If dir exists and not overwrite_existing, just return.
@@ -122,6 +138,58 @@ pub fn install_circuit_artifacts(
     res.wait()?;
 
     temp_dir.close()?;
+
+    Ok(())
+}
+
+pub fn build_circuit_artifacts(
+    circuit_type: WrapCircuitType,
+    overwrite_existing: bool,
+    build_dir: Option<PathBuf>,
+) -> Result<()> {
+    let is_dev_mode = get_dev_mode();
+    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, is_dev_mode));
+
+    if build_dir.exists() {
+        if !overwrite_existing {
+            // If dir exists, just return.
+            return Ok(());
+        }
+        // Otherwise we will overwrite, so delete existing directory.
+        std::fs::remove_dir_all(&build_dir)
+            .context("Failed to remove existing build directory.")?;
+    }
+
+    println!(
+        "Building {:?} artifacts in {}",
+        circuit_type,
+        build_dir.display()
+    );
+
+    // Mkdir
+    std::fs::create_dir_all(&build_dir).context("Failed to create build directory.")?;
+
+    // Write version file.
+    let version_file = build_dir.join("VERSION");
+    let mut version_file = File::create(version_file)?;
+    let version = match circuit_type {
+        WrapCircuitType::Groth16 => GROTH16_CIRCUIT_VERSION,
+        WrapCircuitType::Plonk => PLONK_BN254_CIRCUIT_VERSION,
+    };
+    version_file.write_all(
+        format!(
+            "sp1 {} circuit {} {}",
+            env!("VERGEN_GIT_SHA"),
+            circuit_type,
+            version,
+        )
+        .as_bytes(),
+    )?;
+
+    match circuit_type {
+        WrapCircuitType::Groth16 => build_groth16_artifacts(build_dir),
+        WrapCircuitType::Plonk => build_plonk_artifacts(build_dir),
+    };
 
     Ok(())
 }
