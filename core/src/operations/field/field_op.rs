@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 
+use amcl::bls381::big::Big;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
@@ -50,12 +51,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         a: &BigUint,
         b: &BigUint,
         op: FieldOperation,
+        modulus: &BigUint,
     ) -> BigUint {
         let p_a: Polynomial<F> = P::to_limbs_field::<F, _>(a).into();
         let p_b: Polynomial<F> = P::to_limbs_field::<F, _>(b).into();
-
-        // Compute field addition in the integers.
-        let modulus = &P::modulus();
         let (result, carry) = match op {
             FieldOperation::Add => ((a + b) % modulus, (a + b - (a + b) % modulus) / modulus),
             FieldOperation::Mul => ((a * b) % modulus, (a * b - (a * b) % modulus) / modulus),
@@ -99,12 +98,13 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         result
     }
 
-    pub fn populate(
+    pub fn populate_core(
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
         a: &BigUint,
         b: &BigUint,
+        modulus: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
         if b == &BigUint::zero() && op == FieldOperation::Div {
@@ -116,18 +116,16 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             );
         }
 
-        let modulus = P::modulus();
-
         let result = match op {
             // If doing the subtraction operation, a - b = result, equivalent to a = result + b.
             FieldOperation::Sub => {
-                let result = (modulus.clone() + a - b) % &modulus;
+                let result = (modulus.clone() + a - b) % modulus;
                 // We populate the carry, witness_low, witness_high as if we were doing an addition with result + b.
                 // But we populate `result` with the actual result of the subtraction because those columns are expected
                 // to contain the result by the user.
                 // Note that this reversal means we have to flip result, a correspondingly in
                 // the `eval` function.
-                self.populate_carry_and_witness(&result, b, FieldOperation::Add);
+                self.populate_carry_and_witness(&result, b, FieldOperation::Add, &modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
                 result
             }
@@ -143,11 +141,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
                 // multiplication because those columns are expected to contain the result by the user.
                 // Note that this reversal means we have to flip result, a correspondingly in the `eval`
                 // function.
-                self.populate_carry_and_witness(&result, b, FieldOperation::Mul);
+                self.populate_carry_and_witness(&result, b, FieldOperation::Mul, &modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
                 result
             }
-            _ => self.populate_carry_and_witness(a, b, op),
+            _ => self.populate_carry_and_witness(a, b, op, &modulus),
         };
 
         // Range checks
@@ -158,9 +156,78 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
 
         result
     }
+
+    pub fn populate(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        a: &BigUint,
+        b: &BigUint,
+        op: FieldOperation,
+    ) -> BigUint {
+        self.populate_core(record, shard, a, b, &P::modulus(), op)
+    }
+
+    pub fn populate_with_modulus(
+        &mut self,
+        record: &mut impl ByteRecord,
+        shard: u32,
+        a: &BigUint,
+        b: &BigUint,
+        modulus: &BigUint,
+        op: FieldOperation,
+    ) -> BigUint {
+        self.populate_core(record, shard, a, b, modulus, op)
+    }
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
+    pub fn eval_core<
+        AB: SP1AirBuilder<Var = V>,
+        A: Into<Polynomial<AB::Expr>> + Clone,
+        B: Into<Polynomial<AB::Expr>> + Clone,
+        M: Into<Polynomial<AB::Expr>> + Clone,
+        EShard: Into<AB::Expr> + Clone,
+        ER: Into<AB::Expr> + Clone,
+    >(
+        &self,
+        builder: &mut AB,
+        a: &A,
+        b: &B,
+        modulus: &M,
+        op: FieldOperation,
+        shard: EShard,
+        is_real: ER,
+    ) where
+        V: Into<AB::Expr>,
+        Limbs<V, P::Limbs>: Copy,
+    {
+        let p_a_param: Polynomial<AB::Expr> = (*a).clone().into();
+        let p_b: Polynomial<AB::Expr> = (*b).clone().into();
+        let p_modulus: Polynomial<AB::Expr> = (*modulus).clone().into();
+
+        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
+            FieldOperation::Add | FieldOperation::Mul => (p_a_param, self.result.into()),
+            FieldOperation::Sub | FieldOperation::Div => (self.result.into(), p_a_param),
+        };
+        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
+        let p_op = match op {
+            FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
+            FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
+        };
+        let p_op_minus_result: Polynomial<AB::Expr> = p_op - &p_result;
+        let p_vanishing = p_op_minus_result - &(&p_carry * &p_modulus);
+        let p_witness_low = self.witness_low.0.iter().into();
+        let p_witness_high = self.witness_high.0.iter().into();
+        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+
+        // Range checks for the result, carry, and witness columns.
+        builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(p_witness_low.coefficients(), shard.clone(), is_real.clone());
+        builder.slice_range_check_u8(p_witness_high.coefficients(), shard, is_real);
+    }
+
     pub fn eval<
         AB: SP1AirBuilder<Var = V>,
         A: Into<Polynomial<AB::Expr>> + Clone,
@@ -179,30 +246,38 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
     {
-        let p_a_param: Polynomial<AB::Expr> = (*a).clone().into();
-        let p_b: Polynomial<AB::Expr> = (*b).clone().into();
-
-        let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
-            FieldOperation::Add | FieldOperation::Mul => (p_a_param, self.result.into()),
-            FieldOperation::Sub | FieldOperation::Div => (self.result.into(), p_a_param),
-        };
-        let p_carry: Polynomial<<AB as AirBuilder>::Expr> = self.carry.into();
-        let p_op = match op {
-            FieldOperation::Add | FieldOperation::Sub => p_a + p_b,
-            FieldOperation::Mul | FieldOperation::Div => p_a * p_b,
-        };
-        let p_op_minus_result: Polynomial<AB::Expr> = p_op - &p_result;
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
-        let p_vanishing = p_op_minus_result - &(&p_carry * &p_limbs);
-        let p_witness_low = self.witness_low.0.iter().into();
-        let p_witness_high = self.witness_high.0.iter().into();
-        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        self.eval_core::<AB, _, _, _, _, _>(builder, a, b, &p_limbs, op, shard, is_real);
+    }
 
-        // Range checks for the result, carry, and witness columns.
-        builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(p_witness_low.coefficients(), shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(p_witness_high.coefficients(), shard, is_real);
+    pub fn eval_with_modulus<
+        AB: SP1AirBuilder<Var = V>,
+        A: Into<Polynomial<AB::Expr>> + Clone,
+        B: Into<Polynomial<AB::Expr>> + Clone,
+        M: Into<Polynomial<AB::Expr>> + Clone,
+        EShard: Into<AB::Expr> + Clone,
+        ER: Into<AB::Expr> + Clone,
+    >(
+        &self,
+        builder: &mut AB,
+        a: &A,
+        b: &B,
+        modulus: &M,
+        shard: EShard,
+        is_real: ER,
+    ) where
+        V: Into<AB::Expr>,
+        Limbs<V, P::Limbs>: Copy,
+    {
+        self.eval_core::<AB, _, _, _, _, _>(
+            builder,
+            a,
+            b,
+            modulus,
+            FieldOperation::Mul,
+            shard,
+            is_real,
+        );
     }
 }
 

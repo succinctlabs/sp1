@@ -12,7 +12,7 @@ use std::mem::size_of;
 
 use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
-use crate::memory::MemoryCols;
+use crate::memory::{MemoryCols, MemoryReadWriteCols};
 use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::FieldParameters;
@@ -20,9 +20,12 @@ use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
-use crate::syscall::precompiles::SyscallContext;
+use crate::syscall::precompiles::{uint256, SyscallContext};
 use crate::utils::ec::uint256::U256Field;
-use crate::utils::{bytes_to_words_le, pad_rows, words_to_bytes_le};
+use crate::utils::{
+    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
+    words_to_bytes_le_vec,
+};
 
 /// The number of columns in the Uint256MulCols.
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
@@ -42,11 +45,13 @@ pub struct Uint256MulEvent {
     pub shard: u32,
     pub clk: u32,
     pub x_ptr: u32,
-    pub x: [u32; NUM_PHYSICAL_WORDS],
+    pub x: Vec<u32>,
     pub y_ptr: u32,
-    pub y: [u32; NUM_PHYSICAL_WORDS],
+    pub y: Vec<u32>,
+    pub modulus: Vec<u32>,
     pub x_memory_records: [MemoryWriteRecord; NUM_PHYSICAL_WORDS],
     pub y_memory_records: [MemoryReadRecord; NUM_PHYSICAL_WORDS],
+    pub modulus_memory_records: [MemoryReadRecord; NUM_PHYSICAL_WORDS],
 }
 
 #[derive(Default)]
@@ -71,12 +76,14 @@ pub struct Uint256MulCols<T> {
     /// The pointer to the first input.
     pub x_ptr: T,
 
-    /// The pointer to the second input..
+    /// The pointer to the second input, which is 16 words of (y, modulus).
     pub y_ptr: T,
 
     // Memory columns.
+    // We read from x, we write the result to x as well.
     pub x_memory: [MemoryWriteCols<T>; NUM_PHYSICAL_WORDS],
     pub y_memory: [MemoryReadCols<T>; NUM_PHYSICAL_WORDS],
+    pub modulus_memory: [MemoryReadCols<T>; NUM_PHYSICAL_WORDS],
 
     // Output values.
     pub output: FieldOpCols<T, U256Field>,
@@ -89,7 +96,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Uint256Mul".to_string()
+        "Uint256MulMod".to_string()
     }
 
     fn generate_trace(
@@ -111,41 +118,41 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
-                        // // Decode uint256 points
+                        // Decode uint256 points
                         let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
                         let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
+                        let modulus =
+                            BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.modulus));
+                        // Assign basic values to the columns.
 
-                        // // Assign basic values to the columns.
-                        // {
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
-                        // }
 
                         // Memory columns.
-                        {
-                            // Populate the columns with the input values.
-                            for i in 0..8 {
-                                // Populate the input_x columns.
-                                cols.x_memory[i].populate(
-                                    event.x_memory_records[i],
-                                    &mut new_byte_lookup_events,
-                                );
-                                // Populate the input_y columns.
-                                cols.y_memory[i].populate(
-                                    event.y_memory_records[i],
-                                    &mut new_byte_lookup_events,
-                                );
-                            }
+                        // Populate memory columns.
+                        for i in 0..NUM_PHYSICAL_WORDS {
+                            // Populate the input_x columns.
+                            cols.x_memory[i]
+                                .populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+                            // Populate the input_y columns.
+                            cols.y_memory[i]
+                                .populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+                            cols.modulus_memory[i].populate(
+                                event.modulus_memory_records[i],
+                                &mut new_byte_lookup_events,
+                            );
                         }
 
-                        cols.output.populate(
+                        // Populate the output column.
+                        cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
                             &x,
                             &y,
+                            &modulus,
                             FieldOperation::Mul,
                         );
 
@@ -200,25 +207,25 @@ impl Syscall for Uint256MulChip {
             panic!();
         }
 
-        let x: [u32; 8] = rt.slice_unsafe(x_ptr, 8).try_into().unwrap();
+        let x = rt.slice_unsafe(x_ptr, 8);
 
-        let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, 8);
+        let (y_memory_records_vec, y) = rt.mr_slice(y_ptr, 8);
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
-        let y: [u32; 8] = y_vec.try_into().unwrap();
 
-        let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&x));
-        let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&y));
+        let (modulus_memory_records_vec, modulus) = rt.mr_slice(y_ptr + 8, 8);
+        let modulus_memory_records = modulus_memory_records_vec.try_into().unwrap();
 
-        // // Create a mask for the 256 bit number.
-        let mask = BigUint::one() << 256;
+        let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
+        let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
+        let uint256_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
 
-        // // Perform the multiplication and take the result modulo the mask.
-        let result: BigUint = (uint256_x * uint256_y) % mask;
+        // Perform the multiplication and take the result modulo the modulus.
+        let result: BigUint = (uint256_x * uint256_y) % uint256_modulus;
 
         let mut result_bytes = result.to_bytes_le();
         result_bytes.resize(32, 0u8);
 
-        // // Convert the result to low endian u32 words.
+        // Convert the result to low endian u32 words.
         let result = bytes_to_words_le::<8>(&result_bytes);
 
         // write the state
@@ -234,8 +241,10 @@ impl Syscall for Uint256MulChip {
             x,
             y_ptr,
             y,
+            modulus,
             x_memory_records,
             y_memory_records,
+            modulus_memory_records,
         });
 
         None
@@ -258,28 +267,16 @@ where
         let local = main.row_slice(0);
         let local: &Uint256MulCols<AB::Var> = (*local).borrow();
 
-        let mut x_limbs = local
-            .x_memory
-            .iter()
-            .flat_map(|access| access.prev_value().0)
-            .map(|x| x.into())
-            .collect::<Vec<AB::Expr>>();
-        x_limbs.resize(U256Field::NB_LIMBS, AB::Expr::zero());
-
-        let mut y_limbs = local
-            .y_memory
-            .iter()
-            .flat_map(|access| access.value().0)
-            .map(|x| x.into())
-            .collect::<Vec<AB::Expr>>();
-        y_limbs.resize(U256Field::NB_LIMBS, AB::Expr::zero());
+        let x_limbs = limbs_from_prev_access(&local.x_memory);
+        let y_limbs = limbs_from_access(&local.y_memory);
+        let modulus_limbs = limbs_from_access(&local.modulus_memory);
 
         // Evaluate the uint256 multiplication
-        local.output.eval(
+        local.output.eval_with_modulus(
             builder,
-            &Polynomial::new(x_limbs),
-            &Polynomial::new(y_limbs),
-            FieldOperation::Mul,
+            &x_limbs,
+            &y_limbs,
+            &modulus_limbs,
             local.shard,
             local.is_real,
         );
@@ -291,21 +288,21 @@ where
                 .assert_eq(local.output.result[i], local.x_memory[i / 4].value()[i % 4]);
         }
 
-        // Read y.
-        builder.eval_memory_access_slice(
-            local.shard,
-            local.clk.into(),
-            local.y_ptr,
-            &local.y_memory,
-            local.is_real,
-        );
-
         // Read and write x.
         builder.eval_memory_access_slice(
             local.shard,
             local.clk.into(),
             local.x_ptr,
             &local.x_memory,
+            local.is_real,
+        );
+
+        // Read y.
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.clk.into(),
+            local.y_ptr,
+            &[local.y_memory, local.modulus_memory].concat(),
             local.is_real,
         );
 
