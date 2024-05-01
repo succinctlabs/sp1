@@ -389,9 +389,6 @@ pub(crate) mod tests {
         let mut witness = Witness::default();
         let proof = proofs.pop().unwrap();
         proof.write(&mut witness);
-        let vk_commit: OuterDigest = vk.commit.into();
-        vk_commit.write(&mut witness);
-        vk.pc_start.write(&mut witness);
 
         let constraints = build_wrap_circuit(&vk, proof);
 
