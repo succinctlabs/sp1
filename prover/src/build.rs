@@ -54,6 +54,12 @@ fn build_circuit(
     (constraints, witness)
 }
 
+fn mkdirs(dir: &PathBuf) {
+    if !dir.exists() {
+        std::fs::create_dir_all(dir).expect("Failed to create directory");
+    }
+}
+
 pub fn build_groth16_artifacts(build_dir: PathBuf) {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
@@ -62,6 +68,8 @@ pub fn build_groth16_artifacts(build_dir: PathBuf) {
 
     // tracing::info!("sanity check gnark test");
     // Groth16Prover::test(constraints.clone(), witness.clone());
+
+    mkdirs(&build_dir);
 
     tracing::info!("gnark build");
     Groth16Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
@@ -78,6 +86,8 @@ pub fn build_plonk_artifacts(build_dir: PathBuf) {
 
     let (wrap_vk, wrapped_proof) = dummy_proof();
     let (constraints, witness) = build_circuit(wrap_vk, wrapped_proof);
+
+    mkdirs(&build_dir);
 
     tracing::info!("plonk bn254 build");
     PlonkBn254Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
