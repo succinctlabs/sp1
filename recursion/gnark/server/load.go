@@ -1,21 +1,14 @@
 package server
 
 import (
-	"archive/tar"
 	"bytes"
-	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync/atomic"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
@@ -24,7 +17,7 @@ import (
 
 // LoadCircuit checks if the necessary circuit files are in the specified data directory,
 // downloads them if not, and loads them into memory.
-func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
+func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
 	r1csPath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
 	pkPath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
 
@@ -39,11 +32,7 @@ func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circu
 	filesExist := fileExists(r1csPath) && fileExists(pkPath)
 
 	if !filesExist {
-		fmt.Println("files not found, downloading circuit...")
-		// Download artifacts if they don't exist in the dataDir
-		if err := DownloadArtifacts(ctx, dataDir, circuitBucket, circuitType, circuitVersion); err != nil {
-			return nil, nil, nil, errors.Wrap(err, "downloading artifacts")
-		}
+		return nil, nil, nil, errors.New("circuit files not found")
 	} else {
 		fmt.Println("files found, loading circuit...")
 	}
@@ -57,111 +46,6 @@ func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circu
 	return r1cs, pk, vk, nil
 }
 
-// DownloadArtifacts downloads and extracts all files from S3 into the specified data directory.
-func DownloadArtifacts(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) error {
-	// Ensure data directory exists
-	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			return errors.Wrap(err, "creating data directory")
-		}
-	}
-
-	awsConfig, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return errors.Wrap(err, "loading AWS config")
-	}
-
-	s3Downloader := manager.NewDownloader(s3.NewFromConfig(awsConfig), func(d *manager.Downloader) {
-		d.PartSize = 256 * 1024 * 1024 // 256MB per part
-		d.Concurrency = 32
-	})
-
-	// Create a WriteAtBuffer and wrap it with the ProgressTrackingWriter.
-	tarballBuffer := manager.NewWriteAtBuffer(nil)
-	progressWriter := NewProgressTrackingWriter(tarballBuffer)
-
-	_, err = s3Downloader.Download(ctx, progressWriter, &s3.GetObjectInput{
-		Bucket: aws.String(circuitBucket),
-		Key:    aws.String(fmt.Sprintf("%s-build%s.tar.gz", circuitType, circuitVersion)),
-	})
-	if err != nil {
-		return errors.Wrap(err, "downloading circuit")
-	}
-
-	// Retrieve the total bytes downloaded.
-	totalBytes := atomic.LoadInt64(&progressWriter.totalBytes)
-	fmt.Printf("Downloaded circuit tarball (%d bytes)\n", totalBytes)
-
-	gzipReader, err := gzip.NewReader(bytes.NewReader(tarballBuffer.Bytes()))
-	if err != nil {
-		return errors.Wrap(err, "decompressing gzip")
-	}
-
-	tarReader := tar.NewReader(gzipReader)
-
-	// Ensure that the data directory exists
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return errors.Wrap(err, "creating data directory")
-	}
-
-	// Extract all files from the tarball
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return errors.Wrap(err, "reading tarball")
-		}
-
-		// Normalize the file path to avoid relative path issues
-		cleanHeaderName := filepath.Clean(header.Name)
-
-		// Skip invalid or AppleDouble files
-		if cleanHeaderName == "" || strings.HasPrefix(cleanHeaderName, "._") || strings.Contains(cleanHeaderName, "..") {
-			continue
-		}
-
-		// Construct the full file path
-		filePath := filepath.Join(dataDir, cleanHeaderName)
-
-		// Skip if the path already exists and is a directory
-		if info, err := os.Stat(filePath); err == nil && info.IsDir() {
-			continue
-		}
-
-		// Create the file and write its content
-		file, err := os.Create(filePath)
-		if err != nil {
-			return errors.Wrap(err, "creating file")
-		}
-		defer file.Close()
-
-		if _, err = io.Copy(file, tarReader); err != nil {
-			return errors.Wrap(err, "copying file content")
-		}
-	}
-
-	return nil
-}
-
-// Reads a file from the specified path and returns its content.
-func ReadFileContent(filePath string) ([]byte, error) {
-	file, err := os.Open(filePath)
-	if err != nil {
-		return nil, errors.Wrap(err, "opening file")
-	}
-	defer file.Close()
-
-	file.Seek(0, io.SeekStart)
-	content, err := io.ReadAll(file)
-	if err != nil {
-		return nil, errors.Wrap(err, "reading file content")
-	}
-
-	return content, nil
-}
-
 // LoadCircuitArtifacts loads the R1CS and Proving Key from the specified data directory into memory.
 func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
 	r1csFilePath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
@@ -169,19 +53,37 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 	vkFilePath := filepath.Join(dataDir, "vk_"+circuitType+".bin")
 
 	// Read the R1CS content
-	r1csContent, err := ReadFileContent(r1csFilePath)
+	r1csFile, err := os.Open(r1csFilePath)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "opening R1CS file")
+	}
+
+	r1csFile.Seek(0, io.SeekStart)
+	r1csContent, err := io.ReadAll(r1csFile)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "reading R1CS content")
 	}
 
 	// Read the PK content
-	pkContent, err := ReadFileContent(pkFilePath)
+	pkFile, err := os.Open(pkFilePath)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "opening PK file")
+	}
+
+	pkFile.Seek(0, io.SeekStart)
+	pkContent, err := io.ReadAll(pkFile)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "reading PK content")
 	}
 
 	// Read the VK content
-	vkContent, err := ReadFileContent(vkFilePath)
+	vkFile, err := os.Open(vkFilePath)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "opening VK file")
+	}
+
+	vkFile.Seek(0, io.SeekStart)
+	vkContent, err := io.ReadAll(vkFile)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "reading VK content")
 	}

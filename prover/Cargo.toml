@@ -54,5 +54,9 @@ path = "scripts/e2e.rs"
 name = "test_verification"
 path = "scripts/test_verification.rs"
 
+[[bin]]
+name = "build_groth16"
+path = "scripts/build_groth16.rs"
+
 [features]
 neon = ["sp1-core/neon"]
