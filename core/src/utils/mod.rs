@@ -87,9 +87,16 @@ pub fn pad_rows_fixed<T: Clone, const N: usize>(
     match size_log2 {
         Some(size_log2) => {
             let padded_nb_rows = 1 << size_log2;
+            if nb_rows * 2 < padded_nb_rows {
+                tracing::warn!(
+                    "fixed log2 rows can be potentially reduced: got {}, expected {}",
+                    nb_rows,
+                    padded_nb_rows
+                );
+            }
             if nb_rows > padded_nb_rows {
                 panic!(
-                    "fixed trace size is too small: got {}, expected {}",
+                    "fixed log2 rows is too small: got {}, expected {}",
                     nb_rows, padded_nb_rows
                 );
             }
