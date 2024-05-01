@@ -75,7 +75,7 @@ pub fn main() {
     // groth16_prover.cancel();
 
     let elf = include_bytes!(
-        "../../examples/fibonacci-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
+        "../../../zkvm-perf/programs/sha2-chain/target/riscv32im-succinct-zkvm-elf/release/sha2-chain"
     );
 
     tracing::info!("initializing prover");
