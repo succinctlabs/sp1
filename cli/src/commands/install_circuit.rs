@@ -1,8 +1,7 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
 use sp1_sdk::artifacts::{get_artifacts_dir, install_circuit_artifacts, WrapCircuitType};
-use std::{path::PathBuf};
-
+use std::path::PathBuf;
 
 #[derive(Clone, Debug, Copy, ValueEnum)]
 pub enum ClapCircuitType {
