@@ -26,16 +26,16 @@ use std::borrow::Borrow;
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use sp1_core::air::{PublicValues, SP1_PROOF_NUM_PV_ELTS, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_core::stark::PROOF_MAX_NUM_PVS;
 use sp1_core::stark::{RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
+use sp1_core::stark::{StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_core::utils::baby_bear_poseidon2::{compressed_fri_config, default_fri_config};
 use sp1_core::utils::sp1_fri_config;
 use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
-use sp1_recursion_compiler::ir::{Array, Builder, Ext, ExtConst, Felt, Var};
+use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
@@ -59,6 +59,29 @@ type F = <SC as StarkGenericConfig>::Val;
 type EF = <SC as StarkGenericConfig>::Challenge;
 type C = AsmConfig<F, EF>;
 type Val = BabyBear;
+
+#[derive(Debug, Clone, Copy)]
+pub struct SP1RecursiveVerifier<C: Config, SC: StarkGenericConfig> {
+    _phantom: std::marker::PhantomData<(C, SC)>,
+}
+
+impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
+where
+    C::F: PrimeField32 + TwoAdicField,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
+{
+    pub fn verify_shards(
+        builder: &mut Builder<C>,
+        vk: &VerifyingKeyVariable<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
+    ) {
+    }
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ReduceProgram;
