@@ -2,7 +2,6 @@ package sp1
 
 import (
 	"bytes"
-	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -43,7 +42,7 @@ func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput)
 	var publicInputs [2]string
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommitedValuesDigest
-	encodedProof := base64.StdEncoding.EncodeToString(proofBytes)
+	encodedProof := hex.EncodeToString(proofBytes)
 
 	return Groth16Proof{
 		PublicInputs: publicInputs,
@@ -51,11 +50,11 @@ func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput)
 	}, nil
 }
 
-// Function to deserialize a base64 encoded proof to a groth16.Proof.
+// Function to deserialize a hex encoded proof to a groth16.Proof.
 func DeserializeSP1Groth16Proof(encodedProof string) (*groth16.Proof, error) {
-	decodedBytes, err := base64.StdEncoding.DecodeString(encodedProof)
+	decodedBytes, err := hex.DecodeString(encodedProof)
 	if err != nil {
-		return nil, fmt.Errorf("decoding base64 proof: %w", err)
+		return nil, fmt.Errorf("decoding hex proof: %w", err)
 	}
 
 	proof := groth16.NewProof(ecc.BN254)

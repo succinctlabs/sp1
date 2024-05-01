@@ -12,3 +12,4 @@ tempfile = "3.10.1"
 reqwest = { version = "0.11", features = ["json", "blocking"] }
 rand = "0.8"
 crossbeam = "0.8"
+subtle-encoding = "0.5.1"

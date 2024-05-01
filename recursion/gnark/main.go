@@ -296,7 +296,7 @@ func main() {
 		verifyGroth16Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'verify' with data=%s\n", *verifyGroth16DataDirFlag)
 		buildDir := *verifyGroth16DataDirFlag
-		encodedProof := *verifyGroth16EncodedProofFlag
+		hexEncodedProof := *verifyGroth16EncodedProofFlag
 		vkeyHash := *verifyGroth16VkeyHashFlag
 		commitedValuesDigest := *verifyGroth16CommitedValuesDigestFlag
 
@@ -310,13 +310,13 @@ func main() {
 		vk := groth16.NewVerifyingKey(ecc.BN254)
 		vk.ReadFrom(vkFile)
 
+		fmt.Println("proof", hexEncodedProof)
+
 		// Encoded proof to gnark groth16 proof.
-		proof, err := sp1.DeserializeSP1Groth16Proof(encodedProof)
+		proof, err := sp1.DeserializeSP1Groth16Proof(hexEncodedProof)
 		if err != nil {
 			panic(err)
 		}
-
-		fmt.Println("proof", proof)
 
 		// Construct the public witness from the verify input.
 		assignment := sp1.Circuit{
@@ -339,12 +339,12 @@ func main() {
 		convertGroth16Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'convert' with data=%s\n", *convertGroth16DataDirFlag)
 		dataDir := *convertGroth16DataDirFlag
-		encodedProof := *convertGroth16EncodedProofFlag
+		hexEncodedProof := *convertGroth16EncodedProofFlag
 		vkeyHash := *convertGroth16VkeyHashFlag
 		commitedValuesDigest := *convertGroth16CommitedValuesDigestFlag
 
 		// Encoded proof to gnark groth16 proof.
-		proof, err := sp1.DeserializeSP1Groth16Proof(encodedProof)
+		proof, err := sp1.DeserializeSP1Groth16Proof(hexEncodedProof)
 		if err != nil {
 			panic(err)
 		}
