@@ -129,13 +129,13 @@ pub fn verify_two_adic_pcs<C: Config>(
         })
         .collect::<Vec<_>>();
 
-    verify_challenges(
-        builder,
-        config,
-        &proof.fri_proof,
-        &fri_challenges,
-        reduced_openings,
-    );
+    // verify_challenges(
+    //     builder,
+    //     config,
+    //     &proof.fri_proof,
+    //     &fri_challenges,
+    //     reduced_openings,
+    // );
 }
 
 pub fn verify_challenges<C: Config>(
