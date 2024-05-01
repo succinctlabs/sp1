@@ -31,7 +31,7 @@ To run this workflow locally, you must first either build or download the groth1
 
 After these steps, the circuit artifacts needed for the groth16 proof will be in the `~/.sp1/circuits/groth16` directory (where the SP1 `cli` is installed).
 
-If you are an advanced user, you can build the groth16 circuit from source by calling the `sp1_sdk::build_groth16_artifacts` function.
+If you are an advanced user, you could also build the groth16 circuit from source by calling the `sp1_sdk::build_groth16_artifacts` function.
 
 ### Run the script
 
