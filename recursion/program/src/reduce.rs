@@ -111,19 +111,39 @@ where
         Domain = TwoAdicMultiplicativeCoset<C::F>,
     >,
 {
+    fn verify_public_values(
+        builder: &mut Builder<C>,
+        public_values: &PublicValues<Word<Felt<C::F>>, Felt<C::F>>,
+    ) {
+    }
+
     fn verify_shards(
         builder: &mut Builder<C>,
         vk: &VerifyingKeyVariable<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
-        shard_proofs: &Array<C, ShardProofVariable<C>>,
-        chip_quotient_data: &Array<C, Array<C, QuotientData<C>>>,
-        chip_sorted_idxs: &Array<C, Array<C, Var<C::N>>>,
-        preprocessed_sorted_idxs: &Array<C, Var<C::N>>,
-        prep_domains: &Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+        input: &SP1RecursionMemoryLayoutVariable<C>,
     ) {
+        let SP1RecursionMemoryLayoutVariable {
+            vk,
+            shard_proofs,
+            shard_chip_quotient_data,
+            shard_sorted_indices,
+            preprocessed_sorted_idxs,
+            prep_domains,
+            leaf_challenger,
+            initial_reconstruct_challenger,
+        } = input;
+
         let initial_pc: Felt<_> = builder.uninit();
         let end_pc: Felt<_> = builder.uninit();
+
+        // Assert that we have at least one proof to verify.
+        builder.assert_usize_ne(shard_proofs.len(), 0);
+
+        builder.range(0, shard_proofs.len()).for_each(|i, builder| {
+            let proof = builder.get(shard_proofs, i);
+        });
     }
 }
 
