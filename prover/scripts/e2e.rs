@@ -57,12 +57,12 @@ pub fn main() {
     // tracing::info!("sanity check gnark test");
     // Groth16Prover::test(constraints.clone(), witness.clone());
 
-    // tracing::info!("sanity check gnark build");
-    // Groth16Prover::build(
-    //     constraints.clone(),
-    //     witness.clone(),
-    //     args.build_dir.clone().into(),
-    // );
+    tracing::info!("sanity check gnark build");
+    Groth16Prover::build(
+        constraints.clone(),
+        witness.clone(),
+        args.build_dir.clone().into(),
+    );
 
     tracing::info!("sanity check gnark prove");
     let groth16_prover = Groth16Prover::new(args.build_dir.clone().into());
@@ -73,7 +73,7 @@ pub fn main() {
     // Write the JSON-serialized proof to a file
     tracing::info!("write proof to file");
     let mut file =
-        File::open(PathBuf::from(args.build_dir.clone()).join("test_proof_input.json")).unwrap();
+        File::create(PathBuf::from(args.build_dir.clone()).join("test_proof_input.json")).unwrap();
     let serialized_proof = serde_json::to_string(&proof).unwrap();
     file.write_all(serialized_proof.as_bytes()).unwrap();
 
