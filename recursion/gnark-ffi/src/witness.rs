@@ -25,9 +25,6 @@ impl GnarkWitness {
         witness.vars.push(C::N::from_canonical_usize(999));
         witness.felts.push(C::F::from_canonical_usize(999));
         witness.exts.push(C::EF::from_canonical_usize(999));
-        println!("vars: {:?}", witness.vars.len());
-        println!("felts: {:?}", witness.felts.len());
-        println!("exts: {:?}", witness.exts.len());
         GnarkWitness {
             vars: witness
                 .vars

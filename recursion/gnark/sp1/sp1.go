@@ -50,7 +50,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	if fileName == "" {
 		fileName = "constraints.json"
 	}
-	fmt.Println("Constraints:", fileName)
 
 	// Read the file.
 	data, err := os.ReadFile(fileName)

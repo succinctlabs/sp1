@@ -263,13 +263,9 @@ impl Witnessable<C> for OuterFriProof {
             let commit: OuterDigest = (*commit).into();
             commit.write(witness)
         });
-        println!("after commit phase commits write {}", witness.size());
         self.query_proofs.write(witness);
-        println!("after query proofs write {}", witness.size());
         self.final_poly.write(witness);
-        println!("after final poly write {}", witness.size());
         self.pow_witness.write(witness);
-        println!("after pow witness write {}", witness.size());
     }
 }
 
@@ -287,22 +283,7 @@ impl Witnessable<C> for OuterPcsProof {
 
     fn write(&self, witness: &mut Witness<C>) {
         self.fri_proof.write(witness);
-        println!("after fri proof write {}", witness.size());
         self.query_openings.write(witness);
-        println!("self.query_openings.len {}", self.query_openings.len());
-        self.query_openings.iter().for_each(|opening| {
-            println!("opening len {}", opening.len());
-            opening.iter().for_each(|opened_value| {
-                println!("opened value len {}", opened_value.opened_values.len());
-                opened_value.opened_values.iter().for_each(|value| {
-                    println!("value len {}", value.len());
-                });
-                println!("opening proof len {}", opened_value.opening_proof.len());
-            });
-        });
-
-        // println!("opening len {}", opening.len());
-        println!("after query openings write {}", witness.size());
     }
 }
 
@@ -336,17 +317,11 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         main_commit.write(witness);
-        println!("size after main commit: {:?}", witness.size());
         permutation_commit.write(witness);
-        println!("size after perm commit: {:?}", witness.size());
         quotient_commit.write(witness);
-        println!("size after quot commit: {:?}", witness.size());
         self.opened_values.write(witness);
-        println!("size after opened values: {:?}", witness.size());
         self.opening_proof.write(witness);
-        println!("size after opening proof: {:?}", witness.size());
         self.public_values.write(witness);
-        println!("size after public values: {:?}", witness.size());
     }
 }
 

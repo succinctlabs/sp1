@@ -149,8 +149,6 @@ func DownloadArtifacts(ctx context.Context, dataDir, circuitBucket, circuitType,
 func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
 	r1csFilePath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
 	pkFilePath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
-	fmt.Println("r1csFilePath: ", r1csFilePath)
-	fmt.Println("pkFilePath: ", pkFilePath)
 
 	// Read the R1CS content
 	r1csFile, err := os.Open(r1csFilePath)

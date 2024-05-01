@@ -38,12 +38,6 @@ pub fn verify_batch<C: Config, const D: usize>(
         .collect::<Vec<_>>();
     let mut root = builder.p2_hash(&felt_slice);
 
-    if D == 4 {
-        for i in 0..root.len() {
-            builder.print_v(root[i]);
-        }
-    }
-
     for (i, sibling) in proof.iter().enumerate() {
         let bit = index_bits[i];
         let left = [builder.select_v(bit, sibling[0], root[0])];
@@ -70,12 +64,6 @@ pub fn verify_batch<C: Config, const D: usize>(
                 .collect::<Vec<_>>();
             let next_height_openings_digest = builder.p2_hash(&felt_slice);
             root = builder.p2_compress([root, next_height_openings_digest]);
-
-            if D == 4 {
-                for i in 0..root.len() {
-                    builder.print_v(root[i]);
-                }
-            }
         }
     }
 

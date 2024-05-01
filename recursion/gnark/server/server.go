@@ -31,7 +31,6 @@ func New(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersio
 	}
 	fmt.Println("Loaded circuit")
 
-	fmt.Println("nbConstraints", r1cs.GetNbConstraints())
 	s := &Server{
 		r1cs: r1cs,
 		pk:   pk,
@@ -71,7 +70,6 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 
 	// Generate the witness.
 	assignment := sp1.NewCircuitFromWitness(witnessInput)
-	fmt.Println(assignment)
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		ReturnErrorJSON(w, "generating witness", http.StatusInternalServerError)
