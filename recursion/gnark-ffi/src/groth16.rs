@@ -54,6 +54,19 @@ pub struct Groth16Proof {
     pub encoded_proof: String,
 }
 
+fn make_go_bindings(gnark_dir: &PathBuf) {
+    let make = Command::new("make")
+        .current_dir(gnark_dir)
+        .stderr(Stdio::inherit())
+        .stdout(Stdio::inherit())
+        .stdin(Stdio::inherit())
+        .output()
+        .unwrap();
+    if !make.status.success() {
+        panic!("failed to run make");
+    }
+}
+
 impl Groth16Prover {
     /// Starts up the Gnark server using Groth16 on the given port and waits for it to be ready.
     pub fn new(build_dir: PathBuf) -> Self {
@@ -66,16 +79,7 @@ impl Groth16Prover {
         let (cancel_sender, cancel_receiver) = bounded(1);
 
         // Run `make`.
-        let make = Command::new("make")
-            .current_dir(&gnark_dir)
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()
-            .unwrap();
-        if !make.status.success() {
-            panic!("failed to run make");
-        }
+        make_go_bindings(&gnark_dir);
 
         // Catch panics and attempt to terminate the child process if main thread panics
         let child_process = Arc::new(Mutex::new(None::<Child>));
@@ -178,8 +182,8 @@ impl Groth16Prover {
     /// Executes the prover in testing mode with a circuit definition and witness.
     pub fn test<C: Config>(constraints: Vec<Constraint>, witness: Witness<C>) {
         let serialized = serde_json::to_string(&constraints).unwrap();
-        let manifest_dir = env!("CARGO_MANIFEST_DIR");
-        let gnark_dir = format!("{}/../gnark", manifest_dir);
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let gnark_dir = manifest_dir.join("../gnark");
 
         // Write constraints.
         let mut constraints_file = tempfile::NamedTempFile::new().unwrap();
@@ -192,16 +196,7 @@ impl Groth16Prover {
         witness_file.write_all(serialized.as_bytes()).unwrap();
 
         // Run `make`.
-        let make = Command::new("make")
-            .current_dir(&gnark_dir)
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()
-            .unwrap();
-        if !make.status.success() {
-            panic!("failed to run make");
-        }
+        make_go_bindings(&gnark_dir);
 
         let result = Command::new("go")
             .args([
@@ -250,16 +245,7 @@ impl Groth16Prover {
         file.write_all(serialized.as_bytes()).unwrap();
 
         // Run `make`.
-        let make = Command::new("make")
-            .current_dir(&gnark_dir)
-            .stderr(Stdio::inherit())
-            .stdout(Stdio::inherit())
-            .stdin(Stdio::inherit())
-            .output()
-            .unwrap();
-        if !make.status.success() {
-            panic!("failed to run make");
-        }
+        make_go_bindings(&gnark_dir);
 
         // Run the build script.
         let result = Command::new("go")
@@ -308,16 +294,7 @@ pub fn verify(proof: Groth16Proof, build_dir: PathBuf) -> bool {
     let data_dir_str = data_dir.to_str().unwrap();
 
     // Run `make`.
-    let make = Command::new("make")
-        .current_dir(&gnark_dir)
-        .stderr(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stdin(Stdio::inherit())
-        .output()
-        .unwrap();
-    if !make.status.success() {
-        panic!("failed to run make");
-    }
+    make_go_bindings(&gnark_dir);
 
     // Run the verify script.
     let result = Command::new("go")
@@ -356,16 +333,7 @@ pub fn convert(proof: Groth16Proof, build_dir: PathBuf) -> SolidityGroth16Proof 
     let data_dir_str = data_dir.to_str().unwrap();
 
     // Run `make`.
-    let make = Command::new("make")
-        .current_dir(&gnark_dir)
-        .stderr(Stdio::inherit())
-        .stdout(Stdio::inherit())
-        .stdin(Stdio::inherit())
-        .output()
-        .unwrap();
-    if !make.status.success() {
-        panic!("failed to run make");
-    }
+    make_go_bindings(&gnark_dir);
 
     // Run the verify script.
     let result = Command::new("go")
