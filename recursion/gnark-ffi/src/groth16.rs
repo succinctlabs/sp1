@@ -61,6 +61,8 @@ impl Groth16Prover {
         // Spawn a thread to run the Go command and panic on errors
         let thread_handle = thread::spawn(move || {
             let cwd = std::env::current_dir().unwrap();
+            let data_dir = cwd.join(build_dir);
+            let data_dir_str = data_dir.to_str().unwrap();
 
             let mut child = Command::new("go")
                 .args([
@@ -68,7 +70,7 @@ impl Groth16Prover {
                     "main.go",
                     "serve",
                     "--data",
-                    cwd.join(build_dir).to_str().unwrap(),
+                    data_dir_str,
                     "--type",
                     "groth16",
                     "--version",
