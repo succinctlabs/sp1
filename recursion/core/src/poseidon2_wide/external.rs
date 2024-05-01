@@ -261,10 +261,13 @@ fn eval_external_round<AB: SP1AirBuilder>(
     let expected_sbox_deg_3 = cols.get_external_sbox(r);
     for i in 0..WIDTH {
         sbox_deg_3[i] = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
-        sbox_deg_7[i] = sbox_deg_3[i].clone() * sbox_deg_3[i].clone() * add_rc[i].clone();
+
         if let Some(expected) = expected_sbox_deg_3 {
             builder.assert_eq(expected[i], sbox_deg_3[i].clone());
+            sbox_deg_3[i] = expected[i].into();
         }
+
+        sbox_deg_7[i] = sbox_deg_3[i].clone() * sbox_deg_3[i].clone() * add_rc[i].clone();
     }
 
     // Apply the linear layer.
@@ -451,12 +454,14 @@ mod tests {
     use p3_symmetric::Permutation;
     use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2Inner};
+    use sp1_core::utils::{
+        inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2, BabyBearPoseidon2Inner,
+    };
 
     /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
     fn generate_trace() {
-        const DEGREE: usize = 3;
+        const DEGREE: usize = 7;
 
         let chip = Poseidon2WideChip::<DEGREE>;
         let test_inputs = vec![
@@ -494,10 +499,12 @@ mod tests {
 
     #[test]
     fn poseidon2_wide_prove_babybear() {
-        let config = BabyBearPoseidon2Inner::new();
+        const DEGREE: usize = 7;
+
+        let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = Poseidon2WideChip::<3>;
+        let chip = Poseidon2WideChip::<DEGREE>;
 
         let test_inputs = (0..1000)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])

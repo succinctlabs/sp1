@@ -445,7 +445,7 @@ pub mod baby_bear_poseidon2 {
             let compress = MyCompress::new(perm.clone());
             let val_mmcs = ValMmcs::new(hash, compress);
             let dft = Dft {};
-            let fri_config = default_fri_config();
+            let fri_config = compressed_fri_config();
             let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
             Self { pcs, perm }
         }
