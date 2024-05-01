@@ -36,6 +36,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
+    /// A recursion machine that can have dynamic trace sizes.
     pub fn machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
         let chips = Self::get_all()
             .into_iter()
@@ -44,8 +45,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
         StarkMachine::new(config, chips, PROOF_MAX_NUM_PVS)
     }
 
-    pub fn fixed_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
-        let chips = Self::get_fixed_all()
+    /// A recursion machine with fixed trace sizes tuned to work specifically for the wrap layer.
+    pub fn wrap_machine<SC: StarkGenericConfig<Val = F>>(config: SC) -> StarkMachine<SC, Self> {
+        let chips = Self::get_wrap_all()
             .into_iter()
             .map(Chip::new)
             .collect::<Vec<_>>();
@@ -76,7 +78,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .collect()
     }
 
-    pub fn get_fixed_all() -> Vec<Self> {
+    pub fn get_wrap_all() -> Vec<Self> {
         once(RecursionAir::Program(ProgramChip))
             .chain(once(RecursionAir::Cpu(CpuChip {
                 fixed_trace_log2: Some(20),
