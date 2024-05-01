@@ -107,10 +107,7 @@ pub struct RecursionPublicValues<T> {
     pub end_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
 
     /// The commitment to the sp1 program being proven.
-    pub sp1_vk_digest: [T; DIGEST_SIZE],
-
-    /// The commitment to the recursion program being proven.
-    pub recursion_vk_digest: [T; DIGEST_SIZE],
+    pub vk_digest: [T; DIGEST_SIZE],
 
     /// The commitment to the start program being proven.
     pub verify_start_challenger: ChallengerPublicValues<T>,
