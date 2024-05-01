@@ -47,7 +47,6 @@ impl Groth16Prover {
     pub fn new(build_dir: PathBuf) -> Self {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
-        let version = env::var("WRAPPER_VERSION").unwrap_or_else(|_| "3".to_string());
         let port = env::var("HOST_PORT").unwrap_or_else(|_| generate_random_port().to_string());
         let port_clone = port.clone();
         let cwd = std::env::current_dir().unwrap();
@@ -67,7 +66,7 @@ impl Groth16Prover {
 
         // Spawn a thread to run the Go command and panic on errors
         let thread_handle = thread::spawn(move || {
-            let mut child = Command::new("go")
+            let child = Command::new("go")
                 .args([
                     "run",
                     "main.go",
@@ -97,15 +96,14 @@ impl Groth16Prover {
                     break;
                 }
 
-                if let mut child = child_process.lock().unwrap() {
-                    if let Some(ref mut child) = *child {
-                        if let Ok(Some(exit_status)) = child.try_wait() {
-                            if !exit_status.success() {
-                                println!("Gnark server exited with an error: {:?}", exit_status);
-                                exit(1);
-                            }
-                            break;
+                let mut child = child_process.lock().unwrap();
+                if let Some(ref mut child) = *child {
+                    if let Ok(Some(exit_status)) = child.try_wait() {
+                        if !exit_status.success() {
+                            println!("Gnark server exited with an error: {:?}", exit_status);
+                            exit(1);
                         }
+                        break;
                     }
                 }
 
