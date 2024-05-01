@@ -263,9 +263,13 @@ impl Witnessable<C> for OuterFriProof {
             let commit: OuterDigest = (*commit).into();
             commit.write(witness)
         });
+        println!("after commit phase commits write {}", witness.size());
         self.query_proofs.write(witness);
+        println!("after query proofs write {}", witness.size());
         self.final_poly.write(witness);
+        println!("after final poly write {}", witness.size());
         self.pow_witness.write(witness);
+        println!("after pow witness write {}", witness.size());
     }
 }
 
@@ -283,7 +287,9 @@ impl Witnessable<C> for OuterPcsProof {
 
     fn write(&self, witness: &mut Witness<C>) {
         self.fri_proof.write(witness);
+        println!("after fri proof write {}", witness.size());
         self.query_openings.write(witness);
+        println!("after query openings write {}", witness.size());
     }
 }
 
