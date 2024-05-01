@@ -72,11 +72,10 @@ pub fn main() {
 
     tracing::info!("verify gnark proof");
     let verified = Groth16Prover::verify(proof.clone(), args.build_dir.clone().into());
-    println!("verified: {:?}", verified);
+    assert!(verified);
 
     tracing::info!("convert gnark proof");
     let solidity_proof = Groth16Prover::convert(proof.clone(), args.build_dir.clone().into());
-    println!("solidity proof: {:?}", solidity_proof);
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
@@ -89,4 +88,5 @@ pub fn main() {
     // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
     println!("{:?}", proof);
+    println!("solidity proof: {:?}", solidity_proof);
 }
