@@ -24,6 +24,6 @@ pub struct CpuEvent<F> {
 
 #[derive(Default)]
 pub struct CpuChip<F> {
-    pub fixed_trace_log2: Option<usize>,
+    pub fixed_log2_rows: Option<usize>,
     pub _phantom: std::marker::PhantomData<F>,
 }

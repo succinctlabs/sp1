@@ -14,6 +14,7 @@ use core::iter::once;
 use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use sp1_core::stark::{Chip, StarkGenericConfig, StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_derive::MachineAir;
+use std::marker::PhantomData;
 
 use crate::runtime::D;
 
@@ -57,22 +58,22 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn get_all() -> Vec<Self> {
         once(RecursionAir::Program(ProgramChip))
             .chain(once(RecursionAir::Cpu(CpuChip {
-                fixed_trace_log2: None,
-                _phantom: std::marker::PhantomData,
+                fixed_log2_rows: None,
+                _phantom: PhantomData,
             })))
             .chain(once(RecursionAir::MemoryInit(MemoryGlobalChip {
                 kind: MemoryChipKind::Init,
-                fixed_trace_log2: None,
+                fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::MemoryFinalize(MemoryGlobalChip {
                 kind: MemoryChipKind::Finalize,
-                fixed_trace_log2: None,
+                fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip::<DEGREE> {
-                fixed_trace_log2: None,
+                fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip {
-                fixed_trace_log2: None,
+                fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()
@@ -81,22 +82,22 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
     pub fn get_wrap_all() -> Vec<Self> {
         once(RecursionAir::Program(ProgramChip))
             .chain(once(RecursionAir::Cpu(CpuChip {
-                fixed_trace_log2: Some(20),
-                _phantom: std::marker::PhantomData,
+                fixed_log2_rows: Some(20),
+                _phantom: PhantomData,
             })))
             .chain(once(RecursionAir::MemoryInit(MemoryGlobalChip {
                 kind: MemoryChipKind::Init,
-                fixed_trace_log2: Some(18),
+                fixed_log2_rows: Some(18),
             })))
             .chain(once(RecursionAir::MemoryFinalize(MemoryGlobalChip {
                 kind: MemoryChipKind::Finalize,
-                fixed_trace_log2: Some(18),
+                fixed_log2_rows: Some(18),
             })))
             .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip::<DEGREE> {
-                fixed_trace_log2: Some(15),
+                fixed_log2_rows: Some(15),
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip {
-                fixed_trace_log2: Some(16),
+                fixed_log2_rows: Some(16),
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()

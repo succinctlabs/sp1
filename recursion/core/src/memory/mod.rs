@@ -116,6 +116,6 @@ pub enum MemoryChipKind {
 }
 
 pub struct MemoryGlobalChip {
-    pub fixed_trace_log2: Option<usize>,
+    pub fixed_log2_rows: Option<usize>,
     pub kind: MemoryChipKind,
 }

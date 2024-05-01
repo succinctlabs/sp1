@@ -22,7 +22,7 @@ impl MemoryGlobalChip {
     pub fn new(kind: MemoryChipKind) -> Self {
         Self {
             kind,
-            fixed_trace_log2: None,
+            fixed_log2_rows: None,
         }
     }
 }
@@ -83,7 +83,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_MEMORY_INIT_COLS],
-            self.fixed_trace_log2,
+            self.fixed_log2_rows,
         );
 
         RowMajorMatrix::new(

@@ -111,7 +111,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
                 cols.selectors.is_noop = F::one();
                 row
             },
-            self.fixed_trace_log2,
+            self.fixed_log2_rows,
         );
 
         let mut trace =

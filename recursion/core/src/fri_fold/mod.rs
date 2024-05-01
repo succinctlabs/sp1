@@ -22,7 +22,7 @@ pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 
 #[derive(Default)]
 pub struct FriFoldChip {
-    pub fixed_trace_log2: Option<usize>,
+    pub fixed_log2_rows: Option<usize>,
 }
 
 #[derive(Debug, Clone)]
@@ -139,7 +139,7 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_FRI_FOLD_COLS],
-            self.fixed_trace_log2,
+            self.fixed_log2_rows,
         );
 
         // Convert the trace to a row major matrix.
