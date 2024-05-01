@@ -52,8 +52,8 @@ name = "e2e"
 path = "scripts/e2e.rs"
 
 [[bin]]
-name = "test_verification"
-path = "scripts/test_verification.rs"
+name = "test_groth16_verification"
+path = "scripts/test_groth16_verification.rs"
 
 [[bin]]
 name = "build_groth16"

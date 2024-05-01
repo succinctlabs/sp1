@@ -228,7 +228,7 @@ impl Groth16Prover {
         make_go_bindings(&gnark_dir);
 
         // Run the build script.
-        run_ffi_command(
+        run_gnark_ffi_command(
             &gnark_dir,
             "build-groth16".to_string(),
             vec![
@@ -267,7 +267,7 @@ pub fn verify(proof: Groth16Proof, build_dir: PathBuf) -> bool {
     make_go_bindings(&gnark_dir);
 
     // Run the verify script.
-    run_ffi_command(
+    run_gnark_ffi_command(
         &gnark_dir,
         "verify-groth16".to_string(),
         vec![
@@ -297,7 +297,7 @@ pub fn convert(proof: Groth16Proof, build_dir: PathBuf) -> SolidityGroth16Proof 
     make_go_bindings(&gnark_dir);
 
     // Run the convert script.
-    run_ffi_command(
+    run_gnark_ffi_command(
         &gnark_dir,
         "convert-groth16".to_string(),
         vec![
@@ -357,8 +357,9 @@ fn make_go_bindings(gnark_dir: &PathBuf) {
     }
 }
 
-/// Runs the FFI command to interface with the Gnark library.
-fn run_ffi_command(gnark_dir: &PathBuf, command: String, args: Vec<String>) {
+/// Runs the FFI command to interface with the Gnark library. Command is one of the commands
+/// defined in recursion/gnark/main.go.
+fn run_gnark_ffi_command(gnark_dir: &PathBuf, command: String, args: Vec<String>) {
     let mut command_args = vec!["run".to_string(), "main.go".to_string(), command.clone()];
 
     command_args.extend(args);
