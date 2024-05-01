@@ -55,7 +55,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
         println!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
 
-        assert!(DEGREE > 3, "Minimum supported constraint degree is 3");
+        assert!(DEGREE >= 3, "Minimum supported constraint degree is 3");
         let use_sbox_3 = DEGREE < 7;
         let num_columns = <Self as BaseAir<F>>::width(self);
 
@@ -382,7 +382,7 @@ where
     AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
-        assert!(DEGREE > 3, "Minimum supported constraint degree is 3");
+        assert!(DEGREE >= 3, "Minimum supported constraint degree is 3");
         let use_sbox_3 = DEGREE < 7;
         let main = builder.main();
         let cols = main.row_slice(0);
