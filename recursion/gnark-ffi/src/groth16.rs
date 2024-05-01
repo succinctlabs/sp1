@@ -21,7 +21,6 @@ use std::process::exit;
 use std::sync::Arc;
 use std::sync::Mutex;
 use std::thread::{self, JoinHandle};
-use subtle_encoding::hex;
 
 /// A prover that can generate proofs with the Groth16 protocol using bindings to Gnark.
 #[derive(Debug, Clone)]

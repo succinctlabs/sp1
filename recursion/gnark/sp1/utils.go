@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -105,4 +106,21 @@ func NewCircuitFromWitness(witnessInput WitnessInput) Circuit {
 		VkeyHash:             witnessInput.VkeyHash,
 		CommitedValuesDigest: witnessInput.CommitedValuesDigest,
 	}
+}
+
+// WriteToFile takes a filename and an object that implements io.WriterTo,
+// and writes the object's data to the specified file.
+func WriteToFile(filename string, writerTo io.WriterTo) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	_, err = writerTo.WriteTo(file)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
