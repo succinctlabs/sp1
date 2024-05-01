@@ -196,8 +196,8 @@ pub fn build_circuit_artifacts(
 
 pub fn export_solidity_verifier(
     circuit_type: WrapCircuitType,
-    build_dir: Option<PathBuf>,
     output_dir: PathBuf,
+    build_dir: Option<PathBuf>,
 ) -> Result<()> {
     let is_dev_mode = get_dev_mode();
     let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, is_dev_mode));
