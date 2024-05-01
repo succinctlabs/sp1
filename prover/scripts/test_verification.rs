@@ -1,18 +1,13 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
+use std::fs::File;
 use std::io::Read;
 use std::path::PathBuf;
-use std::{fs::File, io::Write};
 
-use base64::decode;
 use clap::Parser;
-use sp1_core::io::SP1Stdin;
-use sp1_prover::{Groth16Proof, SP1Prover};
-use sp1_recursion_circuit::stark::build_wrap_circuit;
-use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_gnark_ffi::{Groth16Prover, OldGroth16Proof};
+use sp1_prover::Groth16Proof;
+use sp1_recursion_gnark_ffi::{convert, verify};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -34,11 +29,11 @@ pub fn main() {
     let proof: Groth16Proof = serde_json::from_str(&contents).unwrap();
 
     tracing::info!("verify gnark proof");
-    let verified = Groth16Prover::verify(proof.clone(), args.build_dir.clone().into());
+    let verified = verify(proof.clone(), args.build_dir.clone().into());
     assert!(verified);
 
     tracing::info!("convert gnark proof");
-    let solidity_proof = Groth16Prover::convert(proof.clone(), args.build_dir.clone().into());
+    let solidity_proof = convert(proof.clone(), args.build_dir.clone().into());
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(

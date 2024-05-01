@@ -288,6 +288,8 @@ impl Groth16Prover {
         println!("response: {}", response);
         let proof: Groth16Proof = serde_json::from_str(&response).expect("deserializing the proof");
 
+        println!("proof: {:?}", proof);
+
         proof
     }
 }

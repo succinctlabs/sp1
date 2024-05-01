@@ -1,13 +1,16 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
+use std::{fs::File, io::Write, path::PathBuf};
+
 use clap::Parser;
 use sp1_core::io::SP1Stdin;
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_gnark_ffi::Groth16Prover;
+use sp1_recursion_gnark_ffi::{convert, verify, Groth16Prover};
+use subtle_encoding::hex;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -51,15 +54,15 @@ pub fn main() {
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
 
-    tracing::info!("sanity check gnark test");
-    Groth16Prover::test(constraints.clone(), witness.clone());
+    // tracing::info!("sanity check gnark test");
+    // Groth16Prover::test(constraints.clone(), witness.clone());
 
-    tracing::info!("sanity check gnark build");
-    Groth16Prover::build(
-        constraints.clone(),
-        witness.clone(),
-        args.build_dir.clone().into(),
-    );
+    // tracing::info!("sanity check gnark build");
+    // Groth16Prover::build(
+    //     constraints.clone(),
+    //     witness.clone(),
+    //     args.build_dir.clone().into(),
+    // );
 
     tracing::info!("sanity check gnark prove");
     let groth16_prover = Groth16Prover::new(args.build_dir.clone().into());
@@ -67,15 +70,19 @@ pub fn main() {
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
 
-    tracing::info!("gnark cancel");
-    groth16_prover.cancel();
+    // Write the JSON-serialized proof to a file
+    tracing::info!("write proof to file");
+    let mut file =
+        File::open(PathBuf::from(args.build_dir.clone()).join("test_proof_input.json")).unwrap();
+    let serialized_proof = serde_json::to_string(&proof).unwrap();
+    file.write_all(serialized_proof.as_bytes()).unwrap();
 
     tracing::info!("verify gnark proof");
-    let verified = Groth16Prover::verify(proof.clone(), args.build_dir.clone().into());
+    let verified = verify(proof.clone(), args.build_dir.clone().into());
     assert!(verified);
 
     tracing::info!("convert gnark proof");
-    let solidity_proof = Groth16Prover::convert(proof.clone(), args.build_dir.clone().into());
+    let solidity_proof = convert(proof.clone(), args.build_dir.clone().into());
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
@@ -87,6 +94,9 @@ pub fn main() {
     // tracing::info!("sanity check plonk bn254 prove");
     // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
-    println!("{:?}", proof);
+    println!(
+        "{:?}",
+        String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()
+    );
     println!("solidity proof: {:?}", solidity_proof);
 }
