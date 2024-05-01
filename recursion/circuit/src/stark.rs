@@ -43,7 +43,6 @@ where
 {
     pub fn verify_shard<A>(
         builder: &mut Builder<C>,
-        // TODO: this is a bit suspicious
         vk: &StarkVerifyingKey<SC>,
         machine: &StarkMachine<SC, A>,
         challenger: &mut MultiField32ChallengerVariable<C>,
