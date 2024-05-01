@@ -14,6 +14,7 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
 )
 
+// Function for serializaton of a gnark groth16 proof to a Solidity-formatted proof.
 func SerializeToSolidityRepresentation(proof groth16.Proof, vkeyHash string, commitedValuesDigest string) (SolidityGroth16Proof, error) {
 	_proof, ok := proof.(interface{ MarshalSolidity() []byte })
 	if !ok {
@@ -33,7 +34,7 @@ func SerializeToSolidityRepresentation(proof groth16.Proof, vkeyHash string, com
 	}, nil
 }
 
-// Function to serialize a gnark groth16 proof to an SP1 Groth16Proof.
+// Function to serialize a gnark groth16 proof to a Base-64 encoded Groth16Proof.
 func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput) (Groth16Proof, error) {
 	// Serialize the proof to JSON.
 	var buf bytes.Buffer
