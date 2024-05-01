@@ -55,6 +55,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
     let alpha = challenger.sample_ext(builder);
+    builder.print_e(alpha);
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
@@ -129,13 +130,13 @@ pub fn verify_two_adic_pcs<C: Config>(
         })
         .collect::<Vec<_>>();
 
-    // verify_challenges(
-    //     builder,
-    //     config,
-    //     &proof.fri_proof,
-    //     &fri_challenges,
-    //     reduced_openings,
-    // );
+    verify_challenges(
+        builder,
+        config,
+        &proof.fri_proof,
+        &fri_challenges,
+        reduced_openings,
+    );
 }
 
 pub fn verify_challenges<C: Config>(
