@@ -1,3 +1,5 @@
+use std::borrow::Borrow;
+
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, TwoAdicField};
 use serde::{Deserialize, Serialize};
@@ -85,7 +87,7 @@ impl ReduceState {
     pub fn from_reduce_end_state<SC: StarkGenericConfig<Val = BabyBear>>(
         state: &SP1ReduceProof<SC>,
     ) -> Self {
-        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
+        let pv: &RecursionPublicValues<_> = state.proof.public_values.as_slice().borrow();
         Self {
             committed_values_digest: pv.committed_value_digest,
             deferred_proofs_digest: pv.deferred_proofs_digest,
@@ -99,7 +101,7 @@ impl ReduceState {
     pub fn from_reduce_start_state<SC: StarkGenericConfig<Val = BabyBear>>(
         state: &SP1ReduceProof<SC>,
     ) -> Self {
-        let pv = RecursionPublicValues::from_vec(state.proof.public_values.clone());
+        let pv: &RecursionPublicValues<_> = state.proof.public_values.as_slice().borrow();
         Self {
             committed_values_digest: pv.committed_value_digest,
             deferred_proofs_digest: pv.deferred_proofs_digest,

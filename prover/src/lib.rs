@@ -16,6 +16,8 @@ mod types;
 pub mod utils;
 mod verify;
 
+use std::borrow::Borrow;
+
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
@@ -172,7 +174,7 @@ impl SP1Prover {
     ) -> [Val<CoreSC>; 8] {
         let mut digest = prev_digest;
         for proof in deferred_proofs.iter() {
-            let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+            let pv: &RecursionPublicValues<Val<CoreSC>> = proof.public_values.as_slice().borrow();
             let committed_values_digest = words_to_bytes(&pv.committed_value_digest);
             digest = hash_deferred_proof(
                 &digest,
@@ -310,9 +312,8 @@ impl SP1Prover {
                             );
                         }
                         SP1ReduceProofWrapper::Recursive(reduce_proof) => {
-                            let pv = RecursionPublicValues::from_vec(
-                                reduce_proof.proof.public_values.clone(),
-                            );
+                            let pv: &RecursionPublicValues<_> =
+                                reduce_proof.proof.public_values.as_slice().borrow();
                             pv.end_reconstruct_challenger
                                 .set_challenger(&mut reconstruct_challenger);
                         }
@@ -613,7 +614,7 @@ impl SP1Prover {
         reduced_proof: SP1ReduceProof<InnerSC>,
     ) -> SP1ReduceProof<InnerSC> {
         // Get verify_start_challenger from the reduce proof's public values.
-        let pv = RecursionPublicValues::from_vec(reduced_proof.proof.public_values.clone());
+        let pv: &RecursionPublicValues<_> = reduced_proof.proof.public_values.as_slice().borrow();
         let mut core_challenger = self.core_machine.config().challenger();
         pv.verify_start_challenger
             .set_challenger(&mut core_challenger);
@@ -645,7 +646,7 @@ impl SP1Prover {
         reduced_proof: SP1ReduceProof<InnerSC>,
     ) -> ShardProof<OuterSC> {
         // Get verify_start_challenger from the reduce proof's public values.
-        let pv = RecursionPublicValues::from_vec(reduced_proof.proof.public_values.clone());
+        let pv: &RecursionPublicValues<_> = reduced_proof.proof.public_values.as_slice().borrow();
         let mut core_challenger = self.core_machine.config().challenger();
         pv.verify_start_challenger
             .set_challenger(&mut core_challenger);
@@ -673,7 +674,7 @@ impl SP1Prover {
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
     pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
-        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+        let pv: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
 
         // TODO: this is very subject to change as groth16 e2e is stabilized
         // Convert pv.vkey_digest to a bn254 field element
@@ -877,7 +878,8 @@ mod tests {
                 deferred_reduce_2.proof,
             ],
         );
-        let reduce_pv = RecursionPublicValues::from_vec(verify_reduce.proof.public_values.clone());
+        let reduce_pv: &RecursionPublicValues<_> =
+            verify_reduce.proof.public_values.as_slice().borrow();
         println!("deferred_hash: {:?}", reduce_pv.deferred_proofs_digest);
         println!("complete: {:?}", reduce_pv.is_complete);
 
