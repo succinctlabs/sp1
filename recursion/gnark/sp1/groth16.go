@@ -18,7 +18,7 @@ func BuildGroth16(buildDir string, profileFlag bool) error {
 	// Load the witness input.
 	witnessInput, err := LoadWitnessInputFromPath(buildDir + "/witness_groth16.json")
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Initialize the circuit.
@@ -34,7 +34,7 @@ func BuildGroth16(buildDir string, profileFlag bool) error {
 	builder := r1cs.NewBuilder
 	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
@@ -44,7 +44,7 @@ func BuildGroth16(buildDir string, profileFlag bool) error {
 		report := p.Top()
 		reportFile, err := os.Create(buildDir + "/profile_groth16.pprof")
 		if err != nil {
-			panic(err)
+			return err
 		}
 		reportFile.WriteString(report)
 		reportFile.Close()
@@ -54,7 +54,7 @@ func BuildGroth16(buildDir string, profileFlag bool) error {
 	var pk groth16.ProvingKey
 	pk, vk, err := groth16.Setup(r1cs)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Create the build directory.
@@ -72,18 +72,20 @@ func BuildGroth16(buildDir string, profileFlag bool) error {
 	// Write the solidity verifier.
 	solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	vk.ExportSolidity(solidityVerifierFile)
 	return nil
 }
 
+// Generate a gnark groth16 proof for a given witness and write the proof to a file. Reads the
+// R1CS, the proving key and the verifier key from the build directory.
 func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 	// Read the R1CS.
 	fmt.Println("Reading r1cs...")
 	r1csFile, err := os.Open(buildDir + "/circuit_groth16.bin")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	r1cs := groth16.NewCS(ecc.BN254)
 	r1cs.ReadFrom(r1csFile)
@@ -92,7 +94,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 	fmt.Println("Reading pk...")
 	pkFile, err := os.Open(buildDir + "/pk_groth16.bin")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	pk := groth16.NewProvingKey(ecc.BN254)
 	pk.ReadFrom(pkFile)
@@ -101,7 +103,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 	fmt.Println("Reading vk...")
 	vkFile, err := os.Open(buildDir + "/vk_groth16.bin")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	vk := groth16.NewVerifyingKey(ecc.BN254)
 	vk.ReadFrom(vkFile)
@@ -109,45 +111,45 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 	// Generate the witness.
 	witnessInput, err := LoadWitnessInputFromPath(witnessPath)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	assignment := NewCircuitFromWitness(witnessInput)
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
-		panic(err)
+		return err
 	}
 	publicWitness, err := witness.Public()
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Generate the proof.
 	fmt.Println("Generating proof...")
 	proof, err := groth16.Prove(r1cs, pk, witness)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	fmt.Println("Verifying proof...")
 	err = groth16.Verify(proof, vk, publicWitness)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Serialize the proof to JSON.
 	groth16Proof, err := SerializeGnarkGroth16Proof(&proof, witnessInput)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	jsonData, err := json.Marshal(groth16Proof)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	err = os.WriteFile(proofPath, jsonData, 0644)
 	if err != nil {
-		panic(err)
+		return err
 	}
 	return nil
 }
@@ -163,7 +165,7 @@ func VerifyGroth16(buildDir string, hexEncodedProof string, vkeyHash string, com
 	fmt.Println(buildDir + "/vk_groth16.bin")
 	vkFile, err := os.Open(buildDir + "/vk_groth16.bin")
 	if err != nil {
-		panic(err)
+		return err
 	}
 	vk := groth16.NewVerifyingKey(ecc.BN254)
 	vk.ReadFrom(vkFile)
@@ -171,7 +173,7 @@ func VerifyGroth16(buildDir string, hexEncodedProof string, vkeyHash string, com
 	// Encoded proof to gnark groth16 proof.
 	proof, err := DeserializeSP1Groth16Proof(hexEncodedProof)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Construct the public witness from the verify input.
@@ -181,36 +183,36 @@ func VerifyGroth16(buildDir string, hexEncodedProof string, vkeyHash string, com
 	}
 	publicWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField(), frontend.PublicOnly())
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Verify the proof.
 	err = groth16.Verify(*proof, vk, publicWitness)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	return nil
 }
 
 // Convert a hex-encoded gnark groth16 proof to a Solidity-formatted groth16 proof.
-func ConvertGroth16(dataDir string, hexEncodedProof string, vkeyHash string, commitedValuesDigest string) {
+func ConvertGroth16(dataDir string, hexEncodedProof string, vkeyHash string, commitedValuesDigest string) error {
 	// Encoded proof to gnark groth16 proof.
 	proof, err := DeserializeSP1Groth16Proof(hexEncodedProof)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Serialize to solidity representation.
 	solidityProof, err := SerializeToSolidityRepresentation(*proof, vkeyHash, commitedValuesDigest)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	// Serialize to json.
 	jsonData, err := json.Marshal(solidityProof)
 	if err != nil {
-		panic(err)
+		return err
 	}
 
 	proofPath := dataDir + "/solidity_proof.json"
@@ -218,6 +220,7 @@ func ConvertGroth16(dataDir string, hexEncodedProof string, vkeyHash string, com
 	// Write the Solidity-formatted proof to solidity_proof.json.
 	err = os.WriteFile(proofPath, jsonData, 0644)
 	if err != nil {
-		panic(err)
+		return err
 	}
+	return nil
 }

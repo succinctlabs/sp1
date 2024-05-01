@@ -8,19 +8,11 @@ import "C"
 
 import (
 	"context"
-	"encoding/hex"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
 	"strings"
 
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend/plonk"
-	plonk_bn254 "github.com/consensys/gnark/backend/plonk/bn254"
-	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/server"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
@@ -94,51 +86,10 @@ func main() {
 		buildDir := *buildPlonkBn254DataDirFlag
 		os.Setenv("CONSTRAINTS_JSON", buildDir+"/constraints_plonk_bn254.json")
 
-		// Load the witness input.
-		witnessInput, err := sp1.LoadWitnessInputFromPath(buildDir + "/witness_plonk_bn254.json")
+		err := sp1.BuildPlonkBn254(buildDir)
 		if err != nil {
 			panic(err)
 		}
-
-		// Initialize the circuit.
-		circuit := sp1.NewCircuitFromWitness(witnessInput)
-
-		// Compile the circuit.
-		builder := scs.NewBuilder
-		scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
-		if err != nil {
-			panic(err)
-		}
-
-		// Sourced from: https://github.com/Consensys/gnark/blob/88712e5ce5dbbb6a1efca23b659f967d36261de4/examples/plonk/main.go#L86-L89
-		srs, srsLagrange, err := unsafekzg.NewSRS(scs)
-		if err != nil {
-			panic(err)
-		}
-
-		pk, vk, err := plonk.Setup(scs, srs, srsLagrange)
-		if err != nil {
-			panic(err)
-		}
-
-		// Create the build directory.
-		os.MkdirAll(buildDir, 0755)
-
-		// Write the R1CS.
-		sp1.WriteToFile(buildDir+"/circuit_plonk_bn254.bin", scs)
-
-		// Write the proving key.
-		sp1.WriteToFile(buildDir+"/pk_plonk_bn254.bin", pk)
-
-		// Write the verifier key.
-		sp1.WriteToFile(buildDir+"/vk_plonk_bn254.bin", vk)
-
-		// Write the solidity verifier.
-		solidityVerifierFile, err := os.Create(buildDir + "/PlonkBn254Verifier.sol")
-		if err != nil {
-			panic(err)
-		}
-		vk.ExportSolidity(solidityVerifierFile)
 	case ProveGroth16:
 		proveGroth16Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'prove' with data=%s\n", *proveGroth16DataDirFlag)
@@ -159,11 +110,15 @@ func main() {
 		vkeyHash := *verifyGroth16VkeyHashFlag
 		commitedValuesDigest := *verifyGroth16CommitedValuesDigestFlag
 
+		// Verify the hex-encoded groth16 proof with the given vkey hash and committed values digest
+		// as public inputs.
 		err := sp1.VerifyGroth16(buildDir, hexEncodedProof, vkeyHash, commitedValuesDigest)
 		if err != nil {
 			panic(err)
 		}
 	case ConvertGroth16:
+		// Parse the flags for converting the gnark groth16 proof representation to a format that
+		// can be used with Solidity smart contract verification.
 		convertGroth16Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'convert' with data=%s\n", *convertGroth16DataDirFlag)
 		dataDir := *convertGroth16DataDirFlag
@@ -171,11 +126,13 @@ func main() {
 		vkeyHash := *convertGroth16VkeyHashFlag
 		commitedValuesDigest := *convertGroth16CommitedValuesDigestFlag
 
-		err := sp1.VerifyGroth16(dataDir, hexEncodedProof, vkeyHash, commitedValuesDigest)
+		// Convert the gnark groth16 proof to a format that can be used with Solidity smart contract verification.
+		err := sp1.ConvertGroth16(dataDir, hexEncodedProof, vkeyHash, commitedValuesDigest)
 		if err != nil {
 			panic(err)
 		}
 	case ProvePlonkBn254:
+		// Parse the flags for generating a Plonk proof.
 		provePlonkBn254Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'prove' with data=%s\n", *provePlonkBn254DataDirFlag)
 		buildDir := *provePlonkBn254DataDirFlag
@@ -183,69 +140,12 @@ func main() {
 		proofPath := *provePlonkBn254ProofPathFlag
 		os.Setenv("CONSTRAINTS_JSON", buildDir+"/constraints_plonk_bn254.json")
 
-		// Read the R1CS.
-		fmt.Println("Reading scs...")
-		scsFile, err := os.Open(buildDir + "/circuit_plonk_bn254.bin")
-		if err != nil {
-			panic(err)
-		}
-		scs := plonk.NewCS(ecc.BN254)
-		scs.ReadFrom(scsFile)
-
-		// Read the proving key.
-		fmt.Println("Reading pk...")
-		pkFile, err := os.Open(buildDir + "/pk_plonk_bn254.bin")
-		if err != nil {
-			panic(err)
-		}
-		pk := plonk.NewProvingKey(ecc.BN254)
-		pk.ReadFrom(pkFile)
-
-		// Read the verifier key.
-		fmt.Println("Reading vk...")
-		vkFile, err := os.Open(buildDir + "/vk_plonk_bn254.bin")
-		if err != nil {
-			panic(err)
-		}
-		vk := plonk.NewVerifyingKey(ecc.BN254)
-		vk.ReadFrom(vkFile)
-
-		// Generate the witness.
-		witnessInput, err := sp1.LoadWitnessInputFromPath(witnessPath)
-		if err != nil {
-			panic(err)
-		}
-		assignment := sp1.NewCircuitFromWitness(witnessInput)
-		witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+		// Generate the Plonk proof.
+		err := sp1.ProvePlonkBn254(buildDir, witnessPath, proofPath)
 		if err != nil {
 			panic(err)
 		}
 
-		// Generate the proof.
-		fmt.Println("Generating proof...")
-		proof, err := plonk.Prove(scs, pk, witness)
-		if err != nil {
-			panic(err)
-		}
-
-		plonkBn254ProofRaw := proof.(*plonk_bn254.Proof)
-		plonkBn254Proof := sp1.PlonkBn254Proof{
-			Proof: "0x" + hex.EncodeToString(plonkBn254ProofRaw.MarshalSolidity()),
-			PublicInputs: [2]string{
-				witnessInput.VkeyHash,
-				witnessInput.CommitedValuesDigest,
-			},
-		}
-
-		jsonData, err := json.Marshal(plonkBn254Proof)
-		if err != nil {
-			panic(err)
-		}
-
-		err = os.WriteFile(proofPath, jsonData, 0644)
-		if err != nil {
-			panic(err)
-		}
 	case Serve:
 		serveCmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'serve' with data=%s, type=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag)
