@@ -1,18 +1,12 @@
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use sp1_cli::commands::{
-    build::BuildCmd, build_toolchain::BuildToolchainCmd, install_toolchain::InstallToolchainCmd,
-    new::NewCmd, prove::ProveCmd,
+use sp1_cli::{
+    commands::{
+        build::BuildCmd, build_toolchain::BuildToolchainCmd, install_circuit::InstallCircuitCmd,
+        install_toolchain::InstallToolchainCmd, new::NewCmd, prove::ProveCmd,
+    },
+    SP1_VERSION_MESSAGE,
 };
-
-const VERSION_MESSAGE: &str = concat!(
-    "sp1",
-    " (",
-    env!("VERGEN_GIT_SHA"),
-    " ",
-    env!("VERGEN_BUILD_TIMESTAMP"),
-    ")"
-);
 
 #[derive(Parser)]
 #[command(name = "cargo", bin_name = "cargo")]
@@ -21,7 +15,7 @@ pub enum Cargo {
 }
 
 #[derive(clap::Args)]
-#[command(author, about, long_about = None, args_conflicts_with_subcommands = true, version = VERSION_MESSAGE)]
+#[command(author, about, long_about = None, args_conflicts_with_subcommands = true, version = SP1_VERSION_MESSAGE)]
 pub struct ProveCli {
     #[clap(subcommand)]
     pub command: Option<ProveCliCommands>,
@@ -37,6 +31,7 @@ pub enum ProveCliCommands {
     Prove(ProveCmd),
     BuildToolchain(BuildToolchainCmd),
     InstallToolchain(InstallToolchainCmd),
+    InstallCircuit(InstallCircuitCmd),
 }
 
 fn main() -> Result<()> {
@@ -48,5 +43,6 @@ fn main() -> Result<()> {
         ProveCliCommands::Prove(cmd) => cmd.run(),
         ProveCliCommands::BuildToolchain(cmd) => cmd.run(),
         ProveCliCommands::InstallToolchain(cmd) => cmd.run(),
+        ProveCliCommands::InstallCircuit(cmd) => cmd.run(),
     }
 }

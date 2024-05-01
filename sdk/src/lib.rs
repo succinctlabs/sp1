@@ -5,16 +5,17 @@ pub mod proto {
     #[allow(clippy::all)]
     pub mod network;
 }
+pub mod artifacts;
 pub mod auth;
 pub mod client;
 mod local;
 mod mock;
 mod network;
-pub mod prove;
 pub mod utils;
 
 use anyhow::{Ok, Result};
 use local::LocalProver;
+use mock::MockProver;
 use network::NetworkProver;
 pub use sp1_prover::{
     CoreSC, SP1CoreProof, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -46,6 +47,9 @@ impl ProverClient {
             .to_lowercase()
             .as_str()
         {
+            "mock" => Self {
+                prover: Box::new(MockProver::new()),
+            },
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
