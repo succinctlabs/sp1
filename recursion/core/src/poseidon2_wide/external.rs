@@ -329,11 +329,9 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {
-        let use_sbox_3 = DEGREE < 7;
-        if use_sbox_3 {
-            NUM_POSEIDON2_SBOX_COLS
-        } else {
-            NUM_POSEIDON2_COLS
+        match DEGREE {
+            d if d < 7 => NUM_POSEIDON2_SBOX_COLS,
+            _ => NUM_POSEIDON2_COLS,
         }
     }
 }
@@ -383,15 +381,17 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         assert!(DEGREE >= 3, "Minimum supported constraint degree is 3");
-        let use_sbox_3 = DEGREE < 7;
         let main = builder.main();
         let cols = main.row_slice(0);
-        let cols = if use_sbox_3 {
-            let cols: &Poseidon2SBoxCols<AB::Var> = (*cols).borrow();
-            Poseidon2ColType::Wide(*cols)
-        } else {
-            let cols: &Poseidon2Cols<AB::Var> = (*cols).borrow();
-            Poseidon2ColType::Narrow(*cols)
+        let cols = match DEGREE {
+            d if d < 7 => {
+                let cols: &Poseidon2SBoxCols<AB::Var> = (*cols).borrow();
+                Poseidon2ColType::Wide(*cols)
+            }
+            _ => {
+                let cols: &Poseidon2Cols<AB::Var> = (*cols).borrow();
+                Poseidon2ColType::Narrow(*cols)
+            }
         };
 
         let poseidon2_cols = cols.get_poseidon2_cols();
