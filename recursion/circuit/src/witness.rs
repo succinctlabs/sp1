@@ -297,6 +297,7 @@ impl Witnessable<C> for OuterPcsProof {
                 opened_value.opened_values.iter().for_each(|value| {
                     println!("value len {}", value.len());
                 });
+                println!("opening proof len {}", opened_value.opening_proof.len());
             });
         });
 
