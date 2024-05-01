@@ -265,7 +265,7 @@ impl Groth16Prover {
         let response = Client::new()
             .post(url)
             .json(&gnark_witness)
-            .timeout(Duration::from_secs(5 * 60))
+            .timeout(Duration::from_secs(60 * 60))
             .send()
             .unwrap();
 
