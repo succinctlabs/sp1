@@ -5,7 +5,7 @@ all:
 
 groth16:
 	mkdir -p build && \
-	RUSTFLAGS='-C target-cpu=native' \
+	RUSTFLAGS='-C target-cpu=native -C target_feature=+avx512ifma,+avx512vl' \
 	cargo run -p sp1-prover --release --bin e2e -- \
 	--build-dir=./build
 
