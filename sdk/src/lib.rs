@@ -8,9 +8,9 @@ pub mod proto {
 pub mod artifacts;
 pub mod auth;
 pub mod client;
-mod local;
-mod mock;
-mod network;
+pub mod local;
+pub mod mock;
+pub mod network;
 pub mod utils;
 
 use anyhow::{Ok, Result};
