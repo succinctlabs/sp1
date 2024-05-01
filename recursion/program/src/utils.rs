@@ -167,6 +167,25 @@ pub fn commit_challenger<C: Config>(builder: &mut Builder<C>, var: &DuplexChalle
     }
 }
 
+pub fn get_challenger_public_values<C: Config>(
+    builder: &mut Builder<C>,
+    var: &DuplexChallengerVariable<C>,
+) -> ChallengerPublicValues<Felt<C::F>> {
+    let sponge_state = core::array::from_fn(|i| builder.get(&var.sponge_state, i));
+    let num_inputs = var2felt(builder, var.nb_inputs);
+    let input_buffer = core::array::from_fn(|i| builder.get(&var.input_buffer, i));
+    let num_outputs = var2felt(builder, var.nb_outputs);
+    let output_buffer = core::array::from_fn(|i| builder.get(&var.output_buffer, i));
+
+    ChallengerPublicValues {
+        sponge_state,
+        num_inputs,
+        input_buffer,
+        num_outputs,
+        output_buffer,
+    }
+}
+
 /// Hash the verifying key + prep domains into a single digest.
 /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
 pub fn hash_vkey<C: Config>(

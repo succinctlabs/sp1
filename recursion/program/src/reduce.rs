@@ -22,8 +22,9 @@
 #![allow(clippy::needless_range_loop)]
 
 use std::array;
-use std::borrow::Borrow;
+use std::borrow::{Borrow, BorrowMut};
 use std::marker::PhantomData;
+use std::ptr::hash;
 
 use itertools::Itertools;
 use p3_baby_bear::BabyBear;
@@ -40,7 +41,7 @@ use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
 use sp1_recursion_core::stark::{RecursionAirSkinnyDeg7, RecursionAirWideDeg3};
@@ -57,7 +58,7 @@ use crate::types::{QuotientData, QuotientDataValues, VerifyingKeyVariable};
 use crate::types::{Sha256DigestVariable, ShardProofVariable};
 use crate::utils::{
     assert_challenger_eq_pv, assign_challenger_from_pv, clone_array, commit_challenger,
-    const_fri_config, felt2var, hash_vkey, var2felt,
+    const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -120,8 +121,6 @@ where
     ) {
     }
 
-    fn commit_to_public_values() {}
-
     fn verify_shards(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
@@ -142,7 +141,7 @@ where
         // Initialize values we will commit to public outputs.
 
         // Start and end of program counters.
-        let initial_pc: Felt<_> = builder.uninit();
+        let start_pc: Felt<_> = builder.uninit();
         let end_pc: Felt<_> = builder.uninit();
 
         // Start and end shard indices.
@@ -158,6 +157,8 @@ where
 
         // Assert that the number of proofs is not zero.
         builder.assert_usize_ne(shard_proofs.len(), 0);
+
+        let leaf_challenger_public_values = get_challenger_public_values(builder, &leaf_challenger);
 
         // Initialize loop variables.
         let current_shard: Felt<_> = builder.uninit();
@@ -186,7 +187,7 @@ where
                 builder.assign(current_shard, public_values.shard);
 
                 // Program counter.
-                builder.assign(initial_pc, public_values.start_pc);
+                builder.assign(start_pc, public_values.start_pc);
                 builder.assign(current_pc, public_values.start_pc);
 
                 // Commited public values digests.
@@ -289,11 +290,67 @@ where
                 });
         });
 
-        // // Initialize the public values we will commit to.
-        // let recursion_public_values = RecursionPublicValues::<Felt<C>> {
-        //     committed_value_digest,
+        // Compute vk digest.
+        let vk_digest = hash_vkey(builder, &vk, &prep_domains, &preprocessed_sorted_idxs);
+        let vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|i| builder.get(&vk_digest, i));
 
-        // }
+        // Collect values for challenges.
+        let initial_challenger_public_values =
+            get_challenger_public_values(builder, &initial_reconstruct_challenger);
+        let final_challenger_public_values =
+            get_challenger_public_values(builder, &reconstruct_challenger);
+
+        let cumulative_sum_arrray = builder.ext2felt(cumulative_sum);
+        let cumulative_sum_arrray = array::from_fn(|i| builder.get(&cumulative_sum_arrray, i));
+
+        // Initialize the public values we will commit to.
+        let mut recursion_public_values_stream: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] =
+            array::from_fn(|_| builder.uninit());
+
+        let recursion_public_values: &mut RecursionPublicValues<_> =
+            recursion_public_values_stream.as_mut_slice().borrow_mut();
+
+        recursion_public_values.committed_value_digest = committed_value_digest;
+        recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
+        recursion_public_values.start_pc = start_pc;
+        recursion_public_values.next_pc = end_pc;
+        recursion_public_values.start_shard = initial_shard;
+        recursion_public_values.next_shard = end_shard;
+        recursion_public_values.vk_digest = vk_digest;
+        recursion_public_values.leaf_challenger = leaf_challenger_public_values;
+        recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
+        recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
+        recursion_public_values.cumulative_sum = cumulative_sum_arrray;
+        recursion_public_values.start_reconstruct_deferred_digest = deferred_proofs_digest;
+        recursion_public_values.end_reconstruct_deferred_digest = deferred_proofs_digest;
+        recursion_public_values.exit_code = builder.eval(C::F::zero());
+        recursion_public_values.is_complete = builder.eval(C::F::zero());
+
+        let mut recursion_public_values_array =
+            builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
+        for (i, value) in recursion_public_values_stream.iter().enumerate() {
+            builder.set(&mut recursion_public_values_array, i, *value);
+        }
+
+        builder.commit_public_values(&recursion_public_values_array)
+
+        // let recursion_public_values = RecursionPublicValues::<Felt<C::F>> {
+        //     committed_value_digest,
+        //     deferred_proofs_digest,
+        //     start_pc,
+        //     next_pc: end_pc,
+        //     start_shard: initial_shard,
+        //     next_shard: end_shard,
+        //     vk_digest,
+        //     leaf_challenger: leaf_challenger_public_values,
+        //     start_reconstruct_challenger: initial_challenger_public_values,
+        //     end_reconstruct_challenger: final_challenger_public_values,
+        //     cumulative_sum: cumulative_sum_arrray,
+        //     start_reconstruct_deferred_digest: deferred_proofs_digest,
+        //     end_reconstruct_deferred_digest: deferred_proofs_digest,
+        //     exit_code: builder.eval(C::F::zero()),
+        //     is_complete: builder.eval(C::F::zero()),
+        // };
     }
 }
 

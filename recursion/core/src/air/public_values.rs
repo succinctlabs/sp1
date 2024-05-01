@@ -109,8 +109,8 @@ pub struct RecursionPublicValues<T> {
     /// The commitment to the sp1 program being proven.
     pub vk_digest: [T; DIGEST_SIZE],
 
-    /// The commitment to the start program being proven.
-    pub verify_start_challenger: ChallengerPublicValues<T>,
+    /// The leaf challenger containing the entropy from the main trace commitment.
+    pub leaf_challenger: ChallengerPublicValues<T>,
 
     /// Current cumulative sum of lookup bus.
     pub cumulative_sum: [T; 4],
