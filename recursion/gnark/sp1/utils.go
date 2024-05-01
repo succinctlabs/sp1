@@ -3,9 +3,9 @@ package sp1
 import (
 	"bytes"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -14,37 +14,37 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
 )
 
+func SerializeToSolidityRepresentation(proof groth16.Proof, vkeyHash string, commitedValuesDigest string) (SolidityGroth16Proof, error) {
+	_proof, ok := proof.(interface{ MarshalSolidity() []byte })
+	if !ok {
+		panic("proof does not implement MarshalSolidity")
+	}
+	proofBytes := _proof.MarshalSolidity()
+
+	// solidity contract inputs
+	var publicInputs [2]string
+
+	publicInputs[0] = vkeyHash
+	publicInputs[1] = commitedValuesDigest
+
+	return SolidityGroth16Proof{
+		PublicInputs:  publicInputs,
+		SolidityProof: hex.EncodeToString(proofBytes),
+	}, nil
+}
+
 // Function to serialize a gnark groth16 proof to an SP1 Groth16Proof.
 func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput) (Groth16Proof, error) {
 	// Serialize the proof to JSON.
-	const fpSize = 4 * 8
 	var buf bytes.Buffer
 	(*proof).WriteRawTo(&buf)
 	proofBytes := buf.Bytes()
-	fmt.Println("proofBytes", len(proofBytes))
-	fmt.Println("proofBytes", proofBytes)
-	var (
-		a            [2]string
-		b            [2][2]string
-		c            [2]string
-		publicInputs [2]string
-	)
-	a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
-	a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
-	b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3]).String()
-	b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4]).String()
-	b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5]).String()
-	b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
-	c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
-	c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
+	var publicInputs [2]string
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommitedValuesDigest
 	encodedProof := base64.StdEncoding.EncodeToString(proofBytes)
 
 	return Groth16Proof{
-		A:            a,
-		B:            b,
-		C:            c,
 		PublicInputs: publicInputs,
 		EncodedProof: encodedProof,
 	}, nil

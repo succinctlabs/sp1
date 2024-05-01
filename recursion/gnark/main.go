@@ -22,7 +22,7 @@ import (
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
 	"github.com/consensys/gnark/profile"
-	"github.com/consensys/gnark/test"
+	"github.com/consensys/gnark/test/unsafekzg"
 	"github.com/succinctlabs/sp1-recursion-gnark/server"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
@@ -45,6 +45,12 @@ func main() {
 	verifyGroth16EncodedProofFlag := verifyGroth16Cmd.String("encoded-proof", "", "Encoded proof")
 	verifyGroth16VkeyHashFlag := verifyGroth16Cmd.String("vkey-hash", "", "Vkey hash")
 	verifyGroth16CommitedValuesDigestFlag := verifyGroth16Cmd.String("commited-values-digest", "", "Commited values digest")
+
+	convertGroth16Cmd := flag.NewFlagSet("convert-groth16", flag.ExitOnError)
+	convertGroth16DataDirFlag := convertGroth16Cmd.String("data", "", "Data directory path")
+	convertGroth16EncodedProofFlag := convertGroth16Cmd.String("encoded-proof", "", "Encoded proof")
+	convertGroth16VkeyHashFlag := convertGroth16Cmd.String("vkey-hash", "", "Vkey hash")
+	convertGroth16CommitedValuesDigestFlag := convertGroth16Cmd.String("commited-values-digest", "", "Commited values digest")
 
 	provePlonkBn254Cmd := flag.NewFlagSet("prove-plonk-bn254", flag.ExitOnError)
 	provePlonkBn254DataDirFlag := provePlonkBn254Cmd.String("data", "", "Data directory path")
@@ -167,13 +173,10 @@ func main() {
 			panic(err)
 		}
 
-		// Run the trusted setup.
-		srs, err := test.NewKZGSRS(scs)
-		if err != nil {
-			panic(err)
-		}
+		// Sourced from: https://github.com/Consensys/gnark/blob/88712e5ce5dbbb6a1efca23b659f967d36261de4/examples/plonk/main.go#L86-L89
+		srs, srsLagrange, err := unsafekzg.NewSRS(scs)
 
-		pk, vk, err := plonk.Setup(scs, srs)
+		pk, vk, err := plonk.Setup(scs, srs, srsLagrange)
 		if err != nil {
 			panic(err)
 		}
@@ -325,8 +328,6 @@ func main() {
 			panic(err)
 		}
 
-		fmt.Println("publicWitness", publicWitness)
-
 		// Verify the proof.
 		err = groth16.Verify(*proof, vk, publicWitness)
 		if err != nil {
@@ -334,6 +335,42 @@ func main() {
 		}
 
 		fmt.Println("Proof verified successfully")
+	case "convert-groth16":
+		convertGroth16Cmd.Parse(os.Args[2:])
+		fmt.Printf("Running 'convert' with data=%s\n", *convertGroth16DataDirFlag)
+		dataDir := *convertGroth16DataDirFlag
+		encodedProof := *convertGroth16EncodedProofFlag
+		vkeyHash := *convertGroth16VkeyHashFlag
+		commitedValuesDigest := *convertGroth16CommitedValuesDigestFlag
+
+		// Encoded proof to gnark groth16 proof.
+		proof, err := sp1.DeserializeSP1Groth16Proof(encodedProof)
+		if err != nil {
+			panic(err)
+		}
+
+		fmt.Println("proof", proof)
+
+		// Serialize to solidity representation.
+		solidityProof, err := sp1.SerializeToSolidityRepresentation(*proof, vkeyHash, commitedValuesDigest)
+		if err != nil {
+			panic(err)
+		}
+
+		// Serialize to json.
+		jsonData, err := json.Marshal(solidityProof)
+		if err != nil {
+			panic(err)
+		}
+
+		proofPath := dataDir + "/solidity_proof.json"
+
+		// Write the proof to file.
+		err = os.WriteFile(proofPath, jsonData, 0644)
+		if err != nil {
+			panic(err)
+		}
+
 	case "prove-plonk-bn254":
 		provePlonkBn254Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'prove' with data=%s\n", *provePlonkBn254DataDirFlag)
