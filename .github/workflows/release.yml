@@ -157,6 +157,30 @@ jobs:
             $bin --version || true
           done
 
+      - name: Build groth16 and create tarball
+        run: |
+          cd prover
+          RUST_LOG=info RUST_BACKTRACE=1 make groth16
+          cd build
+          tar -czvf build.tar.gz .
+
+      - name: Archive build artifact
+        id: build_artifact
+        run: |
+          VERSION_NAME="${{ (env.IS_NIGHTLY && 'nightly') || needs.prepare.outputs.tag_name }}"
+          mv build/build.tar.gz "groth16_${VERSION_NAME}.tar.gz"
+          echo "::set-output name=build_tarball_name::groth16_${VERSION_NAME}.tar.gz"
+
+      - name: Upload build artifact to release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ needs.prepare.outputs.release_name }}
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
+          prerelease: ${{ env.IS_NIGHTLY }}
+          body: ${{ needs.prepare.outputs.changelog }}
+          files: |
+            ${{ steps.build_artifact.outputs.build_tarball_name }}
+
       - name: Archive binaries
         id: artifacts
         env:
