@@ -292,6 +292,12 @@ impl Witnessable<C> for OuterPcsProof {
         println!("self.query_openings.len {}", self.query_openings.len());
         self.query_openings.iter().for_each(|opening| {
             println!("opening len {}", opening.len());
+            opening.iter().for_each(|opened_value| {
+                println!("opened value len {}", opened_value.opened_values.len());
+                opened_value.opened_values.iter().for_each(|value| {
+                    println!("value len {}", value.len());
+                });
+            });
         });
 
         // println!("opening len {}", opening.len());
