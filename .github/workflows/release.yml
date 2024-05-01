@@ -28,9 +28,6 @@ jobs:
         with:
           fetch-depth: 0
 
-      # - name: Checkout sources
-      #   uses: actions/checkout@v2
-
       - name: Compute release name and tag
         id: release_info
         run: |
