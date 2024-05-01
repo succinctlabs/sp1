@@ -576,7 +576,11 @@ impl SP1Prover {
 
         // Generate proof.
         let start = Instant::now();
-        let proof = if proving_with_skinny {
+        let proof = if proving_with_skinny && verifying_compressed_proof {
+            let machine = RecursionAirSkinnyDeg7::fixed_machine(config);
+            let mut challenger = machine.config().challenger();
+            machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)
+        } else if proving_with_skinny {
             let machine = RecursionAirSkinnyDeg7::machine(config);
             let mut challenger = machine.config().challenger();
             machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)
