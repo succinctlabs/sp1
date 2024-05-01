@@ -199,9 +199,9 @@ where
             mats: quotient_mats,
         };
         rounds.push(prep_round);
-        // rounds.push(main_round);
-        // rounds.push(perm_round);
-        // rounds.push(quotient_round);
+        rounds.push(main_round);
+        rounds.push(perm_round);
+        rounds.push(quotient_round);
         let config = outer_fri_config();
         verify_two_adic_pcs(builder, &config, &proof.opening_proof, challenger, rounds);
 
