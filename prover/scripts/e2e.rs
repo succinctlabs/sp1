@@ -113,6 +113,9 @@ pub fn main() {
     tracing::info!("gnark cancel");
     groth16_prover.cancel();
 
+    tracing::info!("wrap groth16");
+    prover.wrap_groth16(wrapped_proof, args.build_dir.clone().into());
+
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
     //     constraints.clone(),
