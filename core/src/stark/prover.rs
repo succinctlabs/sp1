@@ -95,7 +95,8 @@ where
 
         // Generate a proof for each segment. Note that we clone the challenger so we can observe
         // identical global challenges across the segments.
-        let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
+        let chunking_multiplier = env::shard_chunking_multiplier();
+        let chunk_size = std::cmp::max(chunking_multiplier * shards.len() / num_cpus::get(), 1);
         let config = machine.config();
         let reconstruct_commitments = env::reconstruct_commitments();
         let shard_data_chunks = chunk_vec(shard_data, chunk_size);
