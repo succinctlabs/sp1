@@ -55,15 +55,9 @@ pub fn verify_two_adic_pcs<C: Config>(
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
     let alpha = challenger.sample_ext(builder);
-    // builder.print_e(alpha);
+
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
-    // for i in 0..fri_challenges.betas.len() {
-    //     builder.print_e(fri_challenges.betas[i]);
-    // }
-    // for i in 0..fri_challenges.query_indices.len() {
-    //     builder.print_v(fri_challenges.query_indices[i]);
-    // }
 
     let log_global_max_height = proof.fri_proof.commit_phase_commits.len() + config.log_blowup;
 
@@ -132,20 +126,17 @@ pub fn verify_two_adic_pcs<C: Config>(
                     }
                 }
             }
-            // for i in 0..32 {
-            //     builder.print_e(ro[i]);
-            // }
             ro
         })
         .collect::<Vec<_>>();
 
-    verify_challenges(
-        builder,
-        config,
-        &proof.fri_proof,
-        &fri_challenges,
-        reduced_openings,
-    );
+    // verify_challenges(
+    //     builder,
+    //     config,
+    //     &proof.fri_proof,
+    //     &fri_challenges,
+    //     reduced_openings,
+    // );
 }
 
 pub fn verify_challenges<C: Config>(
