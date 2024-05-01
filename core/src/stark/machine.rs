@@ -499,13 +499,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 let permutation_width = permutation_traces[i].width();
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
-                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
                 chips[i].name(),
-                total_width,
+                trace_width,
+                permutation_width,
                 traces[i].0.height(),
                 total_width * traces[i].0.height(),
-                (100f32 * trace_width as f32) / total_width as f32,
-                (100f32 * permutation_width as f32) / total_width as f32);
+                );
             }
 
             tracing::info_span!("debug constraints").in_scope(|| {
