@@ -243,13 +243,19 @@ impl Groth16Prover {
         let url = format!("http://localhost:{}/groth16/prove", self.port);
 
         let gnark_witness = GnarkWitness::new(witness);
-        let response = Client::new().post(url).json(&gnark_witness).send().unwrap();
+
+        // Proof generation times out after 1 hour.
+        let response = Client::new()
+            .post(url)
+            .timeout(Duration::from_secs(60 * 60))
+            .json(&gnark_witness)
+            .send()
+            .unwrap();
 
         // Deserialize the JSON response to a Groth16Proof instance
         let response = response.text().unwrap();
+        println!("response: {}", response);
         let proof: Groth16Proof = serde_json::from_str(&response).expect("deserializing the proof");
-
-        println!("proof: {:?}", proof);
 
         proof
     }
