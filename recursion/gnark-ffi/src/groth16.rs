@@ -65,6 +65,18 @@ impl Groth16Prover {
         // Create a channel for cancellation
         let (cancel_sender, cancel_receiver) = bounded(1);
 
+        // Run `make`.
+        let make = Command::new("make")
+            .current_dir(&gnark_dir)
+            .stderr(Stdio::inherit())
+            .stdout(Stdio::inherit())
+            .stdin(Stdio::inherit())
+            .output()
+            .unwrap();
+        if !make.status.success() {
+            panic!("failed to run make");
+        }
+
         // Catch panics and attempt to terminate the child process if main thread panics
         let child_process = Arc::new(Mutex::new(None::<Child>));
         let child_handle = child_process.clone();

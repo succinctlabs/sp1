@@ -24,7 +24,7 @@ pub fn setup_logger() {
         // if the RUST_LOGGER environment variable is set, use it to determine which logger to configure
         // (tracing_forest or tracing_subscriber)
         // otherwise, default to 'forest'
-        let logger_type = std::env::var("RUST_LOGGER").unwrap_or_else(|_| "forest".to_string());
+        let logger_type = std::env::var("RUST_LOGGER").unwrap_or_else(|_| "flat".to_string());
         match logger_type.as_str() {
             "forest" => {
                 Registry::default()
