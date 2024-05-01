@@ -6,93 +6,48 @@ use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 
 use super::external::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
-pub(crate) enum Poseidon2Columns<T> {
-    Wide(Poseidon2SboxCols<T>),
+pub(crate) enum Poseidon2ColType<T> {
+    Wide(Poseidon2SBoxCols<T>),
     Narrow(Poseidon2Cols<T>),
 }
 
-impl<T> Poseidon2Columns<T> {
-    pub fn get_memory(&self) -> &Poseidon2MemCols<T> {
+impl<T> Poseidon2ColType<T> {
+    #[allow(clippy::type_complexity)]
+    pub fn get_cols_mut(
+        &mut self,
+    ) -> (
+        &mut Poseidon2Cols<T>,
+        Option<&mut [[T; WIDTH]; NUM_EXTERNAL_ROUNDS]>,
+        Option<&mut [T; NUM_INTERNAL_ROUNDS]>,
+    ) {
         match self {
-            Poseidon2Columns::Wide(cols) => &cols.memory,
-            Poseidon2Columns::Narrow(cols) => &cols.memory,
+            Poseidon2ColType::Wide(cols) => (
+                &mut cols.poseidon2_cols,
+                Some(&mut cols.external_rounds_sbox),
+                Some(&mut cols.internal_rounds_sbox),
+            ),
+            Poseidon2ColType::Narrow(cols) => (cols, None, None),
         }
     }
 
-    pub fn get_memory_mut(&mut self) -> &mut Poseidon2MemCols<T> {
+    pub fn get_poseidon2_cols(&self) -> &Poseidon2Cols<T> {
         match self {
-            Poseidon2Columns::Wide(cols) => &mut cols.memory,
-            Poseidon2Columns::Narrow(cols) => &mut cols.memory,
-        }
-    }
-
-    pub fn get_external_state(&self, round: usize) -> &[T; WIDTH] {
-        match self {
-            Poseidon2Columns::Wide(cols) => &cols.external_rounds[round].state,
-            Poseidon2Columns::Narrow(cols) => &cols.external_rounds[round].state,
-        }
-    }
-
-    pub fn get_external_state_mut(&mut self, round: usize) -> &mut [T; WIDTH] {
-        match self {
-            Poseidon2Columns::Wide(cols) => &mut cols.external_rounds[round].state,
-            Poseidon2Columns::Narrow(cols) => &mut cols.external_rounds[round].state,
-        }
-    }
-
-    pub fn get_internal_state(&self) -> &[T; WIDTH] {
-        match self {
-            Poseidon2Columns::Wide(cols) => &cols.internal_rounds.state,
-            Poseidon2Columns::Narrow(cols) => &cols.internal_rounds.state,
-        }
-    }
-
-    pub fn get_internal_state_mut(&mut self) -> &mut [T; WIDTH] {
-        match self {
-            Poseidon2Columns::Wide(cols) => &mut cols.internal_rounds.state,
-            Poseidon2Columns::Narrow(cols) => &mut cols.internal_rounds.state,
-        }
-    }
-
-    pub fn get_internal_s0(&self) -> &[T; NUM_INTERNAL_ROUNDS - 1] {
-        match self {
-            Poseidon2Columns::Wide(cols) => &cols.internal_rounds.s0,
-            Poseidon2Columns::Narrow(cols) => &cols.internal_rounds.s0,
-        }
-    }
-
-    pub fn get_internal_s0_mut(&mut self) -> &mut [T; NUM_INTERNAL_ROUNDS - 1] {
-        match self {
-            Poseidon2Columns::Wide(cols) => &mut cols.internal_rounds.s0,
-            Poseidon2Columns::Narrow(cols) => &mut cols.internal_rounds.s0,
+            Poseidon2ColType::Wide(cols) => &cols.poseidon2_cols,
+            Poseidon2ColType::Narrow(cols) => cols,
         }
     }
 
     pub fn get_external_sbox(&self, round: usize) -> Option<&[T; WIDTH]> {
         match self {
-            Poseidon2Columns::Wide(cols) => Some(&cols.external_rounds[round].sbox_deg_3),
-            Poseidon2Columns::Narrow(_) => None,
-        }
-    }
-
-    pub fn get_external_sbox_mut(&mut self, round: usize) -> Option<&mut [T; WIDTH]> {
-        match self {
-            Poseidon2Columns::Wide(cols) => Some(&mut cols.external_rounds[round].sbox_deg_3),
-            Poseidon2Columns::Narrow(_) => None,
+            Poseidon2ColType::Wide(cols) => Some(&cols.external_rounds_sbox[round]),
+            Poseidon2ColType::Narrow(_) => None,
         }
     }
 
     pub fn get_internal_sbox(&self) -> Option<&[T; NUM_INTERNAL_ROUNDS]> {
         match self {
-            Poseidon2Columns::Wide(cols) => Some(&cols.internal_rounds.sbox_deg_3),
-            Poseidon2Columns::Narrow(_) => None,
-        }
-    }
-
-    pub fn get_internal_sbox_mut(&mut self) -> Option<&mut [T; NUM_INTERNAL_ROUNDS]> {
-        match self {
-            Poseidon2Columns::Wide(cols) => Some(&mut cols.internal_rounds.sbox_deg_3),
-            Poseidon2Columns::Narrow(_) => None,
+            Poseidon2ColType::Wide(cols) => Some(&cols.internal_rounds_sbox),
+            Poseidon2ColType::Narrow(_) => None,
         }
     }
 }
@@ -109,66 +64,29 @@ pub struct Poseidon2MemCols<T> {
     pub is_real: T,
 }
 
-pub const NUM_POSEIDON2_SBOX_COLS: usize = size_of::<Poseidon2SboxCols<u8>>();
-
-/// The column layout for the chip.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2SboxCols<T> {
-    pub(crate) memory: Poseidon2MemCols<T>,
-    pub(crate) external_rounds: [Poseidon2SBoxExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
-    pub(crate) internal_rounds: Poseidon2SBoxInternalRoundsCols<T>,
-}
-
-/// A grouping of columns for a single external round.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub(crate) struct Poseidon2SBoxExternalRoundCols<T> {
-    pub(crate) state: [T; WIDTH],
-    pub(crate) sbox_deg_3: [T; WIDTH],
-}
-
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
-
-/// A grouping of columns for all of the internal rounds.
+/// Columns for the Poseidon2 chip.
+///
 /// As an optimization, we can represent all of the internal rounds without columns for intermediate
 /// states except for the 0th element. This is because the linear layer that comes after the sbox is
 /// degree 1, so all state elements at the end can be expressed as a degree-3 polynomial of:
 /// 1) the 0th state element at rounds prior to the current round
-/// 2) the rest of the state elements at the beginning of the internal rounds
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub(crate) struct Poseidon2SBoxInternalRoundsCols<T> {
-    pub(crate) state: [T; WIDTH],
-    pub(crate) s0: [T; NUM_INTERNAL_ROUNDS - 1],
-    pub(crate) sbox_deg_3: [T; NUM_INTERNAL_ROUNDS],
-}
-
-/// The column layout for the chip.
+/// 2) the rest of the state elements at the beginning of the internal rounds///
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
     pub(crate) memory: Poseidon2MemCols<T>,
-    pub(crate) external_rounds: [Poseidon2ExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
-    pub(crate) internal_rounds: Poseidon2InternalRoundsCols<T>,
+    pub(crate) external_rounds_state: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
+    pub(crate) internal_rounds_state: [T; WIDTH],
+    pub(crate) internal_rounds_s0: [T; NUM_INTERNAL_ROUNDS - 1],
 }
 
-/// A grouping of columns for a single external round.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub(crate) struct Poseidon2ExternalRoundCols<T> {
-    pub(crate) state: [T; WIDTH],
-}
+pub const NUM_POSEIDON2_SBOX_COLS: usize = size_of::<Poseidon2SBoxCols<u8>>();
 
-/// A grouping of columns for all of the internal rounds.
-/// As an optimization, we can represent all of the internal rounds without columns for intermediate
-/// states except for the 0th element. This is because the linear layer that comes after the sbox is
-/// degree 1, so all state elements at the end can be expressed as a degree-3 polynomial of:
-/// 1) the 0th state element at rounds prior to the current round
-/// 2) the rest of the state elements at the beginning of the internal rounds
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-pub(crate) struct Poseidon2InternalRoundsCols<T> {
-    pub(crate) state: [T; WIDTH],
-    pub(crate) s0: [T; NUM_INTERNAL_ROUNDS - 1],
+pub struct Poseidon2SBoxCols<T> {
+    pub(crate) poseidon2_cols: Poseidon2Cols<T>,
+    pub(crate) external_rounds_sbox: [[T; WIDTH]; NUM_EXTERNAL_ROUNDS],
+    pub(crate) internal_rounds_sbox: [T; NUM_INTERNAL_ROUNDS],
 }
