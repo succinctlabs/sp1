@@ -90,14 +90,14 @@ pub fn verify_two_adic_pcs<C: Config>(
                 let index_bits = builder.num2bits_v_circuit(index, 32);
                 let reduced_index_bits = index_bits[bits_reduced..].to_vec();
 
-                // verify_batch::<C, 1>(
-                //     builder,
-                //     batch_commit,
-                //     batch_dims,
-                //     reduced_index_bits,
-                //     batch_opening.opened_values.clone(),
-                //     batch_opening.opening_proof.clone(),
-                // );
+                verify_batch::<C, 1>(
+                    builder,
+                    batch_commit,
+                    batch_dims,
+                    reduced_index_bits,
+                    batch_opening.opened_values.clone(),
+                    batch_opening.opening_proof.clone(),
+                );
                 for (mat_opening, mat) in izip!(batch_opening.opened_values.clone(), mats) {
                     let mat_domain = mat.domain;
                     let mat_points = &mat.points;
