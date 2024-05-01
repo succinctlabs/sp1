@@ -56,11 +56,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         println!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
 
         let use_sbox_3 = DEGREE < 7;
-        let num_columns = if use_sbox_3 {
-            NUM_POSEIDON2_SBOX_COLS
-        } else {
-            NUM_POSEIDON2_COLS
-        };
+        let num_columns = <Self as BaseAir<F>>::width(self);
 
         for event in &input.poseidon2_events {
             let mut row = Vec::new();
@@ -74,7 +70,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 Poseidon2ColType::Narrow(*cols)
             };
 
-            let (poseidon2_cols, mut external_sboxes, internal_sbox) = cols.get_cols_mut();
+            let (poseidon2_cols, mut external_sboxes, mut internal_sbox) = cols.get_cols_mut();
 
             let mut memory = poseidon2_cols.memory;
             memory.timestamp = event.clk;
@@ -108,7 +104,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
             // Apply the internal rounds.
             poseidon2_cols.external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] =
-                populate_internal_rounds(poseidon2_cols, internal_sbox);
+                populate_internal_rounds(poseidon2_cols, &mut internal_sbox);
 
             // Apply the second half of external rounds.
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
@@ -181,8 +177,8 @@ fn populate_external_round<F: PrimeField32>(
             sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * round_state[i];
         }
 
-        if sboxes.is_some() {
-            sboxes.as_mut().unwrap()[r] = sbox_deg_3;
+        if let Some(sbox) = sboxes.as_deref_mut() {
+            sbox[r] = sbox_deg_3;
         }
 
         sbox_deg_7
@@ -195,7 +191,7 @@ fn populate_external_round<F: PrimeField32>(
 
 fn populate_internal_rounds<F: PrimeField32>(
     poseidon2_cols: &mut Poseidon2Cols<F>,
-    sbox: Option<&mut [F; NUM_INTERNAL_ROUNDS]>,
+    sbox: &mut Option<&mut [F; NUM_INTERNAL_ROUNDS]>,
 ) -> [F; WIDTH] {
     let state: &mut [F; WIDTH] = poseidon2_cols.internal_rounds_state.borrow_mut();
     let mut sbox_deg_3: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
@@ -228,7 +224,7 @@ fn populate_internal_rounds<F: PrimeField32>(
 
     let ret_state = *state;
 
-    if let Some(sbox) = sbox {
+    if let Some(sbox) = sbox.as_deref_mut() {
         *sbox = sbox_deg_3;
     }
 
