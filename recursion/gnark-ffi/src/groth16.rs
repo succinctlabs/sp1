@@ -232,7 +232,7 @@ impl Groth16Prover {
             &gnark_dir,
             "build-groth16".to_string(),
             vec![
-                "data".to_string(),
+                "--data".to_string(),
                 cwd.join(build_dir).to_str().unwrap().to_string(),
             ],
         )
@@ -271,7 +271,7 @@ pub fn verify(proof: Groth16Proof, build_dir: PathBuf) -> bool {
         &gnark_dir,
         "verify-groth16".to_string(),
         vec![
-            "data".to_string(),
+            "--data".to_string(),
             data_dir_str.to_string(),
             "--encoded-proof".to_string(),
             proof.encoded_proof.to_string(),
@@ -301,7 +301,7 @@ pub fn convert(proof: Groth16Proof, build_dir: PathBuf) -> SolidityGroth16Proof 
         &gnark_dir,
         "convert-groth16".to_string(),
         vec![
-            "data".to_string(),
+            "--data".to_string(),
             data_dir_str.to_string(),
             "--encoded-proof".to_string(),
             proof.encoded_proof.to_string(),
