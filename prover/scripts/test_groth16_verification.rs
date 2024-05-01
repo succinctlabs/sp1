@@ -18,7 +18,6 @@ struct Args {
 const EXAMPLE_PROOF: &str = include_str!("artifacts/example_proof.json");
 const EXAMPLE_VKEY: &[u8] = include_bytes!("artifacts/example_vk_groth16.bin");
 
-// TODO: Add better testing for verification and conversion.
 pub fn main() {
     sp1_core::utils::setup_logger();
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
@@ -26,7 +25,7 @@ pub fn main() {
     let args = Args::parse();
 
     // Write the example vkey bytes to vk_groth16.bin, which is where the verifier expects the vkey to be.
-    // TODO: Should we just pass in the vkey directly to the gnark verifier?
+    // TODO: If it's easier, we can pass in the vkey as bytes to the gnark ffi verifier.
     let mut file =
         File::create(PathBuf::from(args.build_dir.clone()).join("vk_groth16.bin")).unwrap();
     file.write_all(EXAMPLE_VKEY).unwrap();
