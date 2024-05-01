@@ -273,7 +273,10 @@ where
 
             // Update the reconstruct challenger, cumulative sum, shard number, and program counter.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit);
-            reconstruct_challenger.observe_slice(builder, proof.public_values);
+            for j in 0..SP1_PROOF_NUM_PV_ELTS {
+                let element = builder.get(&proof.public_values, j);
+                reconstruct_challenger.clone().observe(builder, element);
+            }
 
             // Increment the shard count by one.
             builder.assign(current_shard, current_shard + C::F::one());
@@ -996,3 +999,6 @@ where
 //         builder.compile_program()
 //     }
 // }
+
+#[cfg(test)]
+mod tests {}
