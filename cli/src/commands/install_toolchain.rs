@@ -77,7 +77,7 @@ impl InstallToolchainCmd {
         }
 
         // Download the toolchain.
-        let mut file = fs::File::create(&toolchain_archive_path)?;
+        let mut file = fs::File::create(toolchain_archive_path)?;
         rt.block_on(download_file(
             &client,
             toolchain_download_url.as_str(),
@@ -120,7 +120,7 @@ impl InstallToolchainCmd {
             .take(10)
             .map(char::from)
             .collect();
-        let toolchain_dir = root_dir.join("toolchains").join(&random_string);
+        let toolchain_dir = root_dir.join("toolchains").join(random_string);
         fs::rename(&target, &toolchain_dir)?;
 
         // Link the toolchain to rustup.

@@ -1,4 +1,4 @@
-use std::{cmp::min, env, fs::File, io::Write, path::PathBuf, process::Command};
+use std::{cmp::min, fs::File, io::Write, path::PathBuf, process::Command};
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
@@ -77,7 +77,7 @@ pub fn install_circuit_artifacts(
     std::fs::create_dir_all(&build_dir).context("Failed to create build directory.")?;
 
     // Download to a temporary file.
-    let version_num = version.unwrap_or_else(|| match circuit_type {
+    let version_num = version.unwrap_or(match circuit_type {
         WrapCircuitType::Groth16 => GROTH16_CIRCUIT_VERSION,
         WrapCircuitType::Plonk => PLONK_BN254_CIRCUIT_VERSION,
     });

@@ -1,10 +1,8 @@
 use anyhow::{Context, Result};
 use clap::{Parser, ValueEnum};
-use reqwest::Client;
 use sp1_sdk::artifacts::{get_artifacts_dir, install_circuit_artifacts, WrapCircuitType};
-use std::{path::PathBuf, process::Command};
+use std::{path::PathBuf};
 
-use crate::CommandExecutor;
 
 #[derive(Clone, Debug, Copy, ValueEnum)]
 pub enum ClapCircuitType {
@@ -12,9 +10,9 @@ pub enum ClapCircuitType {
     Plonk,
 }
 
-impl Into<WrapCircuitType> for ClapCircuitType {
-    fn into(self) -> WrapCircuitType {
-        match self {
+impl From<ClapCircuitType> for WrapCircuitType {
+    fn from(val: ClapCircuitType) -> Self {
+        match val {
             ClapCircuitType::Groth16 => WrapCircuitType::Groth16,
             ClapCircuitType::Plonk => WrapCircuitType::Plonk,
         }

@@ -64,14 +64,10 @@ pub fn build_groth16_artifacts(build_dir: PathBuf) {
     // Groth16Prover::test(constraints.clone(), witness.clone());
 
     tracing::info!("gnark build");
-    Groth16Prover::build(
-        constraints.clone(),
-        witness.clone(),
-        build_dir.clone().into(),
-    );
+    Groth16Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
 
     tracing::info!("sanity check gnark prove");
-    let groth16_prover = Groth16Prover::new(build_dir.clone().into());
+    let groth16_prover = Groth16Prover::new(build_dir.clone());
 
     tracing::info!("gnark prove");
     groth16_prover.prove(witness.clone());
@@ -84,12 +80,8 @@ pub fn build_plonk_artifacts(build_dir: PathBuf) {
     let (constraints, witness) = build_circuit(wrap_vk, wrapped_proof);
 
     tracing::info!("plonk bn254 build");
-    PlonkBn254Prover::build(
-        constraints.clone(),
-        witness.clone(),
-        build_dir.clone().into(),
-    );
+    PlonkBn254Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
 
     tracing::info!("sanity check plonk bn254 prove");
-    let proof = PlonkBn254Prover::prove(witness.clone(), build_dir.clone().into());
+    PlonkBn254Prover::prove(witness.clone(), build_dir.clone());
 }
