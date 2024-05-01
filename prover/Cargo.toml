@@ -49,5 +49,9 @@ path = "scripts/fibonacci_groth16.rs"
 name = "e2e"
 path = "scripts/e2e.rs"
 
+[[bin]]
+name = "build_groth16"
+path = "scripts/build_groth16.rs"
+
 [features]
 neon = ["sp1-core/neon"]
