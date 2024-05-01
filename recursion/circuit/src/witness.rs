@@ -289,6 +289,12 @@ impl Witnessable<C> for OuterPcsProof {
         self.fri_proof.write(witness);
         println!("after fri proof write {}", witness.size());
         self.query_openings.write(witness);
+        println!("self.query_openings.len {}", self.query_openings.len());
+        self.query_openings.iter().for_each(|opening| {
+            println!("opening len {}", opening.len());
+        });
+
+        // println!("opening len {}", opening.len());
         println!("after query openings write {}", witness.size());
     }
 }
