@@ -14,6 +14,7 @@ import (
 	"github.com/consensys/gnark/test/unsafekzg"
 )
 
+// Build a gnark plonk circuit and write the R1CS, the proving key and the verifier key to a file.
 func BuildPlonkBn254(buildDir string) error {
 	// Load the witness input.
 	witnessInput, err := LoadWitnessInputFromPath(buildDir + "/witness_plonk_bn254.json")
