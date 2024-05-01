@@ -213,7 +213,7 @@ jobs:
           RUST_LOG=info RUST_BACKTRACE=1 RUST_BACKTRACE=1 MAX_RECURSION_PROGRAM_SIZE=1 FRI_QUERIES=1 make groth16
           cd build
           touch build.tar.gz
-          tar -czvf build.tar.gz .
+          tar --exclude=build.tar.gz -czvf build.tar.gz .
 
       - name: Archive build artifact
         id: build_artifact
