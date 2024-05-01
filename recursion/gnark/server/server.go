@@ -24,8 +24,8 @@ type Server struct {
 
 // New creates a new server instance with the R1CS and proving key for the given circuit type and
 // version.
-func New(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (*Server, error) {
-	r1cs, pk, err := LoadCircuit(ctx, dataDir, circuitBucket, circuitType, circuitVersion)
+func New(ctx context.Context, dataDir, circuitType string) (*Server, error) {
+	r1cs, pk, err := LoadCircuit(ctx, dataDir, circuitType)
 	if err != nil {
 		return nil, errors.Wrap(err, "loading circuit")
 	}

@@ -1,7 +1,12 @@
 #![allow(unused_variables)]
+
 use std::path::PathBuf;
 
 use crate::{
+    artifacts::{
+        build_circuit_artifacts, get_artifacts_dir, get_dev_mode, install_circuit_artifacts,
+        WrapCircuitType,
+    },
     Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
     SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
 };
@@ -29,11 +34,28 @@ impl LocalProver {
         Self { prover }
     }
 
-    /// Get artifacts dir from SP1_CIRCUIT_DIR env var.
-    fn get_artifacts_dir(&self) -> PathBuf {
-        let artifacts_dir =
-            std::env::var("SP1_CIRCUIT_DIR").expect("SP1_CIRCUIT_DIR env var not set");
-        PathBuf::from(artifacts_dir)
+    /// Initialize circuit artifacts by installing or building if in dev mode.
+    fn initialize_circuit(&self, circuit_type: WrapCircuitType) -> PathBuf {
+        let is_dev_mode = get_dev_mode();
+        let artifacts_dir = get_artifacts_dir(circuit_type, is_dev_mode);
+
+        if !artifacts_dir.exists() {
+            log::info!("First time initializing circuit artifacts");
+        }
+
+        if is_dev_mode {
+            build_circuit_artifacts(circuit_type, false, Some(artifacts_dir.clone()))
+                .expect("Failed to build circuit artifacts.")
+        } else {
+            install_circuit_artifacts(
+                WrapCircuitType::Groth16,
+                false,
+                Some(artifacts_dir.clone()),
+                None,
+            )
+            .expect("Failed to install circuit artifacts");
+        }
+        artifacts_dir
     }
 }
 
@@ -64,7 +86,7 @@ impl Prover for LocalProver {
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        let artifacts_dir = self.get_artifacts_dir();
+        let artifacts_dir = self.initialize_circuit(WrapCircuitType::Groth16);
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
@@ -80,7 +102,7 @@ impl Prover for LocalProver {
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let artifacts_dir = self.get_artifacts_dir();
+        let artifacts_dir = self.initialize_circuit(WrapCircuitType::Plonk);
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
