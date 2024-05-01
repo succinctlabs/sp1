@@ -317,11 +317,17 @@ impl Witnessable<C> for ShardProof<BabyBearPoseidon2Outer> {
         let permutation_commit: OuterDigest = self.commitment.permutation_commit.into();
         let quotient_commit: OuterDigest = self.commitment.quotient_commit.into();
         main_commit.write(witness);
+        println!("size after main commit: {:?}", witness.size());
         permutation_commit.write(witness);
+        println!("size after perm commit: {:?}", witness.size());
         quotient_commit.write(witness);
+        println!("size after quot commit: {:?}", witness.size());
         self.opened_values.write(witness);
+        println!("size after opened values: {:?}", witness.size());
         self.opening_proof.write(witness);
+        println!("size after opening proof: {:?}", witness.size());
         self.public_values.write(witness);
+        println!("size after public values: {:?}", witness.size());
     }
 }
 
