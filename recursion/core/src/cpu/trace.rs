@@ -28,7 +28,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
         // There are no dependencies, since we do it all in the runtime. This is just a placeholder.
     }
 
-    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
+    #[instrument(name = "generate cpu trace", level = "debug", skip_all, fields(rows = input.cpu_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,

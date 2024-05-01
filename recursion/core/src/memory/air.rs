@@ -7,6 +7,7 @@ use sp1_core::air::{AirInteraction, SP1AirBuilder};
 use sp1_core::lookup::InteractionKind;
 use sp1_core::{air::MachineAir, utils::pad_to_power_of_two};
 use std::borrow::{Borrow, BorrowMut};
+use tracing::instrument;
 
 use super::columns::MemoryInitCols;
 use crate::memory::MemoryChipKind;
@@ -37,7 +38,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
         // This is a no-op.
     }
 
-    #[allow(unused_variables)]
+    #[instrument(name = "generate memory trace", level = "debug", skip_all, fields(first_rows = input.first_memory_record.len(), last_rows = input.last_memory_record.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,

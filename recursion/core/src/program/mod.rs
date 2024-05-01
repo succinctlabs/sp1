@@ -8,6 +8,7 @@ use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
 use sp1_core::utils::pad_to_power_of_two;
 use std::collections::HashMap;
+use tracing::instrument;
 
 use sp1_derive::AlignedBorrow;
 
@@ -92,6 +93,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         // This is a no-op.
     }
 
+    #[instrument(name = "generate program trace", level = "debug", skip_all, fields(rows = input.program.instructions.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,

@@ -94,7 +94,7 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
         // This is a no-op.
     }
 
-    #[instrument(name = "generate fri fold trace", level = "debug", skip_all)]
+    #[instrument(name = "generate fri fold trace", level = "debug", skip_all, fields(rows = input.fri_fold_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
