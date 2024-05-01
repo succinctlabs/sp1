@@ -82,19 +82,19 @@ pub struct SP1RootVerifier<C: Config, SC: StarkGenericConfig, A> {
 pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     pub vk: &'a StarkVerifyingKey<SC>,
     pub machine: &'a StarkMachine<SC, A>,
-    pub shard_proofs: &'a [ShardProof<SC>],
+    pub shard_proofs: &'a Vec<ShardProof<SC>>,
 }
 
 #[derive(DslVariable, Clone)]
 pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
-    vk: VerifyingKeyVariable<C>,
+    pub vk: VerifyingKeyVariable<C>,
 
-    shard_proofs: Array<C, ShardProofVariable<C>>,
-    shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
-    shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
+    pub shard_proofs: Array<C, ShardProofVariable<C>>,
+    pub shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
+    pub shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
 
-    preprocessed_sorted_idxs: Array<C, Var<C::N>>,
-    prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+    pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
+    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 }
 
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>

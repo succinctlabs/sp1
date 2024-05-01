@@ -6,7 +6,8 @@ use p3_fri::FriConfig;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use sp1_core::stark::StarkGenericConfig;
+use sp1_core::air::MachineAir;
+use sp1_core::stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, MemVariable, Var};
@@ -16,7 +17,8 @@ use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::types::FriConfigVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::types::VerifyingKeyVariable;
+use crate::stark::EMPTY;
+use crate::types::{QuotientDataValues, VerifyingKeyVariable};
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
@@ -199,4 +201,51 @@ pub fn hash_vkey<C: Config>(
         builder.set(&mut inputs, g_index, domain.g);
     });
     builder.poseidon2_hash(&inputs)
+}
+
+pub(crate) fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+    machine: &StarkMachine<SC, A>,
+    proof: &ShardProof<SC>,
+) -> Vec<usize> {
+    machine
+        .chips_sorted_indices(proof)
+        .into_iter()
+        .map(|x| match x {
+            Some(x) => x,
+            None => EMPTY,
+        })
+        .collect()
+}
+
+pub(crate) fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+    machine: &StarkMachine<SC, A>,
+    vk: &StarkVerifyingKey<SC>,
+) -> (Vec<usize>, Vec<Dom<SC>>) {
+    let chips = machine.chips();
+    let (prep_sorted_indices, prep_domains) = machine
+        .preprocessed_chip_ids()
+        .into_iter()
+        .map(|chip_idx| {
+            let name = chips[chip_idx].name().clone();
+            let prep_sorted_idx = vk.chip_ordering[&name];
+            (prep_sorted_idx, vk.chip_information[prep_sorted_idx].1)
+        })
+        .unzip();
+    (prep_sorted_indices, prep_domains)
+}
+
+pub(crate) fn get_chip_quotient_data<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
+    machine: &StarkMachine<SC, A>,
+    proof: &ShardProof<SC>,
+) -> Vec<QuotientDataValues> {
+    machine
+        .shard_chips_ordered(&proof.chip_ordering)
+        .map(|chip| {
+            let log_quotient_degree = chip.log_quotient_degree();
+            QuotientDataValues {
+                log_quotient_degree,
+                quotient_size: 1 << log_quotient_degree,
+            }
+        })
+        .collect()
 }
