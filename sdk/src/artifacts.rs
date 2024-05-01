@@ -178,9 +178,10 @@ pub fn build_circuit_artifacts(
     };
     version_file.write_all(
         format!(
-            "sp1 {} circuit {} {}",
+            "sp1 {} circuit {}{} {}",
             env!("VERGEN_GIT_SHA"),
             circuit_type,
+            if is_dev_mode { "_dev" } else { "" },
             version,
         )
         .as_bytes(),
