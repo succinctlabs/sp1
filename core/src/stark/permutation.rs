@@ -2,9 +2,7 @@ use std::borrow::Borrow;
 
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{
-    AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue, Powers, PrimeField,
-};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue, Powers};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
@@ -42,7 +40,7 @@ pub fn populate_batch_and_mult<SC: StarkGenericConfig>(
     sends: &[Interaction<SC::Val>],
     receives: &[Interaction<SC::Val>],
     preprocessed_row: &[PackedVal<SC>],
-    main_row: &[SC::Val],
+    main_row: &[PackedVal<SC>],
     batch_size: usize,
 ) {
     let interaction_chunks = &sends
@@ -65,11 +63,11 @@ pub fn populate_batch_and_mult<SC: StarkGenericConfig>(
                 let (interaction, is_send) = interaction_info;
                 let mut mult = interaction
                     .multiplicity
-                    .apply::<PackedVal<SC>, PackedChallenge<SC>>(preprocessed_row, main_row);
+                    .apply::<PackedVal<SC>, PackedVal<SC>>(preprocessed_row, main_row);
                 if !is_send {
                     mult = -mult;
                 }
-                EF::from_base(mult) * *val
+                PackedChallenge::<SC>::from_base(mult) * *val
             })
             .sum();
     }
@@ -170,10 +168,10 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
                     (0..height)
                         .into_par_iter()
                         .step_by(PackedVal::<SC>::WIDTH)
-                        .map(|r| main.vertically_packed_row(r)),
+                        .map(|r| main.vertically_packed_row::<PackedVal<SC>>(r)),
                 )
                 .for_each(|((row, prep_row), main_row)| {
-                    populate_prepermutation_row(
+                    populate_prepermutation_row::<SC>(
                         row,
                         prep_row.collect::<Vec<_>>().as_slice(),
                         main_row.collect::<Vec<_>>().as_slice(),
@@ -187,12 +185,17 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
         None => {
             prepermutation_trace
                 .par_rows_mut()
-                .zip_eq(main.par_rows_mut())
+                .zip_eq(
+                    (0..height)
+                        .into_par_iter()
+                        .step_by(PackedVal::<SC>::WIDTH)
+                        .map(|r| main.vertically_packed_row(r)),
+                )
                 .for_each(|(row, main_row)| {
-                    populate_prepermutation_row(
+                    populate_prepermutation_row::<SC>(
                         row,
                         &[],
-                        main_row,
+                        main_row.collect::<Vec<_>>().as_slice(),
                         sends,
                         receives,
                         &alphas,
@@ -201,19 +204,72 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
                 });
         }
     }
-    prepermutation_trace
-        .values
+    // Unpack the prepermutation trace values. Since the elements of the trace are extension field elements over a PackedField, and we want to have unpacked extension field elements, we need to turn each extension field element into a vector of packed field elements, then unpack those field elements, and finally turn the unpacked field elements into an unpacked extension field element.
+    let mut unpacked_prepermutation_trace = prepermutation_trace
+        .par_rows()
+        .map(|row| {
+            row.map(|elem| {
+                (0..PackedVal::<SC>::WIDTH)
+                    .map(move |idx_in_packing| {
+                        let unpacked_val =
+                            (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
+                                .map(|coeff_idx| {
+                                    elem.as_base_slice()[coeff_idx].as_slice()[idx_in_packing]
+                                })
+                                .collect::<Vec<_>>();
+                        SC::Challenge::from_base_slice(&unpacked_val)
+                    })
+                    .collect::<Vec<SC::Challenge>>()
+            })
+            .flatten()
+            .collect::<Vec<SC::Challenge>>()
+        })
+        .flatten()
+        .collect::<Vec<SC::Challenge>>();
+
+    println!(
+        "Unpacked length: {}; Needed Length: {}",
+        unpacked_prepermutation_trace.len(),
+        height * prepermutation_trace_width
+    );
+
+    // Compute the inverses of the denominators in the permutation trace.
+    unpacked_prepermutation_trace
         .par_chunks_mut(chunk_rate)
         .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
+    // Repack the permutation trace values.
 
+    prepermutation_trace = RowMajorMatrix::new(
+        (0..unpacked_prepermutation_trace.clone().len())
+            .step_by(PackedVal::<SC>::WIDTH)
+            .map(|col| {
+                PackedChallenge::<SC>::from_base_fn(|i| {
+                    PackedVal::<SC>::from_fn(|offset| {
+                        unpacked_prepermutation_trace[col + offset].as_base_slice()[i]
+                    })
+                })
+            })
+            .collect(),
+        prepermutation_trace_width,
+    );
     match preprocessed {
         Some(prep) => prepermutation_trace
             .par_rows_mut()
-            .zip_eq(prep.par_rows())
-            .zip_eq(main.par_rows())
+            .zip_eq(
+                (0..height)
+                    .into_par_iter()
+                    .step_by(PackedVal::<SC>::WIDTH)
+                    .map(|r| prep.vertically_packed_row::<PackedVal<SC>>(r)),
+            )
+            .zip_eq(
+                (0..height)
+                    .into_par_iter()
+                    .step_by(PackedVal::<SC>::WIDTH)
+                    .map(|r| main.vertically_packed_row::<PackedVal<SC>>(r)),
+            )
             .zip_eq(permutation_trace.par_rows_mut())
             .for_each(|(((row, prep_row), main_row), new_row)| {
-                populate_batch_and_mult(
+                populate_batch_and_mult::<SC>(
                     row,
                     new_row,
                     sends,
@@ -225,10 +281,15 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
             }),
         None => prepermutation_trace
             .par_rows_mut()
-            .zip_eq(main.par_rows())
+            .zip_eq(
+                (0..height)
+                    .into_par_iter()
+                    .step_by(PackedVal::<SC>::WIDTH)
+                    .map(|r| main.vertically_packed_row::<PackedVal<SC>>(r)),
+            )
             .zip_eq(permutation_trace.par_rows_mut())
             .for_each(|((row, main_row), new_row)| {
-                populate_batch_and_mult(
+                populate_batch_and_mult::<SC>(
                     row,
                     new_row,
                     sends,
@@ -240,14 +301,14 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
             }),
     }
 
-    let zero = SC::Challenge::zero();
+    let zero = PackedChallenge::<SC>::zero();
     let cumulative_sums = permutation_trace
         .par_rows_mut()
         .map(|row| {
             row[0..permutation_trace_width - 1]
                 .iter()
                 .copied()
-                .sum::<SC::Challenge>()
+                .sum::<PackedChallenge<SC>>()
         })
         .collect::<Vec<_>>();
 
@@ -263,7 +324,38 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
             *row.last_mut().unwrap() = cumulative_sum;
         });
 
-    permutation_trace
+    println!(
+        "Permutation trace length: {}, Needed Length: {}",
+        permutation_trace.values.len(),
+        height * permutation_trace_width
+    );
+    let unpacked_permutation_trace = permutation_trace
+        .par_rows()
+        .map(|row| {
+            row.map(|elem| {
+                (0..PackedVal::<SC>::WIDTH)
+                    .map(move |idx_in_packing| {
+                        let unpacked_val =
+                            (0..<SC::Challenge as AbstractExtensionField<SC::Val>>::D)
+                                .map(|coeff_idx| {
+                                    elem.as_base_slice()[coeff_idx].as_slice()[idx_in_packing]
+                                })
+                                .collect::<Vec<_>>();
+                        SC::Challenge::from_base_slice(&unpacked_val)
+                    })
+                    .collect::<Vec<SC::Challenge>>()
+            })
+            .flatten()
+            .collect::<Vec<SC::Challenge>>()
+        })
+        .flatten()
+        .collect::<Vec<SC::Challenge>>();
+    println!(
+        "Permutation trace size: {}, Needed Length: {}",
+        unpacked_permutation_trace.len(),
+        height * permutation_trace_width
+    );
+    RowMajorMatrix::new(unpacked_permutation_trace, permutation_trace_width)
 }
 
 /// Evaluates the permutation constraints for the given chip.

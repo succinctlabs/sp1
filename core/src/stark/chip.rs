@@ -1,7 +1,7 @@
 use std::hash::Hash;
 
 use p3_air::{Air, BaseAir, PairBuilder};
-use p3_field::{ExtensionField, Field, PrimeField, PrimeField32};
+use p3_field::{Field, PrimeField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_uni_stark::{get_max_constraint_degree, SymbolicAirBuilder};
 use p3_util::log2_ceil_usize;

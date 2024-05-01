@@ -385,15 +385,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "itertools"
-version = "0.12.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba291022dbbd398a455acf126c1e341954079855bc60dfdda641363bd6922569"
-dependencies = [
- "either",
-]
-
-[[package]]
 name = "itoa"
 version = "1.0.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -526,108 +517,6 @@ name = "once_cell"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3fdb12b2476b595f9358c5161aa467c2438859caa136dec86c26fdd2efe17b92"
-
-[[package]]
-name = "p3-baby-bear"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "num-bigint",
- "p3-field",
- "p3-mds",
- "p3-poseidon2",
- "p3-symmetric",
- "rand",
- "serde",
-]
-
-[[package]]
-name = "p3-dft"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "p3-field",
- "p3-matrix",
- "p3-maybe-rayon",
- "p3-util",
- "tracing",
-]
-
-[[package]]
-name = "p3-field"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "itertools",
- "num-bigint",
- "num-traits",
- "p3-util",
- "rand",
- "serde",
-]
-
-[[package]]
-name = "p3-matrix"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "itertools",
- "p3-field",
- "p3-maybe-rayon",
- "p3-util",
- "rand",
- "serde",
- "tracing",
-]
-
-[[package]]
-name = "p3-maybe-rayon"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-
-[[package]]
-name = "p3-mds"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "itertools",
- "p3-dft",
- "p3-field",
- "p3-matrix",
- "p3-symmetric",
- "p3-util",
- "rand",
-]
-
-[[package]]
-name = "p3-poseidon2"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "gcd",
- "p3-field",
- "p3-mds",
- "p3-symmetric",
- "rand",
-]
-
-[[package]]
-name = "p3-symmetric"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "itertools",
- "p3-field",
- "serde",
-]
-
-[[package]]
-name = "p3-util"
-version = "0.1.0"
-source = "git+https://github.com/Plonky3/Plonky3.git?branch=sp1#aef4f8f03f960925f7088d757aeeb956a7f4b30c"
-dependencies = [
- "serde",
-]
 
 [[package]]
 name = "parity-scale-codec"
@@ -890,18 +779,6 @@ dependencies = [
  "rand",
  "serde",
  "snowbridge-amcl",
-]
-
-[[package]]
-name = "sp1-primitives"
-version = "0.1.0"
-dependencies = [
- "itertools",
- "lazy_static",
- "p3-baby-bear",
- "p3-field",
- "p3-poseidon2",
- "p3-symmetric",
 ]
 
 [[package]]
