@@ -6,9 +6,8 @@ use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
 use sp1_prover::build::{build_groth16_artifacts, build_plonk_artifacts};
 
-pub const GROTH16_CIRCUIT_VERSION: u32 = 1;
-
-pub const PLONK_BN254_CIRCUIT_VERSION: u32 = 1;
+pub const GROTH16_CIRCUIT_VERSION: &str = "nightly";
+pub const PLONK_BN254_CIRCUIT_VERSION: &str = "nightly";
 
 #[derive(Clone, Debug, Copy)]
 pub enum WrapCircuitType {
@@ -25,7 +24,7 @@ impl std::fmt::Display for WrapCircuitType {
     }
 }
 
-const CIRCUIT_ARTIFACTS_URL: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com/";
+const CIRCUIT_ARTIFACTS_URL: &str = "https://github.com/succinctlabs/sp1/releases/download/";
 
 /// Returns the directory where the circuit artifacts are stored. If SP1_CIRCUIT_DIR is set, it
 /// returns that directory. Otherwise, it returns ~/.sp1/circuits/<type>/<version>.
@@ -68,7 +67,7 @@ pub fn install_circuit_artifacts(
     circuit_type: WrapCircuitType,
     overwrite_existing: bool,
     build_dir: Option<PathBuf>,
-    version: Option<u32>,
+    version: Option<&str>,
 ) -> Result<()> {
     let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, false));
 
@@ -92,23 +91,20 @@ pub fn install_circuit_artifacts(
     std::fs::create_dir_all(&build_dir).context("Failed to create build directory.")?;
 
     // Download to a temporary file.
-    let version_num = version.unwrap_or(match circuit_type {
+    let version_str = version.unwrap_or(match circuit_type {
         WrapCircuitType::Groth16 => GROTH16_CIRCUIT_VERSION,
         WrapCircuitType::Plonk => PLONK_BN254_CIRCUIT_VERSION,
     });
     let temp_dir = tempfile::tempdir()?;
-    let temp_file_path = temp_dir
-        .path()
-        .join(format!("{}-{}.tar.gz", circuit_type, version_num));
+    let temp_file_path = temp_dir.path().join(format!("{}.tar.gz", circuit_type));
+
     // Remove file if it exists
     if temp_file_path.exists() {
         std::fs::remove_file(&temp_file_path)?;
     }
     let mut temp_file = File::create(&temp_file_path)?;
-    let download_url = format!(
-        "{}{}/{}.tar.gz",
-        CIRCUIT_ARTIFACTS_URL, circuit_type, version_num
-    );
+    let filename = format!("{}.tar.gz", circuit_type);
+    let download_url = format!("{}{}/{}", CIRCUIT_ARTIFACTS_URL, version_str, filename);
 
     let rt = tokio::runtime::Runtime::new()?;
     let client = Client::builder().build()?;
@@ -171,7 +167,7 @@ pub fn build_circuit_artifacts(
     // Write version file.
     let version_file = build_dir.join("VERSION");
     let mut version_file = File::create(version_file)?;
-    let version = match circuit_type {
+    let version_str = match circuit_type {
         WrapCircuitType::Groth16 => GROTH16_CIRCUIT_VERSION,
         WrapCircuitType::Plonk => PLONK_BN254_CIRCUIT_VERSION,
     };
@@ -181,7 +177,7 @@ pub fn build_circuit_artifacts(
             env!("VERGEN_GIT_SHA"),
             circuit_type,
             if is_dev_mode { "_dev" } else { "" },
-            version,
+            version_str,
         )
         .as_bytes(),
     )?;

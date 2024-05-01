@@ -32,7 +32,7 @@ jobs:
         id: release_info
         run: |
           if [[ $IS_NIGHTLY ]]; then
-            echo "tag_name=nightly-${GITHUB_SHA}" >> $GITHUB_OUTPUT
+            echo "tag_name=nightly" >> $GITHUB_OUTPUT
             echo "release_name=Nightly ($(date '+%Y-%m-%d'))" >> $GITHUB_OUTPUT
           else
             echo "tag_name=${GITHUB_REF_NAME}" >> $GITHUB_OUTPUT
@@ -64,7 +64,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release:
-    name: ${{ matrix.target }} (${{ matrix.runner }})
+    name: Release ${{ matrix.target }} (${{ matrix.runner }})
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 240
     needs: prepare
@@ -156,6 +156,43 @@ jobs:
             ldd "$bin" || true
             $bin --version || true
           done
+
+      - name: Build groth16 and create tarball
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        run: |
+          # Enter the directory and build groth16
+          cd prover
+          RUST_LOG=info RUST_BACKTRACE=1 make groth16
+          cd build
+          pwd
+          ls -al
+
+          # Create the tarball
+          touch build.tar.gz
+          tar --exclude=build.tar.gz -czvf build.tar.gz .
+
+          # Prepare the final tarball name
+          VERSION_NAME="${{ (env.IS_NIGHTLY && 'nightly') || needs.prepare.outputs.tag_name }}"
+          TARGET_TARBALL="groth16.tar.gz"
+
+          # Move the tarball to the GitHub Actions environment directory
+          mv build.tar.gz "${GITHUB_WORKSPACE}/${TARGET_TARBALL}"
+          ls -al "${GITHUB_WORKSPACE}
+
+          # Output the tarball name for use in later steps
+          echo "::set-output name=build_tarball_name::${TARGET_TARBALL}""
+        id: build_artifact
+
+      - name: Upload build artifact to release
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        uses: softprops/action-gh-release@v1
+        with:
+          name: ${{ needs.prepare.outputs.release_name }}
+          tag_name: ${{ needs.prepare.outputs.tag_name }}
+          prerelease: ${{ env.IS_NIGHTLY }}
+          body: ${{ needs.prepare.outputs.changelog }}
+          files: |
+            ${{ steps.build_artifact.outputs.build_tarball_name }}
 
       - name: Archive binaries
         id: artifacts

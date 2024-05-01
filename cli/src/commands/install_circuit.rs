@@ -21,7 +21,7 @@ impl From<ClapCircuitType> for WrapCircuitType {
 #[derive(Parser)]
 #[command(
     name = "install-circuit",
-    about = "Install prebuilt artifacts for the Groth16 or Plonk wrapper circuit."
+    about = "Install prebuilt artifacts for the Groth16 or PlonK wrapper circuit."
 )]
 pub struct InstallCircuitCmd {
     /// The type of circuit to build.
@@ -62,15 +62,16 @@ impl InstallCircuitCmd {
         }
 
         let version = match self.version.as_str() {
-            "latest" => None,
-            _ => Some(
-                self.version
-                    .parse::<u32>()
-                    .context("Failed to parse version number.")?,
-            ),
+            "latest" | "nightly" => None,
+            _ => Some(self.version.clone()),
         };
 
-        install_circuit_artifacts(self.circuit_type.into(), true, Some(build_dir), version)?;
+        install_circuit_artifacts(
+            self.circuit_type.into(),
+            true,
+            Some(build_dir),
+            version.as_deref(),
+        )?;
 
         Ok(())
     }
