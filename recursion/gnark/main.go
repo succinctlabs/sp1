@@ -49,9 +49,7 @@ func main() {
 
 	serveCmd := flag.NewFlagSet("serve", flag.ExitOnError)
 	serveCircuitDataDirFlag := serveCmd.String("data", "", "Data directory path")
-	serveCircuitBucketFlag := serveCmd.String("bucket", "sp1-circuits", "Bucket to download circuit from if it is not in the data directory")
 	serveCircuitTypeFlag := serveCmd.String("type", "", "Type of circuit to download from if it is not in the data directory")
-	serveCircuitVersionFlag := serveCmd.String("version", "", "Version of circuit to download from if it is not in the data directory")
 	servePortFlag := serveCmd.String("port", "8080", "host port to listen on")
 
 	if len(os.Args) < 2 {
@@ -381,34 +379,24 @@ func main() {
 		}
 	case "serve":
 		serveCmd.Parse(os.Args[2:])
-		fmt.Printf("Running 'serve' with data=%s, type=%s, version=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag, *serveCircuitVersionFlag)
+		fmt.Printf("Running 'serve' with data=%s, type=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag)
 		circuitDataDir := *serveCircuitDataDirFlag
-		circuitBucket := *serveCircuitBucketFlag
 		circuitType := *serveCircuitTypeFlag
-		circuitVersion := *serveCircuitVersionFlag
 		serveHostPort := *servePortFlag
 
 		if circuitDataDir == "" {
 			fmt.Println("Error: data directory flag is required")
 			os.Exit(1)
 		}
-		if circuitBucket == "" {
-			fmt.Println("Error: bucket flag is required")
-			os.Exit(1)
-		}
 		if circuitType == "" {
 			fmt.Println("Error: type flag is required")
-			os.Exit(1)
-		}
-		if circuitVersion == "" {
-			fmt.Println("Error: version flag is required")
 			os.Exit(1)
 		}
 		if serveHostPort == "" {
 			fmt.Println("Error: host port flag is required")
 			os.Exit(1)
 		}
-		s, err := server.New(context.Background(), circuitDataDir, circuitBucket, circuitType, circuitVersion)
+		s, err := server.New(context.Background(), circuitDataDir, circuitType)
 		if err != nil {
 			panic(fmt.Errorf("initializing server: %w", err))
 		}
