@@ -117,6 +117,8 @@ where
     ) {
     }
 
+    fn commit_to_public_values() {}
+
     fn verify_shards(
         builder: &mut Builder<C>,
         vk: &VerifyingKeyVariable<C>,
@@ -135,14 +137,70 @@ where
             initial_reconstruct_challenger,
         } = input;
 
+        // Initialize values we will commit to public outputs.
+
+        // Start and end of program counters.
         let initial_pc: Felt<_> = builder.uninit();
         let end_pc: Felt<_> = builder.uninit();
 
-        // Assert that we have at least one proof to verify.
+        // Start and end shard indices.
+        let initial_shard: Felt<_> = builder.uninit();
+        let end_shard: Felt<_> = builder.uninit();
+
+        // Assert that the number of proofs is not zero.
         builder.assert_usize_ne(shard_proofs.len(), 0);
 
+        // Initialize loop variables.
+        let current_shard: Felt<_> = builder.uninit();
+        let reconstruct_challenger: DuplexChallengerVariable<_> =
+            builder.eval(initial_reconstruct_challenger.clone());
+        let cumulative_sum: Ext<_, _> = builder.uninit();
+        // Verify proofs, validate transitions, and update accumulation variables.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             let proof = builder.get(shard_proofs, i);
+
+            // Extract public values.
+            let mut pv_elements = Vec::new();
+            for i in 0..PROOF_MAX_NUM_PVS {
+                let element = builder.get(&proof.public_values, i);
+                pv_elements.push(element);
+            }
+            let public_values = PublicValues::<Word<Felt<_>>, Felt<_>>::from_vec(pv_elements);
+
+            // If this is the first proof in the batch, verify the initial conditions.
+            builder.if_eq(i, C::N::zero()).then(|builder| {
+                // Verify that the shard index corresponds to the initial shard.
+                builder.assert_felt_eq(public_values.shard, initial_shard);
+            });
+
+            // If the shard is zero, verify the global initial conditions hold on challenger and pc.
+            let shard = felt2var(builder, public_values.shard);
+            builder.if_eq(shard, C::N::one()).then(|builder| {
+                // This should be the first proof as well
+                builder.assert_var_eq(i, C::N::zero());
+
+                // Start pc should be vk.pc_start
+                builder.assert_felt_eq(public_values.start_pc, vk.pc_start);
+
+                // Assert that the initial challenger is equal to a fresh challenger observing the
+                // verifier key and the initial pc.
+                let mut first_initial_challenger = DuplexChallengerVariable::new(builder);
+
+                first_initial_challenger.observe(builder, vk.commitment.clone());
+                first_initial_challenger.observe(builder, vk.pc_start);
+
+                // Make sure the start reconstruct challenger is correct, since we will
+                // commit to it in public values.
+                initial_reconstruct_challenger.assert_eq(builder, &first_initial_challenger);
+
+                // // Make sure start reconstruct deferred digest is fully zero.
+                // for j in 0..POSEIDON_NUM_WORDS {
+                //     let element = builder.get(&start_reconstruct_deferred_digest, j);
+                //     builder.assert_felt_eq(element, zero_felt);
+                // }
+            });
+
+            // Verify the shard proof.
         });
     }
 }
