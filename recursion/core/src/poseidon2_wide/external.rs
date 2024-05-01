@@ -55,6 +55,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
         println!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
 
+        assert!(DEGREE > 3, "Minimum supported constraint degree is 3");
         let use_sbox_3 = DEGREE < 7;
         let num_columns = <Self as BaseAir<F>>::width(self);
 
@@ -70,7 +71,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
                 Poseidon2ColType::Narrow(*cols)
             };
 
-            let (poseidon2_cols, mut external_sboxes, mut internal_sbox) = cols.get_cols_mut();
+            let (poseidon2_cols, mut external_sbox, mut internal_sbox) = cols.get_cols_mut();
 
             let mut memory = poseidon2_cols.memory;
             memory.timestamp = event.clk;
@@ -93,7 +94,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
             // Apply the first half of external rounds.
             for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-                let next_state = populate_external_round(poseidon2_cols, &mut external_sboxes, r);
+                let next_state = populate_external_round(poseidon2_cols, &mut external_sbox, r);
 
                 if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
                     poseidon2_cols.internal_rounds_state = next_state;
@@ -108,7 +109,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
             // Apply the second half of external rounds.
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-                let next_state = populate_external_round(poseidon2_cols, &mut external_sboxes, r);
+                let next_state = populate_external_round(poseidon2_cols, &mut external_sbox, r);
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
                     // Do nothing, since we set the cols.output by populating the output records
                     // after this loop.
@@ -147,7 +148,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
 fn populate_external_round<F: PrimeField32>(
     poseidon2_cols: &mut Poseidon2Cols<F>,
-    sboxes: &mut Option<&mut [[F; WIDTH]; NUM_EXTERNAL_ROUNDS]>,
+    sbox: &mut Option<&mut [[F; WIDTH]; NUM_EXTERNAL_ROUNDS]>,
     r: usize,
 ) -> [F; WIDTH] {
     let mut state = {
@@ -177,7 +178,7 @@ fn populate_external_round<F: PrimeField32>(
             sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * round_state[i];
         }
 
-        if let Some(sbox) = sboxes.as_deref_mut() {
+        if let Some(sbox) = sbox.as_deref_mut() {
             sbox[r] = sbox_deg_3;
         }
 
@@ -381,6 +382,7 @@ where
     AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
+        assert!(DEGREE > 3, "Minimum supported constraint degree is 3");
         let use_sbox_3 = DEGREE < 7;
         let main = builder.main();
         let cols = main.row_slice(0);

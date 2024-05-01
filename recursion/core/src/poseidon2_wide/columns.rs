@@ -6,12 +6,15 @@ use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 
 use super::external::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
+/// An enum the encapsulates a wide version of the poseidon2 chip (contains intermediate sbox colunns)
+/// and a narrow version of the poseidon2 chip (doesn't contain intermediate sbox columns).
 pub(crate) enum Poseidon2ColType<T> {
     Wide(Poseidon2SBoxCols<T>),
     Narrow(Poseidon2Cols<T>),
 }
 
 impl<T> Poseidon2ColType<T> {
+    /// Returns mutable references to the poseidon2 columns and optional the intermediate sbox columns.
     #[allow(clippy::type_complexity)]
     pub fn get_cols_mut(
         &mut self,
@@ -30,6 +33,7 @@ impl<T> Poseidon2ColType<T> {
         }
     }
 
+    /// Returns reference to the poseidon2 columns.
     pub fn get_poseidon2_cols(&self) -> &Poseidon2Cols<T> {
         match self {
             Poseidon2ColType::Wide(cols) => &cols.poseidon2_cols,
@@ -37,6 +41,7 @@ impl<T> Poseidon2ColType<T> {
         }
     }
 
+    /// Returns the external sbox columns for the given round.
     pub fn get_external_sbox(&self, round: usize) -> Option<&[T; WIDTH]> {
         match self {
             Poseidon2ColType::Wide(cols) => Some(&cols.external_rounds_sbox[round]),
@@ -44,6 +49,7 @@ impl<T> Poseidon2ColType<T> {
         }
     }
 
+    /// Returns the internal sbox columns.
     pub fn get_internal_sbox(&self) -> Option<&[T; NUM_INTERNAL_ROUNDS]> {
         match self {
             Poseidon2ColType::Wide(cols) => Some(&cols.internal_rounds_sbox),
@@ -52,6 +58,7 @@ impl<T> Poseidon2ColType<T> {
     }
 }
 
+/// Memory columns for Poseidon2.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2MemCols<T> {
@@ -65,13 +72,14 @@ pub struct Poseidon2MemCols<T> {
 }
 
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
-/// Columns for the Poseidon2 chip.
+
+/// Columns for the "narrow" Poseidon2 chip.
 ///
 /// As an optimization, we can represent all of the internal rounds without columns for intermediate
 /// states except for the 0th element. This is because the linear layer that comes after the sbox is
 /// degree 1, so all state elements at the end can be expressed as a degree-3 polynomial of:
 /// 1) the 0th state element at rounds prior to the current round
-/// 2) the rest of the state elements at the beginning of the internal rounds///
+/// 2) the rest of the state elements at the beginning of the internal rounds
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
@@ -83,6 +91,7 @@ pub struct Poseidon2Cols<T> {
 
 pub const NUM_POSEIDON2_SBOX_COLS: usize = size_of::<Poseidon2SBoxCols<u8>>();
 
+/// Columns for the "wide" Poseidon2 chip.
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2SBoxCols<T> {
