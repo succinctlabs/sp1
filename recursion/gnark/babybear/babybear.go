@@ -164,28 +164,6 @@ func (c *Chip) SubE(a, b *ExtensionVariable) *ExtensionVariable {
 	return &ExtensionVariable{Value: [4]*Variable{v1, v2, v3, v4}}
 }
 
-// func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
-// 	w := NewF("11")
-// 	v := [4]*Variable{
-// 		NewF("0"),
-// 		NewF("0"),
-// 		NewF("0"),
-// 		NewF("0"),
-// 	}
-
-// 	for i := 0; i < 4; i++ {
-// 		for j := 0; j < 4; j++ {
-// 			if i+j >= 4 {
-// 				v[i+j-4] = c.AddF(v[i+j-4], c.MulF(c.MulF(a.Value[i], b.Value[j]), w))
-// 			} else {
-// 				v[i+j] = c.AddF(v[i+j], c.MulF(a.Value[i], b.Value[j]))
-// 			}
-// 		}
-// 	}
-
-// 	return &ExtensionVariable{Value: v}
-// }
-
 func (c *Chip) MulE(a, b *ExtensionVariable) *ExtensionVariable {
 	a1 := c.field.Reduce(a.Value[0].Value).Limbs[0]
 	a2 := c.field.Reduce(a.Value[1].Value).Limbs[0]
