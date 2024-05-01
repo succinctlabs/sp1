@@ -365,7 +365,7 @@ func main() {
 
 		proofPath := dataDir + "/solidity_proof.json"
 
-		// Write the proof to file.
+		// Write the Solidity-formatted proof to file.
 		err = os.WriteFile(proofPath, jsonData, 0644)
 		if err != nil {
 			panic(err)
