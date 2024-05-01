@@ -21,6 +21,8 @@
 
 #![allow(clippy::needless_range_loop)]
 
+use std::borrow::Borrow;
+
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -406,7 +408,7 @@ impl ReduceProgram {
                         let element = builder.get(&proof.public_values, i);
                         pv_elements.push(element);
                     }
-                    let pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
+                    let pv: &RecursionPublicValues<Felt<_>> = pv_elements.as_slice().borrow();
 
                     // Verify shard transitions.
                     constrain_shard_transitions(
@@ -543,7 +545,7 @@ impl ReduceProgram {
                     let element = builder.get(&proof.public_values, i);
                     pv_elements.push(element);
                 }
-                let pv = RecursionPublicValues::<Felt<_>>::from_vec(pv_elements);
+                let pv: &RecursionPublicValues<Felt<_>> = pv_elements.as_slice().borrow();
                 builder.assert_felt_eq(pv.is_complete, one_felt);
                 // 2) Ensure recursion vkey is correct
                 for j in 0..DIGEST_SIZE {
