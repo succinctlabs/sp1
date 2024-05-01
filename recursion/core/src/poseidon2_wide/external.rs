@@ -98,7 +98,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        println!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
+        log::debug!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
 
         for event in &input.poseidon2_events {
             let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];

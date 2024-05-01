@@ -30,3 +30,4 @@ serde_with = "3.6.1"
 backtrace = { version = "0.3.71", features = ["serde"] }
 arrayref = "0.3.6"
 static_assertions = "1.1.0"
+log = "0.4.21"
