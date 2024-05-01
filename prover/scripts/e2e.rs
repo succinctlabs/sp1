@@ -67,8 +67,6 @@ pub fn main() {
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
 
-    println!("{:?}", proof);
-
     tracing::info!("gnark cancel");
     groth16_prover.cancel();
 
