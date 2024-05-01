@@ -18,6 +18,7 @@ struct Args {
 const EXAMPLE_PROOF: &str = include_str!("artifacts/example_proof.json");
 const EXAMPLE_VKEY: &[u8] = include_bytes!("artifacts/example_vk_groth16.bin");
 
+/// Test Groth16 verification and conversion to Solidity formatting with the Gnark FFI bindings.
 pub fn main() {
     sp1_core::utils::setup_logger();
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
