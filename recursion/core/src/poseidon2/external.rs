@@ -337,86 +337,99 @@ mod tests {
 
     const ROWS_PER_PERMUTATION: usize = 31;
 
-    // #[test]
-    // fn generate_trace() {
-    //     let chip = Poseidon2Chip;
-    //     let test_inputs = vec![
-    //         [BabyBear::from_canonical_u32(1); WIDTH],
-    //         [BabyBear::from_canonical_u32(2); WIDTH],
-    //         [BabyBear::from_canonical_u32(3); WIDTH],
-    //         [BabyBear::from_canonical_u32(4); WIDTH],
-    //     ];
+    #[test]
+    fn generate_trace() {
+        let chip = Poseidon2Chip;
+        let test_inputs = vec![
+            [BabyBear::from_canonical_u32(1); WIDTH],
+            [BabyBear::from_canonical_u32(2); WIDTH],
+            [BabyBear::from_canonical_u32(3); WIDTH],
+            [BabyBear::from_canonical_u32(4); WIDTH],
+        ];
 
-    //     let gt: Poseidon2<
-    //         BabyBear,
-    //         Poseidon2ExternalMatrixGeneral,
-    //         DiffusionMatrixBabyBear,
-    //         16,
-    //         7,
-    //     > = inner_perm();
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
 
-    //     let expected_outputs = test_inputs
-    //         .iter()
-    //         .map(|input| gt.permute(*input))
-    //         .collect::<Vec<_>>();
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
 
-    //     let mut input_exec = ExecutionRecord::<BabyBear>::default();
-    //     for input in test_inputs.iter().cloned() {
-    //         input_exec
-    //             .poseidon2_events
-    //             .push(Poseidon2Event::dummy_from_input(input));
-    //     }
+        let mut input_exec = ExecutionRecord::<BabyBear>::default();
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs.clone()) {
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input, output));
+        }
 
-    //     let trace: RowMajorMatrix<BabyBear> =
-    //         chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
 
-    //     for (i, expected_output) in expected_outputs.iter().enumerate() {
-    //         let row = trace.row(ROWS_PER_PERMUTATION * (i + 1) - 1).collect_vec();
-    //         let cols: &Poseidon2Cols<BabyBear> = row.as_slice().borrow();
-    //         assert_eq!(expected_output, &cols.output);
-    //     }
-    // }
+        for (i, expected_output) in expected_outputs.iter().enumerate() {
+            let row = trace.row(ROWS_PER_PERMUTATION * (i + 1) - 1).collect_vec();
+            let cols: &Poseidon2Cols<BabyBear> = row.as_slice().borrow();
+            assert_eq!(expected_output, &cols.output);
+        }
+    }
 
-    // #[test]
-    // fn prove_babybear() {
-    //     let config = BabyBearPoseidon2::new();
-    //     let mut challenger = config.challenger();
+    #[test]
+    fn prove_babybear() {
+        let config = BabyBearPoseidon2::new();
+        let mut challenger = config.challenger();
 
-    //     let chip = Poseidon2Chip;
+        let chip = Poseidon2Chip;
 
-    //     let test_inputs = (0..16)
-    //         .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
-    //         .collect_vec();
+        let test_inputs = (0..16)
+            .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
+            .collect_vec();
 
-    //     let mut input_exec = ExecutionRecord::<BabyBear>::default();
-    //     for input in test_inputs.iter().cloned() {
-    //         input_exec
-    //             .poseidon2_events
-    //             .push(Poseidon2Event::dummy_from_input(input));
-    //     }
-    //     let trace: RowMajorMatrix<BabyBear> =
-    //         chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-    //     println!(
-    //         "trace dims is width: {:?}, height: {:?}",
-    //         trace.width(),
-    //         trace.height()
-    //     );
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
 
-    //     let start = Instant::now();
-    //     let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
-    //     let duration = start.elapsed().as_secs_f64();
-    //     println!("proof duration = {:?}", duration);
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
 
-    //     let mut challenger: p3_challenger::DuplexChallenger<
-    //         BabyBear,
-    //         Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
-    //         16,
-    //     > = config.challenger();
-    //     let start = Instant::now();
-    //     uni_stark_verify(&config, &chip, &mut challenger, &proof)
-    //         .expect("expected proof to be valid");
+        let mut input_exec = ExecutionRecord::<BabyBear>::default();
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input, output));
+        }
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        println!(
+            "trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
 
-    //     let duration = start.elapsed().as_secs_f64();
-    //     println!("verify duration = {:?}", duration);
-    // }
+        let start = Instant::now();
+        let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
+        let duration = start.elapsed().as_secs_f64();
+        println!("proof duration = {:?}", duration);
+
+        let mut challenger: p3_challenger::DuplexChallenger<
+            BabyBear,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
+            16,
+        > = config.challenger();
+        let start = Instant::now();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof)
+            .expect("expected proof to be valid");
+
+        let duration = start.elapsed().as_secs_f64();
+        println!("verify duration = {:?}", duration);
+    }
 }
