@@ -495,6 +495,9 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let shard_sorted_indices = Vec::<Vec<usize>>::read(builder);
         let preprocessed_sorted_idxs = Vec::<usize>::read(builder);
         let prep_domains = Vec::<TwoAdicMultiplicativeCoset<InnerVal>>::read(builder);
+        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let initial_reconstruct_challenger =
+            DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
 
         SP1RecursionMemoryLayoutVariable {
             vk,
@@ -503,6 +506,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             shard_sorted_indices,
             preprocessed_sorted_idxs,
             prep_domains,
+            leaf_challenger,
+            initial_reconstruct_challenger,
         }
     }
 
@@ -530,6 +535,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(shard_sorted_indices.write());
         stream.extend(prep_sorted_indices.write());
         stream.extend(prep_domains.write());
+        stream.extend(self.leaf_challenger.write());
+        stream.extend(self.initial_reconstruct_challenger.write());
 
         stream
     }
