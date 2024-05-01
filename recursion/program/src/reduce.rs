@@ -162,7 +162,7 @@ where
 
         // Initialize loop variables.
         let current_shard: Felt<_> = builder.uninit();
-        let reconstruct_challenger: DuplexChallengerVariable<_> =
+        let mut reconstruct_challenger: DuplexChallengerVariable<_> =
             builder.eval(initial_reconstruct_challenger.clone());
         let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
         let current_pc: Felt<_> = builder.uninit();
@@ -271,7 +271,9 @@ where
                 prep_domains.clone(),
             );
 
-            // Update the cumulative sum, shard number, and program counter.
+            // Update the reconstruct challenger, cumulative sum, shard number, and program counter.
+            reconstruct_challenger.observe(builder, proof.commitment.main_commit);
+            reconstruct_challenger.observe_slice(builder, proof.public_values);
 
             // Increment the shard count by one.
             builder.assign(current_shard, current_shard + C::F::one());
