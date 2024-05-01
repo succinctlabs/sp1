@@ -43,6 +43,7 @@ use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
+use sp1_recursion_core::stark::config::OuterDigest;
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_core::{
     air::RecursionPublicValues,
@@ -719,7 +720,9 @@ impl SP1Prover {
 
         let mut witness = Witness::default();
         proof.write(&mut witness);
-        witness.commited_values_digest = committed_values_digest;
+        let vk_commit: OuterDigest = self.wrap_vk.commit.into();
+        vk_commit.write(&mut witness);
+        Witnessable::write(&self.wrap_vk.pc_start, &mut witness);
         witness.vkey_hash = vkey_hash;
 
         let prover = Groth16Prover::new(build_dir);
