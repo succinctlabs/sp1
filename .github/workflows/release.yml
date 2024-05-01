@@ -169,21 +169,29 @@ jobs:
 
       - name: Build groth16 and create tarball
         run: |
+          # Enter the directory and build groth16
           cd prover
           RUST_LOG=info RUST_BACKTRACE=1 SP1_DEV_WRAPPER=true make groth16
           cd build
           pwd
           ls -al
+
+          # Create the tarball excluding any pre-existing tarball
           tar --exclude=build.tar.gz -czvf build.tar.gz .
 
-      - name: Archive build artifact
-        run: |
-          pwd
-          ls -al
+          # Prepare the final tarball name
           VERSION_NAME="${{ (env.IS_NIGHTLY && 'nightly') || needs.prepare.outputs.tag_name }}"
-          mv build/build.tar.gz "groth16_${VERSION_NAME}.tar.gz"
-          echo "::set-output name=build_tarball_name::groth16_${VERSION_NAME}.tar.gz"
-          ls -al
+          TARGET_TARBALL="groth16_${VERSION_NAME}.tar.gz"
+
+          # Move the tarball to the GitHub Actions environment directory
+          mv build.tar.gz "${GITHUB_WORKSPACE}/${TARGET_TARBALL}"
+
+          # Output the tarball name for use in later steps
+          echo "::set-output name=build_tarball_name::${TARGET_TARBALL}"
+
+          # Debug: List the files in the workspace to confirm
+          ls -al "${GITHUB_WORKSPACE}"
+        id: build_artifact
 
       - name: Upload build artifact to release
         uses: softprops/action-gh-release@v1
