@@ -6,7 +6,7 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::utils::pad_rows_fixed;
 use std::collections::HashMap;
 use tracing::instrument;
 
@@ -63,7 +63,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             Ok(value) => value.parse().unwrap(),
             Err(_) => std::cmp::min(524288, program.instructions.len()),
         };
-        let rows = program.instructions[0..max_program_size]
+        let mut rows = program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, instruction)| {
@@ -77,16 +77,18 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             })
             .collect::<Vec<_>>();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_PREPROCESSED_COLS,
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
+            Some(19),
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
-
-        Some(trace)
+        // Convert the trace to a row major matrix.
+        Some(RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_PROGRAM_PREPROCESSED_COLS,
+        ))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
@@ -114,7 +116,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             Ok(value) => value.parse().unwrap(),
             Err(_) => std::cmp::min(524288, input.program.instructions.len()),
         };
-        let rows = input.program.instructions[0..max_program_size]
+        let mut rows = input.program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -127,16 +129,14 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two.
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], Some(19));
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_PROGRAM_MULT_COLS,
-        );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_MULT_COLS, F>(&mut trace.values);
-
-        trace
+        )
     }
 
     fn included(&self, _: &Self::Record) -> bool {
