@@ -208,18 +208,15 @@ fn assert_complete<C: Config>(
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) {
     let RecursionPublicValues {
-        committed_value_digest,
         deferred_proofs_digest,
         start_pc,
         next_pc,
         start_shard,
-        next_shard,
         leaf_challenger,
         end_reconstruct_challenger,
-        cumulative_sum: _,
+        cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
-        exit_code,
         ..
     } = public_values;
     // Assert that the start pc is equal to the start pc of the verifier key.
@@ -254,45 +251,10 @@ fn assert_complete<C: Config>(
         builder.assert_felt_eq(*end_digest_word, *deferred_digest_word);
     }
 
-    // TODO: Assert that the cumulative sum is zero.
-    // for b in cumulative_sum.iter() {
-    //     builder.assert_felt_eq(*b, C::F::zero());
-    // }
-
-    // The reconstruct challenger should have the same state as the leaf challenger.
-
-    //                 // 1) Proof begins at shard == 1.
-
-    //                 // 4) reconstruct_challenger has been fully reconstructed.
-    //                 //    a) start_reconstruct_challenger == challenger after observing vk and pc_start.
-    //                 let mut expected_challenger = DuplexChallengerVariable::new(builder);
-    //                 expected_challenger.observe(builder, sp1_vk.commitment.clone());
-    //                 expected_challenger.observe(builder, sp1_vk.pc_start);
-    //                 start_reconstruct_challenger.assert_eq(builder, &expected_challenger);
-    //                 //    b) end_reconstruct_challenger == verify_start_challenger.
-    //                 reconstruct_challenger.assert_eq(builder, &verify_start_challenger);
-
-    //                 // 5) reconstruct_deferred_digest has been fully reconstructed.
-    //                 //    a) start_reconstruct_deferred_digest == 0.
-    //                 for j in 0..DIGEST_SIZE {
-    //                     let element = builder.get(&start_reconstruct_deferred_digest, j);
-    //                     builder.assert_felt_eq(element, zero_felt);
-    //                 }
-    //                 //    b) end_reconstruct_deferred_digest == deferred_proofs_digest.
-    //                 for j in 0..DIGEST_SIZE {
-    //                     let element = builder.get(&reconstruct_deferred_digest, j);
-    //                     let global_element = builder.get(&global_deferred_proofs_digest, j);
-    //                     builder.assert_felt_eq(element, global_element);
-    //                 }
-
-    //                 // 6) Verify that the cumulative sum is zero.
-    //                 let zero_ext: Ext<_, _> = builder.eval(EF::zero().cons());
-    //                 builder.assert_ext_eq(global_cumulative_sum, zero_ext);
-    //             },
-    //             // Ensure is_complete is boolean.
-    //             |builder| {
-    //                 builder.assert_var_eq(is_complete, zero);
-    //             },
+    // Assert that the cumulative sum is zero.
+    for b in cumulative_sum.iter() {
+        builder.assert_felt_eq(*b, C::F::zero());
+    }
 }
 
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
@@ -537,6 +499,12 @@ where
         recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
         recursion_public_values.exit_code = zero;
         recursion_public_values.is_complete = is_complete_felt;
+
+        // If the proof represents a complete proof (only happends when there is only one shard),
+        // then we nned to check the completeness assertions.
+        builder
+            .if_eq(is_complete, C::N::one())
+            .then(|builder| assert_complete(builder, &vk, recursion_public_values));
 
         let mut recursion_public_values_array =
             builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
