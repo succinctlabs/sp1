@@ -7,14 +7,14 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/babybear_v2"
 	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
 )
 
 type Circuit struct {
 	Vars                 []frontend.Variable
-	Felts                []*babybear.Variable
-	Exts                 []*babybear.ExtensionVariable
+	Felts                []babybear_v2.Variable
+	Exts                 []babybear_v2.ExtensionVariable
 	VkeyHash             frontend.Variable `gnark:",public"`
 	CommitedValuesDigest frontend.Variable `gnark:",public"`
 }
@@ -65,10 +65,10 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	}
 
 	hashAPI := poseidon2.NewChip(api)
-	fieldAPI := babybear.NewChip(api)
+	fieldAPI := babybear_v2.NewChip(api)
 	vars := make(map[string]frontend.Variable)
-	felts := make(map[string]*babybear.Variable)
-	exts := make(map[string]*babybear.ExtensionVariable)
+	felts := make(map[string]babybear_v2.Variable)
+	exts := make(map[string]babybear_v2.ExtensionVariable)
 
 	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
@@ -76,9 +76,9 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		case "ImmV":
 			vars[cs.Args[0][0]] = frontend.Variable(cs.Args[1][0])
 		case "ImmF":
-			felts[cs.Args[0][0]] = babybear.NewF(cs.Args[1][0])
+			felts[cs.Args[0][0]] = babybear_v2.NewF(cs.Args[1][0])
 		case "ImmE":
-			exts[cs.Args[0][0]] = babybear.NewE(cs.Args[1])
+			exts[cs.Args[0][0]] = babybear_v2.NewE(cs.Args[1])
 		case "AddV":
 			vars[cs.Args[0][0]] = api.Add(vars[cs.Args[1][0]], vars[cs.Args[2][0]])
 		case "AddF":
@@ -93,12 +93,16 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			felts[cs.Args[0][0]] = fieldAPI.SubF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "SubE":
 			exts[cs.Args[0][0]] = fieldAPI.SubE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "SubEF":
+			exts[cs.Args[0][0]] = fieldAPI.SubEF(exts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "MulV":
 			vars[cs.Args[0][0]] = api.Mul(vars[cs.Args[1][0]], vars[cs.Args[2][0]])
 		case "MulF":
 			felts[cs.Args[0][0]] = fieldAPI.MulF(felts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "MulE":
 			exts[cs.Args[0][0]] = fieldAPI.MulE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
+		case "MulEF":
+			exts[cs.Args[0][0]] = fieldAPI.MulEF(exts[cs.Args[1][0]], felts[cs.Args[2][0]])
 		case "DivE":
 			exts[cs.Args[0][0]] = fieldAPI.DivE(exts[cs.Args[1][0]], exts[cs.Args[2][0]])
 		case "NegE":
@@ -139,15 +143,20 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		case "AssertEqV":
 			api.AssertIsEqual(vars[cs.Args[0][0]], vars[cs.Args[1][0]])
 		case "AssertEqF":
-			fieldAPI.AssertIsEqualV(felts[cs.Args[0][0]], felts[cs.Args[1][0]])
+			fieldAPI.AssertIsEqualF(felts[cs.Args[0][0]], felts[cs.Args[1][0]])
 		case "AssertEqE":
 			fieldAPI.AssertIsEqualE(exts[cs.Args[0][0]], exts[cs.Args[1][0]])
 		case "PrintV":
 			api.Println(vars[cs.Args[0][0]])
 		case "PrintF":
-			fieldAPI.PrintF(felts[cs.Args[0][0]])
+			f := felts[cs.Args[0][0]]
+			api.Println(f.Value)
 		case "PrintE":
-			fieldAPI.PrintE(exts[cs.Args[0][0]])
+			e := exts[cs.Args[0][0]]
+			api.Println(e.Value[0].Value)
+			api.Println(e.Value[1].Value)
+			api.Println(e.Value[2].Value)
+			api.Println(e.Value[3].Value)
 		case "WitnessV":
 			i, err := strconv.Atoi(cs.Args[1][0])
 			if err != nil {
@@ -173,7 +182,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			element := vars[cs.Args[0][0]]
 			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
 		case "CircuitFelts2Ext":
-			exts[cs.Args[0][0]] = babybear.Felts2Ext(felts[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]], felts[cs.Args[4][0]])
+			exts[cs.Args[0][0]] = babybear_v2.Felts2Ext(felts[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]], felts[cs.Args[4][0]])
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}

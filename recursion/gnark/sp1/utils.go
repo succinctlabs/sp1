@@ -5,7 +5,7 @@ import (
 	"os"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/babybear_v2"
 )
 
 func LoadWitnessInputFromPath(path string) (WitnessInput, error) {
@@ -28,16 +28,16 @@ func LoadWitnessInputFromPath(path string) (WitnessInput, error) {
 func NewCircuitFromWitness(witnessInput WitnessInput) Circuit {
 	// Load the vars, felts, and exts from the witness input.
 	vars := make([]frontend.Variable, len(witnessInput.Vars))
-	felts := make([]*babybear.Variable, len(witnessInput.Felts))
-	exts := make([]*babybear.ExtensionVariable, len(witnessInput.Exts))
+	felts := make([]babybear_v2.Variable, len(witnessInput.Felts))
+	exts := make([]babybear_v2.ExtensionVariable, len(witnessInput.Exts))
 	for i := 0; i < len(witnessInput.Vars); i++ {
 		vars[i] = frontend.Variable(witnessInput.Vars[i])
 	}
 	for i := 0; i < len(witnessInput.Felts); i++ {
-		felts[i] = babybear.NewF(witnessInput.Felts[i])
+		felts[i] = babybear_v2.NewF(witnessInput.Felts[i])
 	}
 	for i := 0; i < len(witnessInput.Exts); i++ {
-		exts[i] = babybear.NewE(witnessInput.Exts[i])
+		exts[i] = babybear_v2.NewE(witnessInput.Exts[i])
 	}
 
 	// Initialize the circuit.
