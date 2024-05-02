@@ -133,7 +133,7 @@ mod tests {
         let vkey_hash = builder.eval(vkey_hash_bn254);
         let commited_values_digest = builder.eval(commited_values_digest_bn254);
         builder.commit_vkey_hash_circuit(vkey_hash);
-        builder.read_commited_values_digest_circuit(commited_values_digest);
+        builder.commit_commited_values_digest_circuit(commited_values_digest);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
@@ -154,7 +154,7 @@ mod tests {
         let vkey_hash = builder.eval(vkey_hash_bn254);
         let commited_values_digest = builder.eval(commited_values_digest_bn254);
         builder.commit_vkey_hash_circuit(vkey_hash);
-        builder.read_commited_values_digest_circuit(commited_values_digest);
+        builder.commit_commited_values_digest_circuit(commited_values_digest);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
@@ -174,7 +174,7 @@ mod tests {
         let vkey_hash = builder.eval(vkey_hash_bn254);
         let commited_values_digest = builder.eval(commited_values_digest_bn254);
         builder.commit_vkey_hash_circuit(vkey_hash);
-        builder.read_commited_values_digest_circuit(commited_values_digest);
+        builder.commit_commited_values_digest_circuit(commited_values_digest);
 
         let mut backend = ConstraintCompiler::<OuterConfig>::default();
         let constraints = backend.emit(builder.operations);
