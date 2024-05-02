@@ -9,7 +9,7 @@ use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::{RC_16_30, RC_16_30_U32};
+use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -177,7 +177,7 @@ impl Poseidon2Chip {
         let rounds = rounds_f + rounds_p;
 
         // Convert the u32 round constants to field elements.
-        let constants: [[AB::F; WIDTH]; 21] = RC_16_30_U32
+        let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
             .iter()
             .map(|round| round.map(AB::F::from_wrapped_u32))
             .collect::<Vec<_>>()
