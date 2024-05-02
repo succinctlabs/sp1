@@ -258,6 +258,9 @@ func (p *Chip) ReduceFast(x Variable) Variable {
 }
 
 func (p *Chip) ReduceSlow(x Variable) Variable {
+	if x.NbBits == 31 {
+		return x
+	}
 	return Variable{
 		Value:  p.ReduceWithMaxBits(x.Value, uint64(x.NbBits)),
 		NbBits: 31,

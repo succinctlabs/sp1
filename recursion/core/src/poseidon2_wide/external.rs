@@ -100,8 +100,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        println!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
-
         for event in &input.poseidon2_events {
             let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];
             let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
