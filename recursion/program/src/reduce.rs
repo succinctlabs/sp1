@@ -93,6 +93,7 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub leaf_challenger: &'a SC::Challenger,
     pub initial_reconstruct_challenger: SC::Challenger,
+    pub is_complete: bool,
 }
 
 /// The different types of programs that can be verified by the `SP1ReduceVerifier`.
@@ -118,6 +119,8 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
 
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
+
+    pub is_complete: Var<C::N>,
 }
 
 /// An input layout for the reduce verifier.
@@ -229,6 +232,7 @@ where
             prep_domains,
             leaf_challenger,
             initial_reconstruct_challenger,
+            is_complete,
         } = input;
 
         // Initialize values we will commit to public outputs.
@@ -410,6 +414,13 @@ where
         let recursion_public_values: &mut RecursionPublicValues<_> =
             recursion_public_values_stream.as_mut_slice().borrow_mut();
 
+        let zero: Felt<_> = builder.eval(C::F::zero());
+
+        let start_deferred_digest = [zero; POSEIDON_NUM_WORDS];
+        let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];
+
+        let is_complete_felt = var2felt(builder, is_complete);
+
         recursion_public_values.committed_value_digest = committed_value_digest;
         recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
         recursion_public_values.start_pc = start_pc;
@@ -421,10 +432,10 @@ where
         recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
         recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;
         recursion_public_values.cumulative_sum = cumulative_sum_arrray;
-        recursion_public_values.start_reconstruct_deferred_digest = deferred_proofs_digest;
-        recursion_public_values.end_reconstruct_deferred_digest = deferred_proofs_digest;
-        recursion_public_values.exit_code = builder.eval(C::F::zero());
-        recursion_public_values.is_complete = builder.eval(C::F::zero());
+        recursion_public_values.start_reconstruct_deferred_digest = start_deferred_digest;
+        recursion_public_values.end_reconstruct_deferred_digest = end_deferred_digest;
+        recursion_public_values.exit_code = zero;
+        recursion_public_values.is_complete = is_complete_felt;
 
         let mut recursion_public_values_array =
             builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
@@ -1136,6 +1147,7 @@ mod tests {
         let mut reconstruct_challenger = machine.config().challenger();
         vk.observe_into(&mut reconstruct_challenger);
 
+        let is_complete = proof.shard_proofs.len() == 1;
         for batch in proof.shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
@@ -1145,6 +1157,7 @@ mod tests {
                 shard_proofs: proofs,
                 leaf_challenger: &leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
+                is_complete,
             });
 
             for proof in batch.iter() {

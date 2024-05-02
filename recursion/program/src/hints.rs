@@ -498,6 +498,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
         let initial_reconstruct_challenger =
             DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let is_complete = builder.hint_var();
 
         SP1RecursionMemoryLayoutVariable {
             vk,
@@ -508,6 +509,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             prep_domains,
             leaf_challenger,
             initial_reconstruct_challenger,
+            is_complete,
         }
     }
 
@@ -537,6 +539,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(prep_domains.write());
         stream.extend(self.leaf_challenger.write());
         stream.extend(self.initial_reconstruct_challenger.write());
+        stream.extend((self.is_complete as usize).write());
 
         stream
     }
