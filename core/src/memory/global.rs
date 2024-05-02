@@ -87,7 +87,7 @@ impl<F: PrimeField> MachineAir<F> for MemoryChip {
             NUM_MEMORY_INIT_COLS,
         );
 
-        pad_to_power_of_two::<F>(NUM_MEMORY_INIT_COLS, &mut trace.values);
+        pad_to_power_of_two::<NUM_MEMORY_INIT_COLS, F>(&mut trace.values);
 
         trace
     }

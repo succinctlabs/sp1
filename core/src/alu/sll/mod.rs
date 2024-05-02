@@ -178,7 +178,7 @@ impl<F: PrimeField> MachineAir<F> for ShiftLeft {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<F>(NUM_SHIFT_LEFT_COLS, &mut trace.values);
+        pad_to_power_of_two::<NUM_SHIFT_LEFT_COLS, F>(&mut trace.values);
 
         // Create the template for the padded rows. These are fake rows that don't fail on some
         // sanity checks.

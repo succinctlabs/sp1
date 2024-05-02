@@ -104,7 +104,7 @@ impl<F: PrimeField> MachineAir<F> for BitwiseChip {
         );
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<F>(NUM_BITWISE_COLS, &mut trace.values);
+        pad_to_power_of_two::<NUM_BITWISE_COLS, F>(&mut trace.values);
 
         trace
     }

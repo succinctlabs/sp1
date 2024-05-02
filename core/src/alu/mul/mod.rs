@@ -259,7 +259,7 @@ impl<F: PrimeField> MachineAir<F> for MulChip {
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_MUL_COLS);
 
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<F>(NUM_MUL_COLS, &mut trace.values);
+        pad_to_power_of_two::<NUM_MUL_COLS, F>(&mut trace.values);
 
         trace
     }

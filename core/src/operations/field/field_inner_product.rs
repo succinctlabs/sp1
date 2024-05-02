@@ -241,7 +241,7 @@ mod tests {
             );
 
             // Pad the trace to a power of two.
-            pad_to_power_of_two::<F>(NUM_TEST_COLS, &mut trace.values);
+            pad_to_power_of_two::<NUM_TEST_COLS, F>(&mut trace.values);
 
             trace
         }
