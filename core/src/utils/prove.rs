@@ -431,11 +431,17 @@ pub mod baby_bear_poseidon2 {
         }
     }
 
+    enum BabyBearPoseidon2Type {
+        Default,
+        Compressed,
+    }
+
     #[derive(Deserialize)]
     #[serde(from = "std::marker::PhantomData<BabyBearPoseidon2>")]
     pub struct BabyBearPoseidon2 {
         pub perm: Perm,
         pcs: Pcs,
+        config_type: BabyBearPoseidon2Type,
     }
 
     impl BabyBearPoseidon2 {
@@ -447,7 +453,11 @@ pub mod baby_bear_poseidon2 {
             let dft = Dft {};
             let fri_config = default_fri_config();
             let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
-            Self { pcs, perm }
+            Self {
+                pcs,
+                perm,
+                config_type: BabyBearPoseidon2Type::Default,
+            }
         }
 
         pub fn compressed() -> Self {
@@ -458,13 +468,20 @@ pub mod baby_bear_poseidon2 {
             let dft = Dft {};
             let fri_config = compressed_fri_config();
             let pcs = Pcs::new(27, dft, val_mmcs, fri_config);
-            Self { pcs, perm }
+            Self {
+                pcs,
+                perm,
+                config_type: BabyBearPoseidon2Type::Compressed,
+            }
         }
     }
 
     impl Clone for BabyBearPoseidon2 {
         fn clone(&self) -> Self {
-            Self::new()
+            match self.config_type {
+                BabyBearPoseidon2Type::Default => Self::new(),
+                BabyBearPoseidon2Type::Compressed => Self::compressed(),
+            }
         }
     }
 
