@@ -10,17 +10,16 @@ use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
 
-use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
+use crate::air::{MachineAir, SP1AirBuilder};
 use crate::bytes::event::ByteRecord;
-use crate::memory::{MemoryCols, MemoryReadWriteCols};
+use crate::memory::MemoryCols;
 use crate::memory::{MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::{Limbs, NumLimbs};
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
-use crate::syscall::precompiles::{uint256, SyscallContext};
+use crate::syscall::precompiles::SyscallContext;
 use crate::utils::ec::uint256::U256Field;
 use crate::utils::{
     bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
@@ -31,13 +30,9 @@ use crate::utils::{
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
 
 /// The number of limbs it takes to represent a U256.
-///
-/// Note: this differs from what's in U256Field because we need 33 limbs to encode the modulus.
 const NUM_PHYSICAL_LIMBS: usize = 32;
 
 /// The number of words it takes to represent a U256.
-///
-/// Note: this differs from what's in U256Field because we need 33 limbs to encode the modulus.
 const NUM_PHYSICAL_WORDS: usize = NUM_PHYSICAL_LIMBS / 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -49,9 +44,9 @@ pub struct Uint256MulEvent {
     pub y_ptr: u32,
     pub y: Vec<u32>,
     pub modulus: Vec<u32>,
-    pub x_memory_records: [MemoryWriteRecord; NUM_PHYSICAL_WORDS],
-    pub y_memory_records: [MemoryReadRecord; NUM_PHYSICAL_WORDS],
-    pub modulus_memory_records: [MemoryReadRecord; NUM_PHYSICAL_WORDS],
+    pub x_memory_records: Vec<MemoryWriteRecord>,
+    pub y_memory_records: Vec<MemoryReadRecord>,
+    pub modulus_memory_records: Vec<MemoryReadRecord>,
 }
 
 #[derive(Default)]
@@ -76,16 +71,16 @@ pub struct Uint256MulCols<T> {
     /// The pointer to the first input.
     pub x_ptr: T,
 
-    /// The pointer to the second input, which is 16 words of (y, modulus).
+    /// The pointer to the second input, which contains the y value and the modulus.
     pub y_ptr: T,
 
     // Memory columns.
-    // We read from x, we write the result to x as well.
+    // x_memory is written to with the result, which is why it is of type MemoryWriteCols.
     pub x_memory: [MemoryWriteCols<T>; NUM_PHYSICAL_WORDS],
     pub y_memory: [MemoryReadCols<T>; NUM_PHYSICAL_WORDS],
     pub modulus_memory: [MemoryReadCols<T>; NUM_PHYSICAL_WORDS],
 
-    // Output values.
+    // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
 
     pub is_real: T,
@@ -123,21 +118,18 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
                         let modulus =
                             BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.modulus));
-                        // Assign basic values to the columns.
 
+                        // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
-                        // Memory columns.
                         // Populate memory columns.
                         for i in 0..NUM_PHYSICAL_WORDS {
-                            // Populate the input_x columns.
                             cols.x_memory[i]
                                 .populate(event.x_memory_records[i], &mut new_byte_lookup_events);
-                            // Populate the input_y columns.
                             cols.y_memory[i]
                                 .populate(event.y_memory_records[i], &mut new_byte_lookup_events);
                             cols.modulus_memory[i].populate(
@@ -211,11 +203,8 @@ impl Syscall for Uint256MulChip {
 
         let x = rt.slice_unsafe(x_ptr, 8);
 
-        let (y_memory_records_vec, y) = rt.mr_slice(y_ptr, 8);
-        let y_memory_records = y_memory_records_vec.try_into().unwrap();
-
-        let (modulus_memory_records_vec, modulus) = rt.mr_slice(y_ptr + 8 * 4, 8);
-        let modulus_memory_records = modulus_memory_records_vec.try_into().unwrap();
+        let (y_memory_records, y) = rt.mr_slice(y_ptr, 8);
+        let (modulus_memory_records, modulus) = rt.mr_slice(y_ptr + 8 * 4, 8);
 
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
         let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
@@ -279,6 +268,7 @@ where
             &x_limbs,
             &y_limbs,
             &modulus_limbs,
+            FieldOperation::Mul,
             local.shard,
             local.is_real,
         );

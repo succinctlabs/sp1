@@ -245,13 +245,14 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         a: &(impl Into<Polynomial<AB::Expr>> + Clone),
         b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        op: FieldOperation,
         shard: impl Into<AB::Expr> + Clone,
         is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
     {
-        self.eval_core::<AB>(builder, a, b, modulus, FieldOperation::Mul, shard, is_real);
+        self.eval_core::<AB>(builder, a, b, modulus, op, shard, is_real);
     }
 }
 
