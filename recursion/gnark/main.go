@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 	"github.com/succinctlabs/sp1-recursion-gnark/server"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
@@ -73,13 +72,13 @@ func main() {
 		circuit := sp1.NewCircuitFromWitness(witnessInput)
 
 		// Compile the circuit.
-		p := profile.Start(profile.WithPath("sp1.pprof"))
+		// p := profile.Start(profile.WithPath("sp1.pprof"))
 		builder := r1cs.NewBuilder
 		r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 		if err != nil {
 			panic(err)
 		}
-		p.Stop()
+		// p.Stop()
 		fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
 		// Run the trusted setup.
