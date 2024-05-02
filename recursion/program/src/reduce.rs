@@ -64,6 +64,7 @@ use crate::utils::{
     const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt,
 };
 
+/// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
 pub struct SP1RecursiveVerifier<C: Config, SC: StarkGenericConfig> {
     _phantom: std::marker::PhantomData<(C, SC)>,
@@ -74,6 +75,7 @@ pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig> {
     _phantom: std::marker::PhantomData<(C, SC)>,
 }
 
+/// A program to verify a batch of recursive proofs and aggregate their public values.
 #[derive(Debug, Clone, Copy)]
 pub struct SP1ReduceVerifier<C: Config, SC: StarkGenericConfig, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
@@ -103,7 +105,7 @@ pub enum ReduceProgramType {
     Reduce,
 }
 
-/// A program for verifying a reduce program proved with `sp1_core::air::MachineAir` type `A`.
+/// An input layout for the reduce verifier.
 pub struct SP1ReduceMemoryLayout<
     'a,
     CoreSC: StarkGenericConfig,
