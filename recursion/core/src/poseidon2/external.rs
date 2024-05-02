@@ -292,8 +292,10 @@ impl Poseidon2Chip {
         builder.assert_eq(local.is_initial, local.rounds[0]);
 
         // Constrain the external flag.
-        let is_external_first_half = (0..4).map(|i| local.rounds[i + 1].into()).sum::<AB::Expr>();
-        let is_external_second_half = (17..21)
+        let is_external_first_half = (0..rounds_f / 2)
+            .map(|i| local.rounds[i + 1].into())
+            .sum::<AB::Expr>();
+        let is_external_second_half = ((rounds_f / 2 + rounds_p)..(rounds_f + rounds_p))
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(
