@@ -292,13 +292,13 @@ where
                         .last()
                         .copied()
                         .unwrap();
-                    if chip.name() == "CPU" {
-                        for i in 0..3 {
-                            for j in 0..3 {
-                                println!("Row {}, Col {}: {}", i, j, perm_trace.get(i, j));
-                            }
-                        }
-                    }
+                    // if chip.name() == "CPU" {
+                    //     for i in 0..3 {
+                    //         for j in 0..3 {
+                    //             println!("Row {}, Col {}: {}", i, j, perm_trace.get(i, j));
+                    //         }
+                    //     }
+                    // }
                     (perm_trace, cumulative_sum)
                 })
                 .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
