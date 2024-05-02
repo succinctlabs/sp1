@@ -6,7 +6,7 @@ use crate::witness::Witnessable;
 use p3_air::Air;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::TwoAdicField;
+use p3_field::{AbstractField, TwoAdicField};
 use sp1_core::stark::{Com, ShardProof};
 use sp1_core::{
     air::MachineAir,
@@ -256,6 +256,15 @@ pub fn build_wrap_circuit(
     let pc_start = builder.eval(template_vk.pc_start);
     challenger.observe(&mut builder, pc_start);
 
+    let mut witness = Witness::default();
+    template_proof.write(&mut witness);
+    let proof = template_proof.read(&mut builder);
+
+    let commited_values_digest = Bn254Fr::zero().read(&mut builder);
+    builder.commit_commited_values_digest_circuit(commited_values_digest);
+    let vkey_hash = Bn254Fr::zero().read(&mut builder);
+    builder.commit_vkey_hash_circuit(vkey_hash);
+
     if !dev_mode {
         let chips = outer_machine
             .shard_chips_ordered(&template_proof.chip_ordering)
@@ -284,10 +293,6 @@ pub fn build_wrap_circuit(
                 }
             })
             .collect();
-
-        let mut witness = Witness::default();
-        template_proof.write(&mut witness);
-        let proof = template_proof.read(&mut builder);
 
         let ShardCommitment { main_commit, .. } = &proof.commitment;
         challenger.observe_commitment(&mut builder, *main_commit);
