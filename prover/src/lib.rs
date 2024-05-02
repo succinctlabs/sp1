@@ -493,11 +493,7 @@ impl SP1Prover {
         ) = get_preprocessed_data(&self.compress_machine, &self.compress_vk);
         let deferred_sorted_indices: Vec<Vec<usize>> = deferred_proofs
             .iter()
-            .map(|proof| {
-                let indices = get_sorted_indices(&self.reduce_machine, proof);
-                println!("indices = {:?}", indices);
-                indices
-            })
+            .map(|proof| get_sorted_indices(&self.reduce_machine, proof))
             .collect();
         let deferred_chip_quotient_data: Vec<Vec<QuotientDataValues>> = deferred_proofs
             .iter()
