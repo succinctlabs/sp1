@@ -212,9 +212,9 @@ impl SP1Prover {
         }
     }
 
-    /// Reduce shards proofs to a single shard proof using the recursion prover.
-    #[instrument(name = "reduce", level = "info", skip_all)]
-    pub fn reduce(
+    /// Compress shards proofs to a single shard proof using the recursion prover.
+    #[instrument(name = "compress", level = "info", skip_all)]
+    pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
@@ -606,9 +606,9 @@ impl SP1Prover {
         SP1ReduceProof { proof }
     }
 
-    /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
-    #[instrument(name = "compress", level = "info", skip_all)]
-    pub fn compress(
+    /// Shrink a compressed proof into a STARK proven over a SNARK-friendly field.
+    #[instrument(name = "shrink", level = "info", skip_all)]
+    pub fn shrink(
         &self,
         vk: &SP1VerifyingKey,
         reduced_proof: SP1ReduceProof<InnerSC>,
@@ -775,7 +775,7 @@ mod tests {
         core_proof.verify(&vk).unwrap();
 
         tracing::info!("reduce");
-        let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
+        let reduced_proof = prover.compress(&vk, core_proof, vec![]);
 
         tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, reduced_proof);
@@ -811,7 +811,7 @@ mod tests {
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
         let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
-        let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
+        let pv_1 = deferred_proof_1.public_values.as_slice().to_vec().clone();
         println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
         let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32]
             .iter()
@@ -827,7 +827,7 @@ mod tests {
         stdin.write(&vec![2, 3, 4]);
         stdin.write(&vec![5, 6, 7]);
         let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
-        let pv_2 = deferred_proof_2.public_values.buffer.data.clone();
+        let pv_2 = deferred_proof_2.public_values.as_slice().to_vec().clone();
         println!("proof 2 pv: {:?}", hex::encode(pv_2.clone()));
         let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32]
             .iter()
@@ -837,11 +837,11 @@ mod tests {
 
         // Generate recursive proof of first subproof
         println!("reduce subproof 1");
-        let deferred_reduce_1 = prover.reduce(&keccak_vk, deferred_proof_1, vec![]);
+        let deferred_reduce_1 = prover.compress(&keccak_vk, deferred_proof_1, vec![]);
 
         // Generate recursive proof of second subproof
         println!("reduce subproof 2");
-        let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
+        let deferred_reduce_2 = prover.compress(&keccak_vk, deferred_proof_2, vec![]);
 
         // Run verify program with keccak vkey, subproofs, and their committed values
         let mut stdin = SP1Stdin::new();
@@ -869,7 +869,7 @@ mod tests {
 
         // Generate recursive proof of verify program
         println!("proving verify program (recursion)");
-        let verify_reduce = prover.reduce(
+        let verify_reduce = prover.compress(
             &verify_vk,
             verify_proof.clone(),
             vec![

@@ -71,7 +71,7 @@ fn main() {
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
 
         let recursion_proving_start = Instant::now();
-        let _ = prover.reduce(&vk, proof, vec![]);
+        let _ = prover.compress(&vk, proof, vec![]);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
 
         lines.push(format!(

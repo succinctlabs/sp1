@@ -68,7 +68,7 @@ fn main() {
 
         tracing::info!("proving inner");
         let recursion_proving_start = Instant::now();
-        let _ = prover.reduce(&vk, proof, vec![]);
+        let _ = prover.compress(&vk, proof, vec![]);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
         tracing::info!("recursion_proving_duration={}", recursion_proving_duration);
     }

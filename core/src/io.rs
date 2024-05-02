@@ -20,8 +20,7 @@ pub struct SP1Stdin {
 /// Public values for the prover.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SP1PublicValues {
-    // TODO: fix
-    pub buffer: Buffer,
+    buffer: Buffer,
 }
 
 impl SP1Stdin {
@@ -97,6 +96,14 @@ impl SP1PublicValues {
         }
     }
 
+    pub fn as_slice(&self) -> &[u8] {
+        self.buffer.data.as_slice()
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.buffer.data.clone()
+    }
+
     /// Read a value from the buffer.    
     pub fn read<T: Serialize + DeserializeOwned>(&mut self) -> T {
         self.buffer.read()
@@ -115,10 +122,6 @@ impl SP1PublicValues {
     /// Write a slice of bytes to the buffer.
     pub fn write_slice(&mut self, slice: &[u8]) {
         self.buffer.write_slice(slice);
-    }
-
-    pub fn to_vec(self) -> Vec<u8> {
-        self.buffer.data
     }
 }
 

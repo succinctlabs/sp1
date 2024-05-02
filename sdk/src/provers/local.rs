@@ -78,7 +78,7 @@ impl Prover for LocalProver {
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
-        let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
+        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
         Ok(SP1CompressedProof {
             proof: reduce_proof.proof,
             stdin,
@@ -92,8 +92,8 @@ impl Prover for LocalProver {
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
-        let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
-        let compress_proof = self.prover.compress(&pk.vk, reduce_proof);
+        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
+        let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
         let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
         let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
         Ok(SP1ProofWithMetadata {
@@ -109,8 +109,8 @@ impl Prover for LocalProver {
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
-        let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
-        let compress_proof = self.prover.compress(&pk.vk, reduce_proof);
+        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
+        let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
         let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
         let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
         Ok(SP1ProofWithMetadata {
@@ -122,7 +122,7 @@ impl Prover for LocalProver {
 
     fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
-        let pv_digest: [u8; 32] = Sha256::digest(&proof.public_values.buffer.data).into();
+        let pv_digest: [u8; 32] = Sha256::digest(proof.public_values.as_slice()).into();
         if pv_digest != *pv.commit_digest_bytes() {
             return Err(anyhow::anyhow!("Public values digest mismatch"));
         }
