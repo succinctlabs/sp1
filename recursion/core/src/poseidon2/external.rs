@@ -33,7 +33,7 @@ pub struct Poseidon2Chip {
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
     pub input: [T; WIDTH],
-    pub rounds: [T; 31],
+    pub rounds: [T; 22],
     pub add_rc: [T; WIDTH],
     pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
@@ -65,7 +65,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         let mut rows = Vec::new();
 
         let rounds_f = 8;
-        let rounds_p = 22;
+        let rounds_p = 13;
         let rounds = rounds_f + rounds_p + 1;
         let rounds_p_beginning = 1 + rounds_f / 2;
         let p_end = rounds_p_beginning + rounds_p;
