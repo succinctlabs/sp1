@@ -102,12 +102,6 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             .chain(once(RecursionAir::Multi(MultiChip {
                 fixed_log2_rows: Some(20),
             })))
-            // .chain(once(RecursionAir::Poseidon2Skinny(Poseidon2Chip {
-            //     fixed_log2_rows: Some(20),
-            // })))
-            // .chain(once(RecursionAir::FriFold(FriFoldChip {
-            //     fixed_log2_rows: Some(16),
-            // })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()
     }
