@@ -116,6 +116,10 @@ impl SP1PublicValues {
     pub fn write_slice(&mut self, slice: &[u8]) {
         self.buffer.write_slice(slice);
     }
+
+    pub fn to_vec(self) -> Vec<u8> {
+        self.buffer.data
+    }
 }
 
 impl AsRef<[u8]> for SP1PublicValues {
