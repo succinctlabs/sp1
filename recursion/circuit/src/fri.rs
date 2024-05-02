@@ -180,7 +180,7 @@ pub fn verify_query<C: Config>(
     let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
         log_max_height,
     )));
-    let index_bits = builder.num2bits_v_circuit(index, 256);
+    let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
     let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 

@@ -96,6 +96,9 @@ func (c *Chip) MulFConst(a Variable, b int) Variable {
 }
 
 func (c *Chip) NegF(a Variable) Variable {
+	if a.NbBits == 31 {
+		return Variable{Value: c.api.Sub(MODULUS, a.Value), NbBits: 31}
+	}
 	negOne := NewF("2013265920")
 	return c.MulF(a, negOne)
 }
