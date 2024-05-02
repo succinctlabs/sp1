@@ -27,6 +27,7 @@ use std::marker::PhantomData;
 use std::ptr::hash;
 
 use itertools::Itertools;
+use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
@@ -55,7 +56,7 @@ use crate::fri::types::DigestVariable;
 use crate::fri::TwoAdicFriPcsVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
-use crate::stark::StarkVerifier;
+use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
 use crate::types::{QuotientData, QuotientDataValues, VerifyingKeyVariable};
 use crate::types::{Sha256DigestVariable, ShardProofVariable};
 use crate::utils::{
@@ -74,8 +75,8 @@ pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SP1ReduceVerifier<C: Config, SC: StarkGenericConfig> {
-    _phantom: std::marker::PhantomData<(C, SC)>,
+pub struct SP1ReduceVerifier<C: Config, SC: StarkGenericConfig, A> {
+    _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
 /// The program that gets a final verifier at the root of the tree.
@@ -102,6 +103,7 @@ pub enum ReduceProgramType {
     Reduce,
 }
 
+/// A program for verifying a reduce program proved with `sp1_core::air::MachineAir` type `A`.
 pub struct SP1ReduceMemoryLayout<
     'a,
     CoreSC: StarkGenericConfig,
@@ -169,7 +171,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     }
 }
 
-impl<C: Config, SC: StarkGenericConfig> SP1ReduceVerifier<C, SC>
+impl<C: Config, SC, A> SP1ReduceVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
     SC: StarkGenericConfig<
@@ -177,8 +179,16 @@ where
         Challenge = C::EF,
         Domain = TwoAdicMultiplicativeCoset<C::F>,
     >,
+    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
+    fn verify(
+        builder: &mut Builder<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        machine: &StarkMachine<SC, A>,
+        input: SP1ReduceMemoryLayoutVariable<C>,
+    ) {
+    }
 }
 
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
@@ -204,7 +214,7 @@ where
             shard_sorted_indices,
             preprocessed_sorted_idxs,
             prep_domains,
-            mut leaf_challenger,
+            leaf_challenger,
             initial_reconstruct_challenger,
         } = input;
 
