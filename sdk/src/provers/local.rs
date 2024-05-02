@@ -2,6 +2,15 @@
 
 use std::path::PathBuf;
 
+
+use anyhow::Result;
+use sha2::{Digest, Sha256};
+use sp1_core::{
+    air::PublicValues,
+    stark::{MachineProof, StarkGenericConfig},
+};
+use sp1_prover::{SP1Prover, SP1Stdin};
+
 use crate::{
     artifacts::{
         build_circuit_artifacts, get_artifacts_dir, get_dev_mode, install_circuit_artifacts,
@@ -11,13 +20,6 @@ use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithMetadata,
     SP1ProvingKey, SP1VerifyingKey,
 };
-use anyhow::Result;
-use sha2::{Digest, Sha256};
-use sp1_core::{
-    air::PublicValues,
-    stark::{MachineProof, StarkGenericConfig},
-};
-use sp1_prover::{SP1Prover, SP1Stdin};
 
 pub struct LocalProver {
     pub(crate) prover: SP1Prover,

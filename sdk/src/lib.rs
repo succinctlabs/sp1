@@ -18,7 +18,7 @@ pub mod client;
 pub mod provers;
 pub mod utils;
 
-use std::{env, fs::File, path::Path};
+use std::{env, fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
 use provers::{LocalProver, MockProver, NetworkProver, Prover};
@@ -34,6 +34,28 @@ pub struct ProverClient {
     pub prover: Box<dyn Prover>,
 }
 
+/// A proof of executing a RISC-V ELF with the given public values.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(serialize = "P: Serialize + Debug + Clone"))]
+#[serde(bound(deserialize = "P: DeserializeOwned + Debug + Clone"))]
+pub struct SP1ProofWithMetadata<P> {
+    pub proof: P,
+    pub stdin: SP1Stdin,
+    pub public_values: SP1PublicValues,
+}
+
+/// A [SP1ProofWithMetadata] generated with [ProverClient::prove].
+pub type SP1Proof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
+
+/// A [SP1ProofWithMetadata] generated with [ProverClient::prove_compressed].
+pub type SP1CompressedProof = SP1ProofWithMetadata<ShardProof<InnerSC>>;
+
+/// A [SP1ProofWithMetadata] generated with [ProverClient::prove_groth16].
+pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
+
+/// A [SP1ProofWithMetadata] generated with [ProverClient::prove_plonk].
+pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
+
 impl ProverClient {
     /// Creates a new [ProverClient].
     ///
@@ -47,6 +69,7 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::ProverClient;
     ///
+    /// std::env::set_var("SP1_PROVER", "local");
     /// let client = ProverClient::new();
     /// ```
     pub fn new() -> Self {
@@ -92,7 +115,7 @@ impl ProverClient {
     /// // Execute the program on the inputs.
     /// let public_values = client.execute(elf, stdin).unwrap();
     /// ```
-    pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
+    pub fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
         Ok(SP1Prover::execute(elf, &stdin))
     }
 
@@ -356,25 +379,7 @@ impl Default for ProverClient {
     }
 }
 
-#[derive(Serialize, Deserialize)]
-pub struct ProofStatistics {
-    pub cycle_count: u64,
-    pub cost: u64,
-    pub total_time: u64,
-    pub latency: u64,
-}
-
-/// A proof of a RISCV ELF execution with given inputs and outputs.
-#[derive(Serialize, Deserialize)]
-#[serde(bound(serialize = "P: Serialize"))]
-#[serde(bound(deserialize = "P: DeserializeOwned"))]
-pub struct SP1ProofWithMetadata<P> {
-    pub proof: P,
-    pub stdin: SP1Stdin,
-    pub public_values: SP1PublicValues,
-}
-
-impl<P: Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
+impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         bincode::serialize_into(File::create(path).expect("failed to open file"), self)
             .map_err(Into::into)
@@ -385,19 +390,3 @@ impl<P: Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
             .map_err(Into::into)
     }
 }
-
-impl<P: std::fmt::Debug> std::fmt::Debug for SP1ProofWithMetadata<P> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SP1ProofWithMetadata")
-            .field("proof", &self.proof)
-            .finish()
-    }
-}
-
-pub type SP1Proof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
-
-pub type SP1CompressedProof = SP1ProofWithMetadata<ShardProof<InnerSC>>;
-
-pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
-
-pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;

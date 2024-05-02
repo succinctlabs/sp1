@@ -10,6 +10,7 @@ use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 
 use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
 
+/// An implementation of [crate::ProverClient].
 pub trait Prover: Send + Sync {
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
