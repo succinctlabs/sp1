@@ -74,7 +74,7 @@ pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SP1ReudceVerifier<C: Config, SC: StarkGenericConfig> {
+pub struct SP1ReduceVerifier<C: Config, SC: StarkGenericConfig> {
     _phantom: std::marker::PhantomData<(C, SC)>,
 }
 
@@ -90,6 +90,40 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub leaf_challenger: &'a SC::Challenger,
     pub initial_reconstruct_challenger: SC::Challenger,
+}
+
+/// The different types of programs that can be verified by the `SP1ReduceVerifier`.
+pub enum ReduceProgramType {
+    /// A batch of proofs that are all SP1 Core proofs.
+    Core,
+    /// A batch of proofs that are all deferred proofs.
+    Deferred,
+    /// A batch of proofs that are reduce proofs of a higher level in the recursion tree.
+    Reduce,
+}
+
+pub struct SP1ReduceMemoryLayout<
+    'a,
+    CoreSC: StarkGenericConfig,
+    SC: StarkGenericConfig,
+    A: MachineAir<SC::Val>,
+> {
+    pub core_vk: &'a StarkVerifyingKey<CoreSC>,
+    // TODO:
+    // pub deferred_vk : &'a StarkVerifyingKey<SC>,
+    pub reduce_vk: &'a StarkVerifyingKey<SC>,
+    pub machine: &'a StarkMachine<SC, A>,
+    pub shard_proofs: Vec<ShardProof<SC>>,
+    /// A type to represent the kind of program we are verifying.
+    pub kind: ReduceProgramType,
+}
+
+#[derive(DslVariable, Clone)]
+pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
+    pub core_vk: VerifyingKeyVariable<C>,
+    pub reduce_vk: VerifyingKeyVariable<C>,
+    pub shard_proofs: Array<C, ShardProofVariable<C>>,
+    pub kind: Var<C::N>,
 }
 
 #[derive(DslVariable, Clone)]
@@ -135,6 +169,18 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     }
 }
 
+impl<C: Config, SC: StarkGenericConfig> SP1ReduceVerifier<C, SC>
+where
+    C::F: PrimeField32 + TwoAdicField,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
+    Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
+{
+}
+
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
@@ -145,12 +191,6 @@ where
     >,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
-    fn verify_public_values(
-        builder: &mut Builder<C>,
-        public_values: &PublicValues<Word<Felt<C::F>>, Felt<C::F>>,
-    ) {
-    }
-
     fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
@@ -182,7 +222,7 @@ where
         // same for all proofs.
         let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
             array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
-        let mut deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
+        let deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             array::from_fn(|_| builder.uninit());
 
         // Assert that the number of proofs is not zero.
@@ -288,12 +328,14 @@ where
             // Verify the shard proof.
             let chip_quotient_data = builder.get(&shard_chip_quotient_data, i);
             let chip_sorted_idxs = builder.get(&shard_sorted_indices, i);
+
+            let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
                 pcs,
                 machine,
-                &mut leaf_challenger,
+                &mut challenger,
                 &proof,
                 chip_quotient_data,
                 chip_sorted_idxs,
@@ -351,7 +393,7 @@ where
         recursion_public_values.next_pc = end_pc;
         recursion_public_values.start_shard = initial_shard;
         recursion_public_values.next_shard = end_shard;
-        recursion_public_values.vk_digest = vk_digest;
+        recursion_public_values.sp1_vk_digest = vk_digest;
         recursion_public_values.leaf_challenger = leaf_challenger_public_values;
         recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
         recursion_public_values.end_reconstruct_challenger = final_challenger_public_values;

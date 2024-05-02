@@ -107,7 +107,7 @@ pub struct RecursionPublicValues<T> {
     pub end_reconstruct_deferred_digest: [T; POSEIDON_NUM_WORDS],
 
     /// The commitment to the sp1 program being proven.
-    pub vk_digest: [T; DIGEST_SIZE],
+    pub sp1_vk_digest: [T; DIGEST_SIZE],
 
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
