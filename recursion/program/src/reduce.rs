@@ -33,12 +33,14 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use sp1_core::air::{MachineAir, PublicValues, SP1_PROOF_NUM_PV_ELTS, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
+use sp1_core::runtime::Program;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::stark::{StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_core::utils::baby_bear_poseidon2::{compressed_fri_config, default_fri_config};
 use sp1_core::utils::sp1_fri_config;
 use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
 use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
 use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
@@ -85,9 +87,9 @@ pub struct SP1RootVerifier<C: Config, SC: StarkGenericConfig, A> {
 pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     pub vk: &'a StarkVerifyingKey<SC>,
     pub machine: &'a StarkMachine<SC, A>,
-    pub shard_proofs: &'a Vec<ShardProof<SC>>,
+    pub shard_proofs: Vec<ShardProof<SC>>,
     pub leaf_challenger: &'a SC::Challenger,
-    pub initial_reconstruct_challenger: &'a SC::Challenger,
+    pub initial_reconstruct_challenger: SC::Challenger,
 }
 
 #[derive(DslVariable, Clone)]
@@ -105,6 +107,8 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
 }
 
+impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {}
+
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
     C::F: PrimeField32 + TwoAdicField,
@@ -121,7 +125,7 @@ where
     ) {
     }
 
-    fn verify_shards(
+    fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
@@ -1001,4 +1005,126 @@ where
 // }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+
+    use p3_challenger::CanObserve;
+    use sp1_core::{
+        io::SP1Stdin,
+        stark::{Challenge, LocalProver, ProgramVerificationError},
+    };
+    use sp1_recursion_core::runtime::Runtime;
+
+    use super::*;
+
+    fn test_sp1_recursive_machine_verify(program: Program, batch_size: usize) {
+        type SC = BabyBearPoseidon2;
+        type F = BabyBear;
+        type EF = Challenge<SC>;
+
+        sp1_core::utils::setup_logger();
+        // let elf =
+        //     include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+
+        let machine = RiscvAir::machine(SC::default());
+        let (_, vk) = machine.setup(&program);
+        let mut challenger = machine.config().challenger();
+        let (proof, _) = sp1_core::utils::run_and_prove(program, &SP1Stdin::new(), SC::default());
+        machine.verify(&vk, &proof, &mut challenger).unwrap();
+        tracing::info!("Proof generated successfully");
+
+        // Get the and leaf challenger.
+        let mut leaf_challenger = machine.config().challenger();
+        vk.observe_into(&mut leaf_challenger);
+        proof.shard_proofs.iter().for_each(|proof| {
+            leaf_challenger.observe(proof.commitment.main_commit);
+            leaf_challenger.observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
+        });
+        // Make sure leaf challenger is not mutable anymore.
+        let leaf_challenger = leaf_challenger;
+
+        let mut layouts = Vec::new();
+
+        let mut reconstruct_challenger = machine.config().challenger();
+        vk.observe_into(&mut reconstruct_challenger);
+
+        for batch in proof.shard_proofs.chunks(batch_size) {
+            let proofs = batch.to_vec();
+
+            layouts.push(SP1RecursionMemoryLayout {
+                vk: &vk,
+                machine: &machine,
+                shard_proofs: proofs,
+                leaf_challenger: &leaf_challenger,
+                initial_reconstruct_challenger: reconstruct_challenger.clone(),
+            });
+
+            for proof in batch.iter() {
+                reconstruct_challenger.observe(proof.commitment.main_commit);
+                reconstruct_challenger
+                    .observe_slice(&proof.public_values[0..machine.num_pv_elts()]);
+            }
+        }
+
+        // Construct the recursion program and hint the layouts.
+        let mut builder = Builder::<InnerConfig>::default();
+        let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
+        SP1RecursionMemoryLayout::<SC, RiscvAir<_>>::witness(&input, &mut builder);
+
+        let pcs = TwoAdicFriPcsVariable {
+            config: const_fri_config(&mut builder, default_fri_config()),
+        };
+        SP1RecursiveVerifier::verify(&mut builder, &pcs, &machine, input);
+
+        let recursive_program = builder.compile_program();
+
+        // Run the recursion programs.
+
+        let mut records = Vec::new();
+
+        for layout in layouts {
+            let mut runtime =
+                Runtime::<F, EF, _>::new(&recursive_program, machine.config().perm.clone());
+
+            let mut witness_stream = Vec::new();
+            witness_stream.extend(layout.write());
+
+            runtime.witness_stream = witness_stream.into();
+            runtime.run();
+            runtime.print_stats();
+
+            records.push(runtime.record);
+        }
+
+        // Prove all recursion programs and verify the recursive proofs.
+
+        let recursive_machine = RecursionAirWideDeg3::machine(SC::default());
+        let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
+
+        for record in records {
+            let mut recursive_challenger = recursive_machine.config().challenger();
+            let rec_proof = recursive_machine.prove::<LocalProver<_, _>>(
+                &rec_pk,
+                record,
+                &mut recursive_challenger,
+            );
+
+            let mut recursive_challenger = recursive_machine.config().challenger();
+            let result = recursive_machine.verify(&rec_vk, &rec_proof, &mut recursive_challenger);
+
+            match result {
+                Ok(_) => tracing::info!("Proof verified successfully"),
+                Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+                    tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+                }
+                e => panic!("Proof verification failed: {:?}", e),
+            }
+        }
+    }
+
+    #[test]
+    fn test_sp1_recursive_machine_verify_fibonacci() {
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        test_sp1_recursive_machine_verify(Program::from(elf), 1)
+    }
+}
