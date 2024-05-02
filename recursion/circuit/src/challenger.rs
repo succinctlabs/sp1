@@ -102,7 +102,7 @@ impl<C: Config> MultiField32ChallengerVariable<C> {
         let b = self.sample(builder);
         let c = self.sample(builder);
         let d = self.sample(builder);
-        builder.ext_from_base_slice(&[a, b, c, d])
+        builder.felts2ext(&[a, b, c, d])
     }
 
     pub fn sample_bits(&mut self, builder: &mut Builder<C>, bits: usize) -> Var<C::N> {

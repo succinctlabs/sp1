@@ -6,7 +6,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
@@ -25,7 +25,7 @@ pub const WIDTH: usize = 16;
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
 pub struct Poseidon2Chip {
-    fixed_trace_log2: Option<usize>,
+    pub fixed_log2_rows: Option<usize>,
 }
 
 /// The column layout for the chip.
@@ -33,7 +33,7 @@ pub struct Poseidon2Chip {
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
     pub input: [T; WIDTH],
-    pub rounds: [T; 31],
+    pub rounds: [T; 22],
     pub add_rc: [T; WIDTH],
     pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
@@ -65,7 +65,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         let mut rows = Vec::new();
 
         let rounds_f = 8;
-        let rounds_p = 22;
+        let rounds_p = 13;
         let rounds = rounds_f + rounds_p + 1;
         let rounds_p_beginning = 1 + rounds_f / 2;
         let p_end = rounds_p_beginning + rounds_p;
@@ -145,7 +145,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_POSEIDON2_COLS],
-            self.fixed_trace_log2,
+            self.fixed_log2_rows,
         );
 
         // Convert the trace to a row major matrix.
@@ -166,17 +166,14 @@ impl<F> BaseAir<F> for Poseidon2Chip {
     }
 }
 
-impl<AB> Air<AB> for Poseidon2Chip
-where
-    AB: SP1AirBuilder,
-{
-    fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local = main.row_slice(0);
-        let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
-
+impl Poseidon2Chip {
+    pub fn eval_poseidon2<AB: BaseAirBuilder + ExtensionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Poseidon2Cols<AB::Var>,
+    ) {
         let rounds_f = 8;
-        let rounds_p = 22;
+        let rounds_p = 13;
         let rounds = rounds_f + rounds_p;
 
         // Convert the u32 round constants to field elements.
@@ -295,8 +292,10 @@ where
         builder.assert_eq(local.is_initial, local.rounds[0]);
 
         // Constrain the external flag.
-        let is_external_first_half = (0..4).map(|i| local.rounds[i + 1].into()).sum::<AB::Expr>();
-        let is_external_second_half = (26..30)
+        let is_external_first_half = (0..rounds_f / 2)
+            .map(|i| local.rounds[i + 1].into())
+            .sum::<AB::Expr>();
+        let is_external_second_half = ((rounds_f / 2 + rounds_p)..(rounds_f + rounds_p))
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(
@@ -305,10 +304,22 @@ where
         );
 
         // Constrain the internal flag.
-        let is_internal = (4..26)
+        let is_internal = (4..17)
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
+    }
+}
+
+impl<AB> Air<AB> for Poseidon2Chip
+where
+    AB: SP1AirBuilder,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
+        self.eval_poseidon2::<AB>(builder, local);
     }
 }
 
@@ -344,7 +355,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let chip = Poseidon2Chip {
-            fixed_trace_log2: None,
+            fixed_log2_rows: None,
         };
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
@@ -389,7 +400,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let chip = Poseidon2Chip {
-            fixed_trace_log2: None,
+            fixed_log2_rows: None,
         };
 
         let test_inputs = (0..16)

@@ -71,19 +71,17 @@ pub fn build_groth16_artifacts(build_dir: PathBuf) {
     let (wrap_vk, wrapped_proof) = dummy_proof();
     let (constraints, witness) = build_circuit(wrap_vk, wrapped_proof);
 
-    // tracing::info!("sanity check gnark test");
-    // Groth16Prover::test(constraints.clone(), witness.clone());
+    tracing::info!("sanity check gnark test");
+    Groth16Prover::test(constraints.clone(), witness.clone());
 
     mkdirs(&build_dir);
 
     tracing::info!("gnark build");
     Groth16Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
 
-    // tracing::info!("sanity check gnark prove");
-    // let groth16_prover = Groth16Prover::new(build_dir.clone());
-
-    // tracing::info!("gnark prove");
-    // groth16_prover.prove(witness.clone());
+    tracing::info!("gnark prove");
+    let groth16_prover = Groth16Prover::new(build_dir.clone());
+    groth16_prover.prove(witness.clone());
 }
 
 /// Build the plonk circuit artifacts.

@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::poseidon2::external::WIDTH;
-mod external;
+pub mod external;
 use crate::air::Block;
 use crate::memory::MemoryRecord;
 use p3_field::PrimeField32;

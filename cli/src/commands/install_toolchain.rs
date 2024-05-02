@@ -11,9 +11,7 @@ use std::process::Command;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::{
-    get_target, get_toolchain_download_url, url_exists, CommandExecutor, RUSTUP_TOOLCHAIN_NAME,
-};
+use crate::{get_target, get_toolchain_download_url, url_exists, RUSTUP_TOOLCHAIN_NAME};
 
 #[derive(Parser)]
 #[command(
@@ -108,35 +106,43 @@ impl InstallToolchainCmd {
         fs::create_dir_all(toolchain_dir.clone())?;
         Command::new("tar")
             .current_dir(&root_dir)
-            .args(["-xzf", &toolchain_asset_name, "-C", &target])
-            .run()?;
-
-        // Mkdir .sp1/toolchains if it doesn't exist.
-        fs::create_dir_all(root_dir.join("toolchains"))?;
-
-        // Move to the toolchain directory.
-        Command::new("mv")
-            .current_dir(&root_dir)
             .args([
-                target.as_str(),
-                toolchain_dir.clone().as_os_str().to_str().unwrap(),
+                "-xzf",
+                &toolchain_asset_name,
+                "-C",
+                &toolchain_dir.to_string_lossy(),
             ])
             .status()?;
 
-        // Link the toolchain to rustup.
+        // Move the toolchain to a randomly named directory in the 'toolchains' folder
+        let toolchains_dir = root_dir.join("toolchains");
+        fs::create_dir_all(&toolchains_dir)?;
+        let random_string: String = rand::thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(10)
+            .map(char::from)
+            .collect();
+        let new_toolchain_dir = toolchains_dir.join(random_string);
+        fs::rename(&toolchain_dir, &new_toolchain_dir)?;
+
+        // Link the new toolchain directory to rustup
         Command::new("rustup")
             .current_dir(&root_dir)
-            .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
-            .arg(&toolchain_dir)
-            .run()?;
+            .args([
+                "toolchain",
+                "link",
+                RUSTUP_TOOLCHAIN_NAME,
+                &new_toolchain_dir.to_string_lossy(),
+            ])
+            .status()?;
         println!("Successfully linked toolchain to rustup.");
 
         // Ensure permissions.
-        let bin_dir = toolchain_dir.join("bin");
-        let rustlib_bin_dir = toolchain_dir.join(format!("lib/rustlib/{target}/bin"));
-        for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
-            let entry = wrapped_entry?;
-            if entry.file_type()?.is_file() {
+        let bin_dir = new_toolchain_dir.join("bin");
+        let rustlib_bin_dir = new_toolchain_dir.join(format!("lib/rustlib/{}/bin", target));
+        for entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
+            let entry = entry?;
+            if entry.path().is_file() {
                 let mut perms = entry.metadata()?.permissions();
                 perms.set_mode(0o755);
                 fs::set_permissions(entry.path(), perms)?;

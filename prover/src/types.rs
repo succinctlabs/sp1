@@ -1,5 +1,5 @@
 use p3_baby_bear::BabyBear;
-use p3_field::{AbstractField, TwoAdicField};
+use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{Deserialize, Serialize};
 use sp1_core::{
     air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
@@ -43,6 +43,15 @@ impl SP1VerifyingKey {
         }
 
         poseidon2_hash(inputs)
+    }
+
+    pub fn hash_u32(&self) -> [u32; 8] {
+        self.hash()
+            .into_iter()
+            .map(|n| n.as_canonical_u32())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap()
     }
 }
 
