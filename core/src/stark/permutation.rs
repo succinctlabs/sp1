@@ -2,7 +2,9 @@ use std::borrow::Borrow;
 
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue, Powers};
+use p3_field::{
+    AbstractExtensionField, AbstractField, ExtensionField, Field, PackedPowers, PackedValue, Powers,
+};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
@@ -96,19 +98,18 @@ pub fn populate_prepermutation_row<SC: StarkGenericConfig>(
     main_row: &[PackedVal<SC>],
     sends: &[Interaction<SC::Val>],
     receives: &[Interaction<SC::Val>],
-    alphas: &[SC::Challenge],
-    betas: Powers<SC::Challenge>,
+    alphas: &[PackedChallenge<SC>],
+    betas: Powers<PackedChallenge<SC>>,
 ) {
     let interaction_info = sends.iter().chain(receives.iter());
     // Compute the denominators \prod_{i\in B} row_fingerprint(alpha, beta).
     for (value, interaction) in row.iter_mut().zip(interaction_info) {
         *value = {
             let alpha = alphas[interaction.argument_index()];
-            let packed_alpha = PackedChallenge::<SC>::from_f(alpha);
-            let mut denominator = packed_alpha;
+            let mut denominator = alpha;
             for (columns, beta) in interaction.values.iter().zip(betas.clone()) {
-                denominator += PackedChallenge::<SC>::from_f(beta)
-                    * columns.apply::<PackedVal<SC>, PackedVal<SC>>(preprocessed_row, main_row)
+                denominator +=
+                    beta * columns.apply::<PackedVal<SC>, PackedVal<SC>>(preprocessed_row, main_row)
             }
 
             denominator
@@ -134,10 +135,29 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
     batch_size: usize,
 ) -> RowMajorMatrix<SC::Challenge> {
     // Generate the RLC elements to uniquely identify each interaction.
-    let alphas = generate_interaction_rlc_elements(sends, receives, random_elements[0]);
+    let alphas = generate_interaction_rlc_elements(sends, receives, random_elements[0])
+        .iter()
+        .map(|alpha| {
+            PackedChallenge::<SC>::from_base_slice(
+                &alpha
+                    .as_base_slice()
+                    .iter()
+                    .map(|x| PackedVal::<SC>::from_f(*x))
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect::<Vec<_>>();
     let chunk_rate = 1 << 8;
     // Generate the RLC elements to uniquely identify each item in the looked up tuple.
-    let betas = random_elements[1].powers();
+    let beta = random_elements[1];
+    let packed_beta = PackedChallenge::<SC>::from_base_slice(
+        &beta
+            .as_base_slice()
+            .iter()
+            .map(|x| PackedVal::<SC>::from_f(*x))
+            .collect::<Vec<_>>(),
+    );
+    let betas = packed_beta.powers();
 
     // Iterate over the rows of the main trace to compute the permutation trace values. In
     // particular, for each row i, interaction j, and columns c_0, ..., c_{k-1} we compute the sum:
