@@ -10,6 +10,7 @@ use sp1_core::{
 };
 
 use super::Block;
+
 /// A trait which contains all helper methods for building SP1 recursion machine AIRs.
 pub trait SP1RecursionAirBuilder:
     MachineAirBuilder + RecursionMemoryAirBuilder + RecursionInteractionAirBuilder
@@ -17,8 +18,8 @@ pub trait SP1RecursionAirBuilder:
 }
 
 impl<AB: AirBuilderWithPublicValues + RecursionMemoryAirBuilder> SP1RecursionAirBuilder for AB {}
-impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RecursionMemoryAirBuilder for AB {}
-impl<AB: BaseAirBuilder + AirBuilderWithPublicValues> RecursionInteractionAirBuilder for AB {}
+impl<AB: BaseAirBuilder> RecursionMemoryAirBuilder for AB {}
+impl<AB: BaseAirBuilder> RecursionInteractionAirBuilder for AB {}
 
 pub trait RecursionMemoryAirBuilder: RecursionInteractionAirBuilder {
     fn recursion_eval_memory_access<E: Into<Self::Expr> + Clone>(

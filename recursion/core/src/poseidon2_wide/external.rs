@@ -55,8 +55,6 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
-        log::debug!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
-
         assert!(DEGREE >= 3, "Minimum supported constraint degree is 3");
         let use_sbox_3 = DEGREE < 7;
         let num_columns = <Self as BaseAir<F>>::width(self);
