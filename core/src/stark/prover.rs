@@ -318,6 +318,8 @@ where
                 permutation_width,
                 traces[i].height(),
                 total_width * traces[i].height(),
+                trace_width as f64 / total_width as f64 * 100.0,
+                permutation_width as f64 / total_width as f64 * 100.0
             );
         }
 
