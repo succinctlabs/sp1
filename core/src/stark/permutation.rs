@@ -2,9 +2,7 @@ use std::borrow::Borrow;
 
 use itertools::Itertools;
 use p3_air::{ExtensionBuilder, PairBuilder};
-use p3_field::{
-    AbstractExtensionField, AbstractField, ExtensionField, Field, PackedPowers, PackedValue, Powers,
-};
+use p3_field::{AbstractExtensionField, AbstractField, ExtensionField, Field, PackedValue, Powers};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use p3_maybe_rayon::prelude::*;
 use rayon_scan::ScanParallelIterator;
@@ -271,10 +269,6 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
         .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
 
     // Repack the permutation trace values.
-    assert_eq!(
-        unpacked_prepermutation_trace.len(),
-        height * prepermutation_trace_width
-    );
     prepermutation_trace = RowMajorMatrix::new(
         (0..unpacked_prepermutation_trace.clone().len())
             .into_par_iter()
@@ -372,10 +366,6 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
             .collect::<Vec<SC::Challenge>>(),
         permutation_trace_width,
     );
-    unpacked_permutation_trace.par_rows_mut().for_each(|row| {
-        let last = row[permutation_trace_width - 1];
-        assert_eq!(last, SC::Challenge::zero())
-    });
 
     let zero = SC::Challenge::zero();
     let cumulative_sums = unpacked_permutation_trace
@@ -387,10 +377,6 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
                 .sum::<SC::Challenge>()
         })
         .collect::<Vec<_>>();
-
-    for row in unpacked_permutation_trace.rows() {
-        assert_eq!(row.last().unwrap(), zero);
-    }
 
     let cumulative_sums = cumulative_sums
         .into_par_iter()
@@ -404,14 +390,6 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
             *row.last_mut().unwrap() = cumulative_sum;
         });
 
-    assert_eq!(
-        permutation_trace.values.len(),
-        height.div_ceil(PackedVal::<SC>::WIDTH) * permutation_trace_width
-    );
-    assert_eq!(
-        unpacked_permutation_trace.values.len(),
-        height * permutation_trace_width
-    );
     unpacked_permutation_trace
 }
 
