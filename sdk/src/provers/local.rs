@@ -2,7 +2,6 @@
 
 use std::path::PathBuf;
 
-
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use sp1_core::{

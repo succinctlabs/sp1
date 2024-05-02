@@ -21,7 +21,7 @@ pub mod utils;
 use std::{env, fmt::Debug, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
-use provers::{LocalProver, MockProver, NetworkProver, Prover};
+pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::ShardProof;
 pub use sp1_prover::{
@@ -90,6 +90,59 @@ impl ProverClient {
             _ => panic!(
                 "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'remote'"
             ),
+        }
+    }
+
+    /// Creates a new [ProverClient] with the mock prover.
+    ///
+    /// Recommended for testing and development. You can also use [ProverClient::new] to set the
+    /// prover to `mock` with the `SP1_PROVER` enviroment variable.
+    ///
+    /// ### Examples
+    ///
+    /// ```
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let client = ProverClient::mock();
+    /// ```
+    pub fn mock() -> Self {
+        Self {
+            prover: Box::new(MockProver::new()),
+        }
+    }
+
+    /// Creates a new [ProverClient] with the local prover.
+    ///
+    /// Recommended for proving end-to-end locally. You can also use [ProverClient::new] to set the
+    /// prover to `local` with the `SP1_PROVER` enviroment variable.
+    ///
+    /// ### Examples
+    ///
+    /// ```
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let client = ProverClient::local();
+    /// ```
+    pub fn local() -> Self {
+        Self {
+            prover: Box::new(LocalProver::new()),
+        }
+    }
+
+    /// Creates a new [ProverClient] with the network prover.
+    ///
+    /// Recommended for outsourcing proof generation to an RPC. You can also use [ProverClient::new]
+    ///
+    /// ### Examples
+    ///
+    /// ```
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let client = ProverClient::remote();
+    /// ```
+    pub fn remote() -> Self {
+        Self {
+            prover: Box::new(NetworkProver::new()),
         }
     }
 
@@ -380,11 +433,13 @@ impl Default for ProverClient {
 }
 
 impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
+    /// Saves the proof to a path.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         bincode::serialize_into(File::create(path).expect("failed to open file"), self)
             .map_err(Into::into)
     }
 
+    /// Loads a proof from a path.
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         bincode::deserialize_from(File::open(path).expect("failed to open file"))
             .map_err(Into::into)
