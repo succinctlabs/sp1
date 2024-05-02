@@ -148,7 +148,11 @@ impl Groth16Prover {
                         log::debug!("Gnark server is healthy!");
                         return Ok(());
                     } else {
-                        log::debug!("Gnark server is not healthy: {:?}", response.status());
+                        log::debug!(
+                            "Gnark server is not healthy, code: {:?} message: {:?}",
+                            response.status(),
+                            response.text()
+                        );
                     }
                 }
                 Err(_) => {

@@ -122,7 +122,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		pk.WriteTo(pkFile)
+		pk.WriteRawTo(pkFile)
 		pkFile.Close()
 
 		// Write the verifier key.
