@@ -15,7 +15,7 @@ use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
 
-use super::{WORDS_CURVE_POINT, WORDS_FIELD_ELEMENT};
+use super::{NUM_LIMBS, WORDS_CURVE_POINT};
 use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
@@ -324,13 +324,12 @@ where
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
         let p_access_vec = value_as_limbs(&row.p_access);
-        builder.when(row.is_real).assert_all_eq(
-            row.x3_ins.result,
-            p_access_vec[0..WORDS_FIELD_ELEMENT].to_vec(),
-        );
+        builder
+            .when(row.is_real)
+            .assert_all_eq(row.x3_ins.result, p_access_vec[0..NUM_LIMBS].to_vec());
         builder.when(row.is_real).assert_all_eq(
             row.y3_ins.result,
-            p_access_vec[WORDS_FIELD_ELEMENT..WORDS_FIELD_ELEMENT * 2].to_vec(),
+            p_access_vec[NUM_LIMBS..NUM_LIMBS * 2].to_vec(),
         );
 
         builder.eval_memory_access_slice(

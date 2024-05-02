@@ -150,10 +150,3 @@ pub fn value_as_limbs<T: Clone, M: MemoryCols<T>>(memory: &[M]) -> Vec<T> {
         .flat_map(|m| m.value().clone().into_iter())
         .collect()
 }
-
-pub fn prev_value_as_limbs<T: Clone, M: MemoryCols<T>>(memory: &[M]) -> Vec<T> {
-    memory
-        .iter()
-        .flat_map(|m| m.prev_value().clone().into_iter())
-        .collect()
-}
