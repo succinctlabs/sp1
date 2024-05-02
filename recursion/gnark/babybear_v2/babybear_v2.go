@@ -175,6 +175,11 @@ func (c *Chip) SubE(a, b ExtensionVariable) ExtensionVariable {
 	return ExtensionVariable{Value: [4]Variable{v1, v2, v3, v4}}
 }
 
+func (c *Chip) SubEF(a ExtensionVariable, b Variable) ExtensionVariable {
+	v1 := c.SubF(a.Value[0], b)
+	return ExtensionVariable{Value: [4]Variable{v1, a.Value[1], a.Value[2], a.Value[3]}}
+}
+
 func (c *Chip) MulE(a, b ExtensionVariable) ExtensionVariable {
 	v2 := [4]Variable{
 		NewF("0"),

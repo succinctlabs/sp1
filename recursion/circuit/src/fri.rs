@@ -117,8 +117,8 @@ pub fn verify_two_adic_pcs<C: Config>(
 
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
-                            let quotient: Ext<_, _> =
-                                builder.eval((-p_at_z + p_at_x[0]) / (-*z + x));
+                            let quotient: SymbolicExt<C::F, C::EF> =
+                                (p_at_z - p_at_x[0]) / (*z - x);
                             ro[log_height] =
                                 builder.eval(ro[log_height] + alpha_pow[log_height] * quotient);
                             alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
