@@ -8,12 +8,12 @@ use super::external::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
 /// An enum the encapsulates a wide version of the poseidon2 chip (contains intermediate sbox colunns)
 /// and a narrow version of the poseidon2 chip (doesn't contain intermediate sbox columns).
-pub(crate) enum Poseidon2ColType<T> {
-    Wide(Poseidon2SBoxCols<T>),
-    Narrow(Poseidon2Cols<T>),
+pub(crate) enum Poseidon2ColTypeMut<'a, T> {
+    Wide(&'a mut Poseidon2SBoxCols<T>),
+    Narrow(&'a mut Poseidon2Cols<T>),
 }
 
-impl<T> Poseidon2ColType<T> {
+impl<T> Poseidon2ColTypeMut<'_, T> {
     /// Returns mutable references to the poseidon2 columns and optional the intermediate sbox columns.
     #[allow(clippy::type_complexity)]
     pub fn get_cols_mut(
@@ -24,20 +24,27 @@ impl<T> Poseidon2ColType<T> {
         Option<&mut [T; NUM_INTERNAL_ROUNDS]>,
     ) {
         match self {
-            Poseidon2ColType::Wide(cols) => (
+            Poseidon2ColTypeMut::Wide(cols) => (
                 &mut cols.poseidon2_cols,
                 Some(&mut cols.external_rounds_sbox),
                 Some(&mut cols.internal_rounds_sbox),
             ),
-            Poseidon2ColType::Narrow(cols) => (cols, None, None),
+            Poseidon2ColTypeMut::Narrow(cols) => (cols, None, None),
         }
     }
+}
 
+pub(crate) enum Poseidon2ColType<T> {
+    Wide(Poseidon2SBoxCols<T>),
+    Narrow(Poseidon2Cols<T>),
+}
+
+impl<T: Clone> Poseidon2ColType<T> {
     /// Returns reference to the poseidon2 columns.
-    pub fn get_poseidon2_cols(&self) -> &Poseidon2Cols<T> {
+    pub fn get_poseidon2_cols(&self) -> Poseidon2Cols<T> {
         match self {
-            Poseidon2ColType::Wide(cols) => &cols.poseidon2_cols,
-            Poseidon2ColType::Narrow(cols) => cols,
+            Poseidon2ColType::Wide(cols) => cols.poseidon2_cols.clone(),
+            Poseidon2ColType::Narrow(cols) => cols.clone(),
         }
     }
 
