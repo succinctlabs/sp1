@@ -8,7 +8,7 @@ use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::utils::pad_rows_fixed;
 use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
@@ -30,7 +30,9 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2WideChip<const DEGREE: usize>;
+pub struct Poseidon2WideChip<const DEGREE: usize> {
+    pub fixed_log2_rows: Option<usize>,
+}
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
     type Record = ExecutionRecord<F>;
@@ -45,7 +47,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         // This is a no-op.
     }
 
-    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all)]
+    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -124,12 +126,16 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             rows.push(row);
         }
 
-        // Convert the trace to a row major matrix.
-        let mut trace =
-            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns);
-
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<F>(num_columns, &mut trace.values);
+        pad_rows_fixed(
+            &mut rows,
+            || vec![F::zero(); num_columns],
+            self.fixed_log2_rows,
+        );
+
+        // Convert the trace to a row major matrix.
+        let trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns);
 
         #[cfg(debug_assertions)]
         println!(
@@ -456,7 +462,10 @@ mod tests {
     use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2};
 
     fn generate_trace_degree<const DEGREE: usize>() {
-        let chip = Poseidon2WideChip::<DEGREE>;
+        let chip = Poseidon2WideChip::<DEGREE> {
+            fixed_log2_rows: None,
+        };
+
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
             [BabyBear::from_canonical_u32(2); WIDTH],
@@ -503,7 +512,9 @@ mod tests {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = Poseidon2WideChip::<DEGREE>;
+        let chip = Poseidon2WideChip::<DEGREE> {
+            fixed_log2_rows: None,
+        };
 
         let test_inputs = (0..1000)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
