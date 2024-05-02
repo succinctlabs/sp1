@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -24,12 +25,11 @@ type Server struct {
 
 // New creates a new server instance with the R1CS and proving key for the given circuit type and
 // version.
-func New(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (*Server, error) {
-	r1cs, pk, err := LoadCircuit(ctx, dataDir, circuitBucket, circuitType, circuitVersion)
+func New(ctx context.Context, dataDir, circuitType string) (*Server, error) {
+	r1cs, pk, err := LoadCircuit(ctx, dataDir, circuitType)
 	if err != nil {
 		return nil, errors.Wrap(err, "loading circuit")
 	}
-	fmt.Println("Loaded circuit")
 
 	s := &Server{
 		r1cs: r1cs,
@@ -69,20 +69,25 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate the witness.
+	fmt.Println("Generating witness...")
+	start := time.Now()
 	assignment := sp1.NewCircuitFromWitness(witnessInput)
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		ReturnErrorJSON(w, "generating witness", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("Witness generated in %s\n", time.Since(start))
 
 	// Generate the proof.
 	fmt.Println("Generating proof...")
+	start = time.Now()
 	proof, err := groth16.Prove(s.r1cs, s.pk, witness)
 	if err != nil {
 		ReturnErrorJSON(w, "generating proof", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("Proof generated in %s\n", time.Since(start))
 
 	// Serialize the proof to JSON.
 	const fpSize = 4 * 8

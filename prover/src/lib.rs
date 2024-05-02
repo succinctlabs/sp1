@@ -12,10 +12,12 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
 
+pub mod build;
 mod types;
 pub mod utils;
 mod verify;
 
+use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_challenger::CanObserve;
@@ -55,6 +57,7 @@ use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
 use sp1_recursion_program::reduce::ReduceProgram;
 use sp1_recursion_program::types::QuotientDataValues;
+use std::env;
 use std::path::PathBuf;
 use std::time::Instant;
 use tracing::instrument;
@@ -119,7 +122,7 @@ pub struct SP1Prover {
 
 impl SP1Prover {
     /// Initializes a new [SP1Prover].
-    #[instrument(name = "new", level = "info", skip_all)]
+    #[instrument(name = "initialize prover", level = "info", skip_all)]
     pub fn new() -> Self {
         let recursion_setup_program = ReduceProgram::setup();
         let recursion_program = ReduceProgram::build();
@@ -418,7 +421,7 @@ impl SP1Prover {
         &self,
         config: SC,
         pk: &StarkProvingKey<SC>,
-        vk: &SP1VerifyingKey,
+        core_vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
         reconstruct_challenger: Challenger<CoreSC>,
         state: ReduceState,
@@ -438,6 +441,10 @@ impl SP1Prover {
             Prover<SC, RecursionAirSkinnyDeg7<BabyBear>>,
         LocalProver<SC, RecursionAirWideDeg3<BabyBear>>: Prover<SC, RecursionAirWideDeg3<BabyBear>>,
     {
+        // Setup the prover parameters.
+        let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
+        env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
+
         // Compute inputs.
         let is_recursive_flags: Vec<usize> = reduce_proofs
             .iter()
@@ -477,7 +484,7 @@ impl SP1Prover {
             })
             .collect();
         let (prep_sorted_indices, prep_domains): (Vec<usize>, Vec<Domain<CoreSC>>) =
-            get_preprocessed_data(&self.core_machine, &vk.vk);
+            get_preprocessed_data(&self.core_machine, &core_vk.vk);
         let (reduce_prep_sorted_indices, reduce_prep_domains): (Vec<usize>, Vec<Domain<InnerSC>>) =
             get_preprocessed_data(&self.reduce_machine, &self.reduce_vk);
         let (compress_prep_sorted_indices, compress_prep_domains): (
@@ -510,7 +517,7 @@ impl SP1Prover {
         witness_stream.extend(Hintable::write(&reduce_prep_domains));
         witness_stream.extend(compress_prep_sorted_indices.write());
         witness_stream.extend(Hintable::write(&compress_prep_domains));
-        witness_stream.extend(vk.vk.write());
+        witness_stream.extend(core_vk.vk.write());
         witness_stream.extend(self.reduce_vk.write());
         witness_stream.extend(self.compress_vk.write());
         witness_stream.extend(state.committed_values_digest.write());
@@ -570,7 +577,11 @@ impl SP1Prover {
 
         // Generate proof.
         let start = Instant::now();
-        let proof = if proving_with_skinny {
+        let proof = if proving_with_skinny && verifying_compressed_proof {
+            let machine = RecursionAirSkinnyDeg7::wrap_machine(config);
+            let mut challenger = machine.config().challenger();
+            machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)
+        } else if proving_with_skinny {
             let machine = RecursionAirSkinnyDeg7::machine(config);
             let mut challenger = machine.config().challenger();
             machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)
@@ -589,6 +600,9 @@ impl SP1Prover {
             (runtime.timestamp as f64 / elapsed) / 1000f64,
             Size::from_bytes(proof_size),
         );
+
+        // Restore the prover parameters.
+        env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, rc);
 
         // Return the reduced proof.
         assert!(proof.shard_proofs.len() == 1);

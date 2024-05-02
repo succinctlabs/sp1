@@ -23,7 +23,6 @@ import (
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 	"github.com/consensys/gnark/frontend/cs/scs"
-	"github.com/consensys/gnark/profile"
 	"github.com/consensys/gnark/test"
 	"github.com/succinctlabs/sp1-recursion-gnark/server"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
@@ -32,7 +31,6 @@ import (
 func main() {
 	buildGroth16Cmd := flag.NewFlagSet("build-groth16", flag.ExitOnError)
 	buildGroth16DataDirFlag := buildGroth16Cmd.String("data", "", "Data directory path")
-	buildGroth16ProfileFlag := buildGroth16Cmd.Bool("profile", false, "Profile the circuit")
 
 	buildPlonkBn254Cmd := flag.NewFlagSet("build-plonk-bn254", flag.ExitOnError)
 	buildPlonkBn254DataDirFlag := buildPlonkBn254Cmd.String("data", "", "Data directory path")
@@ -49,9 +47,7 @@ func main() {
 
 	serveCmd := flag.NewFlagSet("serve", flag.ExitOnError)
 	serveCircuitDataDirFlag := serveCmd.String("data", "", "Data directory path")
-	serveCircuitBucketFlag := serveCmd.String("bucket", "sp1-circuits", "Bucket to download circuit from if it is not in the data directory")
 	serveCircuitTypeFlag := serveCmd.String("type", "", "Type of circuit to download from if it is not in the data directory")
-	serveCircuitVersionFlag := serveCmd.String("version", "", "Version of circuit to download from if it is not in the data directory")
 	servePortFlag := serveCmd.String("port", "8080", "host port to listen on")
 
 	if len(os.Args) < 2 {
@@ -75,31 +71,15 @@ func main() {
 		// Initialize the circuit.
 		circuit := sp1.NewCircuitFromWitness(witnessInput)
 
-		// Profile the circuit.
-		var p *profile.Profile
-		if *buildGroth16ProfileFlag {
-			p = profile.Start()
-		}
-
 		// Compile the circuit.
+		// p := profile.Start(profile.WithPath("sp1.pprof"))
 		builder := r1cs.NewBuilder
 		r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 		if err != nil {
 			panic(err)
 		}
+		// p.Stop()
 		fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
-
-		// Stop the profiler.
-		if *buildGroth16ProfileFlag {
-			p.Stop()
-			report := p.Top()
-			reportFile, err := os.Create(buildDir + "/profile_groth16.pprof")
-			if err != nil {
-				panic(err)
-			}
-			reportFile.WriteString(report)
-			reportFile.Close()
-		}
 
 		// Run the trusted setup.
 		var pk groth16.ProvingKey
@@ -124,7 +104,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
-		pk.WriteTo(pkFile)
+		pk.WriteRawTo(pkFile)
 		pkFile.Close()
 
 		// Write the verifier key.
@@ -381,35 +361,25 @@ func main() {
 		}
 	case "serve":
 		serveCmd.Parse(os.Args[2:])
-		fmt.Printf("Running 'serve' with data=%s, type=%s, version=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag, *serveCircuitVersionFlag)
+		fmt.Printf("Running 'serve' with data=%s, type=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag)
 		circuitDataDir := *serveCircuitDataDirFlag
-		circuitBucket := *serveCircuitBucketFlag
 		circuitType := *serveCircuitTypeFlag
-		circuitVersion := *serveCircuitVersionFlag
 		serveHostPort := *servePortFlag
+		os.Setenv("CONSTRAINTS_JSON", circuitDataDir+"/constraints_groth16.json")
 
 		if circuitDataDir == "" {
 			fmt.Println("Error: data directory flag is required")
-			os.Exit(1)
-		}
-		if circuitBucket == "" {
-			fmt.Println("Error: bucket flag is required")
 			os.Exit(1)
 		}
 		if circuitType == "" {
 			fmt.Println("Error: type flag is required")
 			os.Exit(1)
 		}
-		if circuitVersion == "" {
-			fmt.Println("Error: version flag is required")
-			os.Exit(1)
-		}
 		if serveHostPort == "" {
 			fmt.Println("Error: host port flag is required")
 			os.Exit(1)
 		}
-
-		s, err := server.New(context.Background(), circuitDataDir, circuitBucket, circuitType, circuitVersion)
+		s, err := server.New(context.Background(), circuitDataDir, circuitType)
 		if err != nil {
 			panic(fmt.Errorf("initializing server: %w", err))
 		}

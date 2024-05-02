@@ -77,6 +77,44 @@ pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl F
     rows.resize(padded_nb_rows, dummy_row);
 }
 
+pub fn pad_rows_fixed<R: Clone>(
+    rows: &mut Vec<R>,
+    row_fn: impl Fn() -> R,
+    size_log2: Option<usize>,
+) {
+    let nb_rows = rows.len();
+    let dummy_row = row_fn();
+    match size_log2 {
+        Some(size_log2) => {
+            let padded_nb_rows = 1 << size_log2;
+            if nb_rows * 2 < padded_nb_rows {
+                tracing::warn!(
+                    "fixed log2 rows can be potentially reduced: got {}, expected {}",
+                    nb_rows,
+                    padded_nb_rows
+                );
+            }
+            if nb_rows > padded_nb_rows {
+                panic!(
+                    "fixed log2 rows is too small: got {}, expected {}",
+                    nb_rows, padded_nb_rows
+                );
+            }
+            rows.resize(padded_nb_rows, dummy_row);
+        }
+        None => {
+            let mut padded_nb_rows = nb_rows.next_power_of_two();
+            if padded_nb_rows == 2 || padded_nb_rows == 1 {
+                padded_nb_rows = 4;
+            }
+            if padded_nb_rows == nb_rows {
+                return;
+            }
+            rows.resize(padded_nb_rows, dummy_row);
+        }
+    }
+}
+
 /// Converts a slice of words to a slice of bytes in little endian.
 pub fn words_to_bytes_le<const B: usize>(words: &[u32]) -> [u8; B] {
     debug_assert_eq!(words.len() * 4, B);

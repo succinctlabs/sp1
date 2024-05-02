@@ -1,21 +1,16 @@
 package server
 
 import (
-	"archive/tar"
-	"bytes"
-	"compress/gzip"
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"strings"
+	"sync"
 	"sync/atomic"
+	"time"
 
-	"github.com/aws/aws-sdk-go-v2/config"
-	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
-	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
@@ -24,7 +19,7 @@ import (
 
 // LoadCircuit checks if the necessary circuit files are in the specified data directory,
 // downloads them if not, and loads them into memory.
-func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
+func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
 	r1csPath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
 	pkPath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
 
@@ -39,13 +34,9 @@ func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circu
 	filesExist := fileExists(r1csPath) && fileExists(pkPath)
 
 	if !filesExist {
-		fmt.Println("files not found, downloading circuit...")
-		// Download artifacts if they don't exist in the dataDir
-		if err := DownloadArtifacts(ctx, dataDir, circuitBucket, circuitType, circuitVersion); err != nil {
-			return nil, nil, errors.Wrap(err, "downloading artifacts")
-		}
+		return nil, nil, errors.New("circuit files not found")
 	} else {
-		fmt.Println("files found, loading circuit...")
+		fmt.Println("Files found, loading circuit...")
 	}
 
 	// Load the circuit artifacts into memory
@@ -53,139 +44,78 @@ func LoadCircuit(ctx context.Context, dataDir, circuitBucket, circuitType, circu
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "loading circuit artifacts")
 	}
+	fmt.Println("Circuit artifacts loaded successfully")
 
 	return r1cs, pk, nil
 }
 
-// DownloadArtifacts downloads and extracts all files from S3 into the specified data directory.
-func DownloadArtifacts(ctx context.Context, dataDir, circuitBucket, circuitType, circuitVersion string) error {
-	// Ensure data directory exists
-	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			return errors.Wrap(err, "creating data directory")
-		}
-	}
-
-	awsConfig, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return errors.Wrap(err, "loading AWS config")
-	}
-
-	s3Downloader := manager.NewDownloader(s3.NewFromConfig(awsConfig), func(d *manager.Downloader) {
-		d.PartSize = 256 * 1024 * 1024 // 256MB per part
-		d.Concurrency = 32
-	})
-
-	// Create a WriteAtBuffer and wrap it with the ProgressTrackingWriter.
-	tarballBuffer := manager.NewWriteAtBuffer(nil)
-	progressWriter := NewProgressTrackingWriter(tarballBuffer)
-
-	_, err = s3Downloader.Download(ctx, progressWriter, &s3.GetObjectInput{
-		Bucket: aws.String(circuitBucket),
-		Key:    aws.String(fmt.Sprintf("%s-build%s.tar.gz", circuitType, circuitVersion)),
-	})
-	if err != nil {
-		return errors.Wrap(err, "downloading circuit")
-	}
-
-	// Retrieve the total bytes downloaded.
-	totalBytes := atomic.LoadInt64(&progressWriter.totalBytes)
-	fmt.Printf("Downloaded circuit tarball (%d bytes)\n", totalBytes)
-
-	gzipReader, err := gzip.NewReader(bytes.NewReader(tarballBuffer.Bytes()))
-	if err != nil {
-		return errors.Wrap(err, "decompressing gzip")
-	}
-
-	tarReader := tar.NewReader(gzipReader)
-
-	// Ensure that the data directory exists
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
-		return errors.Wrap(err, "creating data directory")
-	}
-
-	// Extract all files from the tarball
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			return errors.Wrap(err, "reading tarball")
-		}
-
-		// Normalize the file path to avoid relative path issues
-		cleanHeaderName := filepath.Clean(header.Name)
-
-		// Skip invalid or AppleDouble files
-		if cleanHeaderName == "" || strings.HasPrefix(cleanHeaderName, "._") || strings.Contains(cleanHeaderName, "..") {
-			continue
-		}
-
-		// Construct the full file path
-		filePath := filepath.Join(dataDir, cleanHeaderName)
-
-		// Skip if the path already exists and is a directory
-		if info, err := os.Stat(filePath); err == nil && info.IsDir() {
-			continue
-		}
-
-		// Create the file and write its content
-		file, err := os.Create(filePath)
-		if err != nil {
-			return errors.Wrap(err, "creating file")
-		}
-		defer file.Close()
-
-		if _, err = io.Copy(file, tarReader); err != nil {
-			return errors.Wrap(err, "copying file content")
-		}
-	}
-
-	return nil
-}
-
 // LoadCircuitArtifacts loads the R1CS and Proving Key from the specified data directory into memory.
 func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
-	r1csFilePath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
-	pkFilePath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
+	var wg sync.WaitGroup
+	var r1cs constraint.ConstraintSystem
+	var pk groth16.ProvingKey
+	var errR1CS, errPK error
 
-	// Read the R1CS content
-	r1csFile, err := os.Open(r1csFilePath)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "opening R1CS file")
+	startTime := time.Now()
+	fmt.Printf("Loading artifacts start time %s\n", startTime.Format(time.RFC3339))
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+
+		r1csFilePath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
+		fmt.Println("Opening R1CS file at:", r1csFilePath)
+		r1csFile, err := os.Open(r1csFilePath)
+		if err != nil {
+			errR1CS = errors.Wrap(err, "opening R1CS file")
+			return
+		}
+		defer r1csFile.Close()
+
+		r1csReader := bufio.NewReader(r1csFile)
+		r1csStart := time.Now()
+		r1cs = groth16.NewCS(ecc.BN254)
+		fmt.Println("Reading R1CS file...")
+		if _, err = r1cs.ReadFrom(r1csReader); err != nil {
+			errR1CS = errors.Wrap(err, "reading R1CS content from file")
+		} else {
+			fmt.Printf("R1CS loaded in %s\n", time.Since(r1csStart))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		pkFilePath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
+		fmt.Println("Opening PK file at:", pkFilePath)
+		pkFile, err := os.Open(pkFilePath)
+		if err != nil {
+			errPK = errors.Wrap(err, "opening PK file")
+			return
+		}
+		defer pkFile.Close()
+
+		pkReader := bufio.NewReader(pkFile)
+		pkStart := time.Now()
+		pk = groth16.NewProvingKey(ecc.BN254)
+		fmt.Println("Reading PK file...")
+		if _, err = pk.UnsafeReadFrom(pkReader); err != nil {
+			errPK = errors.Wrap(err, "reading PK content from file")
+		} else {
+			fmt.Printf("PK loaded in %s\n", time.Since(pkStart))
+		}
+	}()
+
+	wg.Wait()
+
+	if errR1CS != nil {
+		return nil, nil, errors.Wrap(errR1CS, "processing R1CS")
+	}
+	if errPK != nil {
+		return nil, nil, errors.Wrap(errPK, "processing PK")
 	}
 
-	r1csFile.Seek(0, io.SeekStart)
-	r1csContent, err := io.ReadAll(r1csFile)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "reading R1CS content")
-	}
-
-	// Read the PK content
-	pkFile, err := os.Open(pkFilePath)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "opening PK file")
-	}
-
-	pkFile.Seek(0, io.SeekStart)
-	pkContent, err := io.ReadAll(pkFile)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "reading PK content")
-	}
-
-	// Load R1CS and Proving Key into memory
-	r1cs := groth16.NewCS(ecc.BN254)
-	_, err = r1cs.ReadFrom(bytes.NewReader(r1csContent))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading R1CS content")
-	}
-
-	pk := groth16.NewProvingKey(ecc.BN254)
-	_, err = pk.ReadFrom(bytes.NewReader(pkContent))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading PK content")
-	}
+	fmt.Printf("Circuit artifacts loaded successfully in %s\n", time.Since(startTime))
 
 	return r1cs, pk, nil
 }

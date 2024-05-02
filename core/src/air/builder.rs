@@ -601,9 +601,21 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
     ) {
         let base_slice = element.as_base_slice();
         let degree = base_slice.len();
-        base_slice[1..degree - 1].iter().for_each(|coeff| {
+        base_slice[1..degree].iter().for_each(|coeff| {
             self.assert_zero(coeff.clone().into());
         });
+    }
+
+    /// Performs an if else on extension elements.
+    fn if_else_ext(
+        &mut self,
+        condition: impl Into<Self::Expr> + Clone,
+        a: BinomialExtension<impl Into<Self::Expr> + Clone>,
+        b: BinomialExtension<impl Into<Self::Expr> + Clone>,
+    ) -> BinomialExtension<Self::Expr> {
+        BinomialExtension(array::from_fn(|i| {
+            self.if_else(condition.clone(), a.0[i].clone(), b.0[i].clone())
+        }))
     }
 }
 

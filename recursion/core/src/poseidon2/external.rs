@@ -6,8 +6,8 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
@@ -24,14 +24,16 @@ pub const WIDTH: usize = 16;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2Chip;
+pub struct Poseidon2Chip {
+    pub fixed_log2_rows: Option<usize>,
+}
 
 /// The column layout for the chip.
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
     pub input: [T; WIDTH],
-    pub rounds: [T; 31],
+    pub rounds: [T; 22],
     pub add_rc: [T; WIDTH],
     pub sbox_deg_3: [T; WIDTH],
     pub sbox_deg_7: [T; WIDTH],
@@ -54,7 +56,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         // This is a no-op.
     }
 
-    #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all)]
+    #[instrument(name = "generate poseidon2 trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -63,7 +65,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         let mut rows = Vec::new();
 
         let rounds_f = 8;
-        let rounds_p = 22;
+        let rounds_p = 13;
         let rounds = rounds_f + rounds_p + 1;
         let rounds_p_beginning = 1 + rounds_f / 2;
         let p_end = rounds_p_beginning + rounds_p;
@@ -139,16 +141,18 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
             }
         }
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_POSEIDON2_COLS,
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_POSEIDON2_COLS],
+            self.fixed_log2_rows,
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_POSEIDON2_COLS, F>(&mut trace.values);
-
-        trace
+        // Convert the trace to a row major matrix.
+        RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_POSEIDON2_COLS,
+        )
     }
 
     fn included(&self, record: &Self::Record) -> bool {
@@ -162,17 +166,14 @@ impl<F> BaseAir<F> for Poseidon2Chip {
     }
 }
 
-impl<AB> Air<AB> for Poseidon2Chip
-where
-    AB: SP1AirBuilder,
-{
-    fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local = main.row_slice(0);
-        let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
-
+impl Poseidon2Chip {
+    pub fn eval_poseidon2<AB: BaseAirBuilder + ExtensionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Poseidon2Cols<AB::Var>,
+    ) {
         let rounds_f = 8;
-        let rounds_p = 22;
+        let rounds_p = 13;
         let rounds = rounds_f + rounds_p;
 
         // Convert the u32 round constants to field elements.
@@ -291,8 +292,10 @@ where
         builder.assert_eq(local.is_initial, local.rounds[0]);
 
         // Constrain the external flag.
-        let is_external_first_half = (0..4).map(|i| local.rounds[i + 1].into()).sum::<AB::Expr>();
-        let is_external_second_half = (26..30)
+        let is_external_first_half = (0..rounds_f / 2)
+            .map(|i| local.rounds[i + 1].into())
+            .sum::<AB::Expr>();
+        let is_external_second_half = ((rounds_f / 2 + rounds_p)..(rounds_f + rounds_p))
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(
@@ -301,10 +304,22 @@ where
         );
 
         // Constrain the internal flag.
-        let is_internal = (4..26)
+        let is_internal = (4..17)
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
+    }
+}
+
+impl<AB> Air<AB> for Poseidon2Chip
+where
+    AB: SP1AirBuilder,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
+        self.eval_poseidon2::<AB>(builder, local);
     }
 }
 
@@ -339,7 +354,9 @@ mod tests {
 
     #[test]
     fn generate_trace() {
-        let chip = Poseidon2Chip;
+        let chip = Poseidon2Chip {
+            fixed_log2_rows: None,
+        };
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
             [BabyBear::from_canonical_u32(2); WIDTH],
@@ -361,10 +378,10 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for input in test_inputs.iter().cloned() {
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs.clone()) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input));
+                .push(Poseidon2Event::dummy_from_input(input, output));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
@@ -382,17 +399,32 @@ mod tests {
         let config = BabyBearPoseidon2::new();
         let mut challenger = config.challenger();
 
-        let chip = Poseidon2Chip;
+        let chip = Poseidon2Chip {
+            fixed_log2_rows: None,
+        };
 
         let test_inputs = (0..16)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
             .collect_vec();
 
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
+
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
+
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for input in test_inputs.iter().cloned() {
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input));
+                .push(Poseidon2Event::dummy_from_input(input, output));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
