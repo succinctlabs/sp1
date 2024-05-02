@@ -7,7 +7,6 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/profile"
 	"github.com/succinctlabs/sp1-recursion-gnark/babybear_v2"
 	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
 )
@@ -70,8 +69,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	vars := make(map[string]frontend.Variable)
 	felts := make(map[string]babybear_v2.Variable)
 	exts := make(map[string]babybear_v2.ExtensionVariable)
-
-	p := profile.Start(profile.WithPath("sp1.pprof"))
 
 	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
@@ -184,8 +181,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}
-
-		p.Stop()
 	}
 
 	return nil

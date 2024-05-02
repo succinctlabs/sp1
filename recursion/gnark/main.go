@@ -32,7 +32,6 @@ import (
 func main() {
 	buildGroth16Cmd := flag.NewFlagSet("build-groth16", flag.ExitOnError)
 	buildGroth16DataDirFlag := buildGroth16Cmd.String("data", "", "Data directory path")
-	buildGroth16ProfileFlag := buildGroth16Cmd.Bool("profile", false, "Profile the circuit")
 
 	buildPlonkBn254Cmd := flag.NewFlagSet("build-plonk-bn254", flag.ExitOnError)
 	buildPlonkBn254DataDirFlag := buildPlonkBn254Cmd.String("data", "", "Data directory path")
@@ -73,31 +72,15 @@ func main() {
 		// Initialize the circuit.
 		circuit := sp1.NewCircuitFromWitness(witnessInput)
 
-		// Profile the circuit.
-		var p *profile.Profile
-		if *buildGroth16ProfileFlag {
-			p = profile.Start()
-		}
-
 		// Compile the circuit.
+		p := profile.Start(profile.WithPath("sp1.pprof"))
 		builder := r1cs.NewBuilder
 		r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 		if err != nil {
 			panic(err)
 		}
+		p.Stop()
 		fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
-
-		// Stop the profiler.
-		if *buildGroth16ProfileFlag {
-			p.Stop()
-			report := p.Top()
-			reportFile, err := os.Create(buildDir + "/profile_groth16.pprof")
-			if err != nil {
-				panic(err)
-			}
-			reportFile.WriteString(report)
-			reportFile.Close()
-		}
 
 		// Run the trusted setup.
 		var pk groth16.ProvingKey
