@@ -248,7 +248,7 @@ func (c *Chip) ToBinary(in Variable) []frontend.Variable {
 }
 
 func (p *Chip) ReduceFast(x Variable) Variable {
-	if x.NbBits >= uint(70) {
+	if x.NbBits >= uint(120) {
 		return Variable{
 			Value:  p.ReduceWithMaxBits(x.Value, uint64(x.NbBits)),
 			NbBits: 31,
@@ -274,7 +274,7 @@ func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	}
 
 	quotient := result[0]
-	p.rangeChecker.Check(quotient, int(maxNbBits))
+	p.rangeChecker.Check(quotient, int(maxNbBits-31))
 
 	remainder := result[1]
 	p.rangeChecker.Check(remainder, 31)
