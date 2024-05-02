@@ -20,12 +20,110 @@ pub const RATE: usize = 16;
 
 #[cfg(test)]
 mod tests {
+    use p3_baby_bear::BabyBear;
     use p3_bn254_fr::Bn254Fr;
     use p3_field::AbstractField;
     use sp1_recursion_compiler::config::OuterConfig;
     use sp1_recursion_compiler::constraints::ConstraintCompiler;
-    use sp1_recursion_compiler::ir::{Builder, Witness};
+    use sp1_recursion_compiler::ir::Config;
+    use sp1_recursion_compiler::ir::Ext;
+    use sp1_recursion_compiler::ir::ExtConst;
+    use sp1_recursion_compiler::ir::{Builder, Felt, Witness};
     use sp1_recursion_gnark_ffi::Groth16Prover;
+
+    #[test]
+    fn test_base_babybear() {
+        let mut builder = Builder::<OuterConfig>::default();
+        let a_val = BabyBear::from_wrapped_u32(3124235823);
+        let b_val = BabyBear::from_wrapped_u32(3252375321);
+        let a: Felt<_> = builder.eval(a_val);
+        let b: Felt<_> = builder.eval(b_val);
+
+        // Testing base addition.
+        let a_plus_b: Felt<_> = builder.eval(a + b);
+        builder.assert_felt_eq(a_plus_b, a_val + b_val);
+
+        // Testing base subtraction.
+        let a_minus_b: Felt<_> = builder.eval(a - b);
+        builder.assert_felt_eq(a_minus_b, a_val - b_val);
+
+        // Testing base multiplication.
+        let a_times_b: Felt<_> = builder.eval(a * b);
+        builder.assert_felt_eq(a_times_b, a_val * b_val);
+
+        // Testing large linear combination.
+        let dot_product: Felt<_> = builder.eval(a * a + b * b + a * b);
+        builder.assert_felt_eq(dot_product, a_val * a_val + b_val * b_val + a_val * b_val);
+
+        // Testing high degree multiplication.
+        let a_times_b_times_c: Felt<_> =
+            builder.eval(a_val * b_val * a_val * b_val * a_val * b_val);
+        builder.assert_felt_eq(
+            a_times_b_times_c,
+            a_val * b_val * a_val * b_val * a_val * b_val,
+        );
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+
+        let witness = Witness::default();
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+    }
+
+    #[test]
+    fn test_extension_babybear() {
+        let mut builder = Builder::<OuterConfig>::default();
+        let one_val = <OuterConfig as Config>::EF::from_wrapped_u32(1);
+        let a_val = <OuterConfig as Config>::EF::from_wrapped_u32(3124235823);
+        let b_val = <OuterConfig as Config>::EF::from_wrapped_u32(3252375321);
+        let one: Ext<_, _> = builder.eval(BabyBear::one());
+        let a: Ext<_, _> = builder.eval(a_val.cons());
+        let b: Ext<_, _> = builder.eval(b_val.cons());
+
+        // Testing extension addition.
+        let a_plus_b: Ext<_, _> = builder.eval(a + b);
+        builder.assert_ext_eq(a_plus_b, (a_val + b_val).cons());
+
+        // // Testing negation.
+        // let neg_a: Ext<_, _> = builder.eval(-a);
+        // builder.assert_ext_eq(neg_a, (-a_val).cons());
+
+        // Testing extension subtraction.
+        let a_minus_b: Ext<_, _> = builder.eval(a - b);
+        builder.assert_ext_eq(a_minus_b, (a_val - b_val).cons());
+
+        // Testing base multiplication.
+        let a_times_b: Ext<_, _> = builder.eval(a * b);
+        builder.assert_ext_eq(a_times_b, (a_val * b_val).cons());
+
+        // Testing base division.
+        let a_div_b: Ext<_, _> = builder.eval(a / b);
+        builder.assert_ext_eq(a_div_b, (a_val / b_val).cons());
+
+        // Testing base inversion.
+        let a_inv: Ext<_, _> = builder.eval(one / a);
+        builder.assert_ext_eq(a_inv, (one_val / a_val).cons());
+
+        // Testing large linear combination.
+        let dot_product: Ext<_, _> = builder.eval(a * a + b * b + a * b);
+        builder.assert_ext_eq(
+            dot_product,
+            (a_val * a_val + b_val * b_val + a_val * b_val).cons(),
+        );
+
+        // Testing high degree multiplication.
+        let a_times_b_times_c: Ext<_, _> = builder.eval(a * b * a * b * a * b);
+        builder.assert_ext_eq(
+            a_times_b_times_c,
+            (a_val * b_val * a_val * b_val * a_val * b_val).cons(),
+        );
+
+        let mut backend = ConstraintCompiler::<OuterConfig>::default();
+        let constraints = backend.emit(builder.operations);
+
+        let witness = Witness::default();
+        Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
+    }
 
     #[test]
     fn test_commit() {

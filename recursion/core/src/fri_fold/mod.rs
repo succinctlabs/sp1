@@ -1,5 +1,6 @@
 #![allow(clippy::needless_range_loop)]
 
+use crate::air::RecursionMemoryAirBuilder;
 use crate::memory::{MemoryReadCols, MemoryReadSingleCols, MemoryReadWriteCols};
 use core::borrow::Borrow;
 use itertools::Itertools;
@@ -8,6 +9,8 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+use sp1_core::air::BaseAirBuilder;
+use sp1_core::air::ExtensionAirBuilder;
 use sp1_core::air::{BinomialExtension, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
@@ -47,9 +50,9 @@ pub struct FriFoldEvent<F> {
     pub ro_at_log_height: MemoryRecord<F>,
 }
 
-#[derive(AlignedBorrow, Debug, Clone)]
+#[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
-pub struct FriFoldCols<T> {
+pub struct FriFoldCols<T: Copy> {
     pub clk: T,
 
     /// The parameters into the FRI fold precompile.  These values are only read from memory.
@@ -160,15 +163,12 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
     }
 }
 
-impl<AB> Air<AB> for FriFoldChip
-where
-    AB: SP1RecursionAirBuilder,
-{
-    fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let cols = main.row_slice(0);
-        let cols: &FriFoldCols<AB::Var> = (*cols).borrow();
-
+impl FriFoldChip {
+    pub fn eval_fri_fold<AB: BaseAirBuilder + ExtensionAirBuilder + RecursionMemoryAirBuilder>(
+        &self,
+        builder: &mut AB,
+        cols: &FriFoldCols<AB::Var>,
+    ) {
         // TODO: Handle the constraints for multiple rounds.
 
         // Constraint that the operands are sent from the CPU table.
@@ -277,6 +277,7 @@ where
             .access
             .value
             .as_extension::<AB>();
+
         builder.assert_ext_eq(
             alpha_pow_at_log_height.clone() * alpha,
             new_alpha_pow_at_log_height,
@@ -305,5 +306,17 @@ where
             (new_ro_at_log_height - ro_at_log_height) * (BinomialExtension::from_base(x) - z),
             (p_at_x - p_at_z) * alpha_pow_at_log_height,
         );
+    }
+}
+
+impl<AB> Air<AB> for FriFoldChip
+where
+    AB: SP1RecursionAirBuilder,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let cols = main.row_slice(0);
+        let cols: &FriFoldCols<AB::Var> = (*cols).borrow();
+        self.eval_fri_fold::<AB>(builder, cols);
     }
 }

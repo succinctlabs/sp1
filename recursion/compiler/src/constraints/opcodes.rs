@@ -13,6 +13,7 @@ pub enum ConstraintOpcode {
     SubV,
     SubF,
     SubE,
+    SubEF,
     MulV,
     MulF,
     MulE,
