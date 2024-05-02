@@ -147,7 +147,6 @@ pub fn verify_challenges<C: Config>(
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    #[allow(clippy::never_loop)]
     for (&index, query_proof, ro) in izip!(
         &challenges.query_indices,
         &proof.query_proofs,
