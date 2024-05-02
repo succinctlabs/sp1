@@ -207,15 +207,15 @@ where
     }
 
     pub fn print_stats(&self) {
-        log::debug!("Total Cycles: {}", self.timestamp);
-        log::debug!("Poseidon Operations: {}", self.nb_poseidons);
-        log::debug!("Field Operations: {}", self.nb_base_ops);
-        log::debug!("Extension Operations: {}", self.nb_ext_ops);
-        log::debug!("Memory Operations: {}", self.nb_memory_ops);
-        log::debug!("Branch Operations: {}", self.nb_branch_ops);
-        log::debug!("\nCycle Tracker Statistics:");
+        tracing::debug!("Total Cycles: {}", self.timestamp);
+        tracing::debug!("Poseidon Operations: {}", self.nb_poseidons);
+        tracing::debug!("Field Operations: {}", self.nb_base_ops);
+        tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
+        tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
+        tracing::debug!("Branch Operations: {}", self.nb_branch_ops);
+        tracing::debug!("\nCycle Tracker Statistics:");
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
-            log::debug!("> {}: {}", name, entry.cumulative_cycles);
+            tracing::debug!("> {}: {}", name, entry.cumulative_cycles);
         }
     }
 
