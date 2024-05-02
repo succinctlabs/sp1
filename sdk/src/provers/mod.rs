@@ -12,6 +12,8 @@ use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
 
 /// An implementation of [crate::ProverClient].
 pub trait Prover: Send + Sync {
+    fn id(&self) -> String;
+
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
     /// Prove the execution of a RISCV ELF with the given inputs.

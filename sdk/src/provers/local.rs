@@ -1,5 +1,3 @@
-#![allow(unused_variables)]
-
 use std::path::PathBuf;
 
 use anyhow::Result;
@@ -20,17 +18,13 @@ use crate::{
     SP1ProvingKey, SP1VerifyingKey,
 };
 
+/// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
 pub struct LocalProver {
     pub(crate) prover: SP1Prover,
 }
 
-impl Default for LocalProver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl LocalProver {
+    /// Creates a new [LocalProver].
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
@@ -62,6 +56,10 @@ impl LocalProver {
 }
 
 impl Prover for LocalProver {
+    fn id(&self) -> String {
+        "local".to_string()
+    }
+
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
@@ -138,15 +136,25 @@ impl Prover for LocalProver {
             .verify(&vkey.vk, &machine_proof, &mut challenger)?)
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_compressed(
+        &self,
+        _proof: &SP1CompressedProof,
+        _vkey: &SP1VerifyingKey,
+    ) -> Result<()> {
         todo!()
     }
 
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
+    }
+}
+
+impl Default for LocalProver {
+    fn default() -> Self {
+        Self::new()
     }
 }

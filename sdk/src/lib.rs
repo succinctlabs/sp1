@@ -445,3 +445,43 @@ impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
             .map_err(Into::into)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use crate::{ProverClient, SP1Stdin};
+
+    #[test]
+    fn test_execute() {
+        let client = ProverClient::local();
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let _ = client.execute(elf, stdin).unwrap();
+    }
+
+    #[test]
+    fn test_e2e_prove_local() {
+        let client = ProverClient::local();
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let proof = client.prove(&pk, stdin).unwrap();
+        client.verify(&proof, &vk).unwrap();
+    }
+
+    #[test]
+    fn test_e2e_prove_mock() {
+        let client = ProverClient::mock();
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let proof = client.prove(&pk, stdin).unwrap();
+        client.verify(&proof, &vk).unwrap();
+    }
+}

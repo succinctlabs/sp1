@@ -255,8 +255,7 @@ where
     // Prove the program.
     let start = Instant::now();
     let cycles = runtime.state.global_clk;
-    let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+    let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 

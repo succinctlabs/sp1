@@ -268,7 +268,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    #[instrument("prove", level = "info", skip_all)]
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &StarkProvingKey<SC>,
@@ -281,10 +280,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        let shards = tracing::info_span!("shard execution record")
+        let shards = tracing::info_span!("shard_record")
             .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
 
-        tracing::info_span!("generate shard proofs")
+        tracing::info_span!("prove_shards")
             .in_scope(|| P::prove_shards(self, pk, shards, challenger))
     }
 

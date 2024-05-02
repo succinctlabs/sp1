@@ -1,22 +1,18 @@
-#![allow(unused_variables)]
+use anyhow::Result;
+use sp1_prover::{Groth16Proof, PlonkBn254Proof, SP1Prover, SP1Stdin};
+
 use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithMetadata,
     SP1ProvingKey, SP1VerifyingKey,
 };
-use anyhow::Result;
-use sp1_prover::{Groth16Proof, PlonkBn254Proof, SP1Prover, SP1Stdin};
 
+/// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
     pub(crate) prover: SP1Prover,
 }
 
-impl Default for MockProver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl MockProver {
+    /// Creates a new [MockProver].
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
@@ -24,6 +20,10 @@ impl MockProver {
 }
 
 impl Prover for MockProver {
+    fn id(&self) -> String {
+        "mock".to_string()
+    }
+
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
@@ -37,7 +37,11 @@ impl Prover for MockProver {
         })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+    fn prove_compressed(
+        &self,
+        _pk: &SP1ProvingKey,
+        _stdin: SP1Stdin,
+    ) -> Result<SP1CompressedProof> {
         unimplemented!()
     }
 
@@ -59,19 +63,29 @@ impl Prover for MockProver {
         })
     }
 
-    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, _proof: &SP1Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_compressed(
+        &self,
+        _proof: &SP1CompressedProof,
+        _vkey: &SP1VerifyingKey,
+    ) -> Result<()> {
         unimplemented!()
     }
 
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 
-    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
+    }
+}
+
+impl Default for MockProver {
+    fn default() -> Self {
+        Self::new()
     }
 }

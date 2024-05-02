@@ -1,4 +1,3 @@
-#![allow(unused_variables)]
 use std::{env, time::Duration};
 
 use anyhow::{Context, Result};
@@ -13,18 +12,14 @@ use crate::{
     SP1ProvingKey, SP1VerifyingKey,
 };
 
+/// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: LocalProver,
 }
 
-impl Default for NetworkProver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl NetworkProver {
+    /// Creates a new [NetworkProver].
     pub fn new() -> Self {
         let private_key = env::var("SP1_PRIVATE_KEY")
             .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
@@ -139,6 +134,10 @@ impl NetworkProver {
 }
 
 impl Prover for NetworkProver {
+    fn id(&self) -> String {
+        "remote".to_string()
+    }
+
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.local_prover.setup(elf)
     }
@@ -148,15 +147,19 @@ impl Prover for NetworkProver {
         rt.block_on(async { self.prove_async(&pk.elf, stdin).await })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+    fn prove_compressed(
+        &self,
+        _pk: &SP1ProvingKey,
+        _stdin: SP1Stdin,
+    ) -> Result<SP1CompressedProof> {
         todo!()
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+    fn prove_plonk(&self, _pk: &SP1ProvingKey, _stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         todo!()
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+    fn prove_groth16(&self, _pk: &SP1ProvingKey, _stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         todo!()
     }
 
@@ -164,15 +167,25 @@ impl Prover for NetworkProver {
         self.local_prover.verify(proof, vkey)
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_compressed(
+        &self,
+        _proof: &SP1CompressedProof,
+        _vkey: &SP1VerifyingKey,
+    ) -> Result<()> {
         todo!()
     }
 
-    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
+    }
+}
+
+impl Default for NetworkProver {
+    fn default() -> Self {
+        Self::new()
     }
 }
