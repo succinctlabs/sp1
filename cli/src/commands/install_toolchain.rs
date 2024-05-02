@@ -45,7 +45,7 @@ impl InstallToolchainCmd {
                             if let Err(err) = fs::remove_dir_all(&entry_path) {
                                 println!("Failed to remove directory {:?}: {}", entry_path, err);
                             }
-                        } else if entry_path.is_file() {
+                        } else if entry_path.is_file() && entry_path.file_name().unwrap() != "bin" {
                             if let Err(err) = fs::remove_file(&entry_path) {
                                 println!("Failed to remove file {:?}: {}", entry_path, err);
                             }
