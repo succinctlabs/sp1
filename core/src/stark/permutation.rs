@@ -257,6 +257,7 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
     );
     prepermutation_trace = RowMajorMatrix::new(
         (0..unpacked_prepermutation_trace.clone().len())
+            .into_par_iter()
             .step_by(PackedVal::<SC>::WIDTH)
             .map(|col| {
                 PackedChallenge::<SC>::from_base_fn(|i| {
