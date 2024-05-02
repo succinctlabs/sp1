@@ -15,7 +15,6 @@ use p3_matrix::Matrix;
 use serde::Deserialize;
 use serde::Serialize;
 use sp1_derive::AlignedBorrow;
-use typenum::Unsigned;
 use typenum::U32;
 
 use crate::air::BaseAirBuilder;
@@ -28,8 +27,8 @@ use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::field_sqrt::FieldSqrtCols;
+use crate::operations::field::params::FieldParameters;
 use crate::operations::field::params::Limbs;
-use crate::operations::field::params::{FieldParameters, NumWords};
 use crate::operations::field::range::FieldRangeCols;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::MemoryReadRecord;
@@ -45,11 +44,12 @@ use crate::utils::ec::edwards::ed25519::Ed25519BaseField;
 use crate::utils::ec::edwards::EdwardsParameters;
 use crate::utils::ec::COMPRESSED_POINT_BYTES;
 use crate::utils::ec::NUM_BYTES_FIELD_ELEMENT;
-use crate::utils::ec::NUM_WORDS_FIELD_ELEMENT;
 use crate::utils::limbs_from_access;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
 use crate::utils::words_to_bytes_le;
+
+use super::{WordsFieldElement, WORDS_FIELD_ELEMENT};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct EdDecompressEvent {
@@ -59,10 +59,8 @@ pub struct EdDecompressEvent {
     pub sign: bool,
     pub y_bytes: [u8; COMPRESSED_POINT_BYTES],
     pub decompressed_x_bytes: [u8; NUM_BYTES_FIELD_ELEMENT],
-    pub x_memory_records:
-        [MemoryWriteRecord; <<Ed25519BaseField as NumWords>::WordsFieldElement as Unsigned>::USIZE],
-    pub y_memory_records:
-        [MemoryReadRecord; <<Ed25519BaseField as NumWords>::WordsFieldElement as Unsigned>::USIZE],
+    pub x_memory_records: [MemoryWriteRecord; WORDS_FIELD_ELEMENT],
+    pub y_memory_records: [MemoryReadRecord; WORDS_FIELD_ELEMENT],
 }
 
 pub const NUM_ED_DECOMPRESS_COLS: usize = size_of::<EdDecompressCols<u8>>();
@@ -80,10 +78,8 @@ pub struct EdDecompressCols<T> {
     pub clk: T,
     pub ptr: T,
     pub sign: T,
-    pub x_access:
-        GenericArray<MemoryWriteCols<T>, <Ed25519BaseField as NumWords>::WordsFieldElement>,
-    pub y_access:
-        GenericArray<MemoryReadCols<T>, <Ed25519BaseField as NumWords>::WordsFieldElement>,
+    pub x_access: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
+    pub y_access: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub(crate) y_range: FieldRangeCols<T, Ed25519BaseField>,
     pub(crate) yy: FieldOpCols<T, Ed25519BaseField>,
     pub(crate) u: FieldOpCols<T, Ed25519BaseField>,
@@ -215,24 +211,20 @@ impl<V: Copy> EdDecompressCols<V> {
             self.is_real,
         );
 
-        for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.eval_memory_access(
-                self.shard,
-                self.clk,
-                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4),
-                &self.x_access[i],
-                self.is_real,
-            );
-        }
-        for i in 0..NUM_WORDS_FIELD_ELEMENT {
-            builder.eval_memory_access(
-                self.shard,
-                self.clk,
-                self.ptr.into() + AB::F::from_canonical_u32((i as u32) * 4 + 32),
-                &self.y_access[i],
-                self.is_real,
-            );
-        }
+        builder.eval_memory_access_slice(
+            self.shard,
+            self.clk,
+            self.ptr,
+            &self.x_access,
+            self.is_real,
+        );
+        builder.eval_memory_access_slice(
+            self.shard,
+            self.clk,
+            self.ptr,
+            &self.y_access,
+            self.is_real,
+        );
 
         // Constrain that the correct result is written into x.
         let x_limbs: Limbs<V, U32> = limbs_from_access(&self.x_access);
@@ -270,7 +262,7 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
 
         let (y_memory_records_vec, y_vec) = rt.mr_slice(
             slice_ptr + (COMPRESSED_POINT_BYTES as u32),
-            NUM_WORDS_FIELD_ELEMENT,
+            WORDS_FIELD_ELEMENT,
         );
         let y_memory_records: [MemoryReadRecord; 8] = y_memory_records_vec.try_into().unwrap();
 
@@ -291,7 +283,7 @@ impl<E: EdwardsParameters> Syscall for EdDecompressChip<E> {
 
         let mut decompressed_x_bytes = decompressed.x.to_bytes_le();
         decompressed_x_bytes.resize(32, 0u8);
-        let decompressed_x_words: [u32; NUM_WORDS_FIELD_ELEMENT] =
+        let decompressed_x_words: [u32; WORDS_FIELD_ELEMENT] =
             bytes_to_words_le(&decompressed_x_bytes);
 
         // Write decompressed X into slice
