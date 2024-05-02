@@ -1048,8 +1048,6 @@ mod tests {
         type EF = Challenge<SC>;
 
         sp1_core::utils::setup_logger();
-        // let elf =
-        //     include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = RiscvAir::machine(SC::default());
         let (_, vk) = machine.setup(&program);
