@@ -9,8 +9,8 @@ use super::LocalProver;
 use crate::{
     client::NetworkClient,
     proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
-    SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithMetadata,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 
 pub struct NetworkProver {
@@ -35,7 +35,7 @@ impl NetworkProver {
         }
     }
 
-    pub async fn prove_async(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    pub async fn prove_async(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1Proof> {
         let client = &self.client;
         // Execute the runtime before creating the proof request.
         // TODO: Maybe we don't want to always do this locally, with large programs. Or we may want
@@ -143,7 +143,7 @@ impl Prover for NetworkProver {
         self.local_prover.setup(elf)
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async { self.prove_async(&pk.elf, stdin).await })
     }
@@ -160,7 +160,7 @@ impl Prover for NetworkProver {
         todo!()
     }
 
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.local_prover.verify(proof, vkey)
     }
 

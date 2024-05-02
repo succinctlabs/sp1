@@ -10,7 +10,6 @@
 
 pub mod proto {
     #[rustfmt::skip]
-    #[allow(clippy::all)]
     pub mod network;
 }
 pub mod artifacts;
@@ -22,7 +21,7 @@ pub mod utils;
 use std::{env, fs::File, path::Path};
 
 use anyhow::{Ok, Result};
-use provers::{LocalProver, MockProver, NetworkProver};
+use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::ShardProof;
 pub use sp1_prover::{
@@ -80,10 +79,17 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
+    /// // Load the program.
     /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
     /// let client = ProverClient::new();
+    ///
+    /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
+    ///
+    /// // Execute the program on the inputs.
     /// let public_values = client.execute(elf, stdin).unwrap();
     /// ```
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
@@ -120,13 +126,23 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
+    /// // Load the program.
     /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
     /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    ///
+    /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
-    /// let proof = client.prove(elf, stdin).unwrap();
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove(&pk, stdin).unwrap();
     /// ```
-    pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         self.prover.prove(pk, stdin)
     }
 
@@ -139,11 +155,21 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
+    /// // Load the program.
     /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
     /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    ///
+    /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
-    /// let proof = client.prove_compressed(elf, stdin).unwrap();
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove_compressed(&pk, stdin).unwrap();
     /// ```
     pub fn prove_compressed(
         &self,
@@ -162,11 +188,21 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
+    /// // Load the program.
     /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
     /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    ///
+    /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
-    /// let proof = client.prove_groth16(elf, stdin).unwrap();
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove_groth16(&pk, stdin).unwrap();
     /// ```
     /// Generates a groth16 proof, verifiable onchain, of the given elf and stdin.
     pub fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
@@ -182,22 +218,69 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
+    /// // Load the program.
     /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
     /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    ///
+    /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
-    /// let proof = client.prove_plonk(elf, stdin).unwrap();
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
     /// ```
     pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         self.prover.prove_plonk(pk, stdin)
     }
 
-    /// Verifies the given proof is valid and matches the given vkey.
-    pub fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    /// Verifies that the given proof is valid and matches the given verification key produced by
+    /// [Self::setup].
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let proof = client.prove(&pk, stdin).unwrap();
+    /// client.verify(&proof, &vk).unwrap();
+    /// ```
+    pub fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify(proof, vkey)
     }
 
-    /// Verifies the given compressed proof is valid and matches the given vkey.
+    /// Verifies that the given compressed proof is valid and matches the given verification key
+    /// produced by [Self::setup].
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// // Load the program.
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
+    /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    ///
+    /// // Setup the inputs.
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove_compressed(&pk, stdin).unwrap();
+    /// client.verify_compressed(&proof, &vk).unwrap();
+    /// ```
     pub fn verify_compressed(
         &self,
         proof: &SP1CompressedProof,
@@ -206,14 +289,64 @@ impl ProverClient {
         self.prover.verify_compressed(proof, vkey)
     }
 
-    /// Verifies the given groth16 proof is valid and matches the given vkey.
-    pub fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.prover.verify_plonk(proof, vkey)
-    }
-
-    /// Verifies the given groth16 proof is valid and matches the given vkey.
+    /// Verifies that the given groth16 proof is valid and matches the given verification key
+    /// produced by [Self::setup].
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// // Load the program.
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
+    /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    ///
+    /// // Setup the inputs.
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove_groth16(&pk, stdin).unwrap();
+    ///
+    /// // Verify the proof.
+    /// client.verify_groth16(&proof, &vk).unwrap();
+    /// ```
     pub fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify_groth16(proof, vkey)
+    }
+
+    /// Verifies that the given plonk proof is valid and matches the given verification key
+    /// produced by [Self::setup].
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// // Load the program.
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    ///
+    /// // Initialize the prover client.
+    /// let client = ProverClient::new();
+    ///
+    /// // Setup the program.
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    ///
+    /// // Setup the inputs.
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    ///
+    /// // Generate the proof.
+    /// let proof = client.prove_plonk(&pk, stdin).unwrap();
+    ///
+    /// // Verify the proof.
+    /// client.verify_plonk(&proof, &vk).unwrap();
+    /// ```
+    pub fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        self.prover.verify_plonk(proof, vkey)
     }
 }
 
@@ -261,38 +394,10 @@ impl<P: std::fmt::Debug> std::fmt::Debug for SP1ProofWithMetadata<P> {
     }
 }
 
-pub type SP1DefaultProof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
+pub type SP1Proof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
 
 pub type SP1CompressedProof = SP1ProofWithMetadata<ShardProof<InnerSC>>;
 
-pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
-
 pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
 
-pub trait Prover: Send + Sync {
-    fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
-
-    /// Prove the execution of a RISCV ELF with the given inputs.
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof>;
-
-    /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
-
-    /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof>;
-
-    /// Given an SP1 program and input, generate a Groth16 proof that can be verified on-chain.
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
-
-    /// Verify that an SP1 proof is valid given its vkey and metadata.
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()>;
-
-    /// Verify that a compressed SP1 proof is valid given its vkey and metadata.
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()>;
-
-    /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
-    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()>;
-
-    /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()>;
-}
+pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;

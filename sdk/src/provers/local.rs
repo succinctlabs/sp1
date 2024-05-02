@@ -8,8 +8,8 @@ use crate::{
         WrapCircuitType,
     },
     utils::EnvVarGuard,
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
-    SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithMetadata,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
 use sha2::{Digest, Sha256};
@@ -65,7 +65,7 @@ impl Prover for LocalProver {
         self.prover.setup(elf)
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         let proof = self.prover.prove_core(pk, &stdin);
         Ok(SP1ProofWithMetadata {
             proof: proof.shard_proofs,
@@ -121,7 +121,7 @@ impl Prover for LocalProver {
         })
     }
 
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
         let pv_digest: [u8; 32] = Sha256::digest(&proof.public_values.buffer.data).into();
         if pv_digest != *pv.commit_digest_bytes() {
