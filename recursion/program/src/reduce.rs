@@ -105,6 +105,21 @@ pub enum ReduceProgramType {
     Reduce,
 }
 
+#[derive(DslVariable, Clone)]
+pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
+    pub vk: VerifyingKeyVariable<C>,
+
+    pub shard_proofs: Array<C, ShardProofVariable<C>>,
+    pub shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
+    pub shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
+
+    pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
+    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+
+    pub leaf_challenger: DuplexChallengerVariable<C>,
+    pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
+}
+
 /// An input layout for the reduce verifier.
 pub struct SP1ReduceMemoryLayout<
     'a,
@@ -128,21 +143,6 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub reduce_vk: VerifyingKeyVariable<C>,
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kind: Var<C::N>,
-}
-
-#[derive(DslVariable, Clone)]
-pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
-    pub vk: VerifyingKeyVariable<C>,
-
-    pub shard_proofs: Array<C, ShardProofVariable<C>>,
-    pub shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
-    pub shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
-
-    pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
-    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
-
-    pub leaf_challenger: DuplexChallengerVariable<C>,
-    pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
@@ -191,6 +191,17 @@ where
         input: SP1ReduceMemoryLayoutVariable<C>,
     ) {
     }
+}
+
+/// Assertions on the public values describing a complete recursive proof state.
+///
+/// By definition, the execution is complete if the following conditions hold:
+/// - 'start_pc` is equal to the start_pc of the program's verifier key.
+fn assert_complete<C: Config>(
+    builder: &mut Builder<C>,
+    core_vk: &VerifyingKeyVariable<C>,
+    public_values: &RecursionPublicValues<Felt<C::F>>,
+) {
 }
 
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
