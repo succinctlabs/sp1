@@ -54,13 +54,12 @@ pub fn populate_batch_and_mult<SC: StarkGenericConfig>(
     for ((value, row_chunk), interaction_chunk) in new_row
         .iter_mut()
         .zip(&row.iter().chunks(batch_size))
-        .zip(interaction_chunks)
+        .zip_eq(interaction_chunks)
     {
         *value = row_chunk
             .into_iter()
             .zip(interaction_chunk.into_iter())
-            .map(|(val, interaction_info)| {
-                let (interaction, is_send) = interaction_info;
+            .map(|(val, (interaction, is_send))| {
                 let mut mult = interaction
                     .multiplicity
                     .apply::<PackedVal<SC>, PackedVal<SC>>(preprocessed_row, main_row);
@@ -227,18 +226,16 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
         .flatten()
         .collect::<Vec<SC::Challenge>>();
 
-    println!(
-        "Unpacked length: {}; Needed Length: {}",
-        unpacked_prepermutation_trace.len(),
-        height * prepermutation_trace_width
-    );
-
     // Compute the inverses of the denominators in the permutation trace.
     unpacked_prepermutation_trace
         .par_chunks_mut(chunk_rate)
         .for_each(|chunk| batch_multiplicative_inverse_inplace(chunk));
 
     // Repack the permutation trace values.
+    assert_eq!(
+        unpacked_prepermutation_trace.len(),
+        height * prepermutation_trace_width
+    );
     prepermutation_trace = RowMajorMatrix::new(
         (0..unpacked_prepermutation_trace.clone().len())
             .step_by(PackedVal::<SC>::WIDTH)
@@ -324,10 +321,9 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
             *row.last_mut().unwrap() = cumulative_sum;
         });
 
-    println!(
-        "Permutation trace length: {}, Needed Length: {}",
+    assert_eq!(
         permutation_trace.values.len(),
-        height * permutation_trace_width
+        height.div_ceil(PackedVal::<SC>::WIDTH) * permutation_trace_width
     );
     let unpacked_permutation_trace = permutation_trace
         .par_rows()
@@ -350,12 +346,12 @@ pub(crate) fn generate_permutation_trace<SC: StarkGenericConfig>(
         })
         .flatten()
         .collect::<Vec<SC::Challenge>>();
-    println!(
-        "Permutation trace size: {}, Needed Length: {}",
+    assert_eq!(
         unpacked_permutation_trace.len(),
         height * permutation_trace_width
     );
-    RowMajorMatrix::new(unpacked_permutation_trace, permutation_trace_width)
+    let ret_val = RowMajorMatrix::new(unpacked_permutation_trace, permutation_trace_width);
+    ret_val
 }
 
 /// Evaluates the permutation constraints for the given chip.
