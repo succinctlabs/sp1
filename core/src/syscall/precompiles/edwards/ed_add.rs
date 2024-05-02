@@ -27,6 +27,7 @@ use crate::operations::field::field_inner_product::FieldInnerProductCols;
 use crate::operations::field::field_op::FieldOpCols;
 use crate::operations::field::field_op::FieldOperation;
 use crate::operations::field::params::FieldParameters;
+use crate::operations::field::params::NumWords;
 use crate::runtime::ExecutionRecord;
 use crate::runtime::Program;
 use crate::runtime::Syscall;
@@ -39,10 +40,18 @@ use crate::utils::ec::AffinePoint;
 use crate::utils::ec::EllipticCurve;
 use crate::utils::limbs_from_prev_access;
 use crate::utils::pad_rows;
+use generic_array::GenericArray;
+use typenum::Unsigned;
 
 pub const NUM_ED_ADD_COLS: usize = size_of::<EdAddAssignCols<u8>>();
 
-/// A set of columns to compute `EdAdd` where a, b are field elements.
+type WordsFieldElement = <Ed25519BaseField as NumWords>::WordsFieldElement;
+const NUM_WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
+
+type WordsCurvePoint = <Ed25519BaseField as NumWords>::WordsCurvePoint;
+const NUM_WORDS_CURVE_POINT: usize = WordsCurvePoint::USIZE;
+
+/// A set of columns to compute `EdAdd` where p, q are field elements.
 /// Right now the number of limbs is assumed to be a constant, although this could be macro-ed
 /// or made generic in the future.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -53,8 +62,8 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub p_access: [MemoryWriteCols<T>; Ed25519BaseField::NB_LIMBS],
-    pub q_access: [MemoryReadCols<T>; Ed25519BaseField::NB_LIMBS],
+    pub p_access: GenericArray<MemoryWriteCols<T>, WordsCurvePoint>,
+    pub q_access: GenericArray<MemoryReadCols<T>, WordsCurvePoint>,
     pub(crate) x3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) y3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) x1_mul_y1: FieldOpCols<T, Ed25519BaseField>,
@@ -181,12 +190,15 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                     q_y,
                 );
 
+                assert_eq!(event.q_memory_records.len(), NUM_WORDS_CURVE_POINT);
+                assert_eq!(event.p_memory_records.len(), NUM_WORDS_CURVE_POINT);
+
                 // Populate the memory access columns.
-                for i in 0..16 {
+                for i in 0..NUM_WORDS_CURVE_POINT {
                     cols.q_access[i]
                         .populate(event.q_memory_records[i], &mut new_byte_lookup_events);
                 }
-                for i in 0..16 {
+                for i in 0..NUM_WORDS_CURVE_POINT {
                     cols.p_access[i]
                         .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
                 }
@@ -242,10 +254,14 @@ where
         let row = main.row_slice(0);
         let row: &EdAddAssignCols<AB::Var> = (*row).borrow();
 
-        let x1 = limbs_from_prev_access(&row.p_access[0..8]);
-        let x2 = limbs_from_prev_access(&row.q_access[0..8]);
-        let y1 = limbs_from_prev_access(&row.p_access[8..16]);
-        let y2 = limbs_from_prev_access(&row.q_access[8..16]);
+        let x1 = limbs_from_prev_access(&row.p_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let x2 = limbs_from_prev_access(&row.q_access[0..NUM_WORDS_FIELD_ELEMENT]);
+        let y1 = limbs_from_prev_access(
+            &row.p_access[NUM_WORDS_FIELD_ELEMENT..NUM_WORDS_FIELD_ELEMENT * 2],
+        );
+        let y2 = limbs_from_prev_access(
+            &row.q_access[NUM_WORDS_FIELD_ELEMENT..NUM_WORDS_FIELD_ELEMENT * 2],
+        );
 
         // x3_numerator = x1 * y2 + x2 * y1.
         row.x3_numerator
