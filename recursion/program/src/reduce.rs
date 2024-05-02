@@ -22,47 +22,35 @@
 #![allow(clippy::needless_range_loop)]
 
 use std::array;
-use std::borrow::{Borrow, BorrowMut};
-use std::marker::PhantomData;
-use std::ptr::hash;
+use std::borrow::BorrowMut;
 
 use itertools::Itertools;
 use p3_air::Air;
 use p3_baby_bear::BabyBear;
-use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core::air::{MachineAir, PublicValues, SP1_PROOF_NUM_PV_ELTS, WORD_SIZE};
+use sp1_core::air::{MachineAir, PublicValues};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
-use sp1_core::runtime::Program;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::stark::{StarkMachine, PROOF_MAX_NUM_PVS};
-use sp1_core::utils::baby_bear_poseidon2::{compressed_fri_config, default_fri_config};
-use sp1_core::utils::sp1_fri_config;
-use sp1_core::utils::{BabyBearPoseidon2, InnerDigest};
-use sp1_recursion_compiler::asm::{AsmBuilder, AsmConfig};
+use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2};
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
 use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
-use sp1_recursion_core::stark::{RecursionAirSkinnyDeg7, RecursionAirWideDeg3};
 
 use sp1_recursion_compiler::prelude::*;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
-use crate::fri::types::DigestVariable;
 use crate::fri::TwoAdicFriPcsVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
-use crate::types::{QuotientData, QuotientDataValues, VerifyingKeyVariable};
-use crate::types::{Sha256DigestVariable, ShardProofVariable};
-use crate::utils::{
-    assert_challenger_eq_pv, assign_challenger_from_pv, clone_array, commit_challenger,
-    const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt,
-};
+use crate::types::ShardProofVariable;
+use crate::types::{QuotientData, VerifyingKeyVariable};
+use crate::utils::{const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt};
 
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
@@ -166,7 +154,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
         let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
 
         let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, default_fri_config()),
+            config: const_fri_config(&mut builder, sp1_fri_config()),
         };
         SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
 
@@ -517,24 +505,6 @@ where
         }
 
         builder.commit_public_values(&recursion_public_values_array)
-
-        // let recursion_public_values = RecursionPublicValues::<Felt<C::F>> {
-        //     committed_value_digest,
-        //     deferred_proofs_digest,
-        //     start_pc,
-        //     next_pc: end_pc,
-        //     start_shard: initial_shard,
-        //     next_shard: end_shard,
-        //     vk_digest,
-        //     leaf_challenger: leaf_challenger_public_values,
-        //     start_reconstruct_challenger: initial_challenger_public_values,
-        //     end_reconstruct_challenger: final_challenger_public_values,
-        //     cumulative_sum: cumulative_sum_arrray,
-        //     start_reconstruct_deferred_digest: deferred_proofs_digest,
-        //     end_reconstruct_deferred_digest: deferred_proofs_digest,
-        //     exit_code: builder.eval(C::F::zero()),
-        //     is_complete: builder.eval(C::F::zero()),
-        // };
     }
 }
 
@@ -1185,9 +1155,10 @@ mod tests {
     use p3_challenger::CanObserve;
     use sp1_core::{
         io::SP1Stdin,
+        runtime::Program,
         stark::{Challenge, LocalProver, ProgramVerificationError},
     };
-    use sp1_recursion_core::runtime::Runtime;
+    use sp1_recursion_core::{runtime::Runtime, stark::RecursionAirWideDeg3};
 
     use super::*;
 
@@ -1259,7 +1230,7 @@ mod tests {
         SP1RecursionMemoryLayout::<SC, RiscvAir<_>>::witness(&input, &mut builder);
 
         let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, default_fri_config()),
+            config: const_fri_config(&mut builder, sp1_fri_config()),
         };
         SP1RecursiveVerifier::verify(&mut builder, &pcs, &machine, input);
 
