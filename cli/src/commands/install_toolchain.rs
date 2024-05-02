@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
 use dirs::home_dir;
-use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use sp1_sdk::artifacts::download_file;
 use std::fs::{self};
@@ -115,11 +114,12 @@ impl InstallToolchainCmd {
         fs::create_dir_all(root_dir.join("toolchains"))?;
 
         // Move to the toolchain directory.
+        let mv_dir = root_dir.join("toolchains").join(&target);
         Command::new("mv")
             .current_dir(&root_dir)
             .args([
-                target.as_str(),
-                toolchain_dir.clone().as_os_str().to_str().unwrap(),
+                root_dir.join(&target).to_str().unwrap(),
+                mv_dir.to_str().unwrap(),
             ])
             .status()?;
 
