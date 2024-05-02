@@ -175,12 +175,19 @@ where
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
+    /// Verify a batch of recursive proofs and aggregate their public values.
     fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1ReduceMemoryLayoutVariable<C>,
     ) {
+        let SP1ReduceMemoryLayoutVariable {
+            core_vk,
+            reduce_vk,
+            shard_proofs,
+            kind,
+        } = input;
     }
 }
 
@@ -195,10 +202,6 @@ where
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Assertions on the public values describing a complete recursive proof state.
-    ///
-    /// By definition, the execution is complete if the following conditions hold:
-    /// - 'start_pc` is equal to the start_pc of the program's verifier key.
-    /// - `start_shard` is equal to 1.
     fn assert_complete(
         builder: &mut Builder<C>,
         core_vk: &VerifyingKeyVariable<C>,
@@ -253,6 +256,7 @@ where
         }
     }
 
+    /// Verify a batch of SP1 proofs and aggregate their public values.
     fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
