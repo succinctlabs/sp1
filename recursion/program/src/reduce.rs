@@ -119,12 +119,9 @@ pub struct SP1ReduceMemoryLayout<
     A: MachineAir<SC::Val>,
 > {
     pub core_vk: &'a StarkVerifyingKey<CoreSC>,
-    // TODO:
-    // pub deferred_vk : &'a StarkVerifyingKey<SC>,
     pub reduce_vk: &'a StarkVerifyingKey<SC>,
     pub machine: &'a StarkMachine<SC, A>,
     pub shard_proofs: Vec<ShardProof<SC>>,
-    /// A type to represent the kind of program we are verifying.
     pub kind: ReduceProgramType,
 }
 
@@ -132,6 +129,10 @@ pub struct SP1ReduceMemoryLayout<
 pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub core_vk: VerifyingKeyVariable<C>,
     pub reduce_vk: VerifyingKeyVariable<C>,
+
+    pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
+    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kind: Var<C::N>,
 }
@@ -181,13 +182,31 @@ where
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1ReduceMemoryLayoutVariable<C>,
+        recursive_vk: &StarkVerifyingKey<SC>,
+        deferred_vk: &StarkVerifyingKey<SC>,
     ) {
         let SP1ReduceMemoryLayoutVariable {
             core_vk,
             reduce_vk,
+            preprocessed_sorted_idxs,
+            prep_domains,
             shard_proofs,
             kind,
         } = input;
+
+        // Initialize the values for the aggregated public output.
+
+        let zero_felt: Felt<_> = builder.eval(C::F::zero());
+
+        let mut reduce_public_values_stream = [zero_felt; RECURSIVE_PROOF_NUM_PV_ELTS];
+
+        let reduce_public_values: &mut RecursionPublicValues<_> =
+            reduce_public_values_stream.as_mut_slice().borrow_mut();
+
+        // Compute the digest of core_vk and input the value to the public values.
+        let core_vk_digest = hash_vkey(builder, &core_vk, &prep_domains, &preprocessed_sorted_idxs);
+
+        reduce_public_values.sp1_vk_digest = array::from_fn(|i| builder.get(&core_vk_digest, i));
     }
 }
 
@@ -460,14 +479,12 @@ where
         let cumulative_sum_arrray = builder.ext2felt(cumulative_sum);
         let cumulative_sum_arrray = array::from_fn(|i| builder.get(&cumulative_sum_arrray, i));
 
+        let zero: Felt<_> = builder.eval(C::F::zero());
         // Initialize the public values we will commit to.
-        let mut recursion_public_values_stream: [Felt<_>; RECURSIVE_PROOF_NUM_PV_ELTS] =
-            array::from_fn(|_| builder.uninit());
+        let mut recursion_public_values_stream = [zero; RECURSIVE_PROOF_NUM_PV_ELTS];
 
         let recursion_public_values: &mut RecursionPublicValues<_> =
             recursion_public_values_stream.as_mut_slice().borrow_mut();
-
-        let zero: Felt<_> = builder.eval(C::F::zero());
 
         let start_deferred_digest = [zero; POSEIDON_NUM_WORDS];
         let end_deferred_digest = [zero; POSEIDON_NUM_WORDS];

@@ -7,7 +7,6 @@ use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, 
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use crate::fri::types::DigestVariable;
-use crate::utils::felt2var;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
