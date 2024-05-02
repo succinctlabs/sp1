@@ -1,16 +1,17 @@
 #![allow(unused_variables)]
 use std::{env, time::Duration};
 
+use anyhow::{Context, Result};
+use sp1_prover::{SP1Prover, SP1Stdin};
+use tokio::{runtime, time::sleep};
+
+use super::LocalProver;
 use crate::{
     client::NetworkClient,
-    local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
     Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
     SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
 };
-use anyhow::{Context, Result};
-use sp1_prover::{SP1Prover, SP1Stdin};
-use tokio::{runtime, time::sleep};
 
 pub struct NetworkProver {
     client: NetworkClient,

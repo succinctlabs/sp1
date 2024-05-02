@@ -1,5 +1,13 @@
+//! # SP1 SDK
+//!
+//! A library for interacting with the SP1 RISC-V zkVM.
+//!
+//! Visit the [Getting Started](https://succinctlabs.github.io/sp1/getting-started.html) section
+//! in the official SP1 documentation for a quick start guide.
+
 #![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
+
 pub mod proto {
     #[rustfmt::skip]
     #[allow(clippy::all)]
@@ -8,41 +16,41 @@ pub mod proto {
 pub mod artifacts;
 pub mod auth;
 pub mod client;
-pub mod local;
-pub mod mock;
-pub mod network;
+pub mod provers;
 pub mod utils;
 
-use anyhow::{Ok, Result};
-use artifacts::WrapCircuitType;
-use local::LocalProver;
-use mock::MockProver;
-use network::NetworkProver;
-pub use sp1_prover::{
-    CoreSC, SP1CoreProof, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
-};
-use sp1_prover::{Groth16Proof, InnerSC, PlonkBn254Proof};
 use std::{env, fs::File, path::Path};
 
+use anyhow::{Ok, Result};
+use provers::{LocalProver, MockProver, NetworkProver};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::ShardProof;
+pub use sp1_prover::{
+    CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1CoreProof, SP1Prover, SP1ProvingKey,
+    SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+};
 
-/// A client that can prove RISCV ELFs and verify those proofs.
+/// A client for interacting with SP1.
 pub struct ProverClient {
     pub prover: Box<dyn Prover>,
 }
 
-impl Default for ProverClient {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl ProverClient {
-    /// Creates a new ProverClient with the prover set to either local or remote based on the
-    /// SP1_PROVER environment variable.
+    /// Creates a new [ProverClient].
+    ///
+    /// Setting the `SP1_PROVER` enviroment variable can change the prover used under the hood.
+    /// - `local` (default): Uses [LocalProver]. Recommended for proving end-to-end locally.
+    /// - `mock`: Uses [MockProver]. Recommended for testing and development.
+    /// - `remote`: Uses [NetworkProver]. Recommended for outsourcing proof generation to an RPC.
+    ///
+    /// ### Examples
+    ///
+    /// ```
+    /// use sp1_sdk::ProverClient;
+    ///
+    /// let client = ProverClient::new();
+    /// ```
     pub fn new() -> Self {
-        dotenv::dotenv().ok();
         match env::var("SP1_PROVER")
             .unwrap_or("local".to_string())
             .to_lowercase()
@@ -57,49 +65,86 @@ impl ProverClient {
             "remote" => Self {
                 prover: Box::new(NetworkProver::new()),
             },
-            _ => panic!("Invalid SP1_PROVER value"),
+            _ => panic!(
+                "invalid value for SP1_PROVER enviroment variable: expected 'local', 'mock', or 'remote'"
+            ),
         }
     }
 
-    pub fn new_groth16() -> Self {
-        dotenv::dotenv().ok();
-        match env::var("SP1_PROVER")
-            .unwrap_or("local".to_string())
-            .to_lowercase()
-            .as_str()
-        {
-            "mock" => Self {
-                prover: Box::new(MockProver::new()),
-            },
-            "local" => {
-                let prover = LocalProver::new();
-                prover.initialize_circuit(WrapCircuitType::Groth16);
-                Self {
-                    prover: Box::new(prover),
-                }
-            }
-            "remote" => Self {
-                prover: Box::new(NetworkProver::new()),
-            },
-            _ => panic!("Invalid SP1_PROVER value"),
-        }
-    }
-
-    /// Executes the elf with the given inputs and returns the output.
+    /// Executes the given program on the given input (without generating a proof).
+    ///
+    /// Returns the public values of the program after it has been executed.
+    ///
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let public_values = client.execute(elf, stdin).unwrap();
+    /// ```
     pub fn execute(elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
         Ok(SP1Prover::execute(elf, &stdin))
     }
 
+    /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving
+    /// and verifying keys.
+    ///
+    /// The proving key and verifying key essentially embed the program, as well as other auxiliary
+    /// data (such as lookup tables) that are used to prove the program's correctness.
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// ```
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
     }
 
-    /// Proves the execution of the given elf with the given inputs.
+    /// Proves the execution of the given program with the given input in the default mode.
+    ///
+    /// Returns a proof of the program's execution. By default the proof generated will not be
+    /// compressed to constant size. To create a more succinct proof, use the [Self::prove_compressed],
+    /// [Self::prove_groth16], or [Self::prove_plonk] methods.
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let proof = client.prove(elf, stdin).unwrap();
+    /// ```
     pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
         self.prover.prove(pk, stdin)
     }
 
-    /// Generates a compressed proof for the given elf and stdin.
+    /// Proves the execution of the given program with the given input in the compressed mode.
+    ///
+    /// Returns a compressed proof of the program's execution. The compressed proof is a succinct
+    /// proof that is of constant size and friendly for recursion and off-chain verification.
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let proof = client.prove_compressed(elf, stdin).unwrap();
+    /// ```
     pub fn prove_compressed(
         &self,
         pk: &SP1ProvingKey,
@@ -108,12 +153,41 @@ impl ProverClient {
         self.prover.prove_compressed(pk, stdin)
     }
 
+    /// Proves the execution of the given program with the given input in the groth16 mode.
+    ///
+    /// Returns a proof of the program's execution in the groth16 format. The proof is a succinct
+    /// proof that is of constant size and friendly for on-chain verification.
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let proof = client.prove_groth16(elf, stdin).unwrap();
+    /// ```
     /// Generates a groth16 proof, verifiable onchain, of the given elf and stdin.
     pub fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         self.prover.prove_groth16(pk, stdin)
     }
 
-    /// Generates a PLONK proof, verifiable onchain, of the given elf and stdin.
+    /// Proves the execution of the given program with the given input in the plonk mode.
+    ///
+    /// Returns a proof of the program's execution in the plonk format. The proof is a succinct
+    /// proof that is of constant size and friendly for on-chain verification.
+    ///
+    /// ### Examples
+    /// ```
+    /// use sp1_sdk::{ProverClient, SP1Stdin};
+    ///
+    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let client = ProverClient::new();
+    /// let mut stdin = SP1Stdin::new();
+    /// stdin.write(&10usize);
+    /// let proof = client.prove_plonk(elf, stdin).unwrap();
+    /// ```
     pub fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         self.prover.prove_plonk(pk, stdin)
     }
@@ -140,6 +214,12 @@ impl ProverClient {
     /// Verifies the given groth16 proof is valid and matches the given vkey.
     pub fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify_groth16(proof, vkey)
+    }
+}
+
+impl Default for ProverClient {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
