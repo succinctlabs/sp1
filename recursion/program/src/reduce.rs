@@ -1156,7 +1156,7 @@ mod tests {
     #[ignore]
     fn test_sp1_recursive_machine_verify_tendermint() {
         let elf = include_bytes!(
-            "../../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf"
+            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
         );
         test_sp1_recursive_machine_verify(Program::from(elf), 2)
     }
