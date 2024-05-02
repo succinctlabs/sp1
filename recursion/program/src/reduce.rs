@@ -310,7 +310,7 @@ where
         // Initialize loop variables.
         let current_shard: Felt<_> = builder.uninit();
         let mut reconstruct_challenger: DuplexChallengerVariable<_> =
-            builder.eval(initial_reconstruct_challenger.clone());
+            initial_reconstruct_challenger.copy(builder);
         let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
         let current_pc: Felt<_> = builder.uninit();
         let exit_code: Felt<_> = builder.uninit();
@@ -437,7 +437,7 @@ where
             reconstruct_challenger.observe(builder, proof.commitment.main_commit);
             for j in 0..SP1_PROOF_NUM_PV_ELTS {
                 let element = builder.get(&proof.public_values, j);
-                reconstruct_challenger.clone().observe(builder, element);
+                reconstruct_challenger.observe(builder, element);
             }
 
             // Increment the shard count by one.
