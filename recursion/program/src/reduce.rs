@@ -107,7 +107,33 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
 }
 
-impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {}
+impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
+    pub fn setup() -> RecursionProgram<BabyBear> {
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
+        SP1RecursionMemoryLayout::<BabyBearPoseidon2, RiscvAir<_>>::witness(&input, &mut builder);
+
+        builder.compile_program()
+    }
+
+    pub fn build(
+        machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
+    ) -> RecursionProgram<BabyBear> {
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
+
+        let pcs = TwoAdicFriPcsVariable {
+            config: const_fri_config(&mut builder, default_fri_config()),
+        };
+        SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
+
+        let mut recursive_program = builder.compile_program();
+        recursive_program.instructions[0] = Instruction::dummy();
+        recursive_program
+    }
+}
 
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
 where
