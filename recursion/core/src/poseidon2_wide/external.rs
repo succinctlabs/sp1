@@ -1,27 +1,25 @@
+use crate::poseidon2_wide::columns::{
+    Poseidon2ColType, Poseidon2Cols, Poseidon2SBoxCols, NUM_POSEIDON2_COLS, NUM_POSEIDON2_SBOX_COLS,
+};
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
-use core::mem::size_of;
 use p3_air::{Air, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
-use sp1_core::utils::pad_to_power_of_two;
-use sp1_derive::AlignedBorrow;
+use sp1_core::utils::pad_rows_fixed;
 use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
 use crate::air::SP1RecursionAirBuilder;
 use crate::memory::MemoryCols;
-use crate::memory::MemoryReadSingleCols;
-use crate::memory::MemoryReadWriteSingleCols;
 
 use crate::poseidon2_wide::{external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
-/// The number of main trace columns for `AddChip`.
-pub const NUM_POSEIDON2_WIDE_COLS: usize = size_of::<Poseidon2WideCols<u8>>();
+use super::columns::Poseidon2MemCols;
 
 /// The width of the permutation.
 pub const WIDTH: usize = 16;
@@ -32,49 +30,8 @@ pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
-pub struct Poseidon2WideChip<const DEGREE: usize>;
-
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2MemCols<T> {
-    pub timestamp: T,
-    pub dst: T,
-    pub left: T,
-    pub right: T,
-    pub input: [MemoryReadSingleCols<T>; WIDTH],
-    pub output: [MemoryReadWriteSingleCols<T>; WIDTH],
-    pub is_real: T,
-}
-
-/// The column layout for the chip.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2WideCols<T> {
-    memory: Poseidon2MemCols<T>,
-    external_rounds: [Poseidon2WideExternalRoundCols<T>; NUM_EXTERNAL_ROUNDS],
-    internal_rounds: Poseidon2WideInternalRoundsCols<T>,
-}
-
-/// A grouping of columns for a single external round.
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-struct Poseidon2WideExternalRoundCols<T> {
-    state: [T; WIDTH],
-    sbox_deg_3: [T; WIDTH],
-}
-
-/// A grouping of columns for all of the internal rounds.
-/// As an optimization, we can represent all of the internal rounds without columns for intermediate
-/// states except for the 0th element. This is because the linear layer that comes after the sbox is
-/// degree 1, so all state elements at the end can be expressed as a degree-3 polynomial of:
-/// 1) the 0th state element at rounds prior to the current round
-/// 2) the rest of the state elements at the beginning of the internal rounds
-#[derive(AlignedBorrow, Clone, Copy)]
-#[repr(C)]
-struct Poseidon2WideInternalRoundsCols<T> {
-    state: [T; WIDTH],
-    s0: [T; NUM_INTERNAL_ROUNDS - 1],
-    sbox_deg_3: [T; NUM_INTERNAL_ROUNDS],
+pub struct Poseidon2WideChip<const DEGREE: usize> {
+    pub fixed_log2_rows: Option<usize>,
 }
 
 impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<DEGREE> {
@@ -90,7 +47,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
         // This is a no-op.
     }
 
-    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all)]
+    #[instrument(name = "generate poseidon2 wide trace", level = "debug", skip_all, fields(rows = input.poseidon2_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -100,63 +57,85 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 
         log::debug!("Nb poseidon2 events: {:?}", input.poseidon2_events.len());
 
-        for event in &input.poseidon2_events {
-            let mut row = [F::zero(); NUM_POSEIDON2_WIDE_COLS];
-            let cols: &mut Poseidon2WideCols<F> = row.as_mut_slice().borrow_mut();
+        assert!(DEGREE >= 3, "Minimum supported constraint degree is 3");
+        let use_sbox_3 = DEGREE < 7;
+        let num_columns = <Self as BaseAir<F>>::width(self);
 
-            cols.memory.timestamp = event.clk;
-            cols.memory.dst = event.dst;
-            cols.memory.left = event.left;
-            cols.memory.right = event.right;
-            cols.memory.is_real = F::one();
+        for event in &input.poseidon2_events {
+            let mut row = Vec::new();
+            row.resize(num_columns, F::zero());
+
+            let mut cols = if use_sbox_3 {
+                let cols: &Poseidon2SBoxCols<F> = row.as_slice().borrow();
+                Poseidon2ColType::Wide(*cols)
+            } else {
+                let cols: &Poseidon2Cols<F> = row.as_slice().borrow();
+                Poseidon2ColType::Narrow(*cols)
+            };
+
+            let (poseidon2_cols, mut external_sbox, mut internal_sbox) = cols.get_cols_mut();
+
+            let mut memory = poseidon2_cols.memory;
+            memory.timestamp = event.clk;
+            memory.dst = event.dst;
+            memory.left = event.left;
+            memory.right = event.right;
+            memory.is_real = F::one();
 
             // Apply the initial round.
             for i in 0..WIDTH {
-                cols.memory.input[i].populate(&event.input_records[i]);
+                memory.input[i].populate(&event.input_records[i]);
             }
-            cols.external_rounds[0].state = event.input;
-            external_linear_layer(&mut cols.external_rounds[0].state);
+
+            for i in 0..WIDTH {
+                memory.output[i].populate(&event.result_records[i]);
+            }
+
+            poseidon2_cols.external_rounds_state[0] = event.input;
+            external_linear_layer(&mut poseidon2_cols.external_rounds_state[0]);
 
             // Apply the first half of external rounds.
             for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-                let next_state = populate_external_round(cols, r);
+                let next_state = populate_external_round(poseidon2_cols, &mut external_sbox, r);
 
                 if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-                    cols.internal_rounds.state = next_state;
+                    poseidon2_cols.internal_rounds_state = next_state;
                 } else {
-                    cols.external_rounds[r + 1].state = next_state;
+                    poseidon2_cols.external_rounds_state[r + 1] = next_state;
                 }
             }
 
             // Apply the internal rounds.
-            cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state = populate_internal_rounds(cols);
+            poseidon2_cols.external_rounds_state[NUM_EXTERNAL_ROUNDS / 2] =
+                populate_internal_rounds(poseidon2_cols, &mut internal_sbox);
 
             // Apply the second half of external rounds.
             for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-                let next_state = populate_external_round(cols, r);
+                let next_state = populate_external_round(poseidon2_cols, &mut external_sbox, r);
                 if r == NUM_EXTERNAL_ROUNDS - 1 {
                     // Do nothing, since we set the cols.output by populating the output records
                     // after this loop.
+                    for i in 0..WIDTH {
+                        assert_eq!(event.result_records[i].value[0], next_state[i]);
+                    }
                 } else {
-                    cols.external_rounds[r + 1].state = next_state;
+                    poseidon2_cols.external_rounds_state[r + 1] = next_state;
                 }
-            }
-
-            for i in 0..WIDTH {
-                cols.memory.output[i].populate(&event.result_records[i]);
             }
 
             rows.push(row);
         }
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_POSEIDON2_WIDE_COLS,
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || vec![F::zero(); num_columns],
+            self.fixed_log2_rows,
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_POSEIDON2_WIDE_COLS, F>(&mut trace.values);
+        // Convert the trace to a row major matrix.
+        let trace =
+            RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), num_columns);
 
         #[cfg(debug_assertions)]
         println!(
@@ -174,11 +153,12 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
 }
 
 fn populate_external_round<F: PrimeField32>(
-    cols: &mut Poseidon2WideCols<F>,
+    poseidon2_cols: &mut Poseidon2Cols<F>,
+    sbox: &mut Option<&mut [[F; WIDTH]; NUM_EXTERNAL_ROUNDS]>,
     r: usize,
 ) -> [F; WIDTH] {
     let mut state = {
-        let round_cols = cols.external_rounds[r].borrow_mut();
+        let round_state: &mut [F; WIDTH] = poseidon2_cols.external_rounds_state[r].borrow_mut();
 
         // Add round constants.
         //
@@ -189,9 +169,8 @@ fn populate_external_round<F: PrimeField32>(
         } else {
             r + NUM_INTERNAL_ROUNDS
         };
-        let mut add_rc = round_cols.state;
         for i in 0..WIDTH {
-            add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
+            round_state[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
         }
 
         // Apply the sboxes.
@@ -199,9 +178,14 @@ fn populate_external_round<F: PrimeField32>(
         // avoid adding columns for the result of the sbox, and instead include the x^3 -> x^7
         // part of the sbox in the constraint for the linear layer
         let mut sbox_deg_7: [F; 16] = [F::zero(); WIDTH];
+        let mut sbox_deg_3: [F; 16] = [F::zero(); WIDTH];
         for i in 0..WIDTH {
-            round_cols.sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
-            sbox_deg_7[i] = round_cols.sbox_deg_3[i] * round_cols.sbox_deg_3[i] * add_rc[i];
+            sbox_deg_3[i] = round_state[i] * round_state[i] * round_state[i];
+            sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * round_state[i];
+        }
+
+        if let Some(sbox) = sbox.as_deref_mut() {
+            sbox[r] = sbox_deg_3;
         }
 
         sbox_deg_7
@@ -212,9 +196,12 @@ fn populate_external_round<F: PrimeField32>(
     state
 }
 
-fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) -> [F; WIDTH] {
-    let cols = cols.internal_rounds.borrow_mut();
-    let mut state = cols.state;
+fn populate_internal_rounds<F: PrimeField32>(
+    poseidon2_cols: &mut Poseidon2Cols<F>,
+    sbox: &mut Option<&mut [F; NUM_INTERNAL_ROUNDS]>,
+) -> [F; WIDTH] {
+    let state: &mut [F; WIDTH] = poseidon2_cols.internal_rounds_state.borrow_mut();
+    let mut sbox_deg_3: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
     for r in 0..NUM_INTERNAL_ROUNDS {
         // Add the round constant to the 0th state element.
         // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
@@ -225,12 +212,12 @@ fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) ->
         // Apply the sboxes.
         // Optimization: since the linear layer that comes after the sbox is degree 1, we can
         // avoid adding columns for the result of the sbox, just like for external rounds.
-        cols.sbox_deg_3[r] = add_rc * add_rc * add_rc;
-        let sbox_deg_7 = cols.sbox_deg_3[r] * cols.sbox_deg_3[r] * add_rc;
+        sbox_deg_3[r] = add_rc * add_rc * add_rc;
+        let sbox_deg_7 = sbox_deg_3[r] * sbox_deg_3[r] * add_rc;
 
         // Apply the linear layer.
         state[0] = sbox_deg_7;
-        internal_linear_layer(&mut state);
+        internal_linear_layer(state);
 
         // Optimization: since we're only applying the sbox to the 0th state element, we only
         // need to have columns for the 0th state element at every step. This is because the
@@ -238,20 +225,27 @@ fn populate_internal_rounds<F: PrimeField32>(cols: &mut Poseidon2WideCols<F>) ->
         // degree-3 polynomial of the state at the beginning of the internal rounds and the 0th
         // state element at rounds prior to the current round
         if r < NUM_INTERNAL_ROUNDS - 1 {
-            cols.s0[r] = state[0];
+            poseidon2_cols.internal_rounds_s0[r] = state[0];
         }
     }
 
-    state
+    let ret_state = *state;
+
+    if let Some(sbox) = sbox.as_deref_mut() {
+        *sbox = sbox_deg_3;
+    }
+
+    ret_state
 }
 
 fn eval_external_round<AB: SP1AirBuilder>(
     builder: &mut AB,
-    cols: &Poseidon2WideCols<AB::Var>,
+    cols: &Poseidon2ColType<AB::Var>,
     r: usize,
     is_real: AB::Var,
 ) {
-    let round_cols = cols.external_rounds[r];
+    let poseidon2_cols = cols.get_poseidon2_cols();
+    let external_state = poseidon2_cols.external_rounds_state[r];
 
     // Add the round constants.
     let round = if r < NUM_EXTERNAL_ROUNDS / 2 {
@@ -260,18 +254,23 @@ fn eval_external_round<AB: SP1AirBuilder>(
         r + NUM_INTERNAL_ROUNDS
     };
     let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-        round_cols.state[i].into() + is_real * AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
+        external_state[i].into() + is_real * AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
     });
 
     // Apply the sboxes.
     // See `populate_external_round` for why we don't have columns for the sbox output here.
     let mut sbox_deg_7: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+    let mut sbox_deg_3: [AB::Expr; WIDTH] = core::array::from_fn(|_| AB::Expr::zero());
+    let expected_sbox_deg_3 = cols.get_external_sbox(r);
     for i in 0..WIDTH {
-        let sbox_deg_3 = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
-        builder.assert_eq(round_cols.sbox_deg_3[i], sbox_deg_3);
+        sbox_deg_3[i] = add_rc[i].clone() * add_rc[i].clone() * add_rc[i].clone();
 
-        let sbox_deg_3 = round_cols.sbox_deg_3[i];
-        sbox_deg_7[i] = sbox_deg_3 * sbox_deg_3 * add_rc[i].clone();
+        if let Some(expected) = expected_sbox_deg_3 {
+            builder.assert_eq(expected[i], sbox_deg_3[i].clone());
+            sbox_deg_3[i] = expected[i].into();
+        }
+
+        sbox_deg_7[i] = sbox_deg_3[i].clone() * sbox_deg_3[i].clone() * add_rc[i].clone();
     }
 
     // Apply the linear layer.
@@ -279,11 +278,11 @@ fn eval_external_round<AB: SP1AirBuilder>(
     external_linear_layer(&mut state);
 
     let next_state_cols = if r == NUM_EXTERNAL_ROUNDS / 2 - 1 {
-        &cols.internal_rounds.state
+        poseidon2_cols.internal_rounds_state
     } else if r == NUM_EXTERNAL_ROUNDS - 1 {
-        &core::array::from_fn(|i| *cols.memory.output[i].value())
+        core::array::from_fn(|i| *poseidon2_cols.memory.output[i].value())
     } else {
-        &cols.external_rounds[r + 1].state
+        poseidon2_cols.external_rounds_state[r + 1]
     };
     for i in 0..WIDTH {
         builder.assert_eq(next_state_cols[i], state[i].clone());
@@ -292,26 +291,31 @@ fn eval_external_round<AB: SP1AirBuilder>(
 
 fn eval_internal_rounds<AB: SP1AirBuilder>(
     builder: &mut AB,
-    cols: &Poseidon2WideCols<AB::Var>,
+    cols: &Poseidon2ColType<AB::Var>,
     is_real: AB::Var,
 ) {
-    let round_cols = &cols.internal_rounds;
-    let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| round_cols.state[i].into());
+    let poseidon2_cols = cols.get_poseidon2_cols();
+    let state = &poseidon2_cols.internal_rounds_state;
+    let s0 = poseidon2_cols.internal_rounds_s0;
+    let sbox_3 = cols.get_internal_sbox();
+    let mut state: [AB::Expr; WIDTH] = core::array::from_fn(|i| state[i].into());
     for r in 0..NUM_INTERNAL_ROUNDS {
         // Add the round constant.
         let round = r + NUM_EXTERNAL_ROUNDS / 2;
         let add_rc = if r == 0 {
             state[0].clone()
         } else {
-            round_cols.s0[r - 1].into()
+            s0[r - 1].into()
         } + is_real * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
 
-        let sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
-        builder.assert_eq(round_cols.sbox_deg_3[r], sbox_deg_3);
+        let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
+        if let Some(expected) = sbox_3 {
+            builder.assert_eq(expected[r], sbox_deg_3);
+            sbox_deg_3 = expected[r].into();
+        }
 
         // See `populate_internal_rounds` for why we don't have columns for the sbox output here.
-        let sbox_deg_7 =
-            round_cols.sbox_deg_3[r].into() * round_cols.sbox_deg_3[r].into() * add_rc.clone();
+        let sbox_deg_7 = sbox_deg_3.clone() * sbox_deg_3 * add_rc.clone();
 
         // Apply the linear layer.
         // See `populate_internal_rounds` for why we don't have columns for the new state here.
@@ -319,21 +323,22 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
         internal_linear_layer(&mut state);
 
         if r < NUM_INTERNAL_ROUNDS - 1 {
-            builder.assert_eq(round_cols.s0[r], state[0].clone());
+            builder.assert_eq(s0[r], state[0].clone());
         }
     }
 
+    let external_state = poseidon2_cols.external_rounds_state[NUM_EXTERNAL_ROUNDS / 2];
     for i in 0..WIDTH {
-        builder.assert_eq(
-            cols.external_rounds[NUM_EXTERNAL_ROUNDS / 2].state[i],
-            state[i].clone(),
-        )
+        builder.assert_eq(external_state[i], state[i].clone())
     }
 }
 
 impl<F, const DEGREE: usize> BaseAir<F> for Poseidon2WideChip<DEGREE> {
     fn width(&self) -> usize {
-        NUM_POSEIDON2_WIDE_COLS
+        match DEGREE {
+            d if d < 7 => NUM_POSEIDON2_SBOX_COLS,
+            _ => NUM_POSEIDON2_COLS,
+        }
     }
 }
 
@@ -381,55 +386,69 @@ where
     AB: SP1RecursionAirBuilder,
 {
     fn eval(&self, builder: &mut AB) {
+        assert!(DEGREE >= 3, "Minimum supported constraint degree is 3");
         let main = builder.main();
         let cols = main.row_slice(0);
-        let cols: &Poseidon2WideCols<AB::Var> = (*cols).borrow();
+        let cols = match DEGREE {
+            d if d < 7 => {
+                let cols: &Poseidon2SBoxCols<AB::Var> = (*cols).borrow();
+                Poseidon2ColType::Wide(*cols)
+            }
+            _ => {
+                let cols: &Poseidon2Cols<AB::Var> = (*cols).borrow();
+                Poseidon2ColType::Narrow(*cols)
+            }
+        };
 
-        eval_mem(builder, &cols.memory);
+        let poseidon2_cols = cols.get_poseidon2_cols();
+        let memory = poseidon2_cols.memory;
+        eval_mem(builder, &memory);
 
         // Dummy constraints to normalize to DEGREE.
         let lhs = (0..DEGREE)
-            .map(|_| cols.memory.is_real.into())
+            .map(|_| memory.is_real.into())
             .product::<AB::Expr>();
         let rhs = (0..DEGREE)
-            .map(|_| cols.memory.is_real.into())
+            .map(|_| memory.is_real.into())
             .product::<AB::Expr>();
         builder.assert_eq(lhs, rhs);
 
         // Apply the initial round.
         let initial_round_output = {
             let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| (*cols.memory.input[i].value()).into());
+                core::array::from_fn(|i| (*memory.input[i].value()).into());
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
+        let state_expr: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+            let state = poseidon2_cols.external_rounds_state[0];
+            state[i].into()
+        });
         builder
-            .when(cols.memory.is_real)
-            .assert_all_eq(cols.external_rounds[0].state, initial_round_output);
+            .when(memory.is_real)
+            .assert_all_eq(state_expr, initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {
-            eval_external_round(builder, cols, r, cols.memory.is_real);
+            eval_external_round(builder, &cols, r, memory.is_real);
         }
 
         // Apply the internal rounds.
-        eval_internal_rounds(builder, cols, cols.memory.is_real);
+        eval_internal_rounds(builder, &cols, memory.is_real);
 
         // Apply the second half of external rounds.
         for r in NUM_EXTERNAL_ROUNDS / 2..NUM_EXTERNAL_ROUNDS {
-            eval_external_round(builder, cols, r, cols.memory.is_real);
+            eval_external_round(builder, &cols, r, memory.is_real);
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use core::borrow::Borrow;
     use std::time::Instant;
 
-    use crate::memory::MemoryCols;
     use crate::poseidon2::Poseidon2Event;
-    use crate::poseidon2_wide::external::{Poseidon2WideCols, WIDTH};
+    use crate::poseidon2_wide::external::WIDTH;
     use crate::{poseidon2_wide::external::Poseidon2WideChip, runtime::ExecutionRecord};
     use itertools::Itertools;
     use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
@@ -440,12 +459,13 @@ mod tests {
     use p3_symmetric::Permutation;
     use sp1_core::air::MachineAir;
     use sp1_core::stark::StarkGenericConfig;
-    use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2Inner};
+    use sp1_core::utils::{inner_perm, uni_stark_prove, uni_stark_verify, BabyBearPoseidon2};
 
-    /// A test generating a trace for a single permutation that checks that the output is correct
-    #[test]
-    fn generate_trace() {
-        let chip = Poseidon2WideChip::<3>;
+    fn generate_trace_degree<const DEGREE: usize>() {
+        let chip = Poseidon2WideChip::<DEGREE> {
+            fixed_log2_rows: None,
+        };
+
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
             [BabyBear::from_canonical_u32(2); WIDTH],
@@ -467,42 +487,57 @@ mod tests {
             .collect::<Vec<_>>();
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for input in test_inputs.iter().cloned() {
+        for (input, output) in test_inputs.clone().into_iter().zip_eq(expected_outputs) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input));
+                .push(Poseidon2Event::dummy_from_input(input, output));
         }
 
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
 
         assert_eq!(trace.height(), test_inputs.len());
-        for (i, expected_output) in expected_outputs.iter().enumerate() {
-            let row = trace.row(i).collect_vec();
-            let cols: &Poseidon2WideCols<BabyBear> = row.as_slice().borrow();
-            for i in 0..WIDTH {
-                assert_eq!(expected_output[i], *cols.memory.output[i].value());
-            }
-        }
     }
 
-    /// A test proving 2^10 permuations
+    /// A test generating a trace for a single permutation that checks that the output is correct
     #[test]
-    fn poseidon2_wide_prove_babybear() {
-        let config = BabyBearPoseidon2Inner::new();
+    fn generate_trace() {
+        generate_trace_degree::<3>();
+        generate_trace_degree::<7>();
+    }
+
+    fn poseidon2_wide_prove_babybear_degree<const DEGREE: usize>() {
+        const DEGREE: usize = 7;
+
+        let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = Poseidon2WideChip::<3>;
+        let chip = Poseidon2WideChip::<DEGREE> {
+            fixed_log2_rows: None,
+        };
 
         let test_inputs = (0..1000)
             .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
             .collect_vec();
 
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
+
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
+
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
-        for input in test_inputs {
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
             input_exec
                 .poseidon2_events
-                .push(Poseidon2Event::dummy_from_input(input));
+                .push(Poseidon2Event::dummy_from_input(input, output));
         }
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
@@ -524,5 +559,11 @@ mod tests {
 
         let duration = start.elapsed().as_secs_f64();
         println!("verify duration = {:?}", duration);
+    }
+
+    #[test]
+    fn poseidon2_wide_prove_babybear() {
+        poseidon2_wide_prove_babybear_degree::<3>();
+        poseidon2_wide_prove_babybear_degree::<7>();
     }
 }

@@ -1,13 +1,15 @@
 package server
 
 import (
-	"bytes"
+	"bufio"
 	"context"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
@@ -34,7 +36,7 @@ func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.C
 	if !filesExist {
 		return nil, nil, errors.New("circuit files not found")
 	} else {
-		fmt.Println("files found, loading circuit...")
+		fmt.Println("Files found, loading circuit...")
 	}
 
 	// Load the circuit artifacts into memory
@@ -42,51 +44,78 @@ func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.C
 	if err != nil {
 		return nil, nil, errors.Wrap(err, "loading circuit artifacts")
 	}
+	fmt.Println("Circuit artifacts loaded successfully")
 
 	return r1cs, pk, nil
 }
 
 // LoadCircuitArtifacts loads the R1CS and Proving Key from the specified data directory into memory.
 func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
-	r1csFilePath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
-	pkFilePath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
+	var wg sync.WaitGroup
+	var r1cs constraint.ConstraintSystem
+	var pk groth16.ProvingKey
+	var errR1CS, errPK error
 
-	// Read the R1CS content
-	r1csFile, err := os.Open(r1csFilePath)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "opening R1CS file")
+	startTime := time.Now()
+	fmt.Printf("Loading artifacts start time %s\n", startTime.Format(time.RFC3339))
+
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+
+		r1csFilePath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
+		fmt.Println("Opening R1CS file at:", r1csFilePath)
+		r1csFile, err := os.Open(r1csFilePath)
+		if err != nil {
+			errR1CS = errors.Wrap(err, "opening R1CS file")
+			return
+		}
+		defer r1csFile.Close()
+
+		r1csReader := bufio.NewReader(r1csFile)
+		r1csStart := time.Now()
+		r1cs = groth16.NewCS(ecc.BN254)
+		fmt.Println("Reading R1CS file...")
+		if _, err = r1cs.ReadFrom(r1csReader); err != nil {
+			errR1CS = errors.Wrap(err, "reading R1CS content from file")
+		} else {
+			fmt.Printf("R1CS loaded in %s\n", time.Since(r1csStart))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		pkFilePath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
+		fmt.Println("Opening PK file at:", pkFilePath)
+		pkFile, err := os.Open(pkFilePath)
+		if err != nil {
+			errPK = errors.Wrap(err, "opening PK file")
+			return
+		}
+		defer pkFile.Close()
+
+		pkReader := bufio.NewReader(pkFile)
+		pkStart := time.Now()
+		pk = groth16.NewProvingKey(ecc.BN254)
+		fmt.Println("Reading PK file...")
+		if _, err = pk.UnsafeReadFrom(pkReader); err != nil {
+			errPK = errors.Wrap(err, "reading PK content from file")
+		} else {
+			fmt.Printf("PK loaded in %s\n", time.Since(pkStart))
+		}
+	}()
+
+	wg.Wait()
+
+	if errR1CS != nil {
+		return nil, nil, errors.Wrap(errR1CS, "processing R1CS")
+	}
+	if errPK != nil {
+		return nil, nil, errors.Wrap(errPK, "processing PK")
 	}
 
-	r1csFile.Seek(0, io.SeekStart)
-	r1csContent, err := io.ReadAll(r1csFile)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "reading R1CS content")
-	}
-
-	// Read the PK content
-	pkFile, err := os.Open(pkFilePath)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "opening PK file")
-	}
-
-	pkFile.Seek(0, io.SeekStart)
-	pkContent, err := io.ReadAll(pkFile)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "reading PK content")
-	}
-
-	// Load R1CS and Proving Key into memory
-	r1cs := groth16.NewCS(ecc.BN254)
-	_, err = r1cs.ReadFrom(bytes.NewReader(r1csContent))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading R1CS content")
-	}
-
-	pk := groth16.NewProvingKey(ecc.BN254)
-	_, err = pk.ReadFrom(bytes.NewReader(pkContent))
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error reading PK content")
-	}
+	fmt.Printf("Circuit artifacts loaded successfully in %s\n", time.Since(startTime))
 
 	return r1cs, pk, nil
 }

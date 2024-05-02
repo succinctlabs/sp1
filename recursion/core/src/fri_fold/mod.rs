@@ -9,7 +9,7 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BinomialExtension, MachineAir};
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use std::borrow::BorrowMut;
 use tracing::instrument;
@@ -21,7 +21,9 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 pub const NUM_FRI_FOLD_COLS: usize = core::mem::size_of::<FriFoldCols<u8>>();
 
 #[derive(Default)]
-pub struct FriFoldChip;
+pub struct FriFoldChip {
+    pub fixed_log2_rows: Option<usize>,
+}
 
 #[derive(Debug, Clone)]
 pub struct FriFoldEvent<F> {
@@ -94,16 +96,16 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
         // This is a no-op.
     }
 
-    #[instrument(name = "generate fri fold trace", level = "debug", skip_all)]
+    #[instrument(name = "generate fri fold trace", level = "debug", skip_all, fields(rows = input.fri_fold_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let trace_values = input
+        let mut rows = input
             .fri_fold_events
             .iter()
-            .flat_map(|event| {
+            .map(|event| {
                 let mut row = [F::zero(); NUM_FRI_FOLD_COLS];
 
                 let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
@@ -129,15 +131,19 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
                     .populate(&event.alpha_pow_at_log_height);
                 cols.ro_at_log_height.populate(&event.ro_at_log_height);
 
-                row.into_iter()
+                row
             })
             .collect_vec();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(trace_values, NUM_FRI_FOLD_COLS);
-
         // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_FRI_FOLD_COLS, F>(&mut trace.values);
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_FRI_FOLD_COLS],
+            self.fixed_log2_rows,
+        );
+
+        // Convert the trace to a row major matrix.
+        let trace = RowMajorMatrix::new(rows.into_iter().flatten().collect(), NUM_FRI_FOLD_COLS);
 
         #[cfg(debug_assertions)]
         println!(

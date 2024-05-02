@@ -421,7 +421,7 @@ impl SP1Prover {
         &self,
         config: SC,
         pk: &StarkProvingKey<SC>,
-        vk: &SP1VerifyingKey,
+        core_vk: &SP1VerifyingKey,
         core_challenger: Challenger<CoreSC>,
         reconstruct_challenger: Challenger<CoreSC>,
         state: ReduceState,
@@ -484,7 +484,7 @@ impl SP1Prover {
             })
             .collect();
         let (prep_sorted_indices, prep_domains): (Vec<usize>, Vec<Domain<CoreSC>>) =
-            get_preprocessed_data(&self.core_machine, &vk.vk);
+            get_preprocessed_data(&self.core_machine, &core_vk.vk);
         let (reduce_prep_sorted_indices, reduce_prep_domains): (Vec<usize>, Vec<Domain<InnerSC>>) =
             get_preprocessed_data(&self.reduce_machine, &self.reduce_vk);
         let (compress_prep_sorted_indices, compress_prep_domains): (
@@ -513,7 +513,7 @@ impl SP1Prover {
         witness_stream.extend(Hintable::write(&reduce_prep_domains));
         witness_stream.extend(compress_prep_sorted_indices.write());
         witness_stream.extend(Hintable::write(&compress_prep_domains));
-        witness_stream.extend(vk.vk.write());
+        witness_stream.extend(core_vk.vk.write());
         witness_stream.extend(self.reduce_vk.write());
         witness_stream.extend(self.compress_vk.write());
         witness_stream.extend(state.committed_values_digest.write());
@@ -573,7 +573,11 @@ impl SP1Prover {
 
         // Generate proof.
         let start = Instant::now();
-        let proof = if proving_with_skinny {
+        let proof = if proving_with_skinny && verifying_compressed_proof {
+            let machine = RecursionAirSkinnyDeg7::wrap_machine(config);
+            let mut challenger = machine.config().challenger();
+            machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)
+        } else if proving_with_skinny {
             let machine = RecursionAirSkinnyDeg7::machine(config);
             let mut challenger = machine.config().challenger();
             machine.prove::<LocalProver<_, _>>(pk, runtime.record.clone(), &mut challenger)

@@ -52,6 +52,10 @@ pub struct Witness<C: Config> {
 }
 
 impl<C: Config> Witness<C> {
+    pub fn size(&self) -> usize {
+        self.vars.len() + self.felts.len() + self.exts.len() + 2
+    }
+
     pub fn set_vkey_hash(&mut self, vkey_hash: C::N) {
         self.vkey_hash = vkey_hash;
     }

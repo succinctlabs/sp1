@@ -1,7 +1,6 @@
 use anyhow::Result;
 use clap::Parser;
 use dirs::home_dir;
-use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
 use sp1_sdk::artifacts::download_file;
 use std::fs::{self};
@@ -105,7 +104,7 @@ impl InstallToolchainCmd {
         }
 
         // Unpack the toolchain.
-        fs::create_dir_all(toolchain_dir)?;
+        fs::create_dir_all(toolchain_dir.clone())?;
         Command::new("tar")
             .current_dir(&root_dir)
             .args(["-xzf", &toolchain_asset_name, "-C", &target])
@@ -114,14 +113,15 @@ impl InstallToolchainCmd {
         // Mkdir .sp1/toolchains if it doesn't exist.
         fs::create_dir_all(root_dir.join("toolchains"))?;
 
-        // Move the toolchain to a random directory (avoid rustup bugs).
-        let random_string: String = rand::thread_rng()
-            .sample_iter(&Alphanumeric)
-            .take(10)
-            .map(char::from)
-            .collect();
-        let toolchain_dir = root_dir.join("toolchains").join(random_string);
-        fs::rename(&target, &toolchain_dir)?;
+        // Move to the toolchain directory.
+        let mv_dir = root_dir.join("toolchains").join(&target);
+        Command::new("mv")
+            .current_dir(&root_dir)
+            .args([
+                root_dir.join(&target).to_str().unwrap(),
+                mv_dir.to_str().unwrap(),
+            ])
+            .status()?;
 
         // Link the toolchain to rustup.
         Command::new("rustup")

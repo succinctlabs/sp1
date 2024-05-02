@@ -1,8 +1,8 @@
 extern crate p3_baby_bear;
 extern crate p3_field;
 
-use p3_field::PrimeField32;
 use p3_baby_bear::BabyBear;
+use p3_field::PrimeField32;
 use p3_field::{extension::BinomialExtensionField, AbstractExtensionField, AbstractField, Field};
 
 #[no_mangle]
