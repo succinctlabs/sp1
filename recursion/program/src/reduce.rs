@@ -435,7 +435,7 @@ where
 
             // Update the reconstruct challenger, cumulative sum, shard number, and program counter.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit);
-            for j in 0..SP1_PROOF_NUM_PV_ELTS {
+            for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 reconstruct_challenger.observe(builder, element);
             }
