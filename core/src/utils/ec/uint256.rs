@@ -1,4 +1,4 @@
-use typenum::{U36, U70};
+use typenum::{U32, U62};
 
 use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
@@ -28,6 +28,6 @@ impl FieldParameters for U256Field {
 }
 
 impl NumLimbs for U256Field {
-    type Limbs = U36;
-    type Witness = U70;
+    type Limbs = U32;
+    type Witness = U62;
 }

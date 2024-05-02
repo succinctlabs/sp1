@@ -207,12 +207,14 @@ impl Syscall for Uint256MulChip {
             panic!();
         }
 
+        assert!(x_ptr != y_ptr);
+
         let x = rt.slice_unsafe(x_ptr, 8);
 
         let (y_memory_records_vec, y) = rt.mr_slice(y_ptr, 8);
         let y_memory_records = y_memory_records_vec.try_into().unwrap();
 
-        let (modulus_memory_records_vec, modulus) = rt.mr_slice(y_ptr + 8, 8);
+        let (modulus_memory_records_vec, modulus) = rt.mr_slice(y_ptr + 8 * 4, 8);
         let modulus_memory_records = modulus_memory_records_vec.try_into().unwrap();
 
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
