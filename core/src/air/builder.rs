@@ -601,7 +601,7 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
     ) {
         let base_slice = element.as_base_slice();
         let degree = base_slice.len();
-        base_slice[1..degree - 1].iter().for_each(|coeff| {
+        base_slice[1..degree].iter().for_each(|coeff| {
             self.assert_zero(coeff.clone().into());
         });
     }
