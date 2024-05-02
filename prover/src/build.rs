@@ -30,7 +30,7 @@ fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let core_proof = prover.prove_core(&pk, &stdin);
 
     tracing::info!("reduce");
-    let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
+    let reduced_proof = prover.reduce(&vk, core_proof.proof, vec![]);
 
     tracing::info!("compress");
     let compressed_proof = prover.compress(&vk, reduced_proof);

@@ -5,11 +5,11 @@ use crate::{
     client::NetworkClient,
     local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
-    SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1Groth16ProofData, SP1PlonkProofData, SP1ProofWithMetadata, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 use anyhow::{Context, Result};
-use sp1_prover::{SP1Prover, SP1Stdin};
+use sp1_prover::{SP1CoreProof, SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
 
 pub struct NetworkProver {
@@ -34,7 +34,7 @@ impl NetworkProver {
         }
     }
 
-    pub async fn prove_async(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    pub async fn prove_async(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1CoreProof> {
         let client = &self.client;
         // Execute the runtime before creating the proof request.
         // TODO: Maybe we don't want to always do this locally, with large programs. Or we may want
@@ -52,7 +52,7 @@ impl NetworkProver {
             match status.status() {
                 ProofStatus::ProofFulfilled => {
                     return Ok(SP1ProofWithMetadata {
-                        proof: maybe_proof.unwrap().shard_proofs,
+                        proof: maybe_proof.unwrap().0,
                         stdin,
                         public_values,
                     });
@@ -151,11 +151,11 @@ impl Prover for NetworkProver {
         todo!()
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProofData> {
         todo!()
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16ProofData> {
         todo!()
     }
 
@@ -167,11 +167,11 @@ impl Prover for NetworkProver {
         todo!()
     }
 
-    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkProofData, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, proof: &SP1Groth16ProofData, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 }

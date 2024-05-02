@@ -1,6 +1,9 @@
+use std::{fs::File, path::Path};
+
+use anyhow::Result;
 use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
     air::{PublicValues, Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS},
     io::{SP1PublicValues, SP1Stdin},
@@ -9,8 +12,12 @@ use sp1_core::{
 };
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_gnark_ffi::{plonk_bn254::PlonkBn254Proof, Groth16Proof};
 
-use crate::{CoreSC, InnerSC};
+use crate::{
+    verify::{verify_core_proof, verify_reduced_proof},
+    CoreSC, InnerSC,
+};
 
 /// The information necessary to generate a proof for a given RISC-V program.
 pub struct SP1ProvingKey {
@@ -55,12 +62,93 @@ impl SP1VerifyingKey {
     }
 }
 
-/// A proof of a RISC-V execution with given inputs and outputs composed of multiple shard proofs.
+/// A proof of a RISCV ELF execution with given inputs and outputs.
 #[derive(Serialize, Deserialize, Clone)]
-pub struct SP1CoreProof {
-    pub shard_proofs: Vec<ShardProof<CoreSC>>,
+#[serde(bound(serialize = "P: Serialize"))]
+#[serde(bound(deserialize = "P: DeserializeOwned"))]
+pub struct SP1ProofWithMetadata<P: SP1Proof> {
+    pub proof: P,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
+}
+
+impl<P: Serialize + DeserializeOwned + SP1Proof> SP1ProofWithMetadata<P> {
+    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
+        bincode::serialize_into(File::create(path).expect("failed to open file"), self)
+            .map_err(Into::into)
+    }
+
+    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
+        bincode::deserialize_from(File::open(path).expect("failed to open file"))
+            .map_err(Into::into)
+    }
+}
+
+impl<P: std::fmt::Debug + SP1Proof> std::fmt::Debug for SP1ProofWithMetadata<P> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SP1ProofWithMetadata")
+            .field("proof", &self.proof)
+            .finish()
+    }
+}
+
+impl SP1Proof for SP1ProofWithMetadata<SP1CoreProofData> {
+    fn verify(&self, vk: &SP1VerifyingKey) -> Result<()> {
+        self.proof.verify(vk)
+    }
+}
+
+pub trait SP1Proof: Clone {
+    fn verify(&self, vk: &SP1VerifyingKey) -> Result<()>;
+}
+
+/// A proof of an SP1 program without any wrapping.
+pub type SP1CoreProof = SP1ProofWithMetadata<SP1CoreProofData>;
+
+/// An SP1 proof that has been recursively reduced into a single proof. This proof can be verified
+/// within SP1 programs.
+pub type SP1ReducedProof = SP1ProofWithMetadata<SP1ReducedProofData>;
+
+/// An SP1 proof that has been wrapped into a single Groth16 proof and can be verified onchain.
+pub type SP1Groth16Proof = SP1ProofWithMetadata<SP1Groth16ProofData>;
+
+/// An SP1 proof that has been wrapped into a single Plonk proof and can be verified onchain.
+pub type SP1PlonkProof = SP1ProofWithMetadata<SP1PlonkProofData>;
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SP1CoreProofData(pub Vec<ShardProof<CoreSC>>);
+
+impl SP1Proof for SP1CoreProofData {
+    fn verify(&self, vk: &SP1VerifyingKey) -> Result<()> {
+        verify_core_proof(&self.0, vk).map_err(|e| e.into())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SP1ReducedProofData(pub ShardProof<InnerSC>);
+
+impl SP1Proof for SP1ReducedProofData {
+    fn verify(&self, vk: &SP1VerifyingKey) -> Result<()> {
+        verify_reduced_proof(self.0.clone(), vk).map_err(|e| e.into())
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SP1Groth16ProofData(pub Groth16Proof);
+
+impl SP1Proof for SP1Groth16ProofData {
+    fn verify(&self, _vk: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct SP1PlonkProofData(pub PlonkBn254Proof);
+
+impl SP1Proof for SP1PlonkProofData {
+    fn verify(&self, _vk: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
 }
 
 /// An intermediate proof which proves the execution over a range of shards.

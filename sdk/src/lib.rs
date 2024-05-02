@@ -19,13 +19,15 @@ use local::LocalProver;
 use mock::MockProver;
 use network::NetworkProver;
 pub use sp1_prover::{
-    CoreSC, SP1CoreProof, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+    CoreSC, SP1CoreProofData, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
-use sp1_prover::{Groth16Proof, InnerSC, PlonkBn254Proof};
-use std::{env, fs::File, path::Path};
+use sp1_prover::{
+    SP1CoreProof, SP1Groth16Proof, SP1Groth16ProofData, SP1PlonkProof, SP1PlonkProofData,
+    SP1ProofWithMetadata, SP1ReducedProof,
+};
+use std::env;
 
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::stark::ShardProof;
+use serde::{Deserialize, Serialize};
 
 /// A client that can prove RISCV ELFs and verify those proofs.
 pub struct ProverClient {
@@ -95,16 +97,12 @@ impl ProverClient {
     }
 
     /// Proves the execution of the given elf with the given inputs.
-    pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    pub fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof> {
         self.prover.prove(pk, stdin)
     }
 
     /// Generates a compressed proof for the given elf and stdin.
-    pub fn prove_compressed(
-        &self,
-        pk: &SP1ProvingKey,
-        stdin: SP1Stdin,
-    ) -> Result<SP1CompressedProof> {
+    pub fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
         self.prover.prove_compressed(pk, stdin)
     }
 
@@ -119,16 +117,12 @@ impl ProverClient {
     }
 
     /// Verifies the given proof is valid and matches the given vkey.
-    pub fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    pub fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify(proof, vkey)
     }
 
     /// Verifies the given compressed proof is valid and matches the given vkey.
-    pub fn verify_compressed(
-        &self,
-        proof: &SP1CompressedProof,
-        vkey: &SP1VerifyingKey,
-    ) -> Result<()> {
+    pub fn verify_compressed(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.prover.verify_compressed(proof, vkey)
     }
 
@@ -150,53 +144,14 @@ pub struct ProofStatistics {
     pub total_time: u64,
     pub latency: u64,
 }
-
-/// A proof of a RISCV ELF execution with given inputs and outputs.
-#[derive(Serialize, Deserialize)]
-#[serde(bound(serialize = "P: Serialize"))]
-#[serde(bound(deserialize = "P: DeserializeOwned"))]
-pub struct SP1ProofWithMetadata<P> {
-    pub proof: P,
-    pub stdin: SP1Stdin,
-    pub public_values: SP1PublicValues,
-}
-
-impl<P: Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
-    pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
-        bincode::serialize_into(File::create(path).expect("failed to open file"), self)
-            .map_err(Into::into)
-    }
-
-    pub fn load(path: impl AsRef<Path>) -> Result<Self> {
-        bincode::deserialize_from(File::open(path).expect("failed to open file"))
-            .map_err(Into::into)
-    }
-}
-
-impl<P: std::fmt::Debug> std::fmt::Debug for SP1ProofWithMetadata<P> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SP1ProofWithMetadata")
-            .field("proof", &self.proof)
-            .finish()
-    }
-}
-
-pub type SP1DefaultProof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
-
-pub type SP1CompressedProof = SP1ProofWithMetadata<ShardProof<InnerSC>>;
-
-pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
-
-pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
-
 pub trait Prover: Send + Sync {
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
     /// Prove the execution of a RISCV ELF with the given inputs.
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof>;
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof>;
 
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof>;
+    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof>;
@@ -205,10 +160,10 @@ pub trait Prover: Send + Sync {
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()>;
 
     /// Verify that a compressed SP1 proof is valid given its vkey and metadata.
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify_compressed(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()>;
 
     /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
     fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()>;

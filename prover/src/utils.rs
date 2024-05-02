@@ -11,11 +11,11 @@ use sp1_core::{
 };
 use sp1_recursion_program::{stark::EMPTY, types::QuotientDataValues};
 
-use crate::SP1CoreProof;
+use crate::SP1CoreProofData;
 
 pub const RECONSTRUCT_COMMITMENTS_ENV_VAR: &str = "RECONSTRUCT_COMMITMENTS";
 
-impl SP1CoreProof {
+impl SP1CoreProofData {
     pub fn save(&self, path: &str) -> Result<(), std::io::Error> {
         let data = serde_json::to_string(self).unwrap();
         fs::write(path, data).unwrap();

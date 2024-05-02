@@ -5,7 +5,7 @@ use anyhow::{Context, Ok, Result};
 use futures::future::join_all;
 use reqwest::{Client as HttpClient, Url};
 use reqwest_middleware::ClientWithMiddleware as HttpClientWithMiddleware;
-use sp1_prover::{SP1CoreProof, SP1Stdin};
+use sp1_prover::{SP1CoreProofData, SP1Stdin};
 use std::time::{SystemTime, UNIX_EPOCH};
 use twirp::Client as TwirpClient;
 
@@ -92,7 +92,7 @@ impl NetworkClient {
     pub async fn get_proof_status(
         &self,
         proof_id: &str,
-    ) -> Result<(GetProofStatusResponse, Option<SP1CoreProof>)> {
+    ) -> Result<(GetProofStatusResponse, Option<SP1CoreProofData>)> {
         let res = self
             .rpc
             .get_proof_status(GetProofStatusRequest {
