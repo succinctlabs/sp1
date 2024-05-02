@@ -122,7 +122,7 @@ pub struct SP1Prover {
 
 impl SP1Prover {
     /// Initializes a new [SP1Prover].
-    #[instrument(name = "new", level = "info", skip_all)]
+    #[instrument(name = "initialize prover", level = "info", skip_all)]
     pub fn new() -> Self {
         let recursion_setup_program = ReduceProgram::setup();
         let recursion_program = ReduceProgram::build();
