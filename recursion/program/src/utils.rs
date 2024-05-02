@@ -1,5 +1,3 @@
-use core::num;
-
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
 use p3_commit::{ExtensionMmcs, TwoAdicMultiplicativeCoset};
 use p3_field::extension::BinomialExtensionField;
