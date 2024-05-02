@@ -92,6 +92,27 @@ pub fn var2felt<C: Config>(builder: &mut Builder<C>, var: Var<C::N>) -> Felt<C::
     builder.bits2num_f(&bits)
 }
 
+/// Asserts that two challenger public values are equal.
+pub fn assert_challenger_public_values_eq<C: Config>(
+    builder: &mut Builder<C>,
+    a: &ChallengerPublicValues<Felt<C::F>>,
+    b: &ChallengerPublicValues<Felt<C::F>>,
+) {
+    for (a, b) in a.sponge_state.iter().zip(b.sponge_state.iter()) {
+        builder.assert_felt_eq(*a, *b);
+    }
+    builder.assert_felt_eq(a.num_inputs, b.num_inputs);
+
+    for (a, b) in a.input_buffer.iter().zip(b.input_buffer.iter()) {
+        builder.assert_felt_eq(*a, *b);
+    }
+    builder.assert_felt_eq(a.num_outputs, b.num_outputs);
+
+    for (a, b) in a.output_buffer.iter().zip(b.output_buffer.iter()) {
+        builder.assert_felt_eq(*a, *b);
+    }
+}
+
 /// Asserts that the challenger variable is equal to a challenger in public values.
 pub fn assert_challenger_eq_pv<C: Config>(
     builder: &mut Builder<C>,

@@ -60,8 +60,9 @@ use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
 use crate::types::{QuotientData, QuotientDataValues, VerifyingKeyVariable};
 use crate::types::{Sha256DigestVariable, ShardProofVariable};
 use crate::utils::{
-    assert_challenger_eq_pv, assign_challenger_from_pv, clone_array, commit_challenger,
-    const_fri_config, felt2var, get_challenger_public_values, hash_vkey, var2felt,
+    assert_challenger_eq_pv, assert_challenger_public_values_eq, assign_challenger_from_pv,
+    clone_array, commit_challenger, const_fri_config, felt2var, get_challenger_public_values,
+    hash_vkey, var2felt,
 };
 
 /// A program for recursively verifying a batch of SP1 proofs.
@@ -200,11 +201,98 @@ where
 ///
 /// By definition, the execution is complete if the following conditions hold:
 /// - 'start_pc` is equal to the start_pc of the program's verifier key.
+/// - `start_shard` is equal to 1.
 fn assert_complete<C: Config>(
     builder: &mut Builder<C>,
     core_vk: &VerifyingKeyVariable<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
 ) {
+    let RecursionPublicValues {
+        committed_value_digest,
+        deferred_proofs_digest,
+        start_pc,
+        next_pc,
+        start_shard,
+        next_shard,
+        leaf_challenger,
+        end_reconstruct_challenger,
+        cumulative_sum: _,
+        start_reconstruct_deferred_digest,
+        end_reconstruct_deferred_digest,
+        exit_code,
+        ..
+    } = public_values;
+    // Assert that the start pc is equal to the start pc of the verifier key.
+    builder.assert_felt_eq(*start_pc, core_vk.pc_start);
+    // Assert that `end_pc` is equal to zero (so program execution has completed)
+    builder.assert_felt_eq(*next_pc, C::F::zero());
+
+    // Assert that the start shard is equal to 1.
+    builder.assert_felt_eq(*start_shard, C::F::one());
+
+    // The challenger has been fully verified.
+
+    // The start_reconstruct_challenger should be the same as an empty challenger observing the
+    // verifier key and the start pc. This was already verified when verifying the leaf proofs so
+    // there is no need to assert it here.
+
+    // The end_reconstruct_challenger should be the same as the leaf challenger. We compare their
+    // public values.
+    assert_challenger_public_values_eq(builder, leaf_challenger, end_reconstruct_challenger);
+
+    // The deferred digest has been fully reconstructed.
+
+    // The start reconstruct digest should be zero.
+    for start_digest_word in start_reconstruct_deferred_digest {
+        builder.assert_felt_eq(*start_digest_word, C::F::zero());
+    }
+    // The end reconstruct digest should be equal to the deferred proofs digest.
+    for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
+        .iter()
+        .zip_eq(deferred_proofs_digest.iter())
+    {
+        builder.assert_felt_eq(*end_digest_word, *deferred_digest_word);
+    }
+
+    // TODO: Assert that the cumulative sum is zero.
+    // for b in cumulative_sum.iter() {
+    //     builder.assert_felt_eq(*b, C::F::zero());
+    // }
+
+    // The reconstruct challenger should have the same state as the leaf challenger.
+
+    //                 // 1) Proof begins at shard == 1.
+
+    //                 // 4) reconstruct_challenger has been fully reconstructed.
+    //                 //    a) start_reconstruct_challenger == challenger after observing vk and pc_start.
+    //                 let mut expected_challenger = DuplexChallengerVariable::new(builder);
+    //                 expected_challenger.observe(builder, sp1_vk.commitment.clone());
+    //                 expected_challenger.observe(builder, sp1_vk.pc_start);
+    //                 start_reconstruct_challenger.assert_eq(builder, &expected_challenger);
+    //                 //    b) end_reconstruct_challenger == verify_start_challenger.
+    //                 reconstruct_challenger.assert_eq(builder, &verify_start_challenger);
+
+    //                 // 5) reconstruct_deferred_digest has been fully reconstructed.
+    //                 //    a) start_reconstruct_deferred_digest == 0.
+    //                 for j in 0..DIGEST_SIZE {
+    //                     let element = builder.get(&start_reconstruct_deferred_digest, j);
+    //                     builder.assert_felt_eq(element, zero_felt);
+    //                 }
+    //                 //    b) end_reconstruct_deferred_digest == deferred_proofs_digest.
+    //                 for j in 0..DIGEST_SIZE {
+    //                     let element = builder.get(&reconstruct_deferred_digest, j);
+    //                     let global_element = builder.get(&global_deferred_proofs_digest, j);
+    //                     builder.assert_felt_eq(element, global_element);
+    //                 }
+
+    //                 // 6) Verify that the cumulative sum is zero.
+    //                 let zero_ext: Ext<_, _> = builder.eval(EF::zero().cons());
+    //                 builder.assert_ext_eq(global_cumulative_sum, zero_ext);
+    //             },
+    //             // Ensure is_complete is boolean.
+    //             |builder| {
+    //                 builder.assert_var_eq(is_complete, zero);
+    //             },
 }
 
 impl<C: Config, SC: StarkGenericConfig> SP1RecursiveVerifier<C, SC>
@@ -263,6 +351,7 @@ where
             builder.eval(initial_reconstruct_challenger.clone());
         let cumulative_sum: Ext<_, _> = builder.eval(C::EF::zero().cons());
         let current_pc: Felt<_> = builder.uninit();
+        let exit_code: Felt<_> = builder.uninit();
         // Verify proofs, validate transitions, and update accumulation variables.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             let proof = builder.get(&shard_proofs, i);
@@ -304,6 +393,9 @@ where
                 {
                     builder.assign(*digest, *first_digest);
                 }
+
+                // Exit code.
+                builder.assign(exit_code, public_values.exit_code);
             });
 
             // If the shard is zero, verify the global initial conditions hold on challenger and pc.
@@ -339,8 +431,17 @@ where
 
             // Assert that the start_pc of the proof is equal to the current pc.
             builder.assert_felt_eq(current_pc, public_values.start_pc);
+            // Assert that the next_pc is different from the start_pc.
+            builder.assert_felt_ne(public_values.start_pc, public_values.next_pc);
+            // Assert that the start_pc is not zero (this means program has halted in a non-last
+            // shard).
+            builder.assert_felt_ne(public_values.start_pc, C::F::zero());
+
             // Assert that the shard of the proof is equal to the current shard.
             builder.assert_felt_eq(current_shard, public_values.shard);
+
+            // Assert that exit code is the same for all proofs.
+            builder.assert_felt_eq(exit_code, public_values.exit_code);
 
             // Assert that the committed value digests are all the same.
 
