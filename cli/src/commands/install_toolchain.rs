@@ -11,9 +11,7 @@ use std::process::Command;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::{
-    get_target, get_toolchain_download_url, url_exists, CommandExecutor, RUSTUP_TOOLCHAIN_NAME,
-};
+use crate::{get_target, get_toolchain_download_url, url_exists, RUSTUP_TOOLCHAIN_NAME};
 
 #[derive(Parser)]
 #[command(
@@ -124,7 +122,7 @@ impl InstallToolchainCmd {
             .take(10)
             .map(char::from)
             .collect();
-        let new_toolchain_dir = toolchains_dir.join(&random_string);
+        let new_toolchain_dir = toolchains_dir.join(random_string);
         fs::rename(&toolchain_dir, &new_toolchain_dir)?;
 
         // Link the new toolchain directory to rustup
