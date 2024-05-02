@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 
-use amcl::bls381::big::Big;
 use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
@@ -125,7 +124,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
                 // to contain the result by the user.
                 // Note that this reversal means we have to flip result, a correspondingly in
                 // the `eval` function.
-                self.populate_carry_and_witness(&result, b, FieldOperation::Add, &modulus);
+                self.populate_carry_and_witness(&result, b, FieldOperation::Add, modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
                 result
             }
@@ -141,11 +140,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
                 // multiplication because those columns are expected to contain the result by the user.
                 // Note that this reversal means we have to flip result, a correspondingly in the `eval`
                 // function.
-                self.populate_carry_and_witness(&result, b, FieldOperation::Mul, &modulus);
+                self.populate_carry_and_witness(&result, b, FieldOperation::Mul, modulus);
                 self.result = P::to_limbs_field::<F, _>(&result);
                 result
             }
-            _ => self.populate_carry_and_witness(a, b, op, &modulus),
+            _ => self.populate_carry_and_witness(a, b, op, modulus),
         };
 
         // Range checks
@@ -157,6 +156,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         result
     }
 
+    /// Populate these columns without a specified modulus (will use the modulus of the field parameters).
     pub fn populate(
         &mut self,
         record: &mut impl ByteRecord,
@@ -168,6 +168,8 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         self.populate_core(record, shard, a, b, &P::modulus(), op)
     }
 
+    /// Populate these columns with a specified modulus. This is useful in the `mulmod` precompile
+    /// as an example.
     pub fn populate_with_modulus(
         &mut self,
         record: &mut impl ByteRecord,
@@ -182,29 +184,22 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
-    pub fn eval_core<
-        AB: SP1AirBuilder<Var = V>,
-        A: Into<Polynomial<AB::Expr>> + Clone,
-        B: Into<Polynomial<AB::Expr>> + Clone,
-        M: Into<Polynomial<AB::Expr>> + Clone,
-        EShard: Into<AB::Expr> + Clone,
-        ER: Into<AB::Expr> + Clone,
-    >(
+    pub fn eval_core<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &A,
-        b: &B,
-        modulus: &M,
+        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
-        shard: EShard,
-        is_real: ER,
+        shard: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
     {
-        let p_a_param: Polynomial<AB::Expr> = (*a).clone().into();
-        let p_b: Polynomial<AB::Expr> = (*b).clone().into();
-        let p_modulus: Polynomial<AB::Expr> = (*modulus).clone().into();
+        let p_a_param: Polynomial<AB::Expr> = (a).clone().into();
+        let p_b: Polynomial<AB::Expr> = (b).clone().into();
+        let p_modulus: Polynomial<AB::Expr> = (modulus).clone().into();
 
         let (p_a, p_result): (Polynomial<_>, Polynomial<_>) = match op {
             FieldOperation::Add | FieldOperation::Mul => (p_a_param, self.result.into()),
@@ -225,59 +220,38 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());
         builder.slice_range_check_u8(&self.carry.0, shard.clone(), is_real.clone());
         builder.slice_range_check_u8(p_witness_low.coefficients(), shard.clone(), is_real.clone());
-        builder.slice_range_check_u8(p_witness_high.coefficients(), shard, is_real);
+        builder.slice_range_check_u8(p_witness_high.coefficients(), shard.clone(), is_real);
     }
 
-    pub fn eval<
-        AB: SP1AirBuilder<Var = V>,
-        A: Into<Polynomial<AB::Expr>> + Clone,
-        B: Into<Polynomial<AB::Expr>> + Clone,
-        EShard: Into<AB::Expr> + Clone,
-        ER: Into<AB::Expr> + Clone,
-    >(
+    pub fn eval<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &A,
-        b: &B,
+        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
         op: FieldOperation,
-        shard: EShard,
-        is_real: ER,
+        shard: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
     {
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
-        self.eval_core::<AB, _, _, _, _, _>(builder, a, b, &p_limbs, op, shard, is_real);
+        self.eval_core::<AB>(builder, a, b, &p_limbs, op, shard, is_real);
     }
 
-    pub fn eval_with_modulus<
-        AB: SP1AirBuilder<Var = V>,
-        A: Into<Polynomial<AB::Expr>> + Clone,
-        B: Into<Polynomial<AB::Expr>> + Clone,
-        M: Into<Polynomial<AB::Expr>> + Clone,
-        EShard: Into<AB::Expr> + Clone,
-        ER: Into<AB::Expr> + Clone,
-    >(
+    pub fn eval_with_modulus<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
-        a: &A,
-        b: &B,
-        modulus: &M,
-        shard: EShard,
-        is_real: ER,
+        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
+        shard: impl Into<AB::Expr> + Clone,
+        is_real: impl Into<AB::Expr> + Clone,
     ) where
         V: Into<AB::Expr>,
         Limbs<V, P::Limbs>: Copy,
     {
-        self.eval_core::<AB, _, _, _, _, _>(
-            builder,
-            a,
-            b,
-            modulus,
-            FieldOperation::Mul,
-            shard,
-            is_real,
-        );
+        self.eval_core::<AB>(builder, a, b, modulus, FieldOperation::Mul, shard, is_real);
     }
 }
 
