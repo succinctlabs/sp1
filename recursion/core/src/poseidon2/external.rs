@@ -6,7 +6,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
+use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
@@ -166,15 +166,12 @@ impl<F> BaseAir<F> for Poseidon2Chip {
     }
 }
 
-impl<AB> Air<AB> for Poseidon2Chip
-where
-    AB: SP1AirBuilder,
-{
-    fn eval(&self, builder: &mut AB) {
-        let main = builder.main();
-        let local = main.row_slice(0);
-        let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
-
+impl Poseidon2Chip {
+    pub fn eval_poseidon2<AB: BaseAirBuilder + ExtensionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Poseidon2Cols<AB::Var>,
+    ) {
         let rounds_f = 8;
         let rounds_p = 22;
         let rounds = rounds_f + rounds_p;
@@ -309,6 +306,18 @@ where
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
+    }
+}
+
+impl<AB> Air<AB> for Poseidon2Chip
+where
+    AB: SP1AirBuilder,
+{
+    fn eval(&self, builder: &mut AB) {
+        let main = builder.main();
+        let local = main.row_slice(0);
+        let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
+        self.eval_poseidon2::<AB>(builder, local);
     }
 }
 

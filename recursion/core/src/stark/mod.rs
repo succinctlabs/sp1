@@ -6,6 +6,7 @@ use crate::{
     cpu::CpuChip,
     fri_fold::FriFoldChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
+    multi::MultiChip,
     poseidon2::Poseidon2Chip,
     poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
@@ -36,6 +37,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip),
     RangeCheck(RangeCheckChip<F>),
+    Multi(MultiChip),
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
@@ -97,12 +99,15 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 kind: MemoryChipKind::Finalize,
                 fixed_log2_rows: Some(18),
             })))
-            .chain(once(RecursionAir::Poseidon2Skinny(Poseidon2Chip {
+            .chain(once(RecursionAir::Multi(MultiChip {
                 fixed_log2_rows: Some(20),
             })))
-            .chain(once(RecursionAir::FriFold(FriFoldChip {
-                fixed_log2_rows: Some(16),
-            })))
+            // .chain(once(RecursionAir::Poseidon2Skinny(Poseidon2Chip {
+            //     fixed_log2_rows: Some(20),
+            // })))
+            // .chain(once(RecursionAir::FriFold(FriFoldChip {
+            //     fixed_log2_rows: Some(16),
+            // })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))
             .collect()
     }
