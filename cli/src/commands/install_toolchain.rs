@@ -77,7 +77,7 @@ impl InstallToolchainCmd {
         }
 
         // Download the toolchain.
-        let mut file = fs::File::create(&toolchain_archive_path)?;
+        let mut file = fs::File::create(toolchain_archive_path)?;
         rt.block_on(download_file(
             &client,
             toolchain_download_url.as_str(),
@@ -137,8 +137,9 @@ impl InstallToolchainCmd {
                 &new_toolchain_dir.to_string_lossy(),
             ])
             .status()?;
+        println!("Successfully linked toolchain to rustup.");
 
-        // Set the executable permissions for binaries
+        // Ensure permissions.
         let bin_dir = new_toolchain_dir.join("bin");
         let rustlib_bin_dir = new_toolchain_dir.join(format!("lib/rustlib/{}/bin", target));
         for entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
