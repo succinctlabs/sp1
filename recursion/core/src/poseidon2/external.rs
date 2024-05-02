@@ -9,7 +9,7 @@ use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
-use sp1_primitives::RC_16_30_U32;
+use sp1_primitives::{RC_16_30, RC_16_30_U32};
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -173,11 +173,11 @@ impl Poseidon2Chip {
         local: &Poseidon2Cols<AB::Var>,
     ) {
         let rounds_f = 8;
-        let rounds_p = 22;
+        let rounds_p = 13;
         let rounds = rounds_f + rounds_p;
 
         // Convert the u32 round constants to field elements.
-        let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
+        let constants: [[AB::F; WIDTH]; 21] = RC_16_30_U32
             .iter()
             .map(|round| round.map(AB::F::from_wrapped_u32))
             .collect::<Vec<_>>()
@@ -293,7 +293,7 @@ impl Poseidon2Chip {
 
         // Constrain the external flag.
         let is_external_first_half = (0..4).map(|i| local.rounds[i + 1].into()).sum::<AB::Expr>();
-        let is_external_second_half = (26..30)
+        let is_external_second_half = (17..21)
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(
@@ -302,7 +302,7 @@ impl Poseidon2Chip {
         );
 
         // Constrain the internal flag.
-        let is_internal = (4..26)
+        let is_internal = (4..17)
             .map(|i| local.rounds[i + 1].into())
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
