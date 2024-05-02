@@ -6,6 +6,7 @@ use crate::{
     cpu::CpuChip,
     fri_fold::FriFoldChip,
     memory::{MemoryChipKind, MemoryGlobalChip},
+    poseidon2::Poseidon2Chip,
     poseidon2_wide::Poseidon2WideChip,
     program::ProgramChip,
     range_check::RangeCheckChip,
@@ -31,7 +32,8 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     Cpu(CpuChip<F>),
     MemoryInit(MemoryGlobalChip),
     MemoryFinalize(MemoryGlobalChip),
-    Poseidon2(Poseidon2WideChip<DEGREE>),
+    Poseidon2Wide(Poseidon2WideChip<DEGREE>),
+    Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip),
     RangeCheck(RangeCheckChip<F>),
 }
@@ -69,7 +71,9 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 kind: MemoryChipKind::Finalize,
                 fixed_log2_rows: None,
             })))
-            .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip::<DEGREE> {
+            .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
+                DEGREE,
+            > {
                 fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip {
@@ -93,8 +97,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 kind: MemoryChipKind::Finalize,
                 fixed_log2_rows: Some(18),
             })))
-            .chain(once(RecursionAir::Poseidon2(Poseidon2WideChip::<DEGREE> {
-                fixed_log2_rows: Some(15),
+            .chain(once(RecursionAir::Poseidon2Skinny(Poseidon2Chip {
+                fixed_log2_rows: Some(20),
             })))
             .chain(once(RecursionAir::FriFold(FriFoldChip {
                 fixed_log2_rows: Some(16),

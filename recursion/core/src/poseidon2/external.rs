@@ -25,7 +25,7 @@ pub const WIDTH: usize = 16;
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
 pub struct Poseidon2Chip {
-    fixed_trace_log2: Option<usize>,
+    pub fixed_log2_rows: Option<usize>,
 }
 
 /// The column layout for the chip.
@@ -145,7 +145,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_POSEIDON2_COLS],
-            self.fixed_trace_log2,
+            self.fixed_log2_rows,
         );
 
         // Convert the trace to a row major matrix.
@@ -344,7 +344,7 @@ mod tests {
     #[test]
     fn generate_trace() {
         let chip = Poseidon2Chip {
-            fixed_trace_log2: None,
+            fixed_log2_rows: None,
         };
         let test_inputs = vec![
             [BabyBear::from_canonical_u32(1); WIDTH],
@@ -389,7 +389,7 @@ mod tests {
         let mut challenger = config.challenger();
 
         let chip = Poseidon2Chip {
-            fixed_trace_log2: None,
+            fixed_log2_rows: None,
         };
 
         let test_inputs = (0..16)
