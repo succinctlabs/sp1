@@ -97,7 +97,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         result
     }
 
-    pub fn populate_core(
+    /// Populate these columns with a specified modulus. This is useful in the `mulmod` precompile
+    /// as an example.
+    pub fn populate_with_modulus(
         &mut self,
         record: &mut impl ByteRecord,
         shard: u32,
@@ -165,26 +167,12 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         b: &BigUint,
         op: FieldOperation,
     ) -> BigUint {
-        self.populate_core(record, shard, a, b, &P::modulus(), op)
-    }
-
-    /// Populate these columns with a specified modulus. This is useful in the `mulmod` precompile
-    /// as an example.
-    pub fn populate_with_modulus(
-        &mut self,
-        record: &mut impl ByteRecord,
-        shard: u32,
-        a: &BigUint,
-        b: &BigUint,
-        modulus: &BigUint,
-        op: FieldOperation,
-    ) -> BigUint {
-        self.populate_core(record, shard, a, b, modulus, op)
+        self.populate_with_modulus(record, shard, a, b, &P::modulus(), op)
     }
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
-    pub fn eval_core<AB: SP1AirBuilder<Var = V>>(
+    pub fn eval_with_modulus<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
         a: &(impl Into<Polynomial<AB::Expr>> + Clone),
@@ -236,23 +224,7 @@ impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
         Limbs<V, P::Limbs>: Copy,
     {
         let p_limbs = Polynomial::from_iter(P::modulus_field_iter::<AB::F>().map(AB::Expr::from));
-        self.eval_core::<AB>(builder, a, b, &p_limbs, op, shard, is_real);
-    }
-
-    pub fn eval_with_modulus<AB: SP1AirBuilder<Var = V>>(
-        &self,
-        builder: &mut AB,
-        a: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        b: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        modulus: &(impl Into<Polynomial<AB::Expr>> + Clone),
-        op: FieldOperation,
-        shard: impl Into<AB::Expr> + Clone,
-        is_real: impl Into<AB::Expr> + Clone,
-    ) where
-        V: Into<AB::Expr>,
-        Limbs<V, P::Limbs>: Copy,
-    {
-        self.eval_core::<AB>(builder, a, b, modulus, op, shard, is_real);
+        self.eval_with_modulus::<AB>(builder, a, b, &p_limbs, op, shard, is_real);
     }
 }
 
