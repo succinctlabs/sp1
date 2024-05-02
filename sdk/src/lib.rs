@@ -80,7 +80,7 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
@@ -106,11 +106,11 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     /// let client = ProverClient::new();
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     /// ```
     pub fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.prover.setup(elf)
@@ -127,13 +127,13 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
     ///
     /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     ///
     /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
@@ -156,13 +156,13 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
     ///
     /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     ///
     /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
@@ -189,13 +189,13 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
     ///
     /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     ///
     /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
@@ -219,13 +219,13 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
     ///
     /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     ///
     /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
@@ -245,9 +245,9 @@ impl ProverClient {
     /// ```
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     /// let client = ProverClient::new();
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     /// let mut stdin = SP1Stdin::new();
     /// stdin.write(&10usize);
     /// let proof = client.prove(&pk, stdin).unwrap();
@@ -265,13 +265,13 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
     ///
     /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     ///
     /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
@@ -297,13 +297,13 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
     ///
     /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     ///
     /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
@@ -327,13 +327,13 @@ impl ProverClient {
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
-    /// let elf = include_bytes!("../../program/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     ///
     /// // Initialize the prover client.
     /// let client = ProverClient::new();
     ///
     /// // Setup the program.
-    /// let (pk, vk) = client.setup(elf).unwrap();
+    /// let (pk, vk) = client.setup(elf);
     ///
     /// // Setup the inputs.
     /// let mut stdin = SP1Stdin::new();
