@@ -36,6 +36,3 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
           RUST_LOG: "info"
           RUST_BACKTRACE: "1"
-          MAX_RECURSION_PROGRAM_SIZE: "1"
-          FRI_QUERIES: "1"
-          VERBOSE: "true"
