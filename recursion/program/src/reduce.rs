@@ -286,12 +286,73 @@ where
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a proof with given vk and aggregate their public values.
+    ///
+    /// is_reduce : if the proof is a reduce proof, we will assert that the given vk indentifies
+    /// with the reduce vk digest of public inputs.
     fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
-        rec_vk: &StarkVerifyingKey<SC>,
+        vk: &StarkVerifyingKey<SC>,
+        proof: ShardProofVariable<C>,
+        chip_quotient_data: &Array<C, QuotientData<C>>,
+        chip_sorted_indices: &Array<C, Var<C::N>>,
+        is_reduce: Var<C::N>,
     ) {
+        // Get the verifying key info from the vk.
+        let (vk, prep_domains, prep_sorted_indices) = proof_data_from_vk(builder, vk, machine);
+
+        // Get the public inputs from the proof.
+        let public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+            .map(|i| builder.get(&proof.public_values, i))
+            .collect::<Vec<Felt<_>>>();
+        let public_values: &RecursionPublicValues<Felt<C::F>> =
+            public_values_elements.as_slice().borrow();
+
+        // Assert that the proof is complete.
+        //
+        // *Remark*: here we are assuming on that the program we are verifying indludes the check
+        // of completeness conditions are satisfied if the flag is set to one, so we are only
+        // checking the `is_complete` flag in this program.
+        builder.assert_felt_eq(public_values.is_complete, C::F::one());
+
+        // If the proof is a reduce proof, assert that the vk is the same as the reduce vk from the
+        // public values.
+        builder.if_eq(is_reduce, C::N::one()).then(|builder| {
+            let vk_digest = hash_vkey(builder, &vk, &prep_domains, &prep_sorted_indices);
+            for (i, reduce_digest_elem) in public_values.reduce_vk_digest.iter().enumerate() {
+                let vk_digest_elem = builder.get(&vk_digest, i);
+                builder.assert_felt_eq(vk_digest_elem, *reduce_digest_elem);
+            }
+        });
+
+        // Verify the proof.
+
+        let mut challenger = DuplexChallengerVariable::new(builder);
+        // Observe the vk and start pc.
+        challenger.observe(builder, vk.commitment.clone());
+        challenger.observe(builder, vk.pc_start);
+        // Observe the main commitment and public values.
+        challenger.observe(builder, proof.commitment.main_commit.clone());
+        for j in 0..machine.num_pv_elts() {
+            let element = builder.get(&proof.public_values, j);
+            challenger.observe(builder, element);
+        }
+        // verify proof.
+        StarkVerifier::<C, SC>::verify_shard(
+            builder,
+            &vk,
+            pcs,
+            machine,
+            &mut challenger,
+            &proof,
+            chip_quotient_data,
+            chip_sorted_indices,
+            &prep_sorted_indices,
+            &prep_domains,
+        );
+
+        // Commit to the public values, broadcasting the same ones.
     }
 }
 
@@ -592,10 +653,10 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                chip_quotient_data,
-                chip_sorted_idxs,
-                prep_sorted_idxs.clone(),
-                prep_domains.clone(),
+                &chip_quotient_data,
+                &chip_sorted_idxs,
+                &prep_sorted_idxs,
+                &prep_domains,
             );
             builder.print_v(one_var);
             // Update the accumulated values.
@@ -838,10 +899,10 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                chip_quotient_data,
-                chip_sorted_idxs,
-                preprocessed_sorted_idxs.clone(),
-                prep_domains.clone(),
+                &chip_quotient_data,
+                &chip_sorted_idxs,
+                &preprocessed_sorted_idxs,
+                &prep_domains,
             );
 
             // Update the reconstruct challenger, cumulative sum, shard number, and program counter.
