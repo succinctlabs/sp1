@@ -34,14 +34,21 @@ pub struct Poseidon2Chip {
 #[derive(AlignedBorrow, Default, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
-    pub input: [T; WIDTH],
-    pub rounds: [T; 23],
-    // pub add_rc: [T; WIDTH],
-    // pub sbox_deg_3: [T; WIDTH],
-    // pub sbox_deg_7: [T; WIDTH],
+    pub rounds: [T; 24],   // 1 round for memory input; 1 round for initialize; 8 rounds for external; 13 rounds for internal; 1 round for memory output
     pub is_internal: T,
     pub is_external: T,
-    pub memory: Poseidon2MemCols<T>,
+    union {
+        computation: Poseidon2ComputationColumns<T>,
+        memory_access: Poseidon2MemCols<T>,
+    }
+}
+
+pub struct Poseidon2ComputationColumns<T> {
+    pub input: [T; WIDTH],
+    pub add_rc: [T; WIDTH],
+    pub sbox_deg_3: [T; WIDTH],
+    pub sbox_deg_7: [T; WIDTH],
+    pub output: [T; WIDTH],
 }
 
 #[derive(AlignedBorrow, Default, Clone, Copy)]
