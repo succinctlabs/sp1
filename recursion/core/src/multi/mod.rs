@@ -5,7 +5,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::MachineAir;
+use sp1_core::air::{BaseAirBuilder, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 
@@ -110,20 +110,27 @@ where
         let local: &MultiCols<AB::Var> = (*local).borrow();
         let next: &MultiCols<AB::Var> = (*next).borrow();
 
-        // Assert that is_fri_fold and is_poseidon2 are bool and that only one is set.
+        // Assert that is_fri_fold and is_poseidon2 are bool and that at most one is set.
         builder.assert_bool(local.is_fri_fold);
         builder.assert_bool(local.is_poseidon2);
-        builder.assert_one(local.is_fri_fold + local.is_poseidon2);
+        builder.assert_bool(local.is_fri_fold + local.is_poseidon2);
 
         // Assert that all the fri fold rows are in the first section of the table and all the poseidon2 rows are in the second section.
-        // This is done with the following constraints.
+        // This is done with the following constraints. (Note that a real row is either fri fold or poseidon2.)
         // 1) Ensure that first row is fri fold.
-        // 2) When a row is poseidon2, all the subsequent ones are poseidon2.  This ensures that there
+        // 2) When a row is poseidon2, all the subsequent real rows are poseidon2.  This ensures that there
         //    can be only one transition from a fri fold row to a poseidon2 row.
+        // 3) When a row is not real, all subsequent rows are not real.
         builder.when_first_row().assert_one(local.is_fri_fold);
         builder
+            .when_transition()
+            .when(next.is_fri_fold + next.is_poseidon2)
             .when(local.is_poseidon2)
             .assert_one(next.is_poseidon2);
+        builder
+            .when_transition()
+            .when_not(next.is_fri_fold + next.is_poseidon2)
+            .assert_zero(next.is_fri_fold + next.is_poseidon2);
 
         let fri_fold_chip = FriFoldChip::default();
         let mut sub_builder = builder.when(local.is_fri_fold);
