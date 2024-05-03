@@ -29,12 +29,19 @@ where
         let zero = AB::Expr::zero();
         let one = AB::Expr::one();
 
+        // Constrain the program.
+        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
+
+        // Constrain the operands.
         self.eval_operands(builder, local);
 
+        // Constrain memory instructions.
         self.eval_memory(builder, local);
 
+        // Constrain ALU instructions.
         self.eval_alu(builder, local);
 
+        // Constrain branches and jumps and constrain the next pc.
         {
             // Expression for the expected next_pc.  This will be added to in `eval_branch` and `eval_jump`
             // to account for possible jumps and branches.
@@ -50,7 +57,6 @@ where
                 - self.is_jump_instruction::<AB>(local);
             next_pc += not_branch_or_jump.clone() * (local.pc + one);
 
-            // Verify next row's pc is correct.
             builder
                 .when_transition()
                 .when(next.is_real)
@@ -67,15 +73,17 @@ where
         ];
         builder.send_table(local.instruction.opcode, &operands, send_syscall);
 
-        // Contrain the clk.
+        // Constrain the clk.
         self.eval_clk(builder, local, next);
-
-        // Constrain the program.
-        builder.send_program(local.pc, local.instruction, local.selectors, local.is_real);
     }
 }
 
 impl<F: Field> CpuChip<F> {
+    /// Eval the clk.
+    ///
+    /// For all instructions except for FRI fold, the next clk is the current clk + 4.
+    /// For FRI fold, the next clk is the current clk + number of FRI_FOLD iterations.  That value
+    /// is stored in the `a` operand.
     pub fn eval_clk<AB>(&self, builder: &mut AB, local: &CpuCols<AB::Var>, next: &CpuCols<AB::Var>)
     where
         AB: SP1RecursionAirBuilder,

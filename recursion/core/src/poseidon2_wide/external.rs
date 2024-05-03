@@ -420,7 +420,6 @@ where
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
-
         let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
             let state = poseidon2_cols.external_rounds_state[0];
             state[i].into()
