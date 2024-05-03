@@ -1,7 +1,7 @@
 use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
-use p3_air::{Air, BaseAir};
+use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
@@ -109,6 +109,21 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &MultiCols<AB::Var> = (*local).borrow();
         let next: &MultiCols<AB::Var> = (*next).borrow();
+
+        // Assert that is_fri_fold and is_poseidon2 are bool and that only one is set.
+        builder.assert_bool(local.is_fri_fold);
+        builder.assert_bool(local.is_poseidon2);
+        builder.assert_one(local.is_fri_fold + local.is_poseidon2);
+
+        // Assert that all the fri fold rows are in the first section of the table and all the poseidon2 rows are in the second section.
+        // This is done with the following constraints.
+        // 1) Ensure that first row is fri fold.
+        // 2) When a row is poseidon2, all the subsequent ones are poseidon2.  This ensures that there
+        //    can be only one transition from a fri fold row to a poseidon2 row.
+        builder.when_first_row().assert_one(local.is_fri_fold);
+        builder
+            .when(local.is_poseidon2)
+            .assert_one(next.is_poseidon2);
 
         let fri_fold_chip = FriFoldChip::default();
         let mut sub_builder = builder.when(local.is_fri_fold);
