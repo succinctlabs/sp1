@@ -436,21 +436,37 @@ where
             let prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
             let prep_sorted_idxs: Array<_, Var<_>> = builder.uninit();
             // Set the correct value given the value of kind.
-            builder.if_eq(kind, C::N::zero()).then(|builder| {
-                builder.assign(vk.clone(), recursive_vk_variable.clone());
-                builder.assign(prep_domains.clone(), rec_rep_domains.clone());
-                builder.assign(prep_sorted_idxs.clone(), rec_prep_sorted_indices.clone());
-            });
-            builder.if_eq(kind, C::N::one()).then(|builder| {
-                builder.assign(vk.clone(), deferred_vk_variable.clone());
-                builder.assign(prep_domains.clone(), def_rep_domains.clone());
-                builder.assign(prep_sorted_idxs.clone(), def_prep_sorted_indices.clone());
-            });
-            builder.if_eq(kind, C::N::two()).then(|builder| {
-                builder.assign(vk.clone(), reduce_vk.clone());
-                builder.assign(prep_domains.clone(), reduce_prep_domains.clone());
-                builder.assign(prep_sorted_idxs.clone(), reduce_prep_sorted_idxs.clone());
-            });
+            builder
+                .if_eq(
+                    kind,
+                    C::N::from_canonical_u32(ReduceProgramType::Core as u32),
+                )
+                .then(|builder| {
+                    builder.assign(vk.clone(), recursive_vk_variable.clone());
+                    builder.assign(prep_domains.clone(), rec_rep_domains.clone());
+                    builder.assign(prep_sorted_idxs.clone(), rec_prep_sorted_indices.clone());
+                });
+            builder
+                .if_eq(
+                    kind,
+                    C::N::from_canonical_u32(ReduceProgramType::Deferred as u32),
+                )
+                .then(|builder| {
+                    builder.assign(vk.clone(), deferred_vk_variable.clone());
+                    builder.assign(prep_domains.clone(), def_rep_domains.clone());
+                    builder.assign(prep_sorted_idxs.clone(), def_prep_sorted_indices.clone());
+                });
+            builder
+                .if_eq(
+                    kind,
+                    C::N::from_canonical_u32(ReduceProgramType::Reduce as u32),
+                )
+                .then(|builder| {
+                    builder.assign(vk.clone(), reduce_vk.clone());
+                    builder.assign(prep_domains.clone(), reduce_prep_domains.clone());
+                    builder.assign(prep_sorted_idxs.clone(), reduce_prep_sorted_idxs.clone());
+                });
+            // Todo: assert that Kind must be one of these values.
 
             // Verify the shard proof given the correct data.
             let chip_quotient_data = builder.get(&shard_chip_quotient_data, i);
@@ -1605,16 +1621,59 @@ mod tests {
 
         let reduce_program = builder.compile_program();
 
+        let (reduce_pk, reduce_vk) = recursive_machine.setup(&reduce_program);
+
         // Chain all the individual shard proofs.
         let mut recursive_proofs = recursive_proofs
             .into_iter()
             .flat_map(|proof| proof.shard_proofs)
             .collect::<Vec<_>>();
 
-        // // Iterate over the recursive proof batches until there is one proof remaining.
-        // while recursive_proofs.len() > 1 {
-        //     recursive_proofs = recursive_proofs.chunks(batch_size).map(|batch| {});
-        // }
+        // Iterate over the recursive proof batches until there is one proof remaining.
+
+        let mut is_first_layer = true;
+        while recursive_proofs.len() > 1 {
+            recursive_proofs = recursive_proofs
+                .chunks(batch_size)
+                .map(|batch| {
+                    let kind = if is_first_layer {
+                        ReduceProgramType::Core
+                    } else {
+                        ReduceProgramType::Reduce
+                    };
+                    let kinds = batch.iter().map(|_| kind).collect::<Vec<_>>();
+                    let input = SP1ReduceMemoryLayout {
+                        sp1_vk: &vk,
+                        reduce_vk: &reduce_vk,
+                        machine: &recursive_machine,
+                        shard_proofs: batch.to_vec(),
+                        kinds,
+                        is_complete: false,
+                    };
+
+                    let mut runtime =
+                        Runtime::<F, EF, _>::new(&recursive_program, machine.config().perm.clone());
+
+                    let mut witness_stream = Vec::new();
+                    witness_stream.extend(input.write());
+
+                    runtime.witness_stream = witness_stream.into();
+                    runtime.run();
+                    runtime.print_stats();
+
+                    let mut recursive_challenger = recursive_machine.config().challenger();
+                    let mut proof = recursive_machine.prove::<LocalProver<_, _>>(
+                        &reduce_pk,
+                        runtime.record,
+                        &mut recursive_challenger,
+                    );
+
+                    assert_eq!(proof.shard_proofs.len(), 1);
+                    proof.shard_proofs.pop().unwrap()
+                })
+                .collect();
+            is_first_layer = false;
+        }
     }
 
     #[test]
