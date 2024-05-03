@@ -1800,10 +1800,12 @@ mod tests {
     }
 
     #[test]
-    fn test_sp1_reduce_machine_compress_fibonacci() {
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Compress)
+    #[ignore]
+    fn test_sp1_reduce_machine_verify_tendermint() {
+        let elf = include_bytes!(
+            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
+        );
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Reduce)
     }
 
     #[test]
