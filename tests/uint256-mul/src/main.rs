@@ -29,8 +29,7 @@ fn main() {
         let mut rng = rand::thread_rng();
         let mut x: [u8; 32] = rng.gen();
         let mut y: [u8; 32] = rng.gen();
-        let mut modulus: [u8; 32] = rng.gen();
-        modulus.push(0); // Add an extra byte to make it
+        let modulus: [u8; 32] = rng.gen();
 
         // Convert byte arrays to BigUint
         let x_big = BigUint::from_bytes_le(&x);
@@ -44,13 +43,6 @@ fn main() {
 
         assert_eq!(result, result_syscall);
     }
-
-    // Test when modulus is 1 << 256.
-    let mut rng = rand::thread_rng();
-    let mut x: [u8; 32] = rng.gen();
-    let mut y: [u8; 32] = rng.gen();
-    let mut modulus = [0u8; 33];
-    modulus[32] = 1; // Represents the number 1 << 256
 
     // Test with random numbers.
     let mut rng = rand::thread_rng();
