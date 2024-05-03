@@ -30,7 +30,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
     type Program = RecursionProgram<F>;
 
     fn name(&self) -> String {
-        "MemoryInitFinalize".to_string()
+        "MemoryGlobalChip".to_string()
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
