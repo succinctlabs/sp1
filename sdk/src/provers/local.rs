@@ -6,12 +6,11 @@ use sp1_core::{
 };
 use sp1_prover::{SP1Prover, SP1Stdin};
 
+use super::utils;
 use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
-
-use super::utils;
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
 pub struct LocalProver {
@@ -110,7 +109,6 @@ impl Prover for LocalProver {
     }
 
     fn prove_plonk(&self, _pk: &SP1ProvingKey, _stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        // let artifacts_dir = self.initialize_circuit(WrapCircuitType::Plonk);
         // let proof = self.prover.prove_core(pk, &stdin);
         // let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         // let public_values = proof.public_values.clone();
