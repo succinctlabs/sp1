@@ -177,6 +177,11 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     }
 }
 
+impl<A> SP1ReduceVerifier<InnerConfig, BabyBearPoseidon2, A> where
+    A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>
+{
+}
+
 /// Assertions on the public values describing a complete recursive proof state.
 fn assert_complete<C: Config>(
     builder: &mut Builder<C>,
@@ -1452,7 +1457,13 @@ mod tests {
 
     use super::*;
 
-    fn test_sp1_recursive_machine_verify(program: Program, batch_size: usize) {
+    enum Test {
+        Recursion,
+        Reduce,
+        Compress,
+    }
+
+    fn test_sp1_recursive_machine_verify(program: Program, batch_size: usize, test: Test) {
         type SC = BabyBearPoseidon2;
         type F = BabyBear;
         type EF = Challenge<SC>;
@@ -1549,16 +1560,23 @@ mod tests {
         let recursive_machine = RecursionAirWideDeg3::machine(SC::default());
         let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
-        for record in records {
-            let mut recursive_challenger = recursive_machine.config().challenger();
-            let rec_proof = recursive_machine.prove::<LocalProver<_, _>>(
-                &rec_pk,
-                record,
-                &mut recursive_challenger,
-            );
+        // Make the recursive proofs.
+        let recursive_proofs = records
+            .into_iter()
+            .map(|record| {
+                let mut recursive_challenger = recursive_machine.config().challenger();
+                recursive_machine.prove::<LocalProver<_, _>>(
+                    &rec_pk,
+                    record,
+                    &mut recursive_challenger,
+                )
+            })
+            .collect::<Vec<_>>();
 
+        // Verify the recursive proofs.
+        for rec_proof in recursive_proofs.iter() {
             let mut recursive_challenger = recursive_machine.config().challenger();
-            let result = recursive_machine.verify(&rec_vk, &rec_proof, &mut recursive_challenger);
+            let result = recursive_machine.verify(&rec_vk, rec_proof, &mut recursive_challenger);
 
             match result {
                 Ok(_) => tracing::info!("Proof verified successfully"),
@@ -1568,13 +1586,30 @@ mod tests {
                 e => panic!("Proof verification failed: {:?}", e),
             }
         }
+        if let Test::Recursion = test {
+            return;
+        }
     }
 
     #[test]
     fn test_sp1_recursive_machine_verify_fibonacci() {
         let elf =
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-        test_sp1_recursive_machine_verify(Program::from(elf), 1)
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Recursion)
+    }
+
+    #[test]
+    fn test_sp1_reduce_machine_verify_fibonacci() {
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Reduce)
+    }
+
+    #[test]
+    fn test_sp1_reduce_machine_compress_fibonacci() {
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Compress)
     }
 
     #[test]
@@ -1583,6 +1618,6 @@ mod tests {
         let elf = include_bytes!(
             "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
         );
-        test_sp1_recursive_machine_verify(Program::from(elf), 2)
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Recursion)
     }
 }
