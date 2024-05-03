@@ -9,52 +9,35 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/consensys/gnark/profile"
 )
 
 // Build a gnark groth16 circuit and write the resulting build files to the build directory. This
 // includes the R1CS, the proving key, the verifier key, and the solidity verifier.
-func BuildGroth16(buildDir string, profileFlag bool) error {
+func BuildGroth16(buildDir string) error {
 	// Load the witness input.
 	witnessInput, err := LoadWitnessInputFromPath(buildDir + "/witness_groth16.json")
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	// Initialize the circuit.
 	circuit := NewCircuitFromWitness(witnessInput)
 
-	// Profile the circuit.
-	var p *profile.Profile
-	if profileFlag {
-		p = profile.Start()
-	}
-
 	// Compile the circuit.
+	// p := profile.Start(profile.WithPath("sp1.pprof"))
 	builder := r1cs.NewBuilder
 	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
-		return err
+		panic(err)
 	}
+	// p.Stop()
 	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
-
-	// Stop the profiler.
-	if profileFlag {
-		p.Stop()
-		report := p.Top()
-		reportFile, err := os.Create(buildDir + "/profile_groth16.pprof")
-		if err != nil {
-			return err
-		}
-		reportFile.WriteString(report)
-		reportFile.Close()
-	}
 
 	// Run the trusted setup.
 	var pk groth16.ProvingKey
 	pk, vk, err := groth16.Setup(r1cs)
 	if err != nil {
-		return err
+		panic(err)
 	}
 
 	// Create the build directory.

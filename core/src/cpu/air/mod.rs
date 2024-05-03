@@ -7,6 +7,7 @@ use core::borrow::Borrow;
 use itertools::Itertools;
 use p3_air::Air;
 use p3_air::AirBuilder;
+use p3_air::AirBuilderWithPublicValues;
 use p3_air::BaseAir;
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
@@ -25,7 +26,7 @@ use crate::runtime::Opcode;
 
 impl<AB> Air<AB> for CpuChip
 where
-    AB: SP1AirBuilder,
+    AB: SP1AirBuilder + AirBuilderWithPublicValues,
 {
     #[inline(never)]
     fn eval(&self, builder: &mut AB) {

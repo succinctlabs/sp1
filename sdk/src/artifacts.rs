@@ -194,6 +194,36 @@ pub fn build_circuit_artifacts(
     Ok(())
 }
 
+pub fn export_solidity_verifier(
+    circuit_type: WrapCircuitType,
+    output_dir: PathBuf,
+    build_dir: Option<PathBuf>,
+) -> Result<()> {
+    let is_dev_mode = get_dev_mode();
+    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, is_dev_mode));
+
+    let verifier_name = match circuit_type {
+        WrapCircuitType::Groth16 => "Groth16Verifier.sol",
+        WrapCircuitType::Plonk => "PlonkVerifier.sol",
+    };
+    let verifier_path = build_dir.join(verifier_name);
+
+    if !verifier_path.exists() {
+        return Err(anyhow::anyhow!(
+            "Verifier file not found at {:?}",
+            verifier_path
+        ));
+    }
+
+    std::fs::create_dir_all(&output_dir).context("Failed to create output directory.")?;
+
+    let output_path = output_dir.join(verifier_name);
+
+    std::fs::copy(&verifier_path, output_path).context("Failed to copy verifier file.")?;
+
+    Ok(())
+}
+
 pub async fn download_file(
     client: &Client,
     url: &str,

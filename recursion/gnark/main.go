@@ -30,7 +30,6 @@ const (
 func main() {
 	buildGroth16Cmd := flag.NewFlagSet(BuildGroth16, flag.ExitOnError)
 	buildGroth16DataDirFlag := buildGroth16Cmd.String("data", "", "Data directory path")
-	buildGroth16ProfileFlag := buildGroth16Cmd.Bool("profile", false, "Profile the circuit")
 
 	buildPlonkBn254Cmd := flag.NewFlagSet(BuildPlonkBn254, flag.ExitOnError)
 	buildPlonkBn254DataDirFlag := buildPlonkBn254Cmd.String("data", "", "Data directory path")
@@ -75,10 +74,9 @@ func main() {
 		buildGroth16Cmd.Parse(os.Args[2:])
 		fmt.Printf("Running 'build' with data=%s\n", *buildGroth16DataDirFlag)
 		buildDir := *buildGroth16DataDirFlag
-		profileFlag := *buildGroth16ProfileFlag
 		os.Setenv("CONSTRAINTS_JSON", buildDir+"/constraints_groth16.json")
 
-		sp1.BuildGroth16(buildDir, profileFlag)
+		sp1.BuildGroth16(buildDir)
 
 	case BuildPlonkBn254:
 		buildPlonkBn254Cmd.Parse(os.Args[2:])
