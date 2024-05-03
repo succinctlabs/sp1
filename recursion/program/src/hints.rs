@@ -5,8 +5,7 @@ use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::air::{MachineAir, Word, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, Com, RiscvAir, ShardCommitment, ShardOpenedValues,
-    ShardProof,
+    AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
 };
 use sp1_core::stark::{StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::{
@@ -549,15 +548,10 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
     }
 }
 
-impl<'a, A: MachineAir<BabyBear>> Hintable<C>
-    for SP1ReduceMemoryLayout<'a, BabyBearPoseidon2, BabyBearPoseidon2, RiscvAir<BabyBear>, A>
-{
+impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, BabyBearPoseidon2, A> {
     type HintVariable = SP1ReduceMemoryLayoutVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let sp1_vk = StarkVerifyingKey::<BabyBearPoseidon2>::read(builder);
-        let sp1_prep_sorted_idxs = Vec::<usize>::read(builder);
-        let sp1_prep_domains = Vec::<TwoAdicMultiplicativeCoset<InnerVal>>::read(builder);
         let reduce_vk = StarkVerifyingKey::<BabyBearPoseidon2>::read(builder);
         let reduce_prep_sorted_idxs = Vec::<usize>::read(builder);
         let reduce_prep_domains = Vec::<TwoAdicMultiplicativeCoset<InnerVal>>::read(builder);
@@ -568,9 +562,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let is_complete = builder.hint_var();
 
         SP1ReduceMemoryLayoutVariable {
-            sp1_vk,
-            sp1_prep_sorted_idxs,
-            sp1_prep_domains,
             reduce_vk,
             reduce_prep_sorted_idxs,
             reduce_prep_domains,
@@ -584,9 +575,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-
-        let (sp1_prep_sorted_idxs, sp1_prep_domains) =
-            get_preprocessed_data::<BabyBearPoseidon2, _>(self.sp1_machine, self.sp1_vk);
 
         let (reduce_prep_sorted_idxs, reduce_prep_domains) =
             get_preprocessed_data::<BabyBearPoseidon2, _>(self.recursive_machine, self.reduce_vk);
@@ -607,9 +595,6 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
 
         let kinds = self.kinds.iter().map(|k| *k as usize).collect::<Vec<_>>();
 
-        stream.extend(self.sp1_vk.write());
-        stream.extend(sp1_prep_sorted_idxs.write());
-        stream.extend(sp1_prep_domains.write());
         stream.extend(self.reduce_vk.write());
         stream.extend(reduce_prep_sorted_idxs.write());
         stream.extend(reduce_prep_domains.write());

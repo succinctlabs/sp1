@@ -116,17 +116,9 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
 }
 
 /// An input layout for the reduce verifier.
-pub struct SP1ReduceMemoryLayout<
-    'a,
-    CoreSC: StarkGenericConfig,
-    SC: StarkGenericConfig,
-    CoreA: MachineAir<CoreSC::Val>,
-    RecA: MachineAir<SC::Val>,
-> {
-    pub sp1_vk: &'a StarkVerifyingKey<CoreSC>,
+pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     pub reduce_vk: &'a StarkVerifyingKey<SC>,
-    pub sp1_machine: &'a StarkMachine<CoreSC, CoreA>,
-    pub recursive_machine: &'a StarkMachine<SC, RecA>,
+    pub recursive_machine: &'a StarkMachine<SC, A>,
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub is_complete: bool,
     pub kinds: Vec<ReduceProgramType>,
@@ -134,11 +126,7 @@ pub struct SP1ReduceMemoryLayout<
 
 #[derive(DslVariable, Clone)]
 pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
-    pub sp1_vk: VerifyingKeyVariable<C>,
     pub reduce_vk: VerifyingKeyVariable<C>,
-
-    pub sp1_prep_sorted_idxs: Array<C, Var<C::N>>,
-    pub sp1_prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 
     pub reduce_prep_sorted_idxs: Array<C, Var<C::N>>,
     pub reduce_prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
@@ -187,13 +175,11 @@ impl<A> SP1ReduceVerifier<InnerConfig, BabyBearPoseidon2, A> where
 /// Assertions on the public values describing a complete recursive proof state.
 fn assert_complete<C: Config>(
     builder: &mut Builder<C>,
-    core_vk: &VerifyingKeyVariable<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
     end_reconstruct_challenger: &DuplexChallengerVariable<C>,
 ) {
     let RecursionPublicValues {
         deferred_proofs_digest,
-        start_pc,
         next_pc,
         start_shard,
         cumulative_sum,
@@ -202,8 +188,6 @@ fn assert_complete<C: Config>(
         leaf_challenger,
         ..
     } = public_values;
-    // Assert that the start pc is equal to the start pc of the verifier key.
-    builder.assert_felt_eq(*start_pc, core_vk.pc_start);
     // Assert that `end_pc` is equal to zero (so program execution has completed)
     builder.assert_felt_eq(*next_pc, C::F::zero());
 
@@ -302,10 +286,7 @@ where
         deferred_vk: &StarkVerifyingKey<SC>,
     ) {
         let SP1ReduceMemoryLayoutVariable {
-            sp1_vk,
             reduce_vk,
-            sp1_prep_sorted_idxs,
-            sp1_prep_domains,
             reduce_prep_sorted_idxs,
             reduce_prep_domains,
             shard_proofs,
@@ -328,8 +309,6 @@ where
         let reduce_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
-        // Compute the digest of core_vk and input the value to the public values.
-        let core_vk_digest = hash_vkey(builder, &sp1_vk, &sp1_prep_domains, &sp1_prep_sorted_idxs);
         // Compute the digest of reduce_vk and input the value to the public values.
         let reduce_vk_digest = hash_vkey(
             builder,
@@ -338,7 +317,6 @@ where
             &reduce_prep_sorted_idxs,
         );
 
-        reduce_public_values.sp1_vk_digest = array::from_fn(|i| builder.get(&core_vk_digest, i));
         reduce_public_values.reduce_vk_digest =
             array::from_fn(|i| builder.get(&reduce_vk_digest, i));
 
@@ -350,6 +328,7 @@ where
         builder.print_v(zero_var);
 
         // Initialize the consistency check variables.
+        let sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
         let pc: Felt<_> = builder.uninit();
         let shard: Felt<_> = builder.uninit();
         let mut initial_reconstruct_challenger = DuplexChallengerVariable::new(builder);
@@ -385,6 +364,14 @@ where
             // If the proof is the first proof, initialize the values.
             builder.if_eq(i, C::N::zero()).then(|builder| {
                 // Initialize globa and accumulated values.
+
+                // Initialize the sp1_vk digest
+                for (digest, first_digest) in sp1_vk_digest
+                    .iter()
+                    .zip(current_public_values.sp1_vk_digest)
+                {
+                    builder.assign(*digest, first_digest);
+                }
 
                 // Initiallize start pc.
                 builder.assign(
@@ -451,6 +438,13 @@ where
             });
 
             // Assert that the current values match the accumulated values.
+            // Assert that the sp1_vk digest is always the same.
+            for (digest, current) in sp1_vk_digest
+                .iter()
+                .zip(current_public_values.sp1_vk_digest)
+            {
+                builder.assert_felt_eq(*digest, current);
+            }
             builder.print_v(zero_var);
             builder.print_f(pc);
             builder.print_f(current_public_values.start_pc);
@@ -604,6 +598,8 @@ where
         });
 
         // Update the global values from the last accumulated values.
+        // Set sp1_vk digest to the one from the proof values.
+        reduce_public_values.sp1_vk_digest = sp1_vk_digest;
         // Set next_pc to be the last pc (which is the same as accumulated pc)
         reduce_public_values.next_pc = pc;
         // Set next shard to be the last shard (which is the same as accumulated shard)
@@ -629,12 +625,7 @@ where
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
             let two: Var<_> = builder.eval(C::N::two());
             builder.print_v(two);
-            assert_complete(
-                builder,
-                &sp1_vk,
-                reduce_public_values,
-                &reconstruct_challenger,
-            )
+            assert_complete(builder, reduce_public_values, &reconstruct_challenger)
         });
 
         // Commit the public values.
@@ -894,12 +885,7 @@ where
         // no deferred proofs to verify. However, the completeness check is independent of these
         // facts.
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
-            assert_complete(
-                builder,
-                &vk,
-                recursion_public_values,
-                &reconstruct_challenger,
-            )
+            assert_complete(builder, recursion_public_values, &reconstruct_challenger)
         });
 
         // Commit to the public values.
@@ -1708,7 +1694,7 @@ mod tests {
         // Build the reduce program.
         let mut builder = Builder::<InnerConfig>::default();
         let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
-        SP1ReduceMemoryLayout::<SC, SC, RiscvAir<BabyBear>, A>::witness(&input, &mut builder);
+        SP1ReduceMemoryLayout::<SC, A>::witness(&input, &mut builder);
 
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, recursive_config.pcs().fri_config()),
@@ -1748,9 +1734,7 @@ mod tests {
                     };
                     let kinds = batch.iter().map(|_| kind).collect::<Vec<_>>();
                     let input = SP1ReduceMemoryLayout {
-                        sp1_vk: &vk,
                         reduce_vk: &reduce_vk,
-                        sp1_machine: &machine,
                         recursive_machine: &recursive_machine,
                         shard_proofs: batch.to_vec(),
                         kinds,
