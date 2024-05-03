@@ -13,8 +13,10 @@ use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
+use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
+use crate::memory::{MemoryCols, MemoryReadWriteSingleCols};
 use crate::poseidon2_wide::{apply_m_4, external_linear_layer, internal_linear_layer};
-use crate::runtime::{ExecutionRecord, RecursionProgram};
+use crate::runtime::{ExecutionRecord, Opcode, RecursionProgram};
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
@@ -33,14 +35,25 @@ pub struct Poseidon2Chip {
 #[repr(C)]
 pub struct Poseidon2Cols<T> {
     pub input: [T; WIDTH],
-    pub rounds: [T; 22],
-    pub add_rc: [T; WIDTH],
-    pub sbox_deg_3: [T; WIDTH],
-    pub sbox_deg_7: [T; WIDTH],
-    pub output: [T; WIDTH],
-    pub is_initial: T,
+    pub rounds: [T; 23],
+    // pub add_rc: [T; WIDTH],
+    // pub sbox_deg_3: [T; WIDTH],
+    // pub sbox_deg_7: [T; WIDTH],
     pub is_internal: T,
     pub is_external: T,
+    pub memory: Poseidon2MemCols<T>,
+}
+
+#[derive(AlignedBorrow, Default, Clone, Copy)]
+#[repr(C)]
+pub struct Poseidon2MemCols<T> {
+    pub timestamp: T,
+    pub dst: T,
+    pub left: T,
+    pub right: T,
+    pub mem_access: [MemoryReadWriteSingleCols<T>; WIDTH],
+    pub mem_address: [T; WIDTH],
+    pub is_real: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
@@ -176,6 +189,11 @@ impl Poseidon2Chip {
         let rounds_p = 13;
         let rounds = rounds_f + rounds_p;
 
+        let is_memory_read = local.rounds[0];
+        let is_initial = local.rounds[1];
+        let output: [AB::Var; WIDTH] =
+            core::array::from_fn(|i| *local.memory.mem_access[i].value());
+
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
             .iter()
@@ -224,7 +242,7 @@ impl Poseidon2Chip {
                 // External Layer: Pass through the result of the sbox layer.
                 // Internal Layer: Pass through the result of the sbox layer.
                 if i == 0 {
-                    local.is_initial * local.add_rc[i] + (AB::Expr::one() - local.is_initial) * *x
+                    is_initial * local.add_rc[i] + (local.is_external + local.is_internal) * *x
                 }
                 // The masked result of the rest of the sbox.
                 //
@@ -232,8 +250,7 @@ impl Poseidon2Chip {
                 // External layer: Pass through the result of the sbox layer.
                 // Internal layer: Pass through the result of the round constant layer.
                 else {
-                    (local.is_initial + local.is_internal) * local.add_rc[i]
-                        + (AB::Expr::one() - (local.is_initial + local.is_internal)) * *x
+                    (is_initial + local.is_internal) * local.add_rc[i] + (local.is_external) * *x
                 }
             })
             .collect::<Vec<_>>()
@@ -264,8 +281,8 @@ impl Poseidon2Chip {
             for i in 0..WIDTH {
                 state[i] += sums[i % 4].clone();
                 builder
-                    .when(local.is_external + local.is_initial)
-                    .assert_eq(state[i].clone(), local.output[i]);
+                    .when(local.is_external + is_initial)
+                    .assert_eq(state[i].clone(), output[i]);
             }
         }
 
@@ -276,27 +293,27 @@ impl Poseidon2Chip {
             internal_linear_layer(&mut state);
             builder
                 .when(local.is_internal)
-                .assert_all_eq(state.clone(), local.output);
+                .assert_all_eq(state.clone(), output);
         }
 
         // Range check all flags.
         for i in 0..local.rounds.len() {
             builder.assert_bool(local.rounds[i]);
         }
-        builder.assert_bool(local.is_initial);
         builder.assert_bool(local.is_external);
         builder.assert_bool(local.is_internal);
-        builder.assert_bool(local.is_initial + local.is_external + local.is_internal);
+        builder.assert_bool(is_memory_read + is_initial + local.is_external + local.is_internal);
 
-        // Constrain the initial flag.
-        builder.assert_eq(local.is_initial, local.rounds[0]);
+        // Constrain the initial flags.
+        builder.assert_eq(is_memory_read, local.rounds[0]);
+        builder.assert_eq(is_initial, local.rounds[1]);
 
         // Constrain the external flag.
         let is_external_first_half = (0..rounds_f / 2)
-            .map(|i| local.rounds[i + 1].into())
+            .map(|i| local.rounds[i + 2].into())
             .sum::<AB::Expr>();
         let is_external_second_half = ((rounds_f / 2 + rounds_p)..(rounds_f + rounds_p))
-            .map(|i| local.rounds[i + 1].into())
+            .map(|i| local.rounds[i + 2].into())
             .sum::<AB::Expr>();
         builder.assert_eq(
             local.is_external,
@@ -305,9 +322,60 @@ impl Poseidon2Chip {
 
         // Constrain the internal flag.
         let is_internal = (4..17)
-            .map(|i| local.rounds[i + 1].into())
+            .map(|i| local.rounds[i + 2].into())
             .sum::<AB::Expr>();
         builder.assert_eq(local.is_internal, is_internal);
+
+        // Eval the interactions.
+        self.eval_mem(
+            builder,
+            local,
+            local.rounds[0],
+            local.rounds[21],
+            local.memory.timestamp,
+        );
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Poseidon2Cols<AB::Var>,
+        input: [AB::Var; WIDTH],
+        is_memory_read_round: AB::Var,
+        is_last_round: AB::Var,
+        timestamp: AB::Var,
+    ) {
+        // Evaluate all of the memory.
+
+        for i in 0..WIDTH {
+            builder
+                .when(is_memory_read_round)
+                .assert_eq(input[i], *local.memory.mem_access[i].value());
+            builder.when(is_memory_read_round).assert_eq(
+                *local.memory.mem_access[i].prev_value(),
+                *local.memory.mem_access[i].value(),
+            );
+
+            builder.recursion_eval_memory_access_single(
+                timestamp,
+                local.memory.mem_access[i].addr & local.memory.mem_access[i],
+                local.memory.is_real,
+            );
+        }
+
+        // Constraint that the operands are sent from the CPU table.
+        let operands: [AB::Expr; 4] = [
+            local.memory.timestamp.into(),
+            local.memory.dst.into(),
+            local.memory.left.into(),
+            local.memory.right.into(),
+        ];
+        builder.receive_table(
+            Opcode::Poseidon2Compress.as_field::<AB::F>(),
+            &operands,
+            local.memory.is_real,
+        );
     }
 }
 
