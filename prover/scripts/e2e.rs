@@ -70,13 +70,6 @@ pub fn main() {
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
 
-    // Write the JSON-serialized proof to a file
-    tracing::info!("write proof to file");
-    let mut file =
-        File::create(PathBuf::from(args.build_dir.clone()).join("test_proof_input.json")).unwrap();
-    let serialized_proof = serde_json::to_string(&proof).unwrap();
-    file.write_all(serialized_proof.as_bytes()).unwrap();
-
     tracing::info!("verify gnark proof");
     let verified = verify(proof.clone(), &args.build_dir.clone().into());
     assert!(verified);
