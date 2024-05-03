@@ -42,7 +42,7 @@ pub fn babybear_bytes_to_bn254<C: Config>(
     builder: &mut Builder<C>,
     bytes: &[Felt<C::F>; 32],
 ) -> Var<C::N> {
-    let var_2_32: Var<_> = builder.constant(C::N::from_canonical_u64(1 << 32));
+    let var_256: Var<_> = builder.constant(C::N::from_canonical_u32(256));
     let zero_var: Var<_> = builder.constant(C::N::zero());
     let result = builder.constant(C::N::zero());
     for (i, byte) in bytes.iter().enumerate() {
@@ -57,7 +57,7 @@ pub fn babybear_bytes_to_bn254<C: Config>(
             builder.assign(result, byte_var);
         } else {
             let byte_var = builder.bits2num_v_circuit(&byte_bits);
-            builder.assign(result, result * var_2_32 + byte_var);
+            builder.assign(result, result * var_256 + byte_var);
         }
     }
     result
