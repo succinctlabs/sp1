@@ -106,16 +106,17 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let cols = main.row_slice(0);
-        let cols: &MultiCols<AB::Var> = (*cols).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &MultiCols<AB::Var> = (*local).borrow();
+        let next: &MultiCols<AB::Var> = (*next).borrow();
 
         let fri_fold_chip = FriFoldChip::default();
-        let mut sub_builder = builder.when(cols.is_fri_fold);
-        fri_fold_chip.eval_fri_fold(&mut sub_builder, cols.fri_fold());
+        let mut sub_builder = builder.when(local.is_fri_fold);
+        fri_fold_chip.eval_fri_fold(&mut sub_builder, local.fri_fold(), next.fri_fold());
 
         let poseidon2_chip = Poseidon2Chip::default();
-        let mut sub_builder = builder.when(cols.is_poseidon2);
-        poseidon2_chip.eval_poseidon2(&mut sub_builder, cols.poseidon2());
+        let mut sub_builder = builder.when(local.is_poseidon2);
+        poseidon2_chip.eval_poseidon2(&mut sub_builder, local.poseidon2());
     }
 }
 // SAFETY: Each view is a valid interpretation of the underlying array.

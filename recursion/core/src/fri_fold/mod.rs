@@ -53,6 +53,7 @@ pub struct FriFoldEvent<F> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FriFoldCols<T: Copy> {
+    pub is_last_iteration: T,
     pub clk: T,
 
     /// The parameters into the FRI fold precompile.  These values are only read from memory.
@@ -168,13 +169,9 @@ impl FriFoldChip {
     pub fn eval_fri_fold<AB: BaseAirBuilder + ExtensionAirBuilder + RecursionMemoryAirBuilder>(
         &self,
         builder: &mut AB,
-        cols: &FriFoldCols<AB::Var>,
+        local: &FriFoldCols<AB::Var>,
+        next: &FriFoldCols<AB::Var>,
     ) {
-        let main = builder.main();
-        let (local, next) = (main.row_slice(0), main.row_slice(1));
-        let local: &FriFoldCols<AB::Var> = (*local).borrow();
-        let next: &FriFoldCols<AB::Var> = (*next).borrow();
-
         // Constraint that the operands are sent from the CPU table.
         builder.assert_bool(local.is_last_iteration);
         let operands = [
@@ -351,8 +348,9 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let cols = main.row_slice(0);
-        let cols: &FriFoldCols<AB::Var> = (*cols).borrow();
-        self.eval_fri_fold::<AB>(builder, cols);
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &FriFoldCols<AB::Var> = (*local).borrow();
+        let next: &FriFoldCols<AB::Var> = (*next).borrow();
+        self.eval_fri_fold::<AB>(builder, local, next);
     }
 }
