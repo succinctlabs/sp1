@@ -9,14 +9,15 @@
 #![feature(generic_const_exprs)]
 
 pub mod proto {
-    #[rustfmt::skip]
     pub mod network;
 }
 pub mod artifacts;
 pub mod auth;
 pub mod client;
 pub mod provers;
-pub mod utils;
+pub mod utils {
+    pub use sp1_core::utils::setup_logger;
+}
 
 use std::{env, fmt::Debug, fs::File, path::Path};
 
@@ -31,30 +32,31 @@ pub use sp1_prover::{
 
 /// A client for interacting with SP1.
 pub struct ProverClient {
+    /// The underlying prover implementation.
     pub prover: Box<dyn Prover>,
 }
 
-/// A proof of executing a RISC-V ELF with the given public values.
+/// A proof generated with SP1.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(serialize = "P: Serialize + Debug + Clone"))]
 #[serde(bound(deserialize = "P: DeserializeOwned + Debug + Clone"))]
-pub struct SP1ProofWithMetadata<P> {
+pub struct SP1ProofWithPublicValues<P> {
     pub proof: P,
     pub stdin: SP1Stdin,
     pub public_values: SP1PublicValues,
 }
 
-/// A [SP1ProofWithMetadata] generated with [ProverClient::prove].
-pub type SP1Proof = SP1ProofWithMetadata<Vec<ShardProof<CoreSC>>>;
+/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove].
+pub type SP1Proof = SP1ProofWithPublicValues<Vec<ShardProof<CoreSC>>>;
 
-/// A [SP1ProofWithMetadata] generated with [ProverClient::prove_compressed].
-pub type SP1CompressedProof = SP1ProofWithMetadata<ShardProof<InnerSC>>;
+/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_compressed].
+pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
 
-/// A [SP1ProofWithMetadata] generated with [ProverClient::prove_groth16].
-pub type SP1Groth16Proof = SP1ProofWithMetadata<Groth16Proof>;
+/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_groth16].
+pub type SP1Groth16Proof = SP1ProofWithPublicValues<Groth16Proof>;
 
-/// A [SP1ProofWithMetadata] generated with [ProverClient::prove_plonk].
-pub type SP1PlonkProof = SP1ProofWithMetadata<PlonkBn254Proof>;
+/// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_plonk].
+pub type SP1PlonkProof = SP1ProofWithPublicValues<PlonkBn254Proof>;
 
 impl ProverClient {
     /// Creates a new [ProverClient].
@@ -432,7 +434,7 @@ impl Default for ProverClient {
     }
 }
 
-impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
+impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P> {
     /// Saves the proof to a path.
     pub fn save(&self, path: impl AsRef<Path>) -> Result<()> {
         bincode::serialize_into(File::create(path).expect("failed to open file"), self)
@@ -449,10 +451,11 @@ impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithMetadata<P> {
 #[cfg(test)]
 mod tests {
 
-    use crate::{ProverClient, SP1Stdin};
+    use crate::{utils, ProverClient, SP1Stdin};
 
     #[test]
     fn test_execute() {
+        utils::setup_logger();
         let client = ProverClient::local();
         let elf =
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -463,6 +466,7 @@ mod tests {
 
     #[test]
     fn test_e2e_prove_local() {
+        utils::setup_logger();
         let client = ProverClient::local();
         let elf =
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -474,7 +478,21 @@ mod tests {
     }
 
     #[test]
+    fn test_e2e_prove_groth16() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf =
+            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let (pk, vk) = client.setup(elf);
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        let proof = client.prove_groth16(&pk, stdin).unwrap();
+        client.verify_groth16(&proof, &vk).unwrap();
+    }
+
+    #[test]
     fn test_e2e_prove_mock() {
+        utils::setup_logger();
         let client = ProverClient::mock();
         let elf =
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");

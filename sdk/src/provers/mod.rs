@@ -1,6 +1,7 @@
 mod local;
 mod mock;
 mod network;
+mod utils;
 
 use anyhow::Result;
 pub use local::LocalProver;

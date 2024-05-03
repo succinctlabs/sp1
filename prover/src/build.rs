@@ -5,14 +5,25 @@ use std::path::PathBuf;
 
 use sp1_core::stark::StarkVerifyingKey;
 use sp1_core::{io::SP1Stdin, stark::ShardProof};
-use sp1_recursion_circuit::stark::build_wrap_circuit;
-use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::ir::Witness;
+pub use sp1_recursion_circuit::stark::build_wrap_circuit;
+pub use sp1_recursion_circuit::witness::Witnessable;
+pub use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
 use crate::{OuterSC, SP1Prover};
+
+/// Build the groth16 artifacts to the given directory for the given verification key and template
+/// proof.
+pub fn groth16_artifacts(
+    wrap_vk: &StarkVerifyingKey<OuterSC>,
+    wrapped_proof: &ShardProof<OuterSC>,
+    build_dir: PathBuf,
+) {
+    let (constraints, witness) = build_constraints(wrap_vk, wrapped_proof);
+    Groth16Prover::build(constraints, witness, build_dir);
+}
 
 /// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
 /// the proof.
@@ -42,13 +53,13 @@ fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
 }
 
 /// Build the verifier constraints and template witness for the circuit.
-fn build_circuit(
-    wrap_vk: StarkVerifyingKey<OuterSC>,
-    wrapped_proof: ShardProof<OuterSC>,
+fn build_constraints(
+    wrap_vk: &StarkVerifyingKey<OuterSC>,
+    wrapped_proof: &ShardProof<OuterSC>,
 ) -> (Vec<Constraint>, Witness<OuterConfig>) {
     tracing::info!("building verifier constraints");
     let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(&wrap_vk, wrapped_proof.clone()));
+        .in_scope(|| build_wrap_circuit(wrap_vk, wrapped_proof.clone()));
 
     tracing::info!("building template witness");
     let mut witness = Witness::default();
@@ -69,7 +80,7 @@ pub fn build_groth16_artifacts(build_dir: PathBuf) {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     let (wrap_vk, wrapped_proof) = dummy_proof();
-    let (constraints, witness) = build_circuit(wrap_vk, wrapped_proof);
+    let (constraints, witness) = build_constraints(&wrap_vk, &wrapped_proof);
 
     tracing::info!("sanity check gnark test");
     Groth16Prover::test(constraints.clone(), witness.clone());
@@ -89,7 +100,7 @@ pub fn build_plonk_artifacts(build_dir: PathBuf) {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     let (wrap_vk, wrapped_proof) = dummy_proof();
-    let (constraints, witness) = build_circuit(wrap_vk, wrapped_proof);
+    let (constraints, witness) = build_constraints(&wrap_vk, &wrapped_proof);
 
     mkdirs(&build_dir);
 

@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::Result;
 use sha2::{Digest, Sha256};
 use sp1_core::{
@@ -9,18 +7,15 @@ use sp1_core::{
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
-    artifacts::{
-        build_circuit_artifacts, get_artifacts_dir, get_dev_mode, install_circuit_artifacts,
-        WrapCircuitType,
-    },
-    utils::EnvVarGuard,
-    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithMetadata,
+    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
 
+use super::utils;
+
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
 pub struct LocalProver {
-    pub(crate) prover: SP1Prover,
+    prover: SP1Prover,
 }
 
 impl LocalProver {
@@ -28,30 +23,6 @@ impl LocalProver {
     pub fn new() -> Self {
         let prover = SP1Prover::new();
         Self { prover }
-    }
-
-    /// Initialize circuit artifacts by installing or building if in dev mode.
-    pub(crate) fn initialize_circuit(&self, circuit_type: WrapCircuitType) -> PathBuf {
-        let is_dev_mode = get_dev_mode();
-        let artifacts_dir = get_artifacts_dir(circuit_type, is_dev_mode);
-
-        if !artifacts_dir.exists() {
-            log::info!("First time initializing circuit artifacts");
-        }
-
-        if is_dev_mode {
-            build_circuit_artifacts(circuit_type, false, Some(artifacts_dir.clone()))
-                .expect("Failed to build circuit artifacts.")
-        } else {
-            install_circuit_artifacts(
-                WrapCircuitType::Groth16,
-                false,
-                Some(artifacts_dir.clone()),
-                None,
-            )
-            .expect("Failed to install circuit artifacts");
-        }
-        artifacts_dir
     }
 }
 
@@ -66,7 +37,7 @@ impl Prover for LocalProver {
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         let proof = self.prover.prove_core(pk, &stdin);
-        Ok(SP1ProofWithMetadata {
+        Ok(SP1ProofWithPublicValues {
             proof: proof.shard_proofs,
             stdin: proof.stdin,
             public_values: proof.public_values,
@@ -77,7 +48,6 @@ impl Prover for LocalProver {
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
         Ok(SP1CompressedProof {
             proof: reduce_proof.proof,
@@ -87,37 +57,72 @@ impl Prover for LocalProver {
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        let artifacts_dir = self.initialize_circuit(WrapCircuitType::Groth16);
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
-        let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
         let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
         let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
+
+        // If `SP1_GROTH16_DEV_MODE` is enabled, we will compile a smaller version of the final
+        // circuit and rebuild it for every proof.
+        //
+        // This is useful for development and testing purposes, as it allows us to test the
+        // end-to-end proving without having to wait for the circuit to compile or download.
+        let artifacts_dir = if utils::groth16_dev_mode() {
+            tracing::debug!("proving groth16 inside development mode");
+            let build_dir = tempfile::tempdir()
+                .expect("failed to create temporary directory")
+                .into_path();
+            if let Err(err) = std::fs::create_dir_all(&build_dir) {
+                panic!(
+                    "failed to create build directory for groth16 artifacts: {}",
+                    err
+                );
+            }
+            sp1_prover::build::groth16_artifacts(
+                &self.prover.wrap_vk,
+                &outer_proof,
+                build_dir.clone(),
+            );
+            build_dir
+        }
+        // If `SP1_GROTH16_ARTIFACTS_DIR` is set, we will use the artifacts from that directory.
+        //
+        // This is useful for when you want to test the production circuit and have a local build
+        // available for development purposes.
+        else if let Some(artifacts_dir) = utils::groth16_artifacts_dir() {
+            artifacts_dir
+        }
+        // Otherwise, assume this is an official release and download the artifacts from the
+        // official download url.
+        else {
+            todo!()
+        };
+
         let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
-        Ok(SP1ProofWithMetadata {
+        Ok(SP1ProofWithPublicValues {
             proof,
             stdin,
             public_values,
         })
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let artifacts_dir = self.initialize_circuit(WrapCircuitType::Plonk);
-        let proof = self.prover.prove_core(pk, &stdin);
-        let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
-        let public_values = proof.public_values.clone();
-        let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
-        let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
-        let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
-        let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
-        let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
-        Ok(SP1ProofWithMetadata {
-            proof,
-            stdin,
-            public_values,
-        })
+    fn prove_plonk(&self, _pk: &SP1ProvingKey, _stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+        // let artifacts_dir = self.initialize_circuit(WrapCircuitType::Plonk);
+        // let proof = self.prover.prove_core(pk, &stdin);
+        // let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
+        // let public_values = proof.public_values.clone();
+        // let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
+        // let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
+        // let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
+        // let proof = self.prover.wrap_plonk(outer_proof, artifacts_dir);
+        // Ok(SP1ProofWithPublicValues {
+        //     proof,
+        //     stdin,
+        //     public_values,
+        // })
+        todo!()
     }
 
     fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {

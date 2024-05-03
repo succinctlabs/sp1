@@ -8,7 +8,7 @@ use super::LocalProver;
 use crate::{
     client::NetworkClient,
     proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithMetadata,
+    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
 
@@ -47,7 +47,7 @@ impl NetworkProver {
 
             match status.status() {
                 ProofStatus::ProofFulfilled => {
-                    return Ok(SP1ProofWithMetadata {
+                    return Ok(SP1ProofWithPublicValues {
                         proof: maybe_proof.unwrap().shard_proofs,
                         stdin,
                         public_values,

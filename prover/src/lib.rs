@@ -17,7 +17,6 @@ mod types;
 pub mod utils;
 mod verify;
 
-use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_challenger::CanObserve;
@@ -68,6 +67,7 @@ use crate::types::ReduceState;
 use crate::utils::get_chip_quotient_data;
 use crate::utils::get_preprocessed_data;
 use crate::utils::get_sorted_indices;
+use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 
 /// The configuration for the core prover.
 pub type CoreSC = BabyBearPoseidon2;
@@ -87,16 +87,16 @@ pub struct SP1Prover {
     pub recursion_setup_program: RecursionProgram<BabyBear>,
 
     /// The proving key for the reduce step.
-    pub reduce_pk: StarkProvingKey<InnerSC>,
-
-    /// The verification key for the reduce step.
-    pub reduce_vk: StarkVerifyingKey<InnerSC>,
-
-    /// The proving key for the compress step.
     pub compress_pk: StarkProvingKey<InnerSC>,
 
-    /// The verification key for the compress step.
+    /// The verification key for the reduce step.
     pub compress_vk: StarkVerifyingKey<InnerSC>,
+
+    /// The proving key for the shrink step.
+    pub shrink_pk: StarkProvingKey<InnerSC>,
+
+    /// The verification key for the shrink step.
+    pub shrink_vk: StarkVerifyingKey<InnerSC>,
 
     /// The proving key for the wrap step.
     pub wrap_pk: StarkProvingKey<OuterSC>,
@@ -108,11 +108,11 @@ pub struct SP1Prover {
     pub core_machine: StarkMachine<CoreSC, RiscvAir<<CoreSC as StarkGenericConfig>::Val>>,
 
     /// The machine used for proving the reduce step.
-    pub reduce_machine:
+    pub compress_machine:
         StarkMachine<InnerSC, RecursionAirWideDeg3<<InnerSC as StarkGenericConfig>::Val>>,
 
     /// The machine used for proving the compress step.
-    pub compress_machine:
+    pub shrink_machine:
         StarkMachine<InnerSC, RecursionAirSkinnyDeg7<<InnerSC as StarkGenericConfig>::Val>>,
 
     /// The machine used for proving the wrapping step.
@@ -126,28 +126,28 @@ impl SP1Prover {
     pub fn new() -> Self {
         let recursion_setup_program = ReduceProgram::setup();
         let recursion_program = ReduceProgram::build();
-        let (reduce_pk, reduce_vk) =
-            RecursionAirWideDeg3::machine(InnerSC::default()).setup(&recursion_program);
         let (compress_pk, compress_vk) =
+            RecursionAirWideDeg3::machine(InnerSC::default()).setup(&recursion_program);
+        let (shrink_pk, shrink_vk) =
             RecursionAirSkinnyDeg7::machine(InnerSC::compressed()).setup(&recursion_program);
         let (wrap_pk, wrap_vk) =
             RecursionAirSkinnyDeg7::machine(OuterSC::default()).setup(&recursion_program);
         let core_machine = RiscvAir::machine(CoreSC::default());
-        let reduce_machine = RecursionAirWideDeg3::machine(InnerSC::default());
-        let compress_machine = RecursionAirSkinnyDeg7::machine(InnerSC::compressed());
+        let compress_machine = RecursionAirWideDeg3::machine(InnerSC::default());
+        let shrink_machine = RecursionAirSkinnyDeg7::machine(InnerSC::compressed());
         let wrap_machine = RecursionAirSkinnyDeg7::machine(OuterSC::default());
         Self {
             recursion_setup_program,
             recursion_program,
-            reduce_pk,
-            reduce_vk,
             compress_pk,
             compress_vk,
+            shrink_pk,
+            shrink_vk,
             wrap_pk,
             wrap_vk,
             core_machine,
-            reduce_machine,
             compress_machine,
+            shrink_machine,
             wrap_machine,
         }
     }
@@ -265,7 +265,7 @@ impl SP1Prover {
                 let config = InnerSC::default();
                 self.verify_batch(
                     config,
-                    &self.reduce_pk,
+                    &self.compress_pk,
                     vk,
                     core_challenger,
                     reconstruct_challenger,
@@ -345,7 +345,7 @@ impl SP1Prover {
                 let config = InnerSC::default();
                 let proof = self.verify_batch(
                     config,
-                    &self.reduce_pk,
+                    &self.compress_pk,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger,
@@ -393,7 +393,7 @@ impl SP1Prover {
                 let config = InnerSC::default();
                 self.verify_batch::<InnerSC>(
                     config,
-                    &self.reduce_pk,
+                    &self.compress_pk,
                     vk,
                     sp1_challenger.clone(),
                     reconstruct_challenger.clone(),
@@ -461,9 +461,9 @@ impl SP1Prover {
                 }
                 SP1ReduceProofWrapper::Recursive(reduce_proof) => {
                     if verifying_compressed_proof {
-                        get_chip_quotient_data(&self.compress_machine, &reduce_proof.proof)
+                        get_chip_quotient_data(&self.shrink_machine, &reduce_proof.proof)
                     } else {
-                        get_chip_quotient_data(&self.reduce_machine, &reduce_proof.proof)
+                        get_chip_quotient_data(&self.compress_machine, &reduce_proof.proof)
                     }
                 }
             })
@@ -476,9 +476,9 @@ impl SP1Prover {
                 }
                 SP1ReduceProofWrapper::Recursive(reduce_proof) => {
                     if verifying_compressed_proof {
-                        get_sorted_indices(&self.compress_machine, &reduce_proof.proof)
+                        get_sorted_indices(&self.shrink_machine, &reduce_proof.proof)
                     } else {
-                        get_sorted_indices(&self.reduce_machine, &reduce_proof.proof)
+                        get_sorted_indices(&self.compress_machine, &reduce_proof.proof)
                     }
                 }
             })
@@ -486,18 +486,18 @@ impl SP1Prover {
         let (prep_sorted_indices, prep_domains): (Vec<usize>, Vec<Domain<CoreSC>>) =
             get_preprocessed_data(&self.core_machine, &core_vk.vk);
         let (reduce_prep_sorted_indices, reduce_prep_domains): (Vec<usize>, Vec<Domain<InnerSC>>) =
-            get_preprocessed_data(&self.reduce_machine, &self.reduce_vk);
+            get_preprocessed_data(&self.compress_machine, &self.compress_vk);
         let (compress_prep_sorted_indices, compress_prep_domains): (
             Vec<usize>,
             Vec<Domain<InnerSC>>,
-        ) = get_preprocessed_data(&self.compress_machine, &self.compress_vk);
+        ) = get_preprocessed_data(&self.shrink_machine, &self.shrink_vk);
         let deferred_sorted_indices: Vec<Vec<usize>> = deferred_proofs
             .iter()
-            .map(|proof| get_sorted_indices(&self.reduce_machine, proof))
+            .map(|proof| get_sorted_indices(&self.compress_machine, proof))
             .collect();
         let deferred_chip_quotient_data: Vec<Vec<QuotientDataValues>> = deferred_proofs
             .iter()
-            .map(|p| get_chip_quotient_data(&self.reduce_machine, p))
+            .map(|p| get_chip_quotient_data(&self.compress_machine, p))
             .collect();
 
         // Convert the inputs into a witness stream.
@@ -514,8 +514,8 @@ impl SP1Prover {
         witness_stream.extend(compress_prep_sorted_indices.write());
         witness_stream.extend(Hintable::write(&compress_prep_domains));
         witness_stream.extend(core_vk.vk.write());
-        witness_stream.extend(self.reduce_vk.write());
         witness_stream.extend(self.compress_vk.write());
+        witness_stream.extend(self.shrink_vk.write());
         witness_stream.extend(state.committed_values_digest.write());
         witness_stream.extend(state.deferred_proofs_digest.write());
         witness_stream.extend(Hintable::write(&state.start_pc));
@@ -625,7 +625,7 @@ impl SP1Prover {
         let config = InnerSC::compressed();
         self.verify_batch::<InnerSC>(
             config,
-            &self.compress_pk,
+            &self.shrink_pk,
             vk,
             core_challenger,
             reconstruct_challenger,

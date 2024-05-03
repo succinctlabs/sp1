@@ -2,7 +2,7 @@ use anyhow::Result;
 use sp1_prover::{Groth16Proof, PlonkBn254Proof, SP1Prover, SP1Stdin};
 
 use crate::{
-    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithMetadata,
+    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
 
@@ -30,7 +30,7 @@ impl Prover for MockProver {
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin);
-        Ok(SP1ProofWithMetadata {
+        Ok(SP1ProofWithPublicValues {
             proof: vec![],
             stdin,
             public_values,
@@ -47,7 +47,7 @@ impl Prover for MockProver {
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin);
-        Ok(SP1ProofWithMetadata {
+        Ok(SP1ProofWithPublicValues {
             proof: PlonkBn254Proof::default(),
             stdin,
             public_values,
@@ -56,7 +56,7 @@ impl Prover for MockProver {
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin);
-        Ok(SP1ProofWithMetadata {
+        Ok(SP1ProofWithPublicValues {
             proof: Groth16Proof::default(),
             stdin,
             public_values,
