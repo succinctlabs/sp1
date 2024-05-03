@@ -103,7 +103,7 @@ impl ProverClient {
 
     /// Generates a compressed proof for the given elf and stdin.
     pub fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
-        self.prover.prove_compressed(pk, stdin)
+        self.prover.prove_reduced(pk, stdin)
     }
 
     /// Generates a groth16 proof, verifiable onchain, of the given elf and stdin.
@@ -123,7 +123,7 @@ impl ProverClient {
 
     /// Verifies the given compressed proof is valid and matches the given vkey.
     pub fn verify_compressed(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.prover.verify_compressed(proof, vkey)
+        self.prover.verify_reduced(proof, vkey)
     }
 
     /// Verifies the given groth16 proof is valid and matches the given vkey.
@@ -151,7 +151,7 @@ pub trait Prover: Send + Sync {
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof>;
 
     /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof>;
+    fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof>;
@@ -163,7 +163,7 @@ pub trait Prover: Send + Sync {
     fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()>;
 
     /// Verify that a compressed SP1 proof is valid given its vkey and metadata.
-    fn verify_compressed(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()>;
 
     /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
     fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()>;

@@ -68,7 +68,7 @@ impl Prover for LocalProver {
         Ok(proof)
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
+    fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
@@ -115,24 +115,14 @@ impl Prover for LocalProver {
         })
     }
 
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
-        let pv_digest: [u8; 32] = Sha256::digest(&proof.public_values.buffer.data).into();
-        if pv_digest != *pv.commit_digest_bytes() {
-            return Err(anyhow::anyhow!("Public values digest mismatch"));
-        }
-        let machine_proof = MachineProof {
-            shard_proofs: proof.proof.clone(),
-        };
-        let mut challenger = self.prover.core_machine.config().challenger();
-        Ok(self
-            .prover
-            .core_machine
-            .verify(&vkey.vk, &machine_proof, &mut challenger)?)
+    fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        self.prover.verify(&proof.proof, vkey).map_err(|e| e.into())
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+    fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        self.prover
+            .verify_reduced(&proof.proof, vkey)
+            .map_err(|e| e.into())
     }
 
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {

@@ -776,7 +776,7 @@ mod tests {
         let core_proof = prover.prove_core(&pk, &stdin);
 
         tracing::info!("verify core");
-        core_proof.verify(&vk).unwrap();
+        prover.verify(&core_proof.proof, &vk).unwrap();
 
         tracing::info!("reduce");
         let reduced_proof = prover.reduce(&vk, core_proof.proof, vec![]);
@@ -887,6 +887,6 @@ mod tests {
         println!("complete: {:?}", reduce_pv.is_complete);
 
         let reduced_proof = SP1ReducedProofData(verify_reduce.proof);
-        reduced_proof.verify(&verify_vk).unwrap();
+        prover.verify_reduced(&reduced_proof, &verify_vk).unwrap();
     }
 }

@@ -1,12 +1,12 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16ProofData, SP1PlonkProofData,
-    SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1Groth16ProofData, SP1PlonkProofData, SP1ProofWithMetadata, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 use anyhow::Result;
 use sp1_prover::{
     Groth16Proof, PlonkBn254Proof, SP1CoreProof, SP1CoreProofData, SP1Groth16Proof, SP1PlonkProof,
-    SP1Prover, SP1Stdin,
+    SP1Prover, SP1ReducedProof, SP1Stdin,
 };
 
 pub struct MockProver {
@@ -40,7 +40,7 @@ impl Prover for MockProver {
         })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+    fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
         unimplemented!()
     }
 
@@ -62,19 +62,19 @@ impl Prover for MockProver {
         })
     }
 
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 
-    fn verify_groth16(&self, proof: &SP1Groth16ProofData, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 
-    fn verify_plonk(&self, proof: &SP1PlonkProofData, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 }

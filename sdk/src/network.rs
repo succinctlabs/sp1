@@ -5,11 +5,12 @@ use crate::{
     client::NetworkClient,
     local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1Groth16ProofData, SP1PlonkProofData, SP1ProofWithMetadata, SP1ProvingKey,
-    SP1VerifyingKey,
+    Prover, SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::{Context, Result};
-use sp1_prover::{SP1CoreProof, SP1Prover, SP1Stdin};
+use sp1_prover::{
+    SP1CoreProof, SP1Groth16Proof, SP1PlonkProof, SP1Prover, SP1ReducedProof, SP1Stdin,
+};
 use tokio::{runtime, time::sleep};
 
 pub struct NetworkProver {
@@ -52,7 +53,7 @@ impl NetworkProver {
             match status.status() {
                 ProofStatus::ProofFulfilled => {
                     return Ok(SP1ProofWithMetadata {
-                        proof: maybe_proof.unwrap().0,
+                        proof: maybe_proof.unwrap(),
                         stdin,
                         public_values,
                     });
@@ -142,36 +143,36 @@ impl Prover for NetworkProver {
         self.local_prover.setup(elf)
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async { self.prove_async(&pk.elf, stdin).await })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+    fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
         todo!()
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProofData> {
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         todo!()
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16ProofData> {
+    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         todo!()
     }
 
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.local_prover.verify(proof, vkey)
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_plonk(&self, proof: &SP1PlonkProofData, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 
-    fn verify_groth16(&self, proof: &SP1Groth16ProofData, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 }
