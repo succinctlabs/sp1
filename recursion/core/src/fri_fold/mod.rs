@@ -29,10 +29,10 @@ pub struct FriFoldChip {
 
 #[derive(Debug, Clone)]
 pub struct FriFoldEvent<F> {
-    pub is_last_iteration: F,
     pub clk: F,
     pub m: F,
     pub input_ptr: F,
+    pub is_last_iteration: F,
 
     pub z: MemoryRecord<F>,
     pub alpha: MemoryRecord<F>,
@@ -53,12 +53,14 @@ pub struct FriFoldEvent<F> {
 #[derive(AlignedBorrow, Debug, Clone, Copy)]
 #[repr(C)]
 pub struct FriFoldCols<T: Copy> {
-    pub is_last_iteration: T,
     pub clk: T,
 
     /// The parameters into the FRI fold precompile.  These values are only read from memory.
     pub m: T,
     pub input_ptr: T,
+
+    /// At the last iteraction of a FRI_FOLD invocation.
+    pub is_last_iteration: T,
 
     /// The inputs stored in memory.  All the values are just read from memory.
     pub z: MemoryReadCols<T>,
@@ -114,10 +116,10 @@ impl<F: PrimeField32> MachineAir<F> for FriFoldChip {
 
                 let cols: &mut FriFoldCols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.is_last_iteration = event.is_last_iteration;
                 cols.clk = event.clk;
                 cols.m = event.m;
                 cols.input_ptr = event.input_ptr;
+                cols.is_last_iteration = event.is_last_iteration;
                 cols.is_real = F::one();
 
                 cols.z.populate(&event.z);
@@ -173,10 +175,11 @@ impl FriFoldChip {
         next: &FriFoldCols<AB::Var>,
     ) {
         // Constraint that the operands are sent from the CPU table.
-        builder.assert_bool(local.is_last_iteration);
+        let first_iteration_clk = local.clk.into() - local.m.into();
+        let total_num_iterations = local.m.into() + AB::Expr::one();
         let operands = [
-            local.clk.into() - local.m.into(),
-            local.m.into() + AB::Expr::one(),
+            first_iteration_clk,
+            total_num_iterations,
             local.input_ptr.into(),
             AB::Expr::zero(),
         ];
@@ -186,29 +189,23 @@ impl FriFoldChip {
             local.is_last_iteration,
         );
 
+        // Ensure that all first iterations has a m value of 0.
+        builder.when_first_row().assert_zero(local.m);
         builder
-            .when_transition()
             .when(local.is_last_iteration)
+            .when_transition()
             .when(next.is_real)
             .assert_zero(next.m);
 
-        builder
+        let mut non_last_iteration_builder = builder.when_not(local.is_last_iteration);
+        non_last_iteration_builder
             .when_transition()
-            .when_not(local.is_last_iteration)
-            .when(next.is_real)
-            .assert_eq(next.m, local.m + AB::Expr::one());
+            .when(next.is_real);
 
-        builder
-            .when_transition()
-            .when_not(local.is_last_iteration)
-            .when(next.is_real)
-            .assert_eq(local.input_ptr, next.input_ptr);
-
-        builder
-            .when_transition()
-            .when_not(local.is_last_iteration)
-            .when(next.is_real)
-            .assert_eq(local.clk + AB::Expr::one(), next.clk);
+        // Ensure that all rows for a FRI FOLD invocation have the same input_ptr, clk, and sequential m values.
+        non_last_iteration_builder.assert_eq(next.m, local.m + AB::Expr::one());
+        non_last_iteration_builder.assert_eq(local.input_ptr, next.input_ptr);
+        non_last_iteration_builder.assert_eq(local.clk, next.clk);
 
         // Constrain read for `z` at `input_ptr`
         builder.recursion_eval_memory_access(
