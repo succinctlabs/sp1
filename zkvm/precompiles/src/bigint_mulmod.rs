@@ -9,10 +9,13 @@ pub extern "C" fn sys_bigint(
     op: u32,
     x: *const [u32; BIGINT_WIDTH_WORDS],
     y: *const [u32; BIGINT_WIDTH_WORDS],
-    modulus: *const [u32; BIGINT_WIDTH_WORDS],
+    modulus: *const [u32; BIGINT_WIDTH_WORDS + 1],
 ) {
     // Instantiate a new uninitialized array of words to place the concatenated y and modulus.
-    let mut concat_y_modulus = core::mem::MaybeUninit::<[u32; BIGINT_WIDTH_WORDS * 2]>::uninit();
+    // Note that the modulus gets passed in as BIGINT_WIDTH_WORDS + 1 words for the case where
+    // the modulus = 1 << 256. This case is identified by the modulus argument being 0 everywhere.
+    let mut concat_y_modulus =
+        core::mem::MaybeUninit::<[u32; BIGINT_WIDTH_WORDS * 2 + 1]>::uninit();
     unsafe {
         let result_ptr = result as *mut u32;
         let x_ptr = x as *const u32;
@@ -27,7 +30,7 @@ pub extern "C" fn sys_bigint(
         core::ptr::copy(
             modulus as *const u32,
             concat_ptr.add(BIGINT_WIDTH_WORDS),
-            BIGINT_WIDTH_WORDS,
+            BIGINT_WIDTH_WORDS + 1,
         );
 
         // Copy x into the result array, as our syscall will write the result into the first input.

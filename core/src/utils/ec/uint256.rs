@@ -1,7 +1,6 @@
-use typenum::{U32, U62};
-
 use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
+use typenum::{U32, U62};
 
 use crate::operations::field::params::{FieldParameters, NumLimbs};
 

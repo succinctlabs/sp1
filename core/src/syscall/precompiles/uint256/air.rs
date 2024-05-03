@@ -25,7 +25,8 @@ use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
-use typenum::Unsigned;
+use std::ops::Add;
+use typenum::{Unsigned, U1};
 
 /// The number of columns in the Uint256MulCols.
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
@@ -53,8 +54,13 @@ impl Uint256MulChip {
     }
 }
 
-type WordsFieldElement = <U256Field as NumWords>::WordsFieldElement;
-const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
+type WordsU256 = <U256Field as NumWords>::WordsFieldElement;
+const WORDS_U256: usize = WordsU256::USIZE;
+
+// In this case, the modulus has 1 more word than a U256 element, because we want to accomodate the
+// case where the modulus is 2^256, which can only be represented with 33 bytes.
+type WordsModulus = <WordsU256 as Add<U1>>::Output;
+const WORDS_MODULUS: usize = WordsModulus::USIZE;
 
 /// A set of columns for the Uint256Mul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -74,9 +80,9 @@ pub struct Uint256MulCols<T> {
 
     // Memory columns.
     // x_memory is written to with the result, which is why it is of type MemoryWriteCols.
-    pub x_memory: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
-    pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
-    pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
+    pub x_memory: GenericArray<MemoryWriteCols<T>, WordsU256>,
+    pub y_memory: GenericArray<MemoryReadCols<T>, WordsU256>,
+    pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsModulus>,
 
     // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
@@ -125,7 +131,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
 
                         // Populate memory columns.
-                        for i in 0..WORDS_FIELD_ELEMENT {
+                        for i in 0..WORDS_U256 {
                             cols.x_memory[i]
                                 .populate(event.x_memory_records[i], &mut new_byte_lookup_events);
                             cols.y_memory[i]
@@ -199,14 +205,14 @@ impl Syscall for Uint256MulChip {
 
         // First read the words for the x value. We can read a slice_unsafe here because we write
         // the computed result to x later.
-        let x = rt.slice_unsafe(x_ptr, WORDS_FIELD_ELEMENT);
+        let x = rt.slice_unsafe(x_ptr, WORDS_U256);
 
         // Read the y value.
-        let (y_memory_records, y) = rt.mr_slice(y_ptr, WORDS_FIELD_ELEMENT);
+        let (y_memory_records, y) = rt.mr_slice(y_ptr, WORDS_U256);
 
         // The modulus is stored after the y value. We increment the pointer by the number of words.
-        let modulus_ptr = y_ptr + WORDS_FIELD_ELEMENT as u32 * WORD_SIZE as u32;
-        let (modulus_memory_records, modulus) = rt.mr_slice(modulus_ptr, WORDS_FIELD_ELEMENT);
+        let modulus_ptr = y_ptr + WORDS_U256 as u32 * WORD_SIZE as u32;
+        let (modulus_memory_records, modulus) = rt.mr_slice(modulus_ptr, WORDS_MODULUS);
 
         // Get the BigUint values for x, y, and the modulus.
         let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
@@ -297,7 +303,7 @@ where
             local.shard,
             local.clk.into(),
             local.y_ptr,
-            &[local.y_memory, local.modulus_memory].concat(),
+            &[local.y_memory.to_vec(), local.modulus_memory.to_vec()].concat(),
             local.is_real,
         );
 
