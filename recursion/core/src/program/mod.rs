@@ -161,19 +161,13 @@ where
         let prep_local = preprocessed.row_slice(0);
         let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
         let mult_local = main.row_slice(0);
-        let _mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
+        let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        // builder.receive_program(
-        //     prep_local.pc,
-        //     prep_local.instruction,
-        //     prep_local.selectors,
-        //     mult_local.multiplicity,
-        // );
-
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            prep_local.pc * prep_local.pc * prep_local.pc,
-            prep_local.pc * prep_local.pc * prep_local.pc,
+        builder.receive_program(
+            prep_local.pc,
+            prep_local.instruction,
+            prep_local.selectors,
+            mult_local.multiplicity,
         );
     }
 }
