@@ -1632,7 +1632,9 @@ mod tests {
         // Iterate over the recursive proof batches until there is one proof remaining.
 
         let mut is_first_layer = true;
-        while recursive_proofs.len() > 1 {
+        let mut is_complete;
+        while !recursive_proofs.is_empty() {
+            is_complete = recursive_proofs.len() == 1;
             recursive_proofs = recursive_proofs
                 .chunks(batch_size)
                 .map(|batch| {
@@ -1648,7 +1650,7 @@ mod tests {
                         machine: &recursive_machine,
                         shard_proofs: batch.to_vec(),
                         kinds,
-                        is_complete: false,
+                        is_complete,
                     };
 
                     let mut runtime =
