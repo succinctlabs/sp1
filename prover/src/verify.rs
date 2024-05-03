@@ -12,7 +12,8 @@ use crate::{
 };
 
 impl SP1Prover {
-    /// Verify a core proof.
+    /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
+    /// shards are contiguous and complete.
     pub fn verify(
         &self,
         proof: &SP1CoreProofData,
@@ -96,21 +97,25 @@ impl SP1Prover {
         self.reduce_machine
             .verify(&self.reduce_vk, &machine_proof, &mut challenger)?;
 
+        // Validate public values
         let public_values = RecursionPublicValues::from_vec(proof.0.public_values.clone());
 
+        // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
         if public_values.is_complete != BabyBear::one() {
             return Err(ProgramVerificationError::InvalidPublicValues(
                 "is_complete is not 1",
             ));
         }
 
+        // Verify that the proof is for the sp1 vkey we are expecting.
         let vkey_hash = vk.hash();
         if public_values.sp1_vk_digest != vkey_hash {
             return Err(ProgramVerificationError::InvalidPublicValues(
-                "vk hash mismatch",
+                "sp1 vk hash mismatch",
             ));
         }
 
+        // Verify that the reduce program is the one we are expecting.
         let recursion_vkey_hash = self.reduce_vk.hash();
         if public_values.recursion_vk_digest != recursion_vkey_hash {
             return Err(ProgramVerificationError::InvalidPublicValues(

@@ -165,14 +165,14 @@ impl Prover for NetworkProver {
     }
 
     fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+        self.local_prover.verify_reduced(proof, vkey)
     }
 
     fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+        self.local_prover.verify_plonk(proof, vkey)
     }
 
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+        self.local_prover.verify_groth16(proof, vkey)
     }
 }

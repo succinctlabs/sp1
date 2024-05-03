@@ -150,7 +150,8 @@ pub trait Prover: Send + Sync {
     /// Prove the execution of a RISCV ELF with the given inputs.
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof>;
 
-    /// Generate a compressed proof of the execution of a RISCV ELF with the given inputs.
+    /// Given an SP1 program and input, generate a reduced proof of its execution. Reduced proofs
+    /// are constant size and can be verified inside of SP1.
     fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof>;
 
     /// Given an SP1 program and input, generate a PLONK proof that can be verified on-chain.

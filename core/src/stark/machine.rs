@@ -314,7 +314,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Verify the shard proofs.
         if proof.shard_proofs.is_empty() {
-            return Err(ProgramVerificationError::InvalidPublicValues("no shards"));
+            return Err(ProgramVerificationError::EmptyProof);
         }
 
         tracing::debug_span!("verify shard proofs").in_scope(|| {
@@ -468,6 +468,7 @@ pub enum ProgramVerificationError<SC: StarkGenericConfig> {
     NonZeroCumulativeSum,
     InvalidPublicValuesDigest,
     DebugInteractionsFailed,
+    EmptyProof,
     InvalidPublicValues(&'static str),
 }
 
@@ -483,14 +484,17 @@ impl<SC: StarkGenericConfig> Debug for ProgramVerificationError<SC> {
             ProgramVerificationError::NonZeroCumulativeSum => {
                 write!(f, "Non-zero cumulative sum")
             }
-            ProgramVerificationError::InvalidPublicValues(s) => {
-                write!(f, "Invalid shard transition: {}", s)
-            }
             ProgramVerificationError::InvalidPublicValuesDigest => {
                 write!(f, "Invalid public values digest")
             }
+            ProgramVerificationError::EmptyProof => {
+                write!(f, "Empty proof")
+            }
             ProgramVerificationError::DebugInteractionsFailed => {
                 write!(f, "Debug interactions failed")
+            }
+            ProgramVerificationError::InvalidPublicValues(s) => {
+                write!(f, "Invalid public values: {}", s)
             }
         }
     }
