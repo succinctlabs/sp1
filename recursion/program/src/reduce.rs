@@ -167,7 +167,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
         let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
 
         let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, sp1_fri_config()),
+            config: const_fri_config(&mut builder, &sp1_fri_config()),
         };
         SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
 
@@ -1452,6 +1452,7 @@ mod tests {
         io::SP1Stdin,
         runtime::Program,
         stark::{Challenge, LocalProver, ProgramVerificationError},
+        utils::inner_fri_config,
     };
     use sp1_recursion_core::{runtime::Runtime, stark::RecursionAirWideDeg3};
 
@@ -1531,7 +1532,7 @@ mod tests {
         SP1RecursionMemoryLayout::<SC, RiscvAir<_>>::witness(&input, &mut builder);
 
         let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, sp1_fri_config()),
+            config: const_fri_config(&mut builder, &sp1_fri_config()),
         };
         SP1RecursiveVerifier::verify(&mut builder, &pcs, &machine, input);
 
@@ -1557,7 +1558,8 @@ mod tests {
 
         // Prove all recursion programs and verify the recursive proofs.
 
-        let recursive_machine = RecursionAirWideDeg3::machine(SC::default());
+        let recursive_config = SC::default();
+        let recursive_machine = RecursionAirWideDeg3::machine(recursive_config.clone());
         let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
         // Make the recursive proofs.
@@ -1589,6 +1591,30 @@ mod tests {
         if let Test::Recursion = test {
             return;
         }
+
+        // Build the reduce program.
+        type A = RecursionAirWideDeg3<BabyBear>;
+        let mut builder = Builder::<InnerConfig>::default();
+        let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
+        SP1ReduceMemoryLayout::<SC, SC, A>::witness(&input, &mut builder);
+
+        let pcs = TwoAdicFriPcsVariable {
+            config: const_fri_config(&mut builder, recursive_config.pcs().fri_config()),
+        };
+        SP1ReduceVerifier::verify(&mut builder, &pcs, &machine, input, &rec_vk, &rec_vk);
+
+        let reduce_program = builder.compile_program();
+
+        // Chain all the individual shard proofs.
+        let mut recursive_proofs = recursive_proofs
+            .into_iter()
+            .flat_map(|proof| proof.shard_proofs)
+            .collect::<Vec<_>>();
+
+        // // Iterate over the recursive proof batches until there is one proof remaining.
+        // while recursive_proofs.len() > 1 {
+        //     recursive_proofs = recursive_proofs.chunks(batch_size).map(|batch| {});
+        // }
     }
 
     #[test]

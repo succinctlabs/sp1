@@ -37,7 +37,7 @@ type RecursionBuilder = Builder<RecursionConfig>;
 
 pub fn const_fri_config(
     builder: &mut RecursionBuilder,
-    config: FriConfig<ChallengeMmcs>,
+    config: &FriConfig<ChallengeMmcs>,
 ) -> FriConfigVariable<RecursionConfig> {
     let two_addicity = Val::TWO_ADICITY;
     let mut generators = builder.dyn_array(two_addicity);
