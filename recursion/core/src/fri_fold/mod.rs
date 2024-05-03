@@ -200,16 +200,22 @@ impl FriFoldChip {
             .when(next_is_real.clone())
             .assert_zero(next.m);
 
-        // Create a subbuilder for all the non-last iterations rows.
-        let mut non_last_iteration_builder = builder.when_not(local.is_last_iteration);
-        non_last_iteration_builder
-            .when_transition()
-            .when(next_is_real);
-
         // Ensure that all rows for a FRI FOLD invocation have the same input_ptr, clk, and sequential m values.
-        non_last_iteration_builder.assert_eq(next.m, local.m + AB::Expr::one());
-        non_last_iteration_builder.assert_eq(local.input_ptr, next.input_ptr);
-        non_last_iteration_builder.assert_eq(local.clk, next.clk);
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .when(next_is_real.clone())
+            .assert_eq(next.m, local.m + AB::Expr::one());
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .when(next_is_real.clone())
+            .assert_eq(local.input_ptr, next.input_ptr);
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .when(next_is_real)
+            .assert_eq(local.clk + AB::Expr::one(), next.clk);
 
         // Constrain read for `z` at `input_ptr`
         builder.recursion_eval_memory_access(

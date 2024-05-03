@@ -115,6 +115,9 @@ where
         builder.assert_bool(local.is_poseidon2);
         builder.assert_bool(local.is_fri_fold + local.is_poseidon2);
 
+        let next_is_real = next.is_fri_fold + next.is_poseidon2;
+        let local_is_real = local.is_fri_fold + local.is_poseidon2;
+
         // Assert that all the fri fold rows are in the first section of the table and all the poseidon2 rows are in the second section.
         // This is done with the following constraints. (Note that a real row is either fri fold or poseidon2.)
         // 1) Ensure that first row is fri fold.
@@ -124,13 +127,13 @@ where
         builder.when_first_row().assert_one(local.is_fri_fold);
         builder
             .when_transition()
-            .when(next.is_fri_fold + next.is_poseidon2)
+            .when(next_is_real.clone())
             .when(local.is_poseidon2)
             .assert_one(next.is_poseidon2);
         builder
             .when_transition()
-            .when_not(next.is_fri_fold + next.is_poseidon2)
-            .assert_zero(next.is_fri_fold + next.is_poseidon2);
+            .when_not(local_is_real)
+            .assert_zero(next_is_real);
 
         let fri_fold_chip = FriFoldChip::default();
         let mut sub_builder = builder.when(local.is_fri_fold);

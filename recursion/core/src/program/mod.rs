@@ -169,11 +169,5 @@ where
             prep_local.selectors,
             mult_local.multiplicity,
         );
-
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            prep_local.pc * prep_local.pc * prep_local.pc,
-            prep_local.pc * prep_local.pc * prep_local.pc,
-        );
     }
 }
