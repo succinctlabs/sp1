@@ -23,23 +23,27 @@ pub fn main() {
     sp1_core::utils::setup_logger();
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
-    let args = Args::parse();
+    // Temporary directory for build_dir.
+    let temp_dir = tempfile::tempdir().unwrap();
+    let build_dir = temp_dir.into_path();
 
     // Write the example vkey bytes to vk_groth16.bin, which is where the verifier expects the vkey to be.
     // TODO: If it's easier, we can pass in the vkey as bytes to the gnark ffi verifier.
-    let mut file =
-        File::create(PathBuf::from(args.build_dir.clone()).join("vk_groth16.bin")).unwrap();
+    let mut file = File::create(PathBuf::from(&build_dir).join("vk_groth16.bin")).unwrap();
     file.write_all(EXAMPLE_VKEY).unwrap();
 
     // Read the valid proof from the JSON file.
     let proof: Groth16Proof = serde_json::from_str(EXAMPLE_PROOF).unwrap();
 
     tracing::info!("verify gnark proof");
-    let verified = verify(proof.clone(), args.build_dir.clone().into());
+    let verified = verify(proof.clone(), &build_dir);
     assert!(verified);
 
     tracing::info!("convert gnark proof");
-    let solidity_proof = convert(proof.clone(), args.build_dir.clone().into());
+    let solidity_proof = convert(proof.clone(), &build_dir);
+
+    // Delete the vk_groth16.bin file.
+    std::fs::remove_file(PathBuf::from(&build_dir).join("vk_groth16.bin")).unwrap();
 
     println!("{:?}", proof);
     println!("solidity proof: {:?}", solidity_proof);

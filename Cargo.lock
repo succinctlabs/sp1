@@ -4566,6 +4566,7 @@ dependencies = [
  "sp1-recursion-gnark-ffi",
  "sp1-recursion-program",
  "subtle-encoding",
+ "tempfile",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",

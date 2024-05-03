@@ -78,11 +78,11 @@ pub fn main() {
     file.write_all(serialized_proof.as_bytes()).unwrap();
 
     tracing::info!("verify gnark proof");
-    let verified = verify(proof.clone(), args.build_dir.clone().into());
+    let verified = verify(proof.clone(), &args.build_dir.clone().into());
     assert!(verified);
 
     tracing::info!("convert gnark proof");
-    let solidity_proof = convert(proof.clone(), args.build_dir.clone().into());
+    let solidity_proof = convert(proof.clone(), &args.build_dir.clone().into());
 
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
