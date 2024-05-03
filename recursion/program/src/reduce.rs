@@ -353,6 +353,12 @@ where
         );
 
         // Commit to the public values, broadcasting the same ones.
+        let mut public_values_array = builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
+        for (i, value) in public_values_elements.iter().enumerate() {
+            builder.set(&mut public_values_array, i, *value);
+        }
+
+        builder.commit_public_values(&public_values_array)
     }
 }
 
