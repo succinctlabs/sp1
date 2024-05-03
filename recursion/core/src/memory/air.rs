@@ -59,7 +59,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                         cols.addr = *addr;
                         cols.timestamp = F::zero();
                         cols.value = *value;
-                        cols.is_real = F::one();
+                        cols.is_initialize = F::one();
                         row
                     })
                     .collect::<Vec<_>>()
@@ -73,7 +73,7 @@ impl<F: PrimeField32> MachineAir<F> for MemoryGlobalChip {
                     cols.addr = *addr;
                     cols.timestamp = *timestamp;
                     cols.value = *value;
-                    cols.is_real = F::one();
+                    cols.is_finalize = F::one();
                     row
                 })
                 .collect::<Vec<_>>(),
@@ -115,6 +115,11 @@ where
         let local = main.row_slice(0);
         let local: &MemoryInitCols<AB::Var> = (*local).borrow();
 
+        // Verify that is_initilize and is_finalize are bool and that at most one is true.
+        builder.assert_bool(local.is_initialize);
+        builder.assert_bool(local.is_finalize);
+        builder.assert_bool(local.is_initialize + local.is_finalize);
+
         match self.kind {
             MemoryChipKind::Init => {
                 builder.send(AirInteraction::new(
@@ -126,7 +131,7 @@ where
                         local.value[2].into(),
                         local.value[3].into(),
                     ],
-                    local.is_real.into(),
+                    local.is_initialize.into(),
                     InteractionKind::Memory,
                 ));
             }
@@ -140,7 +145,7 @@ where
                         local.value[2].into(),
                         local.value[3].into(),
                     ],
-                    local.is_real.into(),
+                    local.is_finalize.into(),
                     InteractionKind::Memory,
                 ));
             }
