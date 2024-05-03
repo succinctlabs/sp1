@@ -26,7 +26,7 @@ pub type RecursionAirSkinnyDeg7<F> = RecursionAir<F, 5>;
 pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     Program(ProgramChip),
     Cpu(CpuChip<F>),
-    MemoryGobal(MemoryGlobalChip),
+    MemoryGlobal(MemoryGlobalChip),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip),
@@ -59,7 +59,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: None,
                 _phantom: PhantomData,
             })))
-            .chain(once(RecursionAir::MemoryGobal(MemoryGlobalChip {
+            .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
@@ -80,7 +80,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: Some(20),
                 _phantom: PhantomData,
             })))
-            .chain(once(RecursionAir::MemoryGobal(MemoryGlobalChip {
+            .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: Some(18),
             })))
             .chain(once(RecursionAir::Multi(MultiChip {
