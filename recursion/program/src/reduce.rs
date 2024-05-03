@@ -199,6 +199,7 @@ fn assert_complete<C: Config>(
         cumulative_sum,
         start_reconstruct_deferred_digest,
         end_reconstruct_deferred_digest,
+        leaf_challenger,
         ..
     } = public_values;
     // Assert that the start pc is equal to the start pc of the verifier key.
@@ -216,11 +217,7 @@ fn assert_complete<C: Config>(
     // there is no need to assert it here.
 
     // Assert that the end reconstruct challenger is equal to the leaf challenger.
-    assert_challenger_eq_pv(
-        builder,
-        end_reconstruct_challenger,
-        public_values.leaf_challenger,
-    );
+    assert_challenger_eq_pv(builder, end_reconstruct_challenger, *leaf_challenger);
 
     // The deferred digest has been fully reconstructed.
 
@@ -320,9 +317,9 @@ where
 
         // Initialize the values for the aggregated public output.
 
-        let zero_felt: Felt<_> = builder.eval(C::F::zero());
-
-        let mut reduce_public_values_stream = [zero_felt; RECURSIVE_PROOF_NUM_PV_ELTS];
+        let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+            .map(|_| builder.uninit())
+            .collect();
 
         let reduce_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
@@ -348,8 +345,14 @@ where
 
         // Initialize the consistency check variables.
         let pc: Felt<_> = builder.uninit();
+        let shard: Felt<_> = builder.uninit();
         let mut initial_reconstruct_challenger = DuplexChallengerVariable::new(builder);
         let mut reconstruct_challenger = DuplexChallengerVariable::new(builder);
+        let mut leaf_challenger = DuplexChallengerVariable::new(builder);
+        let committed_value_digest: [Word<Felt<_>>; PV_DIGEST_NUM_WORDS] =
+            array::from_fn(|_| Word(array::from_fn(|_| builder.uninit())));
+        let deferred_proofs_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
+            array::from_fn(|_| builder.uninit());
         let reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
             core::array::from_fn(|_| builder.uninit());
         let cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
@@ -383,6 +386,19 @@ where
                 );
                 builder.assign(pc, current_public_values.start_pc);
 
+                // Initialize start shard.
+                builder.assign(shard, current_public_values.start_shard);
+                builder.assign(
+                    reduce_public_values.start_shard,
+                    current_public_values.start_shard,
+                );
+
+                // Initialize the leaf challenger.
+                assign_challenger_from_pv(
+                    builder,
+                    &mut leaf_challenger,
+                    current_public_values.leaf_challenger,
+                );
                 // Initialize the reconstruct challenger.
                 assign_challenger_from_pv(
                     builder,
@@ -394,6 +410,23 @@ where
                     &mut reconstruct_challenger,
                     current_public_values.start_reconstruct_challenger,
                 );
+
+                // Assign the commited values and deferred proof digests.
+                for (word, current_word) in committed_value_digest
+                    .iter()
+                    .zip_eq(current_public_values.committed_value_digest.iter())
+                {
+                    for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                        builder.assign(*byte, *current_byte);
+                    }
+                }
+
+                for (digest, current_digest) in deferred_proofs_digest
+                    .iter()
+                    .zip_eq(current_public_values.deferred_proofs_digest.iter())
+                {
+                    builder.assign(*digest, *current_digest);
+                }
 
                 // Initialize the start and end of deferred digests.
                 for (digest, current_digest, global_digest) in izip!(
@@ -414,12 +447,37 @@ where
 
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
+            // Verfiy that the shard is equal to the current shard.
+            builder.assert_felt_eq(shard, current_public_values.start_shard);
+            // Assert that the leaf challenger is always the same.
+            assert_challenger_eq_pv(
+                builder,
+                &leaf_challenger,
+                current_public_values.leaf_challenger,
+            );
             // Assert that the current challenger matches the start reconstruct challenger.
             assert_challenger_eq_pv(
                 builder,
                 &reconstruct_challenger,
                 current_public_values.start_reconstruct_challenger,
             );
+
+            // Assert that the commited digests are the same.
+            for (word, current_word) in committed_value_digest
+                .iter()
+                .zip_eq(current_public_values.committed_value_digest.iter())
+            {
+                for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                    builder.assert_felt_eq(*byte, *current_byte);
+                }
+            }
+            // Assert that the deferred proof digests are the same.
+            for (digest, current_digest) in deferred_proofs_digest
+                .iter()
+                .zip_eq(current_public_values.deferred_proofs_digest.iter())
+            {
+                builder.assert_felt_eq(*digest, *current_digest);
+            }
             // Assert that the start deferred digest is equal to the current deferred digest.
             for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
                 current_public_values
@@ -476,12 +534,15 @@ where
 
             // Prepare a challenger.
             let mut challenger = DuplexChallengerVariable::new(builder);
+            // Observe the vk and start pc.
+            challenger.observe(builder, vk.commitment.clone());
+            challenger.observe(builder, vk.pc_start);
+            // Observe the main commitment and public values.
             challenger.observe(builder, proof.commitment.main_commit.clone());
             for j in 0..machine.num_pv_elts() {
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
-
             // verify proof.
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
@@ -500,6 +561,8 @@ where
 
             // Update pc to be the next pc.
             builder.assign(pc, current_public_values.next_pc);
+            // Update the shard to be the next shard.
+            builder.assign(shard, current_public_values.next_shard);
             // Update the reconstruct challenger.
             assign_challenger_from_pv(
                 builder,
@@ -526,12 +589,22 @@ where
         // Update the global values from the last accumulated values.
         // Set end_pc to be the last pc (which is the same as accumulated pc)
         builder.assign(reduce_public_values.next_pc, pc);
+        // Set the leaf challenger to it's value.
+        let values = get_challenger_public_values(builder, &leaf_challenger);
+        reduce_public_values.leaf_challenger = values;
         // Set the start reconstruct challenger to be the initial reconstruct challenger.
         let values = get_challenger_public_values(builder, &initial_reconstruct_challenger);
         reduce_public_values.start_reconstruct_challenger = values;
         // Set the end reconstruct challenger to be the last reconstruct challenger.
         let values = get_challenger_public_values(builder, &reconstruct_challenger);
         reduce_public_values.end_reconstruct_challenger = values;
+
+        // Assign the deffered proof digests.
+        reduce_public_values.deferred_proofs_digest = deferred_proofs_digest;
+        // Assign the committed value digests.
+        reduce_public_values.committed_value_digest = committed_value_digest;
+        // Assign the cumulative sum.
+        reduce_public_values.cumulative_sum = cumulative_sum;
 
         // If the proof is complete, make completeness assertions.
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
@@ -1576,7 +1649,8 @@ mod tests {
         // Prove all recursion programs and verify the recursive proofs.
 
         let recursive_config = SC::default();
-        let recursive_machine = RecursionAirWideDeg3::machine(recursive_config.clone());
+        type A = RecursionAirWideDeg3<BabyBear>;
+        let recursive_machine = A::machine(recursive_config.clone());
         let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
         // Make the recursive proofs.
@@ -1609,8 +1683,9 @@ mod tests {
             return;
         }
 
+        tracing::info!("Recursive proofs verified successfully");
+
         // Build the reduce program.
-        type A = RecursionAirWideDeg3<BabyBear>;
         let mut builder = Builder::<InnerConfig>::default();
         let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
         SP1ReduceMemoryLayout::<SC, SC, RiscvAir<BabyBear>, A>::witness(&input, &mut builder);
@@ -1641,7 +1716,7 @@ mod tests {
 
         let mut is_first_layer = true;
         let mut is_complete;
-        while !recursive_proofs.is_empty() {
+        loop {
             is_complete = recursive_proofs.len() == 1;
             recursive_proofs = recursive_proofs
                 .chunks(batch_size)
@@ -1662,8 +1737,10 @@ mod tests {
                         is_complete,
                     };
 
-                    let mut runtime =
-                        Runtime::<F, EF, _>::new(&recursive_program, machine.config().perm.clone());
+                    let mut runtime = Runtime::<F, EF, _>::new(
+                        &reduce_program,
+                        recursive_machine.config().perm.clone(),
+                    );
 
                     let mut witness_stream = Vec::new();
                     witness_stream.extend(input.write());
@@ -1678,12 +1755,27 @@ mod tests {
                         runtime.record,
                         &mut recursive_challenger,
                     );
+                    let mut recursive_challenger = recursive_machine.config().challenger();
+                    let result =
+                        recursive_machine.verify(&reduce_vk, &proof, &mut recursive_challenger);
+
+                    match result {
+                        Ok(_) => tracing::info!("Proof verified successfully"),
+                        Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+                            tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+                        }
+                        e => panic!("Proof verification failed: {:?}", e),
+                    }
 
                     assert_eq!(proof.shard_proofs.len(), 1);
                     proof.shard_proofs.pop().unwrap()
                 })
                 .collect();
             is_first_layer = false;
+
+            if recursive_proofs.len() == 1 {
+                break;
+            }
         }
 
         if let Test::Reduce = test {
