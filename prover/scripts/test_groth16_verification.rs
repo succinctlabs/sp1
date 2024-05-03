@@ -27,8 +27,7 @@ pub fn main() {
     let temp_dir = tempfile::tempdir().unwrap();
     let build_dir = temp_dir.into_path();
 
-    // Write the example vkey bytes to vk_groth16.bin, which is where the verifier expects the vkey to be.
-    // TODO: If it's easier, we can pass in the vkey as bytes to the gnark ffi verifier.
+    // Write the example vkey bytes to build_dir/vk_groth16.bin, which is where the verifier expects the vkey to be.
     let mut file = File::create(PathBuf::from(&build_dir).join("vk_groth16.bin")).unwrap();
     file.write_all(EXAMPLE_VKEY).unwrap();
 
@@ -41,9 +40,6 @@ pub fn main() {
 
     tracing::info!("convert gnark proof");
     let solidity_proof = convert(proof.clone(), &build_dir);
-
-    // Delete the vk_groth16.bin file.
-    std::fs::remove_file(PathBuf::from(&build_dir).join("vk_groth16.bin")).unwrap();
 
     println!("{:?}", proof);
     println!("solidity proof: {:?}", solidity_proof);
