@@ -287,6 +287,7 @@ where
 
         (vk_variable, prep_domains, prep_sorted_indices)
     }
+
     /// Verify a batch of recursive proofs and aggregate their public values.
     fn verify(
         builder: &mut Builder<C>,
