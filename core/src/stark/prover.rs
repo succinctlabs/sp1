@@ -283,7 +283,7 @@ where
                         .chip_ordering
                         .get(&chip.name())
                         .map(|&index| &pk.traces[index]);
-                    let perm_trace = chip.generate_permutation_trace(
+                    let perm_trace = chip.generate_permutation_trace::<SC>(
                         preprocessed_trace,
                         main_trace,
                         &permutation_challenges,
@@ -293,6 +293,13 @@ where
                         .last()
                         .copied()
                         .unwrap();
+                    // if chip.name() == "CPU" {
+                    //     for i in 0..3 {
+                    //         for j in 0..3 {
+                    //             println!("Row {}, Col {}: {}", i, j, perm_trace.get(i, j));
+                    //         }
+                    //     }
+                    // }
                     (perm_trace, cumulative_sum)
                 })
                 .unzip_into_vecs(&mut permutation_traces, &mut cumulative_sums);
@@ -304,12 +311,15 @@ where
             let permutation_width = permutation_traces[i].width();
             let total_width = trace_width + permutation_width;
             tracing::debug!(
-                "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
+                "{:<15} | Cols = {:<5} | Main Cols = {:<5} | Permutation Cols = {:<5}  | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
                 chips[i].name(),
+                total_width,
                 trace_width,
                 permutation_width,
                 traces[i].height(),
                 total_width * traces[i].height(),
+                trace_width as f64 / total_width as f64 * 100.0,
+                permutation_width as f64 / total_width as f64 * 100.0
             );
         }
 
