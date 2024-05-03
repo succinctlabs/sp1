@@ -110,30 +110,32 @@ where
         let local: &MultiCols<AB::Var> = (*local).borrow();
         let next: &MultiCols<AB::Var> = (*next).borrow();
 
-        // Assert that is_fri_fold and is_poseidon2 are bool and that at most one is set.
-        builder.assert_bool(local.is_fri_fold);
-        builder.assert_bool(local.is_poseidon2);
-        builder.assert_bool(local.is_fri_fold + local.is_poseidon2);
-
         let next_is_real = next.is_fri_fold + next.is_poseidon2;
         let local_is_real = local.is_fri_fold + local.is_poseidon2;
 
-        // Assert that all the fri fold rows are in the first section of the table and all the poseidon2 rows are in the second section.
-        // This is done with the following constraints. (Note that a real row is either fri fold or poseidon2.)
-        // 1) Ensure that first row is fri fold.
-        // 2) When a row is poseidon2, all the subsequent real rows are poseidon2.  This ensures that there
-        //    can be only one transition from a fri fold row to a poseidon2 row.
-        // 3) When a row is not real, all subsequent rows are not real.
+        // Assert that is_fri_fold and is_poseidon2 are bool and that at most one is set.
+        builder.assert_bool(local.is_fri_fold);
+        builder.assert_bool(local.is_poseidon2);
+        builder.assert_bool(local_is_real.clone());
+
+        // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
+        // and it's AIR checks for consistencies among them.  The following constraints enforce that
+        // all the fri fold rows are first, then the posiedon2 rows, and finally any padded (non-real) rows.
+
+        // First verify that all real rows are contiguous.
+        builder.when_first_row().assert_one(local_is_real.clone());
+        builder
+            .when_transition()
+            .when_not(local_is_real.clone())
+            .assert_zero(next_is_real.clone());
+
+        // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows section.
         builder.when_first_row().assert_one(local.is_fri_fold);
         builder
             .when_transition()
-            .when(next_is_real.clone())
+            .when(next_is_real)
             .when(local.is_poseidon2)
             .assert_one(next.is_poseidon2);
-        builder
-            .when_transition()
-            .when_not(local_is_real)
-            .assert_zero(next_is_real);
 
         let fri_fold_chip = FriFoldChip::default();
         let mut sub_builder = builder.when(local.is_fri_fold);
