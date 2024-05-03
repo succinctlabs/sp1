@@ -1,8 +1,6 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
-use std::{fs::File, io::Write, path::PathBuf};
-
 use clap::Parser;
 use sp1_core::io::SP1Stdin;
 use sp1_prover::SP1Prover;
