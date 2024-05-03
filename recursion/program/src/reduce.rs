@@ -315,6 +315,10 @@ where
             is_complete,
         } = input;
 
+        let zero_var: Var<_> = builder.eval(C::N::zero());
+        let one_var: Var<_> = builder.eval(C::N::one());
+        builder.print_v(zero_var);
+        builder.print_v(one_var);
         // Initialize the values for the aggregated public output.
 
         let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
@@ -343,6 +347,8 @@ where
         // Assert that the number of proofs is equal to the number of kinds.
         builder.assert_usize_eq(shard_proofs.len(), kinds.len());
 
+        builder.print_v(zero_var);
+
         // Initialize the consistency check variables.
         let pc: Felt<_> = builder.uninit();
         let shard: Felt<_> = builder.uninit();
@@ -365,6 +371,7 @@ where
 
         // Verify the shard proofs and connect the values.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
+            builder.print_v(zero_var);
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
             // Load the public values from the proof.
@@ -444,24 +451,31 @@ where
             });
 
             // Assert that the current values match the accumulated values.
-
+            builder.print_v(zero_var);
+            builder.print_f(pc);
+            builder.print_f(current_public_values.start_pc);
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
+            builder.print_v(zero_var);
             // Verfiy that the shard is equal to the current shard.
+            builder.print_f(shard);
+            builder.print_f(current_public_values.start_shard);
             builder.assert_felt_eq(shard, current_public_values.start_shard);
+            builder.print_v(zero_var);
             // Assert that the leaf challenger is always the same.
             assert_challenger_eq_pv(
                 builder,
                 &leaf_challenger,
                 current_public_values.leaf_challenger,
             );
+            builder.print_v(zero_var);
             // Assert that the current challenger matches the start reconstruct challenger.
             assert_challenger_eq_pv(
                 builder,
                 &reconstruct_challenger,
                 current_public_values.start_reconstruct_challenger,
             );
-
+            builder.print_v(zero_var);
             // Assert that the commited digests are the same.
             for (word, current_word) in committed_value_digest
                 .iter()
@@ -471,6 +485,7 @@ where
                     builder.assert_felt_eq(*byte, *current_byte);
                 }
             }
+            builder.print_v(zero_var);
             // Assert that the deferred proof digests are the same.
             for (digest, current_digest) in deferred_proofs_digest
                 .iter()
@@ -478,6 +493,7 @@ where
             {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
+            builder.print_v(zero_var);
             // Assert that the start deferred digest is equal to the current deferred digest.
             for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
                 current_public_values
@@ -486,7 +502,7 @@ where
             ) {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
-
+            builder.print_v(zero_var);
             // Verify the shard proof.
 
             // Get the proof kind.
@@ -544,6 +560,7 @@ where
                 challenger.observe(builder, element);
             }
             // verify proof.
+            builder.print_v(zero_var);
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -556,7 +573,7 @@ where
                 prep_sorted_idxs.clone(),
                 prep_domains.clone(),
             );
-
+            builder.print_v(one_var);
             // Update the accumulated values.
 
             // Update pc to be the next pc.
@@ -587,8 +604,10 @@ where
         });
 
         // Update the global values from the last accumulated values.
-        // Set end_pc to be the last pc (which is the same as accumulated pc)
-        builder.assign(reduce_public_values.next_pc, pc);
+        // Set next_pc to be the last pc (which is the same as accumulated pc)
+        reduce_public_values.next_pc = pc;
+        // Set next shard to be the last shard (which is the same as accumulated shard)
+        reduce_public_values.next_shard = shard;
         // Set the leaf challenger to it's value.
         let values = get_challenger_public_values(builder, &leaf_challenger);
         reduce_public_values.leaf_challenger = values;
@@ -608,6 +627,8 @@ where
 
         // If the proof is complete, make completeness assertions.
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
+            let two: Var<_> = builder.eval(C::N::two());
+            builder.print_v(two);
             assert_complete(
                 builder,
                 &sp1_vk,
@@ -660,11 +681,9 @@ where
 
         // Start and end of program counters.
         let start_pc: Felt<_> = builder.uninit();
-        let end_pc: Felt<_> = builder.uninit();
 
         // Start and end shard indices.
         let initial_shard: Felt<_> = builder.uninit();
-        let end_shard: Felt<_> = builder.uninit();
 
         // The commited values digest and deferred proof digest. These will be checked to be the
         // same for all proofs.
@@ -856,9 +875,9 @@ where
         recursion_public_values.committed_value_digest = committed_value_digest;
         recursion_public_values.deferred_proofs_digest = deferred_proofs_digest;
         recursion_public_values.start_pc = start_pc;
-        recursion_public_values.next_pc = end_pc;
+        recursion_public_values.next_pc = current_pc;
         recursion_public_values.start_shard = initial_shard;
-        recursion_public_values.next_shard = end_shard;
+        recursion_public_values.next_shard = current_shard;
         recursion_public_values.sp1_vk_digest = vk_digest;
         recursion_public_values.leaf_challenger = leaf_challenger_public_values;
         recursion_public_values.start_reconstruct_challenger = initial_challenger_public_values;
@@ -1539,6 +1558,7 @@ where
 mod tests {
 
     use p3_challenger::CanObserve;
+    use p3_maybe_rayon::prelude::*;
     use sp1_core::{
         io::SP1Stdin,
         runtime::Program,
@@ -1655,7 +1675,7 @@ mod tests {
 
         // Make the recursive proofs.
         let recursive_proofs = records
-            .into_iter()
+            .into_par_iter()
             .map(|record| {
                 let mut recursive_challenger = recursive_machine.config().challenger();
                 recursive_machine.prove::<LocalProver<_, _>>(
