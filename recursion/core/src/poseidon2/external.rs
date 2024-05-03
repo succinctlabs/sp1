@@ -60,7 +60,6 @@ pub struct Poseidon2MemCols<T> {
     pub right: T,
     pub mem_access: [MemoryReadWriteSingleCols<T>; WIDTH],
     pub mem_address: [T; WIDTH],
-    pub is_real: T,
 }
 
 impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
