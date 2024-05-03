@@ -1676,6 +1676,12 @@ mod tests {
                 .collect();
             is_first_layer = false;
         }
+
+        if let Test::Reduce = test {
+            return;
+        }
+
+        todo!()
     }
 
     #[test]
