@@ -89,7 +89,7 @@ pub struct RecursionPublicValues<T> {
     pub sp1_vk_digest: [T; DIGEST_SIZE],
 
     /// The commitment to the reduce key being used in recursive verification.
-    pub reduce_key_digest: [T; DIGEST_SIZE],
+    pub reduce_vk_digest: [T; DIGEST_SIZE],
 
     /// The leaf challenger containing the entropy from the main trace commitment.
     pub leaf_challenger: ChallengerPublicValues<T>,
