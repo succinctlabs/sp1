@@ -2,26 +2,30 @@ use std::marker::PhantomData;
 
 use crate::fri::verify_two_adic_pcs;
 use crate::types::OuterDigestVariable;
+use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::witness::Witnessable;
 use p3_air::Air;
+use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, TwoAdicField};
-use sp1_core::stark::{Com, ShardProof};
+use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
 use sp1_core::{
     air::MachineAir,
     stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var, Variable};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
+use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
 use sp1_recursion_program::types::QuotientDataValues;
+use sp1_recursion_program::utils::felt2var;
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
 use crate::types::TwoAdicPcsMatsVariable;
@@ -235,7 +239,7 @@ type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
 pub fn build_wrap_circuit(
-    template_vk: &StarkVerifyingKey<OuterSC>,
+    wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let dev_mode = std::env::var("SP1_DEV_WRAPPER")
@@ -249,11 +253,11 @@ pub fn build_wrap_circuit(
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
-    let preprocessed_commit_val: [Bn254Fr; 1] = template_vk.commit.into();
+    let preprocessed_commit_val: [Bn254Fr; 1] = wrap_vk.commit.into();
     let preprocessed_commit: OuterDigestVariable<OuterC> =
         [builder.eval(preprocessed_commit_val[0])];
     challenger.observe_commitment(&mut builder, preprocessed_commit);
-    let pc_start = builder.eval(template_vk.pc_start);
+    let pc_start = builder.eval(wrap_vk.pc_start);
     challenger.observe(&mut builder, pc_start);
 
     let mut witness = Witness::default();
@@ -264,6 +268,37 @@ pub fn build_wrap_circuit(
     builder.commit_commited_values_digest_circuit(commited_values_digest);
     let vkey_hash = Bn254Fr::zero().read(&mut builder);
     builder.commit_vkey_hash_circuit(vkey_hash);
+
+    // Validate public values
+    let mut pv_elements = Vec::new();
+    for i in 0..PROOF_MAX_NUM_PVS {
+        let element = builder.get(&proof.public_values, i);
+        pv_elements.push(element);
+    }
+    let pv = RecursionPublicValues::from_vec(pv_elements);
+    let one_felt: Felt<_> = builder.constant(BabyBear::one());
+    // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
+    // fully accumulated.
+    builder.assert_felt_eq(pv.is_complete, one_felt);
+
+    // Convert pv.sp1_vk_digest into Bn254
+    let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
+    // Vkey hash must match the witnessed commited_values_digest that we are committing to.
+    builder.assert_var_eq(pv_vkey_hash, vkey_hash);
+
+    // Convert pv.committed_value_digest into Bn254
+    let pv_committed_values_digest_bytes: [Felt<_>; 32] =
+        words_to_bytes(&pv.committed_value_digest)
+            .try_into()
+            .unwrap();
+    let pv_committed_values_digest: Var<_> =
+        babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
+    // Committed values digest must match the witnessed one that we are committing to.
+    builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
+
+    // The reduce vkey that was passed into the reduce program must match the one we are hardcoding.
+    // let expected_vkey_hash = wrap_vk.hash();
+    for i in 0..8 {}
 
     if !dev_mode {
         let chips = outer_machine
@@ -305,7 +340,7 @@ pub fn build_wrap_circuit(
 
         StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
             &mut builder,
-            template_vk,
+            wrap_vk,
             &outer_machine,
             &mut challenger.clone(),
             &proof,

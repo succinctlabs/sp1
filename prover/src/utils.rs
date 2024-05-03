@@ -3,6 +3,10 @@ use std::{
     io::Read,
 };
 
+use p3_baby_bear::BabyBear;
+use p3_bn254_fr::Bn254Fr;
+use p3_field::AbstractField;
+use p3_field::PrimeField32;
 use sp1_core::{
     air::{MachineAir, Word},
     io::SP1Stdin,
@@ -88,4 +92,32 @@ pub fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<Val<SC>>>(
 
 pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {
     return words.iter().flat_map(|word| word.0).collect();
+}
+
+/// Convert 8 BabyBear words into a Bn254Fr field element.
+pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
+    let mut result = Bn254Fr::zero();
+    for (i, word) in digest.iter().enumerate() {
+        // Since BabyBear prime is less than 2^31, we can shift by 31 bits each time and still be
+        // within the Bn254Fr field, so we don't have to truncate the top 3 bits.
+        result *= Bn254Fr::from_canonical_u64(1 << 31);
+        result += Bn254Fr::from_canonical_u32(word.as_canonical_u32());
+    }
+    result
+}
+
+/// Convert 32 BabyBear bytes into a Bn254Fr field element.
+pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
+    let mut result = Bn254Fr::zero();
+    for (i, byte) in bytes.iter().enumerate() {
+        debug_assert!(byte < &BabyBear::from_canonical_u32(256));
+        if i == 0 {
+            // 32 bytes is more than Bn254 prime, so we need to truncate the top 3 bits.
+            result = Bn254Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
+        } else {
+            result *= Bn254Fr::from_canonical_u32(256);
+            result += Bn254Fr::from_canonical_u32(byte.as_canonical_u32());
+        }
+    }
+    result
 }
