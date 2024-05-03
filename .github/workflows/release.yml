@@ -177,10 +177,8 @@ jobs:
 
           # Move the tarball to the GitHub Actions environment directory
           mv build.tar.gz "${GITHUB_WORKSPACE}/${TARGET_TARBALL}"
-          ls -al "${GITHUB_WORKSPACE}
-
-          # Output the tarball name for use in later steps
-          echo "::set-output name=build_tarball_name::${TARGET_TARBALL}""
+          echo "::set-output name=build_tarball_name::${TARGET_TARBALL}"
+          ls -al "${GITHUB_WORKSPACE}"
         id: build_artifact
 
       - name: Upload build artifact to release
