@@ -1618,7 +1618,14 @@ mod tests {
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, recursive_config.pcs().fri_config()),
         };
-        SP1ReduceVerifier::verify(&mut builder, &pcs, &machine, input, &rec_vk, &rec_vk);
+        SP1ReduceVerifier::verify(
+            &mut builder,
+            &pcs,
+            &recursive_machine,
+            input,
+            &rec_vk,
+            &rec_vk,
+        );
 
         let reduce_program = builder.compile_program();
 
