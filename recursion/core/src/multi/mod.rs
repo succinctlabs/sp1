@@ -2,7 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
 use p3_air::{Air, BaseAir};
-use p3_field::PrimeField32;
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
@@ -112,7 +112,12 @@ where
 
         let fri_fold_chip = FriFoldChip::default();
         let mut sub_builder = builder.when(local.is_fri_fold);
-        fri_fold_chip.eval_fri_fold(&mut sub_builder, local.fri_fold(), next.fri_fold());
+        fri_fold_chip.eval_fri_fold(
+            &mut sub_builder,
+            local.fri_fold(),
+            next.fri_fold(),
+            AB::Expr::one() - next.is_fri_fold,
+        );
 
         let poseidon2_chip = Poseidon2Chip::default();
         let mut sub_builder = builder.when(local.is_poseidon2);

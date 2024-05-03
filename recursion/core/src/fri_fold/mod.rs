@@ -173,6 +173,7 @@ impl FriFoldChip {
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
         next: &FriFoldCols<AB::Var>,
+        next_is_real: AB::Expr,
     ) {
         // Constraint that the operands are sent from the CPU table.
         let first_iteration_clk = local.clk.into() - local.m.into();
@@ -189,12 +190,14 @@ impl FriFoldChip {
             local.is_last_iteration,
         );
 
+        builder.assert_bool(local.is_last_iteration);
+
         // Ensure that all first iterations has a m value of 0.
         builder.when_first_row().assert_zero(local.m);
         builder
             .when(local.is_last_iteration)
             .when_transition()
-            .when(next.is_real)
+            .when(next_is_real)
             .assert_zero(next.m);
 
         let mut non_last_iteration_builder = builder.when_not(local.is_last_iteration);
@@ -348,6 +351,6 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
         let next: &FriFoldCols<AB::Var> = (*next).borrow();
-        self.eval_fri_fold::<AB>(builder, local, next);
+        self.eval_fri_fold::<AB>(builder, local, next, next.is_real.into());
     }
 }
