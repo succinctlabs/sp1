@@ -31,15 +31,13 @@ use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use sp1_core::air::{MachineAir, PublicValues};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
+use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::stark::{StarkMachine, PROOF_MAX_NUM_PVS};
 use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2};
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
-use sp1_recursion_core::air::{
-    ChallengerPublicValues, RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS,
-};
+use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
 use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, D, DIGEST_SIZE};
 
@@ -90,13 +88,14 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
 }
 
 /// The different types of programs that can be verified by the `SP1ReduceVerifier`.
+#[derive(Debug, Clone, Copy)]
 pub enum ReduceProgramType {
     /// A batch of proofs that are all SP1 Core proofs.
-    Core,
+    Core = 0,
     /// A batch of proofs that are all deferred proofs.
-    Deferred,
+    Deferred = 1,
     /// A batch of proofs that are reduce proofs of a higher level in the recursion tree.
-    Reduce,
+    Reduce = 2,
 }
 
 #[derive(DslVariable, Clone)]
@@ -123,16 +122,17 @@ pub struct SP1ReduceMemoryLayout<
     SC: StarkGenericConfig,
     A: MachineAir<SC::Val>,
 > {
-    pub core_vk: &'a StarkVerifyingKey<CoreSC>,
+    pub sp1_vk: &'a StarkVerifyingKey<CoreSC>,
     pub reduce_vk: &'a StarkVerifyingKey<SC>,
     pub machine: &'a StarkMachine<SC, A>,
     pub shard_proofs: Vec<ShardProof<SC>>,
+    pub is_complete: bool,
     pub kinds: Vec<ReduceProgramType>,
 }
 
 #[derive(DslVariable, Clone)]
 pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
-    pub core_vk: VerifyingKeyVariable<C>,
+    pub sp1_vk: VerifyingKeyVariable<C>,
     pub reduce_vk: VerifyingKeyVariable<C>,
 
     pub sp1_prep_sorted_idxs: Array<C, Var<C::N>>,
@@ -297,7 +297,7 @@ where
         deferred_vk: &StarkVerifyingKey<SC>,
     ) {
         let SP1ReduceMemoryLayoutVariable {
-            core_vk,
+            sp1_vk,
             reduce_vk,
             sp1_prep_sorted_idxs,
             sp1_prep_domains,
@@ -320,7 +320,7 @@ where
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
         // Compute the digest of core_vk and input the value to the public values.
-        let core_vk_digest = hash_vkey(builder, &core_vk, &sp1_prep_domains, &sp1_prep_sorted_idxs);
+        let core_vk_digest = hash_vkey(builder, &sp1_vk, &sp1_prep_domains, &sp1_prep_sorted_idxs);
         // Compute the digest of reduce_vk and input the value to the public values.
         let reduce_vk_digest = hash_vkey(
             builder,
@@ -513,7 +513,7 @@ where
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
             assert_complete(
                 builder,
-                &core_vk,
+                &sp1_vk,
                 reduce_public_values,
                 &reconstruct_challenger,
             )
