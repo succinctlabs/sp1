@@ -5,7 +5,8 @@ use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
 use sp1_core::air::{MachineAir, Word, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
+    AirOpenedValues, ChipOpenedValues, Com, RiscvAir, ShardCommitment, ShardOpenedValues,
+    ShardProof,
 };
 use sp1_core::stark::{StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::{
@@ -549,7 +550,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
 }
 
 impl<'a, A: MachineAir<BabyBear>> Hintable<C>
-    for SP1ReduceMemoryLayout<'a, BabyBearPoseidon2, BabyBearPoseidon2, A>
+    for SP1ReduceMemoryLayout<'a, BabyBearPoseidon2, BabyBearPoseidon2, RiscvAir<BabyBear>, A>
 {
     type HintVariable = SP1ReduceMemoryLayoutVariable<C>;
 
@@ -585,21 +586,23 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let mut stream = Vec::new();
 
         let (sp1_prep_sorted_idxs, sp1_prep_domains) =
-            get_preprocessed_data::<BabyBearPoseidon2, A>(self.machine, self.sp1_vk);
+            get_preprocessed_data::<BabyBearPoseidon2, _>(self.sp1_machine, self.sp1_vk);
 
         let (reduce_prep_sorted_idxs, reduce_prep_domains) =
-            get_preprocessed_data::<BabyBearPoseidon2, A>(self.machine, self.reduce_vk);
+            get_preprocessed_data::<BabyBearPoseidon2, _>(self.recursive_machine, self.reduce_vk);
 
         let shard_chip_quotient_data = self
             .shard_proofs
             .iter()
-            .map(|proof| get_chip_quotient_data::<BabyBearPoseidon2, A>(self.machine, proof))
+            .map(|proof| {
+                get_chip_quotient_data::<BabyBearPoseidon2, A>(self.recursive_machine, proof)
+            })
             .collect::<Vec<_>>();
 
         let shard_sorted_indices = self
             .shard_proofs
             .iter()
-            .map(|proof| get_sorted_indices::<BabyBearPoseidon2, A>(self.machine, proof))
+            .map(|proof| get_sorted_indices::<BabyBearPoseidon2, A>(self.recursive_machine, proof))
             .collect::<Vec<_>>();
 
         let kinds = self.kinds.iter().map(|k| *k as usize).collect::<Vec<_>>();

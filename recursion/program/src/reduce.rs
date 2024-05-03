@@ -120,11 +120,13 @@ pub struct SP1ReduceMemoryLayout<
     'a,
     CoreSC: StarkGenericConfig,
     SC: StarkGenericConfig,
-    A: MachineAir<SC::Val>,
+    CoreA: MachineAir<CoreSC::Val>,
+    RecA: MachineAir<SC::Val>,
 > {
     pub sp1_vk: &'a StarkVerifyingKey<CoreSC>,
     pub reduce_vk: &'a StarkVerifyingKey<SC>,
-    pub machine: &'a StarkMachine<SC, A>,
+    pub sp1_machine: &'a StarkMachine<CoreSC, CoreA>,
+    pub recursive_machine: &'a StarkMachine<SC, RecA>,
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub is_complete: bool,
     pub kinds: Vec<ReduceProgramType>,
@@ -1468,7 +1470,6 @@ mod tests {
         io::SP1Stdin,
         runtime::Program,
         stark::{Challenge, LocalProver, ProgramVerificationError},
-        utils::inner_fri_config,
     };
     use sp1_recursion_core::{runtime::Runtime, stark::RecursionAirWideDeg3};
 
@@ -1612,7 +1613,7 @@ mod tests {
         type A = RecursionAirWideDeg3<BabyBear>;
         let mut builder = Builder::<InnerConfig>::default();
         let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
-        SP1ReduceMemoryLayout::<SC, SC, A>::witness(&input, &mut builder);
+        SP1ReduceMemoryLayout::<SC, SC, RiscvAir<BabyBear>, A>::witness(&input, &mut builder);
 
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, recursive_config.pcs().fri_config()),
@@ -1647,7 +1648,8 @@ mod tests {
                     let input = SP1ReduceMemoryLayout {
                         sp1_vk: &vk,
                         reduce_vk: &reduce_vk,
-                        machine: &recursive_machine,
+                        sp1_machine: &machine,
+                        recursive_machine: &recursive_machine,
                         shard_proofs: batch.to_vec(),
                         kinds,
                         is_complete,
