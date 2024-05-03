@@ -97,7 +97,8 @@ impl Prover for LocalProver {
         // Otherwise, assume this is an official release and download the artifacts from the
         // official download url.
         else {
-            todo!()
+            sp1_prover::install::groth16_artifacts();
+            sp1_prover::install::groth16_artifacts_dir()
         };
 
         let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);

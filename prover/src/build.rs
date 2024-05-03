@@ -1,6 +1,3 @@
-//! This module contains functions for building the groth16 and plonk circuits. These are in
-//! sp1_prover because they require a dummy proof to be generated during the build process.
-
 use std::path::PathBuf;
 
 use sp1_core::stark::StarkVerifyingKey;

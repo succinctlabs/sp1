@@ -13,6 +13,7 @@
 #![allow(clippy::new_without_default)]
 
 pub mod build;
+pub mod install;
 mod types;
 pub mod utils;
 mod verify;
