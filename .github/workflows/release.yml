@@ -162,7 +162,7 @@ jobs:
         run: |
           # Enter the directory and build groth16
           cd prover
-          RUST_LOG=info RUST_BACKTRACE=1 SP1_DEV_WRAPPER=false make groth16
+          RUST_LOG=info RUST_BACKTRACE=1 FRI_QUERIES=1 SP1_DEV_WRAPPER=false make groth16
           cd build
           pwd
           ls -al
