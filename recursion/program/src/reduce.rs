@@ -33,7 +33,7 @@ use sp1_core::air::{MachineAir, PublicValues};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2};
+use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2, BabyBearPoseidon2Inner};
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -42,6 +42,7 @@ use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, D, DIGEST_SIZE};
 
 use sp1_recursion_compiler::prelude::*;
+use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::TwoAdicFriPcsVariable;
@@ -170,6 +171,20 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
 impl<A> SP1ReduceVerifier<InnerConfig, BabyBearPoseidon2, A> where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>
 {
+}
+
+impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2, A>
+where
+    A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
+{
+    fn compress() {}
+}
+
+impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2Outer, A>
+where
+    A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
+{
+    fn wrap_bn254() {}
 }
 
 /// Assertions on the public values describing a complete recursive proof state.
