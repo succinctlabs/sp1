@@ -223,6 +223,78 @@ fn assert_complete<C: Config>(
     }
 }
 
+fn proof_data_from_vk<C: Config, SC, A>(
+    builder: &mut Builder<C>,
+    vk: &StarkVerifyingKey<SC>,
+    machine: &StarkMachine<SC, A>,
+) -> (
+    VerifyingKeyVariable<C>,
+    Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+    Array<C, Var<C::N>>,
+)
+where
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
+    A: MachineAir<SC::Val>,
+    Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
+{
+    let mut commitment = builder.dyn_array(DIGEST_SIZE);
+    for (i, value) in vk.commit.clone().into().iter().enumerate() {
+        builder.set(&mut commitment, i, *value);
+    }
+    let pc_start: Felt<_> = builder.eval(vk.pc_start);
+
+    let vk_variable = VerifyingKeyVariable {
+        commitment,
+        pc_start,
+    };
+
+    let (prep_sorted_indices_val, prep_domains_val) = get_preprocessed_data(machine, vk);
+
+    let mut prep_sorted_indices = builder.dyn_array::<Var<_>>(prep_sorted_indices_val.len());
+    let mut prep_domains =
+        builder.dyn_array::<TwoAdicMultiplicativeCosetVariable<_>>(prep_domains_val.len());
+
+    for (i, value) in prep_sorted_indices_val.iter().enumerate() {
+        builder.set(
+            &mut prep_sorted_indices,
+            i,
+            C::N::from_canonical_usize(*value),
+        );
+    }
+
+    for (i, value) in prep_domains_val.iter().enumerate() {
+        let domain: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*value);
+        builder.set(&mut prep_domains, i, domain);
+    }
+
+    (vk_variable, prep_domains, prep_sorted_indices)
+}
+
+impl<C: Config, SC, A> SP1RootVerifier<C, SC, A>
+where
+    C::F: PrimeField32 + TwoAdicField,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
+    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+    Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
+{
+    /// Verify a proof with given vk and aggregate their public values.
+    fn verify(
+        builder: &mut Builder<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        machine: &StarkMachine<SC, A>,
+        rec_vk: &StarkVerifyingKey<SC>,
+    ) {
+    }
+}
+
 impl<C: Config, SC, A> SP1ReduceVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
@@ -234,48 +306,6 @@ where
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
-    fn proof_data_from_vk(
-        builder: &mut Builder<C>,
-        vk: &StarkVerifyingKey<SC>,
-        machine: &StarkMachine<SC, A>,
-    ) -> (
-        VerifyingKeyVariable<C>,
-        Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
-        Array<C, Var<C::N>>,
-    ) {
-        let mut commitment = builder.dyn_array(DIGEST_SIZE);
-        for (i, value) in vk.commit.clone().into().iter().enumerate() {
-            builder.set(&mut commitment, i, *value);
-        }
-        let pc_start: Felt<_> = builder.eval(vk.pc_start);
-
-        let vk_variable = VerifyingKeyVariable {
-            commitment,
-            pc_start,
-        };
-
-        let (prep_sorted_indices_val, prep_domains_val) = get_preprocessed_data(machine, vk);
-
-        let mut prep_sorted_indices = builder.dyn_array::<Var<_>>(prep_sorted_indices_val.len());
-        let mut prep_domains =
-            builder.dyn_array::<TwoAdicMultiplicativeCosetVariable<_>>(prep_domains_val.len());
-
-        for (i, value) in prep_sorted_indices_val.iter().enumerate() {
-            builder.set(
-                &mut prep_sorted_indices,
-                i,
-                C::N::from_canonical_usize(*value),
-            );
-        }
-
-        for (i, value) in prep_domains_val.iter().enumerate() {
-            let domain: TwoAdicMultiplicativeCosetVariable<_> = builder.constant(*value);
-            builder.set(&mut prep_domains, i, domain);
-        }
-
-        (vk_variable, prep_domains, prep_sorted_indices)
-    }
-
     /// Verify a batch of recursive proofs and aggregate their public values.
     fn verify(
         builder: &mut Builder<C>,
@@ -344,9 +374,9 @@ where
 
         // Collect verifying keys for each kind of program.
         let (recursive_vk_variable, rec_rep_domains, rec_prep_sorted_indices) =
-            Self::proof_data_from_vk(builder, recursive_vk, machine);
+            proof_data_from_vk(builder, recursive_vk, machine);
         let (deferred_vk_variable, def_rep_domains, def_prep_sorted_indices) =
-            Self::proof_data_from_vk(builder, deferred_vk, machine);
+            proof_data_from_vk(builder, deferred_vk, machine);
 
         // Verify the shard proofs and connect the values.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
