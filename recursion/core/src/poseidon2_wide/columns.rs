@@ -6,8 +6,9 @@ use crate::memory::{MemoryReadSingleCols, MemoryReadWriteSingleCols};
 
 use super::external::{NUM_EXTERNAL_ROUNDS, NUM_INTERNAL_ROUNDS, WIDTH};
 
-/// An enum the encapsulates a wide version of the poseidon2 chip (contains intermediate sbox colunns)
-/// and a narrow version of the poseidon2 chip (doesn't contain intermediate sbox columns).
+/// An enum the encapsulates mutable references to a wide version of poseidon2 chip (contains
+/// intermediate sbox colunns) and a narrow version of the poseidon2 chip (doesn't contain
+/// intermediate sbox columns).
 pub(crate) enum Poseidon2ColTypeMut<'a, T> {
     Wide(&'a mut Poseidon2SBoxCols<T>),
     Narrow(&'a mut Poseidon2Cols<T>),
@@ -34,6 +35,7 @@ impl<T> Poseidon2ColTypeMut<'_, T> {
     }
 }
 
+/// An immutable version of Poseidon2ColTypeMut.
 pub(crate) enum Poseidon2ColType<T> {
     Wide(Poseidon2SBoxCols<T>),
     Narrow(Poseidon2Cols<T>),
