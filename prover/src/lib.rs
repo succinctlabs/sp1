@@ -62,6 +62,8 @@ use std::path::PathBuf;
 use std::time::Instant;
 use tracing::instrument;
 pub use types::*;
+use utils::babybear_bytes_to_bn254;
+use utils::babybears_to_bn254;
 use utils::words_to_bytes;
 
 use crate::types::ReduceState;
@@ -682,31 +684,14 @@ impl SP1Prover {
 
         // TODO: this is very subject to change as groth16 e2e is stabilized
         // Convert pv.vkey_digest to a bn254 field element
-        let mut vkey_hash = Bn254Fr::zero();
-        for (i, word) in pv.sp1_vk_digest.iter().enumerate() {
-            if i == 0 {
-                // Truncate top 3 bits
-                vkey_hash = Bn254Fr::from_canonical_u32(word.as_canonical_u32() & 0x1fffffffu32);
-            } else {
-                vkey_hash *= Bn254Fr::from_canonical_u64(1 << 32);
-                vkey_hash += Bn254Fr::from_canonical_u32(word.as_canonical_u32());
-            }
-        }
+        let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
 
         // Convert pv.committed_value_digest to a bn254 field element
-        let mut committed_values_digest = Bn254Fr::zero();
-        for (i, word) in pv.committed_value_digest.iter().enumerate() {
-            for (j, byte) in word.0.iter().enumerate() {
-                if i == 0 && j == 0 {
-                    // Truncate top 3 bits
-                    committed_values_digest =
-                        Bn254Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
-                } else {
-                    committed_values_digest *= Bn254Fr::from_canonical_u32(256);
-                    committed_values_digest += Bn254Fr::from_canonical_u32(byte.as_canonical_u32());
-                }
-            }
-        }
+        let committed_values_digest_bytes: [BabyBear; 32] =
+            words_to_bytes(&pv.committed_value_digest)
+                .try_into()
+                .unwrap();
+        let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
 
         let mut witness = Witness::default();
         proof.write(&mut witness);

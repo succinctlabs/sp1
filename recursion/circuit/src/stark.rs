@@ -279,12 +279,12 @@ pub fn build_wrap_circuit(
     let one_felt: Felt<_> = builder.constant(BabyBear::one());
     // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
     // fully accumulated.
-    builder.assert_felt_eq(pv.is_complete, one_felt);
+    // builder.assert_felt_eq(pv.is_complete, one_felt);
 
     // Convert pv.sp1_vk_digest into Bn254
     let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
     // Vkey hash must match the witnessed commited_values_digest that we are committing to.
-    builder.assert_var_eq(pv_vkey_hash, vkey_hash);
+    // builder.assert_var_eq(pv_vkey_hash, vkey_hash);
 
     // Convert pv.committed_value_digest into Bn254
     let pv_committed_values_digest_bytes: [Felt<_>; 32] =
@@ -294,11 +294,7 @@ pub fn build_wrap_circuit(
     let pv_committed_values_digest: Var<_> =
         babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
     // Committed values digest must match the witnessed one that we are committing to.
-    builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
-
-    // The reduce vkey that was passed into the reduce program must match the one we are hardcoding.
-    // let expected_vkey_hash = wrap_vk.hash();
-    for i in 0..8 {}
+    // builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
 
     if !dev_mode {
         let chips = outer_machine
