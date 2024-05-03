@@ -143,6 +143,7 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
 
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kind: Var<C::N>,
+    pub is_complete: Var<C::N>,
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
@@ -170,6 +171,64 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
         let mut recursive_program = builder.compile_program();
         recursive_program.instructions[0] = Instruction::dummy();
         recursive_program
+    }
+}
+
+/// Assertions on the public values describing a complete recursive proof state.
+fn assert_complete<C: Config>(
+    builder: &mut Builder<C>,
+    core_vk: &VerifyingKeyVariable<C>,
+    public_values: &RecursionPublicValues<Felt<C::F>>,
+    end_reconstruct_challenger: &DuplexChallengerVariable<C>,
+) {
+    let RecursionPublicValues {
+        deferred_proofs_digest,
+        start_pc,
+        next_pc,
+        start_shard,
+        cumulative_sum,
+        start_reconstruct_deferred_digest,
+        end_reconstruct_deferred_digest,
+        ..
+    } = public_values;
+    // Assert that the start pc is equal to the start pc of the verifier key.
+    builder.assert_felt_eq(*start_pc, core_vk.pc_start);
+    // Assert that `end_pc` is equal to zero (so program execution has completed)
+    builder.assert_felt_eq(*next_pc, C::F::zero());
+
+    // Assert that the start shard is equal to 1.
+    builder.assert_felt_eq(*start_shard, C::F::one());
+
+    // The challenger has been fully verified.
+
+    // The start_reconstruct_challenger should be the same as an empty challenger observing the
+    // verifier key and the start pc. This was already verified when verifying the leaf proofs so
+    // there is no need to assert it here.
+
+    // Assert that the end reconstruct challenger is equal to the leaf challenger.
+    assert_challenger_eq_pv(
+        builder,
+        end_reconstruct_challenger,
+        public_values.leaf_challenger,
+    );
+
+    // The deferred digest has been fully reconstructed.
+
+    // The start reconstruct digest should be zero.
+    for start_digest_word in start_reconstruct_deferred_digest {
+        builder.assert_felt_eq(*start_digest_word, C::F::zero());
+    }
+    // The end reconstruct digest should be equal to the deferred proofs digest.
+    for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
+        .iter()
+        .zip_eq(deferred_proofs_digest.iter())
+    {
+        builder.assert_felt_eq(*end_digest_word, *deferred_digest_word);
+    }
+
+    // Assert that the cumulative sum is zero.
+    for b in cumulative_sum.iter() {
+        builder.assert_felt_eq(*b, C::F::zero());
     }
 }
 
@@ -202,6 +261,7 @@ where
             reduce_prep_domains,
             shard_proofs,
             kind,
+            is_complete,
         } = input;
 
         // Initialize the values for the aggregated public output.
@@ -346,6 +406,14 @@ where
         reduce_public_values.end_reconstruct_challenger = values;
 
         // If the proof is complete, make completeness assertions.
+        builder.if_eq(is_complete, C::N::one()).then(|builder| {
+            assert_complete(
+                builder,
+                &core_vk,
+                reduce_public_values,
+                &reconstruct_challenger,
+            )
+        });
 
         // Commit the public values.
         let mut reduce_public_values_array =
@@ -368,64 +436,6 @@ where
     >,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
-    /// Assertions on the public values describing a complete recursive proof state.
-    fn assert_complete(
-        builder: &mut Builder<C>,
-        core_vk: &VerifyingKeyVariable<C>,
-        public_values: &RecursionPublicValues<Felt<C::F>>,
-        end_reconstruct_challenger: &DuplexChallengerVariable<C>,
-    ) {
-        let RecursionPublicValues {
-            deferred_proofs_digest,
-            start_pc,
-            next_pc,
-            start_shard,
-            cumulative_sum,
-            start_reconstruct_deferred_digest,
-            end_reconstruct_deferred_digest,
-            ..
-        } = public_values;
-        // Assert that the start pc is equal to the start pc of the verifier key.
-        builder.assert_felt_eq(*start_pc, core_vk.pc_start);
-        // Assert that `end_pc` is equal to zero (so program execution has completed)
-        builder.assert_felt_eq(*next_pc, C::F::zero());
-
-        // Assert that the start shard is equal to 1.
-        builder.assert_felt_eq(*start_shard, C::F::one());
-
-        // The challenger has been fully verified.
-
-        // The start_reconstruct_challenger should be the same as an empty challenger observing the
-        // verifier key and the start pc. This was already verified when verifying the leaf proofs so
-        // there is no need to assert it here.
-
-        // Assert that the end reconstruct challenger is equal to the leaf challenger.
-        assert_challenger_eq_pv(
-            builder,
-            &end_reconstruct_challenger,
-            public_values.leaf_challenger,
-        );
-
-        // The deferred digest has been fully reconstructed.
-
-        // The start reconstruct digest should be zero.
-        for start_digest_word in start_reconstruct_deferred_digest {
-            builder.assert_felt_eq(*start_digest_word, C::F::zero());
-        }
-        // The end reconstruct digest should be equal to the deferred proofs digest.
-        for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
-            .iter()
-            .zip_eq(deferred_proofs_digest.iter())
-        {
-            builder.assert_felt_eq(*end_digest_word, *deferred_digest_word);
-        }
-
-        // Assert that the cumulative sum is zero.
-        for b in cumulative_sum.iter() {
-            builder.assert_felt_eq(*b, C::F::zero());
-        }
-    }
-
     /// Verify a batch of SP1 proofs and aggregate their public values.
     fn verify(
         builder: &mut Builder<C>,
@@ -658,10 +668,13 @@ where
         recursion_public_values.exit_code = zero;
         recursion_public_values.is_complete = is_complete_felt;
 
-        // If the proof represents a complete proof (only happends when there is only one shard),
-        // then we nned to check the completeness assertions.
+        // If the proof represents a complete proof, make completeness assertions.
+        //
+        // *Remark*: In this program, this only happends if there is one shard and the program has
+        // no deferred proofs to verify. However, the completeness check is independent of these
+        // facts.
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
-            Self::assert_complete(
+            assert_complete(
                 builder,
                 &vk,
                 recursion_public_values,
