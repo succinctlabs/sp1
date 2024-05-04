@@ -19,10 +19,8 @@ mod verify;
 
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
-use p3_bn254_fr::Bn254Fr;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
-use p3_field::PrimeField32;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
