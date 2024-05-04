@@ -16,7 +16,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var, Variable};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::RecursionPublicValues;
@@ -25,7 +25,6 @@ use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
 use sp1_recursion_program::stark::RecursiveVerifierConstraintFolder;
 use sp1_recursion_program::types::QuotientDataValues;
-use sp1_recursion_program::utils::felt2var;
 
 use crate::domain::{new_coset, TwoAdicMultiplicativeCosetVariable};
 use crate::types::TwoAdicPcsMatsVariable;
