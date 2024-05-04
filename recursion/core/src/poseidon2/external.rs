@@ -8,15 +8,15 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
-use sp1_derive::AlignedBorrow;
 use sp1_primitives::RC_16_30_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
 use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
-use crate::memory::{MemoryCols, MemoryReadWriteSingleCols};
 use crate::poseidon2_wide::{apply_m_4, external_linear_layer, internal_linear_layer};
 use crate::runtime::{ExecutionRecord, Opcode, RecursionProgram};
+
+use super::columns::Poseidon2Cols;
 
 /// The number of main trace columns for `AddChip`.
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
@@ -28,38 +28,6 @@ pub const WIDTH: usize = 16;
 #[derive(Default)]
 pub struct Poseidon2Chip {
     pub fixed_log2_rows: Option<usize>,
-}
-
-/// The column layout for the chip.
-#[derive(AlignedBorrow, Default, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2Cols<T> {
-    pub rounds: [T; 24],   // 1 round for memory input; 1 round for initialize; 8 rounds for external; 13 rounds for internal; 1 round for memory output
-    pub is_internal: T,
-    pub is_external: T,
-    union {
-        computation: Poseidon2ComputationColumns<T>,
-        memory_access: Poseidon2MemCols<T>,
-    }
-}
-
-pub struct Poseidon2ComputationColumns<T> {
-    pub input: [T; WIDTH],
-    pub add_rc: [T; WIDTH],
-    pub sbox_deg_3: [T; WIDTH],
-    pub sbox_deg_7: [T; WIDTH],
-    pub output: [T; WIDTH],
-}
-
-#[derive(AlignedBorrow, Default, Clone, Copy)]
-#[repr(C)]
-pub struct Poseidon2MemCols<T> {
-    pub timestamp: T,
-    pub dst: T,
-    pub left: T,
-    pub right: T,
-    pub mem_access: [MemoryReadWriteSingleCols<T>; WIDTH],
-    pub mem_address: [T; WIDTH],
 }
 
 impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
@@ -83,78 +51,114 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
     ) -> RowMajorMatrix<F> {
         let mut rows = Vec::new();
 
+        // 1 round for memory input; 1 round for initialize; 8 rounds for external; 13 rounds for internal; 1 round for memory output
         let rounds_f = 8;
         let rounds_p = 13;
-        let rounds = rounds_f + rounds_p + 1;
-        let rounds_p_beginning = 1 + rounds_f / 2;
+        let rounds = rounds_f + rounds_p + 3;
+        let rounds_p_beginning = 2 + rounds_f / 2;
         let p_end = rounds_p_beginning + rounds_p;
 
         for poseidon2_event in input.poseidon2_events.iter() {
-            let mut round_input = poseidon2_event.input;
-
+            let mut round_input = Default::default();
             for r in 0..rounds {
                 let mut row = [F::zero(); NUM_POSEIDON2_COLS];
                 let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
 
-                cols.input = round_input;
-
-                cols.rounds[r] = F::one();
-                let is_initial_layer = r == 0;
+                let is_memory_read = r == 0;
+                let is_initial_layer = r == 1;
                 let is_external_layer =
-                    (r >= 1 && r < rounds_p_beginning) || (r >= p_end && r < rounds);
+                    (r >= 2 && r < rounds_p_beginning) || (r >= p_end && r < rounds);
+                let is_internal_layer = r >= rounds_p_beginning && r < p_end;
+                let is_memory_write = r == rounds - 1;
 
-                if is_initial_layer {
-                    // Mark the selector as initial.
-                    cols.is_initial = F::one();
+                cols.timestamp = poseidon2_event.clk;
+                cols.dst_input = poseidon2_event.dst;
+                cols.left_input = poseidon2_event.left;
+                cols.right_input = poseidon2_event.right;
+                cols.rounds[r] = F::one();
 
-                    // Don't apply the round constants.
-                    cols.add_rc.copy_from_slice(&cols.input);
-                } else if is_external_layer {
-                    // Mark the selector as external.
-                    cols.is_external = F::one();
+                if is_memory_read || is_memory_write {
+                    let memory_access_cols = cols.round_specific_cols.memory_access_mut();
 
-                    // Apply the round constants.
-                    for j in 0..WIDTH {
-                        cols.add_rc[j] =
-                            cols.input[j] + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
+                    if is_memory_read {
+                        memory_access_cols.addr_first_half = poseidon2_event.dst;
+                        memory_access_cols.addr_second_half =
+                            poseidon2_event.dst + F::from_canonical_usize(4);
+                        for i in 0..WIDTH {
+                            memory_access_cols.mem_access[i]
+                                .populate(&poseidon2_event.input_records[i]);
+                        }
+                    } else {
+                        memory_access_cols.addr_first_half = poseidon2_event.dst;
+                        memory_access_cols.addr_second_half =
+                            poseidon2_event.dst + F::from_canonical_usize(4);
+                        for i in 0..WIDTH {
+                            memory_access_cols.mem_access[i]
+                                .populate(&poseidon2_event.result_records[i]);
+                        }
                     }
                 } else {
-                    // Mark the selector as internal.
-                    cols.is_internal = F::one();
+                    let computation_cols = cols.round_specific_cols.computation_mut();
 
-                    // Apply the round constants only on the first element.
-                    cols.add_rc.copy_from_slice(&cols.input);
-                    cols.add_rc[0] = cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
-                };
+                    if is_initial_layer {
+                        round_input = poseidon2_event.input;
+                    }
 
-                // Apply the sbox.
-                for j in 0..WIDTH {
-                    cols.sbox_deg_3[j] = cols.add_rc[j] * cols.add_rc[j] * cols.add_rc[j];
-                    cols.sbox_deg_7[j] = cols.sbox_deg_3[j] * cols.sbox_deg_3[j] * cols.add_rc[j];
+                    computation_cols.input = round_input;
+
+                    if is_initial_layer {
+                        // Don't apply the round constants.
+                        computation_cols
+                            .add_rc
+                            .copy_from_slice(&computation_cols.input);
+                    } else if is_external_layer {
+                        // Apply the round constants.
+                        for j in 0..WIDTH {
+                            computation_cols.add_rc[j] = computation_cols.input[j]
+                                + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
+                        }
+                    } else {
+                        // Apply the round constants only on the first element.
+                        computation_cols
+                            .add_rc
+                            .copy_from_slice(&computation_cols.input);
+                        computation_cols.add_rc[0] =
+                            computation_cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
+                    };
+
+                    // Apply the sbox.
+                    for j in 0..WIDTH {
+                        computation_cols.sbox_deg_3[j] = computation_cols.add_rc[j]
+                            * computation_cols.add_rc[j]
+                            * computation_cols.add_rc[j];
+                        computation_cols.sbox_deg_7[j] = computation_cols.sbox_deg_3[j]
+                            * computation_cols.sbox_deg_3[j]
+                            * computation_cols.add_rc[j];
+                    }
+
+                    // What state to use for the linear layer.
+                    let mut state = if is_initial_layer {
+                        computation_cols.add_rc
+                    } else if is_external_layer {
+                        computation_cols.sbox_deg_7
+                    } else {
+                        let mut state = computation_cols.add_rc;
+                        state[0] = computation_cols.sbox_deg_7[0];
+                        state
+                    };
+
+                    // Apply either the external or internal linear layer.
+                    if is_initial_layer || is_external_layer {
+                        external_linear_layer(&mut state);
+                    } else if is_internal_layer {
+                        internal_linear_layer(&mut state)
+                    }
+
+                    // Copy the state to the output.
+                    computation_cols.output.copy_from_slice(&state);
+
+                    round_input = computation_cols.output;
                 }
-
-                // What state to use for the linear layer.
-                let mut state = if is_initial_layer {
-                    cols.add_rc
-                } else if is_external_layer {
-                    cols.sbox_deg_7
-                } else {
-                    let mut state = cols.add_rc;
-                    state[0] = cols.sbox_deg_7[0];
-                    state
-                };
-
-                // Apply either the external or internal linear layer.
-                if cols.is_initial == F::one() || cols.is_external == F::one() {
-                    external_linear_layer(&mut state);
-                } else if cols.is_internal == F::one() {
-                    internal_linear_layer(&mut state)
-                }
-
-                // Copy the state to the output.
-                cols.output.copy_from_slice(&state);
-
-                round_input = cols.output;
 
                 rows.push(row);
             }

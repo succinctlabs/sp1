@@ -11,8 +11,7 @@ use sp1_derive::AlignedBorrow;
 
 use crate::air::SP1RecursionAirBuilder;
 use crate::fri_fold::{FriFoldChip, FriFoldCols};
-use crate::poseidon2::external::Poseidon2Cols;
-use crate::poseidon2::Poseidon2Chip;
+use crate::poseidon2::{Poseidon2Chip, Poseidon2Cols};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
 
 pub const NUM_MULTI_COLS: usize = core::mem::size_of::<MultiCols<u8>>();

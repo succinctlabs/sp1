@@ -1,11 +1,13 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::poseidon2::external::WIDTH;
+mod columns;
 pub mod external;
 use crate::air::Block;
 use crate::memory::MemoryRecord;
 use p3_field::PrimeField32;
 
+pub use columns::Poseidon2Cols;
 pub use external::Poseidon2Chip;
 
 #[derive(Debug, Clone)]
