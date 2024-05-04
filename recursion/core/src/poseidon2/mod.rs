@@ -3,6 +3,7 @@
 use crate::poseidon2::external::WIDTH;
 mod columns;
 pub mod external;
+mod trace;
 use crate::air::Block;
 use crate::memory::MemoryRecord;
 use p3_field::PrimeField32;
