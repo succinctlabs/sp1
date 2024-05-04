@@ -79,6 +79,21 @@ pub struct SP1RootVerifier<C: Config, SC: StarkGenericConfig, A> {
     _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
+pub struct SP1RootMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+    pub machine: &'a StarkMachine<SC, A>,
+    pub proof: ShardProof<SC>,
+    pub is_reduce: bool,
+}
+
+/// An input layout for the reduce verifier.
+pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+    pub reduce_vk: &'a StarkVerifyingKey<SC>,
+    pub recursive_machine: &'a StarkMachine<SC, A>,
+    pub shard_proofs: Vec<ShardProof<SC>>,
+    pub is_complete: bool,
+    pub kinds: Vec<ReduceProgramType>,
+}
+
 pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
     pub vk: &'a StarkVerifyingKey<SC>,
     pub machine: &'a StarkMachine<SC, A>,
@@ -116,15 +131,6 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub is_complete: Var<C::N>,
 }
 
-/// An input layout for the reduce verifier.
-pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
-    pub reduce_vk: &'a StarkVerifyingKey<SC>,
-    pub recursive_machine: &'a StarkMachine<SC, A>,
-    pub shard_proofs: Vec<ShardProof<SC>>,
-    pub is_complete: bool,
-    pub kinds: Vec<ReduceProgramType>,
-}
-
 #[derive(DslVariable, Clone)]
 pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub reduce_vk: VerifyingKeyVariable<C>,
@@ -140,6 +146,14 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub is_complete: Var<C::N>,
 }
 
+#[derive(DslVariable, Clone)]
+pub struct SP1RootMemoryLayoutVariable<C: Config> {
+    pub proof: ShardProofVariable<C>,
+    pub chip_quotient_data: Array<C, QuotientData<C>>,
+    pub sorted_indices: Array<C, Var<C::N>>,
+    pub is_reduce: Var<C::N>,
+}
+
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     pub fn setup() -> RecursionProgram<BabyBear> {
         let mut builder = Builder::<InnerConfig>::default();
@@ -150,7 +164,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
         builder.compile_program()
     }
 
-    pub fn build(
+    pub fn build_with_witness(
         machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
     ) -> RecursionProgram<BabyBear> {
         let mut builder = Builder::<InnerConfig>::default();
@@ -166,6 +180,22 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
         recursive_program.instructions[0] = Instruction::dummy();
         recursive_program
     }
+
+    pub fn build(
+        machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
+    ) -> RecursionProgram<BabyBear> {
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
+        SP1RecursionMemoryLayout::<BabyBearPoseidon2, RiscvAir<_>>::witness(&input, &mut builder);
+
+        let pcs = TwoAdicFriPcsVariable {
+            config: const_fri_config(&mut builder, &sp1_fri_config()),
+        };
+        SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
+
+        builder.compile_program()
+    }
 }
 
 impl<A> SP1ReduceVerifier<InnerConfig, BabyBearPoseidon2, A> where
@@ -177,7 +207,7 @@ impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
-    fn compress() {}
+    fn compress(machine: &StarkMachine<BabyBearPoseidon2, A>) {}
 }
 
 impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2Outer, A>
@@ -1662,7 +1692,10 @@ mod tests {
         runtime::Program,
         stark::{Challenge, LocalProver, ProgramVerificationError},
     };
-    use sp1_recursion_core::{runtime::Runtime, stark::RecursionAirWideDeg3};
+    use sp1_recursion_core::{
+        runtime::Runtime,
+        stark::{RecursionAirSkinnyDeg7, RecursionAirWideDeg3},
+    };
 
     use super::*;
 
@@ -1898,6 +1931,14 @@ mod tests {
             return;
         }
 
+        assert_eq!(recursive_proofs.len(), 1);
+        let reduce_proof = recursive_proofs.pop().unwrap();
+
+        // Make the compress program.
+        let compress_machine = RecursionAirSkinnyDeg7::machine(SC::compressed());
+        let mut builder = Builder::<InnerConfig>::default();
+        let proof: ShardProofVariable<_> = builder.uninit();
+
         todo!()
     }
 
@@ -1916,6 +1957,13 @@ mod tests {
     }
 
     #[test]
+    fn test_sp1_compress_machine_verify_fibonacci() {
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Compress)
+    }
+
+    #[test]
     #[ignore]
     fn test_sp1_reduce_machine_verify_tendermint() {
         let elf = include_bytes!(
@@ -1931,5 +1979,14 @@ mod tests {
             "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
         );
         test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Recursion)
+    }
+
+    #[test]
+    #[ignore]
+    fn test_sp1_compress_machine_verify_tendermint() {
+        let elf = include_bytes!(
+            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
+        );
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Compress)
     }
 }

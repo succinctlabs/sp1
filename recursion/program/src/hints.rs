@@ -23,7 +23,7 @@ use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::reduce::{
     SP1RecursionMemoryLayout, SP1RecursionMemoryLayoutVariable, SP1ReduceMemoryLayout,
-    SP1ReduceMemoryLayoutVariable,
+    SP1ReduceMemoryLayoutVariable, SP1RootMemoryLayout, SP1RootMemoryLayoutVariable,
 };
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
@@ -603,6 +603,40 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
         stream.extend(shard_sorted_indices.write());
         stream.extend(kinds.write());
         stream.extend((self.is_complete as usize).write());
+
+        stream
+    }
+}
+
+impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1RootMemoryLayout<'a, BabyBearPoseidon2, A> {
+    type HintVariable = SP1RootMemoryLayoutVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let proof = ShardProof::<BabyBearPoseidon2>::read(builder);
+        let chip_quotient_data = Vec::<QuotientDataValues>::read(builder);
+        let sorted_indices = Vec::<usize>::read(builder);
+        let is_reduce = builder.hint_var();
+
+        SP1RootMemoryLayoutVariable {
+            proof,
+            chip_quotient_data,
+            sorted_indices,
+            is_reduce,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let chip_quotient_data =
+            get_chip_quotient_data::<BabyBearPoseidon2, A>(self.machine, &self.proof);
+
+        let sorted_indices = get_sorted_indices::<BabyBearPoseidon2, A>(self.machine, &self.proof);
+
+        stream.extend(self.proof.write());
+        stream.extend(chip_quotient_data.write());
+        stream.extend(sorted_indices.write());
+        stream.extend((self.is_reduce as usize).write());
 
         stream
     }
