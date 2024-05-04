@@ -94,10 +94,11 @@ pub fn words_to_bytes<T: Copy>(words: &[Word<T>]) -> Vec<T> {
     return words.iter().flat_map(|word| word.0).collect();
 }
 
-/// Convert 8 BabyBear words into a Bn254Fr field element.
+/// Convert 8 BabyBear words into a Bn254Fr field element by shifting by 31 bits each time. The last
+/// word becomes the least significant bits.
 pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
     let mut result = Bn254Fr::zero();
-    for (i, word) in digest.iter().enumerate() {
+    for word in digest.iter() {
         // Since BabyBear prime is less than 2^31, we can shift by 31 bits each time and still be
         // within the Bn254Fr field, so we don't have to truncate the top 3 bits.
         result *= Bn254Fr::from_canonical_u64(1 << 31);
@@ -106,7 +107,8 @@ pub fn babybears_to_bn254(digest: &[BabyBear; 8]) -> Bn254Fr {
     result
 }
 
-/// Convert 32 BabyBear bytes into a Bn254Fr field element.
+/// Convert 32 BabyBear bytes into a Bn254Fr field element. The first byte's most significant 3 bits
+/// (which would become the 3 most significant bits) are truncated.
 pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
     let mut result = Bn254Fr::zero();
     for (i, byte) in bytes.iter().enumerate() {

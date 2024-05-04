@@ -682,7 +682,6 @@ impl SP1Prover {
     pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
         let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
 
-        // TODO: this is very subject to change as groth16 e2e is stabilized
         // Convert pv.vkey_digest to a bn254 field element
         let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
 
