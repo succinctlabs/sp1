@@ -33,7 +33,7 @@ use sp1_core::air::{MachineAir, PublicValues};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2, BabyBearPoseidon2Inner};
+use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2};
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
@@ -42,7 +42,6 @@ use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, D, DIGEST_SIZE};
 
 use sp1_recursion_compiler::prelude::*;
-use sp1_recursion_core::stark::config::BabyBearPoseidon2Outer;
 
 use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::TwoAdicFriPcsVariable;
@@ -198,23 +197,56 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
     }
 }
 
-impl<A> SP1ReduceVerifier<InnerConfig, BabyBearPoseidon2, A> where
-    A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>
+impl<A> SP1ReduceVerifier<InnerConfig, BabyBearPoseidon2, A>
+where
+    A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
+    pub fn build(
+        machine: &StarkMachine<BabyBearPoseidon2, A>,
+        recursive_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+        deferred_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+    ) -> RecursionProgram<BabyBear> {
+        let mut builder = Builder::<InnerConfig>::default();
+
+        let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
+        SP1ReduceMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
+
+        let pcs = TwoAdicFriPcsVariable {
+            config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
+        };
+        SP1ReduceVerifier::verify(
+            &mut builder,
+            &pcs,
+            machine,
+            input,
+            recursive_vk,
+            deferred_vk,
+        );
+
+        builder.compile_program()
+    }
 }
 
 impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
-    fn compress(machine: &StarkMachine<BabyBearPoseidon2, A>) {}
-}
+    pub fn build(
+        machine: &StarkMachine<BabyBearPoseidon2, A>,
+        vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+    ) -> RecursionProgram<BabyBear> {
+        let mut builder = Builder::<InnerConfig>::default();
+        let input: SP1RootMemoryLayoutVariable<_> = builder.uninit();
+        SP1RootMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
 
-impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2Outer, A>
-where
-    A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
-{
-    fn wrap_bn254() {}
+        let pcs = TwoAdicFriPcsVariable {
+            config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
+        };
+
+        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &input);
+
+        builder.compile_program()
+    }
 }
 
 /// Assertions on the public values describing a complete recursive proof state.
@@ -339,13 +371,20 @@ where
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
         vk: &StarkVerifyingKey<SC>,
-        proof: ShardProofVariable<C>,
-        chip_quotient_data: &Array<C, QuotientData<C>>,
-        chip_sorted_indices: &Array<C, Var<C::N>>,
-        is_reduce: Var<C::N>,
+        input: &SP1RootMemoryLayoutVariable<C>,
     ) {
         // Get the verifying key info from the vk.
         let (vk, prep_domains, prep_sorted_indices) = proof_data_from_vk(builder, vk, machine);
+
+        let SP1RootMemoryLayoutVariable {
+            proof,
+            chip_quotient_data,
+            sorted_indices,
+            is_reduce,
+        } = input;
+
+        let one: Var<_> = builder.eval(C::N::one());
+        builder.print_v(one);
 
         // Get the public inputs from the proof.
         let public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
@@ -354,23 +393,26 @@ where
         let public_values: &RecursionPublicValues<Felt<C::F>> =
             public_values_elements.as_slice().borrow();
 
+        builder.print_v(one);
+
         // Assert that the proof is complete.
         //
         // *Remark*: here we are assuming on that the program we are verifying indludes the check
         // of completeness conditions are satisfied if the flag is set to one, so we are only
         // checking the `is_complete` flag in this program.
         builder.assert_felt_eq(public_values.is_complete, C::F::one());
+        builder.print_v(one);
 
         // If the proof is a reduce proof, assert that the vk is the same as the reduce vk from the
         // public values.
-        builder.if_eq(is_reduce, C::N::one()).then(|builder| {
+        builder.if_eq(*is_reduce, C::N::one()).then(|builder| {
             let vk_digest = hash_vkey(builder, &vk, &prep_domains, &prep_sorted_indices);
             for (i, reduce_digest_elem) in public_values.reduce_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);
                 builder.assert_felt_eq(vk_digest_elem, *reduce_digest_elem);
             }
         });
-
+        builder.print_v(one);
         // Verify the proof.
 
         let mut challenger = DuplexChallengerVariable::new(builder);
@@ -383,6 +425,7 @@ where
             let element = builder.get(&proof.public_values, j);
             challenger.observe(builder, element);
         }
+        builder.print_v(one);
         // verify proof.
         StarkVerifier::<C, SC>::verify_shard(
             builder,
@@ -390,12 +433,13 @@ where
             pcs,
             machine,
             &mut challenger,
-            &proof,
+            proof,
             chip_quotient_data,
-            chip_sorted_indices,
+            sorted_indices,
             &prep_sorted_indices,
             &prep_domains,
         );
+        builder.print_v(one);
 
         // Commit to the public values, broadcasting the same ones.
         let mut public_values_array = builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
@@ -403,7 +447,8 @@ where
             builder.set(&mut public_values_array, i, *value);
         }
 
-        builder.commit_public_values(&public_values_array)
+        builder.commit_public_values(&public_values_array);
+        builder.print_v(one);
     }
 }
 
@@ -763,12 +808,18 @@ where
         // Assign the cumulative sum.
         reduce_public_values.cumulative_sum = cumulative_sum;
 
-        // If the proof is complete, make completeness assertions.
-        builder.if_eq(is_complete, C::N::one()).then(|builder| {
-            let two: Var<_> = builder.eval(C::N::two());
-            builder.print_v(two);
-            assert_complete(builder, reduce_public_values, &reconstruct_challenger)
-        });
+        // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
+        // the flag is zero and set the public value to zero.
+        builder.if_eq(is_complete, C::N::one()).then_or_else(
+            |builder| {
+                builder.assign(reduce_public_values.is_complete, C::F::one());
+                assert_complete(builder, reduce_public_values, &reconstruct_challenger)
+            },
+            |builder| {
+                builder.assert_var_eq(is_complete, C::N::zero());
+                builder.assign(reduce_public_values.is_complete, C::F::zero());
+            },
+        );
 
         // Commit the public values.
         let mut reduce_public_values_array =
@@ -1715,9 +1766,12 @@ mod tests {
         let machine = RiscvAir::machine(SC::default());
         let (_, vk) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
+        let time = std::time::Instant::now();
         let (proof, _) = sp1_core::utils::run_and_prove(program, &SP1Stdin::new(), SC::default());
         machine.verify(&vk, &proof, &mut challenger).unwrap();
         tracing::info!("Proof generated successfully");
+        let elapsed = time.elapsed();
+        tracing::info!("Execution proof time: {:?}", elapsed);
 
         // Get the and leaf challenger.
         let mut leaf_challenger = machine.config().challenger();
@@ -1767,20 +1821,10 @@ mod tests {
             leaf_challenger.output_buffer
         );
 
-        // Construct the recursion program and hint the layouts.
-        let mut builder = Builder::<InnerConfig>::default();
-        let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
-        SP1RecursionMemoryLayout::<SC, RiscvAir<_>>::witness(&input, &mut builder);
-
-        let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, &sp1_fri_config()),
-        };
-        SP1RecursiveVerifier::verify(&mut builder, &pcs, &machine, input);
-
-        let recursive_program = builder.compile_program();
+        // Construct the recursion program.
+        let recursive_program = SP1RecursiveVerifier::<InnerConfig, SC>::build(&machine);
 
         // Run the recursion programs.
-
         let mut records = Vec::new();
 
         for layout in layouts {
@@ -1805,6 +1849,7 @@ mod tests {
         let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
         // Make the recursive proofs.
+        let time = std::time::Instant::now();
         let recursive_proofs = records
             .into_par_iter()
             .map(|record| {
@@ -1816,6 +1861,8 @@ mod tests {
                 )
             })
             .collect::<Vec<_>>();
+        let elapsed = time.elapsed();
+        tracing::info!("Recursive first layer proving time: {:?}", elapsed);
 
         // Verify the recursive proofs.
         for rec_proof in recursive_proofs.iter() {
@@ -1837,26 +1884,10 @@ mod tests {
         tracing::info!("Recursive proofs verified successfully");
 
         // Build the reduce program.
-        let mut builder = Builder::<InnerConfig>::default();
-        let input: SP1ReduceMemoryLayoutVariable<_> = builder.uninit();
-        SP1ReduceMemoryLayout::<SC, A>::witness(&input, &mut builder);
-
-        let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, recursive_config.pcs().fri_config()),
-        };
-        SP1ReduceVerifier::verify(
-            &mut builder,
-            &pcs,
-            &recursive_machine,
-            input,
-            &rec_vk,
-            &rec_vk,
-        );
-
-        let reduce_program = builder.compile_program();
+        let reduce_program =
+            SP1ReduceVerifier::<InnerConfig, _, _>::build(&recursive_machine, &rec_vk, &rec_vk);
 
         let (reduce_pk, reduce_vk) = recursive_machine.setup(&reduce_program);
-
         // Chain all the individual shard proofs.
         let mut recursive_proofs = recursive_proofs
             .into_iter()
@@ -1864,13 +1895,13 @@ mod tests {
             .collect::<Vec<_>>();
 
         // Iterate over the recursive proof batches until there is one proof remaining.
-
         let mut is_first_layer = true;
         let mut is_complete;
+        let time = std::time::Instant::now();
         loop {
             is_complete = recursive_proofs.len() == 1;
             recursive_proofs = recursive_proofs
-                .chunks(batch_size)
+                .par_chunks(batch_size)
                 .map(|batch| {
                     let kind = if is_first_layer {
                         ReduceProgramType::Core
@@ -1926,7 +1957,8 @@ mod tests {
                 break;
             }
         }
-
+        let elapsed = time.elapsed();
+        tracing::info!("Reduction successful, time: {:?}", elapsed);
         if let Test::Reduce = test {
             return;
         }
@@ -1936,10 +1968,52 @@ mod tests {
 
         // Make the compress program.
         let compress_machine = RecursionAirSkinnyDeg7::machine(SC::compressed());
-        let mut builder = Builder::<InnerConfig>::default();
-        let proof: ShardProofVariable<_> = builder.uninit();
+        let compress_program =
+            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
 
-        todo!()
+        // Make the compress proof.
+        let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
+
+        let input = SP1RootMemoryLayout {
+            machine: &compress_machine,
+            proof: reduce_proof,
+            is_reduce: true,
+        };
+
+        // Run the compress program.
+        let mut runtime =
+            Runtime::<F, EF, _>::new(&compress_program, compress_machine.config().perm.clone());
+
+        let mut witness_stream = Vec::new();
+        witness_stream.extend(input.write());
+
+        runtime.witness_stream = witness_stream.into();
+        runtime.run();
+        runtime.print_stats();
+        tracing::info!("Compress program executed successfully");
+
+        // Prove the compress program.
+        let mut compress_challenger = compress_machine.config().challenger();
+
+        let time = std::time::Instant::now();
+        let compress_proof = compress_machine.prove::<LocalProver<_, _>>(
+            &compress_pk,
+            runtime.record,
+            &mut compress_challenger,
+        );
+        let elapsed = time.elapsed();
+        tracing::info!("Compress proving time: {:?}", elapsed);
+        let mut compress_challenger = compress_machine.config().challenger();
+        let result =
+            compress_machine.verify(&compress_vk, &compress_proof, &mut compress_challenger);
+        match result {
+            Ok(_) => tracing::info!("Proof verified successfully"),
+            Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+            }
+            e => panic!("Proof verification failed: {:?}", e),
+        }
+        tracing::info!("Compress proof verified successfully");
     }
 
     #[test]
