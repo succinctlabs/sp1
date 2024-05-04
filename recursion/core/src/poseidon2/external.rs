@@ -197,12 +197,92 @@ impl Poseidon2Chip {
     ) {
         let rounds_f = 8;
         let rounds_p = 13;
-        let rounds = rounds_f + rounds_p;
+        let rounds = rounds_f + rounds_p + 3;
+        let rounds_p_beginning = 2 + rounds_f / 2;
+        let rounds_p_end = rounds_p_beginning + rounds_p;
 
         let is_memory_read = local.rounds[0];
         let is_initial = local.rounds[1];
-        let output: [AB::Var; WIDTH] =
-            core::array::from_fn(|i| *local.memory.mem_access[i].value());
+        // First half of the external rounds.
+        let mut is_external_layer = (2..rounds_p_beginning)
+            .map(|i| local.rounds[i].into())
+            .sum::<AB::Expr>();
+        // Second half of the external rounds.
+        is_external_layer += (rounds_p_end..(rounds - 1))
+            .map(|i| local.rounds[i].into())
+            .sum::<AB::Expr>();
+        let is_internal_layer = (rounds_p_beginning..rounds_p_end)
+            .map(|i| local.rounds[i + 2].into())
+            .sum::<AB::Expr>();
+        let is_memory_write = local.rounds[rounds - 1];
+
+        self.eval_mem(builder, local, is_memory_read, is_memory_write);
+
+        self.eval_computation(
+            builder,
+            local,
+            is_initial.into(),
+            is_external_layer.clone(),
+            is_internal_layer.clone(),
+        );
+
+        // Range check all flags.
+        for i in 0..local.rounds.len() {
+            builder.assert_bool(local.rounds[i]);
+        }
+        builder.assert_bool(
+            is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
+        );
+    }
+
+    fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Poseidon2Cols<AB::Var>,
+        is_memory_read: AB::Var,
+        is_memory_write: AB::Var,
+    ) {
+        let memory_access_cols = local.round_specific_cols.memory_access();
+
+        builder
+            .when(is_memory_read)
+            .assert_eq(local.left_input, memory_access_cols.addr_first_half);
+        builder
+            .when(is_memory_read)
+            .assert_eq(local.right_input, memory_access_cols.addr_second_half);
+
+        builder
+            .when(is_memory_write)
+            .assert_eq(local.dst_input, memory_access_cols.addr_first_half);
+        builder.when(is_memory_write).assert_eq(
+            local.dst_input + AB::F::from_canonical_usize(4),
+            memory_access_cols.addr_second_half,
+        );
+
+        for i in 0..WIDTH {
+            let addr = if i < WIDTH / 2 {
+                memory_access_cols.addr_first_half + AB::Expr::from_canonical_usize(i)
+            } else {
+                memory_access_cols.addr_second_half + AB::Expr::from_canonical_usize(i - WIDTH / 2)
+            };
+            builder.recursion_eval_memory_access_single(
+                local.timestamp,
+                addr,
+                &memory_access_cols.mem_access[i],
+                is_memory_read + is_memory_write,
+            );
+        }
+    }
+
+    fn eval_computation<AB: BaseAirBuilder + ExtensionAirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Poseidon2Cols<AB::Var>,
+        is_initial: AB::Expr,
+        is_external_layer: AB::Expr,
+        is_internal_layer: AB::Expr,
+    ) {
+        let computation_cols = local.round_specific_cols.computation();
 
         // Convert the u32 round constants to field elements.
         let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
@@ -218,17 +298,17 @@ impl Poseidon2Chip {
         // External Layers: Apply the round constants.
         // Internal Layers: Only apply the round constants to the first element.
         for i in 0..WIDTH {
-            let mut result: AB::Expr = local.input[i].into();
+            let mut result: AB::Expr = computation_cols.input[i].into();
             for r in 0..rounds {
                 if i == 0 {
                     result += local.rounds[r + 1]
                         * constants[r][i]
-                        * (local.is_external + local.is_internal);
+                        * (is_external_layer + is_internal_layer);
                 } else {
-                    result += local.rounds[r + 1] * constants[r][i] * local.is_external;
+                    result += local.rounds[r + 1] * constants[r][i] * is_external_layer;
                 }
             }
-            builder.assert_eq(result, local.add_rc[i]);
+            builder.assert_eq(result, computation_cols.add_rc[i]);
         }
 
         // Apply the sbox.
@@ -236,12 +316,16 @@ impl Poseidon2Chip {
         // To differentiate between external and internal layers, we use a masking operation
         // to only apply the state change to the first element for internal layers.
         for i in 0..WIDTH {
-            let sbox_deg_3 = local.add_rc[i] * local.add_rc[i] * local.add_rc[i];
-            builder.assert_eq(sbox_deg_3, local.sbox_deg_3[i]);
-            let sbox_deg_7 = local.sbox_deg_3[i] * local.sbox_deg_3[i] * local.add_rc[i];
-            builder.assert_eq(sbox_deg_7, local.sbox_deg_7[i]);
+            let sbox_deg_3 = computation_cols.add_rc[i]
+                * computation_cols.add_rc[i]
+                * computation_cols.add_rc[i];
+            builder.assert_eq(sbox_deg_3, computation_cols.sbox_deg_3[i]);
+            let sbox_deg_7 = computation_cols.sbox_deg_3[i]
+                * computation_cols.sbox_deg_3[i]
+                * computation_cols.add_rc[i];
+            builder.assert_eq(sbox_deg_7, computation_cols.sbox_deg_7[i]);
         }
-        let sbox_result: [AB::Expr; WIDTH] = local
+        let sbox_result: [AB::Expr; WIDTH] = computation_cols
             .sbox_deg_7
             .iter()
             .enumerate()
@@ -252,7 +336,8 @@ impl Poseidon2Chip {
                 // External Layer: Pass through the result of the sbox layer.
                 // Internal Layer: Pass through the result of the sbox layer.
                 if i == 0 {
-                    is_initial * local.add_rc[i] + (local.is_external + local.is_internal) * *x
+                    is_initial * computation_cols.add_rc[i]
+                        + (is_external_layer + is_internal_layer) * *x
                 }
                 // The masked result of the rest of the sbox.
                 //
@@ -260,7 +345,8 @@ impl Poseidon2Chip {
                 // External layer: Pass through the result of the sbox layer.
                 // Internal layer: Pass through the result of the round constant layer.
                 else {
-                    (is_initial + local.is_internal) * local.add_rc[i] + (local.is_external) * *x
+                    (is_initial + is_internal_layer) * computation_cols.add_rc[i]
+                        + (is_external_layer) * *x
                 }
             })
             .collect::<Vec<_>>()
@@ -291,7 +377,7 @@ impl Poseidon2Chip {
             for i in 0..WIDTH {
                 state[i] += sums[i % 4].clone();
                 builder
-                    .when(local.is_external + is_initial)
+                    .when(is_external_layer + is_initial)
                     .assert_eq(state[i].clone(), output[i]);
             }
         }
@@ -302,89 +388,27 @@ impl Poseidon2Chip {
             let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
             internal_linear_layer(&mut state);
             builder
-                .when(local.is_internal)
+                .when(is_internal_layer)
                 .assert_all_eq(state.clone(), output);
         }
-
-        // Range check all flags.
-        for i in 0..local.rounds.len() {
-            builder.assert_bool(local.rounds[i]);
-        }
-        builder.assert_bool(local.is_external);
-        builder.assert_bool(local.is_internal);
-        builder.assert_bool(is_memory_read + is_initial + local.is_external + local.is_internal);
-
-        // Constrain the initial flags.
-        builder.assert_eq(is_memory_read, local.rounds[0]);
-        builder.assert_eq(is_initial, local.rounds[1]);
-
-        // Constrain the external flag.
-        let is_external_first_half = (0..rounds_f / 2)
-            .map(|i| local.rounds[i + 2].into())
-            .sum::<AB::Expr>();
-        let is_external_second_half = ((rounds_f / 2 + rounds_p)..(rounds_f + rounds_p))
-            .map(|i| local.rounds[i + 2].into())
-            .sum::<AB::Expr>();
-        builder.assert_eq(
-            local.is_external,
-            is_external_first_half + is_external_second_half,
-        );
-
-        // Constrain the internal flag.
-        let is_internal = (4..17)
-            .map(|i| local.rounds[i + 2].into())
-            .sum::<AB::Expr>();
-        builder.assert_eq(local.is_internal, is_internal);
-
-        // Eval the interactions.
-        self.eval_mem(
-            builder,
-            local,
-            local.rounds[0],
-            local.rounds[21],
-            local.memory.timestamp,
-        );
     }
 
-    #[allow(clippy::too_many_arguments)]
-    fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
+    fn eval_syscall<AB: BaseAirBuilder + ExtensionAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
-        input: [AB::Var; WIDTH],
-        is_memory_read_round: AB::Var,
-        is_last_round: AB::Var,
-        timestamp: AB::Var,
     ) {
-        // Evaluate all of the memory.
-
-        for i in 0..WIDTH {
-            builder
-                .when(is_memory_read_round)
-                .assert_eq(input[i], *local.memory.mem_access[i].value());
-            builder.when(is_memory_read_round).assert_eq(
-                *local.memory.mem_access[i].prev_value(),
-                *local.memory.mem_access[i].value(),
-            );
-
-            builder.recursion_eval_memory_access_single(
-                timestamp,
-                local.memory.mem_access[i].addr & local.memory.mem_access[i],
-                local.memory.is_real,
-            );
-        }
-
         // Constraint that the operands are sent from the CPU table.
         let operands: [AB::Expr; 4] = [
-            local.memory.timestamp.into(),
-            local.memory.dst.into(),
-            local.memory.left.into(),
-            local.memory.right.into(),
+            local.timestamp.into(),
+            local.dst_input.into(),
+            local.left_input.into(),
+            local.right_input.into(),
         ];
         builder.receive_table(
             Opcode::Poseidon2Compress.as_field::<AB::F>(),
             &operands,
-            local.memory.is_real,
+            local.rounds[0],
         );
     }
 }
