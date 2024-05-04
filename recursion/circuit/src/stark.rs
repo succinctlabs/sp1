@@ -16,7 +16,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var, Variable};
+use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var, Variable};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::RecursionPublicValues;
@@ -238,6 +238,8 @@ type OuterSC = BabyBearPoseidon2Outer;
 type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
+type EF = <OuterC as Config>::EF;
+
 pub fn build_wrap_circuit(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
@@ -345,6 +347,14 @@ pub fn build_wrap_circuit(
             sorted_indices,
         );
     }
+
+    // Ensure lookup bus is zero.
+    let zero_ext: Ext<_, _> = builder.constant(EF::zero());
+    let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
+    for chip in proof.opened_values.chips {
+        builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
+    }
+    builder.assert_ext_eq(cumulative_sum, zero_ext);
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
