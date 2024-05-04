@@ -16,7 +16,7 @@ pub struct Poseidon2Cols<T: Copy> {
 
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
-union RoundSpecificCols<T: Copy> {
+pub union RoundSpecificCols<T: Copy> {
     computation: ComputationCols<T>,
     memory_access: MemAccessCols<T>,
 }

@@ -224,7 +224,10 @@ impl Poseidon2Chip {
             is_initial.into(),
             is_external_layer.clone(),
             is_internal_layer.clone(),
+            rounds,
         );
+
+        self.eval_syscall(builder, local);
 
         // Range check all flags.
         for i in 0..local.rounds.len() {
@@ -281,6 +284,7 @@ impl Poseidon2Chip {
         is_initial: AB::Expr,
         is_external_layer: AB::Expr,
         is_internal_layer: AB::Expr,
+        rounds: usize,
     ) {
         let computation_cols = local.round_specific_cols.computation();
 
@@ -303,12 +307,14 @@ impl Poseidon2Chip {
                 if i == 0 {
                     result += local.rounds[r + 1]
                         * constants[r][i]
-                        * (is_external_layer + is_internal_layer);
+                        * (is_external_layer.clone() + is_internal_layer.clone());
                 } else {
-                    result += local.rounds[r + 1] * constants[r][i] * is_external_layer;
+                    result += local.rounds[r + 1] * constants[r][i] * is_external_layer.clone();
                 }
             }
-            builder.assert_eq(result, computation_cols.add_rc[i]);
+            builder
+                .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
+                .assert_eq(result, computation_cols.add_rc[i]);
         }
 
         // Apply the sbox.
@@ -319,11 +325,15 @@ impl Poseidon2Chip {
             let sbox_deg_3 = computation_cols.add_rc[i]
                 * computation_cols.add_rc[i]
                 * computation_cols.add_rc[i];
-            builder.assert_eq(sbox_deg_3, computation_cols.sbox_deg_3[i]);
+            builder
+                .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
+                .assert_eq(sbox_deg_3, computation_cols.sbox_deg_3[i]);
             let sbox_deg_7 = computation_cols.sbox_deg_3[i]
                 * computation_cols.sbox_deg_3[i]
                 * computation_cols.add_rc[i];
-            builder.assert_eq(sbox_deg_7, computation_cols.sbox_deg_7[i]);
+            builder
+                .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
+                .assert_eq(sbox_deg_7, computation_cols.sbox_deg_7[i]);
         }
         let sbox_result: [AB::Expr; WIDTH] = computation_cols
             .sbox_deg_7
@@ -336,8 +346,8 @@ impl Poseidon2Chip {
                 // External Layer: Pass through the result of the sbox layer.
                 // Internal Layer: Pass through the result of the sbox layer.
                 if i == 0 {
-                    is_initial * computation_cols.add_rc[i]
-                        + (is_external_layer + is_internal_layer) * *x
+                    is_initial.clone() * computation_cols.add_rc[i]
+                        + (is_external_layer.clone() + is_internal_layer.clone()) * *x
                 }
                 // The masked result of the rest of the sbox.
                 //
@@ -345,8 +355,8 @@ impl Poseidon2Chip {
                 // External layer: Pass through the result of the sbox layer.
                 // Internal layer: Pass through the result of the round constant layer.
                 else {
-                    (is_initial + is_internal_layer) * computation_cols.add_rc[i]
-                        + (is_external_layer) * *x
+                    (is_initial.clone() + is_internal_layer.clone()) * computation_cols.add_rc[i]
+                        + (is_external_layer.clone()) * *x
                 }
             })
             .collect::<Vec<_>>()
@@ -377,8 +387,8 @@ impl Poseidon2Chip {
             for i in 0..WIDTH {
                 state[i] += sums[i % 4].clone();
                 builder
-                    .when(is_external_layer + is_initial)
-                    .assert_eq(state[i].clone(), output[i]);
+                    .when(is_external_layer.clone() + is_initial.clone())
+                    .assert_eq(state[i].clone(), computation_cols.output[i]);
             }
         }
 
@@ -389,7 +399,7 @@ impl Poseidon2Chip {
             internal_linear_layer(&mut state);
             builder
                 .when(is_internal_layer)
-                .assert_all_eq(state.clone(), output);
+                .assert_all_eq(state.clone(), computation_cols.output);
         }
     }
 
@@ -492,7 +502,8 @@ mod tests {
         for (i, expected_output) in expected_outputs.iter().enumerate() {
             let row = trace.row(ROWS_PER_PERMUTATION * (i + 1) - 1).collect_vec();
             let cols: &Poseidon2Cols<BabyBear> = row.as_slice().borrow();
-            assert_eq!(expected_output, &cols.output);
+            let computation_cols = cols.round_specific_cols.computation();
+            assert_eq!(expected_output, &computation_cols.output);
         }
     }
 
