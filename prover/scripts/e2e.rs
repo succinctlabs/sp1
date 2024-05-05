@@ -10,7 +10,8 @@ use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::air::RecursionPublicValues;
-use sp1_recursion_gnark_ffi::Groth16Prover;
+use sp1_recursion_gnark_ffi::{convert, verify, Groth16Prover};
+use subtle_encoding::hex;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -79,6 +80,13 @@ pub fn main() {
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
 
+    tracing::info!("verify gnark proof");
+    let verified = verify(proof.clone(), &args.build_dir.clone().into());
+    assert!(verified);
+
+    tracing::info!("convert gnark proof");
+    let solidity_proof = convert(proof.clone(), &args.build_dir.clone().into());
+
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
     //     constraints.clone(),
@@ -89,5 +97,9 @@ pub fn main() {
     // tracing::info!("sanity check plonk bn254 prove");
     // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
-    println!("{:?}", proof);
+    println!(
+        "{:?}",
+        String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()
+    );
+    println!("solidity proof: {:?}", solidity_proof);
 }
