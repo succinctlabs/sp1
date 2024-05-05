@@ -62,8 +62,8 @@ pub struct SP1RecursiveVerifier<C: Config, SC: StarkGenericConfig> {
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig> {
-    _phantom: std::marker::PhantomData<(C, SC)>,
+pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig, A> {
+    _phantom: std::marker::PhantomData<(C, SC, A)>,
 }
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
@@ -1090,6 +1090,20 @@ where
 
         builder.commit_public_values(&recursion_public_values_array)
     }
+}
+
+impl<C: Config, SC, A> SP1DeferredVerifier<C, SC, A>
+where
+    C::F: PrimeField32 + TwoAdicField,
+    SC: StarkGenericConfig<
+        Val = C::F,
+        Challenge = C::EF,
+        Domain = TwoAdicMultiplicativeCoset<C::F>,
+    >,
+    A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
+    Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
+{
+    fn verify() {}
 }
 
 // #[derive(Debug, Clone, Copy)]
