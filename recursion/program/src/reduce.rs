@@ -29,7 +29,7 @@ use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
-use sp1_core::air::{MachineAir, PublicValues};
+use sp1_core::air::{MachineAir, PublicValues, WORD_SIZE};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
@@ -102,16 +102,12 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
     pub is_complete: bool,
 }
 
-pub struct SP1DefferredMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+pub struct SP1DeferredMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+    pub reduce_vk: &'a StarkVerifyingKey<SC>,
     pub machine: &'a StarkMachine<SC, A>,
-    pub shard_proofs: Vec<ShardProof<SC>>,
+    pub proofs: Vec<ShardProof<SC>>,
 
     pub start_reconstruct_deferred_digest: Vec<SC::Val>,
-    pub end_reconstruct_deferred_digest: Vec<SC::Val>,
-
-    pub sp1_vk_digest: Vec<SC::Val>,
-    pub leaf_challenger: &'a SC::Challenger,
-    pub initial_reconstruct_challenger: SC::Challenger,
 
     pub is_complete: bool,
 }
@@ -148,18 +144,14 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
 pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub reduce_vk: VerifyingKeyVariable<C>,
 
-    pub shard_proofs: Array<C, ShardProofVariable<C>>,
-    pub shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
-    pub shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
+    pub proofs: Array<C, ShardProofVariable<C>>,
+    pub proof_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
+    pub proof_sorted_indices: Array<C, Array<C, Var<C::N>>>,
 
     pub reduce_prep_sorted_idxs: Array<C, Var<C::N>>,
     pub reduce_prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 
-    pub leaf_challenger: DuplexChallengerVariable<C>,
-    pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
-
-    pub start_reconstruct_deferred_digest: Array<C, Var<C::N>>,
-    pub end_reconstruct_deferred_digest: Array<C, Var<C::N>>,
+    pub start_reconstruct_deferred_digest: Array<C, Felt<C::F>>,
 
     pub is_complete: Var<C::N>,
 }
@@ -283,6 +275,25 @@ where
     }
 }
 
+impl<A> SP1DeferredVerifier<InnerConfig, BabyBearPoseidon2, A>
+where
+    A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
+{
+    pub fn build(machine: &StarkMachine<BabyBearPoseidon2, A>) -> RecursionProgram<BabyBear> {
+        let mut builder = Builder::<InnerConfig>::default();
+        let input: SP1DeferredMemoryLayoutVariable<_> = builder.uninit();
+        SP1DeferredMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
+
+        let pcs = TwoAdicFriPcsVariable {
+            config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
+        };
+
+        SP1DeferredVerifier::verify(&mut builder, &pcs, machine, input);
+
+        builder.compile_program()
+    }
+}
+
 /// Assertions on the public values describing a complete recursive proof state.
 fn assert_complete<C: Config>(
     builder: &mut Builder<C>,
@@ -400,7 +411,7 @@ where
     ///
     /// is_reduce : if the proof is a reduce proof, we will assert that the given vk indentifies
     /// with the reduce vk digest of public inputs.
-    fn verify(
+    pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
@@ -488,7 +499,7 @@ where
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of recursive proofs and aggregate their public values.
-    fn verify(
+    pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
@@ -846,7 +857,7 @@ where
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of SP1 proofs and aggregate their public values.
-    fn verify(
+    pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, RiscvAir<SC::Val>>,
@@ -1106,7 +1117,162 @@ where
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
-    fn verify() {}
+    pub fn verify(
+        builder: &mut Builder<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        machine: &StarkMachine<SC, A>,
+        input: SP1DeferredMemoryLayoutVariable<C>,
+    ) {
+        let SP1DeferredMemoryLayoutVariable {
+            reduce_vk,
+            proofs,
+            proof_chip_quotient_data,
+            proof_sorted_indices,
+            reduce_prep_sorted_idxs,
+            reduce_prep_domains,
+            start_reconstruct_deferred_digest,
+            is_complete,
+        } = input;
+
+        // Initialize the values for the aggregated public output as all zeros.
+        let mut deferred_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+            .map(|_| builder.eval(C::F::zero()))
+            .collect();
+
+        let deferred_public_values: &mut RecursionPublicValues<_> =
+            deferred_public_values_stream.as_mut_slice().borrow_mut();
+
+        // Compute the digest of reduce_vk and input the value to the public values.
+        let reduce_vk_digest = hash_vkey(
+            builder,
+            &reduce_vk,
+            &reduce_prep_domains,
+            &reduce_prep_sorted_idxs,
+        );
+
+        deferred_public_values.reduce_vk_digest =
+            array::from_fn(|i| builder.get(&reduce_vk_digest, i));
+
+        // Initialize the start of deferred digests.
+        deferred_public_values.start_reconstruct_deferred_digest =
+            array::from_fn(|i| builder.get(&start_reconstruct_deferred_digest, i));
+
+        // Assert that there is at least one proof.
+        builder.assert_usize_ne(proofs.len(), 0);
+
+        // Initialize the consistency check variable.
+        let reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
+            core::array::from_fn(|_| builder.uninit());
+
+        // Verify the proofs and connect the values.
+        builder.range(0, proofs.len()).for_each(|i, builder| {
+            // Load the proof.
+            let proof = builder.get(&proofs, i);
+            // Load the public values from the proof.
+            let current_public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+                .map(|i| builder.get(&proof.public_values, i))
+                .collect::<Vec<Felt<_>>>();
+
+            let current_public_values: &RecursionPublicValues<Felt<C::F>> =
+                current_public_values_elements.as_slice().borrow();
+
+            // Assert that the proof is complete.
+            builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
+
+            // Assert that the reduce_vk digest is the same.
+            for (digest, current) in deferred_public_values
+                .reduce_vk_digest
+                .iter()
+                .zip(current_public_values.reduce_vk_digest.iter())
+            {
+                builder.assert_felt_eq(*digest, *current);
+            }
+
+            // Verify the shard proof.
+
+            // Get the chip quotient data and sorted indices.
+            let chip_quotient_data = builder.get(&proof_chip_quotient_data, i);
+            let chip_sorted_idxs = builder.get(&proof_sorted_indices, i);
+            // Prepare a challenger.
+            let mut challenger = DuplexChallengerVariable::new(builder);
+            // Observe the vk and start pc.
+            challenger.observe(builder, reduce_vk.commitment.clone());
+            challenger.observe(builder, reduce_vk.pc_start);
+            // Observe the main commitment and public values.
+            challenger.observe(builder, proof.commitment.main_commit.clone());
+            for j in 0..machine.num_pv_elts() {
+                let element = builder.get(&proof.public_values, j);
+                challenger.observe(builder, element);
+            }
+            // verify proof.
+            StarkVerifier::<C, SC>::verify_shard(
+                builder,
+                &reduce_vk,
+                pcs,
+                machine,
+                &mut challenger,
+                &proof,
+                &chip_quotient_data,
+                &chip_sorted_idxs,
+                &reduce_prep_sorted_idxs,
+                &reduce_prep_domains,
+            );
+
+            // Update deferred proof digest
+            // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
+            let mut poseidon_inputs = builder.array(48);
+            for (j, current_digest_element) in reconstruct_deferred_digest.iter().enumerate() {
+                builder.set(&mut poseidon_inputs, j, *current_digest_element);
+            }
+
+            for j in 0..DIGEST_SIZE {
+                // let input_index: Var<_> = builder.constant(F::from_canonical_usize(j + 8));
+                builder.set(
+                    &mut poseidon_inputs,
+                    j + DIGEST_SIZE,
+                    current_public_values.sp1_vk_digest[j],
+                );
+            }
+            for j in 0..PV_DIGEST_NUM_WORDS {
+                for k in 0..WORD_SIZE {
+                    // let input_index: Var<_> =
+                    //     builder.eval(F::from_canonical_usize(j * WORD_SIZE + k + 16));
+                    let element = current_public_values.committed_value_digest[j][k];
+                    builder.set(&mut poseidon_inputs, j * WORD_SIZE + k + 16, element);
+                }
+            }
+            let new_digest = builder.poseidon2_hash(&poseidon_inputs);
+            for j in 0..DIGEST_SIZE {
+                let element = builder.get(&new_digest, j);
+                builder.assign(reconstruct_deferred_digest[j], element);
+            }
+        });
+
+        // Assign the deffered proof digests.
+        deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
+
+        // Set the is_complete flag.
+        deferred_public_values.is_complete = var2felt(builder, is_complete);
+
+        // If the proof is marked as complete, set the sp1 digest to the reduce one and set initial
+        // pc to be zero and initial and final shard to be one.
+        builder.if_eq(is_complete, C::N::one()).then(|builder| {
+            // Set the sp1_vk digest to the reduce_vk digest.
+            deferred_public_values.sp1_vk_digest = deferred_public_values.reduce_vk_digest;
+            // Set the start and end shard to be two.
+            builder.assign(deferred_public_values.start_shard, C::F::one());
+            builder.assert_felt_eq(deferred_public_values.next_shard, C::F::two());
+        });
+
+        // Commit the public values.
+        let mut deferred_public_values_array =
+            builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
+        for (i, value) in deferred_public_values_stream.iter().enumerate() {
+            builder.set(&mut deferred_public_values_array, i, *value);
+        }
+
+        builder.commit_public_values(&deferred_public_values_array)
+    }
 }
 
 // #[derive(Debug, Clone, Copy)]
@@ -1755,6 +1921,7 @@ mod tests {
 
     use p3_challenger::CanObserve;
     use p3_maybe_rayon::prelude::*;
+    use serde::de;
     use sp1_core::{
         io::SP1Stdin,
         runtime::Program,
@@ -1791,9 +1958,16 @@ mod tests {
         let recursive_machine = A::machine(recursive_config.clone());
         let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
+        // Construct the deferred program.
+        let deferred_program = SP1DeferredVerifier::<InnerConfig, SC, _>::build(&recursive_machine);
+        let (deferred_pk, deferred_vk) = recursive_machine.setup(&deferred_program);
+
         // Build the reduce program.
-        let reduce_program =
-            SP1ReduceVerifier::<InnerConfig, _, _>::build(&recursive_machine, &rec_vk, &rec_vk);
+        let reduce_program = SP1ReduceVerifier::<InnerConfig, _, _>::build(
+            &recursive_machine,
+            &rec_vk,
+            &deferred_vk,
+        );
 
         let (reduce_pk, reduce_vk) = recursive_machine.setup(&reduce_program);
 

@@ -22,8 +22,9 @@ use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::reduce::{
-    SP1RecursionMemoryLayout, SP1RecursionMemoryLayoutVariable, SP1ReduceMemoryLayout,
-    SP1ReduceMemoryLayoutVariable, SP1RootMemoryLayout, SP1RootMemoryLayoutVariable,
+    SP1DeferredMemoryLayout, SP1DeferredMemoryLayoutVariable, SP1RecursionMemoryLayout,
+    SP1RecursionMemoryLayoutVariable, SP1ReduceMemoryLayout, SP1ReduceMemoryLayoutVariable,
+    SP1RootMemoryLayout, SP1RootMemoryLayoutVariable,
 };
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
@@ -637,6 +638,64 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1RootMemoryLayout<'a, BabyBe
         stream.extend(chip_quotient_data.write());
         stream.extend(sorted_indices.write());
         stream.extend((self.is_reduce as usize).write());
+
+        stream
+    }
+}
+
+impl<'a, A: MachineAir<BabyBear>> Hintable<C>
+    for SP1DeferredMemoryLayout<'a, BabyBearPoseidon2, A>
+{
+    type HintVariable = SP1DeferredMemoryLayoutVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let reduce_vk = StarkVerifyingKey::<BabyBearPoseidon2>::read(builder);
+        let reduce_prep_sorted_idxs = Vec::<usize>::read(builder);
+        let reduce_prep_domains = Vec::<TwoAdicMultiplicativeCoset<InnerVal>>::read(builder);
+        let proofs = Vec::<ShardProof<BabyBearPoseidon2>>::read(builder);
+        let proof_chip_quotient_data = Vec::<Vec<QuotientDataValues>>::read(builder);
+        let proof_sorted_indices = Vec::<Vec<usize>>::read(builder);
+        let start_reconstruct_deferred_digest = Vec::<BabyBear>::read(builder);
+        let is_complete = builder.hint_var();
+
+        SP1DeferredMemoryLayoutVariable {
+            reduce_vk,
+            reduce_prep_sorted_idxs,
+            reduce_prep_domains,
+            proofs,
+            proof_chip_quotient_data,
+            proof_sorted_indices,
+            start_reconstruct_deferred_digest,
+            is_complete,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let (reduce_prep_sorted_idxs, reduce_prep_domains) =
+            get_preprocessed_data::<BabyBearPoseidon2, _>(self.machine, self.reduce_vk);
+
+        let shard_chip_quotient_data = self
+            .proofs
+            .iter()
+            .map(|proof| get_chip_quotient_data::<BabyBearPoseidon2, A>(self.machine, proof))
+            .collect::<Vec<_>>();
+
+        let shard_sorted_indices = self
+            .proofs
+            .iter()
+            .map(|proof| get_sorted_indices::<BabyBearPoseidon2, A>(self.machine, proof))
+            .collect::<Vec<_>>();
+
+        stream.extend(self.reduce_vk.write());
+        stream.extend(reduce_prep_sorted_idxs.write());
+        stream.extend(reduce_prep_domains.write());
+        stream.extend(self.proofs.write());
+        stream.extend(shard_chip_quotient_data.write());
+        stream.extend(shard_sorted_indices.write());
+        stream.extend(self.start_reconstruct_deferred_digest.write());
+        stream.extend((self.is_complete as usize).write());
 
         stream
     }
