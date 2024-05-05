@@ -358,3 +358,47 @@ pub fn build_wrap_circuit(
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
 }
+
+#[cfg(test)]
+pub(crate) mod tests {
+
+    use p3_field::PrimeField32;
+    use sp1_recursion_core::{
+        cpu::Instruction,
+        runtime::{Opcode, RecursionProgram},
+    };
+
+    pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
+        let zero = [F::zero(); 4];
+        let one = [F::one(), F::zero(), F::zero(), F::zero()];
+        let mut instructions = vec![Instruction::new(
+            Opcode::ADD,
+            F::from_canonical_u32(3),
+            zero,
+            one,
+            F::zero(),
+            F::zero(),
+            false,
+            true,
+            "".to_string(),
+        )];
+        instructions.resize(
+            32,
+            Instruction::new(
+                Opcode::ADD,
+                F::from_canonical_u32(3),
+                zero,
+                one,
+                F::zero(),
+                F::zero(),
+                false,
+                true,
+                "".to_string(),
+            ),
+        );
+        RecursionProgram::<F> {
+            instructions,
+            traces: vec![None],
+        }
+    }
+}
