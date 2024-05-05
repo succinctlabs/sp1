@@ -1965,7 +1965,7 @@ mod tests {
     };
     use sp1_recursion_core::{
         runtime::Runtime,
-        stark::{config::BabyBearPoseidon2Outer, RecursionAir, RecursionAirWideDeg3},
+        stark::{config::BabyBearPoseidon2Outer, RecursionAir},
     };
 
     use super::*;
@@ -1987,18 +1987,18 @@ mod tests {
         let machine = RiscvAir::machine(SC::default());
         let (_, vk) = machine.setup(&program);
 
-        // Construct the recursion program.
+        // Make the recursion program.
         let recursive_program = SP1RecursiveVerifier::<InnerConfig, SC>::build(&machine);
         let recursive_config = SC::default();
-        type A = RecursionAirWideDeg3<BabyBear>;
+        type A = RecursionAir<BabyBear, 3>;
         let recursive_machine = A::machine(recursive_config.clone());
         let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
-        // Construct the deferred program.
+        // Make the deferred program.
         let deferred_program = SP1DeferredVerifier::<InnerConfig, SC, _>::build(&recursive_machine);
         let (_, deferred_vk) = recursive_machine.setup(&deferred_program);
 
-        // Build the reduce program.
+        // Make the reduce program.
         let reduce_program = SP1ReduceVerifier::<InnerConfig, _, _>::build(
             &recursive_machine,
             &rec_vk,
@@ -2013,7 +2013,7 @@ mod tests {
             SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
-        // Make the wrap program and prove.
+        // Make the wrap program.
         let wrap_machine = RecursionAir::<_, 5>::machine(BabyBearPoseidon2Outer::default());
         let wrap_program =
             SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk);
@@ -2073,9 +2073,6 @@ mod tests {
             reconstruct_challenger.output_buffer,
             leaf_challenger.output_buffer
         );
-
-        // Construct the recursion program.
-        // let recursive_program = SP1RecursiveVerifier::<InnerConfig, SC>::build(&machine);
 
         // Run the recursion programs.
         let mut records = Vec::new();
