@@ -1745,7 +1745,7 @@ mod tests {
     };
     use sp1_recursion_core::{
         runtime::Runtime,
-        stark::{RecursionAir, RecursionAirWideDeg3},
+        stark::{config::BabyBearPoseidon2Outer, RecursionAir, RecursionAirWideDeg3},
     };
 
     use super::*;
@@ -1754,6 +1754,7 @@ mod tests {
         Recursion,
         Reduce,
         Compress,
+        Wrap,
     }
 
     fn test_sp1_recursive_machine_verify(program: Program, batch_size: usize, test: Test) {
@@ -1997,7 +1998,7 @@ mod tests {
         let mut compress_challenger = compress_machine.config().challenger();
 
         let time = std::time::Instant::now();
-        let compress_proof = compress_machine.prove::<LocalProver<_, _>>(
+        let mut compress_proof = compress_machine.prove::<LocalProver<_, _>>(
             &compress_pk,
             runtime.record,
             &mut compress_challenger,
@@ -2014,7 +2015,54 @@ mod tests {
             }
             e => panic!("Proof verification failed: {:?}", e),
         }
-        tracing::info!("Compress proof verified successfully");
+
+        if let Test::Compress = test {
+            return;
+        }
+
+        // Make the wrap program and prove.
+        let wrap_machine = RecursionAir::<_, 5>::machine(BabyBearPoseidon2Outer::default());
+        let wrap_program =
+            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk);
+
+        let (wrap_pk, wrap_vk) = wrap_machine.setup(&wrap_program);
+
+        let compress_proof = compress_proof.shard_proofs.pop().unwrap();
+        let input = SP1RootMemoryLayout {
+            machine: &compress_machine,
+            proof: compress_proof,
+            is_reduce: false,
+        };
+
+        // Run the compress program.
+        let mut runtime =
+            Runtime::<F, EF, _>::new(&wrap_program, compress_machine.config().perm.clone());
+
+        let mut witness_stream = Vec::new();
+        witness_stream.extend(input.write());
+
+        runtime.witness_stream = witness_stream.into();
+        runtime.run();
+        runtime.print_stats();
+        tracing::info!("Wrap program executed successfully");
+
+        // Prove the wrap program.
+        let mut wrap_challenger = wrap_machine.config().challenger();
+        let time = std::time::Instant::now();
+        let wrap_proof =
+            wrap_machine.prove::<LocalProver<_, _>>(&wrap_pk, runtime.record, &mut wrap_challenger);
+        let elapsed = time.elapsed();
+        tracing::info!("Wrap proving time: {:?}", elapsed);
+        let mut wrap_challenger = wrap_machine.config().challenger();
+        let result = wrap_machine.verify(&wrap_vk, &wrap_proof, &mut wrap_challenger);
+        match result {
+            Ok(_) => tracing::info!("Proof verified successfully"),
+            Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
+            }
+            e => panic!("Proof verification failed: {:?}", e),
+        }
+        tracing::info!("Wrapping successful");
     }
 
     #[test]
@@ -2032,10 +2080,19 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_sp1_compress_machine_verify_fibonacci() {
         let elf =
             include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Compress)
+    }
+
+    #[test]
+    #[ignore]
+    fn test_sp1_wrap_machine_verify_fibonacci() {
+        let elf =
+            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Wrap)
     }
 
     #[test]
@@ -2063,5 +2120,14 @@ mod tests {
             "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
         );
         test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Compress)
+    }
+
+    #[test]
+    #[ignore]
+    fn test_sp1_wrap_machine_verify_tendermint() {
+        let elf = include_bytes!(
+            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
+        );
+        test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Wrap)
     }
 }

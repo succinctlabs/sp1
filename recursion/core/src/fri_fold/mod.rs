@@ -175,14 +175,16 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         next: &FriFoldCols<AB::Var>,
         next_is_real: AB::Expr,
     ) {
-        // Dummy constraints to normalize to DEGREE.
-        let lhs = (0..DEGREE)
-            .map(|_| local.is_real.into())
-            .product::<AB::Expr>();
-        let rhs = (0..DEGREE)
-            .map(|_| local.is_real.into())
-            .product::<AB::Expr>();
-        builder.assert_eq(lhs, rhs);
+        // Dummy constraints to normalize to DEGREE when DEGREE > 3.
+        if DEGREE > 3 {
+            let lhs = (0..DEGREE)
+                .map(|_| local.is_real.into())
+                .product::<AB::Expr>();
+            let rhs = (0..DEGREE)
+                .map(|_| local.is_real.into())
+                .product::<AB::Expr>();
+            builder.assert_eq(lhs, rhs);
+        }
         // Constraint that the operands are sent from the CPU table.
         let first_iteration_clk = local.clk.into() - local.m.into();
         let total_num_iterations = local.m.into() + AB::Expr::one();
