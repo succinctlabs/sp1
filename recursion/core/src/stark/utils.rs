@@ -23,7 +23,8 @@ pub enum TestConfig {
 type Val = <BabyBearPoseidon2 as StarkGenericConfig>::Val;
 type Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
-/// Should only be used in tests to debug the constraints after running a runtime instance.
+/// Takes in a program and runs it with the given witness and generates a proof with a variety of 
+/// machines depending on the provided test_config.
 pub fn run_test_recursion(
     program: RecursionProgram<Val>,
     witness: Option<VecDeque<Vec<Block<BabyBear>>>>,
