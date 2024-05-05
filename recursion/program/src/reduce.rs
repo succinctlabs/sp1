@@ -1968,7 +1968,7 @@ mod tests {
         let reduce_proof = recursive_proofs.pop().unwrap();
 
         // Make the compress program.
-        let compress_machine = RecursionAir::<_, 5>::machine(SC::compressed());
+        let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
         let compress_program =
             SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
 
@@ -1976,7 +1976,7 @@ mod tests {
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         let input = SP1RootMemoryLayout {
-            machine: &compress_machine,
+            machine: &recursive_machine,
             proof: reduce_proof,
             is_reduce: true,
         };
