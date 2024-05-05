@@ -1899,7 +1899,8 @@ mod tests {
         let mut is_complete;
         let time = std::time::Instant::now();
         loop {
-            is_complete = recursive_proofs.len() < batch_size;
+            tracing::info!("Recursive proofs: {}", recursive_proofs.len());
+            is_complete = recursive_proofs.len() <= batch_size;
             recursive_proofs = recursive_proofs
                 .par_chunks(batch_size)
                 .map(|batch| {
@@ -1967,7 +1968,7 @@ mod tests {
         let reduce_proof = recursive_proofs.pop().unwrap();
 
         // Make the compress program.
-        let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
+        let compress_machine = RecursionAir::<_, 5>::machine(SC::compressed());
         let compress_program =
             SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
 
