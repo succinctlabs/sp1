@@ -304,7 +304,7 @@ mod tests {
 
     use super::Poseidon2Cols;
 
-    const ROWS_PER_PERMUTATION: usize = 31;
+    const ROWS_PER_PERMUTATION: usize = 24;
 
     #[test]
     fn generate_trace() {
@@ -342,7 +342,7 @@ mod tests {
             chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
 
         for (i, expected_output) in expected_outputs.iter().enumerate() {
-            let row = trace.row(ROWS_PER_PERMUTATION * (i + 1) - 1).collect_vec();
+            let row = trace.row(ROWS_PER_PERMUTATION * (i + 1) - 2).collect_vec();
             let cols: &Poseidon2Cols<BabyBear> = row.as_slice().borrow();
             let computation_cols = cols.round_specific_cols.computation();
             assert_eq!(expected_output, &computation_cols.output);
