@@ -1,4 +1,4 @@
-use typenum::{U32, U62};
+use typenum::{U32, U63};
 
 use num::{BigUint, One};
 use serde::{Deserialize, Serialize};
@@ -29,5 +29,6 @@ impl FieldParameters for U256Field {
 
 impl NumLimbs for U256Field {
     type Limbs = U32;
-    type Witness = U62;
+    // Note we use one more limb than usual because for mulmod with mod 1<<256, we need an extra limb.
+    type Witness = U63;
 }

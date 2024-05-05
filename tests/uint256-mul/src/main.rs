@@ -1,30 +1,33 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use num::{BigUint, One, Zero};
+use num::{BigUint, One};
 use rand::Rng;
-use sp1_zkvm::precompiles::uint256_div::sys_bigint;
-use std::convert::TryInto;
+use sp1_zkvm::precompiles::bigint_mulmod::sys_bigint;
 
 fn uint256_mul(x: &[u8; 32], y: &[u8; 32], modulus: &[u8; 32]) -> [u8; 32] {
     println!("cycle-tracker-start: uint256_mul");
     let mut result = [0u32; 8];
-    unsafe {
-        sys_bigint(
-            result.as_mut_ptr() as *mut [u32; 8],
-            0,
-            x.as_ptr() as *const [u32; 8],
-            y.as_ptr() as *const [u32; 8],
-            modulus.as_ptr() as *const [u32; 8],
-        );
-    }
+    sys_bigint(
+        result.as_mut_ptr() as *mut [u32; 8],
+        0,
+        x.as_ptr() as *const [u32; 8],
+        y.as_ptr() as *const [u32; 8],
+        modulus.as_ptr() as *const [u32; 8],
+    );
     println!("cycle-tracker-end: uint256_mul");
     bytemuck::cast::<[u32; 8], [u8; 32]>(result)
 }
 
+fn biguint_to_bytes_le(x: BigUint) -> [u8; 32] {
+    let mut bytes = x.to_bytes_le();
+    bytes.resize(32, 0);
+    bytes.try_into().unwrap()
+}
+
 #[sp1_derive::cycle_tracker]
 fn main() {
-    for _ in 0..100 {
+    for _ in 0..50 {
         // Test with random numbers.
         let mut rng = rand::thread_rng();
         let mut x: [u8; 32] = rng.gen();
@@ -32,9 +35,11 @@ fn main() {
         let modulus: [u8; 32] = rng.gen();
 
         // Convert byte arrays to BigUint
-        let x_big = BigUint::from_bytes_le(&x);
-        let y_big = BigUint::from_bytes_le(&y);
         let modulus_big = BigUint::from_bytes_le(&modulus);
+        let x_big = BigUint::from_bytes_le(&x);
+        x = biguint_to_bytes_le(&x_big % &modulus_big);
+        let y_big = BigUint::from_bytes_le(&y);
+        y = biguint_to_bytes_le(&y_big % &modulus_big);
 
         let result_bytes = uint256_mul(&x, &y, &modulus);
 
@@ -44,14 +49,35 @@ fn main() {
         assert_eq!(result, result_syscall);
     }
 
+    // Modulus zero tests
+    let modulus = [0u8; 32];
+    let modulus_big: BigUint = BigUint::one() << 256;
+    for _ in 0..50 {
+        // Test with random numbers.
+        let mut rng = rand::thread_rng();
+        let mut x: [u8; 32] = rng.gen();
+        let mut y: [u8; 32] = rng.gen();
+
+        // Convert byte arrays to BigUint
+        let x_big = BigUint::from_bytes_le(&x);
+        x = biguint_to_bytes_le(&x_big % &modulus_big);
+        let y_big = BigUint::from_bytes_le(&y);
+        y = biguint_to_bytes_le(&y_big % &modulus_big);
+
+        let result_bytes = uint256_mul(&x, &y, &modulus);
+
+        let result = (x_big * y_big) % &modulus_big;
+        let result_syscall = BigUint::from_bytes_le(&result_bytes);
+
+        assert_eq!(result, result_syscall, "x: {:?}, y: {:?}", x, y);
+    }
+
     // Test with random numbers.
     let mut rng = rand::thread_rng();
-    let mut x: [u8; 32] = rng.gen();
-    let y: [u8; 32] = rng.gen();
+    let x: [u8; 32] = rng.gen();
 
     // Hardcoded edge case: Multiplying by 1
-    let mut modulus = [0u8; 32];
-    modulus[31] = 1;
+    let modulus = [0u8; 32];
 
     let mut one: [u8; 32] = [0; 32];
     one[0] = 1; // Least significant byte set to 1, represents the number 1

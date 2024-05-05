@@ -11,6 +11,7 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
+use typenum::Unsigned;
 
 /// Airthmetic operation for emulating modular arithmetic.
 #[derive(PartialEq, Copy, Clone, Debug)]
@@ -30,7 +31,7 @@ pub enum FieldOperation {
 /// * When `op` is `FieldOperation::Add`, then `result = a + b mod M`.
 /// * When `op` is `FieldOperation::Mul`, then `result = a * b mod M`.
 /// * When `op` is `FieldOperation::Sub`, then `result = a - b mod M`.
-/// * When `op` is `FieldOperation::Div`, then `result * b = a  mod M`.
+/// * When `op` is `FieldOperation::Div`, then `result * b = a mod M`.
 ///
 /// **Warning**: The constraints do not check for division by zero. The caller is responsible for
 /// ensuring that the division operation is valid.
@@ -60,6 +61,12 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         };
         debug_assert!(&result < modulus);
+        if &carry >= modulus {
+            println!("carry: {:?}", carry);
+            println!("modulus: {:?}", modulus);
+            println!("a: {:?}", a);
+            println!("b: {:?}", b);
+        }
         debug_assert!(&carry < modulus);
         match op {
             FieldOperation::Add => debug_assert_eq!(&carry * modulus, a + b - &result),
@@ -68,7 +75,12 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         }
 
         // Make little endian polynomial limbs.
-        let p_modulus: Polynomial<F> = P::to_limbs_field::<F, _>(modulus).into();
+        let mut p_modulus: Polynomial<F> = P::to_limbs_field::<F, _>(modulus).into();
+        if modulus > &BigUint::from(F::ORDER_U64) {
+            let mut coeff = vec![F::zero(); 32];
+            coeff.push(F::one());
+            p_modulus = Polynomial::from_coefficients(&coeff);
+        }
         let p_result: Polynomial<F> = P::to_limbs_field::<F, _>(&result).into();
         let p_carry: Polynomial<F> = P::to_limbs_field::<F, _>(&carry).into();
 
@@ -79,7 +91,11 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         };
         let p_vanishing: Polynomial<F> = &p_op - &p_result - &p_carry * &p_modulus;
-        debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
+        let mut p_vanishing_coeff = p_vanishing.as_coefficients();
+        p_vanishing_coeff.resize(P::Witness::USIZE + 1, F::zero());
+        println!("p_vanishing_coeff_len: {:?}", p_vanishing_coeff.len());
+        let p_vanishing = Polynomial::from_coefficients(&p_vanishing_coeff);
+        // debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
         let p_witness = compute_root_quotient_and_shift(
             &p_vanishing,

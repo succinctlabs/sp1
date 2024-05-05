@@ -1,9 +1,10 @@
-use crate::air::{BaseAirBuilder, MachineAir, SP1AirBuilder, WORD_SIZE};
+use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZE};
 use crate::bytes::event::ByteRecord;
 use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
 use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
 use crate::operations::field::params::NumWords;
 use crate::operations::field::params::{Limbs, NumLimbs};
+use crate::operations::IsZeroOperation;
 use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
 use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
 use crate::stark::MachineRecord;
@@ -14,8 +15,8 @@ use crate::utils::{
     words_to_bytes_le_vec,
 };
 use generic_array::GenericArray;
-use num::BigUint;
 use num::Zero;
+use num::{BigUint, One};
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -78,6 +79,9 @@ pub struct Uint256MulCols<T> {
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
+    // Columns for checking if modulus is zero. If it's zero, then we don't perform modulus.
+    pub modulus_is_zero: IsZeroOperation<T>,
+
     // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
 
@@ -136,13 +140,28 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                             );
                         }
 
+                        let modulus_bytes = words_to_bytes_le_vec(&event.modulus);
+                        let modulus_byte_sum = modulus_bytes.iter().map(|b| *b as u32).sum::<u32>();
+                        IsZeroOperation::populate(&mut cols.modulus_is_zero, modulus_byte_sum);
+
                         // Populate the output column.
+                        let effective_modulus = if modulus.is_zero() {
+                            BigUint::one() << 256
+                        } else {
+                            modulus.clone()
+                        };
+                        assert!(!effective_modulus.is_zero());
+                        println!("effective_modulus: {:?}", effective_modulus);
+                        println!("x: {:?}", x);
+                        println!("y: {:?}", y);
+                        println!("modulus: {:?}", modulus);
                         cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
                             &x,
                             &y,
-                            &modulus,
+                            &effective_modulus,
+                            // &modulus,
                             FieldOperation::Mul,
                         );
 
@@ -214,7 +233,12 @@ impl Syscall for Uint256MulChip {
         let uint256_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
 
         // Perform the multiplication and take the result modulo the modulus.
-        let result: BigUint = (uint256_x * uint256_y) % uint256_modulus;
+        let result: BigUint = if uint256_modulus.is_zero() {
+            let modulus = BigUint::one() << 256;
+            (uint256_x * uint256_y) % modulus
+        } else {
+            (uint256_x * uint256_y) % uint256_modulus
+        };
 
         let mut result_bytes = result.to_bytes_le();
         result_bytes.resize(32, 0u8); // Pad the result to 32 bytes.
@@ -266,18 +290,44 @@ where
         let y_limbs = limbs_from_access(&local.y_memory);
         let modulus_limbs = limbs_from_access(&local.modulus_memory);
 
+        // If the modulus is zero, then we don't perform the modulus operation.
+        // Evaluate the modulus_is_zero operation by summing each byte of the modulus. The sum will
+        // not overflow because we are summing 32 bytes.
+        let modulus_byte_sum = modulus_limbs
+            .0
+            .iter()
+            .fold(AB::Expr::zero(), |acc, &limb| acc + limb);
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            modulus_byte_sum,
+            local.modulus_is_zero,
+            local.is_real.into(),
+        );
+
+        // If the modulus is zero, we'll actually use 2^256 as the modulus, so nothing happens.
+        // Otherwise, we use the modulus passed in.
+        let modulus_is_zero = local.modulus_is_zero.result;
+        let mut coeff_2_256 = Vec::new();
+        coeff_2_256.resize(256, AB::Expr::zero());
+        coeff_2_256.push(AB::Expr::one());
+        let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
+        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
+            * (AB::Expr::one() - modulus_is_zero.into())
+            + Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
+
         // Evaluate the uint256 multiplication
         local.output.eval_with_modulus(
             builder,
             &x_limbs,
             &y_limbs,
-            &modulus_limbs,
+            &p_modulus,
+            // &modulus_limbs,
             FieldOperation::Mul,
             local.shard,
             local.is_real,
         );
 
-        // Assert that the result of the operation is being written to x_memory.
+        // Assert that the correct result is being written to x_memory.
         builder
             .when(local.is_real)
             .assert_all_eq(local.output.result, value_as_limbs(&local.x_memory));
