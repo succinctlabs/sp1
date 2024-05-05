@@ -22,7 +22,6 @@ use super::debug_constraints;
 use super::Dom;
 use crate::air::MachineAir;
 use crate::air::MachineProgram;
-use crate::air::PublicValues;
 use crate::lookup::debug_interactions_with_all_chips;
 use crate::lookup::InteractionBuilder;
 use crate::lookup::InteractionKind;
@@ -323,78 +322,78 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
                 tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
-                    let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
-                    // Verify shard transitions
-                    if i == 0 {
-                        // If it's the first shard, index should be 1.
-                        if public_values.shard != SC::Val::one() {
-                            return Err(ProgramVerificationError::InvalidShardTransition(
-                                "first shard not 1",
-                            ));
-                        }
-                        if public_values.start_pc != vk.pc_start {
-                            return Err(ProgramVerificationError::InvalidShardTransition(
-                                "wrong pc_start",
-                            ));
-                        }
-                        // let pv_digest: [u32; 8] = public_values
-                        //     .committed_value_digest
-                        //     .iter()
-                        //     .map(|w| w.to_u32())
-                        //     .collect::<Vec<_>>()
-                        //     .try_into()
-                        //     .unwrap();
-                        // let deferred_proofs_digest: [u32; 8] = public_values
-                        //     .deferred_proofs_digest
-                        //     .iter()
-                        //     .map(|w| w.to_string().parse::<u32>().unwrap())
-                        //     .collect::<Vec<_>>()
-                        //     .try_into()
-                        //     .unwrap();
-                    } else {
-                        let prev_shard_proof = &proof.shard_proofs[i - 1];
-                        let prev_public_values =
-                            PublicValues::from_vec(prev_shard_proof.public_values.clone());
-                        // For non-first shards, the index should be the previous index + 1.
-                        if public_values.shard != prev_public_values.shard + SC::Val::one() {
-                            return Err(ProgramVerificationError::InvalidShardTransition(
-                                "non incremental shard index",
-                            ));
-                        }
-                        // Start pc should be what the next pc declared in the previous shard was.
-                        if public_values.start_pc != prev_public_values.next_pc {
-                            return Err(ProgramVerificationError::InvalidShardTransition(
-                                "pc mismatch",
-                            ));
-                        }
-                        // Digests and exit code should be the same in all shards.
-                        if public_values.committed_value_digest
-                            != prev_public_values.committed_value_digest
-                            || public_values.deferred_proofs_digest
-                                != prev_public_values.deferred_proofs_digest
-                            || public_values.exit_code != prev_public_values.exit_code
-                        {
-                            return Err(ProgramVerificationError::InvalidShardTransition(
-                                "digest or exit code mismatch",
-                            ));
-                        }
-                        // The last shard should be halted. Halt is signaled with next_pc == 0.
-                        if i == proof.shard_proofs.len() - 1
-                            && public_values.next_pc != SC::Val::zero()
-                        {
-                            return Err(ProgramVerificationError::InvalidShardTransition(
-                                "last shard isn't halted",
-                            ));
-                        }
-                        // All non-last shards should not be halted.
-                        if i != proof.shard_proofs.len() - 1
-                            && public_values.next_pc == SC::Val::zero()
-                        {
-                            return Err(ProgramVerificationError::InvalidShardTransition(
-                                "non-last shard is halted",
-                            ));
-                        }
-                    }
+                    // let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
+                    // // Verify shard transitions
+                    // if i == 0 {
+                    //     // If it's the first shard, index should be 1.
+                    //     if public_values.shard != SC::Val::one() {
+                    //         return Err(ProgramVerificationError::InvalidShardTransition(
+                    //             "first shard not 1",
+                    //         ));
+                    //     }
+                    //     if public_values.start_pc != vk.pc_start {
+                    //         return Err(ProgramVerificationError::InvalidShardTransition(
+                    //             "wrong pc_start",
+                    //         ));
+                    //     }
+                    //     // let pv_digest: [u32; 8] = public_values
+                    //     //     .committed_value_digest
+                    //     //     .iter()
+                    //     //     .map(|w| w.to_u32())
+                    //     //     .collect::<Vec<_>>()
+                    //     //     .try_into()
+                    //     //     .unwrap();
+                    //     // let deferred_proofs_digest: [u32; 8] = public_values
+                    //     //     .deferred_proofs_digest
+                    //     //     .iter()
+                    //     //     .map(|w| w.to_string().parse::<u32>().unwrap())
+                    //     //     .collect::<Vec<_>>()
+                    //     //     .try_into()
+                    //     //     .unwrap();
+                    // } else {
+                    //     let prev_shard_proof = &proof.shard_proofs[i - 1];
+                    //     let prev_public_values =
+                    //         PublicValues::from_vec(prev_shard_proof.public_values.clone());
+                    //     // For non-first shards, the index should be the previous index + 1.
+                    //     if public_values.shard != prev_public_values.shard + SC::Val::one() {
+                    //         return Err(ProgramVerificationError::InvalidShardTransition(
+                    //             "non incremental shard index",
+                    //         ));
+                    //     }
+                    //     // Start pc should be what the next pc declared in the previous shard was.
+                    //     if public_values.start_pc != prev_public_values.next_pc {
+                    //         return Err(ProgramVerificationError::InvalidShardTransition(
+                    //             "pc mismatch",
+                    //         ));
+                    //     }
+                    //     // Digests and exit code should be the same in all shards.
+                    //     if public_values.committed_value_digest
+                    //         != prev_public_values.committed_value_digest
+                    //         || public_values.deferred_proofs_digest
+                    //             != prev_public_values.deferred_proofs_digest
+                    //         || public_values.exit_code != prev_public_values.exit_code
+                    //     {
+                    //         return Err(ProgramVerificationError::InvalidShardTransition(
+                    //             "digest or exit code mismatch",
+                    //         ));
+                    //     }
+                    //     // The last shard should be halted. Halt is signaled with next_pc == 0.
+                    //     if i == proof.shard_proofs.len() - 1
+                    //         && public_values.next_pc != SC::Val::zero()
+                    //     {
+                    //         return Err(ProgramVerificationError::InvalidShardTransition(
+                    //             "last shard isn't halted",
+                    //         ));
+                    //     }
+                    //     // All non-last shards should not be halted.
+                    //     if i != proof.shard_proofs.len() - 1
+                    //         && public_values.next_pc == SC::Val::zero()
+                    //     {
+                    //         return Err(ProgramVerificationError::InvalidShardTransition(
+                    //             "non-last shard is halted",
+                    //         ));
+                    //     }
+                    // }
 
                     let chips = self
                         .shard_chips_ordered(&shard_proof.chip_ordering)

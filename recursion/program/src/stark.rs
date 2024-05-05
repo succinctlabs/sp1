@@ -62,10 +62,10 @@ where
         machine: &StarkMachine<SC, A>,
         challenger: &mut DuplexChallengerVariable<C>,
         proof: &ShardProofVariable<C>,
-        chip_quotient_data: Array<C, QuotientData<C>>,
-        chip_sorted_idxs: Array<C, Var<C::N>>,
-        preprocessed_sorted_idxs: Array<C, Var<C::N>>,
-        prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+        chip_quotient_data: &Array<C, QuotientData<C>>,
+        chip_sorted_idxs: &Array<C, Var<C::N>>,
+        preprocessed_sorted_idxs: &Array<C, Var<C::N>>,
+        prep_domains: &Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
     ) where
         A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
         C::F: TwoAdicField,
@@ -114,7 +114,7 @@ where
 
         let num_quotient_mats: Var<_> = builder.eval(C::N::zero());
         builder.range(0, num_shard_chips).for_each(|i, builder| {
-            let num_quotient_chunks = builder.get(&chip_quotient_data, i).quotient_size;
+            let num_quotient_chunks = builder.get(chip_quotient_data, i).quotient_size;
             builder.assign(num_quotient_mats, num_quotient_mats + num_quotient_chunks);
         });
 
@@ -127,12 +127,12 @@ where
         // Iterate through machine.chips filtered for preprocessed chips.
         for (preprocessed_id, chip_id) in machine.preprocessed_chip_ids().into_iter().enumerate() {
             // Get index within sorted preprocessed chips.
-            let preprocessed_sorted_id = builder.get(&preprocessed_sorted_idxs, preprocessed_id);
+            let preprocessed_sorted_id = builder.get(preprocessed_sorted_idxs, preprocessed_id);
             // Get domain from witnessed domains. Array is ordered by machine.chips ordering.
-            let domain = builder.get(&prep_domains, preprocessed_id);
+            let domain = builder.get(prep_domains, preprocessed_id);
 
             // Get index within all sorted chips.
-            let chip_sorted_id = builder.get(&chip_sorted_idxs, chip_id);
+            let chip_sorted_id = builder.get(chip_sorted_idxs, chip_id);
             // Get opening from proof.
             let opening = builder.get(&opened_values.chips, chip_sorted_id);
 
@@ -159,7 +159,7 @@ where
             let QuotientData {
                 log_quotient_degree,
                 quotient_size,
-            } = builder.get(&chip_quotient_data, i);
+            } = builder.get(chip_quotient_data, i);
             let domain = pcs.natural_domain_for_log_degree(builder, Usize::Var(opening.log_degree));
             builder.set_value(&mut trace_domains, i, domain.clone());
 
@@ -253,7 +253,7 @@ where
         for (i, chip) in machine.chips().iter().enumerate() {
             let chip_name = chip.name();
             tracing::debug!("verifying constraints for chip: {}", chip_name);
-            let index = builder.get(&chip_sorted_idxs, i);
+            let index = builder.get(chip_sorted_idxs, i);
 
             if chip.preprocessed_width() > 0 {
                 builder.assert_var_ne(index, C::N::from_canonical_usize(EMPTY));
@@ -271,7 +271,7 @@ where
                     let log_quotient_degree = chip.log_quotient_degree();
 
                     let quotient_size = 1 << log_quotient_degree;
-                    let chip_quotient_data = builder.get(&chip_quotient_data, index);
+                    let chip_quotient_data = builder.get(chip_quotient_data, index);
                     builder.assert_usize_eq(
                         chip_quotient_data.log_quotient_degree,
                         log_quotient_degree,
@@ -332,7 +332,7 @@ pub(crate) mod tests {
 
     use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
 
-    use sp1_recursion_core::stark::RecursionAirWideDeg3;
+    use sp1_recursion_core::stark::RecursionAir;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -446,7 +446,7 @@ pub(crate) mod tests {
         println!("Execution took: {:?}", elapsed);
 
         let config = BabyBearPoseidon2::new();
-        let machine = RecursionAirWideDeg3::machine(config);
+        let machine = RecursionAir::<_, 3>::machine(config);
         let (pk, _) = machine.setup(&program);
         let mut challenger = machine.config().challenger();
 

@@ -7,7 +7,6 @@ use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, 
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use crate::fri::types::DigestVariable;
-use crate::utils::felt2var;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
@@ -90,23 +89,17 @@ impl<C: Config> DuplexChallengerVariable<C> {
         builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
             let element = builder.get(&self.sponge_state, i);
             let other_element = builder.get(&other.sponge_state, i);
-            let element = felt2var(builder, element);
-            let other_element = felt2var(builder, other_element);
-            builder.assert_var_eq(element, other_element);
+            builder.assert_felt_eq(element, other_element);
         });
         builder.range(0, self.nb_inputs).for_each(|i, builder| {
             let element = builder.get(&self.input_buffer, i);
             let other_element = builder.get(&other.input_buffer, i);
-            let element = felt2var(builder, element);
-            let other_element = felt2var(builder, other_element);
-            builder.assert_var_eq(element, other_element);
+            builder.assert_felt_eq(element, other_element);
         });
         builder.range(0, self.nb_outputs).for_each(|i, builder| {
             let element = builder.get(&self.output_buffer, i);
             let other_element = builder.get(&other.output_buffer, i);
-            let element = felt2var(builder, element);
-            let other_element = felt2var(builder, other_element);
-            builder.assert_var_eq(element, other_element);
+            builder.assert_felt_eq(element, other_element);
         });
     }
 

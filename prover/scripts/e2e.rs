@@ -39,10 +39,10 @@ pub fn main() {
     let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
 
     tracing::info!("compress");
-    let compressed_proof = prover.compress(&vk, reduced_proof);
+    let compressed_proof = prover.compress(reduced_proof);
 
     tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(&vk, compressed_proof);
+    let wrapped_proof = prover.wrap_bn254(compressed_proof);
 
     tracing::info!("building verifier constraints");
     let constraints = tracing::info_span!("wrap circuit")
