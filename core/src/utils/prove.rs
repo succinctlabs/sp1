@@ -2,6 +2,7 @@ use std::fs::File;
 use std::io::{Seek, Write};
 use web_time::Instant;
 
+use crate::air::MachineAir;
 use crate::io::{SP1PublicValues, SP1Stdin};
 pub use baby_bear_blake3::BabyBearBlake3;
 use p3_challenger::CanObserve;
@@ -11,8 +12,8 @@ use serde::Serialize;
 use size::Size;
 
 use crate::runtime::{ExecutionRecord, ShardingConfig};
-use crate::stark::MachineRecord;
-use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, UniConfig};
+use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, StarkProvingKey, UniConfig};
+use crate::stark::{MachineRecord, StarkMachine};
 use crate::utils::env::shard_batch_size;
 use crate::{
     runtime::{Program, Runtime},
@@ -85,6 +86,63 @@ pub fn run_test_core(
         cycles,
         time,
         (cycles as f64 / time as f64),
+        Size::from_bytes(nb_bytes),
+    );
+
+    Ok(proof)
+}
+
+use crate::lookup::InteractionBuilder;
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::StarkVerifyingKey;
+use crate::stark::Val;
+use crate::stark::VerifierConstraintFolder;
+
+#[allow(unused_variables)]
+pub fn run_test_machine<SC, A>(
+    record: A::Record,
+    machine: StarkMachine<SC, A>,
+    pk: StarkProvingKey<SC>,
+    vk: StarkVerifyingKey<SC>,
+) -> Result<crate::stark::MachineProof<SC>, crate::stark::ProgramVerificationError<SC>>
+where
+    A: MachineAir<SC::Val>
+        + for<'a> Air<ProverConstraintFolder<'a, SC>>
+        + Air<InteractionBuilder<Val<SC>>>
+        + for<'a> Air<VerifierConstraintFolder<'a, SC>>
+        + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
+    SC: StarkGenericConfig,
+    SC::Val: p3_field::PrimeField32,
+    SC::Challenger: Clone,
+    Com<SC>: Send + Sync,
+    PcsProverData<SC>: Send + Sync,
+    OpeningProof<SC>: Send + Sync,
+    ShardMainData<SC>: Serialize + DeserializeOwned,
+{
+    #[cfg(feature = "debug")]
+    {
+        let mut challenger_clone = machine.config().challenger();
+        let record_clone = record.clone();
+        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
+    }
+    let stats = record.stats().clone();
+    let cycles = stats.get("cpu_events").unwrap();
+
+    let start = Instant::now();
+    let mut challenger = machine.config().challenger();
+    let proof = machine.prove::<LocalProver<SC, A>>(&pk, record, &mut challenger);
+    let time = start.elapsed().as_millis();
+    let nb_bytes = bincode::serialize(&proof).unwrap().len();
+
+    let mut challenger = machine.config().challenger();
+    machine.verify(&vk, &proof, &mut challenger)?;
+
+    tracing::info!(
+        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
+        cycles,
+        time,
+        (*cycles as f64 / time as f64),
         Size::from_bytes(nb_bytes),
     );
 

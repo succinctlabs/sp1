@@ -168,10 +168,9 @@ mod tests {
         },
         utils::BabyBearPoseidon2,
     };
-    use sp1_recursion_core::{runtime::Runtime, stark::utils::debug_constraints};
+    use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::PrimeField32;
     use sp1_recursion_compiler::{asm::AsmBuilder, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
@@ -349,14 +348,6 @@ mod tests {
         }
 
         let program = builder.compile_program();
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.run();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.clk.as_canonical_u32() / 4
-        );
-
-        debug_constraints(program, runtime.record);
+        run_test_recursion(program, None, TestConfig::All);
     }
 }
