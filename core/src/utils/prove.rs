@@ -212,6 +212,7 @@ where
                 let config = machine.config();
                 let shard_data =
                     LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
+
                 let chip_ordering = shard_data.chip_ordering.clone();
                 let ordered_chips = machine
                     .shard_chips_ordered(&chip_ordering)
