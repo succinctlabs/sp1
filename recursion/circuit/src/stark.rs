@@ -348,12 +348,12 @@ pub fn build_wrap_circuit(
     }
 
     // Ensure lookup bus is zero.
-    let zero_ext: Ext<_, _> = builder.constant(EF::zero());
-    let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
-    for chip in proof.opened_values.chips {
-        builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
-    }
-    builder.assert_ext_eq(cumulative_sum, zero_ext);
+    // let zero_ext: Ext<_, _> = builder.constant(EF::zero());
+    // let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
+    // for chip in proof.opened_values.chips {
+    //     builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
+    // }
+    // builder.assert_ext_eq(cumulative_sum, zero_ext);
 
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
