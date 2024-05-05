@@ -125,7 +125,7 @@ where
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
     }
-    let (pk, _) = machine.setup(runtime.program.as_ref());
+    let (pk, vk) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
     // If we don't need to batch, we can just run the program normally and prove it.
@@ -173,6 +173,7 @@ where
     let reuse_shards = checkpoints.len() == 1;
     let mut all_shards = None;
 
+    vk.observe_into(&mut challenger);
     for file in checkpoints.iter_mut() {
         let events = trace_checkpoint(program.clone(), file);
         reset_seek(&mut *file);
@@ -208,11 +209,21 @@ where
         let mut new_proofs = shards
             .into_iter()
             .map(|shard| {
-                let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
                 let config = machine.config();
                 let shard_data =
                     LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
-                LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger.clone())
+                let chip_ordering = shard_data.chip_ordering.clone();
+                let ordered_chips = machine
+                    .shard_chips_ordered(&chip_ordering)
+                    .collect::<Vec<_>>()
+                    .to_vec();
+                LocalProver::prove_shard(
+                    config,
+                    &pk,
+                    &ordered_chips,
+                    shard_data,
+                    &mut challenger.clone(),
+                )
             })
             .collect::<Vec<_>>();
         prove_time += start.elapsed().as_millis();

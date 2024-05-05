@@ -168,9 +168,10 @@ where
         let parent_span = tracing::debug_span!("generate traces for shard");
         let mut named_traces = parent_span.in_scope(|| {
             shard_chips
-                .par_iter()
+                .iter()
                 .map(|chip| {
                     let chip_name = chip.name();
+                    println!("generating trace for chip: {}", chip_name);
 
                     // We need to create an outer span here because, for some reason,
                     // the #[instrument] macro on the chip impl isn't attaching its span to `parent_span`
@@ -283,6 +284,15 @@ where
                         .chip_ordering
                         .get(&chip.name())
                         .map(|&index| &pk.traces[index]);
+                    match preprocessed_trace {
+                        Some(trace) => println!(
+                            "chip name: {}, main trace: {:?}, preprocessed trace: {:?}",
+                            chip.name(),
+                            main_trace.height(),
+                            trace.height()
+                        ),
+                        None => println!("no preprocessed trace"),
+                    };
                     let perm_trace = chip.generate_permutation_trace(
                         preprocessed_trace,
                         main_trace,
