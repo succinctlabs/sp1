@@ -23,7 +23,7 @@ pub enum TestConfig {
 type Val = <BabyBearPoseidon2 as StarkGenericConfig>::Val;
 type Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge;
 
-/// Takes in a program and runs it with the given witness and generates a proof with a variety of 
+/// Takes in a program and runs it with the given witness and generates a proof with a variety of
 /// machines depending on the provided test_config.
 pub fn run_test_recursion(
     program: RecursionProgram<Val>,
@@ -31,8 +31,6 @@ pub fn run_test_recursion(
     test_config: TestConfig,
 ) {
     utils::setup_logger();
-    env::set_var("RUST_LOG", "debug");
-
     let config = BabyBearPoseidon2::default();
 
     let mut runtime = Runtime::<Val, Challenge, _>::new(&program, config.perm.clone());
