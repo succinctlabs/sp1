@@ -102,6 +102,20 @@ pub struct SP1RecursionMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC
     pub is_complete: bool,
 }
 
+pub struct SP1DefferredMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
+    pub machine: &'a StarkMachine<SC, A>,
+    pub shard_proofs: Vec<ShardProof<SC>>,
+
+    pub start_reconstruct_deferred_digest: Vec<SC::Val>,
+    pub end_reconstruct_deferred_digest: Vec<SC::Val>,
+
+    pub sp1_vk_digest: Vec<SC::Val>,
+    pub leaf_challenger: &'a SC::Challenger,
+    pub initial_reconstruct_challenger: SC::Challenger,
+
+    pub is_complete: bool,
+}
+
 /// The different types of programs that can be verified by the `SP1ReduceVerifier`.
 #[derive(Debug, Clone, Copy)]
 pub enum ReduceProgramType {
@@ -126,6 +140,26 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
 
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
+
+    pub is_complete: Var<C::N>,
+}
+
+#[derive(DslVariable, Clone)]
+pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
+    pub reduce_vk: VerifyingKeyVariable<C>,
+
+    pub shard_proofs: Array<C, ShardProofVariable<C>>,
+    pub shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
+    pub shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
+
+    pub reduce_prep_sorted_idxs: Array<C, Var<C::N>>,
+    pub reduce_prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+
+    pub leaf_challenger: DuplexChallengerVariable<C>,
+    pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
+
+    pub start_reconstruct_deferred_digest: Array<C, Var<C::N>>,
+    pub end_reconstruct_deferred_digest: Array<C, Var<C::N>>,
 
     pub is_complete: Var<C::N>,
 }
@@ -1749,6 +1783,31 @@ mod tests {
 
         let machine = RiscvAir::machine(SC::default());
         let (_, vk) = machine.setup(&program);
+
+        // Construct the recursion program.
+        let recursive_program = SP1RecursiveVerifier::<InnerConfig, SC>::build(&machine);
+        let recursive_config = SC::default();
+        type A = RecursionAirWideDeg3<BabyBear>;
+        let recursive_machine = A::machine(recursive_config.clone());
+        let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
+
+        // Build the reduce program.
+        let reduce_program =
+            SP1ReduceVerifier::<InnerConfig, _, _>::build(&recursive_machine, &rec_vk, &rec_vk);
+
+        let (reduce_pk, reduce_vk) = recursive_machine.setup(&reduce_program);
+
+        // Make the compress program.
+        let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
+        let compress_program =
+            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
+        let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
+
+        // Make the wrap program and prove.
+        let wrap_machine = RecursionAir::<_, 5>::machine(BabyBearPoseidon2Outer::default());
+        let wrap_program =
+            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk);
+
         let mut challenger = machine.config().challenger();
         let time = std::time::Instant::now();
         let (proof, _) = sp1_core::utils::run_and_prove(program, &SP1Stdin::new(), SC::default());
@@ -1806,7 +1865,7 @@ mod tests {
         );
 
         // Construct the recursion program.
-        let recursive_program = SP1RecursiveVerifier::<InnerConfig, SC>::build(&machine);
+        // let recursive_program = SP1RecursiveVerifier::<InnerConfig, SC>::build(&machine);
 
         // Run the recursion programs.
         let mut records = Vec::new();
@@ -1826,11 +1885,6 @@ mod tests {
         }
 
         // Prove all recursion programs and verify the recursive proofs.
-
-        let recursive_config = SC::default();
-        type A = RecursionAirWideDeg3<BabyBear>;
-        let recursive_machine = A::machine(recursive_config.clone());
-        let (rec_pk, rec_vk) = recursive_machine.setup(&recursive_program);
 
         // Make the recursive proofs.
         let time = std::time::Instant::now();
@@ -1867,11 +1921,6 @@ mod tests {
 
         tracing::info!("Recursive proofs verified successfully");
 
-        // Build the reduce program.
-        let reduce_program =
-            SP1ReduceVerifier::<InnerConfig, _, _>::build(&recursive_machine, &rec_vk, &rec_vk);
-
-        let (reduce_pk, reduce_vk) = recursive_machine.setup(&reduce_program);
         // Chain all the individual shard proofs.
         let mut recursive_proofs = recursive_proofs
             .into_iter()
@@ -1951,14 +2000,7 @@ mod tests {
         assert_eq!(recursive_proofs.len(), 1);
         let reduce_proof = recursive_proofs.pop().unwrap();
 
-        // Make the compress program.
-        let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
-        let compress_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
-
         // Make the compress proof.
-        let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
-
         let input = SP1RootMemoryLayout {
             machine: &recursive_machine,
             proof: reduce_proof,
@@ -2003,10 +2045,7 @@ mod tests {
             return;
         }
 
-        // Make the wrap program and prove.
-        let wrap_machine = RecursionAir::<_, 5>::machine(BabyBearPoseidon2Outer::default());
-        let wrap_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk);
+        // Run and prove the wrap program.
 
         let (wrap_pk, wrap_vk) = wrap_machine.setup(&wrap_program);
 
