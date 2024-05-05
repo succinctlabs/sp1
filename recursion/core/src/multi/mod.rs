@@ -60,7 +60,7 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let fri_fold_chip = FriFoldChip::default();
+        let fri_fold_chip = FriFoldChip::<3>::default();
         let poseidon2 = Poseidon2Chip::default();
         let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
         let mut poseidon2_trace = poseidon2.generate_trace(input, output);
@@ -137,7 +137,7 @@ where
             .when(local.is_poseidon2)
             .assert_one(next.is_poseidon2);
 
-        let fri_fold_chip = FriFoldChip::default();
+        let fri_fold_chip = FriFoldChip::<3>::default();
         let mut sub_builder = builder.when(local.is_fri_fold);
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,

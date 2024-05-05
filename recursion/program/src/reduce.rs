@@ -1745,7 +1745,7 @@ mod tests {
     };
     use sp1_recursion_core::{
         runtime::Runtime,
-        stark::{RecursionAirSkinnyDeg7, RecursionAirWideDeg3},
+        stark::{RecursionAir, RecursionAirWideDeg3},
     };
 
     use super::*;
@@ -1967,7 +1967,7 @@ mod tests {
         let reduce_proof = recursive_proofs.pop().unwrap();
 
         // Make the compress program.
-        let compress_machine = RecursionAirSkinnyDeg7::machine(SC::compressed());
+        let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
         let compress_program =
             SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
 
