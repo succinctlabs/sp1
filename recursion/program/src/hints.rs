@@ -158,6 +158,7 @@ impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
 impl VecAutoHintable<C> for QuotientDataValues {}
 impl VecAutoHintable<C> for Vec<QuotientDataValues> {}
+impl VecAutoHintable<C> for Vec<InnerVal> {}
 
 impl<I: VecAutoHintable<C>> VecAutoHintable<C> for &I {}
 
@@ -658,6 +659,15 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let start_reconstruct_deferred_digest = Vec::<BabyBear>::read(builder);
         let is_complete = builder.hint_var();
 
+        let sp1_vk = StarkVerifyingKey::<BabyBearPoseidon2>::read(builder);
+        let sp1_prep_sorted_idxs = Vec::<usize>::read(builder);
+        let sp1_prep_domains = Vec::<TwoAdicMultiplicativeCoset<InnerVal>>::read(builder);
+        let committed_value_digest = Vec::<Vec<InnerVal>>::read(builder);
+        let deferred_proofs_digest = Vec::<InnerVal>::read(builder);
+        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let end_pc = InnerVal::read(builder);
+        let end_shard = InnerVal::read(builder);
+
         SP1DeferredMemoryLayoutVariable {
             reduce_vk,
             reduce_prep_sorted_idxs,
@@ -667,6 +677,15 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             proof_sorted_indices,
             start_reconstruct_deferred_digest,
             is_complete,
+
+            sp1_vk,
+            sp1_prep_sorted_idxs,
+            sp1_prep_domains,
+            committed_value_digest,
+            deferred_proofs_digest,
+            leaf_challenger,
+            end_pc,
+            end_shard,
         }
     }
 
@@ -675,6 +694,9 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
 
         let (reduce_prep_sorted_idxs, reduce_prep_domains) =
             get_preprocessed_data::<BabyBearPoseidon2, _>(self.machine, self.reduce_vk);
+
+        let (sp1_prep_sorted_idxs, sp1_prep_domains) =
+            get_preprocessed_data::<BabyBearPoseidon2, _>(self.sp1_machine, self.sp1_vk);
 
         let shard_chip_quotient_data = self
             .proofs
@@ -688,6 +710,12 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             .map(|proof| get_sorted_indices::<BabyBearPoseidon2, A>(self.machine, proof))
             .collect::<Vec<_>>();
 
+        let committed_value_digest = self
+            .committed_value_digest
+            .iter()
+            .map(|w| w.0.to_vec())
+            .collect::<Vec<_>>();
+
         stream.extend(self.reduce_vk.write());
         stream.extend(reduce_prep_sorted_idxs.write());
         stream.extend(reduce_prep_domains.write());
@@ -696,6 +724,15 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         stream.extend(shard_sorted_indices.write());
         stream.extend(self.start_reconstruct_deferred_digest.write());
         stream.extend((self.is_complete as usize).write());
+
+        stream.extend(self.sp1_vk.write());
+        stream.extend(sp1_prep_sorted_idxs.write());
+        stream.extend(sp1_prep_domains.write());
+        stream.extend(committed_value_digest.write());
+        stream.extend(self.deferred_proofs_digest.write());
+        stream.extend(self.leaf_challenger.write());
+        stream.extend(self.end_pc.write());
+        stream.extend(self.end_shard.write());
 
         stream
     }

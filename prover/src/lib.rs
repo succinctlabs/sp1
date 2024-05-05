@@ -27,6 +27,7 @@ use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
+use sp1_core::air::PublicValues;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
 use sp1_core::stark::ProgramVerificationError;
@@ -312,6 +313,9 @@ impl SP1Prover {
             }
         }
 
+        let last_proof_input =
+            PublicValues::from_vec(proof.shard_proofs.last().unwrap().public_values.clone());
+
         // Check that the leaf challenger is the same as the reconstruct challenger.
         assert_eq!(
             reconstruct_challenger.sponge_state,
@@ -331,6 +335,7 @@ impl SP1Prover {
         let mut deferred_inputs = Vec::new();
 
         let is_deferred_complete = proof.shard_proofs.is_empty() && deferred_proofs.len() == 1;
+
         for batch in deferred_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
@@ -340,6 +345,13 @@ impl SP1Prover {
                 proofs,
                 start_reconstruct_deferred_digest: deferred_digest.to_vec(),
                 is_complete: is_deferred_complete,
+                sp1_vk: &vk.vk,
+                sp1_machine: &self.core_machine,
+                end_pc: Val::<InnerSC>::zero(),
+                end_shard: Val::<InnerSC>::from_canonical_usize(proof.shard_proofs.len()),
+                leaf_challenger: leaf_challenger.clone(),
+                committed_value_digest: last_proof_input.committed_value_digest.to_vec(),
+                deferred_proofs_digest: last_proof_input.deferred_proofs_digest.to_vec(),
             });
 
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
