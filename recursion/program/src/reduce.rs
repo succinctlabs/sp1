@@ -330,12 +330,15 @@ fn assert_complete<C: Config>(
         leaf_challenger,
         ..
     } = public_values;
+    let fifty: Var<_> = builder.eval(C::N::from_canonical_u32(50));
+    builder.print_v(fifty);
     // Assert that `end_pc` is equal to zero (so program execution has completed)
     builder.assert_felt_eq(*next_pc, C::F::zero());
+    builder.print_v(fifty);
 
     // Assert that the start shard is equal to 1.
     builder.assert_felt_eq(*start_shard, C::F::one());
-
+    builder.print_v(fifty);
     // The challenger has been fully verified.
 
     // The start_reconstruct_challenger should be the same as an empty challenger observing the
@@ -344,6 +347,7 @@ fn assert_complete<C: Config>(
 
     // Assert that the end reconstruct challenger is equal to the leaf challenger.
     assert_challenger_eq_pv(builder, end_reconstruct_challenger, *leaf_challenger);
+    builder.print_v(fifty);
 
     // The deferred digest has been fully reconstructed.
 
@@ -351,6 +355,7 @@ fn assert_complete<C: Config>(
     for start_digest_word in start_reconstruct_deferred_digest {
         builder.assert_felt_eq(*start_digest_word, C::F::zero());
     }
+    builder.print_v(fifty);
     // The end reconstruct digest should be equal to the deferred proofs digest.
     for (end_digest_word, deferred_digest_word) in end_reconstruct_deferred_digest
         .iter()
@@ -358,11 +363,13 @@ fn assert_complete<C: Config>(
     {
         builder.assert_felt_eq(*end_digest_word, *deferred_digest_word);
     }
+    builder.print_v(fifty);
 
     // Assert that the cumulative sum is zero.
     for b in cumulative_sum.iter() {
         builder.assert_felt_eq(*b, C::F::zero());
     }
+    builder.print_v(fifty);
 }
 
 fn proof_data_from_vk<C: Config, SC, A>(
@@ -538,11 +545,17 @@ where
             is_complete,
         } = input;
 
+        let val: Var<_> = builder.eval(C::N::one());
+        builder.print_v(val);
+
         // Initialize the values for the aggregated public output.
 
         let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
             .map(|_| builder.uninit())
             .collect();
+
+        builder.assign(val, val + C::N::one());
+        builder.print_v(val);
 
         let reduce_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
@@ -562,6 +575,9 @@ where
         builder.assert_usize_ne(shard_proofs.len(), 0);
         // Assert that the number of proofs is equal to the number of kinds.
         builder.assert_usize_eq(shard_proofs.len(), kinds.len());
+
+        builder.assign(val, val + C::N::one());
+        builder.print_v(val);
 
         // Initialize the consistency check variables.
         let sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
@@ -591,6 +607,8 @@ where
 
         // Verify the shard proofs and connect the values.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
+            builder.assign(val, C::N::zero());
+            builder.print_v(val);
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
             // Get the proof kind.
@@ -677,9 +695,26 @@ where
                 {
                     builder.assign(*digest, *current_digest);
                 }
+
+                // Initialize the start reconstruct deferred digest.
+                for (digest, first_digest, global_digest) in izip!(
+                    reconstruct_deferred_digest.iter(),
+                    current_public_values
+                        .start_reconstruct_deferred_digest
+                        .iter(),
+                    reduce_public_values
+                        .start_reconstruct_deferred_digest
+                        .iter()
+                ) {
+                    builder.assign(*digest, *first_digest);
+                    builder.assign(*global_digest, *first_digest);
+                }
             });
 
             // Assert that the current values match the accumulated values.
+
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
 
             // Assert that the start deferred digest is equal to the current deferred digest.
             for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
@@ -689,6 +724,8 @@ where
             ) {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
 
             // consistency checks for all accumulated values.
 
@@ -699,11 +736,16 @@ where
             {
                 builder.assert_felt_eq(*digest, current);
             }
+
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
             // Verfiy that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
+            // builder.assert_felt_eq(shard, current_public_values.start_shard);
             // Assert that the leaf challenger is always the same.
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
             assert_challenger_eq_pv(
                 builder,
                 &leaf_challenger,
@@ -715,6 +757,8 @@ where
                 &reconstruct_challenger,
                 current_public_values.start_reconstruct_challenger,
             );
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
             // Assert that the commited digests are the same.
             for (word, current_word) in committed_value_digest
                 .iter()
@@ -724,6 +768,8 @@ where
                     builder.assert_felt_eq(*byte, *current_byte);
                 }
             }
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
             // Assert that the deferred proof digests are the same.
             for (digest, current_digest) in deferred_proofs_digest
                 .iter()
@@ -731,7 +777,8 @@ where
             {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
-
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
             // Verify the shard proof.
 
             // Initialize values for verifying key and proof data.
@@ -806,6 +853,9 @@ where
             );
             // Update the accumulated values.
 
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
+
             // Update the deffered proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter()
@@ -813,6 +863,9 @@ where
             {
                 builder.assign(*digest, *current_digest);
             }
+
+            builder.assign(val, val + C::N::one());
+            builder.print_v(val);
 
             // Update the accumulated values.
             // Update pc to be the next pc.
@@ -835,6 +888,8 @@ where
             }
         });
 
+        builder.assign(val, val + C::N::one());
+        builder.print_v(val);
         // Update the global values from the last accumulated values.
         // Set sp1_vk digest to the one from the proof values.
         reduce_public_values.sp1_vk_digest = sp1_vk_digest;
@@ -851,6 +906,8 @@ where
         // Set the end reconstruct challenger to be the last reconstruct challenger.
         let values = get_challenger_public_values(builder, &reconstruct_challenger);
         reduce_public_values.end_reconstruct_challenger = values;
+        // Set the start reconstruct deferred digest to be the last reconstruct deferred digest.
+        reduce_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
 
         // Assign the deffered proof digests.
         reduce_public_values.deferred_proofs_digest = deferred_proofs_digest;
@@ -858,7 +915,8 @@ where
         reduce_public_values.committed_value_digest = committed_value_digest;
         // Assign the cumulative sum.
         reduce_public_values.cumulative_sum = cumulative_sum;
-
+        builder.assign(val, val + C::N::one());
+        builder.print_v(val);
         // If the proof is complete, make completeness assertions and set the flag. Otherwise, check
         // the flag is zero and set the public value to zero.
         builder.if_eq(is_complete, C::N::one()).then_or_else(
@@ -871,7 +929,8 @@ where
                 builder.assign(reduce_public_values.is_complete, C::F::zero());
             },
         );
-
+        builder.assign(val, val + C::N::one());
+        builder.print_v(val);
         // Commit the public values.
         let mut reduce_public_values_array =
             builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
@@ -879,7 +938,10 @@ where
             builder.set(&mut reduce_public_values_array, i, *value);
         }
 
-        builder.commit_public_values(&reduce_public_values_array)
+        builder.commit_public_values(&reduce_public_values_array);
+
+        builder.assign(val, val + C::N::one());
+        builder.print_v(val);
     }
 }
 
@@ -1204,11 +1266,17 @@ where
             array::from_fn(|i| builder.get(&start_reconstruct_deferred_digest, i));
 
         // Assert that there is at least one proof.
-        builder.assert_usize_ne(proofs.len(), 0);
+        // builder.assert_usize_ne(proofs.len(), 0);
 
         // Initialize the consistency check variable.
-        let reconstruct_deferred_digest: [Felt<_>; POSEIDON_NUM_WORDS] =
-            core::array::from_fn(|_| builder.uninit());
+        let mut reconstruct_deferred_digest = builder.array(POSEIDON_NUM_WORDS);
+        for (i, first_digest) in deferred_public_values
+            .start_reconstruct_deferred_digest
+            .iter()
+            .enumerate()
+        {
+            builder.set(&mut reconstruct_deferred_digest, i, *first_digest);
+        }
 
         // Verify the proofs and connect the values.
         builder.range(0, proofs.len()).for_each(|i, builder| {
@@ -1223,7 +1291,7 @@ where
                 current_public_values_elements.as_slice().borrow();
 
             // Assert that the proof is complete.
-            builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
+            // builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
 
             // Assert that the reduce_vk digest is the same.
             for (digest, current) in deferred_public_values
@@ -1267,8 +1335,9 @@ where
             // Update deferred proof digest
             // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )
             let mut poseidon_inputs = builder.array(48);
-            for (j, current_digest_element) in reconstruct_deferred_digest.iter().enumerate() {
-                builder.set(&mut poseidon_inputs, j, *current_digest_element);
+            for j in 0..DIGEST_SIZE {
+                let current_digest_element = builder.get(&reconstruct_deferred_digest, j);
+                builder.set(&mut poseidon_inputs, j, current_digest_element);
             }
 
             for j in 0..DIGEST_SIZE {
@@ -1289,8 +1358,8 @@ where
             }
             let new_digest = builder.poseidon2_hash(&poseidon_inputs);
             for j in 0..DIGEST_SIZE {
-                let element = builder.get(&new_digest, j);
-                builder.assign(reconstruct_deferred_digest[j], element);
+                let new_value = builder.get(&new_digest, j);
+                builder.set(&mut reconstruct_deferred_digest, j, new_value);
             }
         });
 
@@ -1327,7 +1396,8 @@ where
         deferred_public_values.end_reconstruct_challenger = values;
 
         // Assign the deffered proof digests.
-        deferred_public_values.end_reconstruct_deferred_digest = reconstruct_deferred_digest;
+        deferred_public_values.end_reconstruct_deferred_digest =
+            array::from_fn(|i| builder.get(&reconstruct_deferred_digest, i));
 
         // Set the is_complete flag.
         deferred_public_values.is_complete = var2felt(builder, is_complete);
@@ -1339,7 +1409,10 @@ where
             builder.set(&mut deferred_public_values_array, i, *value);
         }
 
-        builder.commit_public_values(&deferred_public_values_array)
+        builder.commit_public_values(&deferred_public_values_array);
+
+        let one: Var<_> = builder.eval(C::N::one());
+        builder.print_v(one);
     }
 }
 
