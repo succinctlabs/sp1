@@ -418,7 +418,7 @@ version = "0.1.0"
 source = "git+https://github.com/alloy-rs/alloy?rev=bfd0fda#bfd0fda492e560c3463d521958793c81bbeadfc1"
 dependencies = [
  "alloy-json-rpc",
- "base64 0.22.0",
+ "base64 0.22.1",
  "futures-util",
  "futures-utils-wasm",
  "serde",
@@ -807,9 +807,9 @@ checksum = "9d297deb1925b89f2ccc13d7635fa0714f12c87adce1c75356b39ca9b7178567"
 
 [[package]]
 name = "base64"
-version = "0.22.0"
+version = "0.22.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9475866fec1451be56a3c2400fd081ff546538961565ccb5b7142cbd22bc7a51"
+checksum = "72b3254f16251a8381aa12e40e3c4d2f0199f8c6508fbecb9d91f575e0fbb8c6"
 
 [[package]]
 name = "base64ct"
@@ -1465,6 +1465,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "dialoguer"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "658bce805d770f407bc62102fca7c2c64ceef2fbcb2b8bd19d2765ce093980de"
+dependencies = [
+ "console",
+ "shell-words",
+ "tempfile",
+ "thiserror",
+ "zeroize",
+]
+
+[[package]]
 name = "digest"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1491,7 +1504,16 @@ version = "4.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ca3aa72a6f96ea37bbc5aa912f6788242832f75369bdfdadcb0e38423f100059"
 dependencies = [
- "dirs-sys",
+ "dirs-sys 0.3.7",
+]
+
+[[package]]
+name = "dirs"
+version = "5.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "44c45a9d03d6676652bcb5e724c7e988de1acad23a711b5217ab9cbecbec2225"
+dependencies = [
+ "dirs-sys 0.4.1",
 ]
 
 [[package]]
@@ -1503,6 +1525,18 @@ dependencies = [
  "libc",
  "redox_users",
  "winapi",
+]
+
+[[package]]
+name = "dirs-sys"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "520f05a5cbd335fae5a99ff7a6ab8627577660ee5cfd6a94a6a929b52ff0321c"
+dependencies = [
+ "libc",
+ "option-ext",
+ "redox_users",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2960,6 +2994,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "option-ext"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04744f49eae99ab78e0d5c0b603ab218f515ea8cfe5a456d7629ad883a3b6e7d"
+
+[[package]]
 name = "overload"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3754,7 +3794,7 @@ version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "566cafdd92868e0939d3fb961bd0dc25fcfaaed179291093b3d43e6b3150ea10"
 dependencies = [
- "base64 0.22.0",
+ "base64 0.22.1",
  "bytes",
  "futures-core",
  "futures-util",
@@ -3957,7 +3997,7 @@ version = "2.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29993a25686778eb88d4189742cd713c9bce943bc54251a33509dc63cbacf73d"
 dependencies = [
- "base64 0.22.0",
+ "base64 0.22.1",
  "rustls-pki-types",
 ]
 
@@ -4197,7 +4237,7 @@ version = "3.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ad483d2ab0149d5a5ebcd9972a3852711e0153d863bf5a5d0391d28883c4a20"
 dependencies = [
- "base64 0.22.0",
+ "base64 0.22.1",
  "chrono",
  "hex",
  "indexmap 1.9.3",
@@ -4287,6 +4327,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "shell-words"
+version = "1.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "24188a676b6ae68c3b2cb3a01be17fbf7240ce009799bb56d5b1409051e78fde"
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4354,7 +4400,8 @@ dependencies = [
  "anyhow",
  "cargo_metadata",
  "clap",
- "dirs",
+ "dialoguer",
+ "dirs 4.0.0",
  "downloader",
  "flate2",
  "futures-util",
@@ -4369,6 +4416,7 @@ dependencies = [
  "sp1-sdk",
  "tar",
  "target-lexicon",
+ "tempfile",
  "tokio",
  "vergen",
  "yansi",
@@ -4517,6 +4565,8 @@ dependencies = [
  "sp1-recursion-core",
  "sp1-recursion-gnark-ffi",
  "sp1-recursion-program",
+ "subtle-encoding",
+ "tempfile",
  "tracing",
  "tracing-appender",
  "tracing-subscriber",
@@ -4628,12 +4678,14 @@ name = "sp1-recursion-gnark-ffi"
 version = "0.1.0"
 dependencies = [
  "crossbeam",
+ "log",
  "p3-field",
  "rand",
  "reqwest 0.11.27",
  "serde",
  "serde_json",
  "sp1-recursion-compiler",
+ "subtle-encoding",
  "tempfile",
 ]
 
@@ -4672,6 +4724,7 @@ dependencies = [
  "async-trait",
  "axum",
  "bincode",
+ "dirs 5.0.1",
  "dotenv",
  "futures",
  "hex",
@@ -4689,9 +4742,11 @@ dependencies = [
  "sha2",
  "sp1-core",
  "sp1-prover",
+ "tempfile",
  "tokio",
  "tracing",
  "twirp",
+ "vergen",
 ]
 
 [[package]]
@@ -4777,6 +4832,15 @@ name = "subtle"
 version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "81cdd64d312baedb58e21336b31bc043b77e01cc99033ce76ef539f78e965ebc"
+
+[[package]]
+name = "subtle-encoding"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7dcb1ed7b8330c5eed5441052651dd7a12c75e2ed88f2ec024ae1fa3a5e59945"
+dependencies = [
+ "zeroize",
+]
 
 [[package]]
 name = "syn"
@@ -5217,7 +5281,7 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 [[package]]
 name = "twirp"
 version = "0.3.0"
-source = "git+https://github.com/github/twirp-rs.git#93d4e4b4a48f9112c943d2925e8dbb1106bd6a18"
+source = "git+https://github.com/github/twirp-rs.git?rev=93d4e4b#93d4e4b4a48f9112c943d2925e8dbb1106bd6a18"
 dependencies = [
  "async-trait",
  "axum",

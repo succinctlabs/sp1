@@ -5,15 +5,18 @@ pub mod proto {
     #[allow(clippy::all)]
     pub mod network;
 }
+pub mod artifacts;
 pub mod auth;
 pub mod client;
-mod local;
-mod mock;
-mod network;
+pub mod local;
+pub mod mock;
+pub mod network;
 pub mod utils;
 
 use anyhow::{Ok, Result};
+use artifacts::WrapCircuitType;
 use local::LocalProver;
+use mock::MockProver;
 use network::NetworkProver;
 pub use sp1_prover::{
     CoreSC, SP1CoreProof, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -45,10 +48,37 @@ impl ProverClient {
             .to_lowercase()
             .as_str()
         {
+            "mock" => Self {
+                prover: Box::new(MockProver::new()),
+            },
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
             "network" => Self {
+                prover: Box::new(NetworkProver::new()),
+            },
+            _ => panic!("Invalid SP1_PROVER value"),
+        }
+    }
+
+    pub fn new_groth16() -> Self {
+        dotenv::dotenv().ok();
+        match env::var("SP1_PROVER")
+            .unwrap_or("local".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "mock" => Self {
+                prover: Box::new(MockProver::new()),
+            },
+            "local" => {
+                let prover = LocalProver::new();
+                prover.initialize_circuit(WrapCircuitType::Groth16);
+                Self {
+                    prover: Box::new(prover),
+                }
+            }
+            "remote" => Self {
                 prover: Box::new(NetworkProver::new()),
             },
             _ => panic!("Invalid SP1_PROVER value"),

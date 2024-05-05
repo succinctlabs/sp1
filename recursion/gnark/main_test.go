@@ -10,7 +10,7 @@ import (
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
-	"github.com/succinctlabs/sp1-recursion-gnark/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/babybear_v2"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
 
@@ -37,16 +37,16 @@ func TestMain(t *testing.T) {
 	}
 
 	vars := make([]frontend.Variable, len(inputs.Vars))
-	felts := make([]*babybear.Variable, len(inputs.Felts))
-	exts := make([]*babybear.ExtensionVariable, len(inputs.Exts))
+	felts := make([]babybear_v2.Variable, len(inputs.Felts))
+	exts := make([]babybear_v2.ExtensionVariable, len(inputs.Exts))
 	for i := 0; i < len(inputs.Vars); i++ {
 		vars[i] = frontend.Variable(inputs.Vars[i])
 	}
 	for i := 0; i < len(inputs.Felts); i++ {
-		felts[i] = babybear.NewF(inputs.Felts[i])
+		felts[i] = babybear_v2.NewF(inputs.Felts[i])
 	}
 	for i := 0; i < len(inputs.Exts); i++ {
-		exts[i] = babybear.NewE(inputs.Exts[i])
+		exts[i] = babybear_v2.NewE(inputs.Exts[i])
 	}
 
 	// Run some sanity checks.
@@ -75,16 +75,16 @@ func TestMain(t *testing.T) {
 
 	// Generate witness.
 	vars = make([]frontend.Variable, len(inputs.Vars))
-	felts = make([]*babybear.Variable, len(inputs.Felts))
-	exts = make([]*babybear.ExtensionVariable, len(inputs.Exts))
+	felts = make([]babybear_v2.Variable, len(inputs.Felts))
+	exts = make([]babybear_v2.ExtensionVariable, len(inputs.Exts))
 	for i := 0; i < len(inputs.Vars); i++ {
 		vars[i] = frontend.Variable(inputs.Vars[i])
 	}
 	for i := 0; i < len(inputs.Felts); i++ {
-		felts[i] = babybear.NewF(inputs.Felts[i])
+		felts[i] = babybear_v2.NewF(inputs.Felts[i])
 	}
 	for i := 0; i < len(inputs.Exts); i++ {
-		exts[i] = babybear.NewE(inputs.Exts[i])
+		exts[i] = babybear_v2.NewE(inputs.Exts[i])
 	}
 	assignment := sp1.Circuit{
 		Vars:                 vars,

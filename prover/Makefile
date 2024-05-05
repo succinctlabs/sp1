@@ -6,7 +6,7 @@ all:
 groth16:
 	mkdir -p build && \
 	RUSTFLAGS='-C target-cpu=native' \
-	cargo run -p sp1-prover --release --bin e2e -- \
+	cargo run -p sp1-prover --release --bin build_groth16 -- \
 	--build-dir=./build
 
 fibonacci-sweep:

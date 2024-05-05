@@ -157,7 +157,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a program, this function generates the proving and verifying keys. The keys correspond
     /// to the program code and other preprocessed colunms such as lookup tables.
-    #[instrument("setup StarkMachine", level = "info", skip_all)]
+    #[instrument("setup machine", level = "info", skip_all)]
     pub fn setup(&self, program: &A::Program) -> (StarkProvingKey<SC>, StarkVerifyingKey<SC>) {
         let mut named_preprocessed_traces = tracing::debug_span!("generate preprocessed traces")
             .in_scope(|| {
@@ -499,13 +499,13 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 let permutation_width = permutation_traces[i].width();
                 let total_width = trace_width + permutation_width;
                 tracing::debug!(
-                "{:<11} | Cols = {:<5} | Rows = {:<5} | Cells = {:<10} | Main Cols = {:.2}% | Perm Cols = {:.2}%",
+                "{:<11} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<10} | Cells = {:<10}",
                 chips[i].name(),
-                total_width,
+                trace_width,
+                permutation_width,
                 traces[i].0.height(),
                 total_width * traces[i].0.height(),
-                (100f32 * trace_width as f32) / total_width as f32,
-                (100f32 * permutation_width as f32) / total_width as f32);
+                );
             }
 
             tracing::info_span!("debug constraints").in_scope(|| {
@@ -534,6 +534,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 &shards,
                 InteractionKind::all_kinds(),
             );
+            panic!("Cumulative sum is not zero");
         }
     }
 }
