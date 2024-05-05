@@ -11,7 +11,13 @@ use serde::de::DeserializeOwned;
 use serde::Serialize;
 use size::Size;
 
+use crate::lookup::InteractionBuilder;
 use crate::runtime::{ExecutionRecord, ShardingConfig};
+use crate::stark::DebugConstraintBuilder;
+use crate::stark::ProverConstraintFolder;
+use crate::stark::StarkVerifyingKey;
+use crate::stark::Val;
+use crate::stark::VerifierConstraintFolder;
 use crate::stark::{Com, PcsProverData, RiscvAir, ShardProof, StarkProvingKey, UniConfig};
 use crate::stark::{MachineRecord, StarkMachine};
 use crate::utils::env::shard_batch_size;
@@ -64,40 +70,9 @@ pub fn run_test_core(
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
-    #[cfg(feature = "debug")]
-    {
-        let mut challenger_clone = machine.config().challenger();
-        let record_clone = runtime.record.clone();
-        machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
-    }
-    let start = Instant::now();
-    let mut challenger = machine.config().challenger();
-    let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-
-    let cycles = runtime.state.global_clk;
-    let time = start.elapsed().as_millis();
-    let nb_bytes = bincode::serialize(&proof).unwrap().len();
-
-    let mut challenger = machine.config().challenger();
-    machine.verify(&vk, &proof, &mut challenger)?;
-
-    tracing::info!(
-        "summary: cycles={}, e2e={}, khz={:.2}, proofSize={}",
-        cycles,
-        time,
-        (cycles as f64 / time as f64),
-        Size::from_bytes(nb_bytes),
-    );
-
-    Ok(proof)
+    let record = runtime.record;
+    run_test_machine(record, machine, pk, vk)
 }
-
-use crate::lookup::InteractionBuilder;
-use crate::stark::DebugConstraintBuilder;
-use crate::stark::ProverConstraintFolder;
-use crate::stark::StarkVerifyingKey;
-use crate::stark::Val;
-use crate::stark::VerifierConstraintFolder;
 
 #[allow(unused_variables)]
 pub fn run_test_machine<SC, A>(
