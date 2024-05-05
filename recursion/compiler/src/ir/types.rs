@@ -56,11 +56,13 @@ impl<C: Config> Witness<C> {
         self.vars.len() + self.felts.len() + self.exts.len() + 2
     }
 
-    pub fn set_vkey_hash(&mut self, vkey_hash: C::N) {
+    pub fn write_vkey_hash(&mut self, vkey_hash: C::N) {
+        self.vars.push(vkey_hash);
         self.vkey_hash = vkey_hash;
     }
 
-    pub fn set_commited_values_digest(&mut self, commited_values_digest: C::N) {
+    pub fn write_commited_values_digest(&mut self, commited_values_digest: C::N) {
+        self.vars.push(commited_values_digest);
         self.commited_values_digest = commited_values_digest
     }
 }
