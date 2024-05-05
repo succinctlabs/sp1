@@ -383,9 +383,6 @@ where
             is_reduce,
         } = input;
 
-        let one: Var<_> = builder.eval(C::N::one());
-        builder.print_v(one);
-
         // Get the public inputs from the proof.
         let public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
             .map(|i| builder.get(&proof.public_values, i))
@@ -393,15 +390,12 @@ where
         let public_values: &RecursionPublicValues<Felt<C::F>> =
             public_values_elements.as_slice().borrow();
 
-        builder.print_v(one);
-
         // Assert that the proof is complete.
         //
         // *Remark*: here we are assuming on that the program we are verifying indludes the check
         // of completeness conditions are satisfied if the flag is set to one, so we are only
         // checking the `is_complete` flag in this program.
         builder.assert_felt_eq(public_values.is_complete, C::F::one());
-        builder.print_v(one);
 
         // If the proof is a reduce proof, assert that the vk is the same as the reduce vk from the
         // public values.
@@ -412,7 +406,6 @@ where
                 builder.assert_felt_eq(vk_digest_elem, *reduce_digest_elem);
             }
         });
-        builder.print_v(one);
         // Verify the proof.
 
         let mut challenger = DuplexChallengerVariable::new(builder);
@@ -425,7 +418,6 @@ where
             let element = builder.get(&proof.public_values, j);
             challenger.observe(builder, element);
         }
-        builder.print_v(one);
         // verify proof.
         StarkVerifier::<C, SC>::verify_shard(
             builder,
@@ -439,7 +431,6 @@ where
             &prep_sorted_indices,
             &prep_domains,
         );
-        builder.print_v(one);
 
         // Commit to the public values, broadcasting the same ones.
         let mut public_values_array = builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
@@ -448,7 +439,6 @@ where
         }
 
         builder.commit_public_values(&public_values_array);
-        builder.print_v(one);
     }
 }
 
@@ -483,10 +473,6 @@ where
             is_complete,
         } = input;
 
-        let zero_var: Var<_> = builder.eval(C::N::zero());
-        let one_var: Var<_> = builder.eval(C::N::one());
-        builder.print_v(zero_var);
-        builder.print_v(one_var);
         // Initialize the values for the aggregated public output.
 
         let mut reduce_public_values_stream: Vec<Felt<_>> = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
@@ -512,8 +498,6 @@ where
         // Assert that the number of proofs is equal to the number of kinds.
         builder.assert_usize_eq(shard_proofs.len(), kinds.len());
 
-        builder.print_v(zero_var);
-
         // Initialize the consistency check variables.
         let sp1_vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|_| builder.uninit());
         let pc: Felt<_> = builder.uninit();
@@ -537,7 +521,6 @@ where
 
         // Verify the shard proofs and connect the values.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
-            builder.print_v(zero_var);
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
             // Load the public values from the proof.
@@ -632,31 +615,22 @@ where
             {
                 builder.assert_felt_eq(*digest, current);
             }
-            builder.print_v(zero_var);
-            builder.print_f(pc);
-            builder.print_f(current_public_values.start_pc);
             // Assert that the start pc is equal to the current pc.
             builder.assert_felt_eq(pc, current_public_values.start_pc);
-            builder.print_v(zero_var);
             // Verfiy that the shard is equal to the current shard.
-            builder.print_f(shard);
-            builder.print_f(current_public_values.start_shard);
             builder.assert_felt_eq(shard, current_public_values.start_shard);
-            builder.print_v(zero_var);
             // Assert that the leaf challenger is always the same.
             assert_challenger_eq_pv(
                 builder,
                 &leaf_challenger,
                 current_public_values.leaf_challenger,
             );
-            builder.print_v(zero_var);
             // Assert that the current challenger matches the start reconstruct challenger.
             assert_challenger_eq_pv(
                 builder,
                 &reconstruct_challenger,
                 current_public_values.start_reconstruct_challenger,
             );
-            builder.print_v(zero_var);
             // Assert that the commited digests are the same.
             for (word, current_word) in committed_value_digest
                 .iter()
@@ -666,7 +640,6 @@ where
                     builder.assert_felt_eq(*byte, *current_byte);
                 }
             }
-            builder.print_v(zero_var);
             // Assert that the deferred proof digests are the same.
             for (digest, current_digest) in deferred_proofs_digest
                 .iter()
@@ -674,7 +647,6 @@ where
             {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
-            builder.print_v(zero_var);
             // Assert that the start deferred digest is equal to the current deferred digest.
             for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
                 current_public_values
@@ -683,7 +655,6 @@ where
             ) {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
-            builder.print_v(zero_var);
             // Verify the shard proof.
 
             // Get the proof kind.
@@ -741,7 +712,6 @@ where
                 challenger.observe(builder, element);
             }
             // verify proof.
-            builder.print_v(zero_var);
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &vk,
@@ -754,7 +724,6 @@ where
                 &prep_sorted_idxs,
                 &prep_domains,
             );
-            builder.print_v(one_var);
             // Update the accumulated values.
 
             // Update pc to be the next pc.
