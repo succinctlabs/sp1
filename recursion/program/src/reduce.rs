@@ -564,10 +564,17 @@ where
         let (deferred_vk_variable, def_rep_domains, def_prep_sorted_indices) =
             proof_data_from_vk(builder, deferred_vk, machine);
 
+        // Get field values for the proof kind.
+        let core_kind = C::N::from_canonical_u32(ReduceProgramType::Core as u32);
+        let deferred_kind = C::N::from_canonical_u32(ReduceProgramType::Deferred as u32);
+        let reduce_kind = C::N::from_canonical_u32(ReduceProgramType::Reduce as u32);
+
         // Verify the shard proofs and connect the values.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
+            // Get the proof kind.
+            let kind = builder.get(&kinds, i);
             // Load the public values from the proof.
             let current_public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
                 .map(|i| builder.get(&proof.public_values, i))
@@ -578,66 +585,9 @@ where
 
             // If the proof is the first proof, initialize the values.
             builder.if_eq(i, C::N::zero()).then(|builder| {
-                // Initialize globa and accumulated values.
+                // Initialize global and accumulated values.
 
-                // Initialize the sp1_vk digest
-                for (digest, first_digest) in sp1_vk_digest
-                    .iter()
-                    .zip(current_public_values.sp1_vk_digest)
-                {
-                    builder.assign(*digest, first_digest);
-                }
-
-                // Initiallize start pc.
-                builder.assign(
-                    reduce_public_values.start_pc,
-                    current_public_values.start_pc,
-                );
-                builder.assign(pc, current_public_values.start_pc);
-
-                // Initialize start shard.
-                builder.assign(shard, current_public_values.start_shard);
-                builder.assign(
-                    reduce_public_values.start_shard,
-                    current_public_values.start_shard,
-                );
-
-                // Initialize the leaf challenger.
-                assign_challenger_from_pv(
-                    builder,
-                    &mut leaf_challenger,
-                    current_public_values.leaf_challenger,
-                );
-                // Initialize the reconstruct challenger.
-                assign_challenger_from_pv(
-                    builder,
-                    &mut initial_reconstruct_challenger,
-                    current_public_values.start_reconstruct_challenger,
-                );
-                assign_challenger_from_pv(
-                    builder,
-                    &mut reconstruct_challenger,
-                    current_public_values.start_reconstruct_challenger,
-                );
-
-                // Assign the commited values and deferred proof digests.
-                for (word, current_word) in committed_value_digest
-                    .iter()
-                    .zip_eq(current_public_values.committed_value_digest.iter())
-                {
-                    for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                        builder.assign(*byte, *current_byte);
-                    }
-                }
-
-                for (digest, current_digest) in deferred_proofs_digest
-                    .iter()
-                    .zip_eq(current_public_values.deferred_proofs_digest.iter())
-                {
-                    builder.assign(*digest, *current_digest);
-                }
-
-                // Initialize the start and end of deferred digests.
+                // Initialize the start of deferred digests.
                 for (digest, current_digest, global_digest) in izip!(
                     reconstruct_deferred_digest.iter(),
                     current_public_values
@@ -650,48 +600,70 @@ where
                     builder.assign(*digest, *current_digest);
                     builder.assign(*global_digest, *current_digest);
                 }
+
+                // If the kind is not a deferred proof, initialize other values.
+                builder.if_ne(kind, deferred_kind).then(|builder| {
+                    // Initialize the sp1_vk digest
+                    for (digest, first_digest) in sp1_vk_digest
+                        .iter()
+                        .zip(current_public_values.sp1_vk_digest)
+                    {
+                        builder.assign(*digest, first_digest);
+                    }
+
+                    // Initiallize start pc.
+                    builder.assign(
+                        reduce_public_values.start_pc,
+                        current_public_values.start_pc,
+                    );
+                    builder.assign(pc, current_public_values.start_pc);
+
+                    // Initialize start shard.
+                    builder.assign(shard, current_public_values.start_shard);
+                    builder.assign(
+                        reduce_public_values.start_shard,
+                        current_public_values.start_shard,
+                    );
+
+                    // Initialize the leaf challenger.
+                    assign_challenger_from_pv(
+                        builder,
+                        &mut leaf_challenger,
+                        current_public_values.leaf_challenger,
+                    );
+                    // Initialize the reconstruct challenger.
+                    assign_challenger_from_pv(
+                        builder,
+                        &mut initial_reconstruct_challenger,
+                        current_public_values.start_reconstruct_challenger,
+                    );
+                    assign_challenger_from_pv(
+                        builder,
+                        &mut reconstruct_challenger,
+                        current_public_values.start_reconstruct_challenger,
+                    );
+
+                    // Assign the commited values and deferred proof digests.
+                    for (word, current_word) in committed_value_digest
+                        .iter()
+                        .zip_eq(current_public_values.committed_value_digest.iter())
+                    {
+                        for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                            builder.assign(*byte, *current_byte);
+                        }
+                    }
+
+                    for (digest, current_digest) in deferred_proofs_digest
+                        .iter()
+                        .zip_eq(current_public_values.deferred_proofs_digest.iter())
+                    {
+                        builder.assign(*digest, *current_digest);
+                    }
+                });
             });
 
             // Assert that the current values match the accumulated values.
-            // Assert that the sp1_vk digest is always the same.
-            for (digest, current) in sp1_vk_digest
-                .iter()
-                .zip(current_public_values.sp1_vk_digest)
-            {
-                builder.assert_felt_eq(*digest, current);
-            }
-            // Assert that the start pc is equal to the current pc.
-            builder.assert_felt_eq(pc, current_public_values.start_pc);
-            // Verfiy that the shard is equal to the current shard.
-            builder.assert_felt_eq(shard, current_public_values.start_shard);
-            // Assert that the leaf challenger is always the same.
-            assert_challenger_eq_pv(
-                builder,
-                &leaf_challenger,
-                current_public_values.leaf_challenger,
-            );
-            // Assert that the current challenger matches the start reconstruct challenger.
-            assert_challenger_eq_pv(
-                builder,
-                &reconstruct_challenger,
-                current_public_values.start_reconstruct_challenger,
-            );
-            // Assert that the commited digests are the same.
-            for (word, current_word) in committed_value_digest
-                .iter()
-                .zip_eq(current_public_values.committed_value_digest.iter())
-            {
-                for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
-                    builder.assert_felt_eq(*byte, *current_byte);
-                }
-            }
-            // Assert that the deferred proof digests are the same.
-            for (digest, current_digest) in deferred_proofs_digest
-                .iter()
-                .zip_eq(current_public_values.deferred_proofs_digest.iter())
-            {
-                builder.assert_felt_eq(*digest, *current_digest);
-            }
+
             // Assert that the start deferred digest is equal to the current deferred digest.
             for (digest, current_digest) in reconstruct_deferred_digest.iter().zip_eq(
                 current_public_values
@@ -700,46 +672,95 @@ where
             ) {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
+
+            // If proof kind is deferred, this is the only check we need to do. Otherwise, we make
+            // consistency checks for all accumulated values.
+
+            builder.if_ne(kind, deferred_kind).then(|builder| {
+                // Assert that the sp1_vk digest is always the same.
+                for (digest, current) in sp1_vk_digest
+                    .iter()
+                    .zip(current_public_values.sp1_vk_digest)
+                {
+                    builder.assert_felt_eq(*digest, current);
+                }
+                // Assert that the start pc is equal to the current pc.
+                builder.assert_felt_eq(pc, current_public_values.start_pc);
+                // Verfiy that the shard is equal to the current shard.
+                builder.assert_felt_eq(shard, current_public_values.start_shard);
+                // Assert that the leaf challenger is always the same.
+                assert_challenger_eq_pv(
+                    builder,
+                    &leaf_challenger,
+                    current_public_values.leaf_challenger,
+                );
+                // Assert that the current challenger matches the start reconstruct challenger.
+                assert_challenger_eq_pv(
+                    builder,
+                    &reconstruct_challenger,
+                    current_public_values.start_reconstruct_challenger,
+                );
+                // Assert that the commited digests are the same.
+                for (word, current_word) in committed_value_digest
+                    .iter()
+                    .zip_eq(current_public_values.committed_value_digest.iter())
+                {
+                    for (byte, current_byte) in word.0.iter().zip_eq(current_word.0.iter()) {
+                        builder.assert_felt_eq(*byte, *current_byte);
+                    }
+                }
+                // Assert that the deferred proof digests are the same.
+                for (digest, current_digest) in deferred_proofs_digest
+                    .iter()
+                    .zip_eq(current_public_values.deferred_proofs_digest.iter())
+                {
+                    builder.assert_felt_eq(*digest, *current_digest);
+                }
+            });
+
             // Verify the shard proof.
 
-            // Get the proof kind.
-            let kind = builder.get(&kinds, i);
             // Initialize values for verifying key and proof data.
             let vk: VerifyingKeyVariable<_> = builder.uninit();
             let prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
             let prep_sorted_idxs: Array<_, Var<_>> = builder.uninit();
-            // Set the correct value given the value of kind.
-            builder
-                .if_eq(
-                    kind,
-                    C::N::from_canonical_u32(ReduceProgramType::Core as u32),
-                )
-                .then(|builder| {
+            // Set the correct value given the value of kind, and assert it must be one of the
+            // valid values. We can do that by nested `if-else` statements.
+            builder.if_eq(kind, core_kind).then_or_else(
+                |builder| {
                     builder.assign(vk.clone(), recursive_vk_variable.clone());
                     builder.assign(prep_domains.clone(), rec_rep_domains.clone());
                     builder.assign(prep_sorted_idxs.clone(), rec_prep_sorted_indices.clone());
-                });
-            builder
-                .if_eq(
-                    kind,
-                    C::N::from_canonical_u32(ReduceProgramType::Deferred as u32),
-                )
-                .then(|builder| {
-                    builder.assign(vk.clone(), deferred_vk_variable.clone());
-                    builder.assign(prep_domains.clone(), def_rep_domains.clone());
-                    builder.assign(prep_sorted_idxs.clone(), def_prep_sorted_indices.clone());
-                });
-            builder
-                .if_eq(
-                    kind,
-                    C::N::from_canonical_u32(ReduceProgramType::Reduce as u32),
-                )
-                .then(|builder| {
-                    builder.assign(vk.clone(), reduce_vk.clone());
-                    builder.assign(prep_domains.clone(), reduce_prep_domains.clone());
-                    builder.assign(prep_sorted_idxs.clone(), reduce_prep_sorted_idxs.clone());
-                });
-            // Todo: assert that Kind must be one of these values.
+                },
+                |builder| {
+                    builder.if_eq(kind, deferred_kind).then_or_else(
+                        |builder| {
+                            builder.assign(vk.clone(), deferred_vk_variable.clone());
+                            builder.assign(prep_domains.clone(), def_rep_domains.clone());
+                            builder
+                                .assign(prep_sorted_idxs.clone(), def_prep_sorted_indices.clone());
+                        },
+                        |builder| {
+                            builder.if_eq(kind, reduce_kind).then_or_else(
+                                |builder| {
+                                    builder.assign(vk.clone(), reduce_vk.clone());
+                                    builder
+                                        .assign(prep_domains.clone(), reduce_prep_domains.clone());
+                                    builder.assign(
+                                        prep_sorted_idxs.clone(),
+                                        reduce_prep_sorted_idxs.clone(),
+                                    );
+                                },
+                                |builder| {
+                                    // If the kind is not one of the valid values, raise
+                                    // an error.
+                                    builder.error();
+                                },
+                            );
+                        },
+                    );
+                },
+            );
 
             // Verify the shard proof given the correct data.
             let chip_quotient_data = builder.get(&shard_chip_quotient_data, i);
@@ -771,17 +792,7 @@ where
             );
             // Update the accumulated values.
 
-            // Update pc to be the next pc.
-            builder.assign(pc, current_public_values.next_pc);
-            // Update the shard to be the next shard.
-            builder.assign(shard, current_public_values.next_shard);
-            // Update the reconstruct challenger.
-            assign_challenger_from_pv(
-                builder,
-                &mut reconstruct_challenger,
-                current_public_values.end_reconstruct_challenger,
-            );
-            // Update the deferred digest.
+            // Update the deffered proof digest.
             for (digest, current_digest) in reconstruct_deferred_digest
                 .iter()
                 .zip_eq(current_public_values.end_reconstruct_deferred_digest.iter())
@@ -789,13 +800,29 @@ where
                 builder.assign(*digest, *current_digest);
             }
 
-            // Update the cumulative sum.
-            for (sum_element, current_sum_element) in cumulative_sum
-                .iter()
-                .zip_eq(current_public_values.cumulative_sum.iter())
-            {
-                builder.assign(*sum_element, *sum_element + *current_sum_element);
-            }
+            // If the proof is of kind `Deferred`, we only check consistency of the start and end of
+            //  reconstruct deferred proof digest. In other cases, we update the pc, shard,
+            // challenger, and cumulative sum.
+            builder.if_ne(kind, deferred_kind).then(|builder| {
+                // Update pc to be the next pc.
+                builder.assign(pc, current_public_values.next_pc);
+                // Update the shard to be the next shard.
+                builder.assign(shard, current_public_values.next_shard);
+                // Update the reconstruct challenger.
+                assign_challenger_from_pv(
+                    builder,
+                    &mut reconstruct_challenger,
+                    current_public_values.end_reconstruct_challenger,
+                );
+
+                // Update the cumulative sum.
+                for (sum_element, current_sum_element) in cumulative_sum
+                    .iter()
+                    .zip_eq(current_public_values.cumulative_sum.iter())
+                {
+                    builder.assign(*sum_element, *sum_element + *current_sum_element);
+                }
+            });
         });
 
         // Update the global values from the last accumulated values.
@@ -1254,14 +1281,24 @@ where
         // Set the is_complete flag.
         deferred_public_values.is_complete = var2felt(builder, is_complete);
 
-        // If the proof is marked as complete, set the sp1 digest to the reduce one and set initial
-        // pc to be zero and initial and final shard to be one.
+        // If the proof is marked as complete:
+        // - Set the sp1 digest to the reduce one and set initial
+        // - Set pc to be zero and initial and final shard to be one.
+        // - Set the leaf challenger and end reconstruct challenger to be the challenger obtained
+        //   from observing values of reduce_vk_digest.
         builder.if_eq(is_complete, C::N::one()).then(|builder| {
             // Set the sp1_vk digest to the reduce_vk digest.
             deferred_public_values.sp1_vk_digest = deferred_public_values.reduce_vk_digest;
             // Set the start and end shard to be two.
             builder.assign(deferred_public_values.start_shard, C::F::one());
             builder.assert_felt_eq(deferred_public_values.next_shard, C::F::two());
+            // Set the challenger values.
+            let mut challenger = DuplexChallengerVariable::new(builder);
+            challenger.observe(builder, reduce_vk.commitment.clone());
+            challenger.observe(builder, reduce_vk.pc_start);
+            let values = get_challenger_public_values(builder, &challenger);
+            deferred_public_values.leaf_challenger = values;
+            deferred_public_values.end_reconstruct_challenger = values;
         });
 
         // Commit the public values.
@@ -1921,7 +1958,6 @@ mod tests {
 
     use p3_challenger::CanObserve;
     use p3_maybe_rayon::prelude::*;
-    use serde::de;
     use sp1_core::{
         io::SP1Stdin,
         runtime::Program,
@@ -1960,7 +1996,7 @@ mod tests {
 
         // Construct the deferred program.
         let deferred_program = SP1DeferredVerifier::<InnerConfig, SC, _>::build(&recursive_machine);
-        let (deferred_pk, deferred_vk) = recursive_machine.setup(&deferred_program);
+        let (_, deferred_vk) = recursive_machine.setup(&deferred_program);
 
         // Build the reduce program.
         let reduce_program = SP1ReduceVerifier::<InnerConfig, _, _>::build(
