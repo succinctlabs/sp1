@@ -1,5 +1,6 @@
 use crate::poseidon2_wide::columns::{
-    Poseidon2ColType, Poseidon2Cols, Poseidon2SBoxCols, NUM_POSEIDON2_COLS, NUM_POSEIDON2_SBOX_COLS,
+    Poseidon2ColType, Poseidon2ColTypeMut, Poseidon2Cols, Poseidon2SBoxCols, NUM_POSEIDON2_COLS,
+    NUM_POSEIDON2_SBOX_COLS,
 };
 use crate::runtime::Opcode;
 use core::borrow::Borrow;
@@ -64,16 +65,16 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for Poseidon2WideChip<D
             row.resize(num_columns, F::zero());
 
             let mut cols = if use_sbox_3 {
-                let cols: &Poseidon2SBoxCols<F> = row.as_slice().borrow();
-                Poseidon2ColType::Wide(*cols)
+                let cols: &mut Poseidon2SBoxCols<F> = row.as_mut_slice().borrow_mut();
+                Poseidon2ColTypeMut::Wide(cols)
             } else {
-                let cols: &Poseidon2Cols<F> = row.as_slice().borrow();
-                Poseidon2ColType::Narrow(*cols)
+                let cols: &mut Poseidon2Cols<F> = row.as_mut_slice().borrow_mut();
+                Poseidon2ColTypeMut::Narrow(cols)
             };
 
             let (poseidon2_cols, mut external_sbox, mut internal_sbox) = cols.get_cols_mut();
 
-            let mut memory = poseidon2_cols.memory;
+            let memory = &mut poseidon2_cols.memory;
             memory.timestamp = event.clk;
             memory.dst = event.dst;
             memory.left = event.left;
@@ -167,8 +168,9 @@ fn populate_external_round<F: PrimeField32>(
         } else {
             r + NUM_INTERNAL_ROUNDS
         };
+        let mut add_rc = *round_state;
         for i in 0..WIDTH {
-            round_state[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
+            add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
         }
 
         // Apply the sboxes.
@@ -178,8 +180,8 @@ fn populate_external_round<F: PrimeField32>(
         let mut sbox_deg_7: [F; 16] = [F::zero(); WIDTH];
         let mut sbox_deg_3: [F; 16] = [F::zero(); WIDTH];
         for i in 0..WIDTH {
-            sbox_deg_3[i] = round_state[i] * round_state[i] * round_state[i];
-            sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * round_state[i];
+            sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
+            sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * add_rc[i];
         }
 
         if let Some(sbox) = sbox.as_deref_mut() {
@@ -198,7 +200,7 @@ fn populate_internal_rounds<F: PrimeField32>(
     poseidon2_cols: &mut Poseidon2Cols<F>,
     sbox: &mut Option<&mut [F; NUM_INTERNAL_ROUNDS]>,
 ) -> [F; WIDTH] {
-    let state: &mut [F; WIDTH] = poseidon2_cols.internal_rounds_state.borrow_mut();
+    let mut state: [F; WIDTH] = poseidon2_cols.internal_rounds_state;
     let mut sbox_deg_3: [F; NUM_INTERNAL_ROUNDS] = [F::zero(); NUM_INTERNAL_ROUNDS];
     for r in 0..NUM_INTERNAL_ROUNDS {
         // Add the round constant to the 0th state element.
@@ -215,7 +217,7 @@ fn populate_internal_rounds<F: PrimeField32>(
 
         // Apply the linear layer.
         state[0] = sbox_deg_7;
-        internal_linear_layer(state);
+        internal_linear_layer(&mut state);
 
         // Optimization: since we're only applying the sbox to the 0th state element, we only
         // need to have columns for the 0th state element at every step. This is because the
@@ -227,7 +229,7 @@ fn populate_internal_rounds<F: PrimeField32>(
         }
     }
 
-    let ret_state = *state;
+    let ret_state = state;
 
     if let Some(sbox) = sbox.as_deref_mut() {
         *sbox = sbox_deg_3;
@@ -414,17 +416,17 @@ where
         // Apply the initial round.
         let initial_round_output = {
             let mut initial_round_output: [AB::Expr; WIDTH] =
-                core::array::from_fn(|i| (*memory.input[i].value()).into());
+                core::array::from_fn(|i| (*poseidon2_cols.memory.input[i].value()).into());
             external_linear_layer(&mut initial_round_output);
             initial_round_output
         };
-        let state_expr: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
+        let external_round_0_state: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
             let state = poseidon2_cols.external_rounds_state[0];
             state[i].into()
         });
         builder
             .when(memory.is_real)
-            .assert_all_eq(state_expr, initial_round_output);
+            .assert_all_eq(external_round_0_state.clone(), initial_round_output);
 
         // Apply the first half of external rounds.
         for r in 0..NUM_EXTERNAL_ROUNDS / 2 {

@@ -1,7 +1,3 @@
-use std::cmp::Reverse;
-use std::collections::HashMap;
-use std::fmt::Debug;
-
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
@@ -16,6 +12,9 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
+use std::cmp::Reverse;
+use std::collections::HashMap;
+use std::fmt::Debug;
 use tracing::instrument;
 
 use super::debug_constraints;
@@ -533,6 +532,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                 &shards,
                 InteractionKind::all_kinds(),
             );
+            panic!("Cumulative sum is not zero");
         }
     }
 }
@@ -583,6 +583,9 @@ impl<SC: StarkGenericConfig> std::error::Error for ProgramVerificationError<SC> 
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use serial_test::serial;
+
+    use crate::io::SP1Stdin;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
@@ -591,8 +594,10 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
+    use crate::utils::run_and_prove;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
+    use crate::utils::BabyBearPoseidon2;
 
     #[test]
     fn test_simple_prove() {
@@ -729,11 +734,25 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
         run_test(program).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_fibonacci_prove_batch() {
+        std::env::set_var("SHARD_BATCH_SIZE", "1");
+        std::env::set_var("SHARD_SIZE", "16384");
+
+        setup_logger();
+        let program = fibonacci_program();
+        let stdin = SP1Stdin::new();
+        run_and_prove(program, &stdin, BabyBearPoseidon2::new());
+
+        std::env::remove_var("SHARD_BATCH_SIZE");
+        std::env::remove_var("SHARD_SIZE");
     }
 
     #[test]

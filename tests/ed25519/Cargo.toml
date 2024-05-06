@@ -1,0 +1,11 @@
+[workspace]
+[package]
+version = "0.1.0"
+name = "ed25519-program"
+edition = "2021"
+
+[dependencies]
+sp1-zkvm = { path = "../../zkvm/entrypoint" }
+ed25519-dalek = { git = "https://github.com/sp1-patches/curve25519-dalek", branch = "patch-v4.1.1" }
+hex-literal = "0.4.1"
+

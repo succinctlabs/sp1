@@ -2,6 +2,7 @@ package server
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -19,14 +20,14 @@ import (
 
 // LoadCircuit checks if the necessary circuit files are in the specified data directory,
 // downloads them if not, and loads them into memory.
-func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
+func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
 	r1csPath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
 	pkPath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
 
 	// Ensure data directory exists
 	if _, err := os.Stat(dataDir); os.IsNotExist(err) {
 		if err := os.MkdirAll(dataDir, 0755); err != nil {
-			return nil, nil, errors.Wrap(err, "creating data directory")
+			return nil, nil, nil, errors.Wrap(err, "creating data directory")
 		}
 	}
 
@@ -34,23 +35,23 @@ func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.C
 	filesExist := fileExists(r1csPath) && fileExists(pkPath)
 
 	if !filesExist {
-		return nil, nil, errors.New("circuit files not found")
+		return nil, nil, nil, errors.New("circuit files not found")
 	} else {
 		fmt.Println("Files found, loading circuit...")
 	}
 
 	// Load the circuit artifacts into memory
-	r1cs, pk, err := LoadCircuitArtifacts(dataDir, circuitType)
+	r1cs, pk, vk, err := LoadCircuitArtifacts(dataDir, circuitType)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "loading circuit artifacts")
+		return nil, nil, nil, errors.Wrap(err, "loading circuit artifacts")
 	}
 	fmt.Println("Circuit artifacts loaded successfully")
 
-	return r1cs, pk, nil
+	return r1cs, pk, vk, nil
 }
 
 // LoadCircuitArtifacts loads the R1CS and Proving Key from the specified data directory into memory.
-func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, error) {
+func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
 	var wg sync.WaitGroup
 	var r1cs constraint.ConstraintSystem
 	var pk groth16.ProvingKey
@@ -60,6 +61,7 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 	fmt.Printf("Loading artifacts start time %s\n", startTime.Format(time.RFC3339))
 
 	wg.Add(2)
+	// Read the R1CS content.
 	go func() {
 		defer wg.Done()
 
@@ -83,6 +85,7 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 		}
 	}()
 
+	// Read the PK content.
 	go func() {
 		defer wg.Done()
 
@@ -109,15 +112,34 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 	wg.Wait()
 
 	if errR1CS != nil {
-		return nil, nil, errors.Wrap(errR1CS, "processing R1CS")
+		return nil, nil, nil, errors.Wrap(errR1CS, "processing R1CS")
 	}
 	if errPK != nil {
-		return nil, nil, errors.Wrap(errPK, "processing PK")
+		return nil, nil, nil, errors.Wrap(errPK, "processing PK")
+	}
+
+	// Read the VK content
+	vkFilePath := filepath.Join(dataDir, "vk_"+circuitType+".bin")
+	vkFile, err := os.Open(vkFilePath)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "opening VK file")
+	}
+
+	vkFile.Seek(0, io.SeekStart)
+	vkContent, err := io.ReadAll(vkFile)
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "reading VK content")
+	}
+	vk := groth16.NewVerifyingKey(ecc.BN254)
+	_, err = vk.ReadFrom(bytes.NewReader(vkContent))
+	if err != nil {
+		return nil, nil, nil, errors.Wrap(err, "error reading VK content")
 	}
 
 	fmt.Printf("Circuit artifacts loaded successfully in %s\n", time.Since(startTime))
 
-	return r1cs, pk, nil
+	return r1cs, pk, vk, nil
+
 }
 
 // Helper function to check if a file exists.

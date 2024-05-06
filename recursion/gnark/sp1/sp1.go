@@ -32,11 +32,16 @@ type WitnessInput struct {
 	CommitedValuesDigest string     `json:"commited_values_digest"`
 }
 
+// Representation of groth16 proof for solidity verification.
+type SolidityGroth16Proof struct {
+	PublicInputs  [2]string `json:"public_inputs"`
+	SolidityProof string    `json:"solidity_proof"`
+}
+
+// Representation of groth16 proof for proof output.
 type Groth16Proof struct {
-	A            [2]string    `json:"a"`
-	B            [2][2]string `json:"b"`
-	C            [2]string    `json:"c"`
-	PublicInputs [2]string    `json:"public_inputs"`
+	PublicInputs [2]string `json:"public_inputs"`
+	EncodedProof string    `json:"encoded_proof"`
 }
 
 type PlonkBn254Proof struct {

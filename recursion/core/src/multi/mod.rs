@@ -1,11 +1,11 @@
 use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
-use p3_air::{Air, BaseAir};
-use p3_field::PrimeField32;
+use p3_air::{Air, AirBuilder, BaseAir};
+use p3_field::{AbstractField, PrimeField32};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-use sp1_core::air::MachineAir;
+use sp1_core::air::{BaseAirBuilder, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 
@@ -106,16 +106,49 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
-        let cols = main.row_slice(0);
-        let cols: &MultiCols<AB::Var> = (*cols).borrow();
+        let (local, next) = (main.row_slice(0), main.row_slice(1));
+        let local: &MultiCols<AB::Var> = (*local).borrow();
+        let next: &MultiCols<AB::Var> = (*next).borrow();
+
+        let next_is_real = next.is_fri_fold + next.is_poseidon2;
+        let local_is_real = local.is_fri_fold + local.is_poseidon2;
+
+        // Assert that is_fri_fold and is_poseidon2 are bool and that at most one is set.
+        builder.assert_bool(local.is_fri_fold);
+        builder.assert_bool(local.is_poseidon2);
+        builder.assert_bool(local_is_real.clone());
+
+        // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
+        // and it's AIR checks for consistencies among them.  The following constraints enforce that
+        // all the fri fold rows are first, then the posiedon2 rows, and finally any padded (non-real) rows.
+
+        // First verify that all real rows are contiguous.
+        builder.when_first_row().assert_one(local_is_real.clone());
+        builder
+            .when_transition()
+            .when_not(local_is_real.clone())
+            .assert_zero(next_is_real.clone());
+
+        // Next, verify that all fri fold rows are before the poseidon2 rows within the real rows section.
+        builder.when_first_row().assert_one(local.is_fri_fold);
+        builder
+            .when_transition()
+            .when(next_is_real)
+            .when(local.is_poseidon2)
+            .assert_one(next.is_poseidon2);
 
         let fri_fold_chip = FriFoldChip::default();
-        let mut sub_builder = builder.when(cols.is_fri_fold);
-        fri_fold_chip.eval_fri_fold(&mut sub_builder, cols.fri_fold());
+        let mut sub_builder = builder.when(local.is_fri_fold);
+        fri_fold_chip.eval_fri_fold(
+            &mut sub_builder,
+            local.fri_fold(),
+            next.fri_fold(),
+            AB::Expr::one() - next.is_fri_fold,
+        );
 
         let poseidon2_chip = Poseidon2Chip::default();
-        let mut sub_builder = builder.when(cols.is_poseidon2);
-        poseidon2_chip.eval_poseidon2(&mut sub_builder, cols.poseidon2());
+        let mut sub_builder = builder.when(local.is_poseidon2);
+        poseidon2_chip.eval_poseidon2(&mut sub_builder, local.poseidon2());
     }
 }
 // SAFETY: Each view is a valid interpretation of the underlying array.

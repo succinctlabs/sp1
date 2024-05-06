@@ -37,6 +37,9 @@ sha2 = "0.10.8"
 dirs = "5.0.1"
 tempfile = "3.10.1"
 
+[features]
+neon = ["sp1-core/neon"]
+
 [build-dependencies]
 vergen = { version = "8", default-features = false, features = [
     "build",
