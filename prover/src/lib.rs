@@ -114,6 +114,7 @@ pub struct SP1Prover {
 
     /// The proving key for the reduce step.
     pub reduce_pk: StarkProvingKey<InnerSC>,
+
     /// The verification key for the reduce step.
     pub reduce_vk: StarkVerifyingKey<InnerSC>,
 

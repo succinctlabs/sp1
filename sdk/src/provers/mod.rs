@@ -59,9 +59,9 @@ pub trait Prover: Send + Sync {
         let machine_proof = MachineProof {
             shard_proofs: vec![proof.proof.clone()],
         };
-        let mut challenger = sp1_prover.compress_machine.config().challenger();
+        let mut challenger = sp1_prover.reduce_machine.config().challenger();
         Ok(sp1_prover
-            .compress_machine
+            .reduce_machine
             .verify(&vkey.vk, &machine_proof, &mut challenger)?)
     }
 
