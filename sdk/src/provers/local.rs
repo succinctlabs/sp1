@@ -125,6 +125,8 @@ impl Prover for LocalProver {
 
     /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
     fn verify_groth16(&self, proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+        // TODO: Decide how we should build artifacts using the vkey/if we should read the artifacts
+        // dir from the LocalProver struct.
         let artifacts_dir = {
             if let Some(artifacts_dir) = utils::groth16_artifacts_dir() {
                 artifacts_dir

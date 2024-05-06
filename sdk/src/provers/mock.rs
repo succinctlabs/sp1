@@ -68,6 +68,14 @@ impl Prover for MockProver {
     ) -> Result<()> {
         Ok(())
     }
+
+    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+        Ok(())
+    }
+
+    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Default for MockProver {
