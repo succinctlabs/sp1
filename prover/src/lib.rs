@@ -806,7 +806,6 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
-    #[ignore]
     fn test_e2e_with_deferred_proofs() {
         setup_logger();
 
