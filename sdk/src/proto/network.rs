@@ -4,15 +4,18 @@
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CreateProofRequest {
-    /// The nonce for the account.
-    #[prost(uint64, tag = "1")]
-    pub nonce: u64,
-    /// The deadline for the proof request, signifying the latest time a fulfillment would be valid.
-    #[prost(uint64, tag = "2")]
-    pub deadline: u64,
     /// The signature of the message.
-    #[prost(bytes = "vec", tag = "3")]
+    #[prost(bytes = "vec", tag = "1")]
     pub signature: ::prost::alloc::vec::Vec<u8>,
+    /// The nonce for the account.
+    #[prost(uint64, tag = "2")]
+    pub nonce: u64,
+    /// The mode for proof generation.
+    #[prost(enumeration = "ProofMode", tag = "3")]
+    pub mode: i32,
+    /// The deadline for the proof request, signifying the latest time a fulfillment would be valid.
+    #[prost(uint64, tag = "4")]
+    pub deadline: u64,
 }
 /// The response for creating a proof.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -36,15 +39,15 @@ pub struct CreateProofResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct SubmitProofRequest {
+    /// The signature of the message.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The nonce for the account.
-    #[prost(uint64, tag = "1")]
+    #[prost(uint64, tag = "2")]
     pub nonce: u64,
     /// The proof identifier.
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "3")]
     pub proof_id: ::prost::alloc::string::String,
-    /// The signature of the message.
-    #[prost(bytes = "vec", tag = "3")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 /// The response for submitting a proof, empty on success.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -57,15 +60,15 @@ pub struct SubmitProofResponse {}
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct ClaimProofRequest {
+    /// The signature of the message.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The nonce for the account.
-    #[prost(uint64, tag = "1")]
+    #[prost(uint64, tag = "2")]
     pub nonce: u64,
     /// The proof identifier.
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "3")]
     pub proof_id: ::prost::alloc::string::String,
-    /// The signature of the message.
-    #[prost(bytes = "vec", tag = "3")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 /// The response for claiming a proof, giving identifiers for the locations to retrieve the program
 /// and stdin, as well as the location to upload the proof.
@@ -89,15 +92,15 @@ pub struct ClaimProofResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct FulfillProofRequest {
+    /// The signature of the message.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The nonce for the account.
-    #[prost(uint64, tag = "1")]
+    #[prost(uint64, tag = "2")]
     pub nonce: u64,
     /// The proof identifier.
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "3")]
     pub proof_id: ::prost::alloc::string::String,
-    /// The signature of the message.
-    #[prost(bytes = "vec", tag = "3")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
 }
 /// The response for fulfilling a proof, empty on success.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -114,27 +117,27 @@ pub struct FulfillProofResponse {
 #[allow(clippy::derive_partial_eq_without_eq)]
 #[derive(Clone, PartialEq, ::prost::Message)]
 pub struct RelayProofRequest {
+    /// The signature of the message.
+    #[prost(bytes = "vec", tag = "1")]
+    pub signature: ::prost::alloc::vec::Vec<u8>,
     /// The nonce for the account.
-    #[prost(uint64, tag = "1")]
+    #[prost(uint64, tag = "2")]
     pub nonce: u64,
     /// The proof identifier.
-    #[prost(string, tag = "2")]
+    #[prost(string, tag = "3")]
     pub proof_id: ::prost::alloc::string::String,
     /// The chain ID for the requested chain.
-    #[prost(uint32, tag = "3")]
+    #[prost(uint32, tag = "4")]
     pub chain_id: u32,
     /// The address of the verifier for this proof.
-    #[prost(bytes = "vec", tag = "4")]
+    #[prost(bytes = "vec", tag = "5")]
     pub verifier: ::prost::alloc::vec::Vec<u8>,
     /// The address of the callback to call after the proof has been verified by the verifier.
-    #[prost(bytes = "vec", tag = "5")]
+    #[prost(bytes = "vec", tag = "6")]
     pub callback: ::prost::alloc::vec::Vec<u8>,
     /// The data to send to the callback, including the function selector.
-    #[prost(bytes = "vec", tag = "6")]
-    pub callback_data: ::prost::alloc::vec::Vec<u8>,
-    /// The signature of the message.
     #[prost(bytes = "vec", tag = "7")]
-    pub signature: ::prost::alloc::vec::Vec<u8>,
+    pub callback_data: ::prost::alloc::vec::Vec<u8>,
 }
 /// The response for relaying a proof.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -194,6 +197,18 @@ pub struct GetProofRequestsRequest {
     #[prost(enumeration = "ProofStatus", tag = "1")]
     pub status: i32,
 }
+/// A proof request.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[allow(clippy::derive_partial_eq_without_eq)]
+#[derive(Clone, PartialEq, ::prost::Message)]
+pub struct RequestedProof {
+    /// The proof identifier.
+    #[prost(string, tag = "1")]
+    pub proof_id: ::prost::alloc::string::String,
+    /// The mode for proof generation.
+    #[prost(enumeration = "ProofMode", tag = "2")]
+    pub mode: i32,
+}
 /// The response for getting proof requests by a given status.
 #[derive(serde::Serialize, serde::Deserialize)]
 #[allow(clippy::derive_partial_eq_without_eq)]
@@ -201,8 +216,8 @@ pub struct GetProofRequestsRequest {
 pub struct GetProofRequestsResponse {
     /// The proof identifiers of the proof requests. Limited to the 10 most recent proof requests with
     /// that status.
-    #[prost(string, repeated, tag = "1")]
-    pub proof_ids: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    #[prost(message, repeated, tag = "1")]
+    pub proofs: ::prost::alloc::vec::Vec<RequestedProof>,
 }
 /// The request to get the status of a relay request.
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -227,6 +242,59 @@ pub struct GetRelayStatusResponse {
     /// The transactionsimulation URL, only present if the transaction failed.
     #[prost(string, tag = "3")]
     pub simulation_url: ::prost::alloc::string::String,
+}
+/// The mode used when generating the proof.
+#[derive(
+    serde::Serialize,
+    serde::Deserialize,
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    ::prost::Enumeration,
+)]
+#[repr(i32)]
+pub enum ProofMode {
+    /// Unspecified or invalid proof mode.
+    Unspecified = 0,
+    /// The proof mode for an SP1 core proof.
+    Core = 1,
+    /// The proof mode for a compressed proof.
+    Compressed = 2,
+    /// The proof mode for a PlonK proof.
+    Plonk = 3,
+    /// The proof mode for a Groth16 proof.
+    Groth16 = 4,
+}
+impl ProofMode {
+    /// String value of the enum field names used in the ProtoBuf definition.
+    ///
+    /// The values are not transformed in any way and thus are considered stable
+    /// (if the ProtoBuf definition does not change) and safe for programmatic use.
+    pub fn as_str_name(&self) -> &'static str {
+        match self {
+            ProofMode::Unspecified => "PROOF_MODE_UNSPECIFIED",
+            ProofMode::Core => "PROOF_MODE_CORE",
+            ProofMode::Compressed => "PROOF_MODE_COMPRESSED",
+            ProofMode::Plonk => "PROOF_MODE_PLONK",
+            ProofMode::Groth16 => "PROOF_MODE_GROTH16",
+        }
+    }
+    /// Creates an enum from field names used in the ProtoBuf definition.
+    pub fn from_str_name(value: &str) -> ::core::option::Option<Self> {
+        match value {
+            "PROOF_MODE_UNSPECIFIED" => Some(Self::Unspecified),
+            "PROOF_MODE_CORE" => Some(Self::Core),
+            "PROOF_MODE_COMPRESSED" => Some(Self::Compressed),
+            "PROOF_MODE_PLONK" => Some(Self::Plonk),
+            "PROOF_MODE_GROTH16" => Some(Self::Groth16),
+            _ => None,
+        }
+    }
 }
 /// The status of a proof request.
 #[derive(

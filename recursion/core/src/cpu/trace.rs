@@ -4,7 +4,7 @@ use p3_field::{extension::BinomiallyExtendable, PrimeField32};
 use p3_matrix::{dense::RowMajorMatrix, Matrix};
 use sp1_core::{
     air::{BinomialExtension, MachineAir},
-    utils::pad_rows,
+    utils::pad_rows_fixed,
 };
 use tracing::instrument;
 
@@ -28,7 +28,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
         // There are no dependencies, since we do it all in the runtime. This is just a placeholder.
     }
 
-    #[instrument(name = "generate cpu trace", level = "debug", skip_all)]
+    #[instrument(name = "generate cpu trace", level = "debug", skip_all, fields(rows = input.cpu_events.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -103,12 +103,16 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
             })
             .collect::<Vec<_>>();
 
-        pad_rows(&mut rows, || {
-            let mut row = [F::zero(); NUM_CPU_COLS];
-            let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
-            cols.selectors.is_noop = F::one();
-            row
-        });
+        pad_rows_fixed(
+            &mut rows,
+            || {
+                let mut row = [F::zero(); NUM_CPU_COLS];
+                let cols: &mut CpuCols<F> = row.as_mut_slice().borrow_mut();
+                cols.selectors.is_noop = F::one();
+                row
+            },
+            self.fixed_log2_rows,
+        );
 
         let mut trace =
             RowMajorMatrix::new(rows.into_iter().flatten().collect::<Vec<_>>(), NUM_CPU_COLS);

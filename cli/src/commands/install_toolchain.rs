@@ -3,6 +3,7 @@ use clap::Parser;
 use dirs::home_dir;
 use rand::{distributions::Alphanumeric, Rng};
 use reqwest::Client;
+use sp1_sdk::artifacts::download_file;
 use std::fs::{self};
 use std::io::Read;
 use std::process::Command;
@@ -10,10 +11,7 @@ use std::process::Command;
 #[cfg(target_family = "unix")]
 use std::os::unix::fs::PermissionsExt;
 
-use crate::{
-    download_file, get_target, get_toolchain_download_url, url_exists, CommandExecutor,
-    RUSTUP_TOOLCHAIN_NAME,
-};
+use crate::{get_target, get_toolchain_download_url, url_exists, RUSTUP_TOOLCHAIN_NAME};
 
 #[derive(Parser)]
 #[command(
@@ -36,11 +34,16 @@ impl InstallToolchainCmd {
                 for entry in entries {
                     if let Ok(entry) = entry {
                         let entry_path = entry.path();
-                        if entry_path.is_dir() && entry_path.file_name().unwrap() != "bin" {
+                        let entry_name = entry_path.file_name().unwrap();
+                        if entry_path.is_dir()
+                            && entry_name != "bin"
+                            && entry_name != "circuits"
+                            && entry_name != "toolchains"
+                        {
                             if let Err(err) = fs::remove_dir_all(&entry_path) {
                                 println!("Failed to remove directory {:?}: {}", entry_path, err);
                             }
-                        } else if entry_path.is_file() && entry_path.file_name().unwrap() != "bin" {
+                        } else if entry_path.is_file() {
                             if let Err(err) = fs::remove_file(&entry_path) {
                                 println!("Failed to remove file {:?}: {}", entry_path, err);
                             }
@@ -72,10 +75,11 @@ impl InstallToolchainCmd {
         }
 
         // Download the toolchain.
+        let mut file = fs::File::create(toolchain_archive_path)?;
         rt.block_on(download_file(
             &client,
             toolchain_download_url.as_str(),
-            toolchain_archive_path.to_str().unwrap(),
+            &mut file,
         ))
         .unwrap();
 
@@ -99,39 +103,46 @@ impl InstallToolchainCmd {
         }
 
         // Unpack the toolchain.
-        fs::create_dir_all(toolchain_dir)?;
+        fs::create_dir_all(toolchain_dir.clone())?;
         Command::new("tar")
             .current_dir(&root_dir)
-            .args(["-xzf", &toolchain_asset_name, "-C", &target])
-            .run()?;
+            .args([
+                "-xzf",
+                &toolchain_asset_name,
+                "-C",
+                &toolchain_dir.to_string_lossy(),
+            ])
+            .status()?;
 
-        // Move the toolchain to a random directory (avoid rustup bugs).
+        // Move the toolchain to a randomly named directory in the 'toolchains' folder
+        let toolchains_dir = root_dir.join("toolchains");
+        fs::create_dir_all(&toolchains_dir)?;
         let random_string: String = rand::thread_rng()
             .sample_iter(&Alphanumeric)
             .take(10)
             .map(char::from)
             .collect();
-        Command::new("mv")
-            .current_dir(&root_dir)
-            .args([&target, &random_string])
-            .run()?;
+        let new_toolchain_dir = toolchains_dir.join(random_string);
+        fs::rename(&toolchain_dir, &new_toolchain_dir)?;
 
-        // Link the toolchain to rustup.
+        // Link the new toolchain directory to rustup
         Command::new("rustup")
             .current_dir(&root_dir)
-            .args(["toolchain", "link", RUSTUP_TOOLCHAIN_NAME])
-            .arg(&random_string)
-            .run()?;
+            .args([
+                "toolchain",
+                "link",
+                RUSTUP_TOOLCHAIN_NAME,
+                &new_toolchain_dir.to_string_lossy(),
+            ])
+            .status()?;
         println!("Successfully linked toolchain to rustup.");
 
         // Ensure permissions.
-        let bin_dir = root_dir.join(&random_string).join("bin");
-        let rustlib_bin_dir = root_dir
-            .join(&random_string)
-            .join(format!("lib/rustlib/{target}/bin"));
-        for wrapped_entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
-            let entry = wrapped_entry?;
-            if entry.file_type()?.is_file() {
+        let bin_dir = new_toolchain_dir.join("bin");
+        let rustlib_bin_dir = new_toolchain_dir.join(format!("lib/rustlib/{}/bin", target));
+        for entry in fs::read_dir(bin_dir)?.chain(fs::read_dir(rustlib_bin_dir)?) {
+            let entry = entry?;
+            if entry.path().is_file() {
                 let mut perms = entry.metadata()?.permissions();
                 perms.set_mode(0o755);
                 fs::set_permissions(entry.path(), perms)?;

@@ -43,7 +43,7 @@ fn main() {
     let iterations = [480000u32];
     let shard_sizes = [1 << 19, 1 << 20, 1 << 21, 1 << 22];
     let batch_sizes = [2, 3, 4];
-    let elf = include_bytes!("../../examples/fibonacci-io/program/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
     let (pk, vk) = prover.setup(elf);
 
     let mut lines = vec![
@@ -69,7 +69,7 @@ fn main() {
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
 
         let recursion_proving_start = Instant::now();
-        let _ = prover.reduce(&vk, proof, vec![]);
+        let _ = prover.compress(&vk, proof, vec![]);
         let recursion_proving_duration = recursion_proving_start.elapsed().as_secs_f64();
 
         lines.push(format!(

@@ -5,7 +5,7 @@ use crate::{
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SP1Stdin {
     /// Input stored as a vec of vec of bytes. It's stored this way because the read syscall reads
     /// a vec of bytes at a time.
@@ -18,10 +18,9 @@ pub struct SP1Stdin {
 }
 
 /// Public values for the prover.
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SP1PublicValues {
-    // TODO: fix
-    pub buffer: Buffer,
+    buffer: Buffer,
 }
 
 impl SP1Stdin {
@@ -95,6 +94,14 @@ impl SP1PublicValues {
         Self {
             buffer: Buffer::from(data),
         }
+    }
+
+    pub fn as_slice(&self) -> &[u8] {
+        self.buffer.data.as_slice()
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.buffer.data.clone()
     }
 
     /// Read a value from the buffer.    

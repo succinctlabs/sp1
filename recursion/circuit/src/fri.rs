@@ -55,6 +55,7 @@ pub fn verify_two_adic_pcs<C: Config>(
     rounds: Vec<TwoAdicPcsRoundVariable<C>>,
 ) {
     let alpha = challenger.sample_ext(builder);
+
     let fri_challenges =
         verify_shape_and_sample_challenges(builder, config, &proof.fri_proof, challenger);
 
@@ -117,7 +118,7 @@ pub fn verify_two_adic_pcs<C: Config>(
                     for (z, ps_at_z) in izip!(mat_points, mat_values) {
                         for (p_at_x, &p_at_z) in izip!(mat_opening.clone(), ps_at_z) {
                             let quotient: SymbolicExt<C::F, C::EF> =
-                                (-p_at_z + p_at_x[0]) / (-*z + x);
+                                (p_at_z - p_at_x[0]) / (*z - x);
                             ro[log_height] =
                                 builder.eval(ro[log_height] + alpha_pow[log_height] * quotient);
                             alpha_pow[log_height] = builder.eval(alpha_pow[log_height] * alpha);
@@ -146,7 +147,6 @@ pub fn verify_challenges<C: Config>(
     reduced_openings: Vec<[Ext<C::F, C::EF>; 32]>,
 ) {
     let log_max_height = proof.commit_phase_commits.len() + config.log_blowup;
-    #[allow(clippy::never_loop)]
     for (&index, query_proof, ro) in izip!(
         &challenges.query_indices,
         &proof.query_proofs,
@@ -161,6 +161,7 @@ pub fn verify_challenges<C: Config>(
             ro,
             log_max_height,
         );
+
         builder.assert_ext_eq(folded_eval, proof.final_poly);
     }
 }
@@ -178,7 +179,7 @@ pub fn verify_query<C: Config>(
     let two_adic_generator = builder.eval(SymbolicExt::from_f(C::EF::two_adic_generator(
         log_max_height,
     )));
-    let index_bits = builder.num2bits_v_circuit(index, 256);
+    let index_bits = builder.num2bits_v_circuit(index, 32);
     let rev_reduced_index = builder.reverse_bits_len_circuit(index_bits.clone(), log_max_height);
     let mut x = builder.exp_e_bits(two_adic_generator, rev_reduced_index);
 

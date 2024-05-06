@@ -9,6 +9,7 @@ pub mod secp256k1;
 pub mod uint256_div;
 pub mod unconstrained;
 pub mod utils;
+#[cfg(feature = "verify")]
 pub mod verify;
 
 extern "C" {

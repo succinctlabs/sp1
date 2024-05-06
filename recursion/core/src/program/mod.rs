@@ -6,8 +6,9 @@ use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::MachineAir;
-use sp1_core::utils::pad_to_power_of_two;
+use sp1_core::utils::pad_rows_fixed;
 use std::collections::HashMap;
+use tracing::instrument;
 
 use sp1_derive::AlignedBorrow;
 
@@ -62,7 +63,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             Ok(value) => value.parse().unwrap(),
             Err(_) => std::cmp::min(524288, program.instructions.len()),
         };
-        let rows = program.instructions[0..max_program_size]
+        let mut rows = program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, instruction)| {
@@ -76,22 +77,25 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             })
             .collect::<Vec<_>>();
 
-        // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
-            rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_PROGRAM_PREPROCESSED_COLS,
+        // Pad the trace to a power of two.
+        pad_rows_fixed(
+            &mut rows,
+            || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
+            Some(19),
         );
 
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_PREPROCESSED_COLS, F>(&mut trace.values);
-
-        Some(trace)
+        // Convert the trace to a row major matrix.
+        Some(RowMajorMatrix::new(
+            rows.into_iter().flatten().collect::<Vec<_>>(),
+            NUM_PROGRAM_PREPROCESSED_COLS,
+        ))
     }
 
     fn generate_dependencies(&self, _: &Self::Record, _: &mut Self::Record) {
         // This is a no-op.
     }
 
+    #[instrument(name = "generate program trace", level = "debug", skip_all, fields(rows = input.program.instructions.len()))]
     fn generate_trace(
         &self,
         input: &ExecutionRecord<F>,
@@ -112,7 +116,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             Ok(value) => value.parse().unwrap(),
             Err(_) => std::cmp::min(524288, input.program.instructions.len()),
         };
-        let rows = input.program.instructions[0..max_program_size]
+        let mut rows = input.program.instructions[0..max_program_size]
             .iter()
             .enumerate()
             .map(|(i, _)| {
@@ -125,16 +129,14 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             })
             .collect::<Vec<_>>();
 
+        // Pad the trace to a power of two.
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], Some(19));
+
         // Convert the trace to a row major matrix.
-        let mut trace = RowMajorMatrix::new(
+        RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
             NUM_PROGRAM_MULT_COLS,
-        );
-
-        // Pad the trace to a power of two.
-        pad_to_power_of_two::<NUM_PROGRAM_MULT_COLS, F>(&mut trace.values);
-
-        trace
+        )
     }
 
     fn included(&self, _: &Self::Record) -> bool {
@@ -159,19 +161,13 @@ where
         let prep_local = preprocessed.row_slice(0);
         let prep_local: &ProgramPreprocessedCols<AB::Var> = (*prep_local).borrow();
         let mult_local = main.row_slice(0);
-        let _mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
+        let mult_local: &ProgramMultiplicityCols<AB::Var> = (*mult_local).borrow();
 
-        // builder.receive_program(
-        //     prep_local.pc,
-        //     prep_local.instruction,
-        //     prep_local.selectors,
-        //     mult_local.multiplicity,
-        // );
-
-        // Dummy constraint of degree 3.
-        builder.assert_eq(
-            prep_local.pc * prep_local.pc * prep_local.pc,
-            prep_local.pc * prep_local.pc * prep_local.pc,
+        builder.receive_program(
+            prep_local.pc,
+            prep_local.instruction,
+            prep_local.selectors,
+            mult_local.multiplicity,
         );
     }
 }
