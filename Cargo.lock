@@ -4466,6 +4466,7 @@ dependencies = [
  "rrs-lib",
  "serde",
  "serde_with",
+ "serial_test",
  "size",
  "snowbridge-amcl",
  "sp1-derive",

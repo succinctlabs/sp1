@@ -165,7 +165,6 @@ where
                 );
             }
         });
-    println!("number of checkpoints = {}", checkpoints.len());
 
     // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
     let sharding_config = ShardingConfig::default();
@@ -181,8 +180,6 @@ where
         let mut events = trace_checkpoint(program.clone(), file);
         events.public_values = public_values;
 
-        println!("first cpu event = {:?}", events.cpu_events[0]);
-        println!("last cpu event = {:?}", events.cpu_events.last().unwrap());
         reset_seek(&mut *file);
         cycles += events.cpu_events.len();
         let shards =
