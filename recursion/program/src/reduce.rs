@@ -500,12 +500,9 @@ where
         );
 
         // Commit to the public values, broadcasting the same ones.
-        let mut public_values_array = builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
-        for (i, value) in public_values_elements.iter().enumerate() {
-            builder.set(&mut public_values_array, i, *value);
+        for value in public_values_elements {
+            builder.commit_public_value(value);
         }
-
-        builder.commit_public_values(&public_values_array);
     }
 }
 
@@ -895,13 +892,9 @@ where
         );
 
         // Commit the public values.
-        let mut reduce_public_values_array =
-            builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
-        for (i, value) in reduce_public_values_stream.iter().enumerate() {
-            builder.set(&mut reduce_public_values_array, i, *value);
+        for value in reduce_public_values_stream {
+            builder.commit_public_value(value);
         }
-
-        builder.commit_public_values(&reduce_public_values_array);
     }
 }
 
@@ -1155,13 +1148,9 @@ where
         });
 
         // Commit to the public values.
-        let mut recursion_public_values_array =
-            builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
-        for (i, value) in recursion_public_values_stream.iter().enumerate() {
-            builder.set(&mut recursion_public_values_array, i, *value);
+        for value in recursion_public_values_stream {
+            builder.commit_public_value(value);
         }
-
-        builder.commit_public_values(&recursion_public_values_array)
     }
 }
 
@@ -1363,13 +1352,9 @@ where
         deferred_public_values.is_complete = var2felt(builder, is_complete);
 
         // Commit the public values.
-        let mut deferred_public_values_array =
-            builder.dyn_array::<Felt<_>>(RECURSIVE_PROOF_NUM_PV_ELTS);
-        for (i, value) in deferred_public_values_stream.iter().enumerate() {
-            builder.set(&mut deferred_public_values_array, i, *value);
+        for value in deferred_public_values_stream {
+            builder.commit_public_value(value);
         }
-
-        builder.commit_public_values(&deferred_public_values_array);
     }
 }
 
