@@ -8,12 +8,13 @@ pub mod proto {
 pub mod artifacts;
 pub mod auth;
 pub mod client;
-mod local;
-mod mock;
-mod network;
+pub mod local;
+pub mod mock;
+pub mod network;
 pub mod utils;
 
 use anyhow::{Ok, Result};
+use artifacts::WrapCircuitType;
 use local::LocalProver;
 use mock::MockProver;
 use network::NetworkProver;
@@ -38,8 +39,8 @@ impl Default for ProverClient {
 }
 
 impl ProverClient {
-    /// Creates a new ProverClient with the prover set to either local or remote based on the
-    /// SP1_PROVER environment variable.
+    /// Creates a new ProverClient with the prover set to either prove locally or prove via the
+    /// prover network based on the SP1_PROVER environment variable.
     pub fn new() -> Self {
         dotenv::dotenv().ok();
         match env::var("SP1_PROVER")
@@ -53,6 +54,30 @@ impl ProverClient {
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
+            "network" => Self {
+                prover: Box::new(NetworkProver::new()),
+            },
+            _ => panic!("Invalid SP1_PROVER value"),
+        }
+    }
+
+    pub fn new_groth16() -> Self {
+        dotenv::dotenv().ok();
+        match env::var("SP1_PROVER")
+            .unwrap_or("local".to_string())
+            .to_lowercase()
+            .as_str()
+        {
+            "mock" => Self {
+                prover: Box::new(MockProver::new()),
+            },
+            "local" => {
+                let prover = LocalProver::new();
+                prover.initialize_circuit(WrapCircuitType::Groth16);
+                Self {
+                    prover: Box::new(prover),
+                }
+            }
             "remote" => Self {
                 prover: Box::new(NetworkProver::new()),
             },

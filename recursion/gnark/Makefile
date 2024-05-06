@@ -8,10 +8,14 @@ build-all: build-static
 .PHONY: run-all
 run-all: run-static
 
+# File target to check if re-building is necessary
+lib/babybear/target/release/libbabybear.a: $(shell find lib/babybear/src -type f)
+	cd lib/babybear && cargo build --release
+	touch $@
+
 .PHONY: build-static
-build-static:
-	@cd lib/babybear && cargo build --release
-	@cp lib/babybear/target/release/libbabybear.a lib/
+build-static: lib/babybear/target/release/libbabybear.a
+	cp lib/babybear/target/release/libbabybear.a lib/
 	go build main.go
 
 .PHONY: run-static
@@ -21,7 +25,7 @@ run-static: build-static
 # This is just for running the Rust lib tests natively via cargo
 .PHONY: test-rust-lib
 test-rust-lib:
-	@cd lib/babybear && cargo test -- --nocapture
+	cd lib/babybear && cargo test -- --nocapture
 
 .PHONY: clean
 clean:

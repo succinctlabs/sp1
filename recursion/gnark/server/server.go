@@ -1,12 +1,11 @@
 package server
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"net/http"
+	"time"
 
 	"github.com/pkg/errors"
 
@@ -20,20 +19,21 @@ import (
 type Server struct {
 	r1cs constraint.ConstraintSystem
 	pk   groth16.ProvingKey
+	vk   groth16.VerifyingKey
 }
 
 // New creates a new server instance with the R1CS and proving key for the given circuit type and
 // version.
 func New(ctx context.Context, dataDir, circuitType string) (*Server, error) {
-	r1cs, pk, err := LoadCircuit(ctx, dataDir, circuitType)
+	r1cs, pk, vk, err := LoadCircuit(ctx, dataDir, circuitType)
 	if err != nil {
 		return nil, errors.Wrap(err, "loading circuit")
 	}
-	fmt.Println("Loaded circuit")
 
 	s := &Server{
 		r1cs: r1cs,
 		pk:   pk,
+		vk:   vk,
 	}
 	return s, nil
 }
@@ -69,48 +69,31 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate the witness.
+	fmt.Println("Generating witness...")
+	start := time.Now()
 	assignment := sp1.NewCircuitFromWitness(witnessInput)
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		ReturnErrorJSON(w, "generating witness", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("Witness generated in %s\n", time.Since(start))
 
 	// Generate the proof.
 	fmt.Println("Generating proof...")
+	start = time.Now()
 	proof, err := groth16.Prove(s.r1cs, s.pk, witness)
 	if err != nil {
 		ReturnErrorJSON(w, "generating proof", http.StatusInternalServerError)
 		return
 	}
+	fmt.Printf("Proof generated in %s\n", time.Since(start))
 
 	// Serialize the proof to JSON.
-	const fpSize = 4 * 8
-	var buf bytes.Buffer
-	proof.WriteRawTo(&buf)
-	proofBytes := buf.Bytes()
-	var (
-		a            [2]string
-		b            [2][2]string
-		c            [2]string
-		publicInputs [2]string
-	)
-	a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1]).String()
-	a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2]).String()
-	b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3]).String()
-	b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4]).String()
-	b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5]).String()
-	b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6]).String()
-	c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7]).String()
-	c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8]).String()
-	publicInputs[0] = witnessInput.VkeyHash
-	publicInputs[1] = witnessInput.CommitedValuesDigest
-
-	groth16Proof := sp1.Groth16Proof{
-		A:            a,
-		B:            b,
-		C:            c,
-		PublicInputs: publicInputs,
+	groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)
+	if err != nil {
+		ReturnErrorJSON(w, "serializing proof", http.StatusInternalServerError)
+		return
 	}
 
 	ReturnJSON(w, groth16Proof, http.StatusOK)

@@ -108,13 +108,7 @@ impl<F: PrimeField32, TValue> MemoryAccessCols<F, TValue> {
     }
 }
 
-#[allow(dead_code)]
-#[derive(PartialEq)]
-pub enum MemoryChipKind {
-    Init,
-    Finalize,
-}
-
+#[derive(Default)]
 pub struct MemoryGlobalChip {
-    pub kind: MemoryChipKind,
+    pub fixed_log2_rows: Option<usize>,
 }

@@ -1,6 +1,6 @@
 use core::borrow::{Borrow, BorrowMut};
 use core::mem::size_of;
-use p3_air::{Air, AirBuilder, BaseAir, PairBuilder};
+use p3_air::{Air, AirBuilder, AirBuilderWithPublicValues, BaseAir, PairBuilder};
 use p3_field::AbstractField;
 use p3_field::PrimeField;
 use p3_matrix::dense::RowMajorMatrix;
@@ -151,7 +151,7 @@ impl<F> BaseAir<F> for MemoryProgramChip {
 
 impl<AB> Air<AB> for MemoryProgramChip
 where
-    AB: SP1AirBuilder + PairBuilder,
+    AB: SP1AirBuilder + PairBuilder + AirBuilderWithPublicValues,
 {
     fn eval(&self, builder: &mut AB) {
         let preprocessed = builder.preprocessed();

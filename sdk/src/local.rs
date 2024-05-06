@@ -7,6 +7,7 @@ use crate::{
         build_circuit_artifacts, get_artifacts_dir, get_dev_mode, install_circuit_artifacts,
         WrapCircuitType,
     },
+    utils::EnvVarGuard,
     Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
     SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
 };
@@ -35,7 +36,7 @@ impl LocalProver {
     }
 
     /// Initialize circuit artifacts by installing or building if in dev mode.
-    fn initialize_circuit(&self, circuit_type: WrapCircuitType) -> PathBuf {
+    pub(crate) fn initialize_circuit(&self, circuit_type: WrapCircuitType) -> PathBuf {
         let is_dev_mode = get_dev_mode();
         let artifacts_dir = get_artifacts_dir(circuit_type, is_dev_mode);
 
@@ -77,6 +78,7 @@ impl Prover for LocalProver {
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
+        let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
         Ok(SP1CompressedProof {
             proof: reduce_proof.proof,
@@ -90,6 +92,7 @@ impl Prover for LocalProver {
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
+        let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
         let compress_proof = self.prover.compress(&pk.vk, reduce_proof);
         let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
@@ -106,6 +109,7 @@ impl Prover for LocalProver {
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
+        let _guard = EnvVarGuard::new("RECONSTRUCT_COMMITMENTS", "false");
         let reduce_proof = self.prover.reduce(&pk.vk, proof, deferred_proofs);
         let compress_proof = self.prover.compress(&pk.vk, reduce_proof);
         let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);

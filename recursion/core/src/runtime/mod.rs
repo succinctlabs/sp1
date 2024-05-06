@@ -207,15 +207,15 @@ where
     }
 
     pub fn print_stats(&self) {
-        println!("Total Cycles: {}", self.timestamp);
-        println!("Poseidon Operations: {}", self.nb_poseidons);
-        println!("Field Operations: {}", self.nb_base_ops);
-        println!("Extension Operations: {}", self.nb_ext_ops);
-        println!("Memory Operations: {}", self.nb_memory_ops);
-        println!("Branch Operations: {}", self.nb_branch_ops);
-        println!("\nCycle Tracker Statistics:");
+        tracing::debug!("Total Cycles: {}", self.timestamp);
+        tracing::debug!("Poseidon Operations: {}", self.nb_poseidons);
+        tracing::debug!("Field Operations: {}", self.nb_base_ops);
+        tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
+        tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
+        tracing::debug!("Branch Operations: {}", self.nb_branch_ops);
+        tracing::debug!("\nCycle Tracker Statistics:");
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
-            println!("> {}: {}", name, entry.cumulative_cycles);
+            tracing::debug!("> {}: {}", name, entry.cumulative_cycles);
         }
     }
 
@@ -767,6 +767,9 @@ where
                         );
 
                         self.record.fri_fold_events.push(FriFoldEvent {
+                            is_last_iteration: F::from_bool(
+                                ps_at_z_len.as_canonical_u32() - 1 == m.as_canonical_u32(),
+                            ),
                             clk: timestamp,
                             m,
                             input_ptr,
