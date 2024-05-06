@@ -18,7 +18,7 @@ use sp1_prover::{
 };
 
 pub struct LocalProver {
-    pub(crate) prover: SP1Prover,
+    pub prover: SP1Prover,
 }
 
 impl Default for LocalProver {
