@@ -1701,8 +1701,7 @@ mod tests {
 
     #[test]
     fn test_sp1_recursive_machine_verify_fibonacci() {
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Recursion)
     }
 
