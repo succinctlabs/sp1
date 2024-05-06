@@ -155,7 +155,7 @@ pub enum SP1ReduceProofWrapper {
 /// Represents the state of reducing proofs together. This is used to track the current values since
 /// some reduce batches may have only deferred proofs.
 #[derive(Clone)]
-pub(crate) struct ReduceState {
+pub struct ReduceState {
     pub committed_values_digest: [Word<Val<CoreSC>>; PV_DIGEST_NUM_WORDS],
     pub deferred_proofs_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
     pub start_pc: Val<CoreSC>,

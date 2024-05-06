@@ -287,7 +287,7 @@ impl SP1Prover {
     /// Reduce a set of shard proofs in groups of `batch_size` into a smaller set of shard proofs
     /// using the recursion prover.
     #[instrument(name = "reduce_layer", level = "info", skip_all)]
-    fn reduce_layer(
+    pub fn reduce_layer(
         &self,
         vk: &SP1VerifyingKey,
         sp1_challenger: Challenger<CoreSC>,
@@ -421,7 +421,7 @@ impl SP1Prover {
 
     /// Verifies a batch of proofs using the recursion prover.
     #[instrument(name = "verify_batch", level = "info", skip_all)]
-    fn verify_batch<SC>(
+    pub fn verify_batch<SC>(
         &self,
         config: SC,
         pk: &StarkProvingKey<SC>,
