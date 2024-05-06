@@ -332,8 +332,8 @@ impl MachineRecord for ExecutionRecord {
                 shard
                     .byte_lookups
                     .insert(current_shard, current_byte_lookups);
-
                 let last_shard_cpu_event = shard.cpu_events.last().unwrap();
+
                 // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
                 // will read the public values.  But in some very rare edge cases, the last two shards will
                 // read it (e.g. when the halt instruction is the only instruction in the last shard).
