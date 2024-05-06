@@ -91,7 +91,7 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
                     let poseidon2_cols = *cols.poseidon2();
                     cols.poseidon2_receive_table = poseidon2_cols.rounds[0];
                     cols.poseidon2_memory_access =
-                        poseidon2_cols.rounds[0] + poseidon2_cols.rounds[1];
+                        poseidon2_cols.rounds[0] + poseidon2_cols.rounds[23];
                 }
                 row
             })
@@ -180,7 +180,7 @@ where
             local.poseidon2_receive_table,
         );
         sub_builder.assert_eq(
-            local.is_poseidon2 * (poseidon2_columns.rounds[0] + poseidon2_columns.rounds[1]),
+            local.is_poseidon2 * (poseidon2_columns.rounds[0] + poseidon2_columns.rounds[23]),
             local.poseidon2_memory_access,
         );
 
