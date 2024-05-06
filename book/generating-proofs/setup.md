@@ -23,7 +23,7 @@ cd script
 
 #### Cargo Manifest
 
-Inside this crate, add the `sp1-core` crate as a dependency. Your `Cargo.toml` should look like as follows:
+Inside this crate, add the `sp1-sdk` crate as a dependency. Your `Cargo.toml` should look like as follows:
 
 ```rust,noplayground
 [workspace]
@@ -33,7 +33,7 @@ name = "script"
 edition = "2021"
 
 [dependencies]
-sp1-core = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git" }
 ```
 
-The `sp1-core` crate includes necessary utilities to generate, save, and verify proofs.
+The `sp1-sdk` crate includes necessary utilities to generate, save, and verify proofs.

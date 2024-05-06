@@ -1,7 +1,3 @@
-use std::cmp::Reverse;
-use std::collections::HashMap;
-use std::fmt::Debug;
-
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
@@ -16,6 +12,9 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
+use std::cmp::Reverse;
+use std::collections::HashMap;
+use std::fmt::Debug;
 use tracing::instrument;
 
 use super::debug_constraints;

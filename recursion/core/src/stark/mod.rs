@@ -81,7 +81,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 _phantom: PhantomData,
             })))
             .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
-                fixed_log2_rows: Some(18),
+                fixed_log2_rows: Some(19),
             })))
             .chain(once(RecursionAir::Multi(MultiChip {
                 fixed_log2_rows: Some(20),
