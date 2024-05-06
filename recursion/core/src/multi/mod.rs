@@ -2,7 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir};
@@ -142,7 +142,7 @@ where
             &mut sub_builder,
             local.fri_fold(),
             next.fri_fold(),
-            AB::Expr::one() - next.is_fri_fold,
+            next.is_fri_fold.into(),
         );
 
         let poseidon2_chip = Poseidon2Chip::default();
@@ -158,5 +158,86 @@ impl<T: Copy> MultiCols<T> {
 
     pub fn poseidon2(&self) -> &Poseidon2Cols<T> {
         unsafe { &self.instruction.poseidon2 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+    use std::time::Instant;
+
+    use p3_baby_bear::BabyBear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
+    use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use sp1_core::stark::StarkGenericConfig;
+    use sp1_core::utils::inner_perm;
+    use sp1_core::{
+        air::MachineAir,
+        utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
+    };
+
+    use crate::multi::MultiChip;
+    use crate::{poseidon2::Poseidon2Event, runtime::ExecutionRecord};
+    use p3_symmetric::Permutation;
+
+    #[test]
+    fn prove_babybear() {
+        let config = BabyBearPoseidon2::compressed();
+        let mut challenger = config.challenger();
+
+        let chip = MultiChip {
+            fixed_log2_rows: None,
+        };
+
+        let test_inputs = (0..16)
+            .map(|i| [BabyBear::from_canonical_u32(i); 16])
+            .collect_vec();
+
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
+
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
+
+        let mut input_exec = ExecutionRecord::<BabyBear>::default();
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input, output));
+        }
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        println!(
+            "trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
+
+        let start = Instant::now();
+        let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
+        let duration = start.elapsed().as_secs_f64();
+        println!("proof duration = {:?}", duration);
+
+        let mut challenger: p3_challenger::DuplexChallenger<
+            BabyBear,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
+            16,
+        > = config.challenger();
+        let start = Instant::now();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof)
+            .expect("expected proof to be valid");
+
+        let duration = start.elapsed().as_secs_f64();
+        println!("verify duration = {:?}", duration);
     }
 }
