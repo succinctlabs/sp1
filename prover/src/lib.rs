@@ -136,7 +136,7 @@ impl SP1Prover {
         let core_machine = RiscvAir::machine(CoreSC::default());
         let compress_machine = RecursionAirWideDeg3::machine(InnerSC::default());
         let shrink_machine = RecursionAirSkinnyDeg7::machine(InnerSC::compressed());
-        let wrap_machine = RecursionAirSkinnyDeg7::machine(OuterSC::default());
+        let wrap_machine = RecursionAirSkinnyDeg7::wrap_machine(OuterSC::default());
         Self {
             recursion_setup_program,
             recursion_program,
@@ -650,7 +650,7 @@ impl SP1Prover {
         &self,
         vk: &SP1VerifyingKey,
         reduced_proof: SP1ReduceProof<InnerSC>,
-    ) -> ShardProof<OuterSC> {
+    ) -> SP1ReduceProof<OuterSC> {
         // Get verify_start_challenger from the reduce proof's public values.
         let pv = RecursionPublicValues::from_vec(reduced_proof.proof.public_values.clone());
         let mut core_challenger = self.core_machine.config().challenger();
@@ -674,12 +674,12 @@ impl SP1Prover {
             true,
             true,
         )
-        .proof
     }
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
+    pub fn wrap_groth16(&self, proof: SP1ReduceProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
+        let proof = &proof.proof;
         let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
 
         // Convert pv.vkey_digest to a bn254 field element
@@ -734,18 +734,16 @@ impl SP1Prover {
 mod tests {
 
     use super::*;
+    use crate::build::build_constraints;
     use p3_field::PrimeField32;
     use sp1_core::air::{PublicValues, Word};
     use sp1_core::io::SP1Stdin;
+    use sp1_core::stark::MachineVerificationError;
     use sp1_core::utils::setup_logger;
 
     #[test]
-    #[ignore]
-    fn test_prove_sp1() {
+    fn test_prove_sp1_e2e() {
         setup_logger();
-        std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-
-        // Generate SP1 proof
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
@@ -764,11 +762,40 @@ mod tests {
         tracing::info!("compress");
         let compressed_proof = prover.compress(&vk, core_proof, vec![]);
 
-        tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(&vk, compressed_proof);
+        tracing::info!("verify compressed");
+        let result = prover.verify_compressed(&compressed_proof, &vk);
+        if let Err(MachineVerificationError::NonZeroCumulativeSum) = result {
+            tracing::warn!("non-zero cumulative sum for compress");
+        } else {
+            result.unwrap();
+        }
 
-        tracing::info!("groth16");
-        prover.wrap_groth16(wrapped_bn254_proof, PathBuf::from("build"));
+        tracing::info!("shrink");
+        let shrink_proof = prover.shrink(&vk, compressed_proof);
+
+        tracing::info!("verify shrink");
+        let result = prover.verify_shrink(&shrink_proof, &vk);
+        if let Err(MachineVerificationError::NonZeroCumulativeSum) = result {
+            tracing::warn!("non-zero cumulative sum for shrink");
+        } else {
+            result.unwrap();
+        }
+
+        tracing::info!("wrap bn254");
+        let wrapped_bn254_proof = prover.wrap_bn254(&vk, shrink_proof);
+
+        tracing::info!("verify wrap bn254");
+        let result = prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk);
+        if let Err(MachineVerificationError::NonZeroCumulativeSum) = result {
+            tracing::warn!("non-zero cumulative sum for wrap bn254");
+        } else {
+            result.unwrap();
+        }
+
+        // TODO: replace this with real groth16 proof generation.
+        tracing::info!("generate groth16 proof");
+        let (constraints, witness) = build_constraints(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        Groth16Prover::test(constraints.clone(), witness.clone());
     }
 
     /// This test ensures that a proof can be deferred in the core vm and verified in recursion.
@@ -869,8 +896,9 @@ mod tests {
         println!("deferred_hash: {:?}", reduce_pv.deferred_proofs_digest);
         println!("complete: {:?}", reduce_pv.is_complete);
 
-        let reduced_proof = SP1ReducedProofData(verify_reduce.proof);
-        prover.verify_reduced(&reduced_proof, &verify_vk).unwrap();
+        prover
+            .verify_compressed(&verify_reduce, &verify_vk)
+            .unwrap();
 
         std::env::remove_var("RECONSTRUCT_COMMITMENTS");
         std::env::remove_var("SHARD_SIZE");

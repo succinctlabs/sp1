@@ -80,7 +80,7 @@ impl Prover for LocalProver {
             }
             sp1_prover::build::groth16_artifacts(
                 &self.prover.wrap_vk,
-                &outer_proof,
+                &outer_proof.proof,
                 build_dir.clone(),
             );
             build_dir

@@ -50,11 +50,11 @@ fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     tracing::info!("wrap");
     let wrapped_proof = prover.wrap_bn254(&vk, shrink_proof);
 
-    (prover.wrap_vk, wrapped_proof)
+    (prover.wrap_vk, wrapped_proof.proof)
 }
 
 /// Build the verifier constraints and template witness for the circuit.
-fn build_constraints(
+pub fn build_constraints(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     wrapped_proof: &ShardProof<OuterSC>,
 ) -> (Vec<Constraint>, Witness<OuterConfig>) {

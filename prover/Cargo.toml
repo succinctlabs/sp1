@@ -53,10 +53,6 @@ name = "fibonacci_groth16"
 path = "scripts/fibonacci_groth16.rs"
 
 [[bin]]
-name = "e2e"
-path = "scripts/e2e.rs"
-
-[[bin]]
 name = "test_groth16_verification"
 path = "scripts/test_groth16_verification.rs"
 
