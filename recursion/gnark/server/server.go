@@ -90,7 +90,13 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	fmt.Printf("Proof generated in %s\n", time.Since(start))
 
 	// Serialize the proof to JSON.
-	groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)
+	// groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)
+	// if err != nil {
+	// 	ReturnErrorJSON(w, "serializing proof", http.StatusInternalServerError)
+	// 	return
+	// }
+
+	groth16Proof, err := sp1.SerializeToSolidityRepresentation(proof, witnessInput.VkeyHash, witnessInput.CommitedValuesDigest)
 	if err != nil {
 		ReturnErrorJSON(w, "serializing proof", http.StatusInternalServerError)
 		return
