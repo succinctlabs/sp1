@@ -41,8 +41,8 @@ impl Default for ProverClient {
 }
 
 impl ProverClient {
-    /// Creates a new ProverClient with the prover set to either local or remote based on the
-    /// SP1_PROVER environment variable.
+    /// Creates a new ProverClient with the prover set to either prove locally or prove via the
+    /// prover network based on the SP1_PROVER environment variable.
     pub fn new() -> Self {
         dotenv::dotenv().ok();
         match env::var("SP1_PROVER")
@@ -56,7 +56,7 @@ impl ProverClient {
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
-            "remote" => Self {
+            "network" => Self {
                 prover: Box::new(NetworkProver::new()),
             },
             _ => panic!("Invalid SP1_PROVER value"),

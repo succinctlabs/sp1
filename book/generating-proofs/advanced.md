@@ -37,12 +37,10 @@ For maximal performance, you should run proof generation with the following comm
 SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```
 
-You can also use the `SAVE_DISK_THRESHOLD` env variable to control whether shards are saved to disk or not.
-This is useful for controlling memory usage.
+## Memory Usage
 
-```rust,noplayground
-SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
-```
+To control the memory usage of the prover, you can use the `SHARD_BATCH_SIZE` env variable which 
+will control the number of shards that are generated in parallel at once.  By default, this is set to `0`, which means that the prover will generate all shards in parallel. 
 
 #### Blake3 on ARM machines
 
