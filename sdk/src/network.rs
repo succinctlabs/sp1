@@ -6,12 +6,14 @@ use crate::{
     client::NetworkClient,
     local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof, SP1ProvingKey,
-    SP1VerifyingKey,
+    Prover,
 };
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
-use sp1_prover::{SP1Prover, SP1Stdin};
+use sp1_prover::{
+    SP1CoreProof, SP1Groth16Proof, SP1PlonkProof, SP1Prover, SP1ProvingKey, SP1ReducedProof,
+    SP1Stdin, SP1VerifyingKey,
+};
 use tokio::{runtime, time::sleep};
 
 pub struct NetworkProver {
@@ -146,12 +148,12 @@ impl Prover for NetworkProver {
         self.local_prover.setup(elf)
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Core).await })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+    fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async {
             self.prove_async(&pk.elf, stdin, ProofMode::Compressed)
@@ -169,19 +171,19 @@ impl Prover for NetworkProver {
         rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Groth16).await })
     }
 
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
         self.local_prover.verify(proof, vkey)
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+    fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        self.local_prover.verify_reduced(proof, vkey)
     }
 
     fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+        self.local_prover.verify_plonk(proof, vkey)
     }
 
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+        self.local_prover.verify_groth16(proof, vkey)
     }
 }

@@ -12,6 +12,7 @@ pub mod mmcs;
 pub mod poseidon2;
 pub mod stark;
 pub mod types;
+pub mod utils;
 pub mod witness;
 
 pub const SPONGE_SIZE: usize = 3;
@@ -139,8 +140,8 @@ mod tests {
         let constraints = backend.emit(builder.operations);
 
         let mut witness = Witness::default();
-        witness.set_vkey_hash(vkey_hash_bn254);
-        witness.set_commited_values_digest(commited_values_digest_bn254);
+        witness.write_vkey_hash(vkey_hash_bn254);
+        witness.write_commited_values_digest(commited_values_digest_bn254);
 
         Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
@@ -160,7 +161,7 @@ mod tests {
         let constraints = backend.emit(builder.operations);
 
         let mut witness = Witness::default();
-        witness.set_commited_values_digest(commited_values_digest_bn254);
+        witness.write_commited_values_digest(commited_values_digest_bn254);
 
         Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
@@ -180,7 +181,7 @@ mod tests {
         let constraints = backend.emit(builder.operations);
 
         let mut witness = Witness::default();
-        witness.set_vkey_hash(vkey_hash_bn254);
+        witness.write_vkey_hash(vkey_hash_bn254);
 
         Groth16Prover::test::<OuterConfig>(constraints.clone(), witness);
     }
