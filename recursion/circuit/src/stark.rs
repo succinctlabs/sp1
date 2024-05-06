@@ -345,7 +345,7 @@ pub fn build_wrap_circuit(
         );
     }
 
-    // Ensure lookup bus is zero.
+    // TODO: Ensure lookup bus is zero.
     // let zero_ext: Ext<_, _> = builder.constant(EF::zero());
     // let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
     // for chip in proof.opened_values.chips {

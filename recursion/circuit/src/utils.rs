@@ -26,6 +26,7 @@ pub fn babybears_to_bn254<C: Config>(
     }
     result
 
+    // TODO: Add this back.
     // for i in 0..8 {
     //     let pv_word = pv.sp1_vk_digest[i];
     //     let pv_word_bits = builder.num2bits_f_circuit(pv_word);
