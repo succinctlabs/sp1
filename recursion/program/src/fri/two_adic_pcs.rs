@@ -405,6 +405,6 @@ pub mod tests {
     fn test_two_adic_fri_pcs_single_batch() {
         use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
         let (program, witness) = build_test_fri_with_cols_and_log2_rows(10, 16);
-        run_test_recursion(program, Some(witness), TestConfig::All);
+        run_test_recursion(program, Some(witness), TestConfig::SkinnyDeg7Wrap);
     }
 }

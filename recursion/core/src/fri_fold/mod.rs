@@ -173,7 +173,8 @@ impl FriFoldChip {
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
         next: &FriFoldCols<AB::Var>,
-        next_is_real: AB::Expr,
+        receive_table: AB::Var,
+        memory_access: AB::Var,
     ) {
         // Constraint that the operands are sent from the CPU table.
         let first_iteration_clk = local.clk.into() - local.m.into();
@@ -187,7 +188,7 @@ impl FriFoldChip {
         builder.receive_table(
             Opcode::FRIFold.as_field::<AB::F>(),
             &operands,
-            local.is_last_iteration,
+            receive_table,
         );
 
         builder.assert_bool(local.is_last_iteration);
@@ -197,24 +198,24 @@ impl FriFoldChip {
         builder
             .when(local.is_last_iteration)
             .when_transition()
-            .when(next_is_real.clone())
+            .when(next.is_real)
             .assert_zero(next.m);
 
         // Ensure that all rows for a FRI FOLD invocation have the same input_ptr, clk, and sequential m values.
         builder
             .when_transition()
             .when_not(local.is_last_iteration)
-            .when(next_is_real.clone())
+            .when(next.is_real)
             .assert_eq(next.m, local.m + AB::Expr::one());
         builder
             .when_transition()
             .when_not(local.is_last_iteration)
-            .when(next_is_real.clone())
+            .when(next.is_real)
             .assert_eq(local.input_ptr, next.input_ptr);
         builder
             .when_transition()
             .when_not(local.is_last_iteration)
-            .when(next_is_real)
+            .when(next.is_real)
             .assert_eq(local.clk + AB::Expr::one(), next.clk);
 
         // Constrain read for `z` at `input_ptr`
@@ -222,7 +223,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::zero(),
             &local.z,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `alpha`
@@ -230,7 +231,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::one(),
             &local.alpha,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `x`
@@ -238,7 +239,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(2),
             &local.x,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `log_height`
@@ -246,7 +247,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(3),
             &local.log_height,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `mat_opening_ptr`
@@ -254,7 +255,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(4),
             &local.mat_opening_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `ps_at_z_ptr`
@@ -262,7 +263,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(6),
             &local.ps_at_z_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `alpha_pow_ptr`
@@ -270,7 +271,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(8),
             &local.alpha_pow_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `ro_ptr`
@@ -278,7 +279,7 @@ impl FriFoldChip {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(10),
             &local.ro_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `p_at_x`
@@ -286,7 +287,7 @@ impl FriFoldChip {
             local.clk,
             local.mat_opening_ptr.access.value.into() + local.m.into(),
             &local.p_at_x,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `p_at_z`
@@ -294,7 +295,7 @@ impl FriFoldChip {
             local.clk,
             local.ps_at_z_ptr.access.value.into() + local.m.into(),
             &local.p_at_z,
-            local.is_real,
+            memory_access,
         );
 
         // Update alpha_pow_at_log_height.
@@ -303,7 +304,7 @@ impl FriFoldChip {
             local.clk,
             local.alpha_pow_ptr.access.value.into() + local.log_height.access.value.into(),
             &local.alpha_pow_at_log_height,
-            local.is_real,
+            memory_access,
         );
 
         // 2. Constrain new_value = old_value * alpha.
@@ -329,7 +330,7 @@ impl FriFoldChip {
             local.clk,
             local.ro_ptr.access.value.into() + local.log_height.access.value.into(),
             &local.ro_at_log_height,
-            local.is_real,
+            memory_access,
         );
 
         // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
@@ -358,6 +359,6 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
         let next: &FriFoldCols<AB::Var> = (*next).borrow();
-        self.eval_fri_fold::<AB>(builder, local, next, next.is_real.into());
+        self.eval_fri_fold::<AB>(builder, local, next, local.is_last_iteration, local.is_real);
     }
 }

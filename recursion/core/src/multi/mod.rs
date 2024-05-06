@@ -2,7 +2,7 @@ use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir};
@@ -24,8 +24,14 @@ pub struct MultiChip {
 #[derive(AlignedBorrow, Clone, Copy)]
 pub struct MultiCols<T: Copy> {
     pub instruction: InstructionSpecificCols<T>,
+
     pub is_fri_fold: T,
+    pub fri_fold_receive_table: T,
+    pub fri_fold_memory_access: T,
+
     pub is_poseidon2: T,
+    pub poseidon2_receive_table: T,
+    pub poseidon2_memory_access: T,
 }
 
 #[derive(Clone, Copy)]
@@ -75,9 +81,17 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
                 let cols: &mut MultiCols<F> = row.as_mut_slice().borrow_mut();
                 if i < fri_fold_trace.height() {
                     cols.is_fri_fold = F::one();
+
+                    let fri_fold_cols = *cols.fri_fold();
+                    cols.fri_fold_receive_table = fri_fold_cols.is_last_iteration;
+                    cols.fri_fold_memory_access = fri_fold_cols.is_real;
                 } else {
-                    let cols: &mut MultiCols<F> = row.as_mut_slice().borrow_mut();
                     cols.is_poseidon2 = F::one();
+
+                    let poseidon2_cols = *cols.poseidon2();
+                    cols.poseidon2_receive_table = poseidon2_cols.rounds[0];
+                    cols.poseidon2_memory_access =
+                        poseidon2_cols.rounds[0] + poseidon2_cols.rounds[1];
                 }
                 row
             })
@@ -138,16 +152,44 @@ where
 
         let fri_fold_chip = FriFoldChip::default();
         let mut sub_builder = builder.when(local.is_fri_fold);
+
+        let fri_columns = local.fri_fold();
+        sub_builder.assert_eq(
+            local.is_fri_fold * fri_columns.is_real,
+            local.fri_fold_memory_access,
+        );
+        sub_builder.assert_eq(
+            local.is_fri_fold * fri_columns.is_last_iteration,
+            local.fri_fold_receive_table,
+        );
+
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,
-            local.fri_fold(),
+            fri_columns,
             next.fri_fold(),
-            AB::Expr::one() - next.is_fri_fold,
+            local.fri_fold_receive_table,
+            local.fri_fold_memory_access,
         );
 
         let poseidon2_chip = Poseidon2Chip::default();
         let mut sub_builder = builder.when(local.is_poseidon2);
-        poseidon2_chip.eval_poseidon2(&mut sub_builder, local.poseidon2());
+
+        let poseidon2_columns = local.poseidon2();
+        sub_builder.assert_eq(
+            local.is_poseidon2 * poseidon2_columns.rounds[0],
+            local.poseidon2_receive_table,
+        );
+        sub_builder.assert_eq(
+            local.is_poseidon2 * (poseidon2_columns.rounds[0] + poseidon2_columns.rounds[1]),
+            local.poseidon2_memory_access,
+        );
+
+        poseidon2_chip.eval_poseidon2(
+            &mut sub_builder,
+            local.poseidon2(),
+            local.poseidon2_receive_table,
+            local.poseidon2_memory_access.into(),
+        );
     }
 }
 // SAFETY: Each view is a valid interpretation of the underlying array.

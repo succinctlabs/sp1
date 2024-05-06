@@ -36,6 +36,8 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        receive_table: AB::Var,
+        memory_access: AB::Expr,
     ) {
         let rounds_f = 8;
         let rounds_p = 13;
@@ -59,7 +61,13 @@ impl Poseidon2Chip {
             .sum::<AB::Expr>();
         let is_memory_write = local.rounds[local.rounds.len() - 1];
 
-        self.eval_mem(builder, local, is_memory_read, is_memory_write);
+        self.eval_mem(
+            builder,
+            local,
+            is_memory_read,
+            is_memory_write,
+            memory_access,
+        );
 
         self.eval_computation(
             builder,
@@ -70,7 +78,7 @@ impl Poseidon2Chip {
             rounds_f + rounds_p + 1,
         );
 
-        self.eval_syscall(builder, local);
+        self.eval_syscall(builder, local, receive_table);
 
         // Range check all flags.
         for i in 0..local.rounds.len() {
@@ -87,6 +95,7 @@ impl Poseidon2Chip {
         local: &Poseidon2Cols<AB::Var>,
         is_memory_read: AB::Var,
         is_memory_write: AB::Var,
+        memory_access: AB::Expr,
     ) {
         let memory_access_cols = local.round_specific_cols.memory_access();
 
@@ -115,7 +124,7 @@ impl Poseidon2Chip {
                 local.timestamp,
                 addr,
                 &memory_access_cols.mem_access[i],
-                is_memory_read + is_memory_write,
+                memory_access.clone(),
             );
         }
     }
@@ -250,6 +259,7 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        receive_table: AB::Var,
     ) {
         // Constraint that the operands are sent from the CPU table.
         let operands: [AB::Expr; 4] = [
@@ -261,7 +271,7 @@ impl Poseidon2Chip {
         builder.receive_table(
             Opcode::Poseidon2Compress.as_field::<AB::F>(),
             &operands,
-            local.rounds[0],
+            receive_table,
         );
     }
 }
@@ -274,7 +284,12 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
-        self.eval_poseidon2::<AB>(builder, local);
+        self.eval_poseidon2::<AB>(
+            builder,
+            local,
+            local.rounds[0],
+            local.rounds[0] + local.rounds[23],
+        );
     }
 }
 
