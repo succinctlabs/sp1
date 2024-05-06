@@ -59,7 +59,7 @@ impl Poseidon2Chip {
             .sum::<AB::Expr>();
         let is_memory_write = local.rounds[local.rounds.len() - 1];
 
-        self.eval_mem(builder, local, is_memory_read, is_memory_write);
+        // self.eval_mem(builder, local, is_memory_read, is_memory_write);
 
         self.eval_computation(
             builder,
@@ -81,6 +81,7 @@ impl Poseidon2Chip {
         );
     }
 
+    #[allow(unused)]
     fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
         &self,
         builder: &mut AB,
