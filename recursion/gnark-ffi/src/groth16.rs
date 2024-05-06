@@ -266,7 +266,7 @@ impl Groth16Prover {
 }
 
 /// Generates a Groth16 proof by sending a request to the Gnark server.
-pub fn verify(proof: Groth16Proof, build_dir: &PathBuf) -> bool {
+pub fn verify(proof: &Groth16Proof, build_dir: &PathBuf) -> bool {
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let gnark_dir = manifest_dir.join("../gnark");
     let cwd = std::env::current_dir().unwrap();

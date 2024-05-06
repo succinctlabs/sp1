@@ -1,4 +1,6 @@
-use anyhow::Result;
+use std::path::PathBuf;
+
+use anyhow::{Error, Result};
 use p3_baby_bear::BabyBear;
 use p3_field::AbstractField;
 use sp1_core::{
@@ -6,6 +8,7 @@ use sp1_core::{
     stark::{MachineProof, ProgramVerificationError, StarkGenericConfig},
 };
 use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_gnark_ffi::{groth16::verify, Groth16Proof};
 
 use crate::{
     CoreSC, HashableKey, SP1CoreProofData, SP1Prover, SP1ReducedProofData, SP1VerifyingKey,
@@ -123,6 +126,14 @@ impl SP1Prover {
             ));
         }
 
+        Ok(())
+    }
+
+    pub fn verify_groth16(&self, proof: &Groth16Proof, build_dir: &PathBuf) -> Result<()> {
+        let verified = verify(proof, build_dir);
+        if !verified {
+            return Err(Error::msg("groth16 proof verification failed"));
+        }
         Ok(())
     }
 }

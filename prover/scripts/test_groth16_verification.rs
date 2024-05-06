@@ -35,7 +35,7 @@ pub fn main() {
     let proof: Groth16Proof = serde_json::from_str(EXAMPLE_PROOF).unwrap();
 
     tracing::info!("verify gnark proof");
-    let verified = verify(proof.clone(), &build_dir);
+    let verified = verify(&proof, &build_dir);
     assert!(verified);
 
     tracing::info!("convert gnark proof");

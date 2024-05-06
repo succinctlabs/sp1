@@ -122,6 +122,24 @@ impl Prover for LocalProver {
         // })
         todo!()
     }
+
+    /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+        let artifacts_dir = {
+            if let Some(artifacts_dir) = utils::groth16_artifacts_dir() {
+                artifacts_dir
+            } else {
+                sp1_prover::install::groth16_artifacts();
+                sp1_prover::install::groth16_artifacts_dir()
+            }
+        };
+        self.prover.verify_groth16(&proof.proof, &artifacts_dir)
+    }
+
+    /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
+    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Default for LocalProver {

@@ -81,7 +81,7 @@ pub fn main() {
     let proof = groth16_prover.prove(witness.clone());
 
     tracing::info!("verify gnark proof");
-    let verified = verify(proof.clone(), &args.build_dir.clone().into());
+    let verified = verify(&proof, &args.build_dir.clone().into());
     assert!(verified);
 
     tracing::info!("convert gnark proof");
