@@ -33,7 +33,7 @@ const LOG_DEGREE_BOUND: usize = 31;
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
-) -> Result<SP1PublicValues, crate::stark::ProgramVerificationError<BabyBearBlake3>> {
+) -> Result<SP1PublicValues, crate::stark::ProgramVerificationError<BabyBearPoseidon2>> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&inputs.buffer);
@@ -48,8 +48,8 @@ pub fn run_test_io(
 pub fn run_test(
     program: Program,
 ) -> Result<
-    crate::stark::MachineProof<BabyBearBlake3>,
-    crate::stark::ProgramVerificationError<BabyBearBlake3>,
+    crate::stark::MachineProof<BabyBearPoseidon2>,
+    crate::stark::ProgramVerificationError<BabyBearPoseidon2>,
 > {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
@@ -63,10 +63,10 @@ pub fn run_test(
 pub fn run_test_core(
     runtime: Runtime,
 ) -> Result<
-    crate::stark::MachineProof<BabyBearBlake3>,
-    crate::stark::ProgramVerificationError<BabyBearBlake3>,
+    crate::stark::MachineProof<BabyBearPoseidon2>,
+    crate::stark::ProgramVerificationError<BabyBearPoseidon2>,
 > {
-    let config = BabyBearBlake3::new();
+    let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
     let (pk, vk) = machine.setup(runtime.program.as_ref());
 
