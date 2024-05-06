@@ -356,10 +356,6 @@ impl MachineRecord for ExecutionRecord {
             }
         }
 
-        for i in 0..shards.len() {
-            println!("shard num = {}", shards[i].index);
-        }
-
         // Shard all the other events according to the configuration.
 
         // Shard the ADD events.
