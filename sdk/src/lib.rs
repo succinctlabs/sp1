@@ -24,7 +24,7 @@ use std::{env, fmt::Debug, fs::File, path::Path};
 use anyhow::{Ok, Result};
 pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use sp1_core::stark::ShardProof;
+use sp1_core::stark::{MachineVerificationError, ShardProof};
 pub use sp1_prover::{
     CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1CoreProof, SP1Prover, SP1ProvingKey,
     SP1PublicValues, SP1Stdin, SP1VerifyingKey,
@@ -48,9 +48,11 @@ pub struct SP1ProofWithPublicValues<P> {
 
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove].
 pub type SP1Proof = SP1ProofWithPublicValues<Vec<ShardProof<CoreSC>>>;
+pub type SP1ProofVerificationError = MachineVerificationError<CoreSC>;
 
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_compressed].
 pub type SP1CompressedProof = SP1ProofWithPublicValues<ShardProof<InnerSC>>;
+pub type SP1CompressedProofVerificationError = MachineVerificationError<InnerSC>;
 
 /// A [SP1ProofWithPublicValues] generated with [ProverClient::prove_groth16].
 pub type SP1Groth16Proof = SP1ProofWithPublicValues<Groth16Proof>;
@@ -68,7 +70,7 @@ impl ProverClient {
     ///
     /// ### Examples
     ///
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
     /// std::env::set_var("SP1_PROVER", "local");
@@ -102,7 +104,7 @@ impl ProverClient {
     ///
     /// ### Examples
     ///
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
     /// let client = ProverClient::mock();
@@ -120,7 +122,7 @@ impl ProverClient {
     ///
     /// ### Examples
     ///
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
     /// let client = ProverClient::local();
@@ -137,7 +139,7 @@ impl ProverClient {
     ///
     /// ### Examples
     ///
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::ProverClient;
     ///
     /// let client = ProverClient::remote();
@@ -154,7 +156,7 @@ impl ProverClient {
     ///
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
@@ -181,7 +183,7 @@ impl ProverClient {
     /// data (such as lookup tables) that are used to prove the program's correctness.
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -201,7 +203,7 @@ impl ProverClient {
     /// [Self::prove_groth16], or [Self::prove_plonk] methods.
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
@@ -230,7 +232,7 @@ impl ProverClient {
     /// proof that is of constant size and friendly for recursion and off-chain verification.
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
@@ -263,7 +265,7 @@ impl ProverClient {
     /// proof that is of constant size and friendly for on-chain verification.
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
@@ -293,7 +295,7 @@ impl ProverClient {
     /// proof that is of constant size and friendly for on-chain verification.
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
@@ -320,7 +322,7 @@ impl ProverClient {
     /// [Self::setup].
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
@@ -331,7 +333,11 @@ impl ProverClient {
     /// let proof = client.prove(&pk, stdin).unwrap();
     /// client.verify(&proof, &vk).unwrap();
     /// ```
-    pub fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+    pub fn verify(
+        &self,
+        proof: &SP1Proof,
+        vkey: &SP1VerifyingKey,
+    ) -> Result<(), SP1ProofVerificationError> {
         self.prover.verify(proof, vkey)
     }
 
@@ -339,7 +345,7 @@ impl ProverClient {
     /// produced by [Self::setup].
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
@@ -371,7 +377,7 @@ impl ProverClient {
     /// produced by [Self::setup].
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.
@@ -401,7 +407,7 @@ impl ProverClient {
     /// produced by [Self::setup].
     ///
     /// ### Examples
-    /// ```
+    /// ```no_run
     /// use sp1_sdk::{ProverClient, SP1Stdin};
     ///
     /// // Load the program.

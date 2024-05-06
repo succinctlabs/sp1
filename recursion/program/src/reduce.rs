@@ -1371,10 +1371,11 @@ mod tests {
 
     use p3_challenger::CanObserve;
     use p3_maybe_rayon::prelude::*;
+    use sp1_core::stark::MachineVerificationError;
     use sp1_core::{
         io::SP1Stdin,
         runtime::Program,
-        stark::{Challenge, LocalProver, ProgramVerificationError},
+        stark::{Challenge, LocalProver},
     };
     use sp1_recursion_core::{
         runtime::Runtime,
@@ -1529,7 +1530,7 @@ mod tests {
 
             match result {
                 Ok(_) => tracing::info!("Proof verified successfully"),
-                Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+                Err(MachineVerificationError::NonZeroCumulativeSum) => {
                     tracing::info!("Proof verification failed: NonZeroCumulativeSum")
                 }
                 e => panic!("Proof verification failed: {:?}", e),
@@ -1595,7 +1596,7 @@ mod tests {
 
                     match result {
                         Ok(_) => tracing::info!("Proof verified successfully"),
-                        Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+                        Err(MachineVerificationError::NonZeroCumulativeSum) => {
                             tracing::info!("Proof verification failed: NonZeroCumulativeSum")
                         }
                         e => panic!("Proof verification failed: {:?}", e),
@@ -1655,7 +1656,7 @@ mod tests {
             compress_machine.verify(&compress_vk, &compress_proof, &mut compress_challenger);
         match result {
             Ok(_) => tracing::info!("Proof verified successfully"),
-            Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+            Err(MachineVerificationError::NonZeroCumulativeSum) => {
                 tracing::info!("Proof verification failed: NonZeroCumulativeSum")
             }
             e => panic!("Proof verification failed: {:?}", e),
@@ -1699,7 +1700,7 @@ mod tests {
         let result = wrap_machine.verify(&wrap_vk, &wrap_proof, &mut wrap_challenger);
         match result {
             Ok(_) => tracing::info!("Proof verified successfully"),
-            Err(ProgramVerificationError::NonZeroCumulativeSum) => {
+            Err(MachineVerificationError::NonZeroCumulativeSum) => {
                 tracing::info!("Proof verification failed: NonZeroCumulativeSum")
             }
             e => panic!("Proof verification failed: {:?}", e),

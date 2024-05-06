@@ -9,7 +9,7 @@ use crate::runtime::Runtime;
 use crate::stark::RecursionAir;
 use crate::stark::RecursionAirSkinnyDeg7;
 use p3_field::PrimeField32;
-use sp1_core::stark::ProgramVerificationError;
+use sp1_core::stark::MachineVerificationError;
 use sp1_core::utils::run_test_machine;
 use std::collections::VecDeque;
 
@@ -49,7 +49,7 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            if let ProgramVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
+            if let MachineVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
                 // For now we ignore this error, as the cumulative sum checking is expected to fail.
             } else {
                 panic!("Verification failed: {:?}", e);
@@ -63,7 +63,7 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            if let ProgramVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
+            if let MachineVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
                 // For now we ignore this error, as the cumulative sum checking is expected to fail.
             } else {
                 panic!("Verification failed: {:?}", e);

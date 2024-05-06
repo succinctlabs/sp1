@@ -80,7 +80,7 @@ impl Prover for LocalProver {
             }
             sp1_prover::build::groth16_artifacts(
                 &self.prover.wrap_vk,
-                &outer_proof,
+                &outer_proof.proof,
                 build_dir.clone(),
             );
             build_dir
@@ -99,7 +99,7 @@ impl Prover for LocalProver {
             sp1_prover::install::groth16_artifacts_dir()
         };
 
-        let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
+        let proof = self.prover.wrap_groth16(outer_proof.proof, artifacts_dir);
         Ok(SP1ProofWithPublicValues {
             proof,
             stdin,
