@@ -153,6 +153,10 @@ impl Prover for NetworkProver {
         self.local_prover.setup(elf)
     }
 
+    fn sp1_prover(&self) -> &SP1Prover {
+        self.local_prover.sp1_prover()
+    }
+
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Core).await })

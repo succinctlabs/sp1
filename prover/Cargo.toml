@@ -39,7 +39,6 @@ reqwest = { version = "0.11.25", features = ["rustls-tls", "trust-dns", "stream"
 indicatif = "0.17.8"
 futures = "0.3.30"
 subtle-encoding = "0.5.1"
-tempfile = "3.10.1"
 
 [[bin]]
 name = "fibonacci_sweep"
