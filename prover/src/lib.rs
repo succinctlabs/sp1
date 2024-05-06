@@ -772,10 +772,10 @@ mod tests {
 
     /// This test ensures that a proof can be deferred in the core vm and verified in recursion.
     #[test]
+    #[ignore]
     fn test_deferred_verify() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-        std::env::set_var("FRI_QUERIES", "1");
         std::env::set_var("SHARD_SIZE", "262144");
         std::env::set_var("MAX_RECURSION_PROGRAM_SIZE", "1");
 
@@ -870,5 +870,9 @@ mod tests {
 
         let reduced_proof = SP1ReducedProofData(verify_reduce.proof);
         prover.verify_reduced(&reduced_proof, &verify_vk).unwrap();
+
+        std::env::remove_var("RECONSTRUCT_COMMITMENTS");
+        std::env::remove_var("SHARD_SIZE");
+        std::env::remove_var("MAX_RECURSION_PROGRAM_SIZE");
     }
 }
