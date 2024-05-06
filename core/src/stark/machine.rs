@@ -1,7 +1,3 @@
-use std::cmp::Reverse;
-use std::collections::HashMap;
-use std::fmt::Debug;
-
 use itertools::Itertools;
 use p3_air::Air;
 use p3_challenger::CanObserve;
@@ -16,6 +12,9 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
+use std::cmp::Reverse;
+use std::collections::HashMap;
+use std::fmt::Debug;
 use tracing::instrument;
 
 use super::debug_constraints;
@@ -267,7 +266,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    #[instrument("prove", level = "info", skip_all)]
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &StarkProvingKey<SC>,
@@ -280,10 +278,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        let shards = tracing::info_span!("shard execution record")
+        let shards = tracing::info_span!("shard_record")
             .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
 
-        tracing::info_span!("generate shard proofs")
+        tracing::info_span!("prove_shards")
             .in_scope(|| P::prove_shards(self, pk, shards, challenger))
     }
 
@@ -314,87 +312,12 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Verify the shard proofs.
         if proof.shard_proofs.is_empty() {
-            return Err(ProgramVerificationError::InvalidShardTransition(
-                "no shards",
-            ));
+            return Err(ProgramVerificationError::EmptyProof);
         }
 
         tracing::debug_span!("verify shard proofs").in_scope(|| {
             for (i, shard_proof) in proof.shard_proofs.iter().enumerate() {
                 tracing::debug_span!("verifying shard", segment = i).in_scope(|| {
-                    // let public_values = PublicValues::from_vec(shard_proof.public_values.clone());
-                    // // Verify shard transitions
-                    // if i == 0 {
-                    //     // If it's the first shard, index should be 1.
-                    //     if public_values.shard != SC::Val::one() {
-                    //         return Err(ProgramVerificationError::InvalidShardTransition(
-                    //             "first shard not 1",
-                    //         ));
-                    //     }
-                    //     if public_values.start_pc != vk.pc_start {
-                    //         return Err(ProgramVerificationError::InvalidShardTransition(
-                    //             "wrong pc_start",
-                    //         ));
-                    //     }
-                    //     // let pv_digest: [u32; 8] = public_values
-                    //     //     .committed_value_digest
-                    //     //     .iter()
-                    //     //     .map(|w| w.to_u32())
-                    //     //     .collect::<Vec<_>>()
-                    //     //     .try_into()
-                    //     //     .unwrap();
-                    //     // let deferred_proofs_digest: [u32; 8] = public_values
-                    //     //     .deferred_proofs_digest
-                    //     //     .iter()
-                    //     //     .map(|w| w.to_string().parse::<u32>().unwrap())
-                    //     //     .collect::<Vec<_>>()
-                    //     //     .try_into()
-                    //     //     .unwrap();
-                    // } else {
-                    //     let prev_shard_proof = &proof.shard_proofs[i - 1];
-                    //     let prev_public_values =
-                    //         PublicValues::from_vec(prev_shard_proof.public_values.clone());
-                    //     // For non-first shards, the index should be the previous index + 1.
-                    //     if public_values.shard != prev_public_values.shard + SC::Val::one() {
-                    //         return Err(ProgramVerificationError::InvalidShardTransition(
-                    //             "non incremental shard index",
-                    //         ));
-                    //     }
-                    //     // Start pc should be what the next pc declared in the previous shard was.
-                    //     if public_values.start_pc != prev_public_values.next_pc {
-                    //         return Err(ProgramVerificationError::InvalidShardTransition(
-                    //             "pc mismatch",
-                    //         ));
-                    //     }
-                    //     // Digests and exit code should be the same in all shards.
-                    //     if public_values.committed_value_digest
-                    //         != prev_public_values.committed_value_digest
-                    //         || public_values.deferred_proofs_digest
-                    //             != prev_public_values.deferred_proofs_digest
-                    //         || public_values.exit_code != prev_public_values.exit_code
-                    //     {
-                    //         return Err(ProgramVerificationError::InvalidShardTransition(
-                    //             "digest or exit code mismatch",
-                    //         ));
-                    //     }
-                    //     // The last shard should be halted. Halt is signaled with next_pc == 0.
-                    //     if i == proof.shard_proofs.len() - 1
-                    //         && public_values.next_pc != SC::Val::zero()
-                    //     {
-                    //         return Err(ProgramVerificationError::InvalidShardTransition(
-                    //             "last shard isn't halted",
-                    //         ));
-                    //     }
-                    //     // All non-last shards should not be halted.
-                    //     if i != proof.shard_proofs.len() - 1
-                    //         && public_values.next_pc == SC::Val::zero()
-                    //     {
-                    //         return Err(ProgramVerificationError::InvalidShardTransition(
-                    //             "non-last shard is halted",
-                    //         ));
-                    //     }
-                    // }
-
                     let chips = self
                         .shard_chips_ordered(&shard_proof.chip_ordering)
                         .collect::<Vec<_>>();
@@ -542,9 +465,10 @@ pub enum ProgramVerificationError<SC: StarkGenericConfig> {
     InvalidSegmentProof(VerificationError<SC>),
     InvalidGlobalProof(VerificationError<SC>),
     NonZeroCumulativeSum,
-    InvalidShardTransition(&'static str),
     InvalidPublicValuesDigest,
     DebugInteractionsFailed,
+    EmptyProof,
+    InvalidPublicValues(&'static str),
 }
 
 impl<SC: StarkGenericConfig> Debug for ProgramVerificationError<SC> {
@@ -559,14 +483,17 @@ impl<SC: StarkGenericConfig> Debug for ProgramVerificationError<SC> {
             ProgramVerificationError::NonZeroCumulativeSum => {
                 write!(f, "Non-zero cumulative sum")
             }
-            ProgramVerificationError::InvalidShardTransition(s) => {
-                write!(f, "Invalid shard transition: {}", s)
-            }
             ProgramVerificationError::InvalidPublicValuesDigest => {
                 write!(f, "Invalid public values digest")
             }
+            ProgramVerificationError::EmptyProof => {
+                write!(f, "Empty proof")
+            }
             ProgramVerificationError::DebugInteractionsFailed => {
                 write!(f, "Debug interactions failed")
+            }
+            ProgramVerificationError::InvalidPublicValues(s) => {
+                write!(f, "Invalid public values: {}", s)
             }
         }
     }
@@ -584,6 +511,9 @@ impl<SC: StarkGenericConfig> std::error::Error for ProgramVerificationError<SC> 
 #[allow(non_snake_case)]
 pub mod tests {
 
+    use serial_test::serial;
+
+    use crate::io::SP1Stdin;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
     use crate::runtime::tests::simple_program;
@@ -592,8 +522,10 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
+    use crate::utils::run_and_prove;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
+    use crate::utils::BabyBearPoseidon2;
 
     #[test]
     fn test_simple_prove() {
@@ -730,11 +662,26 @@ pub mod tests {
     }
 
     #[test]
-    #[ignore]
+    #[serial]
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
         run_test(program).unwrap();
+    }
+
+    #[test]
+    #[serial]
+    fn test_fibonacci_prove_batch() {
+        std::env::set_var("SHARD_BATCH_SIZE", "1");
+        std::env::set_var("SHARD_SIZE", "16384");
+
+        setup_logger();
+        let program = fibonacci_program();
+        let stdin = SP1Stdin::new();
+        run_and_prove(program, &stdin, BabyBearPoseidon2::new());
+
+        std::env::remove_var("SHARD_BATCH_SIZE");
+        std::env::remove_var("SHARD_SIZE");
     }
 
     #[test]
