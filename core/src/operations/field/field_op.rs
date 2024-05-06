@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use num::{BigUint, Zero};
+use num::{BigUint, One, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -75,8 +75,18 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         }
 
         // Make little endian polynomial limbs.
+        // let p_modulus = if modulus.is_zero() {
+        //     let mut coeff = Vec::new();
+        //     for _ in 0..(P::NB_LIMBS * P::NB_BITS_PER_LIMB) {
+        //         coeff.push(F::zero());
+        //     }
+        //     coeff.push(F::one());
+        //     Polynomial::from_coefficients(&coeff)
+        // } else {
+        //     P::to_limbs_field::<F, _>(modulus).into()
+        // };
         let mut p_modulus: Polynomial<F> = P::to_limbs_field::<F, _>(modulus).into();
-        if modulus > &BigUint::from(F::ORDER_U64) {
+        if modulus > &P::modulus() {
             let mut coeff = vec![F::zero(); 32];
             coeff.push(F::one());
             p_modulus = Polynomial::from_coefficients(&coeff);
@@ -91,10 +101,10 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         };
         let p_vanishing: Polynomial<F> = &p_op - &p_result - &p_carry * &p_modulus;
-        let mut p_vanishing_coeff = p_vanishing.as_coefficients();
-        p_vanishing_coeff.resize(P::Witness::USIZE + 1, F::zero());
-        println!("p_vanishing_coeff_len: {:?}", p_vanishing_coeff.len());
-        let p_vanishing = Polynomial::from_coefficients(&p_vanishing_coeff);
+        // let mut p_vanishing_coeff = p_vanishing.as_coefficients();
+        // p_vanishing_coeff.resize(P::Witness::USIZE + 1, F::zero());
+        // println!("p_vanishing_coeff_len: {:?}", p_vanishing_coeff.len());
+        // let p_vanishing = Polynomial::from_coefficients(&p_vanishing_coeff);
         // debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
         let p_witness = compute_root_quotient_and_shift(
@@ -102,11 +112,14 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             P::WITNESS_OFFSET,
             P::NB_BITS_PER_LIMB as u32,
         );
-        let (p_witness_low, p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
+        let (mut p_witness_low, mut p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
 
         self.result = p_result.into();
         self.carry = p_carry.into();
 
+        println!("len: {}", p_witness_low.len());
+        p_witness_low.resize(P::Witness::USIZE, F::zero());
+        p_witness_high.resize(P::Witness::USIZE, F::zero());
         self.witness_low = Limbs(p_witness_low.try_into().unwrap());
         self.witness_high = Limbs(p_witness_high.try_into().unwrap());
 
