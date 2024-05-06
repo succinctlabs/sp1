@@ -6,7 +6,7 @@ use core::arch::asm;
 /// The result is written over the first input.
 #[allow(unused_variables)]
 #[no_mangle]
-pub extern "C" fn syscall_uint256_mul(x: *mut u32, y: *const u32) {
+pub extern "C" fn syscall_uint256_mulmod(x: *mut u32, y: *const u32) {
     #[cfg(target_os = "zkvm")]
     unsafe {
         asm!(

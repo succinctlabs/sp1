@@ -1,7 +1,9 @@
-use crate::syscall_uint256_mul;
+use crate::syscall_uint256_mulmod;
 
 const BIGINT_WIDTH_WORDS: usize = 8;
 
+/// Sets result to be (x op y) % modulus. Currently only multiplication is supported. If modulus is
+/// zero, the modulus applied is 2^256.
 #[allow(unused_variables)]
 #[no_mangle]
 pub extern "C" fn sys_bigint(
@@ -35,6 +37,6 @@ pub extern "C" fn sys_bigint(
 
         // Call the uint256_mul syscall to multiply the x value with the concatenated y and modulus.
         // This syscall writes the result in-place, so it will mutate the result ptr appropriately.
-        syscall_uint256_mul(result_ptr, concat_ptr);
+        syscall_uint256_mulmod(result_ptr, concat_ptr);
     }
 }
