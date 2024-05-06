@@ -1,6 +1,6 @@
 use std::fmt::Debug;
 
-use num::{BigUint, One, Zero};
+use num::{BigUint, Zero};
 use p3_air::AirBuilder;
 use p3_field::PrimeField32;
 use sp1_derive::AlignedBorrow;
@@ -114,6 +114,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             &p_vanishing,
             P::WITNESS_OFFSET,
             P::NB_BITS_PER_LIMB as u32,
+            P::NB_WITNESS_LIMBS,
         );
         let (mut p_witness_low, mut p_witness_high) = split_u16_limbs_to_u8_limbs(&p_witness);
 
@@ -204,6 +205,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
 }
 
 impl<V: Copy, P: FieldParameters> FieldOpCols<V, P> {
+    #[allow(clippy::too_many_arguments)]
     pub fn eval_with_modulus<AB: SP1AirBuilder<Var = V>>(
         &self,
         builder: &mut AB,
