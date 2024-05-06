@@ -150,11 +150,6 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         } else {
                             modulus.clone()
                         };
-                        assert!(!effective_modulus.is_zero());
-                        println!("effective_modulus: {:?}", effective_modulus);
-                        println!("x: {:?}", x);
-                        println!("y: {:?}", y);
-                        println!("modulus: {:?}", modulus);
                         cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,

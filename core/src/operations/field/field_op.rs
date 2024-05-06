@@ -11,6 +11,7 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
+use crate::operations::field::params::limbs_from_vec;
 use typenum::Unsigned;
 
 /// Airthmetic operation for emulating modular arithmetic.
@@ -61,39 +62,21 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         };
         debug_assert!(&result < modulus);
-        if &carry >= modulus {
-            println!("carry: {:?}", carry);
-            println!("modulus: {:?}", modulus);
-            println!("a: {:?}", a);
-            println!("b: {:?}", b);
-        }
         debug_assert!(&carry < modulus);
         match op {
             FieldOperation::Add => debug_assert_eq!(&carry * modulus, a + b - &result),
             FieldOperation::Mul => debug_assert_eq!(&carry * modulus, a * b - &result),
             FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         }
-        println!("result: {}", result);
 
-        // Make little endian polynomial limbs.
-        // let p_modulus = if modulus.is_zero() {
-        //     let mut coeff = Vec::new();
-        //     for _ in 0..(P::NB_LIMBS * P::NB_BITS_PER_LIMB) {
-        //         coeff.push(F::zero());
-        //     }
-        //     coeff.push(F::one());
-        //     Polynomial::from_coefficients(&coeff)
-        // } else {
-        //     P::to_limbs_field::<F, _>(modulus).into()
-        // };
-        let mut p_modulus: Polynomial<F> = P::to_limbs_field::<F, _>(modulus).into();
-        if modulus == &P::modulus()
-            && P::modulus().bits() > (P::NB_LIMBS * P::NB_BITS_PER_LIMB) as u64
-        {
-            let mut coeff = vec![F::zero(); 32];
-            coeff.push(F::one());
-            p_modulus = Polynomial::from_coefficients(&coeff);
-        }
+        // Here we have special logic for p_modulus because to_limbs_field only works for numbers in
+        // the field, but modulus can == the field modulus so it can have 1 extra limb (ex. uint256).
+        let p_modulus_limbs = modulus
+            .to_bytes_le()
+            .iter()
+            .map(|x| F::from_canonical_u8(*x))
+            .collect::<Vec<F>>();
+        let p_modulus: Polynomial<F> = p_modulus_limbs.iter().into();
         let p_result: Polynomial<F> = P::to_limbs_field::<F, _>(&result).into();
         let p_carry: Polynomial<F> = P::to_limbs_field::<F, _>(&carry).into();
 
@@ -104,11 +87,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         };
         let p_vanishing: Polynomial<F> = &p_op - &p_result - &p_carry * &p_modulus;
-        // let mut p_vanishing_coeff = p_vanishing.as_coefficients();
-        // p_vanishing_coeff.resize(P::Witness::USIZE + 1, F::zero());
-        // println!("p_vanishing_coeff_len: {:?}", p_vanishing_coeff.len());
-        // let p_vanishing = Polynomial::from_coefficients(&p_vanishing_coeff);
-        // debug_assert_eq!(p_vanishing.degree(), P::NB_WITNESS_LIMBS);
 
         let p_witness = compute_root_quotient_and_shift(
             &p_vanishing,
@@ -121,7 +99,6 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         self.result = p_result.into();
         self.carry = p_carry.into();
 
-        println!("len: {}", p_witness_low.len());
         p_witness_low.resize(P::Witness::USIZE, F::zero());
         p_witness_high.resize(P::Witness::USIZE, F::zero());
         self.witness_low = Limbs(p_witness_low.try_into().unwrap());
