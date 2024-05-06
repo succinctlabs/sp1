@@ -142,10 +142,6 @@ impl Runtime {
             .try_into()
             .unwrap();
         runtime.record.index = index + 1;
-        println!(
-            "recovering runtime and setting shard index to {}",
-            runtime.record.index
-        );
         runtime
     }
 

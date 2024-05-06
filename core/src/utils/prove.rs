@@ -149,7 +149,6 @@ where
         tracing::info_span!("runtime.state").in_scope(|| loop {
             // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
             let (state, done) = runtime.execute_state();
-            println!("created checkpoint {}", state.clk);
             let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
             let mut writer = std::io::BufWriter::new(&mut tempfile);
             bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
@@ -211,14 +210,6 @@ where
         } else {
             let mut events = trace_checkpoint(program.clone(), &file);
             events.public_values = public_values;
-            println!(
-                "memory_init_events = {:?}",
-                events.memory_initialize_events.len()
-            );
-            println!(
-                "memory_finalize_events = {:?}",
-                events.memory_finalize_events.len()
-            );
             reset_seek(&mut file);
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
         };

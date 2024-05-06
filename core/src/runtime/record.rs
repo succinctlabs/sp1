@@ -308,7 +308,6 @@ impl MachineRecord for ExecutionRecord {
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
         // Get the number of CPU events.
         let num_cpu_events = self.cpu_events.len();
-        println!("num_cpu_events = {}", num_cpu_events);
 
         // Create empty shards that we will fill in.
         let mut shards: Vec<ExecutionRecord> = Vec::new();
@@ -319,22 +318,15 @@ impl MachineRecord for ExecutionRecord {
         for (i, cpu_event) in self.cpu_events.iter().enumerate() {
             let at_last_event = i == num_cpu_events - 1;
             if cpu_event.shard != current_shard || at_last_event {
-                println!(
-                    "found cpu event with shard = {}, which differs from shard = {}, at index = {}",
-                    cpu_event.shard, current_shard, i
-                );
-
                 let last_idx = if at_last_event { i + 1 } else { i };
 
                 // Fill in the shard.
                 let mut shard = ExecutionRecord::default();
                 shard.index = current_shard;
-                println!("setting shard.index = {}", shard.index);
                 shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
                 shard.program = self.program.clone();
 
                 // Byte lookups are already sharded, so put this shard's lookups in.
-                println!("self.byte_lookups has keys {:?}", self.byte_lookups.keys());
                 let current_byte_lookups =
                     self.byte_lookups.remove(&current_shard).unwrap_or_default();
                 shard
@@ -347,11 +339,6 @@ impl MachineRecord for ExecutionRecord {
                 // read it (e.g. when the halt instruction is the only instruction in the last shard).
                 // It seems overly complex to set the public_values_digest for the last two shards, so we just set it
                 // for all of the shards.
-                println!(
-                    "shard.public_values.committed_value_digest = {:?}, self.public_values.committed_value_digest = {:?}",
-                    shard.public_values.committed_value_digest,
-                    self.public_values.committed_value_digest
-                );
                 shard.public_values.committed_value_digest =
                     self.public_values.committed_value_digest;
                 shard.public_values.deferred_proofs_digest =
