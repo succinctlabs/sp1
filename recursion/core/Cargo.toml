@@ -14,7 +14,7 @@ p3-symmetric = { workspace = true }
 sp1-derive = { path = "../../derive" }
 sp1-primitives = { path = "../../primitives" }
 tracing = "0.1.40"
-sp1-core = { path = "../../core", features = ["debug"] }
+sp1-core = { path = "../../core" }
 hashbrown = "0.14.3"
 itertools = "0.12.1"
 p3-bn254-fr = { workspace = true }
