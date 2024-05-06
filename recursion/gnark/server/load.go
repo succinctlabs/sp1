@@ -102,11 +102,11 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 		pkStart := time.Now()
 		pk = groth16.NewProvingKey(ecc.BN254)
 		fmt.Println("Reading PK file...")
-		if _, err = pk.UnsafeReadFrom(pkReader); err != nil {
+		err = pk.ReadDump(pkReader)
+		if err != nil {
 			errPK = errors.Wrap(err, "reading PK content from file")
-		} else {
-			fmt.Printf("PK loaded in %s\n", time.Since(pkStart))
 		}
+		fmt.Printf("PK loaded in %s\n", time.Since(pkStart))
 	}()
 
 	wg.Wait()
