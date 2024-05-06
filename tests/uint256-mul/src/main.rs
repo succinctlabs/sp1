@@ -1,9 +1,8 @@
 #![no_main]
 sp1_zkvm::entrypoint!(main);
 
-use num::{BigUint, One, Zero};
+use num::{BigUint, One};
 use rand::Rng;
-use std::convert::TryInto;
 
 extern "C" {
     fn syscall_uint256_mul(x: *mut u32, y: *const u32);
@@ -24,7 +23,7 @@ fn main() {
         // Test with random numbers.
         let mut rng = rand::thread_rng();
         let mut x: [u8; 32] = rng.gen();
-        let mut y: [u8; 32] = rng.gen();
+        let y: [u8; 32] = rng.gen();
 
         // Convert byte arrays to BigUint
         let x_big = BigUint::from_bytes_le(&x);
@@ -43,7 +42,6 @@ fn main() {
     // Test with random numbers.
     let mut rng = rand::thread_rng();
     let mut x: [u8; 32] = rng.gen();
-    let y: [u8; 32] = rng.gen();
 
     // Hardcoded edge case: Multiplying by 1
     let mut one: [u8; 32] = [0; 32];

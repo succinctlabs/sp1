@@ -104,11 +104,8 @@ pub fn pad_rows_fixed<R: Clone>(
         }
         None => {
             let mut padded_nb_rows = nb_rows.next_power_of_two();
-            if padded_nb_rows == 2 || padded_nb_rows == 1 {
-                padded_nb_rows = 4;
-            }
-            if padded_nb_rows == nb_rows {
-                return;
+            if padded_nb_rows < 8 {
+                padded_nb_rows = 8;
             }
             rows.resize(padded_nb_rows, dummy_row);
         }

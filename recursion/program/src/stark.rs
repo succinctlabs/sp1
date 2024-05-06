@@ -330,9 +330,10 @@ pub(crate) mod tests {
         ir::{Builder, ExtConst},
     };
 
-    use sp1_recursion_core::runtime::{Runtime, DIGEST_SIZE};
+    use sp1_recursion_core::runtime::DIGEST_SIZE;
 
-    use sp1_recursion_core::stark::RecursionAir;
+    use sp1_recursion_core::stark::utils::run_test_recursion;
+    use sp1_recursion_core::stark::utils::TestConfig;
 
     type SC = BabyBearPoseidon2;
     type F = InnerVal;
@@ -344,8 +345,7 @@ pub(crate) mod tests {
     fn test_permutation_challenges() {
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
@@ -402,14 +402,7 @@ pub(crate) mod tests {
         }
 
         let program = builder.compile_program();
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.witness_stream = witness_stream.into();
-        runtime.run();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.timestamp
-        );
+        run_test_recursion(program, Some(witness_stream.into()), TestConfig::All);
     }
 
     #[test]
@@ -436,21 +429,6 @@ pub(crate) mod tests {
         let elapsed = time.elapsed();
         println!("Building took: {:?}", elapsed);
 
-        let machine = A::machine(SC::default());
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-
-        let time = Instant::now();
-        runtime.run();
-        let elapsed = time.elapsed();
-        runtime.print_stats();
-        println!("Execution took: {:?}", elapsed);
-
-        let config = BabyBearPoseidon2::new();
-        let machine = RecursionAir::<_, 3>::machine(config);
-        let (pk, _) = machine.setup(&program);
-        let mut challenger = machine.config().challenger();
-
-        let record_clone = runtime.record.clone();
-        machine.debug_constraints(&pk, record_clone, &mut challenger);
+        run_test_recursion(program, None, TestConfig::All);
     }
 }

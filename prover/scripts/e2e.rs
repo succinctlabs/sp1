@@ -1,12 +1,17 @@
 #![feature(generic_const_exprs)]
 #![allow(incomplete_features)]
 
+use std::borrow::Borrow;
+
 use clap::Parser;
+use p3_baby_bear::BabyBear;
 use sp1_core::io::SP1Stdin;
+use sp1_prover::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
+use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::{convert, verify, Groth16Prover};
 use subtle_encoding::hex;
 
@@ -23,7 +28,7 @@ pub fn main() {
 
     let args = Args::parse();
 
-    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
     let prover = SP1Prover::new();
@@ -36,10 +41,10 @@ pub fn main() {
     let core_proof = prover.prove_core(&pk, &stdin);
 
     tracing::info!("reduce");
-    let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
+    let reduced_proof = prover.compress(&vk, core_proof, vec![]);
 
     tracing::info!("compress");
-    let compressed_proof = prover.compress(reduced_proof);
+    let compressed_proof = prover.shrink(reduced_proof);
 
     tracing::info!("wrap");
     let wrapped_proof = prover.wrap_bn254(compressed_proof);
@@ -49,8 +54,17 @@ pub fn main() {
         .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.clone()));
 
     tracing::info!("building template witness");
+    let pv: &RecursionPublicValues<_> = wrapped_proof.public_values.as_slice().borrow();
+    let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
+    let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
+        .try_into()
+        .unwrap();
+    let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
+    witness.write_commited_values_digest(committed_values_digest);
+    witness.write_vkey_hash(vkey_hash);
 
     tracing::info!("sanity check gnark test");
     Groth16Prover::test(constraints.clone(), witness.clone());

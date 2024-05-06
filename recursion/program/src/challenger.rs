@@ -275,7 +275,6 @@ mod tests {
     use p3_challenger::CanObserve;
     use p3_challenger::CanSample;
     use p3_field::AbstractField;
-    use p3_field::PrimeField32;
     use sp1_core::stark::StarkGenericConfig;
     use sp1_core::utils::BabyBearPoseidon2;
     use sp1_recursion_compiler::asm::AsmBuilder;
@@ -283,8 +282,9 @@ mod tests {
     use sp1_recursion_compiler::ir::Felt;
     use sp1_recursion_compiler::ir::Usize;
     use sp1_recursion_compiler::ir::Var;
-    use sp1_recursion_core::runtime::Runtime;
     use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
+    use sp1_recursion_core::stark::utils::run_test_recursion;
+    use sp1_recursion_core::stark::utils::TestConfig;
 
     use crate::challenger::DuplexChallengerVariable;
 
@@ -325,12 +325,6 @@ mod tests {
         builder.assert_felt_eq(expected_result, element);
 
         let program = builder.compile_program();
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, config.perm.clone());
-        runtime.run();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.clk.as_canonical_u32() / 4
-        );
+        run_test_recursion(program, None, TestConfig::All);
     }
 }

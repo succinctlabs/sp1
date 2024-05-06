@@ -213,7 +213,6 @@ where
         tracing::debug!("Extension Operations: {}", self.nb_ext_ops);
         tracing::debug!("Memory Operations: {}", self.nb_memory_ops);
         tracing::debug!("Branch Operations: {}", self.nb_branch_ops);
-        tracing::debug!("\nCycle Tracker Statistics:");
         for (name, entry) in self.cycle_tracker.iter().sorted_by_key(|(name, _)| *name) {
             tracing::debug!("> {}: {}", name, entry.cumulative_cycles);
         }

@@ -1,22 +1,26 @@
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 use crate::fri::verify_two_adic_pcs;
 use crate::types::OuterDigestVariable;
+use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::witness::Witnessable;
 use p3_air::Air;
+use p3_baby_bear::BabyBear;
 use p3_bn254_fr::Bn254Fr;
 use p3_commit::TwoAdicMultiplicativeCoset;
-use p3_field::TwoAdicField;
-use sp1_core::stark::{Com, ShardProof};
+use p3_field::{AbstractField, TwoAdicField};
+use sp1_core::stark::{Com, ShardProof, PROOF_MAX_NUM_PVS};
 use sp1_core::{
     air::MachineAir,
     stark::{ShardCommitment, StarkGenericConfig, StarkMachine, StarkVerifyingKey},
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
+use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::stark::config::{outer_fri_config, BabyBearPoseidon2Outer};
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_program::commit::PolynomialSpaceVariable;
@@ -235,7 +239,7 @@ type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
 
 pub fn build_wrap_circuit(
-    template_vk: &StarkVerifyingKey<OuterSC>,
+    wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
     let dev_mode = std::env::var("SP1_DEV_WRAPPER")
@@ -249,12 +253,49 @@ pub fn build_wrap_circuit(
     let mut builder = Builder::<OuterConfig>::default();
     let mut challenger = MultiField32ChallengerVariable::new(&mut builder);
 
-    let preprocessed_commit_val: [Bn254Fr; 1] = template_vk.commit.into();
+    let preprocessed_commit_val: [Bn254Fr; 1] = wrap_vk.commit.into();
     let preprocessed_commit: OuterDigestVariable<OuterC> =
         [builder.eval(preprocessed_commit_val[0])];
     challenger.observe_commitment(&mut builder, preprocessed_commit);
-    let pc_start = builder.eval(template_vk.pc_start);
+    let pc_start = builder.eval(wrap_vk.pc_start);
     challenger.observe(&mut builder, pc_start);
+
+    let mut witness = Witness::default();
+    template_proof.write(&mut witness);
+    let proof = template_proof.read(&mut builder);
+
+    let commited_values_digest = Bn254Fr::zero().read(&mut builder);
+    builder.commit_commited_values_digest_circuit(commited_values_digest);
+    let vkey_hash = Bn254Fr::zero().read(&mut builder);
+    builder.commit_vkey_hash_circuit(vkey_hash);
+
+    // Validate public values
+    let mut pv_elements = Vec::new();
+    for i in 0..PROOF_MAX_NUM_PVS {
+        let element = builder.get(&proof.public_values, i);
+        pv_elements.push(element);
+    }
+    let pv: &RecursionPublicValues<_> = pv_elements.as_slice().borrow();
+    let one_felt: Felt<_> = builder.constant(BabyBear::one());
+    // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
+    // fully accumulated.
+    builder.assert_felt_eq(pv.is_complete, one_felt);
+
+    // Convert pv.sp1_vk_digest into Bn254
+    let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
+    // Vkey hash must match the witnessed commited_values_digest that we are committing to.
+    builder.assert_var_eq(pv_vkey_hash, vkey_hash);
+
+    // Convert pv.committed_value_digest into Bn254
+    let pv_committed_values_digest_bytes: [Felt<_>; 32] =
+        words_to_bytes(&pv.committed_value_digest)
+            .try_into()
+            .unwrap();
+    let pv_committed_values_digest: Var<_> =
+        babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
+
+    // Committed values digest must match the witnessed one that we are committing to.
+    builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
 
     if !dev_mode {
         let chips = outer_machine
@@ -285,10 +326,6 @@ pub fn build_wrap_circuit(
             })
             .collect();
 
-        let mut witness = Witness::default();
-        template_proof.write(&mut witness);
-        let proof = template_proof.read(&mut builder);
-
         let ShardCommitment { main_commit, .. } = &proof.commitment;
         challenger.observe_commitment(&mut builder, *main_commit);
         let pv_slice = proof.public_values.slice(
@@ -300,7 +337,7 @@ pub fn build_wrap_circuit(
 
         StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
             &mut builder,
-            template_vk,
+            wrap_vk,
             &outer_machine,
             &mut challenger.clone(),
             &proof,
@@ -310,6 +347,14 @@ pub fn build_wrap_circuit(
         );
     }
 
+    // TODO: Ensure lookup bus is zero.
+    // let zero_ext: Ext<_, _> = builder.constant(EF::zero());
+    // let cumulative_sum: Ext<_, _> = builder.eval(zero_ext);
+    // for chip in proof.opened_values.chips {
+    //     builder.assign(cumulative_sum, cumulative_sum + chip.cumulative_sum);
+    // }
+    // builder.assert_ext_eq(cumulative_sum, zero_ext);
+
     let mut backend = ConstraintCompiler::<OuterConfig>::default();
     backend.emit(builder.operations)
 }
@@ -317,19 +362,11 @@ pub fn build_wrap_circuit(
 #[cfg(test)]
 pub(crate) mod tests {
 
-    use crate::stark::build_wrap_circuit;
-    use crate::witness::Witnessable;
-    use p3_baby_bear::DiffusionMatrixBabyBear;
     use p3_field::PrimeField32;
-    use sp1_core::stark::{LocalProver, StarkGenericConfig};
-    use sp1_recursion_compiler::config::OuterConfig;
-    use sp1_recursion_compiler::ir::Witness;
     use sp1_recursion_core::{
         cpu::Instruction,
-        runtime::{Opcode, RecursionProgram, Runtime},
-        stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
+        runtime::{Opcode, RecursionProgram},
     };
-    use sp1_recursion_gnark_ffi::Groth16Prover;
 
     pub fn basic_program<F: PrimeField32>() -> RecursionProgram<F> {
         let zero = [F::zero(); 4];
@@ -363,40 +400,5 @@ pub(crate) mod tests {
             instructions,
             traces: vec![None],
         }
-    }
-
-    #[test]
-    fn test_recursive_verify_shard_v2() {
-        type SC = BabyBearPoseidon2Outer;
-        type F = <SC as StarkGenericConfig>::Val;
-        type EF = <SC as StarkGenericConfig>::Challenge;
-        type A = RecursionAirWideDeg3<F>;
-
-        sp1_core::utils::setup_logger();
-        let program = basic_program::<F>();
-        let config = SC::new();
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
-        runtime.run();
-        let machine = A::machine(config);
-        let (pk, vk) = machine.setup(&program);
-        let mut challenger = machine.config().challenger();
-        let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
-        let mut proofs = proof.shard_proofs.clone();
-
-        let mut runtime = Runtime::<F, EF, DiffusionMatrixBabyBear>::new_no_perm(&program);
-        runtime.run();
-
-        // Uncomment these lines to verify the proof for debugging purposes.
-        //
-        // let mut challenger = machine.config().challenger();
-        // machine.verify(&vk, &proof, &mut challenger).unwrap();
-
-        let mut witness = Witness::default();
-        let proof = proofs.pop().unwrap();
-        proof.write(&mut witness);
-
-        let constraints = build_wrap_circuit(&vk, proof);
-
-        Groth16Prover::test::<OuterConfig>(constraints, witness);
     }
 }

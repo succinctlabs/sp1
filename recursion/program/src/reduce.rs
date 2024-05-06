@@ -1723,60 +1723,53 @@ mod tests {
 
     #[test]
     fn test_sp1_reduce_machine_verify_fibonacci() {
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Reduce)
     }
 
     #[test]
     #[ignore]
     fn test_sp1_compress_machine_verify_fibonacci() {
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Compress)
     }
 
     #[test]
     #[ignore]
     fn test_sp1_wrap_machine_verify_fibonacci() {
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Wrap)
     }
 
     #[test]
     #[ignore]
     fn test_sp1_reduce_machine_verify_tendermint() {
-        let elf = include_bytes!(
-            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
-        );
+        let elf =
+            include_bytes!("../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Reduce)
     }
 
     #[test]
     #[ignore]
     fn test_sp1_recursive_machine_verify_tendermint() {
-        let elf = include_bytes!(
-            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
-        );
+        let elf =
+            include_bytes!("../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Recursion)
     }
 
     #[test]
     #[ignore]
     fn test_sp1_compress_machine_verify_tendermint() {
-        let elf = include_bytes!(
-            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
-        );
+        let elf =
+            include_bytes!("../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Compress)
     }
 
     #[test]
     #[ignore]
     fn test_sp1_wrap_machine_verify_tendermint() {
-        let elf = include_bytes!(
-            "../../../examples/tendermint-benchmark/program/elf/riscv32im-succinct-zkvm-elf"
-        );
+        let elf =
+            include_bytes!("../../../tests/tendermint-benchmark/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 2, Test::Wrap)
     }
 }

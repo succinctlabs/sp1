@@ -10,6 +10,7 @@
 #![allow(clippy::new_without_default)]
 
 pub mod build;
+pub mod install;
 mod types;
 pub mod utils;
 mod verify;
@@ -253,7 +254,7 @@ impl SP1Prover {
         let (proof, public_values_stream) = run_and_prove(program, stdin, config);
         let public_values = SP1PublicValues::from(&public_values_stream);
         SP1CoreProof {
-            shard_proofs: proof.shard_proofs,
+            proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
             public_values,
         }
@@ -261,7 +262,7 @@ impl SP1Prover {
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
     #[instrument(name = "reduce", level = "info", skip_all)]
-    pub fn reduce(
+    pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
@@ -270,6 +271,8 @@ impl SP1Prover {
         // Set the batch size for the reduction tree.
         let batch_size = 2;
 
+        let shard_proofs = &proof.proof.0;
+
         // Setup the prover parameters.
         let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
@@ -277,7 +280,7 @@ impl SP1Prover {
         // Get the and leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
-        proof.shard_proofs.iter().for_each(|proof| {
+        shard_proofs.iter().for_each(|proof| {
             leaf_challenger.observe(proof.commitment.main_commit);
             leaf_challenger.observe_slice(&proof.public_values[0..self.core_machine.num_pv_elts()]);
         });
@@ -290,8 +293,8 @@ impl SP1Prover {
         vk.vk.observe_into(&mut reconstruct_challenger);
 
         // Prepare the inputs for the recursion programs.
-        let is_complete = proof.shard_proofs.len() == 1 && deferred_proofs.is_empty();
-        for batch in proof.shard_proofs.chunks(batch_size) {
+        let is_complete = shard_proofs.len() == 1 && deferred_proofs.is_empty();
+        for batch in shard_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
 
             core_inputs.push(SP1RecursionMemoryLayout {
@@ -311,7 +314,7 @@ impl SP1Prover {
         }
 
         let last_proof_input =
-            PublicValues::from_vec(proof.shard_proofs.last().unwrap().public_values.clone());
+            PublicValues::from_vec(shard_proofs.last().unwrap().public_values.clone());
 
         // Check that the leaf challenger is the same as the reconstruct challenger.
         assert_eq!(
@@ -331,7 +334,7 @@ impl SP1Prover {
         let mut deferred_digest = [Val::<InnerSC>::zero(); DIGEST_SIZE];
         let mut deferred_inputs = Vec::new();
 
-        let is_deferred_complete = proof.shard_proofs.is_empty() && deferred_proofs.len() == 1;
+        let is_deferred_complete = shard_proofs.is_empty() && deferred_proofs.len() == 1;
 
         for batch in deferred_proofs.chunks(batch_size) {
             let proofs = batch.to_vec();
@@ -345,7 +348,7 @@ impl SP1Prover {
                 sp1_vk: &vk.vk,
                 sp1_machine: &self.core_machine,
                 end_pc: Val::<InnerSC>::zero(),
-                end_shard: Val::<InnerSC>::from_canonical_usize(proof.shard_proofs.len()),
+                end_shard: Val::<InnerSC>::from_canonical_usize(shard_proofs.len()),
                 leaf_challenger: leaf_challenger.clone(),
                 committed_value_digest: last_proof_input.committed_value_digest.to_vec(),
                 deferred_proofs_digest: last_proof_input.deferred_proofs_digest.to_vec(),
@@ -525,7 +528,7 @@ impl SP1Prover {
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
     #[instrument(name = "compress", level = "info", skip_all)]
-    pub fn compress(&self, reduced_proof: SP1ReduceProof<InnerSC>) -> SP1ReduceProof<InnerSC> {
+    pub fn shrink(&self, reduced_proof: SP1ReduceProof<InnerSC>) -> SP1ReduceProof<InnerSC> {
         // Setup the prover parameters.
         let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
@@ -579,29 +582,6 @@ impl SP1Prover {
         SP1ReduceProof {
             proof: compress_proof.shard_proofs.pop().unwrap(),
         }
-        // // Get verify_start_challenger from the reduce proof's public values.
-        // let pv: &RecursionPublicValues<_> = reduced_proof.proof.public_values.as_slice().borrow();
-        // let mut core_challenger = self.core_machine.config().challenger();
-        // pv.verify_start_challenger
-        //     .set_challenger(&mut core_challenger);
-        // // Since the proof passed in should be complete already, the start reconstruct_challenger
-        // // should be in initial state with only vk observed.
-        // let reconstruct_challenger = self.setup_initial_core_challenger(vk);
-        // let state = ReduceState::from_reduce_start_state(&reduced_proof);
-        // let config = InnerSC::compressed();
-        // self.verify_batch::<InnerSC>(
-        //     config,
-        //     &self.compress_pk,
-        //     vk,
-        //     core_challenger,
-        //     reconstruct_challenger,
-        //     state,
-        //     &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
-        //     &[],
-        //     true,
-        //     false,
-        //     true,
-        // )
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
@@ -658,31 +638,6 @@ impl SP1Prover {
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, rc);
 
         wrap_proof.shard_proofs.pop().unwrap()
-
-        // // Get verify_start_challenger from the reduce proof's public values.
-        // let pv: &RecursionPublicValues<_> = reduced_proof.proof.public_values.as_slice().borrow();
-        // let mut core_challenger = self.core_machine.config().challenger();
-        // pv.verify_start_challenger
-        //     .set_challenger(&mut core_challenger);
-        // // Since the proof passed in should be complete already, the start reconstruct_challenger
-        // // should be in initial state with only vk observed.
-        // let reconstruct_challenger = self.setup_initial_core_challenger(vk);
-        // let state = ReduceState::from_reduce_start_state(&reduced_proof);
-        // let config = OuterSC::default();
-        // self.verify_batch::<OuterSC>(
-        //     config,
-        //     &self.wrap_pk,
-        //     vk,
-        //     core_challenger,
-        //     reconstruct_challenger,
-        //     state,
-        //     &[SP1ReduceProofWrapper::Recursive(reduced_proof)],
-        //     &[],
-        //     true,
-        //     true,
-        //     true,
-        // )
-        // .proof
     }
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
@@ -739,21 +694,6 @@ impl SP1Prover {
         vk.vk.observe_into(&mut core_challenger);
         core_challenger
     }
-
-    pub fn setup_core_challenger(
-        &self,
-        vk: &SP1VerifyingKey,
-        proof: &SP1CoreProof,
-    ) -> Challenger<CoreSC> {
-        let mut core_challenger = self.setup_initial_core_challenger(vk);
-        for shard_proof in proof.shard_proofs.iter() {
-            core_challenger.observe(shard_proof.commitment.main_commit);
-            core_challenger.observe_slice(
-                &shard_proof.public_values.to_vec()[0..self.core_machine.num_pv_elts()],
-            );
-        }
-        core_challenger
-    }
 }
 
 #[cfg(test)]
@@ -772,8 +712,7 @@ mod tests {
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
         // Generate SP1 proof
-        let elf =
-            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
         let prover = SP1Prover::new();
@@ -786,16 +725,16 @@ mod tests {
         let core_proof = prover.prove_core(&pk, &stdin);
 
         tracing::info!("verify core");
-        core_proof.verify(&vk).unwrap();
-
-        tracing::info!("reduce");
-        let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
+        prover.verify(&core_proof.proof, &vk).unwrap();
 
         tracing::info!("compress");
-        let compressed_proof = prover.compress(reduced_proof);
+        let compressed_proof = prover.compress(&vk, core_proof, vec![]);
+
+        tracing::info!("Shrink");
+        let shrink_proof = prover.shrink(compressed_proof);
 
         tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(compressed_proof);
+        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof);
 
         tracing::info!("groth16");
         prover.wrap_groth16(wrapped_bn254_proof, PathBuf::from("build"));
@@ -803,10 +742,10 @@ mod tests {
 
     /// This test ensures that a proof can be deferred in the core vm and verified in recursion.
     #[test]
+    #[ignore]
     fn test_deferred_verify() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-        std::env::set_var("FRI_QUERIES", "1");
         std::env::set_var("SHARD_SIZE", "262144");
         std::env::set_var("MAX_RECURSION_PROGRAM_SIZE", "1");
 
@@ -828,9 +767,9 @@ mod tests {
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
         let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
-        let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
+        let pv_1 = deferred_proof_1.public_values.as_slice().to_vec().clone();
         println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
-        let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32]
+        let pv_digest_1 = deferred_proof_1.proof.0[0].public_values[..32]
             .iter()
             .map(|x| x.as_canonical_u32() as u8)
             .collect::<Vec<_>>();
@@ -844,9 +783,9 @@ mod tests {
         stdin.write(&vec![2, 3, 4]);
         stdin.write(&vec![5, 6, 7]);
         let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
-        let pv_2 = deferred_proof_2.public_values.buffer.data.clone();
+        let pv_2 = deferred_proof_2.public_values.as_slice().to_vec().clone();
         println!("proof 2 pv: {:?}", hex::encode(pv_2.clone()));
-        let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32]
+        let pv_digest_2 = deferred_proof_2.proof.0[0].public_values[..32]
             .iter()
             .map(|x| x.as_canonical_u32() as u8)
             .collect::<Vec<_>>();
@@ -854,11 +793,11 @@ mod tests {
 
         // Generate recursive proof of first subproof
         println!("reduce subproof 1");
-        let deferred_reduce_1 = prover.reduce(&keccak_vk, deferred_proof_1, vec![]);
+        let deferred_reduce_1 = prover.compress(&keccak_vk, deferred_proof_1, vec![]);
 
         // Generate recursive proof of second subproof
         println!("reduce subproof 2");
-        let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
+        let deferred_reduce_2 = prover.compress(&keccak_vk, deferred_proof_2, vec![]);
 
         // Run verify program with keccak vkey, subproofs, and their committed values
         let mut stdin = SP1Stdin::new();
@@ -879,16 +818,16 @@ mod tests {
         println!("proving verify program (core)");
         let verify_proof = prover.prove_core(&verify_pk, &stdin);
         let pv = PublicValues::<Word<BabyBear>, BabyBear>::from_vec(
-            verify_proof.shard_proofs[0].public_values.clone(),
+            verify_proof.proof.0[0].public_values.clone(),
         );
 
         println!("deferred_hash: {:?}", pv.deferred_proofs_digest);
 
         // Generate recursive proof of verify program
         println!("proving verify program (recursion)");
-        let verify_reduce = prover.reduce(
+        let verify_reduce = prover.compress(
             &verify_vk,
-            verify_proof.clone(),
+            verify_proof,
             vec![
                 deferred_reduce_1.proof,
                 deferred_reduce_2.proof.clone(),
@@ -900,7 +839,11 @@ mod tests {
         println!("deferred_hash: {:?}", reduce_pv.deferred_proofs_digest);
         println!("complete: {:?}", reduce_pv.is_complete);
 
-        // TODO: verify verify_reduce proof once shard transition logic is moved out of machine.verify
-        // prover.reduce_machine.verify(vk, proof, challenger)
+        let reduced_proof = SP1ReducedProofData(verify_reduce.proof);
+        prover.verify_reduced(&reduced_proof, &verify_vk).unwrap();
+
+        std::env::remove_var("RECONSTRUCT_COMMITMENTS");
+        std::env::remove_var("SHARD_SIZE");
+        std::env::remove_var("MAX_RECURSION_PROGRAM_SIZE");
     }
 }

@@ -265,7 +265,9 @@ pub mod tests {
     use crate::challenger::CanObserveVariable;
     use crate::challenger::DuplexChallengerVariable;
     use crate::challenger::FeltChallenger;
+    use crate::commit::PcsVariable;
     use crate::fri::types::TwoAdicPcsRoundVariable;
+    use crate::fri::TwoAdicFriPcsVariable;
     use crate::fri::TwoAdicMultiplicativeCosetVariable;
     use crate::hints::Hintable;
     use crate::utils::const_fri_config;
@@ -297,9 +299,6 @@ pub mod tests {
     use sp1_recursion_core::air::Block;
     use sp1_recursion_core::runtime::RecursionProgram;
     use sp1_recursion_core::runtime::DIGEST_SIZE;
-
-    use crate::commit::PcsVariable;
-    use crate::fri::TwoAdicFriPcsVariable;
 
     pub fn build_test_fri_with_cols_and_log2_rows(
         nb_cols: usize,
@@ -404,13 +403,8 @@ pub mod tests {
 
     #[test]
     fn test_two_adic_fri_pcs_single_batch() {
-        use sp1_recursion_core::runtime::Runtime;
+        use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
         let (program, witness) = build_test_fri_with_cols_and_log2_rows(10, 16);
-        let mut runtime = Runtime::<InnerVal, InnerChallenge, _>::new(&program, inner_perm());
-        runtime.witness_stream = witness;
-        runtime.run();
-        runtime.print_stats();
-        use sp1_recursion_core::stark::utils::debug_constraints;
-        debug_constraints(program, runtime.record);
+        run_test_recursion(program, Some(witness), TestConfig::All);
     }
 }
