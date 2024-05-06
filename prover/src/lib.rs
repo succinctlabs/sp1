@@ -64,7 +64,6 @@ use utils::babybear_bytes_to_bn254;
 use utils::babybears_to_bn254;
 use utils::words_to_bytes;
 
-use crate::types::ReduceState;
 use crate::utils::get_chip_quotient_data;
 use crate::utils::get_preprocessed_data;
 use crate::utils::get_sorted_indices;
