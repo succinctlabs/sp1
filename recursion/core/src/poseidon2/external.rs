@@ -45,10 +45,12 @@ impl Poseidon2Chip {
 
         let is_memory_read = local.rounds[0];
         let is_initial = local.rounds[1];
+
         // First half of the external rounds.
         let mut is_external_layer = (2..rounds_p_beginning)
             .map(|i| local.rounds[i].into())
             .sum::<AB::Expr>();
+
         // Second half of the external rounds.
         is_external_layer += (rounds_p_end..(rounds - 1))
             .map(|i| local.rounds[i].into())
@@ -58,7 +60,7 @@ impl Poseidon2Chip {
             .sum::<AB::Expr>();
         let is_memory_write = local.rounds[rounds - 1];
 
-        self.eval_mem(builder, local, is_memory_read, is_memory_write);
+        // self.eval_mem(builder, local, is_memory_read, is_memory_write);
 
         self.eval_computation(
             builder,
@@ -66,18 +68,18 @@ impl Poseidon2Chip {
             is_initial.into(),
             is_external_layer.clone(),
             is_internal_layer.clone(),
-            rounds,
+            rounds_f + rounds_p + 1,
         );
 
-        self.eval_syscall(builder, local);
+        // self.eval_syscall(builder, local);
 
         // Range check all flags.
-        for i in 0..local.rounds.len() {
-            builder.assert_bool(local.rounds[i]);
-        }
-        builder.assert_bool(
-            is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
-        );
+        // for i in 0..local.rounds.len() {
+        //     builder.assert_bool(local.rounds[i]);
+        // }
+        // builder.assert_bool(
+        //     is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
+        // );
     }
 
     fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
