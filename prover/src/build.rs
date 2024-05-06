@@ -1,14 +1,17 @@
 use std::path::PathBuf;
 
+use p3_baby_bear::BabyBear;
 use sp1_core::stark::StarkVerifyingKey;
 use sp1_core::{io::SP1Stdin, stark::ShardProof};
 pub use sp1_recursion_circuit::stark::build_wrap_circuit;
 pub use sp1_recursion_circuit::witness::Witnessable;
 pub use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
+use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
+use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
 
 /// Build the groth16 artifacts to the given directory for the given verification key and template
@@ -58,9 +61,18 @@ fn build_constraints(
     let constraints = tracing::info_span!("wrap circuit")
         .in_scope(|| build_wrap_circuit(wrap_vk, wrapped_proof.clone()));
 
+    let pv = RecursionPublicValues::from_vec(wrapped_proof.public_values.clone());
+    let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
+    let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
+        .try_into()
+        .unwrap();
+    let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+
     tracing::info!("building template witness");
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
+    witness.write_commited_values_digest(committed_values_digest);
+    witness.write_vkey_hash(vkey_hash);
 
     (constraints, witness)
 }

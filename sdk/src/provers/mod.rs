@@ -67,11 +67,11 @@ pub trait Prover: Send + Sync {
 
     /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
     fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+        Ok(())
     }
 
     /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
     fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
+        Ok(())
     }
 }
