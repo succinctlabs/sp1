@@ -741,6 +741,10 @@ mod tests {
     use sp1_core::stark::MachineVerificationError;
     use sp1_core::utils::setup_logger;
 
+    /// Tests an end-to-end workflow of proving a program across the entire proof generation
+    /// pipeline.
+    ///
+    /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
     fn test_prove_sp1_e2e() {
         setup_logger();

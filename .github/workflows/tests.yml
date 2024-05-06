@@ -36,13 +36,14 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-prover sp1-sdk --release
+          args: -p sp1-prover --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
+          SP1_DEV_WRAPPER: false
 
   lints:
     name: Formatting & Clippy
