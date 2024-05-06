@@ -1,18 +1,10 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1Groth16ProofData, SP1PlonkProofData, SP1ProofWithMetadata, SP1ProvingKey,
-    SP1VerifyingKey,
-};
-use anyhow::Result;
-use sp1_prover::{
-    Groth16Proof, PlonkBn254Proof, SP1CoreProof, SP1CoreProofData, SP1Groth16Proof, SP1PlonkProof,
-    SP1Prover, SP1ReducedProof, SP1Stdin,
-};
-
-use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
     SP1ProvingKey, SP1VerifyingKey,
 };
+use anyhow::Result;
+use sp1_prover::{SP1Prover, SP1Stdin};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -57,22 +49,12 @@ impl Prover for MockProver {
         unimplemented!()
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let public_values = SP1Prover::execute(&pk.elf, &stdin);
-        Ok(SP1ProofWithPublicValues {
-            proof: PlonkBn254Proof::default(),
-            stdin,
-            public_values,
-        })
+    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+        todo!()
     }
 
-    fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        let public_values = SP1Prover::execute(&pk.elf, &stdin);
-        Ok(SP1ProofWithPublicValues {
-            proof: Groth16Proof::default(),
-            stdin,
-            public_values,
-        })
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+        todo!()
     }
 
     fn verify(&self, _proof: &SP1Proof, _vkey: &SP1VerifyingKey) -> Result<()> {

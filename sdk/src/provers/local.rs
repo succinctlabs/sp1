@@ -1,9 +1,4 @@
 use anyhow::Result;
-use sha2::{Digest, Sha256};
-use sp1_core::{
-    air::PublicValues,
-    stark::{MachineProof, StarkGenericConfig},
-};
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use super::utils;
@@ -41,7 +36,7 @@ impl Prover for LocalProver {
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         let proof = self.prover.prove_core(pk, &stdin);
         Ok(SP1ProofWithPublicValues {
-            proof: proof.shard_proofs,
+            proof: proof.proof.0,
             stdin: proof.stdin,
             public_values: proof.public_values,
         })

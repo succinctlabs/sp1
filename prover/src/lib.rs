@@ -222,7 +222,7 @@ impl SP1Prover {
     pub fn compress(
         &self,
         vk: &SP1VerifyingKey,
-        proof: SP1CoreProofData,
+        proof: SP1ProofWithMetadata<SP1CoreProofData>,
         mut deferred_proofs: Vec<ShardProof<InnerSC>>,
     ) -> SP1ReduceProof<InnerSC> {
         // Observe all commitments and public values.
@@ -232,7 +232,7 @@ impl SP1Prover {
         // challenger was correct.
         let mut core_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut core_challenger);
-        for shard_proof in proof.0.iter() {
+        for shard_proof in proof.proof.0.iter() {
             core_challenger.observe(shard_proof.commitment.main_commit);
             core_challenger.observe_slice(
                 &shard_proof.public_values.to_vec()[0..self.core_machine.num_pv_elts()],
@@ -241,6 +241,7 @@ impl SP1Prover {
 
         // Map the existing shards to a self-reducing type of proof (i.e. Reduce: T[] -> T).
         let mut reduce_proofs = proof
+            .proof
             .0
             .into_iter()
             .map(|proof| SP1ReduceProofWrapper::Core(SP1ReduceProof { proof }))
@@ -857,7 +858,7 @@ mod tests {
         println!("proving verify program (recursion)");
         let verify_reduce = prover.compress(
             &verify_vk,
-            verify_proof.proof.clone(),
+            verify_proof,
             vec![
                 deferred_reduce_1.proof,
                 deferred_reduce_2.proof.clone(),

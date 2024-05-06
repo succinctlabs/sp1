@@ -3,25 +3,18 @@ use std::{env, time::Duration};
 use crate::proto::network::ProofMode;
 use crate::{
     client::NetworkClient,
-    local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
 };
+use crate::{
+    SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
+};
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
-use sp1_prover::{
-    SP1CoreProof, SP1Groth16Proof, SP1PlonkProof, SP1Prover, SP1ProvingKey, SP1ReducedProof,
-    SP1Stdin, SP1VerifyingKey,
-};
+use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::{runtime, time::sleep};
 
 use super::LocalProver;
-use crate::{
-    client::NetworkClient,
-    proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
-    SP1ProvingKey, SP1VerifyingKey,
-};
 
 /// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
@@ -51,7 +44,7 @@ impl NetworkProver {
         // Execute the runtime before creating the proof request.
         // TODO: Maybe we don't want to always do this locally, with large programs. Or we may want
         // to disable events at least.
-        let public_values = SP1Prover::execute(elf, &stdin);
+        let _public_values = SP1Prover::execute(elf, &stdin);
         println!("Simulation complete");
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
@@ -172,14 +165,14 @@ impl Prover for NetworkProver {
         })
     }
 
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Plonk).await })
-    }
-
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Groth16).await })
+    }
+
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+        let rt = tokio::runtime::Runtime::new()?;
+        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Plonk).await })
     }
 }
 
