@@ -34,6 +34,10 @@ impl Prover for LocalProver {
         self.prover.setup(elf)
     }
 
+    fn sp1_prover(&self) -> &SP1Prover {
+        &self.prover
+    }
+
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         let proof = self.prover.prove_core(pk, &stdin);
         Ok(SP1ProofWithPublicValues {
@@ -121,38 +125,6 @@ impl Prover for LocalProver {
         //     stdin,
         //     public_values,
         // })
-        todo!()
-    }
-
-    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
-        let pv_digest: [u8; 32] = Sha256::digest(proof.public_values.as_slice()).into();
-        if pv_digest != *pv.commit_digest_bytes() {
-            return Err(anyhow::anyhow!("Public values digest mismatch"));
-        }
-        let machine_proof = MachineProof {
-            shard_proofs: proof.proof.clone(),
-        };
-        let mut challenger = self.prover.core_machine.config().challenger();
-        Ok(self
-            .prover
-            .core_machine
-            .verify(&vkey.vk, &machine_proof, &mut challenger)?)
-    }
-
-    fn verify_compressed(
-        &self,
-        _proof: &SP1CompressedProof,
-        _vkey: &SP1VerifyingKey,
-    ) -> Result<()> {
-        todo!()
-    }
-
-    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
-    }
-
-    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
         todo!()
     }
 }

@@ -3,13 +3,8 @@ pub mod poseidon2;
 pub mod utils;
 
 use crate::{
-    cpu::CpuChip,
-    fri_fold::FriFoldChip,
-    memory::{MemoryChipKind, MemoryGlobalChip},
-    multi::MultiChip,
-    poseidon2::Poseidon2Chip,
-    poseidon2_wide::Poseidon2WideChip,
-    program::ProgramChip,
+    cpu::CpuChip, fri_fold::FriFoldChip, memory::MemoryGlobalChip, multi::MultiChip,
+    poseidon2::Poseidon2Chip, poseidon2_wide::Poseidon2WideChip, program::ProgramChip,
     range_check::RangeCheckChip,
 };
 use core::iter::once;
@@ -31,8 +26,7 @@ pub type RecursionAirSkinnyDeg7<F> = RecursionAir<F, 5>;
 pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> {
     Program(ProgramChip),
     Cpu(CpuChip<F>),
-    MemoryInit(MemoryGlobalChip),
-    MemoryFinalize(MemoryGlobalChip),
+    MemoryGlobal(MemoryGlobalChip),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip),
@@ -65,12 +59,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: None,
                 _phantom: PhantomData,
             })))
-            .chain(once(RecursionAir::MemoryInit(MemoryGlobalChip {
-                kind: MemoryChipKind::Init,
-                fixed_log2_rows: None,
-            })))
-            .chain(once(RecursionAir::MemoryFinalize(MemoryGlobalChip {
-                kind: MemoryChipKind::Finalize,
+            .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
                 fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::Poseidon2Wide(Poseidon2WideChip::<
@@ -91,13 +80,8 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
                 fixed_log2_rows: Some(20),
                 _phantom: PhantomData,
             })))
-            .chain(once(RecursionAir::MemoryInit(MemoryGlobalChip {
-                kind: MemoryChipKind::Init,
-                fixed_log2_rows: Some(18),
-            })))
-            .chain(once(RecursionAir::MemoryFinalize(MemoryGlobalChip {
-                kind: MemoryChipKind::Finalize,
-                fixed_log2_rows: Some(18),
+            .chain(once(RecursionAir::MemoryGlobal(MemoryGlobalChip {
+                fixed_log2_rows: Some(19),
             })))
             .chain(once(RecursionAir::Multi(MultiChip {
                 fixed_log2_rows: Some(20),

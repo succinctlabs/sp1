@@ -37,14 +37,14 @@ fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let stdin = SP1Stdin::new();
     let core_proof = prover.prove_core(&pk, &stdin);
 
-    tracing::info!("reduce");
-    let reduced_proof = prover.compress(&vk, core_proof, vec![]);
-
     tracing::info!("compress");
-    let compressed_proof = prover.shrink(&vk, reduced_proof);
+    let compressed_proof = prover.compress(&vk, core_proof, vec![]);
+
+    tracing::info!("shrink");
+    let shrink_proof = prover.shrink(&vk, compressed_proof);
 
     tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(&vk, compressed_proof);
+    let wrapped_proof = prover.wrap_bn254(&vk, shrink_proof);
 
     (prover.wrap_vk, wrapped_proof)
 }

@@ -766,6 +766,9 @@ where
                         );
 
                         self.record.fri_fold_events.push(FriFoldEvent {
+                            is_last_iteration: F::from_bool(
+                                ps_at_z_len.as_canonical_u32() - 1 == m.as_canonical_u32(),
+                            ),
                             clk: timestamp,
                             m,
                             input_ptr,

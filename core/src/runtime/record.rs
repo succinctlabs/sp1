@@ -306,40 +306,34 @@ impl MachineRecord for ExecutionRecord {
     }
 
     fn shard(mut self, config: &ShardingConfig) -> Vec<Self> {
-        // Make the shard vector by splitting CPU and program events.
+        // Get the number of CPU events.
         let num_cpu_events = self.cpu_events.len();
-        let mut num_shards = 0;
-        if num_cpu_events > 0 {
-            // The first shard is at 1.  See [ExecutionState::new].
-            num_shards = self.cpu_events[num_cpu_events - 1].shard;
-        }
 
-        let mut shards = (0..num_shards)
-            .map(|_| ExecutionRecord::default())
-            .collect::<Vec<_>>();
+        // Create empty shards that we will fill in.
+        let mut shards: Vec<ExecutionRecord> = Vec::new();
+
+        // Iterate throught he CPU events and fill in the shards.
         let mut start_idx = 0;
-        let mut current_shard_num = 1;
-
+        let mut current_shard = self.cpu_events[0].shard;
         for (i, cpu_event) in self.cpu_events.iter().enumerate() {
             let at_last_event = i == num_cpu_events - 1;
-            if cpu_event.shard != current_shard_num || at_last_event {
+            if cpu_event.shard != current_shard || at_last_event {
                 let last_idx = if at_last_event { i + 1 } else { i };
 
-                let shard = &mut shards[current_shard_num as usize - 1];
-                shard.index = current_shard_num;
+                // Fill in the shard.
+                let mut shard = ExecutionRecord::default();
+                shard.index = current_shard;
                 shard.cpu_events = self.cpu_events[start_idx..last_idx].to_vec();
-                // Each shard needs program because we use it in ProgramChip.
                 shard.program = self.program.clone();
 
                 // Byte lookups are already sharded, so put this shard's lookups in.
-                shard.byte_lookups.insert(
-                    current_shard_num,
-                    self.byte_lookups
-                        .remove(&current_shard_num)
-                        .unwrap_or_default(),
-                );
-
+                let current_byte_lookups =
+                    self.byte_lookups.remove(&current_shard).unwrap_or_default();
+                shard
+                    .byte_lookups
+                    .insert(current_shard, current_byte_lookups);
                 let last_shard_cpu_event = shard.cpu_events.last().unwrap();
+
                 // Set the public_values_digest for all shards.  For the vast majority of the time, only the last shard
                 // will read the public values.  But in some very rare edge cases, the last two shards will
                 // read it (e.g. when the halt instruction is the only instruction in the last shard).
@@ -349,14 +343,15 @@ impl MachineRecord for ExecutionRecord {
                     self.public_values.committed_value_digest;
                 shard.public_values.deferred_proofs_digest =
                     self.public_values.deferred_proofs_digest;
-                shard.public_values.shard = current_shard_num;
+                shard.public_values.shard = current_shard;
                 shard.public_values.start_pc = shard.cpu_events[0].pc;
                 shard.public_values.next_pc = last_shard_cpu_event.next_pc;
                 shard.public_values.exit_code = last_shard_cpu_event.exit_code;
+                shards.push(shard);
 
                 if !(at_last_event) {
                     start_idx = i;
-                    current_shard_num = cpu_event.shard;
+                    current_shard += 1;
                 }
             }
         }

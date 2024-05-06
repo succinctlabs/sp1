@@ -3,17 +3,23 @@ mod mock;
 mod network;
 mod utils;
 
+use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 pub use network::NetworkProver;
+use sha2::{Digest, Sha256};
+use sp1_core::air::PublicValues;
+use sp1_core::stark::MachineProof;
+use sp1_core::stark::StarkGenericConfig;
+use sp1_prover::SP1Prover;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
-
-use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
 
 /// An implementation of [crate::ProverClient].
 pub trait Prover: Send + Sync {
     fn id(&self) -> String;
+
+    fn sp1_prover(&self) -> &SP1Prover;
 
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey);
 
@@ -30,14 +36,42 @@ pub trait Prover: Send + Sync {
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof>;
 
     /// Verify that an SP1 proof is valid given its vkey and metadata.
-    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        let pv = PublicValues::from_vec(proof.proof[0].public_values.clone());
+        let pv_digest: [u8; 32] = Sha256::digest(proof.public_values.as_slice()).into();
+        if pv_digest != *pv.commit_digest_bytes() {
+            return Err(anyhow::anyhow!("Public values digest mismatch"));
+        }
+        let machine_proof = MachineProof {
+            shard_proofs: proof.proof.clone(),
+        };
+        let sp1_prover = self.sp1_prover();
+        let mut challenger = sp1_prover.core_machine.config().challenger();
+        Ok(sp1_prover
+            .core_machine
+            .verify(&vkey.vk, &machine_proof, &mut challenger)?)
+    }
 
     /// Verify that a compressed SP1 proof is valid given its vkey and metadata.
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()>;
-
-    /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
-    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        // TODO: implement verification of the digest of the public values matching
+        let sp1_prover = self.sp1_prover();
+        let machine_proof = MachineProof {
+            shard_proofs: vec![proof.proof.clone()],
+        };
+        let mut challenger = sp1_prover.compress_machine.config().challenger();
+        Ok(sp1_prover
+            .compress_machine
+            .verify(&vkey.vk, &machine_proof, &mut challenger)?)
+    }
 
     /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()>;
+    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
+
+    /// Verify that a SP1 PLONK proof is valid given its vkey and metadata.
+    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
+        todo!()
+    }
 }

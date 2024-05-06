@@ -2,12 +2,16 @@
 #![allow(incomplete_features)]
 
 use clap::Parser;
+use p3_baby_bear::BabyBear;
 use sp1_core::io::SP1Stdin;
+use sp1_prover::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use sp1_prover::SP1Prover;
 use sp1_recursion_circuit::stark::build_wrap_circuit;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_gnark_ffi::Groth16Prover;
+use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_gnark_ffi::{convert, verify, Groth16Prover};
+use subtle_encoding::hex;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -22,7 +26,7 @@ pub fn main() {
 
     let args = Args::parse();
 
-    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+    let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
     let prover = SP1Prover::new();
@@ -48,8 +52,17 @@ pub fn main() {
         .in_scope(|| build_wrap_circuit(&prover.wrap_vk, wrapped_proof.clone()));
 
     tracing::info!("building template witness");
+    let pv = RecursionPublicValues::from_vec(wrapped_proof.public_values.clone());
+    let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
+    let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
+        .try_into()
+        .unwrap();
+    let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+
     let mut witness = Witness::default();
     wrapped_proof.write(&mut witness);
+    witness.write_commited_values_digest(committed_values_digest);
+    witness.write_vkey_hash(vkey_hash);
 
     tracing::info!("sanity check gnark test");
     Groth16Prover::test(constraints.clone(), witness.clone());
@@ -67,6 +80,13 @@ pub fn main() {
     tracing::info!("gnark prove");
     let proof = groth16_prover.prove(witness.clone());
 
+    tracing::info!("verify gnark proof");
+    let verified = verify(proof.clone(), &args.build_dir.clone().into());
+    assert!(verified);
+
+    tracing::info!("convert gnark proof");
+    let solidity_proof = convert(proof.clone(), &args.build_dir.clone().into());
+
     // tracing::info!("sanity check plonk bn254 build");
     // PlonkBn254Prover::build(
     //     constraints.clone(),
@@ -77,5 +97,9 @@ pub fn main() {
     // tracing::info!("sanity check plonk bn254 prove");
     // let proof = PlonkBn254Prover::prove(witness.clone(), args.build_dir.clone().into());
 
-    println!("{:?}", proof);
+    println!(
+        "{:?}",
+        String::from_utf8(hex::encode(proof.encoded_proof)).unwrap()
+    );
+    println!("solidity proof: {:?}", solidity_proof);
 }

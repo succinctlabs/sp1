@@ -86,7 +86,7 @@ impl ProverClient {
             "local" => Self {
                 prover: Box::new(LocalProver::new()),
             },
-            "remote" => Self {
+            "network" => Self {
                 prover: Box::new(NetworkProver::new()),
             },
             _ => panic!(
