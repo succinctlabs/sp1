@@ -92,12 +92,12 @@ impl SP1Prover {
         proof: &SP1ReducedProofData,
         vk: &SP1VerifyingKey,
     ) -> Result<(), ProgramVerificationError<CoreSC>> {
-        let mut challenger = self.compress_machine.config().challenger();
+        let mut challenger = self.reduce_machine.config().challenger();
         let machine_proof = MachineProof {
             shard_proofs: vec![proof.0.clone()],
         };
-        self.compress_machine
-            .verify(&self.compress_vk, &machine_proof, &mut challenger)?;
+        self.reduce_machine
+            .verify(&self.reduce_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
         let public_values: &RecursionPublicValues<_> = proof.0.public_values.as_slice().borrow();
@@ -118,7 +118,7 @@ impl SP1Prover {
         }
 
         // Verify that the reduce program is the one we are expecting.
-        let recursion_vkey_hash = self.compress_vk.hash();
+        let recursion_vkey_hash = self.shrink_vk.hash();
         if public_values.reduce_vk_digest != recursion_vkey_hash {
             return Err(ProgramVerificationError::InvalidPublicValues(
                 "recursion vk hash mismatch",

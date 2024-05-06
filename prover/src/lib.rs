@@ -117,14 +117,14 @@ pub struct SP1Prover {
     /// The verification key for the reduce step.
     pub reduce_vk: StarkVerifyingKey<InnerSC>,
 
-    /// The compression program that compresses a proof into a succinct proof.
-    pub compress_program: RecursionProgram<BabyBear>,
+    /// The shrink program that compresses a proof into a succinct proof.
+    pub shrink_program: RecursionProgram<BabyBear>,
 
     /// The proving key for the compress step.
-    pub compress_pk: StarkProvingKey<InnerSC>,
+    pub shrink_pk: StarkProvingKey<InnerSC>,
 
     /// The verification key for the compress step.
-    pub compress_vk: StarkVerifyingKey<InnerSC>,
+    pub shrink_vk: StarkVerifyingKey<InnerSC>,
 
     /// The wrap program that wraps a proof into a SNARK-friendly field.
     pub wrap_program: RecursionProgram<BabyBear>,
@@ -141,8 +141,8 @@ pub struct SP1Prover {
     /// The machine used for proving the recursive and reduction steps.
     pub reduce_machine: StarkMachine<InnerSC, ReduceAir<<InnerSC as StarkGenericConfig>::Val>>,
 
-    /// The machine used for proving the compress step.
-    pub compress_machine: StarkMachine<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>,
+    /// The machine used for proving the shrink step.
+    pub shrink_machine: StarkMachine<InnerSC, CompressAir<<InnerSC as StarkGenericConfig>::Val>>,
 
     /// The machine used for proving the wrapping step.
     pub wrap_machine: StarkMachine<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>,
@@ -169,14 +169,13 @@ impl SP1Prover {
         let (reduce_pk, reduce_vk) = reduce_machine.setup(&reduce_program);
 
         // Get the compress program, machine, and keys.
-        let compress_program =
+        let shrink_program =
             SP1RootVerifier::<InnerConfig, _, _>::build(&reduce_machine, &reduce_vk);
-        let compress_machine = CompressAir::machine(InnerSC::compressed());
-        let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
+        let shrink_machine = CompressAir::machine(InnerSC::compressed());
+        let (shrink_pk, shrink_vk) = shrink_machine.setup(&shrink_program);
 
         // Get the wrap program, machine, and keys.
-        let wrap_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk);
+        let wrap_program = SP1RootVerifier::<InnerConfig, _, _>::build(&shrink_machine, &shrink_vk);
         let wrap_machine = WrapAir::machine(OuterSC::default());
         let (wrap_pk, wrap_vk) = wrap_machine.setup(&wrap_program);
 
@@ -190,15 +189,15 @@ impl SP1Prover {
             reduce_program,
             reduce_pk,
             reduce_vk,
-            compress_program,
-            compress_pk,
-            compress_vk,
+            shrink_program,
+            shrink_pk,
+            shrink_vk,
             wrap_program,
             wrap_pk,
             wrap_vk,
             core_machine,
             reduce_machine,
-            compress_machine,
+            shrink_machine,
             wrap_machine,
         }
     }
@@ -545,8 +544,8 @@ impl SP1Prover {
 
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
-            &self.compress_program,
-            self.compress_machine.config().perm.clone(),
+            &self.shrink_program,
+            self.shrink_machine.config().perm.clone(),
         );
 
         let mut witness_stream = Vec::new();
@@ -558,19 +557,17 @@ impl SP1Prover {
         tracing::debug!("Compress program executed successfully");
 
         // Prove the compress program.
-        let mut compress_challenger = self.compress_machine.config().challenger();
+        let mut compress_challenger = self.shrink_machine.config().challenger();
 
-        let mut compress_proof = self.compress_machine.prove::<LocalProver<_, _>>(
-            &self.compress_pk,
+        let mut compress_proof = self.shrink_machine.prove::<LocalProver<_, _>>(
+            &self.shrink_pk,
             runtime.record,
             &mut compress_challenger,
         );
-        let mut compress_challenger = self.compress_machine.config().challenger();
-        let result = self.compress_machine.verify(
-            &self.compress_vk,
-            &compress_proof,
-            &mut compress_challenger,
-        );
+        let mut compress_challenger = self.shrink_machine.config().challenger();
+        let result =
+            self.shrink_machine
+                .verify(&self.shrink_vk, &compress_proof, &mut compress_challenger);
         match result {
             Ok(_) => tracing::info!("Proof verified successfully"),
             Err(ProgramVerificationError::NonZeroCumulativeSum) => {
@@ -595,7 +592,7 @@ impl SP1Prover {
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
 
         let input = SP1RootMemoryLayout {
-            machine: &self.compress_machine,
+            machine: &self.shrink_machine,
             proof: compressed_proof.proof,
             is_reduce: false,
         };
@@ -603,7 +600,7 @@ impl SP1Prover {
         // Run the compress program.
         let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
             &self.wrap_program,
-            self.compress_machine.config().perm.clone(),
+            self.shrink_machine.config().perm.clone(),
         );
 
         let mut witness_stream = Vec::new();
