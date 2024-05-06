@@ -125,7 +125,7 @@ where
     for proof in stdin.proofs.iter() {
         runtime.write_proof(proof.0.clone(), proof.1.clone());
     }
-    let (pk, _) = machine.setup(runtime.program.as_ref());
+    let (pk, vk) = machine.setup(runtime.program.as_ref());
     let should_batch = shard_batch_size() > 0;
 
     // If we don't need to batch, we can just run the program normally and prove it.
@@ -145,24 +145,26 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut public_values: Vec<SC::Val> = Vec::new();
-    let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
-        // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
-        let (state, done) = runtime.execute_state();
-        let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
-        let mut writer = std::io::BufWriter::new(&mut tempfile);
-        bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
-        writer.flush().expect("failed to flush writer");
-        drop(writer);
-        tempfile
-            .seek(std::io::SeekFrom::Start(0))
-            .expect("failed to seek to start of tempfile");
-        checkpoints.push(tempfile);
-        if done {
-            public_values = runtime.record.public_values();
-            return std::mem::take(&mut runtime.state.public_values_stream);
-        }
-    });
+    let (public_values_stream, public_values) =
+        tracing::info_span!("runtime.state").in_scope(|| loop {
+            // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
+            let (state, done) = runtime.execute_state();
+            let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
+            let mut writer = std::io::BufWriter::new(&mut tempfile);
+            bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
+            writer.flush().expect("failed to flush writer");
+            drop(writer);
+            tempfile
+                .seek(std::io::SeekFrom::Start(0))
+                .expect("failed to seek to start of tempfile");
+            checkpoints.push(tempfile);
+            if done {
+                return (
+                    std::mem::take(&mut runtime.state.public_values_stream),
+                    runtime.record.public_values,
+                );
+            }
+        });
 
     // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
     let sharding_config = ShardingConfig::default();
@@ -173,8 +175,11 @@ where
     let reuse_shards = checkpoints.len() == 1;
     let mut all_shards = None;
 
+    vk.observe_into(&mut challenger);
     for file in checkpoints.iter_mut() {
-        let events = trace_checkpoint(program.clone(), file);
+        let mut events = trace_checkpoint(program.clone(), file);
+        events.public_values = public_values;
+
         reset_seek(&mut *file);
         cycles += events.cpu_events.len();
         let shards =
@@ -200,7 +205,8 @@ where
         let shards = if reuse_shards {
             Option::take(&mut all_shards).unwrap()
         } else {
-            let events = trace_checkpoint(program.clone(), &file);
+            let mut events = trace_checkpoint(program.clone(), &file);
+            events.public_values = public_values;
             reset_seek(&mut file);
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
         };
@@ -208,11 +214,22 @@ where
         let mut new_proofs = shards
             .into_iter()
             .map(|shard| {
-                let chips = machine.shard_chips(&shard).collect::<Vec<_>>();
                 let config = machine.config();
                 let shard_data =
                     LocalProver::commit_main(config, &machine, &shard, shard.index() as usize);
-                LocalProver::prove_shard(config, &pk, &chips, shard_data, &mut challenger.clone())
+
+                let chip_ordering = shard_data.chip_ordering.clone();
+                let ordered_chips = machine
+                    .shard_chips_ordered(&chip_ordering)
+                    .collect::<Vec<_>>()
+                    .to_vec();
+                LocalProver::prove_shard(
+                    config,
+                    &pk,
+                    &ordered_chips,
+                    shard_data,
+                    &mut challenger.clone(),
+                )
             })
             .collect::<Vec<_>>();
         prove_time += start.elapsed().as_millis();

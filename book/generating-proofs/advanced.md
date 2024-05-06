@@ -59,8 +59,7 @@ For maximal performance, you should run proof generation with the following comm
 SHARD_SIZE=4194304 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
 ```
 
-You can also use the `SAVE_DISK_THRESHOLD` env variable to control whether shards are saved to disk or not.
-This is useful for controlling memory usage.
+## Memory Usage
 
 ```rust,noplayground
 SAVE_DISK_THRESHOLD=64 SHARD_SIZE=2097152 RUST_LOG=info RUSTFLAGS='-C target-cpu=native' cargo run --release
