@@ -221,7 +221,7 @@ impl<V: Copy> EdDecompressCols<V> {
         builder.eval_memory_access_slice(
             self.shard,
             self.clk,
-            self.ptr,
+            self.ptr.into() + AB::F::from_canonical_u32(32),
             &self.y_access,
             self.is_real,
         );
