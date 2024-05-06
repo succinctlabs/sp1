@@ -39,7 +39,6 @@ impl Poseidon2Chip {
     ) {
         let rounds_f = 8;
         let rounds_p = 13;
-        let rounds = rounds_f + rounds_p + 3;
         let rounds_p_beginning = 2 + rounds_f / 2;
         let rounds_p_end = rounds_p_beginning + rounds_p;
 
@@ -52,15 +51,15 @@ impl Poseidon2Chip {
             .sum::<AB::Expr>();
 
         // Second half of the external rounds.
-        is_external_layer += (rounds_p_end..(rounds - 1))
+        is_external_layer += (rounds_p_end..rounds_p + rounds_f)
             .map(|i| local.rounds[i].into())
             .sum::<AB::Expr>();
         let is_internal_layer = (rounds_p_beginning..rounds_p_end)
-            .map(|i| local.rounds[i + 2].into())
+            .map(|i| local.rounds[i].into())
             .sum::<AB::Expr>();
-        let is_memory_write = local.rounds[rounds - 1];
+        let is_memory_write = local.rounds[local.rounds.len() - 1];
 
-        // self.eval_mem(builder, local, is_memory_read, is_memory_write);
+        self.eval_mem(builder, local, is_memory_read, is_memory_write);
 
         self.eval_computation(
             builder,
@@ -71,15 +70,15 @@ impl Poseidon2Chip {
             rounds_f + rounds_p + 1,
         );
 
-        // self.eval_syscall(builder, local);
+        self.eval_syscall(builder, local);
 
         // Range check all flags.
-        // for i in 0..local.rounds.len() {
-        //     builder.assert_bool(local.rounds[i]);
-        // }
-        // builder.assert_bool(
-        //     is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
-        // );
+        for i in 0..local.rounds.len() {
+            builder.assert_bool(local.rounds[i]);
+        }
+        builder.assert_bool(
+            is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
+        );
     }
 
     fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
@@ -353,7 +352,7 @@ mod tests {
 
     #[test]
     fn prove_babybear() {
-        let config = BabyBearPoseidon2::new();
+        let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
         let chip = Poseidon2Chip {

@@ -168,10 +168,9 @@ mod tests {
         },
         utils::BabyBearPoseidon2,
     };
-    use sp1_recursion_core::{runtime::Runtime, stark::utils::debug_constraints};
+    use sp1_recursion_core::stark::utils::{run_test_recursion, TestConfig};
 
     use p3_challenger::{CanObserve, FieldChallenger};
-    use p3_field::PrimeField32;
     use sp1_recursion_compiler::{asm::AsmBuilder, prelude::ExtConst};
 
     use p3_commit::{Pcs, PolynomialSpace};
@@ -279,8 +278,7 @@ mod tests {
 
         // Generate a dummy proof.
         sp1_core::utils::setup_logger();
-        let elf =
-            include_bytes!("../../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         let machine = A::machine(SC::default());
         let (_, vk) = machine.setup(&Program::from(elf));
@@ -349,14 +347,6 @@ mod tests {
         }
 
         let program = builder.compile_program();
-
-        let mut runtime = Runtime::<F, EF, _>::new(&program, machine.config().perm.clone());
-        runtime.run();
-        println!(
-            "The program executed successfully, number of cycles: {}",
-            runtime.clk.as_canonical_u32() / 4
-        );
-
-        debug_constraints(program, runtime.record);
+        run_test_recursion(program, None, TestConfig::All);
     }
 }

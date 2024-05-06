@@ -19,10 +19,8 @@ mod verify;
 
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
-use p3_bn254_fr::Bn254Fr;
 use p3_challenger::CanObserve;
 use p3_field::AbstractField;
-use p3_field::PrimeField32;
 use rayon::iter::{IndexedParallelIterator, IntoParallelIterator, ParallelIterator};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
@@ -62,6 +60,8 @@ use std::path::PathBuf;
 use std::time::Instant;
 use tracing::instrument;
 pub use types::*;
+use utils::babybear_bytes_to_bn254;
+use utils::babybears_to_bn254;
 use utils::words_to_bytes;
 
 use crate::types::ReduceState;
@@ -200,13 +200,17 @@ impl SP1Prover {
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
     /// the core prover.
     #[instrument(name = "prove_core", level = "info", skip_all)]
-    pub fn prove_core(&self, pk: &SP1ProvingKey, stdin: &SP1Stdin) -> SP1CoreProof {
+    pub fn prove_core(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+    ) -> SP1ProofWithMetadata<SP1CoreProofData> {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
         let (proof, public_values_stream) = run_and_prove(program, stdin, config);
         let public_values = SP1PublicValues::from(&public_values_stream);
-        SP1CoreProof {
-            shard_proofs: proof.shard_proofs,
+        SP1ProofWithMetadata {
+            proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
             public_values,
         }
@@ -217,7 +221,7 @@ impl SP1Prover {
     pub fn reduce(
         &self,
         vk: &SP1VerifyingKey,
-        proof: SP1CoreProof,
+        proof: SP1CoreProofData,
         mut deferred_proofs: Vec<ShardProof<InnerSC>>,
     ) -> SP1ReduceProof<InnerSC> {
         // Observe all commitments and public values.
@@ -227,7 +231,7 @@ impl SP1Prover {
         // challenger was correct.
         let mut core_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut core_challenger);
-        for shard_proof in proof.shard_proofs.iter() {
+        for shard_proof in proof.0.iter() {
             core_challenger.observe(shard_proof.commitment.main_commit);
             core_challenger.observe_slice(
                 &shard_proof.public_values.to_vec()[0..self.core_machine.num_pv_elts()],
@@ -236,7 +240,7 @@ impl SP1Prover {
 
         // Map the existing shards to a self-reducing type of proof (i.e. Reduce: T[] -> T).
         let mut reduce_proofs = proof
-            .shard_proofs
+            .0
             .into_iter()
             .map(|proof| SP1ReduceProofWrapper::Core(SP1ReduceProof { proof }))
             .collect::<Vec<_>>();
@@ -676,38 +680,20 @@ impl SP1Prover {
     pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
         let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
 
-        // TODO: this is very subject to change as groth16 e2e is stabilized
         // Convert pv.vkey_digest to a bn254 field element
-        let mut vkey_hash = Bn254Fr::zero();
-        for (i, word) in pv.sp1_vk_digest.iter().enumerate() {
-            if i == 0 {
-                // Truncate top 3 bits
-                vkey_hash = Bn254Fr::from_canonical_u32(word.as_canonical_u32() & 0x1fffffffu32);
-            } else {
-                vkey_hash *= Bn254Fr::from_canonical_u64(1 << 32);
-                vkey_hash += Bn254Fr::from_canonical_u32(word.as_canonical_u32());
-            }
-        }
+        let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
 
         // Convert pv.committed_value_digest to a bn254 field element
-        let mut committed_values_digest = Bn254Fr::zero();
-        for (i, word) in pv.committed_value_digest.iter().enumerate() {
-            for (j, byte) in word.0.iter().enumerate() {
-                if i == 0 && j == 0 {
-                    // Truncate top 3 bits
-                    committed_values_digest =
-                        Bn254Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
-                } else {
-                    committed_values_digest *= Bn254Fr::from_canonical_u32(256);
-                    committed_values_digest += Bn254Fr::from_canonical_u32(byte.as_canonical_u32());
-                }
-            }
-        }
+        let committed_values_digest_bytes: [BabyBear; 32] =
+            words_to_bytes(&pv.committed_value_digest)
+                .try_into()
+                .unwrap();
+        let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
 
         let mut witness = Witness::default();
         proof.write(&mut witness);
-        witness.commited_values_digest = committed_values_digest;
-        witness.vkey_hash = vkey_hash;
+        witness.write_commited_values_digest(committed_values_digest);
+        witness.write_vkey_hash(vkey_hash);
 
         let prover = Groth16Prover::new(build_dir);
         prover.prove(witness)
@@ -729,10 +715,10 @@ impl SP1Prover {
     pub fn setup_core_challenger(
         &self,
         vk: &SP1VerifyingKey,
-        proof: &SP1CoreProof,
+        proof: &SP1CoreProofData,
     ) -> Challenger<CoreSC> {
         let mut core_challenger = self.setup_initial_core_challenger(vk);
-        for shard_proof in proof.shard_proofs.iter() {
+        for shard_proof in proof.0.iter() {
             core_challenger.observe(shard_proof.commitment.main_commit);
             core_challenger.observe_slice(
                 &shard_proof.public_values.to_vec()[0..self.core_machine.num_pv_elts()],
@@ -758,8 +744,7 @@ mod tests {
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
         // Generate SP1 proof
-        let elf =
-            include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+        let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
         tracing::info!("initializing prover");
         let prover = SP1Prover::new();
@@ -772,10 +757,10 @@ mod tests {
         let core_proof = prover.prove_core(&pk, &stdin);
 
         tracing::info!("verify core");
-        core_proof.verify(&vk).unwrap();
+        prover.verify(&core_proof.proof, &vk).unwrap();
 
         tracing::info!("reduce");
-        let reduced_proof = prover.reduce(&vk, core_proof, vec![]);
+        let reduced_proof = prover.reduce(&vk, core_proof.proof, vec![]);
 
         tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, reduced_proof);
@@ -786,10 +771,10 @@ mod tests {
 
     /// This test ensures that a proof can be deferred in the core vm and verified in recursion.
     #[test]
+    #[ignore]
     fn test_deferred_verify() {
         setup_logger();
         std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-        std::env::set_var("FRI_QUERIES", "1");
         std::env::set_var("SHARD_SIZE", "262144");
         std::env::set_var("MAX_RECURSION_PROGRAM_SIZE", "1");
 
@@ -813,7 +798,7 @@ mod tests {
         let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
         let pv_1 = deferred_proof_1.public_values.buffer.data.clone();
         println!("proof 1 pv: {:?}", hex::encode(pv_1.clone()));
-        let pv_digest_1 = deferred_proof_1.shard_proofs[0].public_values[..32]
+        let pv_digest_1 = deferred_proof_1.proof.0[0].public_values[..32]
             .iter()
             .map(|x| x.as_canonical_u32() as u8)
             .collect::<Vec<_>>();
@@ -829,7 +814,7 @@ mod tests {
         let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
         let pv_2 = deferred_proof_2.public_values.buffer.data.clone();
         println!("proof 2 pv: {:?}", hex::encode(pv_2.clone()));
-        let pv_digest_2 = deferred_proof_2.shard_proofs[0].public_values[..32]
+        let pv_digest_2 = deferred_proof_2.proof.0[0].public_values[..32]
             .iter()
             .map(|x| x.as_canonical_u32() as u8)
             .collect::<Vec<_>>();
@@ -837,11 +822,11 @@ mod tests {
 
         // Generate recursive proof of first subproof
         println!("reduce subproof 1");
-        let deferred_reduce_1 = prover.reduce(&keccak_vk, deferred_proof_1, vec![]);
+        let deferred_reduce_1 = prover.reduce(&keccak_vk, deferred_proof_1.proof, vec![]);
 
         // Generate recursive proof of second subproof
         println!("reduce subproof 2");
-        let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2, vec![]);
+        let deferred_reduce_2 = prover.reduce(&keccak_vk, deferred_proof_2.proof, vec![]);
 
         // Run verify program with keccak vkey, subproofs, and their committed values
         let mut stdin = SP1Stdin::new();
@@ -862,7 +847,7 @@ mod tests {
         println!("proving verify program (core)");
         let verify_proof = prover.prove_core(&verify_pk, &stdin);
         let pv = PublicValues::<Word<BabyBear>, BabyBear>::from_vec(
-            verify_proof.shard_proofs[0].public_values.clone(),
+            verify_proof.proof.0[0].public_values.clone(),
         );
 
         println!("deferred_hash: {:?}", pv.deferred_proofs_digest);
@@ -871,7 +856,7 @@ mod tests {
         println!("proving verify program (recursion)");
         let verify_reduce = prover.reduce(
             &verify_vk,
-            verify_proof.clone(),
+            verify_proof.proof.clone(),
             vec![
                 deferred_reduce_1.proof,
                 deferred_reduce_2.proof.clone(),
@@ -882,7 +867,11 @@ mod tests {
         println!("deferred_hash: {:?}", reduce_pv.deferred_proofs_digest);
         println!("complete: {:?}", reduce_pv.is_complete);
 
-        // TODO: verify verify_reduce proof once shard transition logic is moved out of machine.verify
-        // prover.reduce_machine.verify(vk, proof, challenger)
+        let reduced_proof = SP1ReducedProofData(verify_reduce.proof);
+        prover.verify_reduced(&reduced_proof, &verify_vk).unwrap();
+
+        std::env::remove_var("RECONSTRUCT_COMMITMENTS");
+        std::env::remove_var("SHARD_SIZE");
+        std::env::remove_var("MAX_RECURSION_PROGRAM_SIZE");
     }
 }

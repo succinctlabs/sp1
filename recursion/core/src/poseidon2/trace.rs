@@ -53,9 +53,24 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                 let is_memory_read = r == 0;
                 let is_initial_layer = r == 1;
                 let is_external_layer =
-                    (r >= 2 && r < rounds_p_beginning) || (r >= p_end && r < rounds);
+                    (r >= 2 && r < rounds_p_beginning) || (r >= p_end && r < p_end + rounds_f / 2);
                 let is_internal_layer = r >= rounds_p_beginning && r < p_end;
                 let is_memory_write = r == rounds - 1;
+
+                let sum = (is_memory_read as u32)
+                    + (is_initial_layer as u32)
+                    + (is_external_layer as u32)
+                    + (is_internal_layer as u32)
+                    + (is_memory_write as u32);
+                assert!(
+                    sum == 0 || sum == 1,
+                    "{} {} {} {} {}",
+                    is_memory_read,
+                    is_initial_layer,
+                    is_external_layer,
+                    is_internal_layer,
+                    is_memory_write
+                );
 
                 cols.timestamp = poseidon2_event.clk;
                 cols.dst_input = poseidon2_event.dst;
@@ -67,9 +82,8 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     let memory_access_cols = cols.round_specific_cols.memory_access_mut();
 
                     if is_memory_read {
-                        memory_access_cols.addr_first_half = poseidon2_event.dst;
-                        memory_access_cols.addr_second_half =
-                            poseidon2_event.dst + F::from_canonical_usize(4);
+                        memory_access_cols.addr_first_half = poseidon2_event.left;
+                        memory_access_cols.addr_second_half = poseidon2_event.right;
                         for i in 0..WIDTH {
                             memory_access_cols.mem_access[i]
                                 .populate(&poseidon2_event.input_records[i]);

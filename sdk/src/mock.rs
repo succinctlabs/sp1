@@ -1,10 +1,13 @@
 #![allow(unused_variables)]
 use crate::{
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof,
-    SP1ProofWithMetadata, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1Groth16ProofData, SP1PlonkProofData, SP1ProofWithMetadata, SP1ProvingKey,
+    SP1VerifyingKey,
 };
 use anyhow::Result;
-use sp1_prover::{Groth16Proof, PlonkBn254Proof, SP1Prover, SP1Stdin};
+use sp1_prover::{
+    Groth16Proof, PlonkBn254Proof, SP1CoreProof, SP1CoreProofData, SP1Groth16Proof, SP1PlonkProof,
+    SP1Prover, SP1ReducedProof, SP1Stdin,
+};
 
 pub struct MockProver {
     pub(crate) prover: SP1Prover,
@@ -28,23 +31,23 @@ impl Prover for MockProver {
         self.prover.setup(elf)
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1DefaultProof> {
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin);
         Ok(SP1ProofWithMetadata {
-            proof: vec![],
+            proof: SP1CoreProofData(vec![]),
             stdin,
             public_values,
         })
     }
 
-    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
+    fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
         unimplemented!()
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin);
         Ok(SP1ProofWithMetadata {
-            proof: PlonkBn254Proof::default(),
+            proof: SP1PlonkProofData(PlonkBn254Proof::default()),
             stdin,
             public_values,
         })
@@ -53,18 +56,18 @@ impl Prover for MockProver {
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         let public_values = SP1Prover::execute(&pk.elf, &stdin);
         Ok(SP1ProofWithMetadata {
-            proof: Groth16Proof::default(),
+            proof: SP1Groth16ProofData(Groth16Proof::default()),
             stdin,
             public_values,
         })
     }
 
-    fn verify(&self, proof: &SP1DefaultProof, vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
         Ok(())
     }
 
-    fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        unimplemented!()
+    fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
+        Ok(())
     }
 
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
