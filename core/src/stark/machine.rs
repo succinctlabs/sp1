@@ -15,7 +15,6 @@ use serde::Serialize;
 use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::process::exit;
 use tracing::instrument;
 
 use super::debug_constraints;

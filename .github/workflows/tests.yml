@@ -45,7 +45,7 @@ jobs:
           FRI_QUERIES: 1
 
   e2e:
-    name: E2E
+    name: End to end with toolchain installation.
     runs-on: warp-ubuntu-latest-arm64-8x
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -64,7 +64,7 @@ jobs:
           echo "/root/.sp1/bin" >> $GITHUB_PATH
           /root/.sp1/bin/sp1up
 
-      - name: Run Fibonacci example
+      - name: Run Fibonacci example main.rs
         uses: actions-rs/cargo@v1
         with:
           command: run
@@ -74,6 +74,28 @@ jobs:
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
+
+      - name: Run Fibonacci example compressed.rs
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --release --manifest-path examples/fibonacci/script/Cargo.toml --bin compressed
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
+
+      # - name: Run Fibonacci example groth16.rs
+      #   uses: actions-rs/cargo@v1
+      #   with:
+      #     command: run
+      #     args: --release --manifest-path examples/fibonacci/script/Cargo.toml --bin groth16
+      #   env:
+      #     RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
+      #     RUST_LOG: 1
+      #     RUST_BACKTRACE: 1
+      #     CARGO_INCREMENTAL: 1
 
       - name: Run cargo prove new
         run: |

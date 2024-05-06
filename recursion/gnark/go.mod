@@ -1,6 +1,6 @@
 module github.com/succinctlabs/sp1-recursion-gnark
 
-go 1.22.1
+go 1.22
 
 require (
 	github.com/consensys/gnark v0.10.0
