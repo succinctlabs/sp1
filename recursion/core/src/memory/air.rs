@@ -112,7 +112,7 @@ where
         let local = main.row_slice(0);
         let local: &MemoryInitCols<AB::Var> = (*local).borrow();
 
-        // Verify that is_initilize and is_finalize are bool and that at most one is true.
+        // Verify that is_initialize and is_finalize are bool and that at most one is true.
         builder.assert_bool(local.is_initialize);
         builder.assert_bool(local.is_finalize);
         builder.assert_bool(local.is_initialize + local.is_finalize);
