@@ -10,12 +10,6 @@ use crate::fri::types::TwoAdicPcsProofVariable;
 use crate::fri::types::{DigestVariable, FriConfigVariable};
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
-// /// Reference: [sp1_core::stark::MachineProof]
-// #[derive(DslVariable, Clone)]
-// pub struct MachineProofVariable<C: Config> {
-//     shard_proofs: Array<C, ShardProofVariable<C>>,
-// }
-
 /// Reference: [sp1_core::stark::ShardProof]
 #[derive(DslVariable, Clone)]
 pub struct ShardProofVariable<C: Config> {

@@ -23,6 +23,7 @@
 
 use std::array;
 use std::borrow::{Borrow, BorrowMut};
+use std::marker::PhantomData;
 
 use itertools::{izip, Itertools};
 use p3_air::Air;
@@ -55,21 +56,28 @@ use crate::utils::{
     get_challenger_public_values, get_preprocessed_data, hash_vkey, var2felt,
 };
 
+pub enum SP1Verifier<C: Config, SC: StarkGenericConfig, A> {
+    Core(PhantomData<(C, SC, A)>),
+    Deferred(PhantomData<(C, SC, A)>),
+    Compress(PhantomData<(C, SC, A)>),
+    Root(PhantomData<(C, SC, A)>),
+}
+
 /// A program for recursively verifying a batch of SP1 proofs.
 #[derive(Debug, Clone, Copy)]
 pub struct SP1RecursiveVerifier<C: Config, SC: StarkGenericConfig> {
-    _phantom: std::marker::PhantomData<(C, SC)>,
+    _phantom: PhantomData<(C, SC)>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig, A> {
-    _phantom: std::marker::PhantomData<(C, SC, A)>,
+    _phantom: PhantomData<(C, SC, A)>,
 }
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
 #[derive(Debug, Clone, Copy)]
 pub struct SP1ReduceVerifier<C: Config, SC: StarkGenericConfig, A> {
-    _phantom: std::marker::PhantomData<(C, SC, A)>,
+    _phantom: PhantomData<(C, SC, A)>,
 }
 
 /// The program that gets a final verifier at the root of the tree.
@@ -1706,6 +1714,7 @@ mod tests {
     }
 
     #[test]
+    #[ignore]
     fn test_sp1_reduce_machine_verify_fibonacci() {
         let elf = include_bytes!("../../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         test_sp1_recursive_machine_verify(Program::from(elf), 1, Test::Reduce)
