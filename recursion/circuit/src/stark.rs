@@ -16,7 +16,7 @@ use sp1_core::{
 };
 use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::constraints::{Constraint, ConstraintCompiler};
-use sp1_recursion_compiler::ir::{Builder, Config, Ext, Felt, Var};
+use sp1_recursion_compiler::ir::{Builder, Config, Felt, Var};
 use sp1_recursion_compiler::ir::{Usize, Witness};
 use sp1_recursion_compiler::prelude::SymbolicVar;
 use sp1_recursion_core::air::RecursionPublicValues;
@@ -236,8 +236,6 @@ where
 type OuterSC = BabyBearPoseidon2Outer;
 type OuterF = <BabyBearPoseidon2Outer as StarkGenericConfig>::Val;
 type OuterC = OuterConfig;
-
-type EF = <OuterC as Config>::EF;
 
 pub fn build_wrap_circuit(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
