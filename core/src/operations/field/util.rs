@@ -22,6 +22,7 @@ pub fn compute_root_quotient_and_shift<F: PrimeField32>(
     nb_bits_per_limb: u32,
 ) -> Vec<F> {
     // Evaluate the vanishing polynomial at x = 2^nb_bits_per_limb.
+    println!("coeffs: {:?}", p_vanishing.coefficients().len());
     let p_vanishing_eval = p_vanishing
         .coefficients()
         .iter()

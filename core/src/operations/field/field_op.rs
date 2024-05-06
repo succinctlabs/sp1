@@ -73,6 +73,7 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
             FieldOperation::Mul => debug_assert_eq!(&carry * modulus, a * b - &result),
             FieldOperation::Sub | FieldOperation::Div => unreachable!(),
         }
+        println!("result: {}", result);
 
         // Make little endian polynomial limbs.
         // let p_modulus = if modulus.is_zero() {
@@ -86,7 +87,9 @@ impl<F: PrimeField32, P: FieldParameters> FieldOpCols<F, P> {
         //     P::to_limbs_field::<F, _>(modulus).into()
         // };
         let mut p_modulus: Polynomial<F> = P::to_limbs_field::<F, _>(modulus).into();
-        if modulus > &P::modulus() {
+        if modulus == &P::modulus()
+            && P::modulus().bits() > (P::NB_LIMBS * P::NB_BITS_PER_LIMB) as u64
+        {
             let mut coeff = vec![F::zero(); 32];
             coeff.push(F::one());
             p_modulus = Polynomial::from_coefficients(&coeff);

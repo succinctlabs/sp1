@@ -308,7 +308,7 @@ where
         // Otherwise, we use the modulus passed in.
         let modulus_is_zero = local.modulus_is_zero.result;
         let mut coeff_2_256 = Vec::new();
-        coeff_2_256.resize(256, AB::Expr::zero());
+        coeff_2_256.resize(32, AB::Expr::zero());
         coeff_2_256.push(AB::Expr::one());
         let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
         let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
