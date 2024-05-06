@@ -181,6 +181,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
             quotient_chunk_domains,
             opened_values.chips.iter(),
         ) {
+            println!("chip = {:?}", chip.name());
             // Verify the shape of the opening arguments matches the expected values.
             Self::verify_opening_shape(chip, values)
                 .map_err(|e| VerificationError::OpeningShapeError(chip.name(), e))?;

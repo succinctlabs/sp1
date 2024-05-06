@@ -145,24 +145,28 @@ where
     let mut cycles = 0;
     let mut prove_time = 0;
     let mut checkpoints = Vec::new();
-    let mut public_values: Vec<SC::Val> = Vec::new();
-    let public_values_stream = tracing::info_span!("runtime.state").in_scope(|| loop {
-        // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
-        let (state, done) = runtime.execute_state();
-        let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
-        let mut writer = std::io::BufWriter::new(&mut tempfile);
-        bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
-        writer.flush().expect("failed to flush writer");
-        drop(writer);
-        tempfile
-            .seek(std::io::SeekFrom::Start(0))
-            .expect("failed to seek to start of tempfile");
-        checkpoints.push(tempfile);
-        if done {
-            public_values = runtime.record.public_values();
-            return std::mem::take(&mut runtime.state.public_values_stream);
-        }
-    });
+    let (public_values_stream, public_values) =
+        tracing::info_span!("runtime.state").in_scope(|| loop {
+            // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
+            let (state, done) = runtime.execute_state();
+            println!("created checkpoint {}", state.clk);
+            let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
+            let mut writer = std::io::BufWriter::new(&mut tempfile);
+            bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");
+            writer.flush().expect("failed to flush writer");
+            drop(writer);
+            tempfile
+                .seek(std::io::SeekFrom::Start(0))
+                .expect("failed to seek to start of tempfile");
+            checkpoints.push(tempfile);
+            if done {
+                return (
+                    std::mem::take(&mut runtime.state.public_values_stream),
+                    runtime.record.public_values,
+                );
+            }
+        });
+    println!("number of checkpoints = {}", checkpoints.len());
 
     // For each checkpoint, generate events, shard them, commit shards, and observe in challenger.
     let sharding_config = ShardingConfig::default();
@@ -175,7 +179,11 @@ where
 
     vk.observe_into(&mut challenger);
     for file in checkpoints.iter_mut() {
-        let events = trace_checkpoint(program.clone(), file);
+        let mut events = trace_checkpoint(program.clone(), file);
+        events.public_values = public_values;
+
+        println!("first cpu event = {:?}", events.cpu_events[0]);
+        println!("last cpu event = {:?}", events.cpu_events.last().unwrap());
         reset_seek(&mut *file);
         cycles += events.cpu_events.len();
         let shards =
@@ -201,7 +209,16 @@ where
         let shards = if reuse_shards {
             Option::take(&mut all_shards).unwrap()
         } else {
-            let events = trace_checkpoint(program.clone(), &file);
+            let mut events = trace_checkpoint(program.clone(), &file);
+            events.public_values = public_values;
+            println!(
+                "memory_init_events = {:?}",
+                events.memory_initialize_events.len()
+            );
+            println!(
+                "memory_finalize_events = {:?}",
+                events.memory_finalize_events.len()
+            );
             reset_seek(&mut file);
             tracing::debug_span!("shard").in_scope(|| machine.shard(events, &sharding_config))
         };
