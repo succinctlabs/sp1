@@ -5,12 +5,14 @@ use crate::{
     client::NetworkClient,
     local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
-    Prover, SP1CompressedProof, SP1DefaultProof, SP1Groth16Proof, SP1PlonkProof, SP1ProvingKey,
-    SP1VerifyingKey,
+    Prover,
 };
 use anyhow::{Context, Result};
 use serde::de::DeserializeOwned;
-use sp1_prover::{SP1Prover, SP1Stdin};
+use sp1_prover::{
+    SP1CoreProof, SP1Groth16Proof, SP1PlonkProof, SP1Prover, SP1ProvingKey, SP1ReducedProof,
+    SP1Stdin, SP1VerifyingKey,
+};
 use tokio::{runtime, time::sleep};
 
 use super::LocalProver;
@@ -178,26 +180,6 @@ impl Prover for NetworkProver {
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         let rt = tokio::runtime::Runtime::new()?;
         rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Groth16).await })
-    }
-
-    fn verify(&self, proof: &SP1Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.local_prover.verify(proof, vkey)
-    }
-
-    fn verify_compressed(
-        &self,
-        _proof: &SP1CompressedProof,
-        _vkey: &SP1VerifyingKey,
-    ) -> Result<()> {
-        todo!()
-    }
-
-    fn verify_plonk(&self, _proof: &SP1PlonkProof, _vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
-    }
-
-    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
-        todo!()
     }
 }
 

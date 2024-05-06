@@ -1,5 +1,13 @@
+#![allow(unused_variables)]
+use crate::{
+    Prover, SP1Groth16ProofData, SP1PlonkProofData, SP1ProofWithMetadata, SP1ProvingKey,
+    SP1VerifyingKey,
+};
 use anyhow::Result;
-use sp1_prover::{Groth16Proof, PlonkBn254Proof, SP1Prover, SP1Stdin};
+use sp1_prover::{
+    Groth16Proof, PlonkBn254Proof, SP1CoreProof, SP1CoreProofData, SP1Groth16Proof, SP1PlonkProof,
+    SP1Prover, SP1ReducedProof, SP1Stdin,
+};
 
 use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,

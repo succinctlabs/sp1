@@ -48,7 +48,15 @@ impl<F: PrimeField32> MachineRecord for ExecutionRecord<F> {
     fn set_index(&mut self, _: u32) {}
 
     fn stats(&self) -> HashMap<String, usize> {
-        HashMap::new()
+        let mut stats = HashMap::new();
+        stats.insert("cpu_events".to_string(), self.cpu_events.len());
+        stats.insert("poseidon2_events".to_string(), self.poseidon2_events.len());
+        stats.insert("fri_fold_events".to_string(), self.fri_fold_events.len());
+        stats.insert(
+            "range_check_events".to_string(),
+            self.range_check_events.len(),
+        );
+        stats
     }
 
     // NOTE: This should be unused.
