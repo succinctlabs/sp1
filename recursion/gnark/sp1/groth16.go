@@ -1,11 +1,13 @@
 package sp1
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -113,7 +115,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 
 	// Generate the proof.
 	fmt.Println("Generating proof...")
-	proof, err := groth16.Prove(r1cs, pk, witness)
+	proof, err := groth16.Prove(r1cs, pk, witness, backend.WithProverChallengeHashFunction(sha256.New()))
 	if err != nil {
 		return err
 	}

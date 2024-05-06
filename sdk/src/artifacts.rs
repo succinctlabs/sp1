@@ -1,10 +1,9 @@
-use std::{cmp::min, fs::File, io::Write, path::PathBuf, process::Command};
+use std::{cmp::min, fs::File, io::Write, path::PathBuf};
 
 use anyhow::{Context, Result};
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
-use sp1_prover::build::{build_groth16_artifacts, build_plonk_artifacts};
 
 pub const GROTH16_CIRCUIT_VERSION: u32 = 1;
 
@@ -24,8 +23,6 @@ impl std::fmt::Display for WrapCircuitType {
         }
     }
 }
-
-const CIRCUIT_ARTIFACTS_URL: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com/";
 
 /// Returns the directory where the circuit artifacts are stored. If SP1_CIRCUIT_DIR is set, it
 /// returns that directory. Otherwise, it returns ~/.sp1/circuits/<type>/<version>.
@@ -58,140 +55,6 @@ pub fn get_dev_mode() -> bool {
         .unwrap_or("true".to_string())
         .to_lowercase()
         == "true"
-}
-
-/// Installs the prebuilt artifacts for the given circuit type.
-///
-/// If build_dir is not provided, the artifacts are installed in ~/.sp1/circuits/<type>/<version>.
-/// If version is not provided, the latest version is installed.
-pub fn install_circuit_artifacts(
-    circuit_type: WrapCircuitType,
-    overwrite_existing: bool,
-    build_dir: Option<PathBuf>,
-    version: Option<u32>,
-) -> Result<()> {
-    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, false));
-
-    if build_dir.exists() {
-        // If dir exists and not overwrite_existing, just return.
-        if !overwrite_existing {
-            return Ok(());
-        }
-        // Otherwise we will overwrite, so delete existing directory.
-        std::fs::remove_dir_all(&build_dir)
-            .context("Failed to remove existing build directory.")?;
-    }
-
-    println!(
-        "Building {:?} artifacts in {}",
-        circuit_type,
-        build_dir.display()
-    );
-
-    // Mkdir
-    std::fs::create_dir_all(&build_dir).context("Failed to create build directory.")?;
-
-    // Download to a temporary file.
-    let version_num = version.unwrap_or(match circuit_type {
-        WrapCircuitType::Groth16 => GROTH16_CIRCUIT_VERSION,
-        WrapCircuitType::Plonk => PLONK_BN254_CIRCUIT_VERSION,
-    });
-    let temp_dir = tempfile::tempdir()?;
-    let temp_file_path = temp_dir
-        .path()
-        .join(format!("{}-{}.tar.gz", circuit_type, version_num));
-    // Remove file if it exists
-    if temp_file_path.exists() {
-        std::fs::remove_file(&temp_file_path)?;
-    }
-    let mut temp_file = File::create(&temp_file_path)?;
-    let download_url = format!(
-        "{}{}/{}.tar.gz",
-        CIRCUIT_ARTIFACTS_URL, circuit_type, version_num
-    );
-
-    let rt = tokio::runtime::Runtime::new()?;
-    let client = Client::builder().build()?;
-    rt.block_on(download_file(&client, &download_url, &mut temp_file))
-        .unwrap();
-
-    // Extract the tarball to the build directory.
-    Command::new("ls")
-        .current_dir(&temp_dir)
-        .spawn()
-        .with_context(|| "while executing ls")?
-        .wait()
-        .with_context(|| "while waiting for ls")?;
-
-    let mut res = Command::new("tar")
-        .current_dir(&temp_dir)
-        .args([
-            "-Pxzf",
-            temp_file_path.to_str().unwrap(),
-            "-C",
-            build_dir.to_str().unwrap(),
-        ])
-        .spawn()
-        .with_context(|| "while executing tar")?;
-
-    res.wait()?;
-
-    temp_dir.close()?;
-
-    Ok(())
-}
-
-pub fn build_circuit_artifacts(
-    circuit_type: WrapCircuitType,
-    overwrite_existing: bool,
-    build_dir: Option<PathBuf>,
-) -> Result<()> {
-    let is_dev_mode = get_dev_mode();
-    let build_dir = build_dir.unwrap_or_else(|| get_artifacts_dir(circuit_type, is_dev_mode));
-
-    if build_dir.exists() {
-        if !overwrite_existing {
-            // If dir exists, just return.
-            return Ok(());
-        }
-        // Otherwise we will overwrite, so delete existing directory.
-        std::fs::remove_dir_all(&build_dir)
-            .context("Failed to remove existing build directory.")?;
-    }
-
-    println!(
-        "Building {:?} artifacts in {}",
-        circuit_type,
-        build_dir.display()
-    );
-
-    // Mkdir
-    std::fs::create_dir_all(&build_dir).context("Failed to create build directory.")?;
-
-    // Write version file.
-    let version_file = build_dir.join("VERSION");
-    let mut version_file = File::create(version_file)?;
-    let version = match circuit_type {
-        WrapCircuitType::Groth16 => GROTH16_CIRCUIT_VERSION,
-        WrapCircuitType::Plonk => PLONK_BN254_CIRCUIT_VERSION,
-    };
-    version_file.write_all(
-        format!(
-            "sp1 {} circuit {}{} {}",
-            env!("VERGEN_GIT_SHA"),
-            circuit_type,
-            if is_dev_mode { "_dev" } else { "" },
-            version,
-        )
-        .as_bytes(),
-    )?;
-
-    match circuit_type {
-        WrapCircuitType::Groth16 => build_groth16_artifacts(build_dir),
-        WrapCircuitType::Plonk => build_plonk_artifacts(build_dir),
-    };
-
-    Ok(())
 }
 
 pub fn export_solidity_verifier(
