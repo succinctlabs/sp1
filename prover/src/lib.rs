@@ -41,10 +41,10 @@ use sp1_core::{
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::ir::Witness;
+pub use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
 use sp1_recursion_core::{
-    air::RecursionPublicValues,
     runtime::Runtime as RecursionRuntime,
     stark::{config::BabyBearPoseidon2Outer, RecursionAirWideDeg3},
 };
