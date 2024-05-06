@@ -552,46 +552,42 @@ where
         ShardMainData<SC>: Serialize + DeserializeOwned,
     {
         let config = machine.config();
-        let num_shards = shards.len();
 
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
-        let save_disk_threshold = env::save_disk_threshold();
         let reconstruct_commitments = env::reconstruct_commitments();
         let finished = AtomicU32::new(0);
         let chunk_size = std::cmp::max(shards.len() / num_cpus::get(), 1);
         let parent_span = tracing::debug_span!("commit to all shards");
         let (commitments, shard_main_data): (Vec<_>, Vec<_>) = parent_span.in_scope(|| {
             shards
-            .par_chunks(chunk_size)
-            .map(|shard_batch| {
-                shard_batch
-                    .iter()
-                    .map(|shard| {
-                        tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(|| {
-                            let index = shard.index();
-                            let data = Self::commit_main(config, machine, shard, index as usize);
-                            finished.fetch_add(1, Ordering::Relaxed);
-                            let commitment = data.main_commit.clone();
-                            let data = if reconstruct_commitments {
-                                ShardMainDataWrapper::Empty()
-                            } else if num_shards > save_disk_threshold {
-                                let file = tempfile::tempfile().unwrap();
-                                tracing::info_span!(parent: &parent_span, "saving trace to disk").in_scope(|| {
-                                    data.save(file).expect("failed to save shard main data")
-                                })
-                            } else {
-                                data.to_in_memory()
-                            };
-                            (commitment, data)
+                .par_chunks(chunk_size)
+                .map(|shard_batch| {
+                    shard_batch
+                        .iter()
+                        .map(|shard| {
+                            tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(
+                                || {
+                                    let index = shard.index();
+                                    let data =
+                                        Self::commit_main(config, machine, shard, index as usize);
+                                    finished.fetch_add(1, Ordering::Relaxed);
+                                    let commitment = data.main_commit.clone();
+                                    let data = if reconstruct_commitments {
+                                        ShardMainDataWrapper::Empty()
+                                    } else {
+                                        data.to_in_memory()
+                                    };
+                                    (commitment, data)
+                                },
+                            )
                         })
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .flatten()
-            .collect::<Vec<_>>()
-            .into_iter()
-            .unzip()
+                        .collect::<Vec<_>>()
+                })
+                .flatten()
+                .collect::<Vec<_>>()
+                .into_iter()
+                .unzip()
         });
 
         (commitments, shard_main_data)
