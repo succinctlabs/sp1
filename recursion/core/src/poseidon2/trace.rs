@@ -72,7 +72,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     is_memory_write
                 );
 
-                cols.timestamp = poseidon2_event.clk;
+                cols.clk = poseidon2_event.clk;
                 cols.dst_input = poseidon2_event.dst;
                 cols.left_input = poseidon2_event.left;
                 cols.right_input = poseidon2_event.right;
@@ -89,10 +89,12 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                                 .populate(&poseidon2_event.input_records[i]);
                         }
                     } else {
-                        // is_memory_write
+                        // Handle the `is_memory_write == true` case.  We need to incremene the clk
+                        // value since it may be writing into the same memory slots that it read from.
+                        cols.clk = poseidon2_event.clk + F::one();
                         memory_access_cols.addr_first_half = poseidon2_event.dst;
                         memory_access_cols.addr_second_half =
-                            poseidon2_event.dst + F::from_canonical_usize(4);
+                            poseidon2_event.dst + F::from_canonical_usize(WIDTH / 2);
                         for i in 0..WIDTH {
                             memory_access_cols.mem_access[i]
                                 .populate(&poseidon2_event.result_records[i]);

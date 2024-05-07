@@ -656,6 +656,7 @@ where
                         input_records,
                         result_records: result_records.try_into().unwrap(),
                     });
+                    next_clk = timestamp + F::from_canonical_u8(8);
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::HintBits => {

@@ -6,7 +6,7 @@ use crate::{memory::MemoryReadWriteSingleCols, poseidon2_wide::external::WIDTH};
 #[derive(AlignedBorrow, Clone, Copy)]
 #[repr(C)]
 pub struct Poseidon2Cols<T: Copy> {
-    pub timestamp: T,
+    pub clk: T,
     pub dst_input: T,
     pub left_input: T,
     pub right_input: T,

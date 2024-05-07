@@ -91,7 +91,7 @@ impl<F: Field> CpuChip<F> {
         builder
             .when_transition()
             .when(next.is_real)
-            .when_not(local.selectors.is_fri_fold)
+            .when_not(local.selectors.is_fri_fold + local.selectors.is_poseidon)
             .assert_eq(local.clk.into() + AB::F::from_canonical_u32(4), next.clk);
 
         builder
@@ -99,6 +99,12 @@ impl<F: Field> CpuChip<F> {
             .when(next.is_real)
             .when(local.selectors.is_fri_fold)
             .assert_eq(local.clk.into() + local.a.value()[0], next.clk);
+
+        builder
+            .when_transition()
+            .when(next.is_real)
+            .when(local.selectors.is_poseidon)
+            .assert_eq(local.clk.into() + AB::F::from_canonical_u32(8), next.clk);
     }
 
     /// Expr to check for alu instructions.
