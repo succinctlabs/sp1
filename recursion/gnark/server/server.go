@@ -19,10 +19,10 @@ type Server struct {
 	vk   groth16.VerifyingKey
 }
 
-// New creates a new server instance with the R1CS and proving key for the given circuit type and
+// New creates a new server instance with the R1CS, proving key, and verifying key for the given circuit type and
 // version.
 func New(ctx context.Context, dataDir, circuitType string) (*Server, error) {
-	r1cs, pk, vk, err := LoadCircuit(ctx, dataDir, circuitType)
+	r1cs, pk, vk, err := sp1.LoadCircuit(dataDir, circuitType)
 	if err != nil {
 		return nil, errors.Wrap(err, "loading circuit")
 	}
@@ -56,7 +56,7 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 }
 
 // handleGroth16Prove accepts a POST request with a JSON body containing the witness and returns a JSON
-// body containing the proof using the Groth16 circuit.
+// body containing the proof using the Groth16 circuit loaded for the server.
 func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	var witnessInput sp1.WitnessInput
 	err := json.NewDecoder(r.Body).Decode(&witnessInput)

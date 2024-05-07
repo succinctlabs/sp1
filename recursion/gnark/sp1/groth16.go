@@ -94,31 +94,10 @@ func ProveVerifyAndSerializeGroth16(witnessInput WitnessInput, r1cs constraint.C
 // R1CS, the proving key and the verifier key from the build directory.
 func ProveGroth16FromFile(buildDir string, witnessPath string, proofPath string) error {
 	// Read the R1CS.
-	fmt.Println("Reading r1cs...")
-	r1csFile, err := os.Open(buildDir + "/circuit_groth16.bin")
+	r1cs, pk, vk, err := LoadCircuit(buildDir, "groth16")
 	if err != nil {
 		return err
 	}
-	r1cs := groth16.NewCS(ecc.BN254)
-	r1cs.ReadFrom(r1csFile)
-
-	// Read the proving key.
-	fmt.Println("Reading pk...")
-	pkFile, err := os.Open(buildDir + "/pk_groth16.bin")
-	if err != nil {
-		return err
-	}
-	pk := groth16.NewProvingKey(ecc.BN254)
-	pk.ReadDump(pkFile)
-
-	// Read the verifier key.
-	fmt.Println("Reading vk...")
-	vkFile, err := os.Open(buildDir + "/vk_groth16.bin")
-	if err != nil {
-		return err
-	}
-	vk := groth16.NewVerifyingKey(ecc.BN254)
-	vk.ReadFrom(vkFile)
 
 	// Read the witness input.
 	witnessInput, err := LoadWitnessInputFromPath(witnessPath)
