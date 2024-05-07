@@ -65,6 +65,7 @@ func BuildGroth16(buildDir string) error {
 	return nil
 }
 
+// Prove, verify and serialize a gnark groth16 proof for a given witness.
 func ProveVerifyAndSerializeGroth16(witnessInput WitnessInput, r1cs constraint.ConstraintSystem, pk groth16.ProvingKey, vk groth16.VerifyingKey) (Groth16Proof, error) {
 	// Generate the witness.
 	assignment := NewCircuitFromWitness(witnessInput)
