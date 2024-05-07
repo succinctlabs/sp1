@@ -92,7 +92,7 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	// Generate the proof.
 	fmt.Println("Generating proof...")
 	start = time.Now()
-	proof, err := groth16.Prove(s.r1cs, s.pk, witness, backend.WithProverChallengeHashFunction(sha256.New()))
+	proof, err := groth16.Prove(s.r1cs, s.pk, witness, backend.WithProverHashToFieldFunction(sha256.New()))
 	if err != nil {
 		ReturnErrorJSON(w, "generating proof", http.StatusInternalServerError)
 		return
