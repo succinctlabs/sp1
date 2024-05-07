@@ -112,11 +112,13 @@ func ProveGroth16FromFile(buildDir string, witnessPath string, proofPath string)
 		return err
 	}
 
+	// Serialize the proof to JSON.
 	jsonData, err := json.Marshal(groth16Proof)
 	if err != nil {
 		return err
 	}
 
+	// Write the proof to a file.
 	err = os.WriteFile(proofPath, jsonData, 0644)
 	if err != nil {
 		return err
@@ -125,12 +127,8 @@ func ProveGroth16FromFile(buildDir string, witnessPath string, proofPath string)
 }
 
 // Verify a hex-encoded gnark groth16 proof serialized from gnark.
-// 1. Deserialize the verifier key.
-// 2. Deserialize the proof.
-// 3. Construct the public witness from the verify input.
-// 4. Verify the proof.
 func VerifyGroth16(buildDir string, hexEncodedProof string, vkeyHash string, commitedValuesDigest string) error {
-	// Read the verifier key.
+	// Read the verifier key and serialize it into a groth16 verifier key.
 	fmt.Println("Reading vk...")
 	fmt.Println(buildDir + "/vk_groth16.bin")
 	vkFile, err := os.Open(buildDir + "/vk_groth16.bin")
@@ -140,13 +138,13 @@ func VerifyGroth16(buildDir string, hexEncodedProof string, vkeyHash string, com
 	vk := groth16.NewVerifyingKey(ecc.BN254)
 	vk.ReadFrom(vkFile)
 
-	// Encoded proof to gnark groth16 proof.
+	// Convert the hex-encoded proof to a gnark groth16 proof.
 	proof, err := DeserializeSP1Groth16Proof(hexEncodedProof)
 	if err != nil {
 		return err
 	}
 
-	// Construct the public witness from the verify input.
+	// Construct the public witness for the circuit.
 	assignment := Circuit{
 		VkeyHash:             vkeyHash,
 		CommitedValuesDigest: commitedValuesDigest,
@@ -156,7 +154,7 @@ func VerifyGroth16(buildDir string, hexEncodedProof string, vkeyHash string, com
 		return err
 	}
 
-	// Verify the proof.
+	// Verify the proof and public witness against the verifier key.
 	err = groth16.Verify(*proof, vk, publicWitness)
 	if err != nil {
 		return err
