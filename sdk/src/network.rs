@@ -9,11 +9,13 @@ use crate::{
     Prover,
 };
 use anyhow::{Context, Result};
+use futures::Future;
 use serde::de::DeserializeOwned;
 use sp1_prover::{
     SP1CoreProof, SP1Groth16Proof, SP1PlonkProof, SP1Prover, SP1ProvingKey, SP1ReducedProof,
     SP1Stdin, SP1VerifyingKey,
 };
+use tokio::runtime::Handle;
 use tokio::{runtime, time::sleep};
 
 pub struct NetworkProver {
@@ -141,6 +143,17 @@ impl NetworkProver {
             Ok(tx_ids)
         })
     }
+
+    fn block_on<T>(&self, fut: impl Future<Output = T>) -> T {
+        // Handle case if we're already in an tokio runtime.
+        if let Ok(handle) = Handle::try_current() {
+            handle.block_on(fut)
+        } else {
+            // Otherwise create a new runtime.
+            let rt = runtime::Runtime::new().unwrap();
+            rt.block_on(fut)
+        }
+    }
 }
 
 impl Prover for NetworkProver {
@@ -149,26 +162,19 @@ impl Prover for NetworkProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Core).await })
+        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Core))
     }
 
     fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async {
-            self.prove_async(&pk.elf, stdin, ProofMode::Compressed)
-                .await
-        })
+        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Plonk).await })
+        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        let rt = tokio::runtime::Runtime::new()?;
-        rt.block_on(async { self.prove_async(&pk.elf, stdin, ProofMode::Groth16).await })
+        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
     }
 
     fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
