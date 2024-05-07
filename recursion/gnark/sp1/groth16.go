@@ -22,6 +22,7 @@ import (
 // includes the R1CS, the proving key, the verifier key, and the solidity verifier.
 func BuildGroth16(buildDir string) error {
 	// Load the witness input.
+	fmt.Println("BUILDING FROM DIR", buildDir)
 	witnessInput, err := LoadWitnessInputFromPath(buildDir + "/witness_groth16.json")
 	if err != nil {
 		panic(err)
@@ -40,7 +41,6 @@ func BuildGroth16(buildDir string) error {
 	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
 	// Run the trusted setup.
-	var pk groth16.ProvingKey
 	pk, vk, err := groth16.Setup(r1cs)
 	if err != nil {
 		panic(err)
@@ -57,12 +57,16 @@ func BuildGroth16(buildDir string) error {
 	vk.ExportSolidity(solidityVerifierFile)
 
 	// Generate dummy proof.
+	witnessInput, err = LoadWitnessInputFromPath(buildDir + "/witness_groth16.json")
+	if err != nil {
+		panic(err)
+	}
 	assignment := NewCircuitFromWitness(witnessInput)
 	proveWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		return err
 	}
-	proof, err := groth16.Prove(r1cs, pk, proveWitness, backend.WithProverChallengeHashFunction(sha256.New()))
+	proof, err := groth16.Prove(r1cs, pk, proveWitness, backend.WithProverHashToFieldFunction(sha256.New()))
 	if err != nil {
 		return err
 	}

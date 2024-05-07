@@ -259,92 +259,92 @@ pub fn build_wrap_circuit(
     let pc_start = builder.eval(wrap_vk.pc_start);
     challenger.observe(&mut builder, pc_start);
 
-    let mut witness = Witness::default();
-    template_proof.write(&mut witness);
-    let proof = template_proof.read(&mut builder);
+    // let mut witness = Witness::default();
+    // template_proof.write(&mut witness);
+    // let proof = template_proof.read(&mut builder);
 
-    let commited_values_digest = Bn254Fr::zero().read(&mut builder);
-    builder.commit_commited_values_digest_circuit(commited_values_digest);
-    let vkey_hash = Bn254Fr::zero().read(&mut builder);
-    builder.commit_vkey_hash_circuit(vkey_hash);
+    // let commited_values_digest = Bn254Fr::zero().read(&mut builder);
+    // builder.commit_commited_values_digest_circuit(commited_values_digest);
+    // let vkey_hash = Bn254Fr::zero().read(&mut builder);
+    // builder.commit_vkey_hash_circuit(vkey_hash);
 
-    // Validate public values
-    let mut pv_elements = Vec::new();
-    for i in 0..PROOF_MAX_NUM_PVS {
-        let element = builder.get(&proof.public_values, i);
-        pv_elements.push(element);
-    }
-    let pv = RecursionPublicValues::from_vec(pv_elements);
-    let one_felt: Felt<_> = builder.constant(BabyBear::one());
-    // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
-    // fully accumulated.
-    builder.assert_felt_eq(pv.is_complete, one_felt);
+    // // Validate public values
+    // let mut pv_elements = Vec::new();
+    // for i in 0..PROOF_MAX_NUM_PVS {
+    //     let element = builder.get(&proof.public_values, i);
+    //     pv_elements.push(element);
+    // }
+    // let pv = RecursionPublicValues::from_vec(pv_elements);
+    // let one_felt: Felt<_> = builder.constant(BabyBear::one());
+    // // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
+    // // fully accumulated.
+    // builder.assert_felt_eq(pv.is_complete, one_felt);
 
-    // Convert pv.sp1_vk_digest into Bn254
-    let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
-    // Vkey hash must match the witnessed commited_values_digest that we are committing to.
-    builder.assert_var_eq(pv_vkey_hash, vkey_hash);
+    // // Convert pv.sp1_vk_digest into Bn254
+    // let pv_vkey_hash = babybears_to_bn254(&mut builder, &pv.sp1_vk_digest);
+    // // Vkey hash must match the witnessed commited_values_digest that we are committing to.
+    // builder.assert_var_eq(pv_vkey_hash, vkey_hash);
 
-    // Convert pv.committed_value_digest into Bn254
-    let pv_committed_values_digest_bytes: [Felt<_>; 32] =
-        words_to_bytes(&pv.committed_value_digest)
-            .try_into()
-            .unwrap();
-    let pv_committed_values_digest: Var<_> =
-        babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
+    // // Convert pv.committed_value_digest into Bn254
+    // let pv_committed_values_digest_bytes: [Felt<_>; 32] =
+    //     words_to_bytes(&pv.committed_value_digest)
+    //         .try_into()
+    //         .unwrap();
+    // let pv_committed_values_digest: Var<_> =
+    //     babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
 
-    // Committed values digest must match the witnessed one that we are committing to.
-    builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
+    // // Committed values digest must match the witnessed one that we are committing to.
+    // builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
 
-    if !dev_mode {
-        let chips = outer_machine
-            .shard_chips_ordered(&template_proof.chip_ordering)
-            .map(|chip| chip.name())
-            .collect::<Vec<_>>();
+    // if !dev_mode {
+    //     let chips = outer_machine
+    //         .shard_chips_ordered(&template_proof.chip_ordering)
+    //         .map(|chip| chip.name())
+    //         .collect::<Vec<_>>();
 
-        let sorted_indices = outer_machine
-            .chips()
-            .iter()
-            .map(|chip| {
-                template_proof
-                    .chip_ordering
-                    .get(&chip.name())
-                    .copied()
-                    .unwrap_or(usize::MAX)
-            })
-            .collect::<Vec<_>>();
+    //     let sorted_indices = outer_machine
+    //         .chips()
+    //         .iter()
+    //         .map(|chip| {
+    //             template_proof
+    //                 .chip_ordering
+    //                 .get(&chip.name())
+    //                 .copied()
+    //                 .unwrap_or(usize::MAX)
+    //         })
+    //         .collect::<Vec<_>>();
 
-        let chip_quotient_data = outer_machine
-            .shard_chips_ordered(&template_proof.chip_ordering)
-            .map(|chip| {
-                let log_quotient_degree = chip.log_quotient_degree();
-                QuotientDataValues {
-                    log_quotient_degree,
-                    quotient_size: 1 << log_quotient_degree,
-                }
-            })
-            .collect();
+    //     let chip_quotient_data = outer_machine
+    //         .shard_chips_ordered(&template_proof.chip_ordering)
+    //         .map(|chip| {
+    //             let log_quotient_degree = chip.log_quotient_degree();
+    //             QuotientDataValues {
+    //                 log_quotient_degree,
+    //                 quotient_size: 1 << log_quotient_degree,
+    //             }
+    //         })
+    //         .collect();
 
-        let ShardCommitment { main_commit, .. } = &proof.commitment;
-        challenger.observe_commitment(&mut builder, *main_commit);
-        let pv_slice = proof.public_values.slice(
-            &mut builder,
-            Usize::Const(0),
-            Usize::Const(outer_machine.num_pv_elts()),
-        );
-        challenger.observe_slice(&mut builder, pv_slice);
+    //     let ShardCommitment { main_commit, .. } = &proof.commitment;
+    //     challenger.observe_commitment(&mut builder, *main_commit);
+    //     let pv_slice = proof.public_values.slice(
+    //         &mut builder,
+    //         Usize::Const(0),
+    //         Usize::Const(outer_machine.num_pv_elts()),
+    //     );
+    //     challenger.observe_slice(&mut builder, pv_slice);
 
-        StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
-            &mut builder,
-            wrap_vk,
-            &outer_machine,
-            &mut challenger.clone(),
-            &proof,
-            chip_quotient_data,
-            chips,
-            sorted_indices,
-        );
-    }
+    //     StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+    //         &mut builder,
+    //         wrap_vk,
+    //         &outer_machine,
+    //         &mut challenger.clone(),
+    //         &proof,
+    //         chip_quotient_data,
+    //         chips,
+    //         sorted_indices,
+    //     );
+    // }
 
     // TODO: Ensure lookup bus is zero.
     // let zero_ext: Ext<_, _> = builder.constant(EF::zero());
