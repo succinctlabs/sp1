@@ -3,7 +3,7 @@ module github.com/succinctlabs/sp1-recursion-gnark
 go 1.22
 
 require (
-	github.com/consensys/gnark v0.10.1-0.20240504023521-d9bfacd7cb60
+	github.com/consensys/gnark v0.10.0
 	github.com/consensys/gnark-crypto v0.12.2-0.20240504013751-564b6f724c3b
 	github.com/pkg/errors v0.9.1
 )

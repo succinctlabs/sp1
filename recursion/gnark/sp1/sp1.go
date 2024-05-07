@@ -16,7 +16,7 @@ type Circuit struct {
 	Felts                []babybear_v2.Variable
 	Exts                 []babybear_v2.ExtensionVariable
 	VkeyHash             frontend.Variable `gnark:",public"`
-	CommitedValuesDigest frontend.Variable
+	CommitedValuesDigest frontend.Variable `gnark:",public"`
 }
 
 type Constraint struct {
@@ -39,7 +39,7 @@ type SolidityGroth16Proof struct {
 }
 
 // Representation of groth16 proof for proof output.
-type Groth16Proof struct {
+type PlonkProof struct {
 	PublicInputs [2]string `json:"public_inputs"`
 	EncodedProof string    `json:"encoded_proof"`
 }

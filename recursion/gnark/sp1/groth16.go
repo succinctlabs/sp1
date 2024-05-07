@@ -9,8 +9,10 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/plonk"
 	"github.com/consensys/gnark/frontend"
-	"github.com/consensys/gnark/frontend/cs/r1cs"
+	"github.com/consensys/gnark/frontend/cs/scs"
+	"github.com/consensys/gnark/test/unsafekzg"
 )
 
 // Build a gnark groth16 circuit and write the resulting build files to the build directory. This
@@ -27,17 +29,20 @@ func BuildGroth16(buildDir string) error {
 
 	// Compile the circuit.
 	// p := profile.Start(profile.WithPath("sp1.pprof"))
-	builder := r1cs.NewBuilder
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	builder := scs.NewBuilder
+	scs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
 		panic(err)
 	}
 	// p.Stop()
-	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
+	fmt.Println("NbConstraints:", scs.GetNbConstraints())
 
-	// Run the trusted setup.
-	var pk groth16.ProvingKey
-	pk, vk, err := groth16.Setup(r1cs)
+	srs, srsLagrange, err := unsafekzg.NewSRS(scs)
+	if err != nil {
+		panic(err)
+	}
+
+	pk, vk, err := plonk.Setup(scs, srs, srsLagrange)
 	if err != nil {
 		panic(err)
 	}
@@ -46,7 +51,7 @@ func BuildGroth16(buildDir string) error {
 	os.MkdirAll(buildDir, 0755)
 
 	// Write the R1CS.
-	WriteToFile(buildDir+"/circuit_groth16.bin", r1cs)
+	WriteToFile(buildDir+"/circuit_groth16.bin", scs)
 
 	// Write the verifier key.
 	WriteToFile(buildDir+"/vk_groth16.bin", vk)
@@ -57,7 +62,7 @@ func BuildGroth16(buildDir string) error {
 		return err
 	}
 	defer pkFile.Close()
-	pk.WriteDump(pkFile)
+	pk.WriteTo(pkFile)
 
 	// Write the solidity verifier.
 	solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")
@@ -87,7 +92,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 		return err
 	}
 	pk := groth16.NewProvingKey(ecc.BN254)
-	pk.ReadDump(pkFile)
+	pk.ReadFrom(pkFile)
 
 	// Read the verifier key.
 	fmt.Println("Reading vk...")

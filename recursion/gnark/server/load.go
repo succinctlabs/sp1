@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend/plonk"
+
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/pkg/errors"
@@ -20,7 +22,7 @@ import (
 
 // LoadCircuit checks if the necessary circuit files are in the specified data directory,
 // downloads them if not, and loads them into memory.
-func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
+func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.ConstraintSystem, plonk.ProvingKey, plonk.VerifyingKey, error) {
 	r1csPath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
 	pkPath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
 
@@ -51,10 +53,10 @@ func LoadCircuit(ctx context.Context, dataDir, circuitType string) (constraint.C
 }
 
 // LoadCircuitArtifacts loads the R1CS and Proving Key from the specified data directory into memory.
-func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, groth16.ProvingKey, groth16.VerifyingKey, error) {
+func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSystem, plonk.ProvingKey, plonk.VerifyingKey, error) {
 	var wg sync.WaitGroup
 	var r1cs constraint.ConstraintSystem
-	var pk groth16.ProvingKey
+	var pk plonk.ProvingKey
 	var errR1CS, errPK error
 
 	startTime := time.Now()
@@ -100,9 +102,9 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 
 		pkReader := bufio.NewReader(pkFile)
 		pkStart := time.Now()
-		pk = groth16.NewProvingKey(ecc.BN254)
+		pk = plonk.NewProvingKey(ecc.BN254)
 		fmt.Println("Reading PK file...")
-		err = pk.ReadDump(pkReader)
+		_, err = pk.ReadFrom(pkReader)
 		if err != nil {
 			errPK = errors.Wrap(err, "reading PK content from file")
 		}
@@ -130,7 +132,7 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "reading VK content")
 	}
-	vk := groth16.NewVerifyingKey(ecc.BN254)
+	vk := plonk.NewVerifyingKey(ecc.BN254)
 	_, err = vk.ReadFrom(bytes.NewReader(vkContent))
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error reading VK content")
