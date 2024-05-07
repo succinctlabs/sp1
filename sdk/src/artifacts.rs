@@ -1,10 +1,10 @@
-use std::path::PathBuf;
+use std::{cmp::min, fs::File, io::Write, path::PathBuf};
 
 use anyhow::{Context, Result};
-use sp1_core::stark::{ShardProof, StarkVerifyingKey};
-use sp1_prover::{build::dummy_proof, OuterSC};
-
-use crate::provers::utils;
+use futures::StreamExt;
+use indicatif::{ProgressBar, ProgressStyle};
+use reqwest::Client;
+use sp1_prover::build::dummy_proof;
 
 /// Exports the soliditiy verifier for Groth16 proofs to the specified output directory.
 ///
@@ -13,7 +13,7 @@ use crate::provers::utils;
 pub fn export_solidity_groth16_verifier(output_dir: impl Into<PathBuf>) -> Result<()> {
     let output_dir: PathBuf = output_dir.into();
     let (wrap_vk, wrapped_proof) = dummy_proof();
-    let artifacts_dir = get_groth16_artifacts_dir(&wrap_vk, &wrapped_proof);
+    let artifacts_dir = sp1_prover::artifacts::get_groth16_artifacts_dir(&wrap_vk, &wrapped_proof);
     let verifier_path = artifacts_dir.join("Groth16Verifier.sol");
 
     if !verifier_path.exists() {
@@ -30,40 +30,39 @@ pub fn export_solidity_groth16_verifier(output_dir: impl Into<PathBuf>) -> Resul
     Ok(())
 }
 
-/// Gets the artifacts directory for Groth16 based on the current environment variables.
-///
-/// - If `SP1_GROTH16_DEV_MODE` is enabled, we will compile a smaller version of the final
-/// circuit and rebuild it for every proof. This is useful for development and testing purposes, as
-/// it allows us to test the end-to-end proving without having to wait for the circuit to compile or
-/// download.
-///
-/// - If `SP1_GROTH16_ARTIFACTS_DIR` is set, we will use the artifacts from that directory. This is
-/// useful for when you want to test the production circuit and have a local build available for
-/// development purposes.
-///
-/// - Otherwise, assume this is an official release and download the artifacts from the official
-/// download url.
-pub(crate) fn get_groth16_artifacts_dir(
-    wrap_vk: &StarkVerifyingKey<OuterSC>,
-    wrapped_proof: &ShardProof<OuterSC>,
-) -> PathBuf {
-    if utils::groth16_dev_mode() {
-        tracing::debug!("proving groth16 inside development mode");
-        let build_dir = tempfile::tempdir()
-            .expect("failed to create temporary directory")
-            .into_path();
-        if let Err(err) = std::fs::create_dir_all(&build_dir) {
-            panic!(
-                "failed to create build directory for groth16 artifacts: {}",
-                err
-            );
-        }
-        sp1_prover::build::groth16_artifacts(wrap_vk, wrapped_proof, build_dir.clone());
-        build_dir
-    } else if let Some(artifacts_dir) = utils::groth16_artifacts_dir() {
-        artifacts_dir
-    } else {
-        sp1_prover::install::groth16_artifacts();
-        sp1_prover::install::groth16_artifacts_dir()
+pub async fn download_file(
+    client: &Client,
+    url: &str,
+    file: &mut File,
+) -> std::result::Result<(), String> {
+    let res = client
+        .get(url)
+        .send()
+        .await
+        .or(Err(format!("Failed to GET from '{}'", &url)))?;
+    let total_size = res
+        .content_length()
+        .ok_or(format!("Failed to get content length from '{}'", &url))?;
+
+    let pb = ProgressBar::new(total_size);
+    pb.set_style(ProgressStyle::default_bar()
+        .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
+        .progress_chars("#>-"));
+    println!("Downloading {}", url);
+
+    let mut downloaded: u64 = 0;
+    let mut stream = res.bytes_stream();
+
+    while let Some(item) = stream.next().await {
+        let chunk = item.or(Err("Error while downloading file"))?;
+        file.write_all(&chunk)
+            .or(Err("Error while writing to file"))?;
+        let new = min(downloaded + (chunk.len() as u64), total_size);
+        downloaded = new;
+        pb.set_position(new);
     }
+
+    let msg = format!("Downloaded {} to {:?}", url, file);
+    pb.finish_with_message(msg);
+    Ok(())
 }

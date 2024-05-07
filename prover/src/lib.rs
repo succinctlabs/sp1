@@ -12,6 +12,7 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
 
+pub mod artifacts;
 pub mod build;
 pub mod install;
 mod types;
@@ -734,7 +735,7 @@ impl SP1Prover {
 mod tests {
 
     use super::*;
-    use crate::build::build_constraints;
+    use crate::artifacts::get_groth16_artifacts_dir;
     use p3_field::PrimeField32;
     use sp1_core::io::SP1Stdin;
     use sp1_core::stark::MachineVerificationError;
@@ -795,10 +796,10 @@ mod tests {
             result.unwrap();
         }
 
-        // TODO: replace this with real groth16 proof generation.
         tracing::info!("generate groth16 proof");
-        let (constraints, witness) = build_constraints(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        Groth16Prover::test(constraints.clone(), witness.clone());
+        let artifacts_dir = get_groth16_artifacts_dir(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
+        println!("{:?}", groth16_proof);
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation

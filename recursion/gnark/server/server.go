@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -10,6 +11,7 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
@@ -82,12 +84,25 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	// Generate the proof.
 	fmt.Println("Generating proof...")
 	start = time.Now()
-	proof, err := groth16.Prove(s.r1cs, s.pk, witness)
+	proof, err := groth16.Prove(s.r1cs, s.pk, witness, backend.WithProverChallengeHashFunction(sha256.New()))
 	if err != nil {
 		ReturnErrorJSON(w, "generating proof", http.StatusInternalServerError)
 		return
 	}
 	fmt.Printf("Proof generated in %s\n", time.Since(start))
+
+	// Verify the proof.
+	fmt.Println("Verifying proof...")
+	witnessPublic, err := witness.Public()
+	if err != nil {
+		ReturnErrorJSON(w, "getting witness public", http.StatusInternalServerError)
+		return
+	}
+	err = groth16.Verify(proof, s.vk, witnessPublic)
+	if err != nil {
+		ReturnErrorJSON(w, "verifying proof", http.StatusInternalServerError)
+		return
+	}
 
 	// Serialize the proof to JSON.
 	groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)

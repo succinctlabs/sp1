@@ -2,8 +2,8 @@ use anyhow::Result;
 use sp1_prover::{SP1Prover, SP1Stdin};
 
 use crate::{
-    artifacts::get_groth16_artifacts_dir, Prover, SP1CompressedProof, SP1Groth16Proof,
-    SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
+    Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProofWithPublicValues,
+    SP1ProvingKey, SP1VerifyingKey,
 };
 
 /// An implementation of [crate::ProverClient] that can generate end-to-end proofs locally.
@@ -60,7 +60,10 @@ impl Prover for LocalProver {
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
         let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
         let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
-        let artifacts_dir = get_groth16_artifacts_dir(&self.prover.wrap_vk, &outer_proof.proof);
+        let artifacts_dir = sp1_prover::artifacts::get_groth16_artifacts_dir(
+            &self.prover.wrap_vk,
+            &outer_proof.proof,
+        );
         let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
         Ok(SP1ProofWithPublicValues {
             proof,

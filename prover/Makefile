@@ -9,6 +9,11 @@ groth16:
 	cargo run -p sp1-prover --release --bin build_groth16 -- \
 	--build-dir=./build
 
+test-e2e:
+	RUSTFLAGS='-C target-cpu=native' \
+	FRI_QUERIES=1 \
+	cargo test --package sp1-prover --lib --release -- tests::test_e2e --exact --show-output 
+
 fibonacci-sweep:
 	mkdir -p scripts/results && \
 	rm -f scripts/results/fibonacci_sweep.log && \
