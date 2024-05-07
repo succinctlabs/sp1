@@ -110,7 +110,7 @@ where
         // public values.
         builder.if_eq(*is_reduce, C::N::one()).then(|builder| {
             let vk_digest = hash_vkey(builder, &vk);
-            for (i, reduce_digest_elem) in public_values.reduce_vk_digest.iter().enumerate() {
+            for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);
                 builder.assert_felt_eq(vk_digest_elem, *reduce_digest_elem);
             }

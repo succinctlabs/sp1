@@ -53,7 +53,7 @@ pub enum ReduceProgramType {
 
 /// An input layout for the reduce verifier.
 pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>> {
-    pub reduce_vk: &'a StarkVerifyingKey<SC>,
+    pub compress_vk: &'a StarkVerifyingKey<SC>,
     pub recursive_machine: &'a StarkMachine<SC, A>,
     pub shard_proofs: Vec<ShardProof<SC>>,
     pub is_complete: bool,
@@ -62,7 +62,7 @@ pub struct SP1ReduceMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::V
 
 #[derive(DslVariable, Clone)]
 pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
-    pub reduce_vk: VerifyingKeyVariable<C>,
+    pub compress_vk: VerifyingKeyVariable<C>,
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
     pub kinds: Array<C, Var<C::N>>,
     pub is_complete: Var<C::N>,
@@ -111,6 +111,17 @@ where
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
     /// Verify a batch of recursive proofs and aggregate their public values.
+    ///
+    /// The compression verifier can aggregate proofs of different kinds:
+    /// - Core proofs: proofs which are recursive proof of a batch of SP1 shard proofs. The
+    ///   implementation in this function assumes a fixed recursive verifier speicified by
+    ///   `recursive_vk`.
+    /// - Deferred proofs: proofs which are recursive proof of a batch of deferred proofs. The
+    ///   implementation in this function assumes a fixed deferred verification program specified
+    ///   by `deferred_vk`.
+    /// - Compress proofs: these are proofs which refer to a prove of this program. The key for
+    ///   it is part of public values will be propagated accross all levels of recursion and will
+    ///   be checked against itself as in [sp1_prover::Prover] or as in [super::SP1RootVerifier].
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
@@ -120,7 +131,7 @@ where
         deferred_vk: &StarkVerifyingKey<SC>,
     ) {
         let SP1ReduceMemoryLayoutVariable {
-            reduce_vk,
+            compress_vk,
             shard_proofs,
             kinds,
             is_complete,
@@ -135,11 +146,11 @@ where
         let reduce_public_values: &mut RecursionPublicValues<_> =
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
-        // Compute the digest of reduce_vk and input the value to the public values.
-        let reduce_vk_digest = hash_vkey(builder, &reduce_vk);
+        // Compute the digest of compress_vk and input the value to the public values.
+        let compress_vk_digest = hash_vkey(builder, &compress_vk);
 
-        reduce_public_values.reduce_vk_digest =
-            array::from_fn(|i| builder.get(&reduce_vk_digest, i));
+        reduce_public_values.compress_vk_digest =
+            array::from_fn(|i| builder.get(&compress_vk_digest, i));
 
         // Assert that there is at least one proof.
         builder.assert_usize_ne(shard_proofs.len(), 0);
@@ -195,7 +206,7 @@ where
                         |builder| {
                             builder.if_eq(kind, reduce_kind).then_or_else(
                                 |builder| {
-                                    builder.assign(vk.clone(), reduce_vk.clone());
+                                    builder.assign(vk.clone(), compress_vk.clone());
                                 },
                                 |builder| {
                                     // If the kind is not one of the valid values, raise

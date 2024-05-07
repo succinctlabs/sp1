@@ -552,13 +552,13 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
     type HintVariable = SP1ReduceMemoryLayoutVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let reduce_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
+        let compress_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
         let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
         let kinds = Vec::<usize>::read(builder);
         let is_complete = builder.hint_var();
 
         SP1ReduceMemoryLayoutVariable {
-            reduce_vk,
+            compress_vk,
             shard_proofs,
             kinds,
             is_complete,
@@ -568,9 +568,9 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
 
-        let reduce_vk_hint = VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(
+        let compress_vk_hint = VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(
             self.recursive_machine,
-            self.reduce_vk,
+            self.compress_vk,
         );
 
         let proof_hints = self
@@ -581,7 +581,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, Baby
 
         let kinds = self.kinds.iter().map(|k| *k as usize).collect::<Vec<_>>();
 
-        stream.extend(reduce_vk_hint.write());
+        stream.extend(compress_vk_hint.write());
         stream.extend(proof_hints.write());
         stream.extend(kinds.write());
         stream.extend((self.is_complete as usize).write());
@@ -618,7 +618,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
     type HintVariable = SP1DeferredMemoryLayoutVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
-        let reduce_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
+        let compress_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
         let proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
         let start_reconstruct_deferred_digest = Vec::<BabyBear>::read(builder);
         let is_complete = builder.hint_var();
@@ -631,7 +631,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let end_shard = InnerVal::read(builder);
 
         SP1DeferredMemoryLayoutVariable {
-            reduce_vk,
+            compress_vk,
             proofs,
             start_reconstruct_deferred_digest,
             is_complete,
@@ -650,8 +650,8 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
         let sp1_vk_hint =
             VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(self.sp1_machine, self.sp1_vk);
 
-        let reduce_vk_hint =
-            VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(self.machine, self.reduce_vk);
+        let compress_vk_hint =
+            VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(self.machine, self.compress_vk);
 
         let proof_hints = self
             .proofs
@@ -665,7 +665,7 @@ impl<'a, A: MachineAir<BabyBear>> Hintable<C>
             .map(|w| w.0.to_vec())
             .collect::<Vec<_>>();
 
-        stream.extend(reduce_vk_hint.write());
+        stream.extend(compress_vk_hint.write());
         stream.extend(proof_hints.write());
         stream.extend(self.start_reconstruct_deferred_digest.write());
         stream.extend((self.is_complete as usize).write());

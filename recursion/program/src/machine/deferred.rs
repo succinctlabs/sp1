@@ -37,7 +37,7 @@ pub struct SP1DeferredMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC:
 where
     SC::Val: PrimeField32,
 {
-    pub reduce_vk: &'a StarkVerifyingKey<SC>,
+    pub compress_vk: &'a StarkVerifyingKey<SC>,
     pub machine: &'a StarkMachine<SC, A>,
     pub proofs: Vec<ShardProof<SC>>,
 
@@ -57,7 +57,7 @@ where
 /// A variable version of the [SP1DeferredMemoryLayout] struct.
 #[derive(DslVariable, Clone)]
 pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
-    pub reduce_vk: VerifyingKeyVariable<C>,
+    pub compress_vk: VerifyingKeyVariable<C>,
 
     pub proofs: Array<C, ShardProofVariable<C>>,
 
@@ -121,7 +121,7 @@ where
     ) {
         // Read the inputs.
         let SP1DeferredMemoryLayoutVariable {
-            reduce_vk,
+            compress_vk,
             proofs,
             start_reconstruct_deferred_digest,
             is_complete,
@@ -142,11 +142,11 @@ where
         let deferred_public_values: &mut RecursionPublicValues<_> =
             deferred_public_values_stream.as_mut_slice().borrow_mut();
 
-        // Compute the digest of reduce_vk and input the value to the public values.
-        let reduce_vk_digest = hash_vkey(builder, &reduce_vk);
+        // Compute the digest of compress_vk and input the value to the public values.
+        let compress_vk_digest = hash_vkey(builder, &compress_vk);
 
-        deferred_public_values.reduce_vk_digest =
-            array::from_fn(|i| builder.get(&reduce_vk_digest, i));
+        deferred_public_values.compress_vk_digest =
+            array::from_fn(|i| builder.get(&compress_vk_digest, i));
 
         // Initialize the start of deferred digests.
         deferred_public_values.start_reconstruct_deferred_digest =
@@ -175,8 +175,8 @@ where
             // Prepare a challenger.
             let mut challenger = DuplexChallengerVariable::new(builder);
             // Observe the vk and start pc.
-            challenger.observe(builder, reduce_vk.commitment.clone());
-            challenger.observe(builder, reduce_vk.pc_start);
+            challenger.observe(builder, compress_vk.commitment.clone());
+            challenger.observe(builder, compress_vk.pc_start);
             // Observe the main commitment and public values.
             challenger.observe(builder, proof.commitment.main_commit.clone());
             for j in 0..machine.num_pv_elts() {
@@ -186,7 +186,7 @@ where
             // verify the proof.
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
-                &reduce_vk,
+                &compress_vk,
                 pcs,
                 machine,
                 &mut challenger,
@@ -204,11 +204,11 @@ where
             // Assert that the proof is complete.
             builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
 
-            // Assert that the reduce_vk digest is the same.
+            // Assert that the compress_vk digest is the same.
             for (digest, current) in deferred_public_values
-                .reduce_vk_digest
+                .compress_vk_digest
                 .iter()
-                .zip(current_public_values.reduce_vk_digest.iter())
+                .zip(current_public_values.compress_vk_digest.iter())
             {
                 builder.assert_felt_eq(*digest, *current);
             }

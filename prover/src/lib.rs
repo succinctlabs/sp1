@@ -323,7 +323,7 @@ impl SP1Prover {
             let proofs = batch.to_vec();
 
             deferred_inputs.push(SP1DeferredMemoryLayout {
-                reduce_vk: &self.compress_vk,
+                compress_vk: &self.compress_vk,
                 machine: &self.compress_machine,
                 proofs,
                 start_reconstruct_deferred_digest: deferred_digest.to_vec(),
@@ -446,7 +446,7 @@ impl SP1Prover {
                         batch.iter().cloned().unzip::<_, _, Vec<_>, Vec<_>>();
 
                     let input = SP1ReduceMemoryLayout {
-                        reduce_vk: &self.compress_vk,
+                        compress_vk: &self.compress_vk,
                         recursive_machine: &self.compress_machine,
                         shard_proofs,
                         kinds,

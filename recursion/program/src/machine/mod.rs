@@ -67,12 +67,12 @@ mod tests {
             &deferred_vk,
         );
 
-        let (reduce_pk, reduce_vk) = recursive_machine.setup(&reduce_program);
+        let (reduce_pk, compress_vk) = recursive_machine.setup(&reduce_program);
 
         // Make the compress program.
         let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
         let compress_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &reduce_vk);
+            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &compress_vk);
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Make the wrap program.
@@ -213,7 +213,7 @@ mod tests {
                     };
                     let kinds = batch.iter().map(|_| kind).collect::<Vec<_>>();
                     let input = SP1ReduceMemoryLayout {
-                        reduce_vk: &reduce_vk,
+                        compress_vk: &compress_vk,
                         recursive_machine: &recursive_machine,
                         shard_proofs: batch.to_vec(),
                         kinds,
@@ -240,7 +240,7 @@ mod tests {
                     );
                     let mut recursive_challenger = recursive_machine.config().challenger();
                     let result =
-                        recursive_machine.verify(&reduce_vk, &proof, &mut recursive_challenger);
+                        recursive_machine.verify(&compress_vk, &proof, &mut recursive_challenger);
 
                     match result {
                         Ok(_) => tracing::info!("Proof verified successfully"),

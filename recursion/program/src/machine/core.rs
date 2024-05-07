@@ -85,7 +85,12 @@ where
     >,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
-    /// Verify a batch of SP1 proofs and aggregate their public values.
+    /// Verify a batch of SP1 shard proofs and aggregate their public values.
+    ///
+    /// This program represents a first recursive step in the verification of an SP1 proof
+    /// consisting of one or more shards. Each shard proof is verified and its public values are
+    /// aggregated into a single set representing the start and end state of the program execution
+    /// across all shards.  
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
