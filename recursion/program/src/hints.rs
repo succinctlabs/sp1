@@ -21,11 +21,7 @@ use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::reduce::{
-    SP1DeferredMemoryLayout, SP1DeferredMemoryLayoutVariable, SP1RecursionMemoryLayout,
-    SP1RecursionMemoryLayoutVariable, SP1ReduceMemoryLayout, SP1ReduceMemoryLayoutVariable,
-    SP1RootMemoryLayout, SP1RootMemoryLayoutVariable,
-};
+use crate::machine::*;
 use crate::stark::{ShardProofHint, VerifyingKeyHint};
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,

@@ -57,15 +57,11 @@ use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
 pub use sp1_recursion_gnark_ffi::Groth16Proof;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
-use sp1_recursion_program::reduce::ReduceProgramType;
-use sp1_recursion_program::reduce::SP1DeferredMemoryLayout;
-use sp1_recursion_program::reduce::SP1DeferredVerifier;
-use sp1_recursion_program::reduce::SP1RecursionMemoryLayout;
-use sp1_recursion_program::reduce::SP1RecursiveVerifier;
-use sp1_recursion_program::reduce::SP1ReduceMemoryLayout;
-use sp1_recursion_program::reduce::SP1ReduceVerifier;
-use sp1_recursion_program::reduce::SP1RootMemoryLayout;
-use sp1_recursion_program::reduce::SP1RootVerifier;
+use sp1_recursion_program::machine::{
+    ReduceProgramType, SP1DeferredMemoryLayout, SP1DeferredVerifier, SP1RecursionMemoryLayout,
+    SP1RecursiveVerifier, SP1ReduceMemoryLayout, SP1ReduceVerifier, SP1RootMemoryLayout,
+    SP1RootVerifier,
+};
 use std::env;
 use std::path::PathBuf;
 use tracing::instrument;

@@ -46,6 +46,25 @@ pub trait StarkRecursiveVerifier<C: Config> {
         proof: &ShardProofVariable<C>,
         is_complete: impl Into<SymbolicVar<C::N>>,
     );
+
+    fn verify_shards(
+        &self,
+        builder: &mut Builder<C>,
+        vk: &VerifyingKeyVariable<C>,
+        pcs: &TwoAdicFriPcsVariable<C>,
+        challenger: &mut DuplexChallengerVariable<C>,
+        proofs: &Array<C, ShardProofVariable<C>>,
+        is_complete: impl Into<SymbolicVar<C::N>> + Clone,
+    ) {
+        // Assert that the number of shards is not zero.
+        builder.assert_usize_ne(proofs.len(), 0);
+
+        // Verify each shard.
+        builder.range(0, proofs.len()).for_each(|i, builder| {
+            let proof = builder.get(proofs, i);
+            self.verify_shard(builder, vk, pcs, challenger, &proof, is_complete.clone());
+        });
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
