@@ -114,7 +114,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 
 	// Generate the proof.
 	fmt.Println("Generating proof...")
-	proof, err := groth16.Prove(r1cs, pk, witness, backend.WithProverChallengeHashFunction(sha256.New()))
+	proof, err := groth16.Prove(r1cs, pk, witness, backend.WithProverHashToFieldFunction(sha256.New()))
 	if err != nil {
 		return err
 	}
