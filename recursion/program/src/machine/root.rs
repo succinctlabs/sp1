@@ -20,7 +20,7 @@ use crate::challenger::{CanObserveVariable, DuplexChallengerVariable};
 use crate::fri::TwoAdicFriPcsVariable;
 use crate::hints::Hintable;
 use crate::machine::utils::proof_data_from_vk;
-use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
+use crate::stark::{RecursiveVerifierConstraintFolder, ShardProofHint, StarkVerifier};
 use crate::types::ShardProofVariable;
 use crate::utils::{const_fri_config, hash_vkey};
 
@@ -50,16 +50,17 @@ where
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         vk: &StarkVerifyingKey<BabyBearPoseidon2>,
+        is_compress: bool,
     ) -> RecursionProgram<BabyBear> {
         let mut builder = Builder::<InnerConfig>::default();
-        let input: SP1RootMemoryLayoutVariable<_> = builder.uninit();
-        SP1RootMemoryLayout::<BabyBearPoseidon2, A>::witness(&input, &mut builder);
+        let proof: ShardProofVariable<_> = builder.uninit();
+        ShardProofHint::<BabyBearPoseidon2, A>::witness(&proof, &mut builder);
 
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
 
-        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &input);
+        SP1RootVerifier::verify(&mut builder, &pcs, machine, vk, &proof, is_compress);
 
         builder.compile_program()
     }
@@ -85,12 +86,26 @@ where
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
         vk: &StarkVerifyingKey<SC>,
-        input: &SP1RootMemoryLayoutVariable<C>,
+        proof: &ShardProofVariable<C>,
+        is_compress: bool,
     ) {
         // Get the verifying key info from the vk.
         let vk = proof_data_from_vk(builder, vk, machine);
 
-        let SP1RootMemoryLayoutVariable { proof, is_reduce } = input;
+        // Verify the proof.
+
+        let mut challenger = DuplexChallengerVariable::new(builder);
+        // Observe the vk and start pc.
+        challenger.observe(builder, vk.commitment.clone());
+        challenger.observe(builder, vk.pc_start);
+        // Observe the main commitment and public values.
+        challenger.observe(builder, proof.commitment.main_commit.clone());
+        for j in 0..machine.num_pv_elts() {
+            let element = builder.get(&proof.public_values, j);
+            challenger.observe(builder, element);
+        }
+        // verify proof.
+        StarkVerifier::<C, SC>::verify_shard(builder, &vk, pcs, machine, &mut challenger, proof);
 
         // Get the public inputs from the proof.
         let public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
@@ -106,29 +121,15 @@ where
         // checking the `is_complete` flag in this program.
         builder.assert_felt_eq(public_values.is_complete, C::F::one());
 
-        // If the proof is a reduce proof, assert that the vk is the same as the reduce vk from the
-        // public values.
-        builder.if_eq(*is_reduce, C::N::one()).then(|builder| {
+        // If the proof is a compress proof, assert that the vk is the same as the compress vk from
+        // the public values.
+        if is_compress {
             let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.compress_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);
                 builder.assert_felt_eq(vk_digest_elem, *reduce_digest_elem);
             }
-        });
-        // Verify the proof.
-
-        let mut challenger = DuplexChallengerVariable::new(builder);
-        // Observe the vk and start pc.
-        challenger.observe(builder, vk.commitment.clone());
-        challenger.observe(builder, vk.pc_start);
-        // Observe the main commitment and public values.
-        challenger.observe(builder, proof.commitment.main_commit.clone());
-        for j in 0..machine.num_pv_elts() {
-            let element = builder.get(&proof.public_values, j);
-            challenger.observe(builder, element);
         }
-        // verify proof.
-        StarkVerifier::<C, SC>::verify_shard(builder, &vk, pcs, machine, &mut challenger, proof);
 
         // Commit to the public values, broadcasting the same ones.
         for value in public_values_elements {

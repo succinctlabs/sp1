@@ -72,13 +72,13 @@ mod tests {
         // Make the compress program.
         let compress_machine = RecursionAir::<_, 9>::machine(SC::compressed());
         let compress_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &compress_vk);
+            SP1RootVerifier::<InnerConfig, _, _>::build(&recursive_machine, &compress_vk, true);
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Make the wrap program.
         let wrap_machine = RecursionAir::<_, 5>::machine(BabyBearPoseidon2Outer::default());
         let wrap_program =
-            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk);
+            SP1RootVerifier::<InnerConfig, _, _>::build(&compress_machine, &compress_vk, false);
 
         let mut challenger = machine.config().challenger();
         let time = std::time::Instant::now();
