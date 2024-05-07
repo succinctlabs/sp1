@@ -5,6 +5,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
+
 use sp1_core::air::{BaseAirBuilder, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
@@ -22,6 +23,7 @@ pub struct MultiChip {
 }
 
 #[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
 pub struct MultiCols<T: Copy> {
     pub instruction: InstructionSpecificCols<T>,
 
@@ -130,6 +132,10 @@ where
         builder.assert_bool(local.is_fri_fold);
         builder.assert_bool(local.is_poseidon2);
         builder.assert_bool(local_is_real.clone());
+        builder.assert_bool(local.fri_fold_receive_table);
+        builder.assert_bool(local.poseidon2_receive_table);
+        builder.assert_bool(local.fri_fold_memory_access);
+        builder.assert_bool(local.poseidon2_memory_access);
 
         // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
         // and it's AIR checks for consistencies among them.  The following constraints enforce that
@@ -165,7 +171,7 @@ where
 
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,
-            fri_columns,
+            local.fri_fold(),
             next.fri_fold(),
             local.fri_fold_receive_table,
             local.fri_fold_memory_access,

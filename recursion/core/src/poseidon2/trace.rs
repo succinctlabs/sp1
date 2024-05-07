@@ -89,6 +89,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                                 .populate(&poseidon2_event.input_records[i]);
                         }
                     } else {
+                        // is_memory_write
                         memory_access_cols.addr_first_half = poseidon2_event.dst;
                         memory_access_cols.addr_second_half =
                             poseidon2_event.dst + F::from_canonical_usize(4);
