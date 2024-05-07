@@ -166,7 +166,16 @@ impl Prover for NetworkProver {
     }
 
     fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
-        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
+        if let Ok(handle) = Handle::try_current() {
+            handle.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
+        } else {
+            // Otherwise create a new runtime.
+            let rt = runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                self.prove_async(&pk.elf, stdin, ProofMode::Compressed)
+                    .await
+            })
+        }
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
