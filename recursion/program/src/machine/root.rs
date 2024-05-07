@@ -46,6 +46,7 @@ impl<A> SP1RootVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
+    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         vk: &StarkVerifyingKey<BabyBearPoseidon2>,

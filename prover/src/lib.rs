@@ -37,8 +37,7 @@ use sp1_core::utils::DIGEST_SIZE;
 use sp1_core::{
     runtime::Program,
     stark::{
-        Challenger, LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine,
-        StarkVerifyingKey, Val,
+        LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val,
     },
     utils::{run_and_prove, BabyBearPoseidon2},
 };
@@ -216,24 +215,6 @@ impl SP1Prover {
         (pk, vk)
     }
 
-    /// Accumulate deferred proofs into a single digest.
-    pub fn hash_deferred_proofs(
-        prev_digest: [Val<CoreSC>; DIGEST_SIZE],
-        deferred_proofs: &[ShardProof<InnerSC>],
-    ) -> [Val<CoreSC>; 8] {
-        let mut digest = prev_digest;
-        for proof in deferred_proofs.iter() {
-            let pv: &RecursionPublicValues<Val<CoreSC>> = proof.public_values.as_slice().borrow();
-            let committed_values_digest = words_to_bytes(&pv.committed_value_digest);
-            digest = hash_deferred_proof(
-                &digest,
-                &pv.sp1_vk_digest,
-                &committed_values_digest.try_into().unwrap(),
-            );
-        }
-        digest
-    }
-
     /// Generate a proof of an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
     pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> SP1PublicValues {
@@ -275,11 +256,11 @@ impl SP1Prover {
 
         let shard_proofs = &proof.proof.0;
 
-        // Setup the prover parameters.
+        // Setup the reconstruct commitments flags to false and save its state.
         let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
 
-        // Get the and leaf challenger.
+        // Get the leaf challenger.
         let mut leaf_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut leaf_challenger);
         shard_proofs.iter().for_each(|proof| {
@@ -693,10 +674,22 @@ impl SP1Prover {
         PlonkBn254Prover::prove(witness, build_dir)
     }
 
-    pub fn setup_initial_core_challenger(&self, vk: &SP1VerifyingKey) -> Challenger<CoreSC> {
-        let mut core_challenger = self.core_machine.config().challenger();
-        vk.vk.observe_into(&mut core_challenger);
-        core_challenger
+    /// Accumulate deferred proofs into a single digest.
+    fn hash_deferred_proofs(
+        prev_digest: [Val<CoreSC>; DIGEST_SIZE],
+        deferred_proofs: &[ShardProof<InnerSC>],
+    ) -> [Val<CoreSC>; 8] {
+        let mut digest = prev_digest;
+        for proof in deferred_proofs.iter() {
+            let pv: &RecursionPublicValues<Val<CoreSC>> = proof.public_values.as_slice().borrow();
+            let committed_values_digest = words_to_bytes(&pv.committed_value_digest);
+            digest = hash_deferred_proof(
+                &digest,
+                &pv.sp1_vk_digest,
+                &committed_values_digest.try_into().unwrap(),
+            );
+        }
+        digest
     }
 }
 

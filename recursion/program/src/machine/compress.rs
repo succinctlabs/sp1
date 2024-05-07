@@ -72,6 +72,7 @@ impl<A> SP1CompressVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
+    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, A>,
         recursive_vk: &StarkVerifyingKey<BabyBearPoseidon2>,
@@ -173,8 +174,63 @@ where
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
             // Load the proof.
             let proof = builder.get(&shard_proofs, i);
-            // Get the proof kind.
+            // Get the kind of proof we are verifying.
             let kind = builder.get(&kinds, i);
+
+            // Verify the shard proof.
+
+            // Initialize values for verifying key and proof data.
+            let vk: VerifyingKeyVariable<_> = builder.uninit();
+            // Set the correct value given the value of kind, and assert it must be one of the
+            // valid values. We can do that by nested `if-else` statements.
+            builder.if_eq(kind, core_kind).then_or_else(
+                |builder| {
+                    builder.assign(vk.clone(), recursive_vk_variable.clone());
+                },
+                |builder| {
+                    builder.if_eq(kind, deferred_kind).then_or_else(
+                        |builder| {
+                            builder.assign(vk.clone(), deferred_vk_variable.clone());
+                        },
+                        |builder| {
+                            builder.if_eq(kind, reduce_kind).then_or_else(
+                                |builder| {
+                                    builder.assign(vk.clone(), reduce_vk.clone());
+                                },
+                                |builder| {
+                                    // If the kind is not one of the valid values, raise
+                                    // an error.
+                                    builder.error();
+                                },
+                            );
+                        },
+                    );
+                },
+            );
+
+            // Verify the shard proof given the correct data.
+
+            // Prepare a challenger.
+            let mut challenger = DuplexChallengerVariable::new(builder);
+            // Observe the vk and start pc.
+            challenger.observe(builder, vk.commitment.clone());
+            challenger.observe(builder, vk.pc_start);
+            // Observe the main commitment and public values.
+            challenger.observe(builder, proof.commitment.main_commit.clone());
+            for j in 0..machine.num_pv_elts() {
+                let element = builder.get(&proof.public_values, j);
+                challenger.observe(builder, element);
+            }
+            // verify proof.
+            StarkVerifier::<C, SC>::verify_shard(
+                builder,
+                &vk,
+                pcs,
+                machine,
+                &mut challenger,
+                &proof,
+            );
+
             // Load the public values from the proof.
             let current_public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
                 .map(|i| builder.get(&proof.public_values, i))
@@ -330,59 +386,6 @@ where
                 builder.assert_felt_eq(*digest, *current_digest);
             }
 
-            // Verify the shard proof.
-
-            // Initialize values for verifying key and proof data.
-            let vk: VerifyingKeyVariable<_> = builder.uninit();
-            // Set the correct value given the value of kind, and assert it must be one of the
-            // valid values. We can do that by nested `if-else` statements.
-            builder.if_eq(kind, core_kind).then_or_else(
-                |builder| {
-                    builder.assign(vk.clone(), recursive_vk_variable.clone());
-                },
-                |builder| {
-                    builder.if_eq(kind, deferred_kind).then_or_else(
-                        |builder| {
-                            builder.assign(vk.clone(), deferred_vk_variable.clone());
-                        },
-                        |builder| {
-                            builder.if_eq(kind, reduce_kind).then_or_else(
-                                |builder| {
-                                    builder.assign(vk.clone(), reduce_vk.clone());
-                                },
-                                |builder| {
-                                    // If the kind is not one of the valid values, raise
-                                    // an error.
-                                    builder.error();
-                                },
-                            );
-                        },
-                    );
-                },
-            );
-
-            // Verify the shard proof given the correct data.
-
-            // Prepare a challenger.
-            let mut challenger = DuplexChallengerVariable::new(builder);
-            // Observe the vk and start pc.
-            challenger.observe(builder, vk.commitment.clone());
-            challenger.observe(builder, vk.pc_start);
-            // Observe the main commitment and public values.
-            challenger.observe(builder, proof.commitment.main_commit.clone());
-            for j in 0..machine.num_pv_elts() {
-                let element = builder.get(&proof.public_values, j);
-                challenger.observe(builder, element);
-            }
-            // verify proof.
-            StarkVerifier::<C, SC>::verify_shard(
-                builder,
-                &vk,
-                pcs,
-                machine,
-                &mut challenger,
-                &proof,
-            );
             // Update the accumulated values.
 
             // Update the deffered proof digest.

@@ -9,6 +9,7 @@ use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 use crate::fri::types::DigestVariable;
 use crate::types::VerifyingKeyVariable;
 
+/// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
 
@@ -19,6 +20,7 @@ pub trait CanSampleVariable<C: Config, V> {
     fn sample(&mut self, builder: &mut Builder<C>) -> V;
 }
 
+/// Reference: [p3_challenger::FieldChallenger].
 pub trait FeltChallenger<C: Config>:
     CanObserveVariable<C, Felt<C::F>> + CanSampleVariable<C, Felt<C::F>> + CanSampleBitsVariable<C>
 {

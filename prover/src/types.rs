@@ -32,24 +32,24 @@ pub struct SP1VerifyingKey {
 
 /// A trait for keys that can be hashed into a digest.
 pub trait HashableKey {
-    /// Hash the key into a digest of 8 BabyBear elements.
-    fn hash(&self) -> [BabyBear; 8];
+    /// Hash the key into a digest of BabyBear elements.
+    fn hash(&self) -> [BabyBear; DIGEST_SIZE];
 
-    /// Hash the key into a digest of 8 u32 elements.
-    fn hash_u32(&self) -> [u32; 8];
+    /// Hash the key into a digest of  u32 elements.
+    fn hash_u32(&self) -> [u32; DIGEST_SIZE];
 
-    /// Hash the key into a digest of 8 u32 elements.
-    fn hash_bytes(&self) -> [u8; 32] {
+    /// Hash the key into a digest of bytes elements.
+    fn hash_bytes(&self) -> [u8; DIGEST_SIZE * 4] {
         words_to_bytes_be(&self.hash_u32())
     }
 }
 
 impl HashableKey for SP1VerifyingKey {
-    fn hash(&self) -> [BabyBear; 8] {
+    fn hash(&self) -> [BabyBear; DIGEST_SIZE] {
         self.vk.hash()
     }
 
-    fn hash_u32(&self) -> [u32; 8] {
+    fn hash_u32(&self) -> [u32; DIGEST_SIZE] {
         self.vk.hash_u32()
     }
 }
@@ -59,7 +59,7 @@ impl<SC: StarkGenericConfig<Val = BabyBear, Domain = TwoAdicMultiplicativeCoset<
 where
     <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: AsRef<[BabyBear; DIGEST_SIZE]>,
 {
-    fn hash(&self) -> [BabyBear; 8] {
+    fn hash(&self) -> [BabyBear; DIGEST_SIZE] {
         let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
         let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
         let mut inputs = Vec::with_capacity(num_inputs);

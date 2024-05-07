@@ -17,7 +17,7 @@ use crate::{
 };
 
 /// Assertions on the public values describing a complete recursive proof state.
-pub fn assert_complete<C: Config>(
+pub(crate) fn assert_complete<C: Config>(
     builder: &mut Builder<C>,
     public_values: &RecursionPublicValues<Felt<C::F>>,
     end_reconstruct_challenger: &DuplexChallengerVariable<C>,
@@ -69,7 +69,7 @@ pub fn assert_complete<C: Config>(
     }
 }
 
-pub fn proof_data_from_vk<C: Config, SC, A>(
+pub(crate) fn proof_data_from_vk<C: Config, SC, A>(
     builder: &mut Builder<C>,
     vk: &StarkVerifyingKey<SC>,
     machine: &StarkMachine<SC, A>,

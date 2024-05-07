@@ -32,6 +32,7 @@ pub struct SP1DeferredVerifier<C: Config, SC: StarkGenericConfig, A> {
     _phantom: PhantomData<(C, SC, A)>,
 }
 
+/// Inputs that are hinted to the [SP1DeferredVerifier] program.
 pub struct SP1DeferredMemoryLayout<'a, SC: StarkGenericConfig, A: MachineAir<SC::Val>>
 where
     SC::Val: PrimeField32,
@@ -53,6 +54,7 @@ where
     pub end_shard: SC::Val,
 }
 
+/// A variable version of the [SP1DeferredMemoryLayout] struct.
 #[derive(DslVariable, Clone)]
 pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub reduce_vk: VerifyingKeyVariable<C>,
@@ -75,6 +77,7 @@ impl<A> SP1DeferredVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
+    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
     pub fn build(machine: &StarkMachine<BabyBearPoseidon2, A>) -> RecursionProgram<BabyBear> {
         let mut builder = Builder::<InnerConfig>::default();
         let input: SP1DeferredMemoryLayoutVariable<_> = builder.uninit();
@@ -101,12 +104,22 @@ where
     A: MachineAir<C::F> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, C>>,
     Com<SC>: Into<[SC::Val; DIGEST_SIZE]>,
 {
+    /// Verify a batch of deferred proofs.
+    ///
+    /// Each deferred proof is a recursive proof representing some computation. Namely, every such
+    /// proof represents a recursively verified program.
+    /// verifier:
+    /// - Asserts that each of these proofs is valid as a `compress` proof.
+    /// - Asserts that each of these proofs is complete by checking the `is_complete` flag in the
+    ///  proof's public values.
+    /// - Aggregates the proof information into an accumulated deferred digest.
     pub fn verify(
         builder: &mut Builder<C>,
         pcs: &TwoAdicFriPcsVariable<C>,
         machine: &StarkMachine<SC, A>,
         input: SP1DeferredMemoryLayoutVariable<C>,
     ) {
+        // Read the inputs.
         let SP1DeferredMemoryLayoutVariable {
             reduce_vk,
             proofs,
@@ -140,7 +153,7 @@ where
             array::from_fn(|i| builder.get(&start_reconstruct_deferred_digest, i));
 
         // Assert that there is at least one proof.
-        // builder.assert_usize_ne(proofs.len(), 0);
+        builder.assert_usize_ne(proofs.len(), 0);
 
         // Initialize the consistency check variable.
         let mut reconstruct_deferred_digest = builder.array(POSEIDON_NUM_WORDS);
@@ -156,25 +169,6 @@ where
         builder.range(0, proofs.len()).for_each(|i, builder| {
             // Load the proof.
             let proof = builder.get(&proofs, i);
-            // Load the public values from the proof.
-            let current_public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
-                .map(|i| builder.get(&proof.public_values, i))
-                .collect::<Vec<Felt<_>>>();
-
-            let current_public_values: &RecursionPublicValues<Felt<C::F>> =
-                current_public_values_elements.as_slice().borrow();
-
-            // Assert that the proof is complete.
-            // builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
-
-            // Assert that the reduce_vk digest is the same.
-            for (digest, current) in deferred_public_values
-                .reduce_vk_digest
-                .iter()
-                .zip(current_public_values.reduce_vk_digest.iter())
-            {
-                builder.assert_felt_eq(*digest, *current);
-            }
 
             // Verify the shard proof.
 
@@ -189,7 +183,7 @@ where
                 let element = builder.get(&proof.public_values, j);
                 challenger.observe(builder, element);
             }
-            // verify proof.
+            // verify the proof.
             StarkVerifier::<C, SC>::verify_shard(
                 builder,
                 &reduce_vk,
@@ -198,6 +192,26 @@ where
                 &mut challenger,
                 &proof,
             );
+
+            // Load the public values from the proof.
+            let current_public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
+                .map(|i| builder.get(&proof.public_values, i))
+                .collect::<Vec<Felt<_>>>();
+
+            let current_public_values: &RecursionPublicValues<Felt<C::F>> =
+                current_public_values_elements.as_slice().borrow();
+
+            // Assert that the proof is complete.
+            builder.assert_felt_eq(current_public_values.is_complete, C::F::one());
+
+            // Assert that the reduce_vk digest is the same.
+            for (digest, current) in deferred_public_values
+                .reduce_vk_digest
+                .iter()
+                .zip(current_public_values.reduce_vk_digest.iter())
+            {
+                builder.assert_felt_eq(*digest, *current);
+            }
 
             // Update deferred proof digest
             // poseidon2( current_digest[..8] || pv.sp1_vk_digest[..8] || pv.committed_value_digest[..32] )

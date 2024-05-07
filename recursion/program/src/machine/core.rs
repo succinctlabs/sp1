@@ -10,12 +10,11 @@ use sp1_core::air::{MachineAir, PublicValues};
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
 use sp1_core::stark::{Com, RiscvAir, ShardProof, StarkGenericConfig, StarkVerifyingKey};
-use sp1_core::utils::{sp1_fri_config, BabyBearPoseidon2};
+use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Ext, ExtConst, Felt, Var};
 use sp1_recursion_compiler::prelude::DslVariable;
 use sp1_recursion_core::air::{RecursionPublicValues, RECURSIVE_PROOF_NUM_PV_ELTS};
-use sp1_recursion_core::cpu::Instruction;
 use sp1_recursion_core::runtime::{RecursionProgram, DIGEST_SIZE};
 
 use sp1_recursion_compiler::prelude::*;
@@ -58,32 +57,7 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
 }
 
 impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
-    pub fn setup() -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
-
-        let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
-        SP1RecursionMemoryLayout::<BabyBearPoseidon2, RiscvAir<_>>::witness(&input, &mut builder);
-
-        builder.compile_program()
-    }
-
-    pub fn build_with_witness(
-        machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
-    ) -> RecursionProgram<BabyBear> {
-        let mut builder = Builder::<InnerConfig>::default();
-
-        let input: SP1RecursionMemoryLayoutVariable<_> = builder.uninit();
-
-        let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, &sp1_fri_config()),
-        };
-        SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
-
-        let mut recursive_program = builder.compile_program();
-        recursive_program.instructions[0] = Instruction::dummy();
-        recursive_program
-    }
-
+    /// Create a new instance of the program for the [BabyBearPoseidon2] config.
     pub fn build(
         machine: &StarkMachine<BabyBearPoseidon2, RiscvAir<BabyBear>>,
     ) -> RecursionProgram<BabyBear> {
@@ -93,7 +67,7 @@ impl SP1RecursiveVerifier<InnerConfig, BabyBearPoseidon2> {
         SP1RecursionMemoryLayout::<BabyBearPoseidon2, RiscvAir<_>>::witness(&input, &mut builder);
 
         let pcs = TwoAdicFriPcsVariable {
-            config: const_fri_config(&mut builder, &sp1_fri_config()),
+            config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
         SP1RecursiveVerifier::verify(&mut builder, &pcs, machine, input);
 
@@ -155,7 +129,19 @@ where
         let exit_code: Felt<_> = builder.uninit();
         // Verify proofs, validate transitions, and update accumulation variables.
         builder.range(0, shard_proofs.len()).for_each(|i, builder| {
+            // Load the proof.
             let proof = builder.get(&shard_proofs, i);
+
+            // Verify the shard proof.
+            let mut challenger = leaf_challenger.copy(builder);
+            StarkVerifier::<C, SC>::verify_shard(
+                builder,
+                &vk,
+                pcs,
+                machine,
+                &mut challenger,
+                &proof,
+            );
 
             // Extract public values.
             let mut pv_elements = Vec::new();
@@ -169,7 +155,7 @@ where
             builder.if_eq(i, C::N::zero()).then(|builder| {
                 // Initialize the values of accumulated variables.
 
-                // Shard
+                // Shard.
                 builder.assign(initial_shard, public_values.shard);
                 builder.assign(current_shard, public_values.shard);
 
@@ -253,18 +239,6 @@ where
             {
                 builder.assert_felt_eq(*digest, *current_digest);
             }
-
-            // Verify the shard proof.
-
-            let mut challenger = leaf_challenger.copy(builder);
-            StarkVerifier::<C, SC>::verify_shard(
-                builder,
-                &vk,
-                pcs,
-                machine,
-                &mut challenger,
-                &proof,
-            );
 
             // Update the reconstruct challenger, cumulative sum, shard number, and program counter.
             reconstruct_challenger.observe(builder, proof.commitment.main_commit);
