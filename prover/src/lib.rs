@@ -58,8 +58,8 @@ pub use sp1_recursion_gnark_ffi::Groth16Proof;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
 use sp1_recursion_program::machine::{
-    ReduceProgramType, SP1DeferredMemoryLayout, SP1DeferredVerifier, SP1RecursionMemoryLayout,
-    SP1RecursiveVerifier, SP1ReduceMemoryLayout, SP1ReduceVerifier, SP1RootMemoryLayout,
+    ReduceProgramType, SP1CompressVerifier, SP1DeferredMemoryLayout, SP1DeferredVerifier,
+    SP1RecursionMemoryLayout, SP1RecursiveVerifier, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
     SP1RootVerifier,
 };
 use std::env;
@@ -161,8 +161,11 @@ impl SP1Prover {
         let (deferred_pk, deferred_vk) = compress_machine.setup(&deferred_program);
 
         // Make the reduce program and keys.
-        let compress_program =
-            SP1ReduceVerifier::<InnerConfig, _, _>::build(&compress_machine, &rec_vk, &deferred_vk);
+        let compress_program = SP1CompressVerifier::<InnerConfig, _, _>::build(
+            &compress_machine,
+            &rec_vk,
+            &deferred_vk,
+        );
         let (compress_pk, compress_vk) = compress_machine.setup(&compress_program);
 
         // Get the compress program, machine, and keys.

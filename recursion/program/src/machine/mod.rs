@@ -60,8 +60,8 @@ mod tests {
         let deferred_program = SP1DeferredVerifier::<InnerConfig, SC, _>::build(&recursive_machine);
         let (_, deferred_vk) = recursive_machine.setup(&deferred_program);
 
-        // Make the reduce program.
-        let reduce_program = SP1ReduceVerifier::<InnerConfig, _, _>::build(
+        // Make the compress program.
+        let reduce_program = SP1CompressVerifier::<InnerConfig, _, _>::build(
             &recursive_machine,
             &rec_vk,
             &deferred_vk,

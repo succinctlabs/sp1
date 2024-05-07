@@ -36,7 +36,7 @@ use super::utils::proof_data_from_vk;
 
 /// A program to verify a batch of recursive proofs and aggregate their public values.
 #[derive(Debug, Clone, Copy)]
-pub struct SP1ReduceVerifier<C: Config, SC: StarkGenericConfig, A> {
+pub struct SP1CompressVerifier<C: Config, SC: StarkGenericConfig, A> {
     _phantom: PhantomData<(C, SC, A)>,
 }
 
@@ -68,7 +68,7 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub is_complete: Var<C::N>,
 }
 
-impl<A> SP1ReduceVerifier<InnerConfig, BabyBearPoseidon2, A>
+impl<A> SP1CompressVerifier<InnerConfig, BabyBearPoseidon2, A>
 where
     A: MachineAir<BabyBear> + for<'a> Air<RecursiveVerifierConstraintFolder<'a, InnerConfig>>,
 {
@@ -85,7 +85,7 @@ where
         let pcs = TwoAdicFriPcsVariable {
             config: const_fri_config(&mut builder, machine.config().pcs().fri_config()),
         };
-        SP1ReduceVerifier::verify(
+        SP1CompressVerifier::verify(
             &mut builder,
             &pcs,
             machine,
@@ -98,7 +98,7 @@ where
     }
 }
 
-impl<C: Config, SC, A> SP1ReduceVerifier<C, SC, A>
+impl<C: Config, SC, A> SP1CompressVerifier<C, SC, A>
 where
     C::F: PrimeField32 + TwoAdicField,
     SC: StarkGenericConfig<
