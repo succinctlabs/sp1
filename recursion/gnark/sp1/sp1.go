@@ -12,12 +12,11 @@ import (
 )
 
 type Circuit struct {
-	VkeyHash             frontend.Variable
-	CommitedValuesDigest frontend.Variable
+	VkeyHash             frontend.Variable `gnark:",public"`
+	CommitedValuesDigest frontend.Variable `gnark:",public"`
 	Vars                 []frontend.Variable
 	Felts                []babybear_v2.Variable
 	Exts                 []babybear_v2.ExtensionVariable
-	Dummy                frontend.Variable `gnark:",public"`
 }
 
 type Constraint struct {
@@ -69,8 +68,6 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	if err != nil {
 		return fmt.Errorf("error deserializing JSON: %v", err)
 	}
-
-	api.AssertIsEqual(circuit.Dummy, 1)
 
 	hashAPI := poseidon2.NewChip(api)
 	fieldAPI := babybear_v2.NewChip(api)

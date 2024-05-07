@@ -12,7 +12,6 @@
 #![allow(clippy::too_many_arguments)]
 #![allow(clippy::new_without_default)]
 
-pub mod artifacts;
 pub mod build;
 pub mod install;
 mod types;
@@ -737,8 +736,7 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use crate::artifacts::get_groth16_artifacts_dir;
-    use crate::build::build_groth16_artifacts_from_template;
+    use crate::build::{build_groth16_artifacts, get_groth16_artifacts_dir};
 
     use super::*;
     use p3_field::PrimeField32;
@@ -815,11 +813,7 @@ mod tests {
 
         tracing::info!("generate groth16 proof");
         let artifacts_dir = get_groth16_artifacts_dir();
-        build_groth16_artifacts_from_template(
-            &prover.wrap_vk,
-            &wrapped_bn254_proof.proof,
-            &artifacts_dir,
-        );
+        build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
         let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
         println!("{:?}", groth16_proof);
     }

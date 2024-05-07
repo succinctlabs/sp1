@@ -80,8 +80,6 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Generating witness...")
 	start := time.Now()
 	assignment := sp1.NewCircuitFromWitness(witnessInput)
-	fmt.Println("PublicInputs: VkeyHash", witnessInput.VkeyHash)
-	fmt.Println("PublicInputs: CommitedValuesDigest", witnessInput.CommitedValuesDigest)
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
 	if err != nil {
 		ReturnErrorJSON(w, "generating witness", http.StatusInternalServerError)
@@ -109,7 +107,7 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Println("Verifying proof")
-	err = groth16.Verify(proof, s.vk, witnessPublic)
+	err = groth16.Verify(proof, s.vk, witnessPublic, backend.WithVerifierHashToFieldFunction(sha256.New()))
 	if err != nil {
 		ReturnErrorJSON(w, "verifying proof", http.StatusInternalServerError)
 		return

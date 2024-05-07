@@ -4,6 +4,7 @@ use anyhow::{Context, Result};
 use futures::StreamExt;
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::Client;
+pub use sp1_prover::build::{build_groth16_artifacts_with_dummy, get_groth16_artifacts_dir};
 
 /// Exports the soliditiy verifier for Groth16 proofs to the specified output directory.
 ///
@@ -11,7 +12,7 @@ use reqwest::Client;
 /// is the default) as it needs to generate an end-to-end dummy proof to export the verifier.
 pub fn export_solidity_groth16_verifier(output_dir: impl Into<PathBuf>) -> Result<()> {
     let output_dir: PathBuf = output_dir.into();
-    let artifacts_dir = sp1_prover::artifacts::get_groth16_artifacts_dir();
+    let artifacts_dir = sp1_prover::build::get_groth16_artifacts_dir();
     let verifier_path = artifacts_dir.join("Groth16Verifier.sol");
 
     if !verifier_path.exists() {

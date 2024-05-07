@@ -18,7 +18,6 @@ pub mod provers;
 pub mod utils {
     pub use sp1_core::utils::setup_logger;
 }
-pub mod solidity;
 
 use std::{env, fmt::Debug, fs::File, path::Path};
 

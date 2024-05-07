@@ -138,12 +138,11 @@ func NewCircuitFromWitness(witnessInput WitnessInput) Circuit {
 
 	// Initialize the circuit.
 	return Circuit{
+		VkeyHash:             witnessInput.VkeyHash,
+		CommitedValuesDigest: witnessInput.CommitedValuesDigest,
 		Vars:                 vars,
 		Felts:                felts,
 		Exts:                 exts,
-		VkeyHash:             witnessInput.VkeyHash,
-		CommitedValuesDigest: witnessInput.CommitedValuesDigest,
-		Dummy:                frontend.Variable(1),
 	}
 }
 

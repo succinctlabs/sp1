@@ -40,6 +40,27 @@ func BuildGroth16(buildDir string) error {
 		panic(err)
 	}
 
+	// Generate proof.
+	assignment := NewCircuitFromWitness(witnessInput)
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		panic(err)
+	}
+	proof, err := groth16.Prove(r1cs, pk, witness, backend.WithProverHashToFieldFunction(sha256.New()))
+	if err != nil {
+		panic(err)
+	}
+
+	// Verify proof.
+	publicWitness, err := witness.Public()
+	if err != nil {
+		panic(err)
+	}
+	err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
+	if err != nil {
+		panic(err)
+	}
+
 	// Create the build directory.
 	os.MkdirAll(buildDir, 0755)
 
@@ -120,7 +141,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 	}
 
 	fmt.Println("Verifying proof...")
-	err = groth16.Verify(proof, vk, publicWitness)
+	err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
 	if err != nil {
 		return err
 	}
