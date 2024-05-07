@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use clap::Parser;
 use sp1_core::utils::setup_logger;
-use sp1_prover::build::build_groth16_artifacts;
+use sp1_prover::build::build_groth16_artifacts_deprecated;
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -17,5 +17,5 @@ struct Args {
 pub fn main() {
     setup_logger();
     let args = Args::parse();
-    build_groth16_artifacts(args.build_dir);
+    build_groth16_artifacts_deprecated(args.build_dir);
 }

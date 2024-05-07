@@ -42,9 +42,9 @@ pub fn get_groth16_artifacts_dir() -> PathBuf {
 ///
 /// This may take a while as it needs to first generate a dummy proof and then it needs to compile
 /// the circuit.
-pub fn build_groth16_artifacts(build_dir: impl Into<PathBuf>) {
+pub fn build_groth16_artifacts_from_dummy(build_dir: impl Into<PathBuf>) {
     let (wrap_vk, wrapped_proof) = dummy_proof();
-    crate::build::groth16_artifacts(&wrap_vk, &wrapped_proof, build_dir.into());
+    crate::build::build_groth16_artifacts_from_template(&wrap_vk, &wrapped_proof, build_dir.into());
 }
 
 /// Returns whether the `SP1_GROTH16_DEV_MODE` environment variable is enabled or disabled.

@@ -143,6 +143,7 @@ func NewCircuitFromWitness(witnessInput WitnessInput) Circuit {
 		Exts:                 exts,
 		VkeyHash:             witnessInput.VkeyHash,
 		CommitedValuesDigest: witnessInput.CommitedValuesDigest,
+		Dummy:                frontend.Variable(1),
 	}
 }
 

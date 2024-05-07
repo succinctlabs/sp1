@@ -11,13 +11,13 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
-	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
 
 type Server struct {
@@ -94,6 +94,9 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	fmt.Printf("Proof generated in %s\n", time.Since(start))
+
+	// // DEBUG
+	// PrintProof(witness, proof, s.vk)
 
 	// Verify the proof.
 	witnessPublic, err := witness.Public()

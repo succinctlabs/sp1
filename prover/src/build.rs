@@ -16,13 +16,13 @@ use crate::{OuterSC, SP1Prover};
 
 /// Build the groth16 artifacts to the given directory for the given verification key and template
 /// proof.
-pub fn groth16_artifacts(
+pub fn build_groth16_artifacts_from_template(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     wrapped_proof: &ShardProof<OuterSC>,
-    build_dir: PathBuf,
+    build_dir: impl Into<PathBuf>,
 ) {
-    let (constraints, witness) = build_constraints(wrap_vk, wrapped_proof);
-    Groth16Prover::build(constraints, witness, build_dir);
+    let (constraints, witness) = build_constraints_from_template(wrap_vk, wrapped_proof);
+    Groth16Prover::build(constraints, witness, build_dir.into());
 }
 
 /// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
@@ -54,7 +54,7 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
 }
 
 /// Build the verifier constraints and template witness for the circuit.
-pub fn build_constraints(
+pub fn build_constraints_from_template(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     wrapped_proof: &ShardProof<OuterSC>,
 ) -> (Vec<Constraint>, Witness<OuterConfig>) {
@@ -86,11 +86,11 @@ fn mkdirs(dir: &PathBuf) {
 }
 
 /// Build the groth16 circuit artifacts.
-pub fn build_groth16_artifacts(build_dir: PathBuf) {
+pub fn build_groth16_artifacts_deprecated(build_dir: PathBuf) {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     let (wrap_vk, wrapped_proof) = dummy_proof();
-    let (constraints, witness) = build_constraints(&wrap_vk, &wrapped_proof);
+    let (constraints, witness) = build_constraints_from_template(&wrap_vk, &wrapped_proof);
 
     mkdirs(&build_dir);
 
@@ -107,7 +107,7 @@ pub fn build_plonk_artifacts(build_dir: PathBuf) {
     std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
 
     let (wrap_vk, wrapped_proof) = dummy_proof();
-    let (constraints, witness) = build_constraints(&wrap_vk, &wrapped_proof);
+    let (constraints, witness) = build_constraints_from_template(&wrap_vk, &wrapped_proof);
 
     mkdirs(&build_dir);
 
