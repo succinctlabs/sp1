@@ -55,8 +55,8 @@ func (s *Server) healthz(w http.ResponseWriter, r *http.Request) {
 	ReturnJSON(w, "OK", http.StatusOK)
 }
 
-// handleGroth16Prove accepts a POST request with a JSON body containing the witness and returns a JSON
-// body containing the proof using the Groth16 circuit loaded for the server.
+// handleGroth16Prove accepts a POST request to the gnark server with a JSON body containing the
+// witness and returns a JSON body containing the proof using the Groth16 circuit.
 func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	var witnessInput sp1.WitnessInput
 	err := json.NewDecoder(r.Body).Decode(&witnessInput)
@@ -65,6 +65,7 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Prove, verify and serialize the proof.
 	groth16Proof, err := sp1.ProveVerifyAndSerializeGroth16(witnessInput, s.r1cs, s.pk, s.vk)
 	if err != nil {
 		ReturnErrorJSON(w, "generating proof", http.StatusInternalServerError)
