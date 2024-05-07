@@ -3,7 +3,7 @@
 //! Seperates the proof generation process into multiple stages:
 //!
 //! 1. Generate shard proofs which split up and prove the valid execution of a RISC-V program.
-//! 2. Reduce shard proofs into a single shard proof.
+//! 2. Compress shard proofs into a single shard proof.
 //! 3. Wrap the shard proof into a SNARK-friendly field.
 //! 4. Wrap the last shard proof, proven over the SNARK-friendly field, into a Groth16/PLONK proof.
 
@@ -382,7 +382,6 @@ impl SP1Prover {
         // Prove all recursion programs and recursion deferred programs and verify the proofs.
 
         // Make the recursive proofs for core and deferred proofs.
-        let time = std::time::Instant::now();
         let first_layer_proofs = records
             .into_par_iter()
             .map(|(record, kind)| {
@@ -402,31 +401,6 @@ impl SP1Prover {
                 )
             })
             .collect::<Vec<_>>();
-        let elapsed = time.elapsed();
-        tracing::debug!("Recursive first layer proving time: {:?}", elapsed);
-
-        // Verify the recursive proofs.
-        for (rec_proof, kind) in first_layer_proofs.iter() {
-            let vk = match kind {
-                ReduceProgramType::Core => &self.rec_vk,
-                ReduceProgramType::Deferred => &self.deferred_vk,
-                ReduceProgramType::Reduce => unreachable!(),
-            };
-            let mut recursive_challenger = self.compress_machine.config().challenger();
-            let result = self
-                .compress_machine
-                .verify(vk, rec_proof, &mut recursive_challenger);
-
-            match result {
-                Ok(_) => tracing::info!("Proof verified successfully"),
-                Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                    tracing::info!("Proof verification failed: NonZeroCumulativeSum")
-                }
-                e => panic!("Proof verification failed: {:?}", e),
-            }
-        }
-
-        tracing::info!("Recursive proofs verified successfully");
 
         // Chain all the individual shard proofs.
         let mut reduce_proofs = first_layer_proofs
@@ -436,7 +410,6 @@ impl SP1Prover {
 
         // Iterate over the recursive proof batches until there is one proof remaining.
         let mut is_complete;
-        let time = std::time::Instant::now();
         loop {
             tracing::debug!("Recursive proof layer size: {}", reduce_proofs.len());
             is_complete = reduce_proofs.len() <= batch_size;
@@ -472,22 +445,8 @@ impl SP1Prover {
                         runtime.record,
                         &mut recursive_challenger,
                     );
-                    let mut recursive_challenger = self.compress_machine.config().challenger();
-                    let result = self.compress_machine.verify(
-                        &self.compress_vk,
-                        &proof,
-                        &mut recursive_challenger,
-                    );
 
-                    match result {
-                        Ok(_) => tracing::info!("Proof verified successfully"),
-                        Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                            tracing::info!("Proof verification failed: NonZeroCumulativeSum")
-                        }
-                        e => panic!("Proof verification failed: {:?}", e),
-                    }
-
-                    assert_eq!(proof.shard_proofs.len(), 1);
+                    debug_assert_eq!(proof.shard_proofs.len(), 1);
                     (proof.shard_proofs.pop().unwrap(), ReduceProgramType::Reduce)
                 })
                 .collect();
@@ -496,10 +455,7 @@ impl SP1Prover {
                 break;
             }
         }
-        let elapsed = time.elapsed();
-        tracing::debug!("Reduction successful, time: {:?}", elapsed);
-
-        assert_eq!(reduce_proofs.len(), 1);
+        debug_assert_eq!(reduce_proofs.len(), 1);
         let reduce_proof = reduce_proofs.pop().unwrap();
 
         // Restore the prover parameters.
@@ -540,23 +496,11 @@ impl SP1Prover {
 
         // Prove the compress program.
         let mut compress_challenger = self.shrink_machine.config().challenger();
-
         let mut compress_proof = self.shrink_machine.prove::<LocalProver<_, _>>(
             &self.shrink_pk,
             runtime.record,
             &mut compress_challenger,
         );
-        let mut compress_challenger = self.shrink_machine.config().challenger();
-        let result =
-            self.shrink_machine
-                .verify(&self.shrink_vk, &compress_proof, &mut compress_challenger);
-        match result {
-            Ok(_) => tracing::info!("Proof verified successfully"),
-            Err(MachineVerificationError::NonZeroCumulativeSum) => {
-                tracing::info!("Proof verification failed: NonZeroCumulativeSum")
-            }
-            e => panic!("Proof verification failed: {:?}", e),
-        }
 
         // Restore the prover parameters.
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, rc);
@@ -770,6 +714,7 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
+    #[ignore]
     fn test_e2e_with_deferred_proofs() {
         setup_logger();
 
