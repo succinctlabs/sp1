@@ -11,7 +11,6 @@ use super::util_air::eval_field_operation;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
-use crate::operations::field::params::limbs_from_vec;
 use typenum::Unsigned;
 
 /// Airthmetic operation for emulating modular arithmetic.

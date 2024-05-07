@@ -79,7 +79,7 @@ pub struct Uint256MulCols<T> {
     pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
     pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
-    // Columns for checking if modulus is zero. If it's zero, then we don't perform modulus.
+    // Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
     pub modulus_is_zero: IsZeroOperation<T>,
 
     // Output values. We compute (x * y) % modulus.
