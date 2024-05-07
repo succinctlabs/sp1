@@ -5,14 +5,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/pkg/errors"
 
-	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
-	"github.com/consensys/gnark/frontend"
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1"
 )
 
@@ -68,31 +65,9 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Generate the witness.
-	fmt.Println("Generating witness...")
-	start := time.Now()
-	assignment := sp1.NewCircuitFromWitness(witnessInput)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	if err != nil {
-		ReturnErrorJSON(w, "generating witness", http.StatusInternalServerError)
-		return
-	}
-	fmt.Printf("Witness generated in %s\n", time.Since(start))
-
-	// Generate the proof.
-	fmt.Println("Generating proof...")
-	start = time.Now()
-	proof, err := groth16.Prove(s.r1cs, s.pk, witness)
+	groth16Proof, err := sp1.ProveVerifyAndSerializeGroth16(witnessInput, s.r1cs, s.pk, s.vk)
 	if err != nil {
 		ReturnErrorJSON(w, "generating proof", http.StatusInternalServerError)
-		return
-	}
-	fmt.Printf("Proof generated in %s\n", time.Since(start))
-
-	// Serialize the proof to JSON.
-	groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)
-	if err != nil {
-		ReturnErrorJSON(w, "serializing proof", http.StatusInternalServerError)
 		return
 	}
 

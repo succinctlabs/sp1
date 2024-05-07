@@ -35,7 +35,7 @@ func SerializeToSolidityRepresentation(proof groth16.Proof, vkeyHash string, com
 }
 
 // Function to serialize a gnark groth16 proof to a Base-64 encoded Groth16Proof.
-func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput) (Groth16Proof, error) {
+func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput) Groth16Proof {
 	// Serialize the proof to JSON.
 	var buf bytes.Buffer
 	(*proof).WriteRawTo(&buf)
@@ -48,7 +48,7 @@ func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput)
 	return Groth16Proof{
 		PublicInputs: publicInputs,
 		EncodedProof: encodedProof,
-	}, nil
+	}
 }
 
 // Function to deserialize a hex encoded proof to a groth16.Proof.

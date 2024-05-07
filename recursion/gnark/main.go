@@ -96,7 +96,7 @@ func main() {
 		proofPath := *proveGroth16ProofPathFlag
 		os.Setenv("CONSTRAINTS_JSON", buildDir+"/constraints_groth16.json")
 
-		err := sp1.ProveGroth16(buildDir, witnessPath, proofPath)
+		err := sp1.ProveGroth16FromFile(buildDir, witnessPath, proofPath)
 		if err != nil {
 			panic(err)
 		}

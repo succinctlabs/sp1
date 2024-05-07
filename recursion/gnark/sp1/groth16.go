@@ -7,6 +7,7 @@ import (
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
@@ -24,13 +25,11 @@ func BuildGroth16(buildDir string) error {
 	circuit := NewCircuitFromWitness(witnessInput)
 
 	// Compile the circuit.
-	// p := profile.Start(profile.WithPath("sp1.pprof"))
 	builder := r1cs.NewBuilder
 	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
 	if err != nil {
 		panic(err)
 	}
-	// p.Stop()
 	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
 
 	// Run the trusted setup.
@@ -66,9 +65,34 @@ func BuildGroth16(buildDir string) error {
 	return nil
 }
 
+func ProveVerifyAndSerializeGroth16(witnessInput WitnessInput, r1cs constraint.ConstraintSystem, pk groth16.ProvingKey, vk groth16.VerifyingKey) (Groth16Proof, error) {
+	// Generate the witness.
+	assignment := NewCircuitFromWitness(witnessInput)
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		return Groth16Proof{}, err
+	}
+
+	// Generate the proof.
+	proof, err := groth16.Prove(r1cs, pk, witness)
+	if err != nil {
+		return Groth16Proof{}, err
+	}
+
+	// Verify the proof.
+	err = groth16.Verify(proof, vk, witness)
+	if err != nil {
+		return Groth16Proof{}, err
+	}
+
+	// Serialize the proof to JSON.
+	groth16Proof := SerializeGnarkGroth16Proof(&proof, witnessInput)
+	return groth16Proof, nil
+}
+
 // Generate a gnark groth16 proof for a given witness and write the proof to a file. Reads the
 // R1CS, the proving key and the verifier key from the build directory.
-func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
+func ProveGroth16FromFile(buildDir string, witnessPath string, proofPath string) error {
 	// Read the R1CS.
 	fmt.Println("Reading r1cs...")
 	r1csFile, err := os.Open(buildDir + "/circuit_groth16.bin")
@@ -96,36 +120,14 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 	vk := groth16.NewVerifyingKey(ecc.BN254)
 	vk.ReadFrom(vkFile)
 
-	// Generate the witness.
+	// Read the witness input.
 	witnessInput, err := LoadWitnessInputFromPath(witnessPath)
 	if err != nil {
 		return err
 	}
-	assignment := NewCircuitFromWitness(witnessInput)
-	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	if err != nil {
-		return err
-	}
-	publicWitness, err := witness.Public()
-	if err != nil {
-		return err
-	}
 
-	// Generate the proof.
-	fmt.Println("Generating proof...")
-	proof, err := groth16.Prove(r1cs, pk, witness)
-	if err != nil {
-		return err
-	}
-
-	fmt.Println("Verifying proof...")
-	err = groth16.Verify(proof, vk, publicWitness)
-	if err != nil {
-		return err
-	}
-
-	// Serialize the proof to JSON.
-	groth16Proof, err := SerializeGnarkGroth16Proof(&proof, witnessInput)
+	// Prove, verify and serialize the proof.
+	groth16Proof, err := ProveVerifyAndSerializeGroth16(witnessInput, r1cs, pk, vk)
 	if err != nil {
 		return err
 	}
