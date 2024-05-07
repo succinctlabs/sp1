@@ -13,7 +13,6 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/constraint"
@@ -116,13 +115,13 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	proofBytes := _proof.MarshalSolidity()
 	proofStr := hex.EncodeToString(proofBytes)
 	fmt.Println("x Proof:", proofStr)
-	bPublicWitness, err := witness.MarshalBinary()
-	if err == nil {
-		panic("public witness does not implement MarshalBinary()")
-	}
-	bPublicWitness = bPublicWitness[12:]
-	publicWitnessStr := hex.EncodeToString(bPublicWitness)
-	fmt.Println("x PublicWitness:", publicWitnessStr)
+	// bPublicWitness, err := witness.MarshalBinary()
+	// if err == nil {
+	// 	panic("public witness does not implement MarshalBinary()")
+	// }
+	// bPublicWitness = bPublicWitness[12:]
+	// publicWitnessStr := hex.EncodeToString(bPublicWitness)
+	// fmt.Println("x PublicWitness:", publicWitnessStr)
 
 	// Serialize the proof to JSON.
 	groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)
@@ -132,18 +131,18 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// convert public inputs
-	nbInputs := len(bPublicWitness) / fr.Bytes
-	if nbInputs != 2 {
-		panic("nbInputs != nbPublicInputs")
-	}
-	var input [2]*big.Int
-	for i := 0; i < nbInputs; i++ {
-		var e fr.Element
-		e.SetBytes(bPublicWitness[fr.Bytes*i : fr.Bytes*(i+1)])
-		input[i] = new(big.Int)
-		e.BigInt(input[i])
-	}
-	fmt.Println("x input:", input)
+	// nbInputs := len(bPublicWitness) / fr.Bytes
+	// if nbInputs != 2 {
+	// 	panic("nbInputs != nbPublicInputs")
+	// }
+	// var input [2]*big.Int
+	// for i := 0; i < nbInputs; i++ {
+	// 	var e fr.Element
+	// 	e.SetBytes(bPublicWitness[fr.Bytes*i : fr.Bytes*(i+1)])
+	// 	input[i] = new(big.Int)
+	// 	e.BigInt(input[i])
+	// }
+	// fmt.Println("x input:", input)
 
 	fpSize := 4 * 8
 

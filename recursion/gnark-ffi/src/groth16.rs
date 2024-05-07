@@ -185,7 +185,7 @@ impl Groth16Prover {
         let result = Command::new("go")
             .args([
                 "test",
-                "-tags=prover_checks",
+                "-tags=release_checks",
                 "-v",
                 "-timeout",
                 "100000s",
