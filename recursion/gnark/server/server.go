@@ -116,7 +116,7 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	proofBytes := _proof.MarshalSolidity()
 	proofStr := hex.EncodeToString(proofBytes)
 	fmt.Println("x Proof:", proofStr)
-	bPublicWitness, err := witnessPublic.MarshalBinary()
+	bPublicWitness, err := witness.MarshalBinary()
 	if err == nil {
 		panic("public witness does not implement MarshalBinary()")
 	}
