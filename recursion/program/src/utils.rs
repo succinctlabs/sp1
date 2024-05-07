@@ -191,10 +191,8 @@ pub fn get_challenger_public_values<C: Config>(
 pub fn hash_vkey<C: Config>(
     builder: &mut Builder<C>,
     vk: &VerifyingKeyVariable<C>,
-    prep_domains: &Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
-    prep_sorted_indices: &Array<C, Var<C::N>>,
 ) -> Array<C, Felt<C::F>> {
-    let domain_slots: Var<_> = builder.eval(prep_domains.len() * 4);
+    let domain_slots: Var<_> = builder.eval(vk.prep_domains.len() * 4);
     let vkey_slots: Var<_> = builder.constant(C::N::from_canonical_usize(DIGEST_SIZE + 1));
     let total_slots: Var<_> = builder.eval(vkey_slots + domain_slots);
     let mut inputs = builder.dyn_array(total_slots);
@@ -205,20 +203,22 @@ pub fn hash_vkey<C: Config>(
     builder.set(&mut inputs, DIGEST_SIZE, vk.pc_start);
     let four: Var<_> = builder.constant(C::N::from_canonical_usize(4));
     let one: Var<_> = builder.constant(C::N::one());
-    builder.range(0, prep_domains.len()).for_each(|i, builder| {
-        let sorted_index = builder.get(prep_sorted_indices, i);
-        let domain = builder.get(prep_domains, i);
-        let log_n_index: Var<_> = builder.eval(vkey_slots + sorted_index * four);
-        let size_index: Var<_> = builder.eval(log_n_index + one);
-        let shift_index: Var<_> = builder.eval(size_index + one);
-        let g_index: Var<_> = builder.eval(shift_index + one);
-        let log_n_felt = var2felt(builder, domain.log_n);
-        let size_felt = var2felt(builder, domain.size);
-        builder.set(&mut inputs, log_n_index, log_n_felt);
-        builder.set(&mut inputs, size_index, size_felt);
-        builder.set(&mut inputs, shift_index, domain.shift);
-        builder.set(&mut inputs, g_index, domain.g);
-    });
+    builder
+        .range(0, vk.prep_domains.len())
+        .for_each(|i, builder| {
+            let sorted_index = builder.get(&vk.preprocessed_sorted_idxs, i);
+            let domain = builder.get(&vk.prep_domains, i);
+            let log_n_index: Var<_> = builder.eval(vkey_slots + sorted_index * four);
+            let size_index: Var<_> = builder.eval(log_n_index + one);
+            let shift_index: Var<_> = builder.eval(size_index + one);
+            let g_index: Var<_> = builder.eval(shift_index + one);
+            let log_n_felt = var2felt(builder, domain.log_n);
+            let size_felt = var2felt(builder, domain.size);
+            builder.set(&mut inputs, log_n_index, log_n_felt);
+            builder.set(&mut inputs, size_index, size_felt);
+            builder.set(&mut inputs, shift_index, domain.shift);
+            builder.set(&mut inputs, g_index, domain.g);
+        });
     builder.poseidon2_hash(&inputs)
 }
 

@@ -50,7 +50,7 @@ use crate::fri::TwoAdicMultiplicativeCosetVariable;
 use crate::hints::Hintable;
 use crate::stark::{RecursiveVerifierConstraintFolder, StarkVerifier};
 use crate::types::ShardProofVariable;
-use crate::types::{QuotientData, VerifyingKeyVariable};
+use crate::types::VerifyingKeyVariable;
 use crate::utils::{
     assert_challenger_eq_pv, assign_challenger_from_pv, const_fri_config, felt2var,
     get_challenger_public_values, get_preprocessed_data, hash_vkey, var2felt,
@@ -147,11 +147,6 @@ pub struct SP1RecursionMemoryLayoutVariable<C: Config> {
     pub vk: VerifyingKeyVariable<C>,
 
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
-    pub shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
-    pub shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
-
-    pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
-    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 
     pub leaf_challenger: DuplexChallengerVariable<C>,
     pub initial_reconstruct_challenger: DuplexChallengerVariable<C>,
@@ -164,19 +159,12 @@ pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
     pub reduce_vk: VerifyingKeyVariable<C>,
 
     pub proofs: Array<C, ShardProofVariable<C>>,
-    pub proof_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
-    pub proof_sorted_indices: Array<C, Array<C, Var<C::N>>>,
-
-    pub reduce_prep_sorted_idxs: Array<C, Var<C::N>>,
-    pub reduce_prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 
     pub start_reconstruct_deferred_digest: Array<C, Felt<C::F>>,
 
     pub is_complete: Var<C::N>,
 
     pub sp1_vk: VerifyingKeyVariable<C>,
-    pub sp1_prep_sorted_idxs: Array<C, Var<C::N>>,
-    pub sp1_prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
     pub committed_value_digest: Array<C, Array<C, Felt<C::F>>>,
     pub deferred_proofs_digest: Array<C, Felt<C::F>>,
     pub leaf_challenger: DuplexChallengerVariable<C>,
@@ -187,14 +175,7 @@ pub struct SP1DeferredMemoryLayoutVariable<C: Config> {
 #[derive(DslVariable, Clone)]
 pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
     pub reduce_vk: VerifyingKeyVariable<C>,
-
-    pub reduce_prep_sorted_idxs: Array<C, Var<C::N>>,
-    pub reduce_prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
-
     pub shard_proofs: Array<C, ShardProofVariable<C>>,
-    pub shard_chip_quotient_data: Array<C, Array<C, QuotientData<C>>>,
-    pub shard_sorted_indices: Array<C, Array<C, Var<C::N>>>,
-
     pub kinds: Array<C, Var<C::N>>,
     pub is_complete: Var<C::N>,
 }
@@ -202,8 +183,6 @@ pub struct SP1ReduceMemoryLayoutVariable<C: Config> {
 #[derive(DslVariable, Clone)]
 pub struct SP1RootMemoryLayoutVariable<C: Config> {
     pub proof: ShardProofVariable<C>,
-    pub chip_quotient_data: Array<C, QuotientData<C>>,
-    pub sorted_indices: Array<C, Var<C::N>>,
     pub is_reduce: Var<C::N>,
 }
 
@@ -379,11 +358,7 @@ fn proof_data_from_vk<C: Config, SC, A>(
     builder: &mut Builder<C>,
     vk: &StarkVerifyingKey<SC>,
     machine: &StarkMachine<SC, A>,
-) -> (
-    VerifyingKeyVariable<C>,
-    Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
-    Array<C, Var<C::N>>,
-)
+) -> VerifyingKeyVariable<C>
 where
     SC: StarkGenericConfig<
         Val = C::F,
@@ -398,11 +373,6 @@ where
         builder.set(&mut commitment, i, *value);
     }
     let pc_start: Felt<_> = builder.eval(vk.pc_start);
-
-    let vk_variable = VerifyingKeyVariable {
-        commitment,
-        pc_start,
-    };
 
     let (prep_sorted_indices_val, prep_domains_val) = get_preprocessed_data(machine, vk);
 
@@ -423,7 +393,12 @@ where
         builder.set(&mut prep_domains, i, domain);
     }
 
-    (vk_variable, prep_domains, prep_sorted_indices)
+    VerifyingKeyVariable {
+        commitment,
+        pc_start,
+        preprocessed_sorted_idxs: prep_sorted_indices,
+        prep_domains,
+    }
 }
 
 impl<C: Config, SC, A> SP1RootVerifier<C, SC, A>
@@ -449,14 +424,9 @@ where
         input: &SP1RootMemoryLayoutVariable<C>,
     ) {
         // Get the verifying key info from the vk.
-        let (vk, prep_domains, prep_sorted_indices) = proof_data_from_vk(builder, vk, machine);
+        let vk = proof_data_from_vk(builder, vk, machine);
 
-        let SP1RootMemoryLayoutVariable {
-            proof,
-            chip_quotient_data,
-            sorted_indices,
-            is_reduce,
-        } = input;
+        let SP1RootMemoryLayoutVariable { proof, is_reduce } = input;
 
         // Get the public inputs from the proof.
         let public_values_elements = (0..RECURSIVE_PROOF_NUM_PV_ELTS)
@@ -475,7 +445,7 @@ where
         // If the proof is a reduce proof, assert that the vk is the same as the reduce vk from the
         // public values.
         builder.if_eq(*is_reduce, C::N::one()).then(|builder| {
-            let vk_digest = hash_vkey(builder, &vk, &prep_domains, &prep_sorted_indices);
+            let vk_digest = hash_vkey(builder, &vk);
             for (i, reduce_digest_elem) in public_values.reduce_vk_digest.iter().enumerate() {
                 let vk_digest_elem = builder.get(&vk_digest, i);
                 builder.assert_felt_eq(vk_digest_elem, *reduce_digest_elem);
@@ -494,18 +464,7 @@ where
             challenger.observe(builder, element);
         }
         // verify proof.
-        StarkVerifier::<C, SC>::verify_shard(
-            builder,
-            &vk,
-            pcs,
-            machine,
-            &mut challenger,
-            proof,
-            chip_quotient_data,
-            sorted_indices,
-            &prep_sorted_indices,
-            &prep_domains,
-        );
+        StarkVerifier::<C, SC>::verify_shard(builder, &vk, pcs, machine, &mut challenger, proof);
 
         // Commit to the public values, broadcasting the same ones.
         for value in public_values_elements {
@@ -536,11 +495,7 @@ where
     ) {
         let SP1ReduceMemoryLayoutVariable {
             reduce_vk,
-            reduce_prep_sorted_idxs,
-            reduce_prep_domains,
             shard_proofs,
-            shard_chip_quotient_data,
-            shard_sorted_indices,
             kinds,
             is_complete,
         } = input;
@@ -555,12 +510,7 @@ where
             reduce_public_values_stream.as_mut_slice().borrow_mut();
 
         // Compute the digest of reduce_vk and input the value to the public values.
-        let reduce_vk_digest = hash_vkey(
-            builder,
-            &reduce_vk,
-            &reduce_prep_domains,
-            &reduce_prep_sorted_idxs,
-        );
+        let reduce_vk_digest = hash_vkey(builder, &reduce_vk);
 
         reduce_public_values.reduce_vk_digest =
             array::from_fn(|i| builder.get(&reduce_vk_digest, i));
@@ -586,10 +536,8 @@ where
         let cumulative_sum: [Felt<_>; D] = core::array::from_fn(|_| builder.eval(C::F::zero()));
 
         // Collect verifying keys for each kind of program.
-        let (recursive_vk_variable, rec_rep_domains, rec_prep_sorted_indices) =
-            proof_data_from_vk(builder, recursive_vk, machine);
-        let (deferred_vk_variable, def_rep_domains, def_prep_sorted_indices) =
-            proof_data_from_vk(builder, deferred_vk, machine);
+        let recursive_vk_variable = proof_data_from_vk(builder, recursive_vk, machine);
+        let deferred_vk_variable = proof_data_from_vk(builder, deferred_vk, machine);
 
         // Get field values for the proof kind.
         let core_kind = C::N::from_canonical_u32(ReduceProgramType::Core as u32);
@@ -761,34 +709,21 @@ where
 
             // Initialize values for verifying key and proof data.
             let vk: VerifyingKeyVariable<_> = builder.uninit();
-            let prep_domains: Array<_, TwoAdicMultiplicativeCosetVariable<_>> = builder.uninit();
-            let prep_sorted_idxs: Array<_, Var<_>> = builder.uninit();
             // Set the correct value given the value of kind, and assert it must be one of the
             // valid values. We can do that by nested `if-else` statements.
             builder.if_eq(kind, core_kind).then_or_else(
                 |builder| {
                     builder.assign(vk.clone(), recursive_vk_variable.clone());
-                    builder.assign(prep_domains.clone(), rec_rep_domains.clone());
-                    builder.assign(prep_sorted_idxs.clone(), rec_prep_sorted_indices.clone());
                 },
                 |builder| {
                     builder.if_eq(kind, deferred_kind).then_or_else(
                         |builder| {
                             builder.assign(vk.clone(), deferred_vk_variable.clone());
-                            builder.assign(prep_domains.clone(), def_rep_domains.clone());
-                            builder
-                                .assign(prep_sorted_idxs.clone(), def_prep_sorted_indices.clone());
                         },
                         |builder| {
                             builder.if_eq(kind, reduce_kind).then_or_else(
                                 |builder| {
                                     builder.assign(vk.clone(), reduce_vk.clone());
-                                    builder
-                                        .assign(prep_domains.clone(), reduce_prep_domains.clone());
-                                    builder.assign(
-                                        prep_sorted_idxs.clone(),
-                                        reduce_prep_sorted_idxs.clone(),
-                                    );
                                 },
                                 |builder| {
                                     // If the kind is not one of the valid values, raise
@@ -802,8 +737,6 @@ where
             );
 
             // Verify the shard proof given the correct data.
-            let chip_quotient_data = builder.get(&shard_chip_quotient_data, i);
-            let chip_sorted_idxs = builder.get(&shard_sorted_indices, i);
 
             // Prepare a challenger.
             let mut challenger = DuplexChallengerVariable::new(builder);
@@ -824,10 +757,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                &chip_quotient_data,
-                &chip_sorted_idxs,
-                &prep_sorted_idxs,
-                &prep_domains,
             );
             // Update the accumulated values.
 
@@ -926,10 +855,6 @@ where
         let SP1RecursionMemoryLayoutVariable {
             vk,
             shard_proofs,
-            shard_chip_quotient_data,
-            shard_sorted_indices,
-            preprocessed_sorted_idxs,
-            prep_domains,
             leaf_challenger,
             initial_reconstruct_challenger,
             is_complete,
@@ -1064,8 +989,6 @@ where
             }
 
             // Verify the shard proof.
-            let chip_quotient_data = builder.get(&shard_chip_quotient_data, i);
-            let chip_sorted_idxs = builder.get(&shard_sorted_indices, i);
 
             let mut challenger = leaf_challenger.copy(builder);
             StarkVerifier::<C, SC>::verify_shard(
@@ -1075,10 +998,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                &chip_quotient_data,
-                &chip_sorted_idxs,
-                &preprocessed_sorted_idxs,
-                &prep_domains,
             );
 
             // Update the reconstruct challenger, cumulative sum, shard number, and program counter.
@@ -1106,7 +1025,7 @@ where
         });
 
         // Compute vk digest.
-        let vk_digest = hash_vkey(builder, &vk, &prep_domains, &preprocessed_sorted_idxs);
+        let vk_digest = hash_vkey(builder, &vk);
         let vk_digest: [Felt<_>; DIGEST_SIZE] = array::from_fn(|i| builder.get(&vk_digest, i));
 
         // Collect values for challenges.
@@ -1182,16 +1101,10 @@ where
         let SP1DeferredMemoryLayoutVariable {
             reduce_vk,
             proofs,
-            proof_chip_quotient_data,
-            proof_sorted_indices,
-            reduce_prep_sorted_idxs,
-            reduce_prep_domains,
             start_reconstruct_deferred_digest,
             is_complete,
 
             sp1_vk,
-            sp1_prep_sorted_idxs,
-            sp1_prep_domains,
             committed_value_digest,
             deferred_proofs_digest,
             leaf_challenger,
@@ -1208,12 +1121,7 @@ where
             deferred_public_values_stream.as_mut_slice().borrow_mut();
 
         // Compute the digest of reduce_vk and input the value to the public values.
-        let reduce_vk_digest = hash_vkey(
-            builder,
-            &reduce_vk,
-            &reduce_prep_domains,
-            &reduce_prep_sorted_idxs,
-        );
+        let reduce_vk_digest = hash_vkey(builder, &reduce_vk);
 
         deferred_public_values.reduce_vk_digest =
             array::from_fn(|i| builder.get(&reduce_vk_digest, i));
@@ -1261,9 +1169,6 @@ where
 
             // Verify the shard proof.
 
-            // Get the chip quotient data and sorted indices.
-            let chip_quotient_data = builder.get(&proof_chip_quotient_data, i);
-            let chip_sorted_idxs = builder.get(&proof_sorted_indices, i);
             // Prepare a challenger.
             let mut challenger = DuplexChallengerVariable::new(builder);
             // Observe the vk and start pc.
@@ -1283,10 +1188,6 @@ where
                 machine,
                 &mut challenger,
                 &proof,
-                &chip_quotient_data,
-                &chip_sorted_idxs,
-                &reduce_prep_sorted_idxs,
-                &reduce_prep_domains,
             );
 
             // Update deferred proof digest
@@ -1329,7 +1230,7 @@ where
         deferred_public_values.next_shard = end_shard;
 
         // Set the sp1_vk_digest to be the hitned value.
-        let sp1_vk_digest = hash_vkey(builder, &sp1_vk, &sp1_prep_domains, &sp1_prep_sorted_idxs);
+        let sp1_vk_digest = hash_vkey(builder, &sp1_vk);
         deferred_public_values.sp1_vk_digest = array::from_fn(|i| builder.get(&sp1_vk_digest, i));
 
         // Set the committed value digest to be the hitned value.

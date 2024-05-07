@@ -7,6 +7,7 @@ use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, 
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use crate::fri::types::DigestVariable;
+use crate::types::VerifyingKeyVariable;
 
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
@@ -260,6 +261,21 @@ impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVar
     }
 
     fn observe_slice(&mut self, _builder: &mut Builder<C>, _values: Array<C, DigestVariable<C>>) {
+        todo!()
+    }
+}
+
+impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallengerVariable<C> {
+    fn observe(&mut self, builder: &mut Builder<C>, value: VerifyingKeyVariable<C>) {
+        self.observe_commitment(builder, value.commitment);
+        self.observe(builder, value.pc_start)
+    }
+
+    fn observe_slice(
+        &mut self,
+        _builder: &mut Builder<C>,
+        _values: Array<C, VerifyingKeyVariable<C>>,
+    ) {
         todo!()
     }
 }
