@@ -46,11 +46,16 @@ func BuildGroth16(buildDir string) error {
 	// Write the R1CS.
 	WriteToFile(buildDir+"/circuit_groth16.bin", r1cs)
 
-	// Write the proving key.
-	WriteToFile(buildDir+"/pk_groth16.bin", pk)
-
 	// Write the verifier key.
 	WriteToFile(buildDir+"/vk_groth16.bin", vk)
+
+	// Write the proving key.
+	pkFile, err := os.Create(buildDir + "/pk_groth16.bin")
+	if err != nil {
+		return err
+	}
+	defer pkFile.Close()
+	pk.WriteDump(pkFile)
 
 	// Write the solidity verifier.
 	solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")
@@ -80,7 +85,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 		return err
 	}
 	pk := groth16.NewProvingKey(ecc.BN254)
-	pk.ReadFrom(pkFile)
+	pk.ReadDump(pkFile)
 
 	// Read the verifier key.
 	fmt.Println("Reading vk...")

@@ -266,7 +266,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     ///
     /// Given a proving key `pk` and a matching execution record `record`, this function generates
     /// a STARK proof that the execution record is valid.
-    #[instrument("prove", level = "info", skip_all)]
     pub fn prove<P: Prover<SC, A>>(
         &self,
         pk: &StarkProvingKey<SC>,
@@ -279,10 +278,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             + for<'a> Air<VerifierConstraintFolder<'a, SC>>
             + for<'a> Air<DebugConstraintBuilder<'a, Val<SC>, SC::Challenge>>,
     {
-        let shards = tracing::info_span!("shard execution record")
+        let shards = tracing::info_span!("shard_record")
             .in_scope(|| self.shard(record, &<A::Record as MachineRecord>::Config::default()));
 
-        tracing::info_span!("generate shard proofs")
+        tracing::info_span!("prove_shards")
             .in_scope(|| P::prove_shards(self, pk, shards, challenger))
     }
 
@@ -297,7 +296,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
         vk: &StarkVerifyingKey<SC>,
         proof: &MachineProof<SC>,
         challenger: &mut SC::Challenger,
-    ) -> Result<(), ProgramVerificationError<SC>>
+    ) -> Result<(), MachineVerificationError<SC>>
     where
         SC::Challenger: Clone,
         A: for<'a> Air<VerifierConstraintFolder<'a, SC>>,
@@ -313,7 +312,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Verify the shard proofs.
         if proof.shard_proofs.is_empty() {
-            return Err(ProgramVerificationError::EmptyProof);
+            return Err(MachineVerificationError::EmptyProof);
         }
 
         tracing::debug_span!("verify shard proofs").in_scope(|| {
@@ -329,7 +328,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
                         &mut challenger.clone(),
                         shard_proof,
                     )
-                    .map_err(ProgramVerificationError::InvalidSegmentProof)
+                    .map_err(MachineVerificationError::InvalidSegmentProof)
                 })?;
             }
 
@@ -344,7 +343,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
             }
             match sum.is_zero() {
                 true => Ok(()),
-                false => Err(ProgramVerificationError::NonZeroCumulativeSum),
+                false => Err(MachineVerificationError::NonZeroCumulativeSum),
             }
         })
     }
@@ -462,7 +461,7 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
     }
 }
 
-pub enum ProgramVerificationError<SC: StarkGenericConfig> {
+pub enum MachineVerificationError<SC: StarkGenericConfig> {
     InvalidSegmentProof(VerificationError<SC>),
     InvalidGlobalProof(VerificationError<SC>),
     NonZeroCumulativeSum,
@@ -472,41 +471,41 @@ pub enum ProgramVerificationError<SC: StarkGenericConfig> {
     InvalidPublicValues(&'static str),
 }
 
-impl<SC: StarkGenericConfig> Debug for ProgramVerificationError<SC> {
+impl<SC: StarkGenericConfig> Debug for MachineVerificationError<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            ProgramVerificationError::InvalidSegmentProof(e) => {
+            MachineVerificationError::InvalidSegmentProof(e) => {
                 write!(f, "Invalid segment proof: {:?}", e)
             }
-            ProgramVerificationError::InvalidGlobalProof(e) => {
+            MachineVerificationError::InvalidGlobalProof(e) => {
                 write!(f, "Invalid global proof: {:?}", e)
             }
-            ProgramVerificationError::NonZeroCumulativeSum => {
+            MachineVerificationError::NonZeroCumulativeSum => {
                 write!(f, "Non-zero cumulative sum")
             }
-            ProgramVerificationError::InvalidPublicValuesDigest => {
+            MachineVerificationError::InvalidPublicValuesDigest => {
                 write!(f, "Invalid public values digest")
             }
-            ProgramVerificationError::EmptyProof => {
+            MachineVerificationError::EmptyProof => {
                 write!(f, "Empty proof")
             }
-            ProgramVerificationError::DebugInteractionsFailed => {
+            MachineVerificationError::DebugInteractionsFailed => {
                 write!(f, "Debug interactions failed")
             }
-            ProgramVerificationError::InvalidPublicValues(s) => {
+            MachineVerificationError::InvalidPublicValues(s) => {
                 write!(f, "Invalid public values: {}", s)
             }
         }
     }
 }
 
-impl<SC: StarkGenericConfig> std::fmt::Display for ProgramVerificationError<SC> {
+impl<SC: StarkGenericConfig> std::fmt::Display for MachineVerificationError<SC> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         Debug::fmt(self, f)
     }
 }
 
-impl<SC: StarkGenericConfig> std::error::Error for ProgramVerificationError<SC> {}
+impl<SC: StarkGenericConfig> std::error::Error for MachineVerificationError<SC> {}
 
 #[cfg(test)]
 #[allow(non_snake_case)]

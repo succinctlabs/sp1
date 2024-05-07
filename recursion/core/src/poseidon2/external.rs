@@ -95,6 +95,7 @@ impl Poseidon2Chip {
             .assert_eq(local.clk + AB::F::from_canonical_usize(1), next.clk);
     }
 
+    #[allow(unused)]
     fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
         &self,
         builder: &mut AB,

@@ -292,6 +292,7 @@ pub fn build_wrap_circuit(
             .unwrap();
     let pv_committed_values_digest: Var<_> =
         babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
+
     // Committed values digest must match the witnessed one that we are committing to.
     builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
 

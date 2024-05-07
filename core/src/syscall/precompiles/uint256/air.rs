@@ -1,6 +1,23 @@
+use crate::air::{BaseAirBuilder, MachineAir, Polynomial, SP1AirBuilder, WORD_SIZE};
+use crate::bytes::event::ByteRecord;
+use crate::memory::{value_as_limbs, MemoryReadCols, MemoryWriteCols};
+use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
+use crate::operations::field::params::NumWords;
+use crate::operations::field::params::{Limbs, NumLimbs};
+use crate::operations::IsZeroOperation;
+use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
+use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
+use crate::stark::MachineRecord;
+use crate::syscall::precompiles::SyscallContext;
+use crate::utils::ec::uint256::U256Field;
+use crate::utils::{
+    bytes_to_words_le, limbs_from_access, limbs_from_prev_access, pad_rows, words_to_bytes_le,
+    words_to_bytes_le_vec,
+};
+use generic_array::GenericArray;
 use num::Zero;
 use num::{BigUint, One};
-use p3_air::{Air, AirBuilder, BaseAir};
+use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
@@ -9,44 +26,23 @@ use serde::{Deserialize, Serialize};
 use sp1_derive::AlignedBorrow;
 use std::borrow::{Borrow, BorrowMut};
 use std::mem::size_of;
-
-use crate::air::{MachineAir, Polynomial, SP1AirBuilder};
-use crate::bytes::event::ByteRecord;
-use crate::memory::MemoryCols;
-use crate::memory::{MemoryReadCols, MemoryWriteCols};
-use crate::operations::field::field_op::{FieldOpCols, FieldOperation};
-use crate::operations::field::params::FieldParameters;
-use crate::operations::field::params::{Limbs, NumLimbs};
-use crate::runtime::{ExecutionRecord, Program, Syscall, SyscallCode};
-use crate::runtime::{MemoryReadRecord, MemoryWriteRecord};
-use crate::stark::MachineRecord;
-use crate::syscall::precompiles::SyscallContext;
-use crate::utils::ec::uint256::U256Field;
-use crate::utils::{bytes_to_words_le, pad_rows, words_to_bytes_le};
+use typenum::Unsigned;
 
 /// The number of columns in the Uint256MulCols.
 const NUM_COLS: usize = size_of::<Uint256MulCols<u8>>();
-
-/// The number of limbs it takes to represent a U256.
-///
-/// Note: this differs from what's in U256Field because we need 33 limbs to encode the modulus.
-const NUM_PHYSICAL_LIMBS: usize = 32;
-
-/// The number of words it takes to represent a U256.
-///
-/// Note: this differs from what's in U256Field because we need 33 limbs to encode the modulus.
-const NUM_PHYSICAL_WORDS: usize = NUM_PHYSICAL_LIMBS / 4;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Uint256MulEvent {
     pub shard: u32,
     pub clk: u32,
     pub x_ptr: u32,
-    pub x: [u32; NUM_PHYSICAL_WORDS],
+    pub x: Vec<u32>,
     pub y_ptr: u32,
-    pub y: [u32; NUM_PHYSICAL_WORDS],
-    pub x_memory_records: [MemoryWriteRecord; NUM_PHYSICAL_WORDS],
-    pub y_memory_records: [MemoryReadRecord; NUM_PHYSICAL_WORDS],
+    pub y: Vec<u32>,
+    pub modulus: Vec<u32>,
+    pub x_memory_records: Vec<MemoryWriteRecord>,
+    pub y_memory_records: Vec<MemoryReadRecord>,
+    pub modulus_memory_records: Vec<MemoryReadRecord>,
 }
 
 #[derive(Default)]
@@ -57,6 +53,9 @@ impl Uint256MulChip {
         Self
     }
 }
+
+type WordsFieldElement = <U256Field as NumWords>::WordsFieldElement;
+const WORDS_FIELD_ELEMENT: usize = WordsFieldElement::USIZE;
 
 /// A set of columns for the Uint256Mul operation.
 #[derive(Debug, Clone, AlignedBorrow)]
@@ -71,14 +70,19 @@ pub struct Uint256MulCols<T> {
     /// The pointer to the first input.
     pub x_ptr: T,
 
-    /// The pointer to the second input..
+    /// The pointer to the second input, which contains the y value and the modulus.
     pub y_ptr: T,
 
     // Memory columns.
-    pub x_memory: [MemoryWriteCols<T>; NUM_PHYSICAL_WORDS],
-    pub y_memory: [MemoryReadCols<T>; NUM_PHYSICAL_WORDS],
+    // x_memory is written to with the result, which is why it is of type MemoryWriteCols.
+    pub x_memory: GenericArray<MemoryWriteCols<T>, WordsFieldElement>,
+    pub y_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
+    pub modulus_memory: GenericArray<MemoryReadCols<T>, WordsFieldElement>,
 
-    // Output values.
+    // Columns for checking if modulus is zero. If it's zero, then use 2^256 as the effective modulus.
+    pub modulus_is_zero: IsZeroOperation<T>,
+
+    // Output values. We compute (x * y) % modulus.
     pub output: FieldOpCols<T, U256Field>,
 
     pub is_real: T,
@@ -89,7 +93,7 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
     type Program = Program;
 
     fn name(&self) -> String {
-        "Uint256Mul".to_string()
+        "Uint256MulMod".to_string()
     }
 
     fn generate_trace(
@@ -111,41 +115,48 @@ impl<F: PrimeField32> MachineAir<F> for Uint256MulChip {
                         let mut row: [F; NUM_COLS] = [F::zero(); NUM_COLS];
                         let cols: &mut Uint256MulCols<F> = row.as_mut_slice().borrow_mut();
 
-                        // // Decode uint256 points
+                        // Decode uint256 points
                         let x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.x));
                         let y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.y));
+                        let modulus =
+                            BigUint::from_bytes_le(&words_to_bytes_le::<32>(&event.modulus));
 
-                        // // Assign basic values to the columns.
-                        // {
+                        // Assign basic values to the columns.
                         cols.is_real = F::one();
                         cols.shard = F::from_canonical_u32(event.shard);
                         cols.clk = F::from_canonical_u32(event.clk);
                         cols.x_ptr = F::from_canonical_u32(event.x_ptr);
                         cols.y_ptr = F::from_canonical_u32(event.y_ptr);
-                        // }
 
-                        // Memory columns.
-                        {
-                            // Populate the columns with the input values.
-                            for i in 0..8 {
-                                // Populate the input_x columns.
-                                cols.x_memory[i].populate(
-                                    event.x_memory_records[i],
-                                    &mut new_byte_lookup_events,
-                                );
-                                // Populate the input_y columns.
-                                cols.y_memory[i].populate(
-                                    event.y_memory_records[i],
-                                    &mut new_byte_lookup_events,
-                                );
-                            }
+                        // Populate memory columns.
+                        for i in 0..WORDS_FIELD_ELEMENT {
+                            cols.x_memory[i]
+                                .populate(event.x_memory_records[i], &mut new_byte_lookup_events);
+                            cols.y_memory[i]
+                                .populate(event.y_memory_records[i], &mut new_byte_lookup_events);
+                            cols.modulus_memory[i].populate(
+                                event.modulus_memory_records[i],
+                                &mut new_byte_lookup_events,
+                            );
                         }
 
-                        cols.output.populate(
+                        let modulus_bytes = words_to_bytes_le_vec(&event.modulus);
+                        let modulus_byte_sum = modulus_bytes.iter().map(|b| *b as u32).sum::<u32>();
+                        IsZeroOperation::populate(&mut cols.modulus_is_zero, modulus_byte_sum);
+
+                        // Populate the output column.
+                        let effective_modulus = if modulus.is_zero() {
+                            BigUint::one() << 256
+                        } else {
+                            modulus.clone()
+                        };
+                        cols.output.populate_with_modulus(
                             &mut new_byte_lookup_events,
                             event.shard,
                             &x,
                             &y,
+                            &effective_modulus,
+                            // &modulus,
                             FieldOperation::Mul,
                         );
 
@@ -200,30 +211,38 @@ impl Syscall for Uint256MulChip {
             panic!();
         }
 
-        let x: [u32; 8] = rt.slice_unsafe(x_ptr, 8).try_into().unwrap();
+        // First read the words for the x value. We can read a slice_unsafe here because we write
+        // the computed result to x later.
+        let x = rt.slice_unsafe(x_ptr, WORDS_FIELD_ELEMENT);
 
-        let (y_memory_records_vec, y_vec) = rt.mr_slice(y_ptr, 8);
-        let y_memory_records = y_memory_records_vec.try_into().unwrap();
-        let y: [u32; 8] = y_vec.try_into().unwrap();
+        // Read the y value.
+        let (y_memory_records, y) = rt.mr_slice(y_ptr, WORDS_FIELD_ELEMENT);
 
-        let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&x));
-        let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le::<32>(&y));
+        // The modulus is stored after the y value. We increment the pointer by the number of words.
+        let modulus_ptr = y_ptr + WORDS_FIELD_ELEMENT as u32 * WORD_SIZE as u32;
+        let (modulus_memory_records, modulus) = rt.mr_slice(modulus_ptr, WORDS_FIELD_ELEMENT);
 
-        // // Create a mask for the 256 bit number.
-        let mask = BigUint::one() << 256;
+        // Get the BigUint values for x, y, and the modulus.
+        let uint256_x = BigUint::from_bytes_le(&words_to_bytes_le_vec(&x));
+        let uint256_y = BigUint::from_bytes_le(&words_to_bytes_le_vec(&y));
+        let uint256_modulus = BigUint::from_bytes_le(&words_to_bytes_le_vec(&modulus));
 
-        // // Perform the multiplication and take the result modulo the mask.
-        let result: BigUint = (uint256_x * uint256_y) % mask;
+        // Perform the multiplication and take the result modulo the modulus.
+        let result: BigUint = if uint256_modulus.is_zero() {
+            let modulus = BigUint::one() << 256;
+            (uint256_x * uint256_y) % modulus
+        } else {
+            (uint256_x * uint256_y) % uint256_modulus
+        };
 
         let mut result_bytes = result.to_bytes_le();
-        result_bytes.resize(32, 0u8);
+        result_bytes.resize(32, 0u8); // Pad the result to 32 bytes.
 
-        // // Convert the result to low endian u32 words.
+        // Convert the result to little endian u32 words.
         let result = bytes_to_words_le::<8>(&result_bytes);
 
-        // write the state
-        assert_eq!(result.len(), 8);
-        let x_memory_records = rt.mw_slice(x_ptr, &result).try_into().unwrap();
+        // Write the result to x and keep track of the memory records.
+        let x_memory_records = rt.mw_slice(x_ptr, &result);
 
         let shard = rt.current_shard();
         let clk = rt.clk;
@@ -234,8 +253,10 @@ impl Syscall for Uint256MulChip {
             x,
             y_ptr,
             y,
+            modulus,
             x_memory_records,
             y_memory_records,
+            modulus_memory_records,
         });
 
         None
@@ -258,47 +279,53 @@ where
         let local = main.row_slice(0);
         let local: &Uint256MulCols<AB::Var> = (*local).borrow();
 
-        let mut x_limbs = local
-            .x_memory
-            .iter()
-            .flat_map(|access| access.prev_value().0)
-            .map(|x| x.into())
-            .collect::<Vec<AB::Expr>>();
-        x_limbs.resize(U256Field::NB_LIMBS, AB::Expr::zero());
+        // We are computing (x * y) % modulus. The value of x is stored in the "prev_value" of
+        // the x_memory, since we write to it later.
+        let x_limbs = limbs_from_prev_access(&local.x_memory);
+        let y_limbs = limbs_from_access(&local.y_memory);
+        let modulus_limbs = limbs_from_access(&local.modulus_memory);
 
-        let mut y_limbs = local
-            .y_memory
+        // If the modulus is zero, then we don't perform the modulus operation.
+        // Evaluate the modulus_is_zero operation by summing each byte of the modulus. The sum will
+        // not overflow because we are summing 32 bytes.
+        let modulus_byte_sum = modulus_limbs
+            .0
             .iter()
-            .flat_map(|access| access.value().0)
-            .map(|x| x.into())
-            .collect::<Vec<AB::Expr>>();
-        y_limbs.resize(U256Field::NB_LIMBS, AB::Expr::zero());
+            .fold(AB::Expr::zero(), |acc, &limb| acc + limb);
+        IsZeroOperation::<AB::F>::eval(
+            builder,
+            modulus_byte_sum,
+            local.modulus_is_zero,
+            local.is_real.into(),
+        );
+
+        // If the modulus is zero, we'll actually use 2^256 as the modulus, so nothing happens.
+        // Otherwise, we use the modulus passed in.
+        let modulus_is_zero = local.modulus_is_zero.result;
+        let mut coeff_2_256 = Vec::new();
+        coeff_2_256.resize(32, AB::Expr::zero());
+        coeff_2_256.push(AB::Expr::one());
+        let modulus_polynomial: Polynomial<AB::Expr> = modulus_limbs.into();
+        let p_modulus: Polynomial<AB::Expr> = modulus_polynomial
+            * (AB::Expr::one() - modulus_is_zero.into())
+            + Polynomial::from_coefficients(&coeff_2_256) * modulus_is_zero.into();
 
         // Evaluate the uint256 multiplication
-        local.output.eval(
+        local.output.eval_with_modulus(
             builder,
-            &Polynomial::new(x_limbs),
-            &Polynomial::new(y_limbs),
+            &x_limbs,
+            &y_limbs,
+            &p_modulus,
+            // &modulus_limbs,
             FieldOperation::Mul,
             local.shard,
             local.is_real,
         );
 
-        // Assert that the output is equal to whats written to the memory record.
-        for i in 0..NUM_PHYSICAL_LIMBS {
-            builder
-                .when(local.is_real)
-                .assert_eq(local.output.result[i], local.x_memory[i / 4].value()[i % 4]);
-        }
-
-        // Read y.
-        builder.eval_memory_access_slice(
-            local.shard,
-            local.clk.into(),
-            local.y_ptr,
-            &local.y_memory,
-            local.is_real,
-        );
+        // Assert that the correct result is being written to x_memory.
+        builder
+            .when(local.is_real)
+            .assert_all_eq(local.output.result, value_as_limbs(&local.x_memory));
 
         // Read and write x.
         builder.eval_memory_access_slice(
@@ -306,6 +333,16 @@ where
             local.clk.into(),
             local.x_ptr,
             &local.x_memory,
+            local.is_real,
+        );
+
+        // Evaluate the y_ptr memory access. We concatenate y and modulus into a single array since
+        // we read it contiguously from the y_ptr memory location.
+        builder.eval_memory_access_slice(
+            local.shard,
+            local.clk.into(),
+            local.y_ptr,
+            &[local.y_memory, local.modulus_memory].concat(),
             local.is_real,
         );
 

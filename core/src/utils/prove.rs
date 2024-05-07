@@ -33,7 +33,7 @@ const LOG_DEGREE_BOUND: usize = 31;
 pub fn run_test_io(
     program: Program,
     inputs: SP1Stdin,
-) -> Result<SP1PublicValues, crate::stark::ProgramVerificationError<BabyBearPoseidon2>> {
+) -> Result<SP1PublicValues, crate::stark::MachineVerificationError<BabyBearPoseidon2>> {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&inputs.buffer);
@@ -49,7 +49,7 @@ pub fn run_test(
     program: Program,
 ) -> Result<
     crate::stark::MachineProof<BabyBearPoseidon2>,
-    crate::stark::ProgramVerificationError<BabyBearPoseidon2>,
+    crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
@@ -64,7 +64,7 @@ pub fn run_test_core(
     runtime: Runtime,
 ) -> Result<
     crate::stark::MachineProof<BabyBearPoseidon2>,
-    crate::stark::ProgramVerificationError<BabyBearPoseidon2>,
+    crate::stark::MachineVerificationError<BabyBearPoseidon2>,
 > {
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
@@ -80,7 +80,7 @@ pub fn run_test_machine<SC, A>(
     machine: StarkMachine<SC, A>,
     pk: StarkProvingKey<SC>,
     vk: StarkVerifyingKey<SC>,
-) -> Result<crate::stark::MachineProof<SC>, crate::stark::ProgramVerificationError<SC>>
+) -> Result<crate::stark::MachineProof<SC>, crate::stark::MachineVerificationError<SC>>
 where
     A: MachineAir<SC::Val>
         + for<'a> Air<ProverConstraintFolder<'a, SC>>
@@ -305,8 +305,7 @@ where
     // Prove the program.
     let start = Instant::now();
     let cycles = runtime.state.global_clk;
-    let proof = tracing::info_span!("prove")
-        .in_scope(|| machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger));
+    let proof = machine.prove::<LocalProver<_, _>>(&pk, runtime.record, &mut challenger);
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();
 
