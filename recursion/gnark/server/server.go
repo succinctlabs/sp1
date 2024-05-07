@@ -1,6 +1,8 @@
 package server
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/pkg/errors"
@@ -16,6 +19,7 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
+	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/constraint"
 	"github.com/consensys/gnark/frontend"
 )
@@ -95,8 +99,8 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Printf("Proof generated in %s\n", time.Since(start))
 
-	// // DEBUG
-	// PrintProof(witness, proof, s.vk)
+	// DEBUG
+	PrintProof(witness, proof, s.vk)
 
 	// Verify the proof.
 	witnessPublic, err := witness.Public()
@@ -111,21 +115,6 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	_proof, ok := proof.(interface{ MarshalSolidity() []byte })
-	if !ok {
-		panic("proof does not implement MarshalSolidity()")
-	}
-	proofBytes := _proof.MarshalSolidity()
-	proofStr := hex.EncodeToString(proofBytes)
-	fmt.Println("x Proof:", proofStr)
-	// bPublicWitness, err := witness.MarshalBinary()
-	// if err == nil {
-	// 	panic("public witness does not implement MarshalBinary()")
-	// }
-	// bPublicWitness = bPublicWitness[12:]
-	// publicWitnessStr := hex.EncodeToString(bPublicWitness)
-	// fmt.Println("x PublicWitness:", publicWitnessStr)
-
 	// Serialize the proof to JSON.
 	groth16Proof, err := sp1.SerializeGnarkGroth16Proof(&proof, witnessInput)
 	if err != nil {
@@ -133,48 +122,88 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// convert public inputs
-	// nbInputs := len(bPublicWitness) / fr.Bytes
-	// if nbInputs != 2 {
-	// 	panic("nbInputs != nbPublicInputs")
-	// }
-	// var input [2]*big.Int
-	// for i := 0; i < nbInputs; i++ {
-	// 	var e fr.Element
-	// 	e.SetBytes(bPublicWitness[fr.Bytes*i : fr.Bytes*(i+1)])
-	// 	input[i] = new(big.Int)
-	// 	e.BigInt(input[i])
-	// }
-	// fmt.Println("x input:", input)
+	ReturnJSON(w, groth16Proof, http.StatusOK)
+}
 
-	fpSize := 4 * 8
-
-	// solidity contract inputs
-	var proofF [8]*big.Int
-
-	// proof.Ar, proof.Bs, proof.Krs
+func PrintProof(witness witness.Witness, proof groth16.Proof, vk groth16.VerifyingKey) {
+	const fpSize = 4 * 8
+	var buf = new(bytes.Buffer)
+	proof.WriteRawTo(buf)
+	proofBytes := buf.Bytes()
+	proofs := make([]string, 8)
 	for i := 0; i < 8; i++ {
-		proofF[i] = new(big.Int).SetBytes(proofBytes[fpSize*i : fpSize*(i+1)])
+		proofs[i] = "0x" + hex.EncodeToString(proofBytes[i*fpSize:(i+1)*fpSize])
 	}
-
-	fmt.Println("x ProofF:", proofF)
-
-	// prepare commitments for calling
-	c := new(big.Int).SetBytes(proofBytes[fpSize*8 : fpSize*8+4])
-	commitmentCount := int(c.Int64())
-
-	var commitments [2]*big.Int
+	publicWitness, _ := witness.Public()
+	fmt.Println("Public Witness:", publicWitness.Vector())
+	commitmentCountBigInt := new(big.Int).SetBytes(proofBytes[fpSize*8 : fpSize*8+4])
+	commitmentCount := int(commitmentCountBigInt.Int64())
+	var commitments []*big.Int = make([]*big.Int, 2*commitmentCount)
 	var commitmentPok [2]*big.Int
-
 	for i := 0; i < 2*commitmentCount; i++ {
 		commitments[i] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+i*fpSize : fpSize*8+4+(i+1)*fpSize])
 	}
-
 	commitmentPok[0] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize : fpSize*8+4+2*commitmentCount*fpSize+fpSize])
 	commitmentPok[1] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize+fpSize : fpSize*8+4+2*commitmentCount*fpSize+2*fpSize])
 
-	fmt.Println("x commitments:", commitments)
-	fmt.Println("x commitmentPok:", commitmentPok)
+	fmt.Println("Generating Fixture")
+	fmt.Println("uint256[8] memory proofs = [")
+	for i := 0; i < 8; i++ {
+		fmt.Print(proofs[i])
+		if i != 7 {
+			fmt.Println(",")
+		}
+	}
+	fmt.Println("];")
+	fmt.Println()
+	fmt.Println("uint256[2] memory commitments = [")
+	for i := 0; i < 2*commitmentCount; i++ {
+		fmt.Print(commitments[i])
+		if i != 2*commitmentCount-1 {
+			fmt.Println(",")
+		}
+	}
+	fmt.Println("];")
+	fmt.Println("uint256[2] memory commitmentPok = [")
+	for i := 0; i < 2; i++ {
+		fmt.Print(commitmentPok[i])
+		if i != 1 {
+			fmt.Println(",")
+		}
+	}
+	fmt.Println("];")
+	fmt.Println()
+	fmt.Println("uint256[3] memory inputs = [")
+	fmt.Println("uint256(1),")
+	fmt.Println("uint256(2),")
+	fmt.Println("uint256(3)")
+	fmt.Println("];")
 
-	ReturnJSON(w, groth16Proof, http.StatusOK)
+	buf = new(bytes.Buffer)
+	err := vk.ExportSolidity(buf)
+	if err != nil {
+		panic(err)
+	}
+	content := buf.String()
+
+	dirPath := "contracts/src"
+	if err := os.MkdirAll(dirPath, 0755); err != nil {
+		panic(err)
+	}
+
+	contractFile, err := os.Create(dirPath + "/VerifierGroth16.sol")
+	if err != nil {
+		panic(err)
+	}
+	defer contractFile.Close()
+
+	w := bufio.NewWriter(contractFile)
+	_, err = w.Write([]byte(content))
+	if err != nil {
+		panic(err)
+	}
+	err = w.Flush()
+	if err != nil {
+		panic(err)
+	}
 }

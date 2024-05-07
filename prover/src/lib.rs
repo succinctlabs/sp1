@@ -737,7 +737,7 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use crate::artifacts::{build_groth16_artifacts_from_dummy, get_groth16_artifacts_dir};
+    use crate::artifacts::get_groth16_artifacts_dir;
     use crate::build::build_groth16_artifacts_from_template;
 
     use super::*;
@@ -812,10 +812,6 @@ mod tests {
         } else {
             result.unwrap();
         }
-
-        // tracing::info!("test groth16");
-        // let (constraints, witness) = build_constraints(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        // Groth16Prover::test(constraints, witness)
 
         tracing::info!("generate groth16 proof");
         let artifacts_dir = get_groth16_artifacts_dir();

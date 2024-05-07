@@ -1,19 +1,14 @@
 package sp1
 
 import (
-	"bufio"
-	"bytes"
 	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/big"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
-	"github.com/consensys/gnark/backend/witness"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
 )
@@ -22,7 +17,6 @@ import (
 // includes the R1CS, the proving key, the verifier key, and the solidity verifier.
 func BuildGroth16(buildDir string) error {
 	// Load the witness input.
-	fmt.Println("BUILDING FROM DIR", buildDir)
 	witnessInput, err := LoadWitnessInputFromPath(buildDir + "/witness_groth16.json")
 	if err != nil {
 		panic(err)
@@ -56,22 +50,6 @@ func BuildGroth16(buildDir string) error {
 	}
 	vk.ExportSolidity(solidityVerifierFile)
 
-	// Generate dummy proof.
-	witnessInput, err = LoadWitnessInputFromPath(buildDir + "/witness_groth16.json")
-	if err != nil {
-		panic(err)
-	}
-	assignment := NewCircuitFromWitness(witnessInput)
-	proveWitness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
-	if err != nil {
-		return err
-	}
-	proof, err := groth16.Prove(r1cs, pk, proveWitness, backend.WithProverHashToFieldFunction(sha256.New()))
-	if err != nil {
-		return err
-	}
-	PrintProof(proveWitness, proof, vk)
-
 	// Write the R1CS.
 	WriteToFile(buildDir+"/circuit_groth16.bin", r1cs)
 
@@ -84,7 +62,7 @@ func BuildGroth16(buildDir string) error {
 		return err
 	}
 	defer pkFile.Close()
-	pk.WriteTo(pkFile)
+	pk.WriteDump(pkFile)
 
 	return nil
 }
@@ -108,7 +86,7 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 		return err
 	}
 	pk := groth16.NewProvingKey(ecc.BN254)
-	pk.ReadFrom(pkFile)
+	pk.ReadDump(pkFile)
 
 	// Read the verifier key.
 	fmt.Println("Reading vk...")
@@ -234,89 +212,4 @@ func ConvertGroth16(dataDir string, hexEncodedProof string, vkeyHash string, com
 		return err
 	}
 	return nil
-}
-func PrintProof(witness witness.Witness, proof groth16.Proof, vk groth16.VerifyingKey) {
-	const fpSize = 4 * 8
-	var buf = new(bytes.Buffer)
-	proof.WriteRawTo(buf)
-	proofBytes := buf.Bytes()
-	proofs := make([]string, 8)
-	for i := 0; i < 8; i++ {
-		proofs[i] = "0x" + hex.EncodeToString(proofBytes[i*fpSize:(i+1)*fpSize])
-	}
-	publicWitness, _ := witness.Public()
-	fmt.Println("Public Witness:", publicWitness.Vector())
-	publicWitnessBytes, _ := publicWitness.MarshalBinary()
-	publicWitnessBytes = publicWitnessBytes[12:]
-	commitmentCountBigInt := new(big.Int).SetBytes(proofBytes[fpSize*8 : fpSize*8+4])
-	commitmentCount := int(commitmentCountBigInt.Int64())
-	var commitments []*big.Int = make([]*big.Int, 2*commitmentCount)
-	var commitmentPok [2]*big.Int
-	for i := 0; i < 2*commitmentCount; i++ {
-		commitments[i] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+i*fpSize : fpSize*8+4+(i+1)*fpSize])
-	}
-	commitmentPok[0] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize : fpSize*8+4+2*commitmentCount*fpSize+fpSize])
-	commitmentPok[1] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize+fpSize : fpSize*8+4+2*commitmentCount*fpSize+2*fpSize])
-
-	fmt.Println("Generating Fixture")
-	fmt.Println("uint256[8] memory proofs = [")
-	for i := 0; i < 8; i++ {
-		fmt.Print(proofs[i])
-		if i != 7 {
-			fmt.Println(",")
-		}
-	}
-	fmt.Println("];")
-	fmt.Println()
-	fmt.Println("uint256[2] memory commitments = [")
-	for i := 0; i < 2*commitmentCount; i++ {
-		fmt.Print(commitments[i])
-		if i != 2*commitmentCount-1 {
-			fmt.Println(",")
-		}
-	}
-	fmt.Println("];")
-	fmt.Println("uint256[2] memory commitmentPok = [")
-	for i := 0; i < 2; i++ {
-		fmt.Print(commitmentPok[i])
-		if i != 1 {
-			fmt.Println(",")
-		}
-	}
-	fmt.Println("];")
-	fmt.Println()
-	fmt.Println("uint256[3] memory inputs = [")
-	fmt.Println("uint256(1),")
-	fmt.Println("uint256(2),")
-	fmt.Println("uint256(3)")
-	fmt.Println("];")
-
-	buf = new(bytes.Buffer)
-	err := vk.ExportSolidity(buf)
-	if err != nil {
-		panic(err)
-	}
-	content := buf.String()
-
-	// Ensure the directory exists before creating the file
-	dirPath := "contracts/src"
-	if err := os.MkdirAll(dirPath, 0755); err != nil {
-		panic(err)
-	}
-
-	contractFile, err := os.Create(dirPath + "/VerifierGroth16.sol")
-	if err != nil {
-		panic(err)
-	}
-	defer contractFile.Close() // Ensure the file is closed after writing
-
-	w := bufio.NewWriter(contractFile)
-	_, err = w.Write([]byte(content))
-	if err != nil {
-		panic(err)
-	}
-	err = w.Flush() // Make sure to flush the buffer to write all data
-	if err != nil {
-		panic(err)
-	}
 }

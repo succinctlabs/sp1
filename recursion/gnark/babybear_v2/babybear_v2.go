@@ -282,10 +282,10 @@ func (p *Chip) ReduceWithMaxBits(x frontend.Variable, maxNbBits uint64) frontend
 	}
 
 	quotient := result[0]
-	p.rangeChecker.Check(quotient, 253)
+	p.rangeChecker.Check(quotient, int(maxNbBits-31))
 
 	remainder := result[1]
-	p.rangeChecker.Check(remainder, 253)
+	p.rangeChecker.Check(remainder, 31)
 
 	p.api.AssertIsEqual(x, p.api.Add(p.api.Mul(quotient, MODULUS), result[1]))
 
