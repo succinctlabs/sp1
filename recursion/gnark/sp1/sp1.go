@@ -15,8 +15,8 @@ type Circuit struct {
 	Vars                 []frontend.Variable
 	Felts                []babybear_v2.Variable
 	Exts                 []babybear_v2.ExtensionVariable
-	VkeyHash             frontend.Variable `gnark:",public"`
-	CommitedValuesDigest frontend.Variable `gnark:",public"`
+	VkeyHash             frontend.Variable
+	CommitedValuesDigest frontend.Variable
 }
 
 type Constraint struct {

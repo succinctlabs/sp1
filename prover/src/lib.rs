@@ -735,6 +735,7 @@ impl SP1Prover {
 mod tests {
 
     use crate::artifacts::get_groth16_artifacts_dir;
+    use crate::build::build_constraints;
 
     use super::*;
     use p3_field::PrimeField32;
@@ -797,10 +798,14 @@ mod tests {
             result.unwrap();
         }
 
-        tracing::info!("generate groth16 proof");
-        let artifacts_dir = get_groth16_artifacts_dir();
-        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
-        println!("{:?}", groth16_proof);
+        tracing::info!("test groth16");
+        let (constraints, witness) = build_constraints(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        Groth16Prover::test(constraints, witness)
+
+        // tracing::info!("generate groth16 proof");
+        // let artifacts_dir = get_groth16_artifacts_dir();
+        // let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
+        // println!("{:?}", groth16_proof);
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
