@@ -907,6 +907,11 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
+    pub fn run_untraced(&mut self) {
+        self.emit_events = false;
+        while !self.execute() {}
+    }
+
     pub fn run(&mut self) {
         self.emit_events = true;
         while !self.execute() {}

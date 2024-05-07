@@ -192,7 +192,8 @@ impl SP1Prover {
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
-        runtime.run();
+        runtime.run_untraced();
+        println!("cycles: {}", runtime.state.global_clk);
         SP1PublicValues::from(&runtime.state.public_values_stream)
     }
 
