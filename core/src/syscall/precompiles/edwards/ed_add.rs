@@ -5,7 +5,7 @@ use std::marker::PhantomData;
 
 use num::BigUint;
 use num::Zero;
-use p3_air::AirBuilder;
+
 use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
@@ -15,11 +15,13 @@ use p3_maybe_rayon::prelude::IntoParallelRefIterator;
 use p3_maybe_rayon::prelude::ParallelIterator;
 use sp1_derive::AlignedBorrow;
 
+use super::{NUM_LIMBS, WORDS_CURVE_POINT};
+use crate::air::BaseAirBuilder;
 use crate::air::MachineAir;
 use crate::air::SP1AirBuilder;
 use crate::bytes::event::ByteRecord;
 use crate::bytes::ByteLookupEvent;
-use crate::memory::MemoryCols;
+use crate::memory::value_as_limbs;
 use crate::memory::MemoryReadCols;
 use crate::memory::MemoryWriteCols;
 use crate::operations::field::field_den::FieldDenCols;
@@ -53,8 +55,8 @@ pub struct EdAddAssignCols<T> {
     pub clk: T,
     pub p_ptr: T,
     pub q_ptr: T,
-    pub p_access: [MemoryWriteCols<T>; Ed25519BaseField::NB_LIMBS],
-    pub q_access: [MemoryReadCols<T>; Ed25519BaseField::NB_LIMBS],
+    pub p_access: [MemoryWriteCols<T>; WORDS_CURVE_POINT],
+    pub q_access: [MemoryReadCols<T>; WORDS_CURVE_POINT],
     pub(crate) x3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) y3_numerator: FieldInnerProductCols<T, Ed25519BaseField>,
     pub(crate) x1_mul_y1: FieldOpCols<T, Ed25519BaseField>,
@@ -182,11 +184,11 @@ impl<F: PrimeField32, E: EllipticCurve + EdwardsParameters> MachineAir<F> for Ed
                 );
 
                 // Populate the memory access columns.
-                for i in 0..16 {
+                for i in 0..WORDS_CURVE_POINT {
                     cols.q_access[i]
                         .populate(event.q_memory_records[i], &mut new_byte_lookup_events);
                 }
-                for i in 0..16 {
+                for i in 0..WORDS_CURVE_POINT {
                     cols.p_access[i]
                         .populate(event.p_memory_records[i], &mut new_byte_lookup_events);
                 }
@@ -321,33 +323,30 @@ where
 
         // Constraint self.p_access.value = [self.x3_ins.result, self.y3_ins.result]
         // This is to ensure that p_access is updated with the new value.
-        for i in 0..E::BaseField::NB_LIMBS {
-            builder
-                .when(row.is_real)
-                .assert_eq(row.x3_ins.result[i], row.p_access[i / 4].value()[i % 4]);
-            builder
-                .when(row.is_real)
-                .assert_eq(row.y3_ins.result[i], row.p_access[8 + i / 4].value()[i % 4]);
-        }
+        let p_access_vec = value_as_limbs(&row.p_access);
+        builder
+            .when(row.is_real)
+            .assert_all_eq(row.x3_ins.result, p_access_vec[0..NUM_LIMBS].to_vec());
+        builder.when(row.is_real).assert_all_eq(
+            row.y3_ins.result,
+            p_access_vec[NUM_LIMBS..NUM_LIMBS * 2].to_vec(),
+        );
 
-        for i in 0..16 {
-            builder.eval_memory_access(
-                row.shard,
-                row.clk, // clk + 0 -> Memory
-                row.q_ptr + AB::F::from_canonical_u32(i * 4),
-                &row.q_access[i as usize],
-                row.is_real,
-            );
-        }
-        for i in 0..16 {
-            builder.eval_memory_access(
-                row.shard,
-                row.clk + AB::F::from_canonical_u32(1), // The clk for p is moved by 1.
-                row.p_ptr + AB::F::from_canonical_u32(i * 4),
-                &row.p_access[i as usize],
-                row.is_real,
-            );
-        }
+        builder.eval_memory_access_slice(
+            row.shard,
+            row.clk.into(),
+            row.q_ptr,
+            &row.q_access,
+            row.is_real,
+        );
+
+        builder.eval_memory_access_slice(
+            row.shard,
+            row.clk + AB::F::from_canonical_u32(1),
+            row.p_ptr,
+            &row.p_access,
+            row.is_real,
+        );
 
         builder.receive_syscall(
             row.shard,

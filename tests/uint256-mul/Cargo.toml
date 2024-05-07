@@ -9,3 +9,4 @@ rand = "0.8"
 num = { version = "0.4.1" }
 sp1-zkvm = { path = "../../zkvm/entrypoint" }
 sp1-derive = { path = "../../derive" }
+bytemuck = "1.15.0"
