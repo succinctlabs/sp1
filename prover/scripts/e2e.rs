@@ -40,10 +40,10 @@ pub fn main() {
     let stdin = SP1Stdin::new();
     let core_proof = prover.prove_core(&pk, &stdin);
 
-    tracing::info!("reduce");
+    tracing::info!("Compress");
     let reduced_proof = prover.compress(&vk, core_proof, vec![]);
 
-    tracing::info!("compress");
+    tracing::info!("Shrink");
     let compressed_proof = prover.shrink(reduced_proof);
 
     tracing::info!("wrap");
