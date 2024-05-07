@@ -734,8 +734,9 @@ impl SP1Prover {
 #[cfg(test)]
 mod tests {
 
-    use super::*;
     use crate::artifacts::get_groth16_artifacts_dir;
+
+    use super::*;
     use p3_field::PrimeField32;
     use sp1_core::io::SP1Stdin;
     use sp1_core::stark::MachineVerificationError;
@@ -797,7 +798,7 @@ mod tests {
         }
 
         tracing::info!("generate groth16 proof");
-        let artifacts_dir = get_groth16_artifacts_dir(&prover.wrap_vk, &wrapped_bn254_proof.proof);
+        let artifacts_dir = get_groth16_artifacts_dir();
         let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
         println!("{:?}", groth16_proof);
     }
