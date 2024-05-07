@@ -1,5 +1,3 @@
-#![allow(clippy::needless_range_loop)]
-
 use std::borrow::Borrow;
 
 use p3_air::Air;
