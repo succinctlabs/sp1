@@ -94,7 +94,7 @@ func ProveVerifyAndSerializeGroth16(witnessInput WitnessInput, r1cs constraint.C
 // Generate a gnark groth16 proof for a given witness and write the proof to a file. Reads the
 // R1CS, the proving key and the verifier key from the build directory.
 func ProveGroth16FromFile(buildDir string, witnessPath string, proofPath string) error {
-	// Read the R1CS.
+	// Read the R1CS, the proving key and the verifier key from the build directory.
 	r1cs, pk, vk, err := LoadCircuit(buildDir, "groth16")
 	if err != nil {
 		return err
