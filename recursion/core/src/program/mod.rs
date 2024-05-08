@@ -61,7 +61,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
     fn generate_preprocessed_trace(&self, program: &Self::Program) -> Option<RowMajorMatrix<F>> {
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => std::cmp::min(524288, program.instructions.len()),
+            Err(_) => std::cmp::min(1048576, program.instructions.len()),
         };
         let mut rows = program.instructions[0..max_program_size]
             .iter()
@@ -81,7 +81,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
-            Some(19),
+            Some(20),
         );
 
         // Convert the trace to a row major matrix.
@@ -114,7 +114,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
 
         let max_program_size = match std::env::var("MAX_RECURSION_PROGRAM_SIZE") {
             Ok(value) => value.parse().unwrap(),
-            Err(_) => std::cmp::min(524288, input.program.instructions.len()),
+            Err(_) => std::cmp::min(1048576, input.program.instructions.len()),
         };
         let mut rows = input.program.instructions[0..max_program_size]
             .iter()
@@ -130,7 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             .collect::<Vec<_>>();
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], Some(19));
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], Some(20));
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

@@ -146,7 +146,7 @@ func main() {
 
 	case Serve:
 		serveCmd.Parse(os.Args[2:])
-		fmt.Printf("Running 'serve' with data=%s, type=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag)
+		fmt.Printf("[sp1] running 'serve' with data=%s, type=%s\n", *serveCircuitDataDirFlag, *serveCircuitTypeFlag)
 		circuitDataDir := *serveCircuitDataDirFlag
 		circuitType := *serveCircuitTypeFlag
 		serveHostPort := *servePortFlag
