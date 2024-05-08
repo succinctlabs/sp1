@@ -28,6 +28,11 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
+
       - name: Compute release name and tag
         id: release_info
         run: |
@@ -62,6 +67,9 @@ jobs:
           toTag: ${{ steps.release_info.outputs.tag_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+
 
   release:
     name: ${{ matrix.target }} (${{ matrix.runner }})

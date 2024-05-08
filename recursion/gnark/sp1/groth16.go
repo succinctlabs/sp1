@@ -1,11 +1,13 @@
 package sp1
 
 import (
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/consensys/gnark/frontend/cs/r1cs"
@@ -25,23 +27,49 @@ func BuildGroth16(buildDir string) error {
 
 	// Compile the circuit.
 	// p := profile.Start(profile.WithPath("sp1.pprof"))
-	builder := r1cs.NewBuilder
-	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), builder, &circuit)
+	r1cs, err := frontend.Compile(ecc.BN254.ScalarField(), r1cs.NewBuilder, &circuit)
 	if err != nil {
 		panic(err)
 	}
 	// p.Stop()
-	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
+	fmt.Println("[sp1] groth16 verifier constraints", r1cs.GetNbConstraints())
 
 	// Run the trusted setup.
-	var pk groth16.ProvingKey
 	pk, vk, err := groth16.Setup(r1cs)
+	if err != nil {
+		panic(err)
+	}
+
+	// Generate proof.
+	assignment := NewCircuitFromWitness(witnessInput)
+	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
+	if err != nil {
+		panic(err)
+	}
+	proof, err := groth16.Prove(r1cs, pk, witness, backend.WithProverHashToFieldFunction(sha256.New()))
+	if err != nil {
+		panic(err)
+	}
+
+	// Verify proof.
+	publicWitness, err := witness.Public()
+	if err != nil {
+		panic(err)
+	}
+	err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
 	if err != nil {
 		panic(err)
 	}
 
 	// Create the build directory.
 	os.MkdirAll(buildDir, 0755)
+
+	// Write the solidity verifier.
+	solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")
+	if err != nil {
+		return err
+	}
+	vk.ExportSolidity(solidityVerifierFile)
 
 	// Write the R1CS.
 	WriteToFile(buildDir+"/circuit_groth16.bin", r1cs)
@@ -57,12 +85,6 @@ func BuildGroth16(buildDir string) error {
 	defer pkFile.Close()
 	pk.WriteDump(pkFile)
 
-	// Write the solidity verifier.
-	solidityVerifierFile, err := os.Create(buildDir + "/Groth16Verifier.sol")
-	if err != nil {
-		return err
-	}
-	vk.ExportSolidity(solidityVerifierFile)
 	return nil
 }
 
@@ -113,13 +135,13 @@ func ProveGroth16(buildDir string, witnessPath string, proofPath string) error {
 
 	// Generate the proof.
 	fmt.Println("Generating proof...")
-	proof, err := groth16.Prove(r1cs, pk, witness)
+	proof, err := groth16.Prove(r1cs, pk, witness, backend.WithProverHashToFieldFunction(sha256.New()))
 	if err != nil {
 		return err
 	}
 
 	fmt.Println("Verifying proof...")
-	err = groth16.Verify(proof, vk, publicWitness)
+	err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
 	if err != nil {
 		return err
 	}

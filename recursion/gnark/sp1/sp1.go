@@ -12,11 +12,11 @@ import (
 )
 
 type Circuit struct {
+	VkeyHash             frontend.Variable `gnark:",public"`
+	CommitedValuesDigest frontend.Variable `gnark:",public"`
 	Vars                 []frontend.Variable
 	Felts                []babybear_v2.Variable
 	Exts                 []babybear_v2.ExtensionVariable
-	VkeyHash             frontend.Variable `gnark:",public"`
-	CommitedValuesDigest frontend.Variable `gnark:",public"`
 }
 
 type Constraint struct {

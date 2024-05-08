@@ -109,7 +109,7 @@ impl SP1Prover {
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
-        let vkey_hash = vk.hash();
+        let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "sp1 vk hash mismatch",
@@ -117,7 +117,7 @@ impl SP1Prover {
         }
 
         // Verify that the reduce program is the one we are expecting.
-        let recursion_vkey_hash = self.compress_vk.hash();
+        let recursion_vkey_hash = self.compress_vk.hash_babybear();
         if public_values.recursion_vk_digest != recursion_vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "recursion vk hash mismatch",
@@ -151,7 +151,7 @@ impl SP1Prover {
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
-        let vkey_hash = vk.hash();
+        let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "sp1 vk hash mismatch",
@@ -159,7 +159,7 @@ impl SP1Prover {
         }
 
         // Verify that the reduce program is the one we are expecting.
-        let recursion_vkey_hash = self.shrink_vk.hash();
+        let recursion_vkey_hash = self.shrink_vk.hash_babybear();
         if public_values.recursion_vk_digest != recursion_vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "recursion vk hash mismatch",
@@ -193,7 +193,7 @@ impl SP1Prover {
         }
 
         // Verify that the proof is for the sp1 vkey we are expecting.
-        let vkey_hash = vk.hash();
+        let vkey_hash = vk.hash_babybear();
         if public_values.sp1_vk_digest != vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "sp1 vk hash mismatch",
@@ -201,7 +201,7 @@ impl SP1Prover {
         }
 
         // Verify that the reduce program is the one we are expecting.
-        let recursion_vkey_hash = self.shrink_vk.hash();
+        let recursion_vkey_hash = self.shrink_vk.hash_babybear();
         if public_values.recursion_vk_digest != recursion_vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "recursion vk hash mismatch",
