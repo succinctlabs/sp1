@@ -8,4 +8,4 @@ edition = "2021"
 sp1-sdk = { git = "https://github.com/succinctlabs/sp1.git", rev = "v1.0.0-testnet" }
 
 [build-dependencies]
-sp1-helper = { git = "https://github.com/succinctlabs/sp1.git" }
+sp1-helper = { git = "https://github.com/succinctlabs/sp1.git", rev = "v1.0.0-testnet"  }
