@@ -14,7 +14,6 @@ pub struct LocalProver {
 impl LocalProver {
     /// Creates a new [LocalProver].
     pub fn new() -> Self {
-        sp1_prover::build::get_groth16_artifacts_dir();
         let prover = SP1Prover::new();
         Self { prover }
     }
@@ -55,6 +54,8 @@ impl Prover for LocalProver {
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
+        sp1_prover::build::get_groth16_artifacts_dir();
+
         let proof = self.prover.prove_core(pk, &stdin);
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
