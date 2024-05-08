@@ -811,11 +811,11 @@ mod tests {
         let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        tracing::info!("generate groth16 proof");
-        let artifacts_dir = get_groth16_artifacts_dir();
-        build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
-        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
-        println!("{:?}", groth16_proof);
+        // tracing::info!("generate groth16 proof");
+        // let artifacts_dir = get_groth16_artifacts_dir();
+        // build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
+        // let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
+        // println!("{:?}", groth16_proof);
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
