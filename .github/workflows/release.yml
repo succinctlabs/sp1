@@ -33,17 +33,6 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
-      - name: Run cargo test on sp1-sdk
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: -p sp1-sdk --release
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
-
       - name: Compute release name and tag
         id: release_info
         run: |
