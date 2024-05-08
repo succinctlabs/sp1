@@ -2,7 +2,7 @@ use std::time::Duration;
 use tokio::runtime::Runtime;
 
 use reqwest::Client;
-use sp1_sdk::{utils, ProverClient, SP1Stdin};
+use sp1_sdk::{utils, ProverClient, SP1Stdin, SP1ReducedProof};
 
 use tendermint_light_client_verifier::options::Options;
 use tendermint_light_client_verifier::types::LightBlock;
@@ -38,6 +38,10 @@ async fn get_light_blocks() -> (LightBlock, LightBlock) {
 }
 
 fn main() {
+    let proof = SP1ReducedProof::load("../../../artifact_01hxazg1vqfv1ryywjgc6h0aec").unwrap();
+    println!("{:?}", &proof.proof.0.public_values);
+    return;
+
     // Generate proof.
     utils::setup_logger();
 
@@ -62,11 +66,11 @@ fn main() {
 
     let client = ProverClient::new();
     let (pk, vk) = client.setup(TENDERMINT_ELF);
-        let proof = client.prove(&pk, stdin).expect("proving failed");
+        let proof = client.prove_compressed(&pk, stdin).expect("proving failed");
 
     // Verify proof.
     client
-        .verify(&proof, &vk)
+        .verify_compressed(&proof, &vk)
         .expect("verification failed");
 
     // Verify the public values

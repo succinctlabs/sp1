@@ -19,11 +19,9 @@ use local::LocalProver;
 use mock::MockProver;
 use network::NetworkProver;
 pub use sp1_prover::{
-    CoreSC, SP1CoreProofData, SP1Prover, SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
-};
-use sp1_prover::{
-    SP1CoreProof, SP1Groth16Proof, SP1Groth16ProofData, SP1PlonkProof, SP1PlonkProofData,
-    SP1ProofWithMetadata, SP1ReducedProof,
+    CoreSC, SP1CoreProof, SP1CoreProofData, SP1Groth16Proof, SP1Groth16ProofData, SP1PlonkProof,
+    SP1PlonkProofData, SP1ProofWithMetadata, SP1Prover, SP1ProvingKey, SP1PublicValues,
+    SP1ReducedProof, SP1Stdin, SP1VerifyingKey,
 };
 use std::env;
 
