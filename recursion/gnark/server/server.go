@@ -77,7 +77,7 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Generate the witness.
-	fmt.Println("Generating witness...")
+	fmt.Println("[sp1] generating witness...")
 	start := time.Now()
 	assignment := sp1.NewCircuitFromWitness(witnessInput)
 	witness, err := frontend.NewWitness(&assignment, ecc.BN254.ScalarField())
@@ -85,17 +85,17 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		ReturnErrorJSON(w, "generating witness", http.StatusInternalServerError)
 		return
 	}
-	fmt.Printf("Witness generated in %s\n", time.Since(start))
+	fmt.Printf("[sp1] witness generated in %s\n", time.Since(start))
 
 	// Generate the proof.
-	fmt.Println("Generating proof...")
+	fmt.Println("[sp1] generating proof...")
 	start = time.Now()
 	proof, err := groth16.Prove(s.r1cs, s.pk, witness, backend.WithProverHashToFieldFunction(sha256.New()))
 	if err != nil {
 		ReturnErrorJSON(w, "generating proof", http.StatusInternalServerError)
 		return
 	}
-	fmt.Printf("Proof generated in %s\n", time.Since(start))
+	fmt.Printf("[sp1] proof generated in %s\n", time.Since(start))
 
 	// Verify the proof.
 	witnessPublic, err := witness.Public()
@@ -103,7 +103,7 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 		ReturnErrorJSON(w, "getting witness public", http.StatusInternalServerError)
 		return
 	}
-	fmt.Println("Verifying proof")
+	fmt.Println("[sp1] verifying proof")
 	err = groth16.Verify(proof, s.vk, witnessPublic, backend.WithVerifierHashToFieldFunction(sha256.New()))
 	if err != nil {
 		ReturnErrorJSON(w, "verifying proof", http.StatusInternalServerError)
