@@ -726,8 +726,6 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use crate::build::{build_groth16_artifacts, get_groth16_artifacts_dir};
-
     use super::*;
     use p3_field::PrimeField32;
     use serial_test::serial;
