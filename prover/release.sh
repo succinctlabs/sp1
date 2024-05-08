@@ -20,7 +20,9 @@ fi
 
 # Create archive named after the commit hash
 ARCHIVE_NAME="${COMMIT_HASH}.tar.gz"
-tar -czvf $ARCHIVE_NAME $FILE_TO_UPLOAD
+cd $FILE_TO_UPLOAD
+tar -czvf "../$ARCHIVE_NAME" .
+cd -
 if [ $? -ne 0 ]; then
     echo "Failed to create archive."
     exit 1

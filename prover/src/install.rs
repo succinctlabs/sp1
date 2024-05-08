@@ -76,7 +76,6 @@ pub fn install_groth16_artifacts_dir() -> PathBuf {
         .join(".sp1")
         .join("circuits")
         .join(GROTH16_ARTIFACTS_COMMIT)
-        .join("build")
 }
 
 /// Download the file with a progress bar that indicates the progress.
