@@ -104,8 +104,6 @@ impl Poseidon2Chip {
         memory_access: AB::Expr,
     ) {
         let memory_access_cols = local.round_specific_cols.memory_access();
-        let next_computation_col = next.round_specific_cols.computation();
-
         builder
             .when(is_memory_read)
             .assert_eq(local.left_input, memory_access_cols.addr_first_half);
@@ -137,6 +135,7 @@ impl Poseidon2Chip {
 
         // For the memory read round, need to connect the memory val to the input of the next
         // computation round.
+        let next_computation_col = next.round_specific_cols.computation();
         for i in 0..WIDTH {
             builder.when_transition().when(is_memory_read).assert_eq(
                 *memory_access_cols.mem_access[i].value(),
@@ -347,10 +346,10 @@ mod tests {
     use itertools::Itertools;
     use std::borrow::Borrow;
     use std::time::Instant;
+    use zkhash::ark_ff::UniformRand;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabyBear;
-    use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
@@ -362,7 +361,7 @@ mod tests {
     };
 
     use crate::{
-        poseidon2::{Poseidon2Chip, Poseidon2Event, WIDTH},
+        poseidon2::{Poseidon2Chip, Poseidon2Event},
         runtime::ExecutionRecord,
     };
     use p3_symmetric::Permutation;
@@ -376,12 +375,12 @@ mod tests {
         let chip = Poseidon2Chip {
             fixed_log2_rows: None,
         };
-        let test_inputs = vec![
-            [BabyBear::from_canonical_u32(1); WIDTH],
-            [BabyBear::from_canonical_u32(2); WIDTH],
-            [BabyBear::from_canonical_u32(3); WIDTH],
-            [BabyBear::from_canonical_u32(4); WIDTH],
-        ];
+
+        let rng = &mut rand::thread_rng();
+
+        let test_inputs: Vec<[BabyBear; 16]> = (0..16)
+            .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
+            .collect_vec();
 
         let gt: Poseidon2<
             BabyBear,
@@ -422,9 +421,10 @@ mod tests {
         let chip = Poseidon2Chip {
             fixed_log2_rows: None,
         };
+        let rng = &mut rand::thread_rng();
 
-        let test_inputs = (0..16)
-            .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
+        let test_inputs: Vec<[BabyBear; 16]> = (0..16)
+            .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
             .collect_vec();
 
         let gt: Poseidon2<
