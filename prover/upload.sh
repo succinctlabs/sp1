@@ -1,7 +1,8 @@
 #!/bin/bash
+set -e
 
 # Specify the file to upload and the S3 bucket name
-FILE_TO_UPLOAD=".build/"
+FILE_TO_UPLOAD="./build"
 S3_BUCKET="sp1-circuits"
 
 # Check for unstaged changes in the Git repository
