@@ -12,9 +12,6 @@ build-groth16:
 upload-groth16:
 	bash upload.sh
 
-release-groth16:
-	make build-groth16 && make upload-groth16
-
 test-e2e:
 	RUSTFLAGS='-C target-cpu=native' \
 	cargo test --package sp1-prover --lib --release -- tests::test_e2e --exact --show-output 
