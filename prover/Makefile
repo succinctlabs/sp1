@@ -9,8 +9,8 @@ build-groth16:
 	cargo run -p sp1-prover --release --bin build_groth16 -- \
 	--build-dir=./build
 
-upload-groth16:
-	bash upload.sh
+release-groth16:
+	bash release.sh
 
 test-e2e:
 	RUSTFLAGS='-C target-cpu=native' \
