@@ -71,13 +71,6 @@ func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput)
 	commitmentPok[0] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize : fpSize*8+4+2*commitmentCount*fpSize+fpSize])
 	commitmentPok[1] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize+fpSize : fpSize*8+4+2*commitmentCount*fpSize+2*fpSize])
 
-	fmt.Println("a", a)
-	fmt.Println("b", b)
-	fmt.Println("c", c)
-	fmt.Println("Commitment Count", commitmentCount)
-	fmt.Println("Commitments", commitments)
-	fmt.Println("CommitmentPok", commitmentPok)
-
 	var publicInputs [2]string
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommitedValuesDigest

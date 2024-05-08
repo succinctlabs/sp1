@@ -97,9 +97,6 @@ func (s *Server) handleGroth16Prove(w http.ResponseWriter, r *http.Request) {
 	}
 	fmt.Printf("Proof generated in %s\n", time.Since(start))
 
-	// DEBUG
-	PrintProof(witness, proof, s.vk)
-
 	// Verify the proof.
 	witnessPublic, err := witness.Public()
 	if err != nil {

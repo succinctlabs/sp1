@@ -62,7 +62,7 @@ func TestMain(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
+	fmt.Println("[sp1]: groth16 verifier constraints:", r1cs.GetNbConstraints())
 
 	// Run the dummy setup.
 	var pk groth16.ProvingKey
