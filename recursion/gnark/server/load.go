@@ -66,7 +66,7 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 		defer wg.Done()
 
 		r1csFilePath := filepath.Join(dataDir, "circuit_"+circuitType+".bin")
-		fmt.Println("[sp1]: opening r1cs file at:", r1csFilePath)
+		fmt.Println("[sp1] opening r1cs file at:", r1csFilePath)
 		r1csFile, err := os.Open(r1csFilePath)
 		if err != nil {
 			errR1CS = errors.Wrap(err, "opening R1CS file")
@@ -77,11 +77,11 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 		r1csReader := bufio.NewReader(r1csFile)
 		r1csStart := time.Now()
 		r1cs = groth16.NewCS(ecc.BN254)
-		fmt.Println("[sp1]: reading r1cs file...")
+		fmt.Println("[sp1] reading r1cs file...")
 		if _, err = r1cs.ReadFrom(r1csReader); err != nil {
 			errR1CS = errors.Wrap(err, "reading R1CS content from file")
 		} else {
-			fmt.Printf("[sp1]: r1cs loaded in %s\n", time.Since(r1csStart))
+			fmt.Printf("[sp1] r1cs loaded in %s\n", time.Since(r1csStart))
 		}
 	}()
 
@@ -90,7 +90,7 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 		defer wg.Done()
 
 		pkFilePath := filepath.Join(dataDir, "pk_"+circuitType+".bin")
-		fmt.Println("[sp1]: opening pk file at", pkFilePath)
+		fmt.Println("[sp1] opening pk file at", pkFilePath)
 		pkFile, err := os.Open(pkFilePath)
 		if err != nil {
 			errPK = errors.Wrap(err, "opening PK file")
@@ -101,12 +101,12 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 		pkReader := bufio.NewReader(pkFile)
 		pkStart := time.Now()
 		pk = groth16.NewProvingKey(ecc.BN254)
-		fmt.Println("[sp1]: reading pk file...")
+		fmt.Println("[sp1] reading pk file...")
 		err = pk.ReadDump(pkReader)
 		if err != nil {
 			errPK = errors.Wrap(err, "reading PK content from file")
 		}
-		fmt.Printf("[sp1]: pk loaded in %s\n", time.Since(pkStart))
+		fmt.Printf("[sp1] pk loaded in %s\n", time.Since(pkStart))
 	}()
 
 	wg.Wait()
@@ -136,7 +136,7 @@ func LoadCircuitArtifacts(dataDir, circuitType string) (constraint.ConstraintSys
 		return nil, nil, nil, errors.Wrap(err, "error reading VK content")
 	}
 
-	fmt.Printf("[sp1]: circuit artifacts loaded successfully in %s\n", time.Since(startTime))
+	fmt.Printf("[sp1] circuit artifacts loaded successfully in %s\n", time.Since(startTime))
 
 	return r1cs, pk, vk, nil
 

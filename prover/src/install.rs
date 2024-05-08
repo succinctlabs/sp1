@@ -17,11 +17,11 @@ pub const GROTH16_ARTIFACTS_COMMIT: &str = "49fedbe4";
 pub fn install_groth16_artifacts(build_dir: PathBuf) {
     // If build directory already exists, skip the download.
     if build_dir.exists() {
-        println!("[sp1]: groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
+        println!("[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
         return;
     } else {
         println!(
-            "[sp1]: groth16 artifacts for commit {} do not exist at {}. downloading...",
+            "[sp1] groth16 artifacts for commit {} do not exist at {}. downloading...",
             GROTH16_ARTIFACTS_COMMIT,
             build_dir.display()
         );
@@ -61,7 +61,7 @@ pub fn install_groth16_artifacts(build_dir: PathBuf) {
     res.wait().unwrap();
 
     println!(
-        "[sp1]: downloaded {} to {:?}",
+        "[sp1] downloaded {} to {:?}",
         download_url,
         build_dir.to_str().unwrap(),
     );
