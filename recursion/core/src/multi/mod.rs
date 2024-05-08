@@ -130,10 +130,6 @@ where
         builder.assert_bool(local.is_fri_fold);
         builder.assert_bool(local.is_poseidon2);
         builder.assert_bool(local_is_real.clone());
-        builder.assert_bool(local.fri_fold_receive_table);
-        builder.assert_bool(local.poseidon2_receive_table);
-        builder.assert_bool(local.fri_fold_memory_access);
-        builder.assert_bool(local.poseidon2_memory_access);
 
         // Fri fold requires that it's rows are contiguous, since each invocation spans multiple rows
         // and it's AIR checks for consistencies among them.  The following constraints enforce that
