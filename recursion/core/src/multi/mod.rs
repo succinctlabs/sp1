@@ -10,7 +10,7 @@ use sp1_core::air::{BaseAirBuilder, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 
-use crate::air::SP1RecursionAirBuilder;
+use crate::air::{MultiBuilder, SP1RecursionAirBuilder};
 use crate::fri_fold::{FriFoldChip, FriFoldCols};
 use crate::poseidon2::{Poseidon2Chip, Poseidon2Cols};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
@@ -157,15 +157,16 @@ where
             .assert_one(next.is_poseidon2);
 
         let fri_fold_chip = FriFoldChip::default();
-        let mut sub_builder = builder.when(local.is_fri_fold);
+        let mut sub_builder =
+            MultiBuilder::new(builder, local.is_fri_fold.into(), next.is_fri_fold.into());
 
-        let fri_columns = local.fri_fold();
+        let fri_columns_local = local.fri_fold();
         sub_builder.assert_eq(
-            local.is_fri_fold * fri_columns.is_real,
+            local.is_fri_fold * fri_columns_local.is_real,
             local.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local.is_fri_fold * fri_columns.is_last_iteration,
+            local.is_fri_fold * fri_columns_local.is_last_iteration,
             local.fri_fold_receive_table,
         );
 
