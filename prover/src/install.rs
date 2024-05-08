@@ -8,7 +8,7 @@ use reqwest::Client;
 pub const GROTH16_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The current version of the groth16 artifacts.
-pub const GROTH16_ARTIFACTS_VERSION: &str = "1";
+pub const GROTH16_ARTIFACTS_COMMIT: &str = "a8937be0";
 
 /// Install the latest groth16 artifacts.
 ///
@@ -19,8 +19,14 @@ pub fn install_groth16_artifacts() {
 
     // If build directory already exists, skip the download.
     if build_dir.exists() {
-        tracing::info!("groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
+        println!("[sp1]: groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
         return;
+    } else {
+        println!(
+            "[sp1]: groth16 artifacts for commit {} do not exist at {}. downloading...",
+            GROTH16_ARTIFACTS_COMMIT,
+            build_dir.display()
+        );
     }
 
     // Create the build directory.
@@ -29,7 +35,7 @@ pub fn install_groth16_artifacts() {
     // Download the artifacts.
     let download_url = format!(
         "{}/{}.tar.gz",
-        GROTH16_ARTIFACTS_URL_BASE, GROTH16_ARTIFACTS_VERSION
+        GROTH16_ARTIFACTS_URL_BASE, GROTH16_ARTIFACTS_COMMIT
     );
     let mut artifacts_tar_gz_file =
         tempfile::NamedTempFile::new().expect("failed to create tempfile");
@@ -55,6 +61,11 @@ pub fn install_groth16_artifacts() {
         .spawn()
         .expect("failed to extract tarball");
     res.wait().unwrap();
+
+    tracing::info!(
+        "successfully downloaded groth16 artifacts for commit {}",
+        GROTH16_ARTIFACTS_COMMIT
+    );
 }
 
 /// The directory where the groth16 artifacts will be stored based on [GROTH16_ARTIFACTS_VERSION]
@@ -64,7 +75,8 @@ pub fn install_groth16_artifacts_dir() -> PathBuf {
         .unwrap()
         .join(".sp1")
         .join("circuits")
-        .join(GROTH16_ARTIFACTS_VERSION)
+        .join(GROTH16_ARTIFACTS_COMMIT)
+        .join("build")
 }
 
 /// Download the file with a progress bar that indicates the progress.
@@ -87,7 +99,6 @@ pub async fn download_file(
     pb.set_style(ProgressStyle::default_bar()
         .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
         .progress_chars("#>-"));
-    println!("downloading groth16 artifacts {}", url);
 
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
@@ -99,8 +110,8 @@ pub async fn download_file(
         downloaded = new;
         pb.set_position(new);
     }
+    pb.finish();
 
-    let msg = format!("Downloaded {} to {:?}", url, file);
-    pb.finish_with_message(msg);
+    println!("downloaded {} to {:?}", url, file.path().to_str().unwrap());
     Ok(())
 }

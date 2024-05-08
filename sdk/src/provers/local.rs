@@ -14,6 +14,7 @@ pub struct LocalProver {
 impl LocalProver {
     /// Creates a new [LocalProver].
     pub fn new() -> Self {
+        sp1_prover::build::get_groth16_artifacts_dir();
         let prover = SP1Prover::new();
         Self { prover }
     }

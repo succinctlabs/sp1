@@ -33,4 +33,4 @@ if [ $? -ne 0 ]; then
     exit 1
 fi
 
-echo "Succesfully uploaded build artifacts to s3://$S3_BUCKET/$ARCHIVE_NAME"
+echo "succesfully uploaded build artifacts to s3://$S3_BUCKET/$ARCHIVE_NAME"

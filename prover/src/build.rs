@@ -11,6 +11,7 @@ use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
+use crate::install::{install_groth16_artifacts, install_groth16_artifacts_dir};
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
 
@@ -89,14 +90,10 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
 
 /// Gets the artifacts directory for Groth16 based on the current environment variables.
 ///
-/// - If `SP1_GROTH16_DEV_MODE` is enabled, we will use a smaller version of the final
+/// - If `SP1_DEV` is enabled, we will use a smaller version of the final
 /// circuit and rebuild it for every proof. This is useful for development and testing purposes, as
 /// it allows us to test the end-to-end proving without having to wait for the circuit to compile or
 /// download.
-///
-/// - If `SP1_GROTH16_ARTIFACTS_DIR` is set, we will use the artifacts from that directory. This is
-/// useful for when you want to test the production circuit and have a local build available for
-/// development purposes.
 ///
 /// - Otherwise, assume this is an official release and download the artifacts from the official
 /// download url.
@@ -114,20 +111,8 @@ pub fn get_groth16_artifacts_dir() -> PathBuf {
             );
         }
         build_dir
-    } else if let Some(artifacts_dir) = groth16_artifacts_dir() {
-        artifacts_dir
     } else {
-        crate::install::install_groth16_artifacts();
-        crate::install::install_groth16_artifacts_dir()
+        install_groth16_artifacts();
+        install_groth16_artifacts_dir()
     }
-}
-
-/// Returns the path to the directory where the groth16 artifacts are stored.
-///
-/// This variable is useful for when you want to test the production circuit and have a local build
-/// available for development purposes.
-pub fn groth16_artifacts_dir() -> Option<PathBuf> {
-    std::env::var("SP1_GROTH16_ARTIFACTS_DIR")
-        .map(PathBuf::from)
-        .ok()
 }
