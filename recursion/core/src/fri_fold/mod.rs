@@ -349,11 +349,11 @@ impl FriFoldChip {
         );
     }
 
-    pub fn do_receive_table<AB: BaseAirBuilder>(local: &FriFoldCols<AB::Var>) -> AB::Var {
+    pub fn do_receive_table<T: Copy>(local: &FriFoldCols<T>) -> T {
         local.is_last_iteration
     }
 
-    pub fn do_memory_access<AB: BaseAirBuilder>(local: &FriFoldCols<AB::Var>) -> AB::Var {
+    pub fn do_memory_access<T: Copy>(local: &FriFoldCols<T>) -> T {
         local.is_real
     }
 }
@@ -371,8 +371,8 @@ where
             builder,
             local,
             next,
-            Self::do_receive_table::<AB>(local),
-            Self::do_memory_access::<AB>(local),
+            Self::do_receive_table::<AB::Var>(local),
+            Self::do_memory_access::<AB::Var>(local),
         );
     }
 }

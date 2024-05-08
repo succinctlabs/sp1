@@ -6,6 +6,7 @@ use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, SP1AirBuilder};
 use sp1_primitives::RC_16_30_U32;
+use std::ops::Add;
 
 use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
 use crate::poseidon2_wide::{apply_m_4, internal_linear_layer};
@@ -275,11 +276,13 @@ impl Poseidon2Chip {
         );
     }
 
-    pub fn is_receive_table_round<AB: BaseAirBuilder>(local: &Poseidon2Cols<AB::Var>) -> AB::Var {
+    pub fn do_receive_table<T: Copy>(local: &Poseidon2Cols<T>) -> T {
         local.rounds[0]
     }
 
-    pub fn is_memory_access_round<AB: BaseAirBuilder>(local: &Poseidon2Cols<AB::Var>) -> AB::Expr {
+    pub fn do_memory_access<T: Copy + Add<T, Output = Output>, Output>(
+        local: &Poseidon2Cols<T>,
+    ) -> Output {
         local.rounds[0] + local.rounds[23]
     }
 }
@@ -295,8 +298,8 @@ where
         self.eval_poseidon2::<AB>(
             builder,
             local,
-            Self::is_receive_table_round::<AB>(local),
-            Self::is_memory_access_round::<AB>(local),
+            Self::do_receive_table::<AB::Var>(local),
+            Self::do_memory_access::<AB::Var, AB::Expr>(local),
         );
     }
 }

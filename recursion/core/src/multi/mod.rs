@@ -84,15 +84,14 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
                     cols.is_fri_fold = F::one();
 
                     let fri_fold_cols = *cols.fri_fold();
-                    cols.fri_fold_receive_table = fri_fold_cols.is_last_iteration;
-                    cols.fri_fold_memory_access = fri_fold_cols.is_real;
+                    cols.fri_fold_receive_table = FriFoldChip::do_receive_table(&fri_fold_cols);
+                    cols.fri_fold_memory_access = FriFoldChip::do_memory_access(&fri_fold_cols);
                 } else {
                     cols.is_poseidon2 = F::one();
 
                     let poseidon2_cols = *cols.poseidon2();
-                    cols.poseidon2_receive_table = poseidon2_cols.rounds[0];
-                    cols.poseidon2_memory_access =
-                        poseidon2_cols.rounds[0] + poseidon2_cols.rounds[23];
+                    cols.poseidon2_receive_table = Poseidon2Chip::do_receive_table(&poseidon2_cols);
+                    cols.poseidon2_memory_access = Poseidon2Chip::do_memory_access(&poseidon2_cols);
                 }
                 row
             })
@@ -160,11 +159,11 @@ where
 
         let fri_columns_local = local.fri_fold();
         sub_builder.assert_eq(
-            local.is_fri_fold * FriFoldChip::do_memory_access::<AB>(fri_columns_local),
+            local.is_fri_fold * FriFoldChip::do_memory_access::<AB::Var>(fri_columns_local),
             local.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local.is_fri_fold * FriFoldChip::do_receive_table::<AB>(fri_columns_local),
+            local.is_fri_fold * FriFoldChip::do_receive_table::<AB::Var>(fri_columns_local),
             local.fri_fold_receive_table,
         );
 
@@ -182,11 +181,12 @@ where
 
         let poseidon2_columns = local.poseidon2();
         sub_builder.assert_eq(
-            local.is_poseidon2 * Poseidon2Chip::is_receive_table_round::<AB>(poseidon2_columns),
+            local.is_poseidon2 * Poseidon2Chip::do_receive_table::<AB::Var>(poseidon2_columns),
             local.poseidon2_receive_table,
         );
         sub_builder.assert_eq(
-            local.is_poseidon2 * Poseidon2Chip::is_memory_access_round::<AB>(poseidon2_columns),
+            local.is_poseidon2
+                * Poseidon2Chip::do_memory_access::<AB::Var, AB::Expr>(poseidon2_columns),
             local.poseidon2_memory_access,
         );
 
