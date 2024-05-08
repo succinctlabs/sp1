@@ -28,6 +28,22 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
+
+      - name: Run cargo test on sp1-sdk
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-sdk --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_LOG: 1
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
+
       - name: Compute release name and tag
         id: release_info
         run: |
@@ -62,6 +78,9 @@ jobs:
           toTag: ${{ steps.release_info.outputs.tag_name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
+
 
   release:
     name: ${{ matrix.target }} (${{ matrix.runner }})
