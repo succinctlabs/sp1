@@ -8,7 +8,7 @@ use reqwest::Client;
 pub const GROTH16_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The current version of the groth16 artifacts.
-pub const GROTH16_ARTIFACTS_COMMIT: &str = "a8937be0";
+pub const GROTH16_ARTIFACTS_COMMIT: &str = "1e4007c2";
 
 /// Install the latest groth16 artifacts.
 ///
@@ -62,9 +62,10 @@ pub fn install_groth16_artifacts() {
         .expect("failed to extract tarball");
     res.wait().unwrap();
 
-    tracing::info!(
-        "successfully downloaded groth16 artifacts for commit {}",
-        GROTH16_ARTIFACTS_COMMIT
+    println!(
+        "[sp1]: downloaded {} to {:?}",
+        download_url,
+        build_dir.to_str().unwrap(),
     );
 }
 
@@ -96,7 +97,7 @@ pub async fn download_file(
 
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()
-        .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
+        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
         .progress_chars("#>-"));
 
     let mut downloaded: u64 = 0;
@@ -111,6 +112,5 @@ pub async fn download_file(
     }
     pb.finish();
 
-    println!("downloaded {} to {:?}", url, file.path().to_str().unwrap());
     Ok(())
 }
