@@ -36,7 +36,6 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
-        next: &Poseidon2Cols<AB::Var>,
         receive_table: AB::Var,
         memory_access: AB::Expr,
     ) {
@@ -88,11 +87,6 @@ impl Poseidon2Chip {
         builder.assert_bool(
             is_memory_read + is_initial + is_external_layer + is_internal_layer + is_memory_write,
         );
-
-        // When it's the second to last round, ensure that the clk is incremented by one.
-        builder
-            .when(local.rounds[22])
-            .assert_eq(local.clk + AB::F::from_canonical_usize(1), next.clk);
     }
 
     #[allow(unused)]
@@ -128,7 +122,7 @@ impl Poseidon2Chip {
                 memory_access_cols.addr_second_half + AB::Expr::from_canonical_usize(i - WIDTH / 2)
             };
             builder.recursion_eval_memory_access_single(
-                local.clk,
+                local.clk + AB::Expr::one() * is_memory_write,
                 addr,
                 &memory_access_cols.mem_access[i],
                 memory_access.clone(),
@@ -291,12 +285,9 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
-        let next = main.row_slice(1);
-        let next: &Poseidon2Cols<AB::Var> = (*next).borrow();
         self.eval_poseidon2::<AB>(
             builder,
             local,
-            next,
             local.rounds[0],
             local.rounds[0] + local.rounds[23],
         );
