@@ -664,6 +664,8 @@ pub mod tests {
 
     #[test]
     #[serial]
+    // Can run Fibonacci test.
+    // RUST_LOG=debug cargo test stark::machine::tests::test_fibonacci_prove --release -- --nocapture
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
