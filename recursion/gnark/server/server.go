@@ -52,7 +52,7 @@ func (s *Server) Start(port string) {
 	router.HandleFunc("GET /healthz", s.healthz)
 	router.HandleFunc("POST /groth16/prove", s.handleGroth16Prove)
 
-	fmt.Printf("Starting server on %s\n", port)
+	fmt.Printf("[sp1] starting server on %s\n", port)
 	http.ListenAndServe(":"+port, router)
 }
 
