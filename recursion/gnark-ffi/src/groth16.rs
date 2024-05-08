@@ -358,7 +358,6 @@ fn make_go_bindings(gnark_dir: &PathBuf) {
     let make = Command::new("make")
         .current_dir(gnark_dir)
         .stderr(Stdio::inherit())
-        .stdout(Stdio::inherit())
         .stdin(Stdio::inherit())
         .output()
         .unwrap();
