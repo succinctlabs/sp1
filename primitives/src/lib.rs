@@ -3,8 +3,12 @@
 
 use lazy_static::lazy_static;
 use p3_baby_bear::{BabyBear, DiffusionMatrixBabyBear};
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField32};
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
+
+use rand_xoshiro::Xoroshiro128Plus;
+use rand::{SeedableRng, Rng};
+use rand::distributions::Standard;
 
 lazy_static! {
     // These constants are created by a RNG.
@@ -1099,11 +1103,45 @@ lazy_static! {
     ];
 }
 
+lazy_static! {
+    pub static ref RC_24_29: [[BabyBear; 24]; 29] = {
+        let mut rng = &mut Xoroshiro128Plus::seed_from_u64(1);
+        let mut external_constants: Vec<[BabyBear; 24]> = rng
+            .sample_iter(Standard)
+            .take(8)
+            .collect();
+        let internal_constants: Vec<BabyBear> = rng
+            .sample_iter(Standard)
+            .take(21)
+            .collect();
+
+        let mut array: [[BabyBear; 24]; 29] = Default::default(); // Initializes with default values
+
+        for (i, value) in external_constants.iter().take(4).enumerate() {
+            array[i] = *value;
+        }
+        for (i, value) in internal_constants.iter().enumerate() {
+            array[i + 4][0] = *value;
+        }
+        for (i, value) in external_constants.iter().skip(4).enumerate() {
+            array[i + 25] = *value;
+        }
+
+        array
+    };
+
+    pub static ref RC_24_29_U32: [[u32; 24]; 29] = {
+        RC_24_29.map(|sub_arr| {
+            sub_arr.map(|x| x.as_canonical_u32())
+        })
+    };
+}
+
 pub fn poseidon2_init(
-) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7> {
+) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7> {
     const ROUNDS_F: usize = 8;
-    const ROUNDS_P: usize = 13;
-    let mut round_constants = RC_16_30.to_vec();
+    const ROUNDS_P: usize = 21;
+    let mut round_constants = RC_24_29.to_vec();
     let internal_start = ROUNDS_F / 2;
     let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
     let internal_round_constants = round_constants
@@ -1121,6 +1159,44 @@ pub fn poseidon2_init(
     )
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use p3_symmetric::Permutation;
+
+    #[test]
+    fn test_24_permutation() {
+        let h1 = poseidon2_init();
+
+        type Perm = Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>;
+        let h2 = Perm::new_from_rng_128(
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            &mut Xoroshiro128Plus::seed_from_u64(1),
+        );
+
+        let mut input1: [BabyBear; 24] = [
+            886409618, 1327899896, 1902407911, 591953491, 648428576, 1844789031, 1198336108,
+            355597330, 1799586834, 59617783, 790334801, 1968791836, 559272107, 31054313,
+            1042221543, 474748436, 135686258, 263665994, 1962340735, 1741539604, 449439011,
+            1131357108, 50869465, 1589724894,
+        ]
+        .map(BabyBear::from_canonical_u32);
+        let mut input2: [BabyBear; 24] = [
+            886409618, 1327899896, 1902407911, 591953491, 648428576, 1844789031, 1198336108,
+            355597330, 1799586834, 59617783, 790334801, 1968791836, 559272107, 31054313,
+            1042221543, 474748436, 135686258, 263665994, 1962340735, 1741539604, 449439011,
+            1131357108, 50869465, 1589724894,
+        ]
+        .map(BabyBear::from_canonical_u32);
+
+        h1.permute_mut(&mut input1);
+        h2.permute_mut(&mut input2);
+
+        assert_eq!(input1, input2);
+    }
+}
+
 use p3_symmetric::{CryptographicHasher, PaddingFreeSponge};
 
 pub fn poseidon2_hash(input: Vec<BabyBear>) -> [BabyBear; 8] {
@@ -1128,25 +1204,25 @@ pub fn poseidon2_hash(input: Vec<BabyBear>) -> [BabyBear; 8] {
 }
 
 pub fn poseidon2_hasher() -> PaddingFreeSponge<
-    Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
+    Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>,
+    24,
     16,
-    8,
     8,
 > {
     let hasher = poseidon2_init();
     PaddingFreeSponge::<
-        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
+        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>,
+        24,
         16,
-        8,
         8,
     >::new(hasher)
 }
 
 lazy_static! {
     pub static ref POSEIDON2_HASHER: PaddingFreeSponge::<
-        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
+        Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>,
+        24,
         16,
-        8,
         8,
     > = poseidon2_hasher();
 }
