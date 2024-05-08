@@ -27,7 +27,7 @@ if [ $? -ne 0 ]; then
 fi
 
 # Upload the file to S3, naming it after the current commit hash
-aws s3 cp "$FILE_TO_UPLOAD" "s3://$S3_BUCKET/$ARCHIVE_NAME"
+aws s3 cp "$ARCHIVE_NAME" "s3://$S3_BUCKET/$ARCHIVE_NAME"
 if [ $? -ne 0 ]; then
     echo "Failed to upload file to S3."
     exit 1
