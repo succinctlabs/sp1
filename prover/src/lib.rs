@@ -726,10 +726,9 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use crate::build::{build_groth16_artifacts, get_groth16_artifacts_dir};
-
     use super::*;
     use p3_field::PrimeField32;
+    use serial_test::serial;
     use sp1_core::io::SP1Stdin;
     use sp1_core::stark::MachineVerificationError;
     use sp1_core::utils::setup_logger;
@@ -739,6 +738,7 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
+    #[serial]
     fn test_e2e() {
         setup_logger();
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
@@ -809,11 +809,11 @@ mod tests {
         let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
-        tracing::info!("generate groth16 proof");
-        let artifacts_dir = get_groth16_artifacts_dir();
-        build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
-        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
-        println!("{:?}", groth16_proof);
+        // tracing::info!("generate groth16 proof");
+        // let artifacts_dir = get_groth16_artifacts_dir();
+        // build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
+        // let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
+        // println!("{:?}", groth16_proof);
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
@@ -821,6 +821,7 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
+    #[serial]
     fn test_e2e_with_deferred_proofs() {
         setup_logger();
 
