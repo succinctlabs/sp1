@@ -76,6 +76,7 @@ impl Poseidon2Chip {
         self.eval_computation(
             builder,
             local,
+            next,
             is_initial.into(),
             is_external_layer.clone(),
             is_internal_layer.clone(),
@@ -144,10 +145,12 @@ impl Poseidon2Chip {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn eval_computation<AB: BaseAirBuilder + ExtensionAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        next: &Poseidon2Cols<AB::Var>,
         is_initial: AB::Expr,
         is_external_layer: AB::Expr,
         is_internal_layer: AB::Expr,
@@ -265,8 +268,25 @@ impl Poseidon2Chip {
             let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
             internal_linear_layer(&mut state);
             builder
-                .when(is_internal_layer)
+                .when(is_internal_layer.clone())
                 .assert_all_eq(state.clone(), computation_cols.output);
+        }
+
+        // Assert that the round's output values are equal the the next round's input values.  For the
+        // last computation round, assert athat the output values are equal to the output memory values.
+        let next_row_computation = next.round_specific_cols.computation();
+        let next_row_memory_access = next.round_specific_cols.memory_access();
+        for i in 0..WIDTH {
+            let next_round_value = builder.if_else(
+                local.rounds[22],
+                *next_row_memory_access.mem_access[i].value(),
+                next_row_computation.input[i],
+            );
+
+            builder
+                .when_transition()
+                .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
+                .assert_eq(computation_cols.output[i], next_round_value);
         }
     }
 
