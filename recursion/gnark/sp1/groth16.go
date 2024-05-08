@@ -32,7 +32,7 @@ func BuildGroth16(buildDir string) error {
 		panic(err)
 	}
 	// p.Stop()
-	fmt.Println("[sp1]: groth16 verifier constriants", r1cs.GetNbConstraints())
+	fmt.Println("[sp1]: groth16 verifier constraints", r1cs.GetNbConstraints())
 
 	// Run the trusted setup.
 	pk, vk, err := groth16.Setup(r1cs)
