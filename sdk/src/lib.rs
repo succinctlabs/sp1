@@ -26,8 +26,8 @@ pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::{MachineVerificationError, ShardProof};
 pub use sp1_prover::{
-    CoreSC, Groth16Proof, InnerSC, PlonkBn254Proof, SP1CoreProof, SP1Prover, SP1ProvingKey,
-    SP1PublicValues, SP1Stdin, SP1VerifyingKey,
+    CoreSC, Groth16Proof, HashableKey, InnerSC, PlonkBn254Proof, SP1CoreProof, SP1Prover,
+    SP1ProvingKey, SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 
 /// A client for interacting with SP1.
@@ -451,6 +451,12 @@ impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P
     pub fn load(path: impl AsRef<Path>) -> Result<Self> {
         bincode::deserialize_from(File::open(path).expect("failed to open file"))
             .map_err(Into::into)
+    }
+}
+
+impl SP1Groth16Proof {
+    pub fn bytes(&self) -> String {
+        format!("0x{}", self.proof.encoded_proof.clone())
     }
 }
 

@@ -89,6 +89,10 @@ impl SP1PublicValues {
         }
     }
 
+    pub fn bytes(&self) -> String {
+        format!("0x{}", hex::encode(self.buffer.data.clone()))
+    }
+
     /// Create a `SP1PublicValues` from a slice of bytes.
     pub fn from(data: &[u8]) -> Self {
         Self {

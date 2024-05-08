@@ -60,8 +60,6 @@ use std::path::PathBuf;
 use std::time::Instant;
 use tracing::instrument;
 pub use types::*;
-use utils::babybear_bytes_to_bn254;
-use utils::babybears_to_bn254;
 use utils::words_to_bytes;
 
 use crate::types::ReduceState;
@@ -679,23 +677,13 @@ impl SP1Prover {
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
     pub fn wrap_groth16(&self, proof: SP1ReduceProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
-        let proof = &proof.proof;
-        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
-
-        // Convert pv.vkey_digest to a bn254 field element
-        let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
-
-        // Convert pv.committed_value_digest to a bn254 field element
-        let committed_values_digest_bytes: [BabyBear; 32] =
-            words_to_bytes(&pv.committed_value_digest)
-                .try_into()
-                .unwrap();
-        let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+        let vkey_digest = proof.sp1_vkey_digest_bn254();
+        let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
         let mut witness = Witness::default();
-        proof.write(&mut witness);
-        witness.write_commited_values_digest(committed_values_digest);
-        witness.write_vkey_hash(vkey_hash);
+        proof.proof.write(&mut witness);
+        witness.write_commited_values_digest(commited_values_digest);
+        witness.write_vkey_hash(vkey_digest);
 
         let prover = Groth16Prover::new(build_dir);
         prover.prove(witness)
@@ -811,6 +799,14 @@ mod tests {
             result.unwrap();
         }
 
+        tracing::info!("checking vkey hash babybear");
+        let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        assert_eq!(vk_digest_babybear, vk.hash_babybear());
+
+        tracing::info!("checking vkey hash bn254");
+        let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        assert_eq!(vk_digest_bn254, vk.hash_bn254());
+
         tracing::info!("generate groth16 proof");
         let artifacts_dir = get_groth16_artifacts_dir();
         build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
@@ -868,7 +864,7 @@ mod tests {
 
         // Run verify program with keccak vkey, subproofs, and their committed values.
         let mut stdin = SP1Stdin::new();
-        let vkey_digest = keccak_vk.hash();
+        let vkey_digest = keccak_vk.hash_babybear();
         let vkey_digest: [u32; 8] = vkey_digest
             .iter()
             .map(|n| n.as_canonical_u32())

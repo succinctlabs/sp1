@@ -24,7 +24,12 @@ pub fn export_solidity_groth16_verifier(output_dir: impl Into<PathBuf>) -> Resul
 
     std::fs::create_dir_all(&output_dir).context("Failed to create output directory.")?;
     let output_path = output_dir.join("Groth16Verifier.sol");
-    std::fs::copy(&verifier_path, output_path).context("Failed to copy verifier file.")?;
+    std::fs::copy(&verifier_path, &output_path).context("Failed to copy verifier file.")?;
+    tracing::info!(
+        "exported verifier from {} to {}",
+        verifier_path.display(),
+        output_path.display()
+    );
 
     Ok(())
 }
