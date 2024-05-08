@@ -348,6 +348,14 @@ impl FriFoldChip {
             (p_at_x - p_at_z) * alpha_pow_at_log_height,
         );
     }
+
+    pub fn do_receive_table<AB: BaseAirBuilder>(local: &FriFoldCols<AB::Var>) -> AB::Var {
+        local.is_last_iteration
+    }
+
+    pub fn do_memory_access<AB: BaseAirBuilder>(local: &FriFoldCols<AB::Var>) -> AB::Var {
+        local.is_real
+    }
 }
 
 impl<AB> Air<AB> for FriFoldChip
@@ -359,6 +367,12 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
         let next: &FriFoldCols<AB::Var> = (*next).borrow();
-        self.eval_fri_fold::<AB>(builder, local, next, local.is_last_iteration, local.is_real);
+        self.eval_fri_fold::<AB>(
+            builder,
+            local,
+            next,
+            Self::do_receive_table::<AB>(local),
+            Self::do_memory_access::<AB>(local),
+        );
     }
 }

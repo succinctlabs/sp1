@@ -155,20 +155,20 @@ where
             .when(local.is_poseidon2)
             .assert_one(next.is_poseidon2);
 
-        let fri_fold_chip = FriFoldChip::default();
         let mut sub_builder =
             MultiBuilder::new(builder, local.is_fri_fold.into(), next.is_fri_fold.into());
 
         let fri_columns_local = local.fri_fold();
         sub_builder.assert_eq(
-            local.is_fri_fold * fri_columns_local.is_real,
+            local.is_fri_fold * FriFoldChip::do_memory_access::<AB>(fri_columns_local),
             local.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local.is_fri_fold * fri_columns_local.is_last_iteration,
+            local.is_fri_fold * FriFoldChip::do_receive_table::<AB>(fri_columns_local),
             local.fri_fold_receive_table,
         );
 
+        let fri_fold_chip = FriFoldChip::default();
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,
             local.fri_fold(),
@@ -177,8 +177,8 @@ where
             local.fri_fold_memory_access,
         );
 
-        let poseidon2_chip = Poseidon2Chip::default();
-        let mut sub_builder = builder.when(local.is_poseidon2);
+        let mut sub_builder =
+            MultiBuilder::new(builder, local.is_poseidon2.into(), next.is_poseidon2.into());
 
         let poseidon2_columns = local.poseidon2();
         sub_builder.assert_eq(
@@ -190,6 +190,7 @@ where
             local.poseidon2_memory_access,
         );
 
+        let poseidon2_chip = Poseidon2Chip::default();
         poseidon2_chip.eval_poseidon2(
             &mut sub_builder,
             local.poseidon2(),
