@@ -23,11 +23,11 @@ pub const DIGEST_SIZE: usize = 8;
 pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
 pub type InnerPerm =
-    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
-pub type InnerHash = PaddingFreeSponge<InnerPerm, 16, 8, 8>;
+    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>;
+pub type InnerHash = PaddingFreeSponge<InnerPerm, 24, 16, 8>;
 pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
 pub type InnerDigest = [InnerVal; DIGEST_SIZE];
-pub type InnerCompress = TruncatedPermutation<InnerPerm, 2, 8, 16>;
+pub type InnerCompress = TruncatedPermutation<InnerPerm, 2, 8, 24>;
 pub type InnerValMmcs = FieldMerkleTreeMmcs<
     <InnerVal as Field>::Packing,
     <InnerVal as Field>::Packing,
@@ -36,7 +36,7 @@ pub type InnerValMmcs = FieldMerkleTreeMmcs<
     8,
 >;
 pub type InnerChallengeMmcs = ExtensionMmcs<InnerVal, InnerChallenge, InnerValMmcs>;
-pub type InnerChallenger = DuplexChallenger<InnerVal, InnerPerm, 16>;
+pub type InnerChallenger = DuplexChallenger<InnerVal, InnerPerm, 24>;
 pub type InnerDft = Radix2DitParallel;
 pub type InnerPcs = TwoAdicFriPcs<InnerVal, InnerDft, InnerValMmcs, InnerChallengeMmcs>;
 pub type InnerQueryProof = QueryProof<InnerChallenge, InnerChallengeMmcs>;

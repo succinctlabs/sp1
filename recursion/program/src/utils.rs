@@ -26,9 +26,9 @@ type EF = <SC as StarkGenericConfig>::Challenge;
 type C = AsmConfig<F, EF>;
 type Val = BabyBear;
 type Challenge = BinomialExtensionField<Val, 4>;
-type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
-type Hash = PaddingFreeSponge<Perm, 16, 8, 8>;
-type Compress = TruncatedPermutation<Perm, 2, 8, 16>;
+type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>;
+type Hash = PaddingFreeSponge<Perm, 24, 16, 8>;
+type Compress = TruncatedPermutation<Perm, 2, 8, 24>;
 type ValMmcs =
     FieldMerkleTreeMmcs<<Val as Field>::Packing, <Val as Field>::Packing, Hash, Compress, 8>;
 type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;

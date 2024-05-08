@@ -1,7 +1,7 @@
 #![allow(clippy::needless_range_loop)]
 
 use crate::poseidon2_wide::external::WIDTH;
-use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY};
+use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_24_BABYBEAR_MONTY};
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
@@ -51,7 +51,7 @@ pub(crate) fn external_linear_layer<AF: AbstractField>(state: &mut [AF; WIDTH]) 
 
 pub(crate) fn internal_linear_layer<F: AbstractField>(state: &mut [F; WIDTH]) {
     let matmul_constants: [<F as AbstractField>::F; WIDTH] =
-        POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MONTY
+        POSEIDON2_INTERNAL_MATRIX_DIAG_24_BABYBEAR_MONTY
             .iter()
             .map(|x| <F as AbstractField>::F::from_wrapped_u32(x.as_canonical_u32()))
             .collect::<Vec<_>>()

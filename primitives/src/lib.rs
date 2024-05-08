@@ -1104,7 +1104,7 @@ lazy_static! {
 }
 
 lazy_static! {
-    pub static ref RC_24_29: [[BabyBear; 24]; 29] = {
+    pub static ref RC_24_29: [[BabyBear; 24]; 30] = {
         let mut rng = &mut Xoroshiro128Plus::seed_from_u64(1);
         let mut external_constants: Vec<[BabyBear; 24]> = rng
             .sample_iter(Standard)
@@ -1115,7 +1115,7 @@ lazy_static! {
             .take(21)
             .collect();
 
-        let mut array: [[BabyBear; 24]; 29] = Default::default(); // Initializes with default values
+        let mut array: [[BabyBear; 24]; 30] = Default::default(); // Initializes with default values
 
         for (i, value) in external_constants.iter().take(4).enumerate() {
             array[i] = *value;
@@ -1130,7 +1130,7 @@ lazy_static! {
         array
     };
 
-    pub static ref RC_24_29_U32: [[u32; 24]; 29] = {
+    pub static ref RC_24_29_U32: [[u32; 24]; 30] = {
         RC_24_29.map(|sub_arr| {
             sub_arr.map(|x| x.as_canonical_u32())
         })

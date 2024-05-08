@@ -5,8 +5,8 @@ use p3_air::{Air, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, SP1AirBuilder};
-use sp1_primitives::RC_16_30_U32;
 use std::ops::Add;
+use sp1_primitives::RC_24_29_U32;
 
 use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
 use crate::memory::MemoryCols;
@@ -19,7 +19,7 @@ use super::columns::Poseidon2Cols;
 pub const NUM_POSEIDON2_COLS: usize = size_of::<Poseidon2Cols<u8>>();
 
 /// The width of the permutation.
-pub const WIDTH: usize = 16;
+pub const WIDTH: usize = 24;
 
 /// A chip that implements addition for the opcode ADD.
 #[derive(Default)]
@@ -43,7 +43,7 @@ impl Poseidon2Chip {
         memory_access: AB::Expr,
     ) {
         let rounds_f = 8;
-        let rounds_p = 13;
+        let rounds_p = 21;
         let rounds_p_beginning = 2 + rounds_f / 2;
         let rounds_p_end = rounds_p_beginning + rounds_p;
 
@@ -158,7 +158,7 @@ impl Poseidon2Chip {
         let computation_cols = local.round_specific_cols.computation();
 
         // Convert the u32 round constants to field elements.
-        let constants: [[AB::F; WIDTH]; 30] = RC_16_30_U32
+        let constants: [[AB::F; WIDTH]; 30] = RC_24_29_U32
             .iter()
             .map(|round| round.map(AB::F::from_wrapped_u32))
             .collect::<Vec<_>>()
@@ -386,7 +386,7 @@ mod tests {
             BabyBear,
             Poseidon2ExternalMatrixGeneral,
             DiffusionMatrixBabyBear,
-            16,
+            24,
             7,
         > = inner_perm();
 
@@ -431,7 +431,7 @@ mod tests {
             BabyBear,
             Poseidon2ExternalMatrixGeneral,
             DiffusionMatrixBabyBear,
-            16,
+            24,
             7,
         > = inner_perm();
 
@@ -461,8 +461,8 @@ mod tests {
 
         let mut challenger: p3_challenger::DuplexChallenger<
             BabyBear,
-            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
-            16,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>,
+            24,
         > = config.challenger();
         let start = Instant::now();
         uni_stark_verify(&config, &chip, &mut challenger, &proof)

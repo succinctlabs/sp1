@@ -10,7 +10,7 @@ pub struct Poseidon2Cols<T: Copy> {
     pub dst_input: T,
     pub left_input: T,
     pub right_input: T,
-    pub rounds: [T; 24], // 1 round for memory input; 1 round for initialize; 8 rounds for external; 13 rounds for internal; 1 round for memory output
+    pub rounds: [T; 32], // 1 round for memory input; 1 round for initialize; 8 rounds for external; 21 rounds for internal; 1 round for memory output
     pub round_specific_cols: RoundSpecificCols<T>,
 }
 

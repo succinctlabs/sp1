@@ -386,7 +386,7 @@ impl Hintable<C> for ShardCommitment<InnerDigestHash> {
     }
 }
 
-impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
+impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 24> {
     type HintVariable = DuplexChallengerVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {

@@ -3,7 +3,7 @@ use std::borrow::BorrowMut;
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use sp1_core::{air::MachineAir, utils::pad_rows_fixed};
-use sp1_primitives::RC_16_30_U32;
+use sp1_primitives::RC_24_29_U32;
 use tracing::instrument;
 
 use crate::{
@@ -115,7 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                         // Apply the round constants.
                         for j in 0..WIDTH {
                             computation_cols.add_rc[j] = computation_cols.input[j]
-                                + F::from_wrapped_u32(RC_16_30_U32[r - 2][j]);
+                                + F::from_wrapped_u32(RC_24_29_U32[r - 2][j]);
                         }
                     } else {
                         // Apply the round constants only on the first element.
@@ -123,7 +123,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                             .add_rc
                             .copy_from_slice(&computation_cols.input);
                         computation_cols.add_rc[0] =
-                            computation_cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 2][0]);
+                            computation_cols.input[0] + F::from_wrapped_u32(RC_24_29_U32[r - 2][0]);
                     };
 
                     // Apply the sbox.

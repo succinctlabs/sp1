@@ -10,7 +10,7 @@ use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir, SP1AirBuilder};
 use sp1_core::utils::pad_rows_fixed;
-use sp1_primitives::RC_16_30_U32;
+use sp1_primitives::RC_24_29_U32;
 use std::borrow::BorrowMut;
 use tracing::instrument;
 
@@ -23,10 +23,10 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 use super::columns::Poseidon2MemCols;
 
 /// The width of the permutation.
-pub const WIDTH: usize = 16;
+pub const WIDTH: usize = 24;
 
 pub const NUM_EXTERNAL_ROUNDS: usize = 8;
-pub const NUM_INTERNAL_ROUNDS: usize = 13;
+pub const NUM_INTERNAL_ROUNDS: usize = 21;
 pub const NUM_ROUNDS: usize = NUM_EXTERNAL_ROUNDS + NUM_INTERNAL_ROUNDS;
 
 /// A chip that implements addition for the opcode ADD.
@@ -170,15 +170,15 @@ fn populate_external_round<F: PrimeField32>(
         };
         let mut add_rc = *round_state;
         for i in 0..WIDTH {
-            add_rc[i] += F::from_wrapped_u32(RC_16_30_U32[round][i]);
+            add_rc[i] += F::from_wrapped_u32(RC_24_29_U32[round][i]);
         }
 
         // Apply the sboxes.
         // Optimization: since the linear layer that comes after the sbox is degree 1, we can
         // avoid adding columns for the result of the sbox, and instead include the x^3 -> x^7
         // part of the sbox in the constraint for the linear layer
-        let mut sbox_deg_7: [F; 16] = [F::zero(); WIDTH];
-        let mut sbox_deg_3: [F; 16] = [F::zero(); WIDTH];
+        let mut sbox_deg_7: [F; 24] = [F::zero(); WIDTH];
+        let mut sbox_deg_3: [F; 24] = [F::zero(); WIDTH];
         for i in 0..WIDTH {
             sbox_deg_3[i] = add_rc[i] * add_rc[i] * add_rc[i];
             sbox_deg_7[i] = sbox_deg_3[i] * sbox_deg_3[i] * add_rc[i];
@@ -207,7 +207,7 @@ fn populate_internal_rounds<F: PrimeField32>(
         // Optimization: Since adding a constant is a degree 1 operation, we can avoid adding
         // columns for it, just like for external rounds.
         let round = r + NUM_EXTERNAL_ROUNDS / 2;
-        let add_rc = state[0] + F::from_wrapped_u32(RC_16_30_U32[round][0]);
+        let add_rc = state[0] + F::from_wrapped_u32(RC_24_29_U32[round][0]);
 
         // Apply the sboxes.
         // Optimization: since the linear layer that comes after the sbox is degree 1, we can
@@ -254,7 +254,7 @@ fn eval_external_round<AB: SP1AirBuilder>(
         r + NUM_INTERNAL_ROUNDS
     };
     let add_rc: [AB::Expr; WIDTH] = core::array::from_fn(|i| {
-        external_state[i].into() + is_real * AB::F::from_wrapped_u32(RC_16_30_U32[round][i])
+        external_state[i].into() + is_real * AB::F::from_wrapped_u32(RC_24_29_U32[round][i])
     });
 
     // Apply the sboxes.
@@ -306,7 +306,7 @@ fn eval_internal_rounds<AB: SP1AirBuilder>(
             state[0].clone()
         } else {
             s0[r - 1].into()
-        } + is_real * AB::Expr::from_wrapped_u32(RC_16_30_U32[round][0]);
+        } + is_real * AB::Expr::from_wrapped_u32(RC_24_29_U32[round][0]);
 
         let mut sbox_deg_3 = add_rc.clone() * add_rc.clone() * add_rc.clone();
         if let Some(expected) = sbox_3 {
@@ -477,7 +477,7 @@ mod tests {
             BabyBear,
             Poseidon2ExternalMatrixGeneral,
             DiffusionMatrixBabyBear,
-            16,
+            24,
             7,
         > = inner_perm();
 
@@ -522,7 +522,7 @@ mod tests {
             BabyBear,
             Poseidon2ExternalMatrixGeneral,
             DiffusionMatrixBabyBear,
-            16,
+            24,
             7,
         > = inner_perm();
 

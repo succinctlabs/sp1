@@ -403,16 +403,16 @@ pub mod baby_bear_poseidon2 {
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
-    use sp1_primitives::RC_16_30;
+    use sp1_primitives::RC_24_29;
 
     use crate::stark::StarkGenericConfig;
 
     pub type Val = BabyBear;
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
-    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
-    pub type MyHash = PaddingFreeSponge<Perm, 16, 8, 8>;
-    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 16>;
+    pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>;
+    pub type MyHash = PaddingFreeSponge<Perm, 24, 16, 8>;
+    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 24>;
     pub type ValMmcs = FieldMerkleTreeMmcs<
         <Val as Field>::Packing,
         <Val as Field>::Packing,
@@ -422,13 +422,13 @@ pub mod baby_bear_poseidon2 {
     >;
     pub type ChallengeMmcs = ExtensionMmcs<Val, Challenge, ValMmcs>;
     pub type Dft = Radix2DitParallel;
-    pub type Challenger = DuplexChallenger<Val, Perm, 16>;
+    pub type Challenger = DuplexChallenger<Val, Perm, 24>;
     type Pcs = TwoAdicFriPcs<Val, Dft, ValMmcs, ChallengeMmcs>;
 
     pub fn my_perm() -> Perm {
         const ROUNDS_F: usize = 8;
-        const ROUNDS_P: usize = 13;
-        let mut round_constants = RC_16_30.to_vec();
+        const ROUNDS_P: usize = 21;
+        let mut round_constants = RC_24_29.to_vec();
         let internal_start = ROUNDS_F / 2;
         let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
         let internal_round_constants = round_constants
