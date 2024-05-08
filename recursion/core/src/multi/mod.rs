@@ -190,6 +190,7 @@ where
         poseidon2_chip.eval_poseidon2(
             &mut sub_builder,
             local.poseidon2(),
+            next.poseidon2(),
             local.poseidon2_receive_table,
             local.poseidon2_memory_access.into(),
         );

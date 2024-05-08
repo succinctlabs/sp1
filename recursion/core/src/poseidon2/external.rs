@@ -9,6 +9,7 @@ use sp1_primitives::RC_16_30_U32;
 use std::ops::Add;
 
 use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
+use crate::memory::MemoryCols;
 use crate::poseidon2_wide::{apply_m_4, internal_linear_layer};
 use crate::runtime::Opcode;
 
@@ -37,6 +38,7 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        next: &Poseidon2Cols<AB::Var>,
         receive_table: AB::Var,
         memory_access: AB::Expr,
     ) {
@@ -65,6 +67,7 @@ impl Poseidon2Chip {
         self.eval_mem(
             builder,
             local,
+            next,
             is_memory_read,
             is_memory_write,
             memory_access,
@@ -94,11 +97,13 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        next: &Poseidon2Cols<AB::Var>,
         is_memory_read: AB::Var,
         is_memory_write: AB::Var,
         memory_access: AB::Expr,
     ) {
         let memory_access_cols = local.round_specific_cols.memory_access();
+        let next_computation_col = next.round_specific_cols.computation();
 
         builder
             .when(is_memory_read)
@@ -126,6 +131,15 @@ impl Poseidon2Chip {
                 addr,
                 &memory_access_cols.mem_access[i],
                 memory_access.clone(),
+            );
+        }
+
+        // For the memory read round, need to connect the memory val to the input of the next
+        // computation round.
+        for i in 0..WIDTH {
+            builder.when_transition().when(is_memory_read).assert_eq(
+                *memory_access_cols.mem_access[i].value(),
+                next_computation_col.input[i],
             );
         }
     }
@@ -295,10 +309,13 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &Poseidon2Cols<AB::Var> = (*next).borrow();
 
         self.eval_poseidon2::<AB>(
             builder,
             local,
+            next,
             Self::do_receive_table::<AB::Var>(local),
             Self::do_memory_access::<AB::Var, AB::Expr>(local),
         );
