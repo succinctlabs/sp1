@@ -45,6 +45,7 @@ pub fn run_test_io(
     Ok(public_values)
 }
 
+// Entrypoint for run_test
 pub fn run_test(
     program: Program,
 ) -> Result<
@@ -74,6 +75,7 @@ pub fn run_test_core(
     run_test_machine(record, machine, pk, vk)
 }
 
+// Calls run_test_machine which is the core of the core proof generation logic.
 #[allow(unused_variables)]
 pub fn run_test_machine<SC, A>(
     record: A::Record,
@@ -106,6 +108,7 @@ where
 
     let start = Instant::now();
     let mut challenger = machine.config().challenger();
+    // Instantiate some sort of client and pass it into this function.
     let proof = machine.prove::<LocalProver<SC, A>>(&pk, record, &mut challenger);
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

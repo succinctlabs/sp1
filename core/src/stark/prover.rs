@@ -76,6 +76,8 @@ where
     {
         // Observe the preprocessed commitment.
         pk.observe_into(challenger);
+
+        // Phase 1 commitment. Question: how much time do we spend in phase 1 commitment.
         // Generate and commit the traces for each segment.
         let (shard_commits, shard_data) = Self::commit_shards(machine, &shards);
 
@@ -155,6 +157,8 @@ where
     PcsProverData<SC>: Send + Sync,
     ShardMainData<SC>: Serialize + DeserializeOwned,
 {
+    // We want a detailed metrics profile on commit_main and the parts of commit_main including
+    // trace generation broken down by chip and also the time spent in pcs.commit.
     pub fn commit_main(
         config: &SC,
         machine: &StarkMachine<SC, A>,
@@ -165,6 +169,7 @@ where
         let shard_chips = machine.shard_chips(shard).collect::<Vec<_>>();
 
         // For each chip, generate the trace.
+        // Profile trace generation.
         let parent_span = tracing::debug_span!("generate traces for shard");
         let mut named_traces = parent_span.in_scope(|| {
             shard_chips
@@ -196,6 +201,7 @@ where
             })
             .collect::<Vec<_>>();
 
+        // Profile how much time is spent in pcs.commit overall per shard.
         // Commit to the batch of traces.
         let (main_commit, main_data) = pcs.commit(domains_and_traces);
 
@@ -539,6 +545,7 @@ where
         }
     }
 
+    // Commit_shards is the function we care about profiling
     pub fn commit_shards<F, EF>(
         machine: &StarkMachine<SC, A>,
         shards: &[A::Record],
@@ -552,6 +559,8 @@ where
         ShardMainData<SC>: Serialize + DeserializeOwned,
     {
         let config = machine.config();
+
+        // This function iterates through the shards and calls `commit_main` on each of them.
 
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.
@@ -569,6 +578,7 @@ where
                             tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(
                                 || {
                                     let index = shard.index();
+                                    // How much time are we spending per-shard commiting, let's evaluate whether it is balanced
                                     let data =
                                         Self::commit_main(config, machine, shard, index as usize);
                                     finished.fetch_add(1, Ordering::Relaxed);
