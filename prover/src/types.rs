@@ -17,6 +17,7 @@ use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{plonk_bn254::PlonkBn254Proof, Groth16Proof};
 
+use crate::utils::words_to_bytes_be;
 use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
 use crate::{utils::babybears_to_bn254, CoreSC, InnerSC};
 
@@ -51,6 +52,11 @@ pub trait HashableKey {
     }
 
     fn hash_u32(&self) -> [u32; 8];
+
+    /// Hash the key into a digest of 8 u32 elements.
+    fn hash_bytes(&self) -> [u8; 32] {
+        words_to_bytes_be(&self.hash_u32())
+    }
 }
 
 impl HashableKey for SP1VerifyingKey {

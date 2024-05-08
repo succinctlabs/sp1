@@ -263,6 +263,14 @@ impl Groth16Prover {
 
         proof
     }
+
+    pub fn shutdown(&mut self) {
+        let mut handle_opt = self.thread_handle.lock().unwrap();
+        if let Some(handle) = handle_opt.take() {
+            let _ = self.cancel_sender.send(());
+            let _ = handle.join();
+        }
+    }
 }
 
 /// Generates a Groth16 proof by sending a request to the Gnark server.
@@ -333,11 +341,7 @@ pub fn convert(proof: Groth16Proof, build_dir: &PathBuf) -> SolidityGroth16Proof
 
 impl Drop for Groth16Prover {
     fn drop(&mut self) {
-        let mut handle_opt = self.thread_handle.lock().unwrap();
-        if let Some(handle) = handle_opt.take() {
-            let _ = self.cancel_sender.send(());
-            let _ = handle.join();
-        }
+        self.shutdown();
     }
 }
 

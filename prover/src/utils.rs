@@ -123,3 +123,13 @@ pub fn babybear_bytes_to_bn254(bytes: &[BabyBear; 32]) -> Bn254Fr {
     }
     result
 }
+
+/// Utility method for converting u32 words to bytes in big endian.
+pub fn words_to_bytes_be(words: &[u32; 8]) -> [u8; 32] {
+    let mut bytes = [0u8; 32];
+    for i in 0..8 {
+        let word_bytes = words[i].to_be_bytes();
+        bytes[i * 4..(i + 1) * 4].copy_from_slice(&word_bytes);
+    }
+    bytes
+}
