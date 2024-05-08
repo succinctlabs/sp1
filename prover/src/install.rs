@@ -10,18 +10,12 @@ pub const GROTH16_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.
 /// The current version of the groth16 artifacts.
 pub const GROTH16_ARTIFACTS_VERSION: &str = "1";
 
-/// The base URL for the S3 bucket containing the plonk bn254 artifacts.
-pub const PLONK_BN254_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
-
-/// The current version of the plonk bn254 artifacts.
-pub const PLONK_BN254_ARTIFACTS_VERSION: &str = "1";
-
 /// Install the latest groth16 artifacts.
 ///
 /// This function will download the latest groth16 artifacts from the S3 bucket and extract them to
 /// the directory specified by [groth16_artifacts_dir()].
-pub fn groth16_artifacts() {
-    let build_dir = groth16_artifacts_dir();
+pub fn install_groth16_artifacts() {
+    let build_dir = install_groth16_artifacts_dir();
 
     // If build directory already exists, skip the download.
     if build_dir.exists() {
@@ -34,7 +28,7 @@ pub fn groth16_artifacts() {
 
     // Download the artifacts.
     let download_url = format!(
-        "{}/groth16/{}.tar.gz",
+        "{}/{}.tar.gz",
         GROTH16_ARTIFACTS_URL_BASE, GROTH16_ARTIFACTS_VERSION
     );
     let mut artifacts_tar_gz_file =
@@ -65,12 +59,12 @@ pub fn groth16_artifacts() {
 
 /// The directory where the groth16 artifacts will be stored based on [GROTH16_ARTIFACTS_VERSION]
 /// and [GROTH16_ARTIFACTS_URL_BASE].
-pub fn groth16_artifacts_dir() -> PathBuf {
+pub fn install_groth16_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")
         .join("circuits")
-        .join(format!("groth16-{}", GROTH16_ARTIFACTS_VERSION))
+        .join(GROTH16_ARTIFACTS_VERSION)
 }
 
 /// Download the file with a progress bar that indicates the progress.

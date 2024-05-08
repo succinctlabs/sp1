@@ -4,5 +4,5 @@
 use sp1_prover::install;
 
 pub fn main() {
-    install::groth16_artifacts();
+    install::install_groth16_artifacts();
 }

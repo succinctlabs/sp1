@@ -3,11 +3,14 @@ all:
 	make tendermint-sweep
 	make fibonacci-groth16
 
-groth16:
+build-groth16:
 	mkdir -p build && \
 	RUSTFLAGS='-C target-cpu=native' \
 	cargo run -p sp1-prover --release --bin build_groth16 -- \
 	--build-dir=./build
+
+upload-groth16:
+	bash upload.sh
 
 test-e2e:
 	RUSTFLAGS='-C target-cpu=native' \

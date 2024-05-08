@@ -8,7 +8,7 @@ pub use sp1_prover::build::{build_groth16_artifacts_with_dummy, get_groth16_arti
 
 /// Exports the soliditiy verifier for Groth16 proofs to the specified output directory.
 ///
-/// WARNING: This function may take some time to complete if `SP1_DEV_WRAPPER` is enabled (which
+/// WARNING: This function may take some time to complete if `SP1_DEV` is enabled (which
 /// is the default) as it needs to generate an end-to-end dummy proof to export the verifier.
 pub fn export_solidity_groth16_verifier(output_dir: impl Into<PathBuf>) -> Result<()> {
     let output_dir: PathBuf = output_dir.into();

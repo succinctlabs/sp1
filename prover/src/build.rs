@@ -8,38 +8,11 @@ pub use sp1_recursion_circuit::witness::Witnessable;
 pub use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
-
-/// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
-/// the proof.
-pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
-    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
-
-    tracing::info!("initializing prover");
-    let prover = SP1Prover::new();
-
-    tracing::info!("setup elf");
-    let (pk, vk) = prover.setup(elf);
-
-    tracing::info!("prove core");
-    let mut stdin = SP1Stdin::new();
-    stdin.write(&500u32);
-    let core_proof = prover.prove_core(&pk, &stdin);
-
-    tracing::info!("compress");
-    let compressed_proof = prover.compress(&vk, core_proof, vec![]);
-
-    tracing::info!("shrink");
-    let shrink_proof = prover.shrink(&vk, compressed_proof);
-
-    tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(&vk, shrink_proof);
-
-    (prover.wrap_vk, wrapped_proof.proof)
-}
 
 /// Build the groth16 artifacts to the given directory for the given verification key and template
 /// proof.
@@ -86,6 +59,34 @@ pub fn build_constraints_and_witness(
     (constraints, witness)
 }
 
+/// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
+/// the proof.
+pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
+    let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
+
+    tracing::info!("initializing prover");
+    let prover = SP1Prover::new();
+
+    tracing::info!("setup elf");
+    let (pk, vk) = prover.setup(elf);
+
+    tracing::info!("prove core");
+    let mut stdin = SP1Stdin::new();
+    stdin.write(&500u32);
+    let core_proof = prover.prove_core(&pk, &stdin);
+
+    tracing::info!("compress");
+    let compressed_proof = prover.compress(&vk, core_proof, vec![]);
+
+    tracing::info!("shrink");
+    let shrink_proof = prover.shrink(&vk, compressed_proof);
+
+    tracing::info!("wrap");
+    let wrapped_proof = prover.wrap_bn254(&vk, shrink_proof);
+
+    (prover.wrap_vk, wrapped_proof.proof)
+}
+
 /// Gets the artifacts directory for Groth16 based on the current environment variables.
 ///
 /// - If `SP1_GROTH16_DEV_MODE` is enabled, we will use a smaller version of the final
@@ -100,13 +101,12 @@ pub fn build_constraints_and_witness(
 /// - Otherwise, assume this is an official release and download the artifacts from the official
 /// download url.
 pub fn get_groth16_artifacts_dir() -> PathBuf {
-    if groth16_dev_mode() {
-        tracing::debug!("proving groth16 inside development mode");
+    if sp1_dev_mode() {
         let build_dir = dirs::home_dir()
             .unwrap()
             .join(".sp1")
             .join("circuits")
-            .join("groth16-dev");
+            .join("dev");
         if let Err(err) = std::fs::create_dir_all(&build_dir) {
             panic!(
                 "failed to create build directory for groth16 artifacts: {}",
@@ -117,20 +117,9 @@ pub fn get_groth16_artifacts_dir() -> PathBuf {
     } else if let Some(artifacts_dir) = groth16_artifacts_dir() {
         artifacts_dir
     } else {
-        crate::install::groth16_artifacts();
-        crate::install::groth16_artifacts_dir()
+        crate::install::install_groth16_artifacts();
+        crate::install::install_groth16_artifacts_dir()
     }
-}
-
-/// Returns whether the `SP1_GROTH16_DEV_MODE` environment variable is enabled or disabled.
-///
-/// This variable controls whether a smaller version of the circuit will be used for generating the
-/// Groth16 proofs. This is useful for development and testing purposes.
-///
-/// By default, the variable is enabled. It should be disabled for production use.
-pub fn groth16_dev_mode() -> bool {
-    let value = std::env::var("SP1_GROTH16_DEV_MODE").unwrap_or_else(|_| "true".to_string());
-    value == "1" || value.to_lowercase() == "true"
 }
 
 /// Returns the path to the directory where the groth16 artifacts are stored.

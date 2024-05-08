@@ -43,7 +43,7 @@ jobs:
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
-          SP1_DEV_WRAPPER: false
+          SP1_DEV: false
 
   test-main:
     name: SP1 Tests
@@ -69,7 +69,7 @@ jobs:
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
-          SP1_DEV_WRAPPER: false
+          SP1_DEV: false
 
   lints:
     name: Formatting & Clippy
