@@ -158,11 +158,11 @@ impl Poseidon2Chip {
             let mut result: AB::Expr = computation_cols.input[i].into();
             for r in 0..rounds {
                 if i == 0 {
-                    result += local.rounds[r + 1]
+                    result += local.rounds[r + 2]
                         * constants[r][i]
                         * (is_external_layer.clone() + is_internal_layer.clone());
                 } else {
-                    result += local.rounds[r + 1] * constants[r][i] * is_external_layer.clone();
+                    result += local.rounds[r + 2] * constants[r][i] * is_external_layer.clone();
                 }
             }
             builder
@@ -295,6 +295,7 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
+
         self.eval_poseidon2::<AB>(
             builder,
             local,
