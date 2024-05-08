@@ -39,7 +39,7 @@ jobs:
           args: -p sp1-prover --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_LOG: 1
+          RUST_LOG: info
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
