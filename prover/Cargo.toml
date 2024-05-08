@@ -60,9 +60,5 @@ path = "scripts/test_groth16_verification.rs"
 name = "build_groth16"
 path = "scripts/build_groth16.rs"
 
-[[bin]]
-name = "install_groth16"
-path = "scripts/install_groth16.rs"
-
 [features]
 neon = ["sp1-core/neon"]

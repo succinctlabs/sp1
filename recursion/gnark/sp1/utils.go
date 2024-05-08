@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -20,7 +21,7 @@ func SerializeToSolidityRepresentation(proof groth16.Proof, vkeyHash string, com
 	if !ok {
 		panic("proof does not implement MarshalSolidity")
 	}
-	proofBytes := _proof.MarshalSolidity()
+	proofSolidityBytes := _proof.MarshalSolidity()
 
 	// solidity contract inputs
 	var publicInputs [2]string
@@ -30,7 +31,7 @@ func SerializeToSolidityRepresentation(proof groth16.Proof, vkeyHash string, com
 
 	return SolidityGroth16Proof{
 		PublicInputs:  publicInputs,
-		SolidityProof: hex.EncodeToString(proofBytes),
+		SolidityProof: hex.EncodeToString(proofSolidityBytes),
 	}, nil
 }
 
@@ -40,6 +41,36 @@ func SerializeGnarkGroth16Proof(proof *groth16.Proof, witnessInput WitnessInput)
 	var buf bytes.Buffer
 	(*proof).WriteRawTo(&buf)
 	proofBytes := buf.Bytes()
+
+	fpSize := 4 * 8
+
+	var (
+		a [2]*big.Int
+		b [2][2]*big.Int
+		c [2]*big.Int
+	)
+	a[0] = new(big.Int).SetBytes(proofBytes[fpSize*0 : fpSize*1])
+	a[1] = new(big.Int).SetBytes(proofBytes[fpSize*1 : fpSize*2])
+	b[0][0] = new(big.Int).SetBytes(proofBytes[fpSize*2 : fpSize*3])
+	b[0][1] = new(big.Int).SetBytes(proofBytes[fpSize*3 : fpSize*4])
+	b[1][0] = new(big.Int).SetBytes(proofBytes[fpSize*4 : fpSize*5])
+	b[1][1] = new(big.Int).SetBytes(proofBytes[fpSize*5 : fpSize*6])
+	c[0] = new(big.Int).SetBytes(proofBytes[fpSize*6 : fpSize*7])
+	c[1] = new(big.Int).SetBytes(proofBytes[fpSize*7 : fpSize*8])
+
+	commitmentCountBigInt := new(big.Int).SetBytes(proofBytes[fpSize*8 : fpSize*8+4])
+	commitmentCount := int(commitmentCountBigInt.Int64())
+
+	var commitments []*big.Int = make([]*big.Int, 2*commitmentCount)
+	var commitmentPok [2]*big.Int
+
+	for i := 0; i < 2*commitmentCount; i++ {
+		commitments[i] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+i*fpSize : fpSize*8+4+(i+1)*fpSize])
+	}
+
+	commitmentPok[0] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize : fpSize*8+4+2*commitmentCount*fpSize+fpSize])
+	commitmentPok[1] = new(big.Int).SetBytes(proofBytes[fpSize*8+4+2*commitmentCount*fpSize+fpSize : fpSize*8+4+2*commitmentCount*fpSize+2*fpSize])
+
 	var publicInputs [2]string
 	publicInputs[0] = witnessInput.VkeyHash
 	publicInputs[1] = witnessInput.CommitedValuesDigest
@@ -100,11 +131,11 @@ func NewCircuitFromWitness(witnessInput WitnessInput) Circuit {
 
 	// Initialize the circuit.
 	return Circuit{
+		VkeyHash:             witnessInput.VkeyHash,
+		CommitedValuesDigest: witnessInput.CommitedValuesDigest,
 		Vars:                 vars,
 		Felts:                felts,
 		Exts:                 exts,
-		VkeyHash:             witnessInput.VkeyHash,
-		CommitedValuesDigest: witnessInput.CommitedValuesDigest,
 	}
 }
 

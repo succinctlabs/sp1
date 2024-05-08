@@ -8,25 +8,23 @@ use reqwest::Client;
 pub const GROTH16_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
 
 /// The current version of the groth16 artifacts.
-pub const GROTH16_ARTIFACTS_VERSION: &str = "1";
-
-/// The base URL for the S3 bucket containing the plonk bn254 artifacts.
-pub const PLONK_BN254_ARTIFACTS_URL_BASE: &str = "https://sp1-circuits.s3-us-east-2.amazonaws.com";
-
-/// The current version of the plonk bn254 artifacts.
-pub const PLONK_BN254_ARTIFACTS_VERSION: &str = "1";
+pub const GROTH16_ARTIFACTS_COMMIT: &str = "49fedbe4";
 
 /// Install the latest groth16 artifacts.
 ///
 /// This function will download the latest groth16 artifacts from the S3 bucket and extract them to
 /// the directory specified by [groth16_artifacts_dir()].
-pub fn groth16_artifacts() {
-    let build_dir = groth16_artifacts_dir();
-
+pub fn install_groth16_artifacts(build_dir: PathBuf) {
     // If build directory already exists, skip the download.
     if build_dir.exists() {
-        tracing::info!("groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
+        println!("[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
         return;
+    } else {
+        println!(
+            "[sp1] groth16 artifacts for commit {} do not exist at {}. downloading...",
+            GROTH16_ARTIFACTS_COMMIT,
+            build_dir.display()
+        );
     }
 
     // Create the build directory.
@@ -34,8 +32,8 @@ pub fn groth16_artifacts() {
 
     // Download the artifacts.
     let download_url = format!(
-        "{}/groth16/{}.tar.gz",
-        GROTH16_ARTIFACTS_URL_BASE, GROTH16_ARTIFACTS_VERSION
+        "{}/{}.tar.gz",
+        GROTH16_ARTIFACTS_URL_BASE, GROTH16_ARTIFACTS_COMMIT
     );
     let mut artifacts_tar_gz_file =
         tempfile::NamedTempFile::new().expect("failed to create tempfile");
@@ -61,16 +59,22 @@ pub fn groth16_artifacts() {
         .spawn()
         .expect("failed to extract tarball");
     res.wait().unwrap();
+
+    println!(
+        "[sp1] downloaded {} to {:?}",
+        download_url,
+        build_dir.to_str().unwrap(),
+    );
 }
 
 /// The directory where the groth16 artifacts will be stored based on [GROTH16_ARTIFACTS_VERSION]
 /// and [GROTH16_ARTIFACTS_URL_BASE].
-pub fn groth16_artifacts_dir() -> PathBuf {
+pub fn install_groth16_artifacts_dir() -> PathBuf {
     dirs::home_dir()
         .unwrap()
         .join(".sp1")
         .join("circuits")
-        .join(format!("groth16-{}", GROTH16_ARTIFACTS_VERSION))
+        .join(GROTH16_ARTIFACTS_COMMIT)
 }
 
 /// Download the file with a progress bar that indicates the progress.
@@ -91,9 +95,8 @@ pub async fn download_file(
 
     let pb = ProgressBar::new(total_size);
     pb.set_style(ProgressStyle::default_bar()
-        .template("{msg}\n{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
+        .template("{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {bytes}/{total_bytes} ({bytes_per_sec}, {eta})").unwrap()
         .progress_chars("#>-"));
-    println!("downloading groth16 artifacts {}", url);
 
     let mut downloaded: u64 = 0;
     let mut stream = res.bytes_stream();
@@ -105,8 +108,7 @@ pub async fn download_file(
         downloaded = new;
         pb.set_position(new);
     }
+    pb.finish();
 
-    let msg = format!("Downloaded {} to {:?}", url, file);
-    pb.finish_with_message(msg);
     Ok(())
 }

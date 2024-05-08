@@ -1,7 +1,6 @@
 mod local;
 mod mock;
 mod network;
-mod utils;
 
 use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
 use anyhow::Result;

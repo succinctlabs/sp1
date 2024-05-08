@@ -15,8 +15,6 @@ import (
 )
 
 func TestMain(t *testing.T) {
-	// assert := test.NewAssert(t)
-
 	// Get the file name from an environment variable.
 	fileName := os.Getenv("WITNESS_JSON")
 	if fileName == "" {
@@ -64,7 +62,7 @@ func TestMain(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println("NbConstraints:", r1cs.GetNbConstraints())
+	fmt.Println("[sp1] groth16 verifier constraints:", r1cs.GetNbConstraints())
 
 	// Run the dummy setup.
 	var pk groth16.ProvingKey

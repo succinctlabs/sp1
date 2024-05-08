@@ -454,6 +454,12 @@ impl<P: Debug + Clone + Serialize + DeserializeOwned> SP1ProofWithPublicValues<P
     }
 }
 
+impl SP1Groth16Proof {
+    pub fn bytes(&self) -> String {
+        format!("0x{}", self.proof.encoded_proof.clone())
+    }
+}
+
 #[cfg(test)]
 mod tests {
 

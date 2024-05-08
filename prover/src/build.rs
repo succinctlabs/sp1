@@ -8,26 +8,61 @@ pub use sp1_recursion_circuit::witness::Witnessable;
 pub use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_core::air::RecursionPublicValues;
-use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
+use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
+use crate::install::{install_groth16_artifacts, GROTH16_ARTIFACTS_COMMIT};
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
 
 /// Build the groth16 artifacts to the given directory for the given verification key and template
 /// proof.
-pub fn groth16_artifacts(
-    wrap_vk: &StarkVerifyingKey<OuterSC>,
-    wrapped_proof: &ShardProof<OuterSC>,
-    build_dir: PathBuf,
+pub fn build_groth16_artifacts(
+    template_vk: &StarkVerifyingKey<OuterSC>,
+    template_proof: &ShardProof<OuterSC>,
+    build_dir: impl Into<PathBuf>,
 ) {
-    let (constraints, witness) = build_constraints(wrap_vk, wrapped_proof);
-    Groth16Prover::build(constraints, witness, build_dir);
+    let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof);
+    Groth16Prover::build(constraints, witness, build_dir.into());
+}
+
+/// Builds the groth16 artifacts to the given directory.
+///
+/// This may take a while as it needs to first generate a dummy proof and then it needs to compile
+/// the circuit.
+pub fn build_groth16_artifacts_with_dummy(build_dir: impl Into<PathBuf>) {
+    let (wrap_vk, wrapped_proof) = dummy_proof();
+    crate::build::build_groth16_artifacts(&wrap_vk, &wrapped_proof, build_dir.into());
+}
+
+/// Build the verifier constraints and template witness for the circuit.
+pub fn build_constraints_and_witness(
+    template_vk: &StarkVerifyingKey<OuterSC>,
+    template_proof: &ShardProof<OuterSC>,
+) -> (Vec<Constraint>, Witness<OuterConfig>) {
+    tracing::info!("building verifier constraints");
+    let constraints = tracing::info_span!("wrap circuit")
+        .in_scope(|| build_wrap_circuit(template_vk, template_proof.clone()));
+
+    let pv = RecursionPublicValues::from_vec(template_proof.public_values.clone());
+    let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
+    let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
+        .try_into()
+        .unwrap();
+    let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
+
+    tracing::info!("building template witness");
+    let mut witness = Witness::default();
+    template_proof.write(&mut witness);
+    witness.write_commited_values_digest(committed_values_digest);
+    witness.write_vkey_hash(vkey_hash);
+
+    (constraints, witness)
 }
 
 /// Generate a dummy proof that we can use to build the circuit. We need this to know the shape of
 /// the proof.
-fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
+pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let elf = include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
 
     tracing::info!("initializing prover");
@@ -53,70 +88,36 @@ fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     (prover.wrap_vk, wrapped_proof.proof)
 }
 
-/// Build the verifier constraints and template witness for the circuit.
-pub fn build_constraints(
-    wrap_vk: &StarkVerifyingKey<OuterSC>,
-    wrapped_proof: &ShardProof<OuterSC>,
-) -> (Vec<Constraint>, Witness<OuterConfig>) {
-    tracing::info!("building verifier constraints");
-    let constraints = tracing::info_span!("wrap circuit")
-        .in_scope(|| build_wrap_circuit(wrap_vk, wrapped_proof.clone()));
-
-    let pv = RecursionPublicValues::from_vec(wrapped_proof.public_values.clone());
-    let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
-    let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
-        .try_into()
-        .unwrap();
-    let committed_values_digest = babybear_bytes_to_bn254(&committed_values_digest_bytes);
-
-    tracing::info!("building template witness");
-    let mut witness = Witness::default();
-    wrapped_proof.write(&mut witness);
-    witness.write_commited_values_digest(committed_values_digest);
-    witness.write_vkey_hash(vkey_hash);
-
-    (constraints, witness)
-}
-
-/// Create a directory if it doesn't exist.
-fn mkdirs(dir: &PathBuf) {
-    if !dir.exists() {
-        std::fs::create_dir_all(dir).expect("Failed to create directory");
+/// Gets the artifacts directory for Groth16 based on the current environment variables.
+///
+/// - If `SP1_DEV` is enabled, we will use a smaller version of the final
+/// circuit and rebuild it for every proof. This is useful for development and testing purposes, as
+/// it allows us to test the end-to-end proving without having to wait for the circuit to compile or
+/// download.
+///
+/// - Otherwise, assume this is an official release and download the artifacts from the official
+/// download url.
+pub fn get_groth16_artifacts_dir() -> PathBuf {
+    if sp1_dev_mode() {
+        let build_dir = dirs::home_dir()
+            .unwrap()
+            .join(".sp1")
+            .join("circuits")
+            .join("dev");
+        if let Err(err) = std::fs::create_dir_all(&build_dir) {
+            panic!(
+                "failed to create build directory for groth16 artifacts: {}",
+                err
+            );
+        }
+        build_dir
+    } else {
+        let build_dir = dirs::home_dir()
+            .unwrap()
+            .join(".sp1")
+            .join("circuits")
+            .join(GROTH16_ARTIFACTS_COMMIT);
+        install_groth16_artifacts(build_dir.clone());
+        build_dir
     }
-}
-
-/// Build the groth16 circuit artifacts.
-pub fn build_groth16_artifacts(build_dir: PathBuf) {
-    std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-
-    let (wrap_vk, wrapped_proof) = dummy_proof();
-    let (constraints, witness) = build_constraints(&wrap_vk, &wrapped_proof);
-
-    tracing::info!("sanity check gnark test");
-    Groth16Prover::test(constraints.clone(), witness.clone());
-
-    mkdirs(&build_dir);
-
-    tracing::info!("gnark build");
-    Groth16Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
-
-    tracing::info!("gnark prove");
-    let groth16_prover = Groth16Prover::new(build_dir.clone());
-    groth16_prover.prove(witness.clone());
-}
-
-/// Build the plonk circuit artifacts.
-pub fn build_plonk_artifacts(build_dir: PathBuf) {
-    std::env::set_var("RECONSTRUCT_COMMITMENTS", "false");
-
-    let (wrap_vk, wrapped_proof) = dummy_proof();
-    let (constraints, witness) = build_constraints(&wrap_vk, &wrapped_proof);
-
-    mkdirs(&build_dir);
-
-    tracing::info!("plonk bn254 build");
-    PlonkBn254Prover::build(constraints.clone(), witness.clone(), build_dir.clone());
-
-    // tracing::info!("sanity check plonk bn254 prove");
-    // PlonkBn254Prover::prove(witness.clone(), build_dir.clone());
 }
