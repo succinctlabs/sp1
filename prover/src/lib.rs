@@ -790,12 +790,7 @@ mod tests {
         let wrapped_bn254_proof = prover.wrap_bn254(&vk, shrink_proof);
 
         tracing::info!("verify wrap bn254");
-        let result = prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk);
-        if let Err(MachineVerificationError::NonZeroCumulativeSum) = result {
-            tracing::warn!("non-zero cumulative sum for wrap bn254");
-        } else {
-            result.unwrap();
-        }
+        prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk).unwrap();
 
         // TODO: replace this with real groth16 proof generation.
         tracing::info!("generate groth16 proof");
@@ -882,11 +877,8 @@ mod tests {
         );
 
         tracing::info!("verify verify program");
-        let result = prover.verify_compressed(&verify_reduce, &verify_vk);
-        if let Err(MachineVerificationError::NonZeroCumulativeSum) = result {
-            tracing::warn!("non-zero cumulative sum for verify");
-        } else {
-            result.unwrap();
-        }
+        prover
+            .verify_compressed(&verify_reduce, &verify_vk)
+            .unwrap();
     }
 }
