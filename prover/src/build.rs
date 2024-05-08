@@ -11,7 +11,7 @@ use sp1_recursion_core::air::RecursionPublicValues;
 use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
-use crate::install::{install_groth16_artifacts, install_groth16_artifacts_dir};
+use crate::install::{install_groth16_artifacts, GROTH16_ARTIFACTS_COMMIT};
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
 
@@ -112,7 +112,12 @@ pub fn get_groth16_artifacts_dir() -> PathBuf {
         }
         build_dir
     } else {
-        install_groth16_artifacts();
-        install_groth16_artifacts_dir()
+        let build_dir = dirs::home_dir()
+            .unwrap()
+            .join(".sp1")
+            .join("circuits")
+            .join(GROTH16_ARTIFACTS_COMMIT);
+        install_groth16_artifacts(build_dir.clone());
+        build_dir
     }
 }
