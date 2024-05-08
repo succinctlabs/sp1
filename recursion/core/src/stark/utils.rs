@@ -9,7 +9,6 @@ use crate::runtime::RecursionProgram;
 use crate::runtime::Runtime;
 use crate::stark::RecursionAirSkinnyDeg7;
 use p3_field::PrimeField32;
-use sp1_core::stark::MachineVerificationError;
 use sp1_core::utils::run_test_machine;
 use std::collections::VecDeque;
 
@@ -18,6 +17,7 @@ pub enum TestConfig {
     All,
     WideDeg3,
     SkinnyDeg7,
+    SkinnyDeg7Wrap,
 }
 
 type Val = <BabyBearPoseidon2 as StarkGenericConfig>::Val;
@@ -49,11 +49,7 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            if let MachineVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
-                // For now we ignore this error, as the cumulative sum checking is expected to fail.
-            } else {
-                panic!("Verification failed: {:?}", e);
-            }
+            panic!("Verification failed: {:?}", e);
         }
     }
 
@@ -63,11 +59,17 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            if let MachineVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
-                // For now we ignore this error, as the cumulative sum checking is expected to fail.
-            } else {
-                panic!("Verification failed: {:?}", e);
-            }
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+
+    if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7Wrap {
+        let machine = RecursionAirSkinnyDeg7::wrap_machine(BabyBearPoseidon2::compressed());
+        let (pk, vk) = machine.setup(&program);
+        let record = runtime.record.clone();
+        let result = run_test_machine(record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
         }
     }
 }

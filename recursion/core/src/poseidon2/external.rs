@@ -6,6 +6,7 @@ use p3_field::AbstractField;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, ExtensionAirBuilder, SP1AirBuilder};
 use sp1_primitives::RC_16_30_U32;
+use std::ops::Add;
 
 use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
 use crate::poseidon2_wide::{apply_m_4, internal_linear_layer};
@@ -36,6 +37,8 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        receive_table: AB::Var,
+        memory_access: AB::Expr,
     ) {
         let rounds_f = 8;
         let rounds_p = 13;
@@ -59,7 +62,13 @@ impl Poseidon2Chip {
             .sum::<AB::Expr>();
         let is_memory_write = local.rounds[local.rounds.len() - 1];
 
-        // self.eval_mem(builder, local, is_memory_read, is_memory_write);
+        self.eval_mem(
+            builder,
+            local,
+            is_memory_read,
+            is_memory_write,
+            memory_access,
+        );
 
         self.eval_computation(
             builder,
@@ -70,7 +79,7 @@ impl Poseidon2Chip {
             rounds_f + rounds_p + 1,
         );
 
-        self.eval_syscall(builder, local);
+        self.eval_syscall(builder, local, receive_table);
 
         // Range check all flags.
         for i in 0..local.rounds.len() {
@@ -81,13 +90,13 @@ impl Poseidon2Chip {
         );
     }
 
-    #[allow(unused)]
     fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
         is_memory_read: AB::Var,
         is_memory_write: AB::Var,
+        memory_access: AB::Expr,
     ) {
         let memory_access_cols = local.round_specific_cols.memory_access();
 
@@ -102,7 +111,7 @@ impl Poseidon2Chip {
             .when(is_memory_write)
             .assert_eq(local.dst_input, memory_access_cols.addr_first_half);
         builder.when(is_memory_write).assert_eq(
-            local.dst_input + AB::F::from_canonical_usize(4),
+            local.dst_input + AB::F::from_canonical_usize(WIDTH / 2),
             memory_access_cols.addr_second_half,
         );
 
@@ -113,10 +122,10 @@ impl Poseidon2Chip {
                 memory_access_cols.addr_second_half + AB::Expr::from_canonical_usize(i - WIDTH / 2)
             };
             builder.recursion_eval_memory_access_single(
-                local.timestamp,
+                local.clk + AB::Expr::one() * is_memory_write,
                 addr,
                 &memory_access_cols.mem_access[i],
-                is_memory_read + is_memory_write,
+                memory_access.clone(),
             );
         }
     }
@@ -251,10 +260,11 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        receive_table: AB::Var,
     ) {
         // Constraint that the operands are sent from the CPU table.
         let operands: [AB::Expr; 4] = [
-            local.timestamp.into(),
+            local.clk.into(),
             local.dst_input.into(),
             local.left_input.into(),
             local.right_input.into(),
@@ -262,8 +272,18 @@ impl Poseidon2Chip {
         builder.receive_table(
             Opcode::Poseidon2Compress.as_field::<AB::F>(),
             &operands,
-            local.rounds[0],
+            receive_table,
         );
+    }
+
+    pub fn do_receive_table<T: Copy>(local: &Poseidon2Cols<T>) -> T {
+        local.rounds[0]
+    }
+
+    pub fn do_memory_access<T: Copy + Add<T, Output = Output>, Output>(
+        local: &Poseidon2Cols<T>,
+    ) -> Output {
+        local.rounds[0] + local.rounds[23]
     }
 }
 
@@ -275,7 +295,12 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
-        self.eval_poseidon2::<AB>(builder, local);
+        self.eval_poseidon2::<AB>(
+            builder,
+            local,
+            Self::do_receive_table::<AB::Var>(local),
+            Self::do_memory_access::<AB::Var, AB::Expr>(local),
+        );
     }
 }
 
