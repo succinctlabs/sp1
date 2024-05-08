@@ -730,6 +730,7 @@ mod tests {
 
     use super::*;
     use p3_field::PrimeField32;
+    use serial_test::serial;
     use sp1_core::io::SP1Stdin;
     use sp1_core::stark::MachineVerificationError;
     use sp1_core::utils::setup_logger;
@@ -739,6 +740,7 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
+    #[serial]
     fn test_e2e() {
         setup_logger();
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
@@ -821,6 +823,7 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
+    #[serial]
     fn test_e2e_with_deferred_proofs() {
         setup_logger();
 
