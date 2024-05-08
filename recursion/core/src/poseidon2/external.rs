@@ -89,7 +89,6 @@ impl Poseidon2Chip {
         );
     }
 
-    #[allow(unused)]
     fn eval_mem<AB: BaseAirBuilder + ExtensionAirBuilder>(
         &self,
         builder: &mut AB,
@@ -275,6 +274,14 @@ impl Poseidon2Chip {
             receive_table,
         );
     }
+
+    pub fn is_receive_table_round<AB: BaseAirBuilder>(local: &Poseidon2Cols<AB::Var>) -> AB::Var {
+        local.rounds[0]
+    }
+
+    pub fn is_memory_access_round<AB: BaseAirBuilder>(local: &Poseidon2Cols<AB::Var>) -> AB::Expr {
+        local.rounds[0] + local.rounds[23]
+    }
 }
 
 impl<AB> Air<AB> for Poseidon2Chip
@@ -288,8 +295,8 @@ where
         self.eval_poseidon2::<AB>(
             builder,
             local,
-            local.rounds[0],
-            local.rounds[0] + local.rounds[23],
+            Self::is_receive_table_round::<AB>(local),
+            Self::is_memory_access_round::<AB>(local),
         );
     }
 }

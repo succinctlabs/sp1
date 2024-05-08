@@ -5,7 +5,6 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
-
 use sp1_core::air::{BaseAirBuilder, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
@@ -183,11 +182,11 @@ where
 
         let poseidon2_columns = local.poseidon2();
         sub_builder.assert_eq(
-            local.is_poseidon2 * poseidon2_columns.rounds[0],
+            local.is_poseidon2 * Poseidon2Chip::is_receive_table_round::<AB>(poseidon2_columns),
             local.poseidon2_receive_table,
         );
         sub_builder.assert_eq(
-            local.is_poseidon2 * (poseidon2_columns.rounds[0] + poseidon2_columns.rounds[23]),
+            local.is_poseidon2 * Poseidon2Chip::is_memory_access_round::<AB>(poseidon2_columns),
             local.poseidon2_memory_access,
         );
 

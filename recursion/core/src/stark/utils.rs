@@ -71,7 +71,5 @@ pub fn run_test_recursion(
         if let Err(e) = result {
             panic!("Verification failed: {:?}", e);
         }
-        // let mut challenger = machine.config().challenger();
-        // machine.debug_constraints(&pk, record, &mut challenger);
     }
 }
