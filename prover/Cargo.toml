@@ -35,7 +35,7 @@ size = "0.4.1"
 dirs = "5.0.1"
 tempfile = "3.10.1"
 tokio = { version = "1.36.0", features = ["full"] }
-reqwest = { version = "0.11.25", features = ["rustls-tls", "trust-dns", "stream"] }
+reqwest = { version = "0.12.4", features = ["rustls-tls", "trust-dns", "stream"] }
 indicatif = "0.17.8"
 futures = "0.3.30"
 subtle-encoding = "0.5.1"
