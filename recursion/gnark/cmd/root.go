@@ -24,6 +24,7 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(proveCmd)
+	rootCmd.AddCommand(verifyCmd)
 }
 
 func Execute() {

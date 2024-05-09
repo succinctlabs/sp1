@@ -1,7 +1,7 @@
 use std::{
     env,
     fs::{File, OpenOptions},
-    io::Write,
+    io::{Read, Write},
     panic,
     path::PathBuf,
     process::{Command, Stdio},
@@ -9,6 +9,7 @@ use std::{
 
 use crate::witness::GnarkWitness;
 
+use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::{
     constraints::Constraint,
@@ -24,6 +25,7 @@ pub struct Groth16Prover;
 pub struct Groth16Proof {
     pub public_inputs: [String; 2],
     pub encoded_proof: String,
+    pub raw_proof: String,
 }
 
 impl Groth16Prover {
@@ -156,7 +158,50 @@ impl Groth16Prover {
             ],
         );
 
-        todo!()
+        // Read the contents back from the tempfile.
+        let mut buffer = String::new();
+        proof_file
+            .reopen()
+            .unwrap()
+            .read_to_string(&mut buffer)
+            .unwrap();
+
+        // Deserialize the JSON string back to a Groth16Proof instance
+        let deserialized: Groth16Proof =
+            serde_json::from_str(&buffer).expect("Error deserializing the proof");
+
+        deserialized
+    }
+
+    pub fn verify<C: Config>(
+        &self,
+        proof: Groth16Proof,
+        vkey_hash: C::N,
+        commited_values_digest: C::N,
+        build_dir: PathBuf,
+    ) {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let gnark_dir = manifest_dir.join("../gnark");
+        let cwd = std::env::current_dir().unwrap();
+
+        // Run `make`.
+        Self::run_make(&gnark_dir);
+
+        // Run the build script.
+        Self::run_cmd(
+            &gnark_dir,
+            "verify".to_string(),
+            vec![
+                "--data".to_string(),
+                cwd.join(build_dir).to_str().unwrap().to_string(),
+                "--proof".to_string(),
+                proof.raw_proof,
+                "--vkey-hash".to_string(),
+                vkey_hash.as_canonical_biguint().to_string(),
+                "--commited-values-digest".to_string(),
+                commited_values_digest.as_canonical_biguint().to_string(),
+            ],
+        );
     }
 
     /// Runs the `make` command to generate the Go bindings for the Gnark library for FFI.

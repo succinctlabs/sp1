@@ -40,6 +40,7 @@ use sp1_core::{
 };
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
+use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::stark::RecursionAirSkinnyDeg7;
@@ -686,7 +687,17 @@ impl SP1Prover {
         witness.write_vkey_hash(vkey_digest);
 
         let prover = Groth16Prover::new();
-        prover.prove(witness, build_dir)
+        let proof = prover.prove(witness, build_dir.clone());
+
+        // Verify the proof.
+        prover.verify::<OuterConfig>(
+            proof.clone(),
+            vkey_digest,
+            commited_values_digest,
+            build_dir,
+        );
+
+        proof
     }
 
     pub fn wrap_plonk(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> PlonkBn254Proof {

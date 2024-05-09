@@ -35,6 +35,7 @@ type WitnessInput struct {
 type Groth16Proof struct {
 	PublicInputs [2]string `json:"public_inputs"`
 	EncodedProof string    `json:"encoded_proof"`
+	RawProof     string    `json:"raw_proof"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {

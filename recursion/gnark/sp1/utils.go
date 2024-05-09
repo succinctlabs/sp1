@@ -51,6 +51,7 @@ func NewSP1Groth16Proof(proof *groth16.Proof, witnessInput WitnessInput) Groth16
 	return Groth16Proof{
 		PublicInputs: publicInputs,
 		EncodedProof: encodedProof,
+		RawProof:     hex.EncodeToString(proofBytes),
 	}
 }
 

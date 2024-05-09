@@ -26,10 +26,11 @@ func init() {
 var proveCmd = &cobra.Command{
 	Use: "prove",
 	Run: func(cmd *cobra.Command, args []string) {
+		// Sanity check the required arguments have been provided.
 		if proveCmdDataDir == "" {
 			panic("--data is required")
 		}
-		os.Setenv("CONSTRAINTS_JSON", buildCmdDataDir+CONSTRAINTS_JSON_FILE)
+		os.Setenv("CONSTRAINTS_JSON", buildCmdDataDir+"/"+CONSTRAINTS_JSON_FILE)
 
 		// Read the R1CS.
 		r1csFile, err := os.Open(proveCmdDataDir + "/" + CIRCUIT_PATH)
@@ -56,7 +57,7 @@ var proveCmd = &cobra.Command{
 		vk.ReadFrom(vkFile)
 
 		// Read the file.
-		data, err := os.ReadFile(buildCmdDataDir + "/" + WITNESS_JSON_FILE)
+		data, err := os.ReadFile(proveCmdDataDir + "/" + WITNESS_JSON_FILE)
 		if err != nil {
 			panic(err)
 		}
