@@ -284,7 +284,7 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bls12381_decompress_events);
 
         // Merge the byte lookups.
-        for (shard, events_map) in take(&mut other.byte_lookups).into_iter() {
+        for (shard, events_map) in std::mem::take(&mut other.byte_lookups).into_iter() {
             match self.byte_lookups.get_mut(&shard) {
                 Some(existing) => {
                     // If there's already a map for this shard, update counts for each event.
@@ -358,259 +358,164 @@ impl MachineRecord for ExecutionRecord {
 
         // Shard all the other events according to the configuration.
 
-        // Track a current weight, and move onto the next shard when the weight exceeds the limit,
-        // wrapping around to the first shard when necessary.
-        // For now every chunk of events has weight 1 and the max limit is 1. It could be computed
-        // based on the events added.
-        let mut current_weight = 0;
-        let max_weight = 1;
-        fn shard_events<T: Clone>(
-            shards: &mut [ExecutionRecord],
-            shard_field: impl Fn(&mut ExecutionRecord) -> &mut Vec<T>,
-            current_weight: &mut usize,
-            max_weight: usize,
-            events: Vec<T>,
-            shard_size: usize,
-        ) {
-            // Iterate through events in chunks of shard_size, then append them to the shard
-            // based on current_weight, and increase current_weight.
-            for chunk in events.chunks(shard_size) {
-                let current_shard =
-                    &mut shards[(*current_weight as usize / max_weight) % shards.len()];
-                shard_field(current_shard).extend_from_slice(chunk);
-                *current_weight += 1;
-            }
+        // Shard the ADD events.
+        for (add_chunk, shard) in take(&mut self.add_events)
+            .chunks_mut(config.add_len)
+            .zip(shards.iter_mut())
+        {
+            shard.add_events.extend_from_slice(add_chunk);
         }
 
-        // Shard the ADD events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.add_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.add_events),
-            config.add_len,
-        );
-
         // Shard the MUL events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.mul_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.mul_events),
-            config.mul_len,
-        );
+        for (mul_chunk, shard) in take(&mut self.mul_events)
+            .chunks_mut(config.mul_len)
+            .zip(shards.iter_mut())
+        {
+            shard.mul_events.extend_from_slice(mul_chunk);
+        }
 
         // Shard the SUB events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.sub_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.sub_events),
-            config.sub_len,
-        );
+        for (sub_chunk, shard) in take(&mut self.sub_events)
+            .chunks_mut(config.sub_len)
+            .zip(shards.iter_mut())
+        {
+            shard.sub_events.extend_from_slice(sub_chunk);
+        }
 
         // Shard the bitwise events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.bitwise_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.bitwise_events),
-            config.bitwise_len,
-        );
+        for (bitwise_chunk, shard) in take(&mut self.bitwise_events)
+            .chunks_mut(config.bitwise_len)
+            .zip(shards.iter_mut())
+        {
+            shard.bitwise_events.extend_from_slice(bitwise_chunk);
+        }
 
         // Shard the shift left events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.shift_left_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.shift_left_events),
-            config.shift_left_len,
-        );
+        for (shift_left_chunk, shard) in take(&mut self.shift_left_events)
+            .chunks_mut(config.shift_left_len)
+            .zip(shards.iter_mut())
+        {
+            shard.shift_left_events.extend_from_slice(shift_left_chunk);
+        }
 
         // Shard the shift right events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.shift_right_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.shift_right_events),
-            config.shift_right_len,
-        );
+        for (shift_right_chunk, shard) in take(&mut self.shift_right_events)
+            .chunks_mut(config.shift_right_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .shift_right_events
+                .extend_from_slice(shift_right_chunk);
+        }
 
         // Shard the divrem events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.divrem_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.divrem_events),
-            config.divrem_len,
-        );
+        for (divrem_chunk, shard) in take(&mut self.divrem_events)
+            .chunks_mut(config.divrem_len)
+            .zip(shards.iter_mut())
+        {
+            shard.divrem_events.extend_from_slice(divrem_chunk);
+        }
 
         // Shard the LT events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.lt_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.lt_events),
-            config.lt_len,
-        );
+        for (lt_chunk, shard) in take(&mut self.lt_events)
+            .chunks_mut(config.lt_len)
+            .zip(shards.iter_mut())
+        {
+            shard.lt_events.extend_from_slice(lt_chunk);
+        }
 
         // Keccak-256 permute events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.keccak_permute_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.keccak_permute_events),
-            config.keccak_len,
-        );
+        for (keccak_chunk, shard) in take(&mut self.keccak_permute_events)
+            .chunks_mut(config.keccak_len)
+            .zip(shards.iter_mut())
+        {
+            shard.keccak_permute_events.extend_from_slice(keccak_chunk);
+        }
 
         // secp256k1 curve add events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.secp256k1_add_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.secp256k1_add_events),
-            config.secp256k1_add_len,
-        );
+        for (secp256k1_add_chunk, shard) in take(&mut self.secp256k1_add_events)
+            .chunks_mut(config.secp256k1_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .secp256k1_add_events
+                .extend_from_slice(secp256k1_add_chunk);
+        }
 
         // secp256k1 curve double events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.secp256k1_double_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.secp256k1_double_events),
-            config.secp256k1_double_len,
-        );
+        for (secp256k1_double_chunk, shard) in take(&mut self.secp256k1_double_events)
+            .chunks_mut(config.secp256k1_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .secp256k1_double_events
+                .extend_from_slice(secp256k1_double_chunk);
+        }
 
         // bn254 curve add events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.bn254_add_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.bn254_add_events),
-            config.bn254_add_len,
-        );
+        for (bn254_add_chunk, shard) in take(&mut self.bn254_add_events)
+            .chunks_mut(config.bn254_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard.bn254_add_events.extend_from_slice(bn254_add_chunk);
+        }
 
         // bn254 curve double events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.bn254_double_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.bn254_double_events),
-            config.bn254_double_len,
-        );
+        for (bn254_double_chunk, shard) in take(&mut self.bn254_double_events)
+            .chunks_mut(config.bn254_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bn254_double_events
+                .extend_from_slice(bn254_double_chunk);
+        }
 
         // BLS12-381 curve add events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.bls12381_add_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.bls12381_add_events),
-            config.bls12381_add_len,
-        );
+        for (bls12381_add_chunk, shard) in take(&mut self.bls12381_add_events)
+            .chunks_mut(config.bls12381_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bls12381_add_events
+                .extend_from_slice(bls12381_add_chunk);
+        }
 
         // BLS12-381 curve double events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.bls12381_double_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.bls12381_double_events),
-            config.bls12381_double_len,
-        );
+        for (bls12381_double_chunk, shard) in take(&mut self.bls12381_double_events)
+            .chunks_mut(config.bls12381_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .bls12381_double_events
+                .extend_from_slice(bls12381_double_chunk);
+        }
+
+        // Put the precompile events in the first shard.
+        let first = shards.first_mut().unwrap();
 
         // SHA-256 extend events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.sha_extend_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.sha_extend_events),
-            config.field_len,
-        );
+        first.sha_extend_events = std::mem::take(&mut self.sha_extend_events);
 
         // SHA-256 compress events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.sha_compress_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.sha_compress_events),
-            config.field_len,
-        );
+        first.sha_compress_events = std::mem::take(&mut self.sha_compress_events);
 
         // Edwards curve add events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.ed_add_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.ed_add_events),
-            config.field_len,
-        );
+        first.ed_add_events = std::mem::take(&mut self.ed_add_events);
 
         // Edwards curve decompress events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.ed_decompress_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.ed_decompress_events),
-            config.field_len,
-        );
+        first.ed_decompress_events = std::mem::take(&mut self.ed_decompress_events);
 
         // K256 curve decompress events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.k256_decompress_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.k256_decompress_events),
-            config.field_len,
-        );
+        first.k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
 
         // Blake3 compress events .
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.blake3_compress_inner_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.blake3_compress_inner_events),
-            config.field_len,
-        );
+        first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
 
         // Uint256 mul arithmetic events.
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.uint256_mul_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.uint256_mul_events),
-            config.uint256_mul_len,
-        );
+        first.uint256_mul_events = std::mem::take(&mut self.uint256_mul_events);
 
         // Bls12-381 decompress events .
-        shard_events(
-            &mut shards,
-            |shard| &mut shard.bls12381_decompress_events,
-            &mut current_weight,
-            max_weight,
-            take(&mut self.bls12381_decompress_events),
-            config.field_len,
-        );
+        first.bls12381_decompress_events = std::mem::take(&mut self.bls12381_decompress_events);
 
         // Put the memory records in the last shard.
         let last_shard = shards.last_mut().unwrap();
