@@ -511,8 +511,6 @@ impl<SC: StarkGenericConfig> std::error::Error for MachineVerificationError<SC> 
 #[allow(non_snake_case)]
 pub mod tests {
 
-    use serial_test::serial;
-
     use crate::io::SP1Stdin;
     use crate::runtime::tests::fibonacci_program;
     use crate::runtime::tests::simple_memory_program;
