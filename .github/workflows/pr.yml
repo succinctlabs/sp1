@@ -5,6 +5,7 @@ on:
     types:
       - opened
       - edited
+  merge_group:
 
 permissions:
   pull-requests: read
