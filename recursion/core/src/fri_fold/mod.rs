@@ -173,7 +173,8 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         builder: &mut AB,
         local: &FriFoldCols<AB::Var>,
         next: &FriFoldCols<AB::Var>,
-        next_is_real: AB::Expr,
+        receive_table: AB::Var,
+        memory_access: AB::Var,
     ) {
         // Dummy constraints to normalize to DEGREE when DEGREE > 3.
         if DEGREE > 3 {
@@ -197,7 +198,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         builder.receive_table(
             Opcode::FRIFold.as_field::<AB::F>(),
             &operands,
-            local.is_last_iteration,
+            receive_table,
         );
 
         builder.assert_bool(local.is_last_iteration);
@@ -207,42 +208,40 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
         builder
             .when(local.is_last_iteration)
             .when_transition()
-            .when(next_is_real.clone())
+            .when(next.is_real)
             .assert_zero(next.m);
 
-        // TODO: FIX
-        //
         // Ensure that all rows for a FRI FOLD invocation have the same input_ptr, clk, and sequential m values.
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .when(next_is_real.clone())
-        //     .assert_eq(next.m, local.m + AB::Expr::one());
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .when(next_is_real.clone())
-        //     .assert_eq(local.input_ptr, next.input_ptr);
-        // builder
-        //     .when_transition()
-        //     .when_not(local.is_last_iteration)
-        //     .when(next_is_real)
-        //     .assert_eq(local.clk + AB::Expr::one(), next.clk);
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .when(next.is_real)
+            .assert_eq(next.m, local.m + AB::Expr::one());
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .when(next.is_real)
+            .assert_eq(local.input_ptr, next.input_ptr);
+        builder
+            .when_transition()
+            .when_not(local.is_last_iteration)
+            .when(next.is_real)
+            .assert_eq(local.clk + AB::Expr::one(), next.clk);
 
-        // // Constrain read for `z` at `input_ptr`
-        // builder.recursion_eval_memory_access(
-        //     local.clk,
-        //     local.input_ptr + AB::Expr::zero(),
-        //     &local.z,
-        //     local.is_real,
-        // );
+        // Constrain read for `z` at `input_ptr`
+        builder.recursion_eval_memory_access(
+            local.clk,
+            local.input_ptr + AB::Expr::zero(),
+            &local.z,
+            memory_access,
+        );
 
         // Constrain read for `alpha`
         builder.recursion_eval_memory_access(
             local.clk,
             local.input_ptr + AB::Expr::one(),
             &local.alpha,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `x`
@@ -250,7 +249,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(2),
             &local.x,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `log_height`
@@ -258,7 +257,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(3),
             &local.log_height,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `mat_opening_ptr`
@@ -266,7 +265,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(4),
             &local.mat_opening_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `ps_at_z_ptr`
@@ -274,7 +273,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(6),
             &local.ps_at_z_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `alpha_pow_ptr`
@@ -282,7 +281,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(8),
             &local.alpha_pow_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `ro_ptr`
@@ -290,7 +289,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.input_ptr + AB::Expr::from_canonical_u32(10),
             &local.ro_ptr,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `p_at_x`
@@ -298,7 +297,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.mat_opening_ptr.access.value.into() + local.m.into(),
             &local.p_at_x,
-            local.is_real,
+            memory_access,
         );
 
         // Constrain read for `p_at_z`
@@ -306,7 +305,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.ps_at_z_ptr.access.value.into() + local.m.into(),
             &local.p_at_z,
-            local.is_real,
+            memory_access,
         );
 
         // Update alpha_pow_at_log_height.
@@ -315,7 +314,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.alpha_pow_ptr.access.value.into() + local.log_height.access.value.into(),
             &local.alpha_pow_at_log_height,
-            local.is_real,
+            memory_access,
         );
 
         // 2. Constrain new_value = old_value * alpha.
@@ -341,7 +340,7 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             local.clk,
             local.ro_ptr.access.value.into() + local.log_height.access.value.into(),
             &local.ro_at_log_height,
-            local.is_real,
+            memory_access,
         );
 
         // 2. Constrain new_value = old_alpha_pow_at_log_height * quotient + old_value,
@@ -359,6 +358,14 @@ impl<const DEGREE: usize> FriFoldChip<DEGREE> {
             (p_at_x - p_at_z) * alpha_pow_at_log_height,
         );
     }
+
+    pub fn do_receive_table<T: Copy>(local: &FriFoldCols<T>) -> T {
+        local.is_last_iteration
+    }
+
+    pub fn do_memory_access<T: Copy>(local: &FriFoldCols<T>) -> T {
+        local.is_real
+    }
 }
 
 impl<AB, const DEGREE: usize> Air<AB> for FriFoldChip<DEGREE>
@@ -370,6 +377,12 @@ where
         let (local, next) = (main.row_slice(0), main.row_slice(1));
         let local: &FriFoldCols<AB::Var> = (*local).borrow();
         let next: &FriFoldCols<AB::Var> = (*next).borrow();
-        self.eval_fri_fold::<AB>(builder, local, next, next.is_real.into());
+        self.eval_fri_fold::<AB>(
+            builder,
+            local,
+            next,
+            Self::do_receive_table::<AB::Var>(local),
+            Self::do_memory_access::<AB::Var>(local),
+        );
     }
 }

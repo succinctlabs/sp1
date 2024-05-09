@@ -72,7 +72,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     is_memory_write
                 );
 
-                cols.timestamp = poseidon2_event.clk;
+                cols.clk = poseidon2_event.clk;
                 cols.dst_input = poseidon2_event.dst;
                 cols.left_input = poseidon2_event.left;
                 cols.right_input = poseidon2_event.right;
@@ -91,7 +91,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                     } else {
                         memory_access_cols.addr_first_half = poseidon2_event.dst;
                         memory_access_cols.addr_second_half =
-                            poseidon2_event.dst + F::from_canonical_usize(4);
+                            poseidon2_event.dst + F::from_canonical_usize(WIDTH / 2);
                         for i in 0..WIDTH {
                             memory_access_cols.mem_access[i]
                                 .populate(&poseidon2_event.result_records[i]);
@@ -115,7 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                         // Apply the round constants.
                         for j in 0..WIDTH {
                             computation_cols.add_rc[j] = computation_cols.input[j]
-                                + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
+                                + F::from_wrapped_u32(RC_16_30_U32[r - 2][j]);
                         }
                     } else {
                         // Apply the round constants only on the first element.
@@ -123,7 +123,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                             .add_rc
                             .copy_from_slice(&computation_cols.input);
                         computation_cols.add_rc[0] =
-                            computation_cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
+                            computation_cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 2][0]);
                     };
 
                     // Apply the sbox.

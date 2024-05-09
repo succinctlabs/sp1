@@ -39,6 +39,7 @@ reqwest = { version = "0.11.25", features = ["rustls-tls", "trust-dns", "stream"
 indicatif = "0.17.8"
 futures = "0.3.30"
 subtle-encoding = "0.5.1"
+serial_test = "3.1.1"
 
 [[bin]]
 name = "fibonacci_sweep"
@@ -53,16 +54,8 @@ name = "fibonacci_groth16"
 path = "scripts/fibonacci_groth16.rs"
 
 [[bin]]
-name = "test_groth16_verification"
-path = "scripts/test_groth16_verification.rs"
-
-[[bin]]
 name = "build_groth16"
 path = "scripts/build_groth16.rs"
-
-[[bin]]
-name = "install_groth16"
-path = "scripts/install_groth16.rs"
 
 [features]
 neon = ["sp1-core/neon"]

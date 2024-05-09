@@ -44,6 +44,7 @@ use sp1_core::{
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
 use sp1_recursion_compiler::config::InnerConfig;
+use sp1_recursion_compiler::config::OuterConfig;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::runtime::RecursionProgram;
 use sp1_recursion_core::stark::RecursionAir;
@@ -570,45 +571,26 @@ impl SP1Prover {
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(&self, proof: ShardProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
-        let pv: &RecursionPublicValues<_> = proof.public_values.as_slice().borrow();
-
-        // TODO: this is very subject to change as groth16 e2e is stabilized
-        // Convert pv.vkey_digest to a bn254 field element
-        let mut vkey_hash = Bn254Fr::zero();
-        for (i, word) in pv.sp1_vk_digest.iter().enumerate() {
-            if i == 0 {
-                // Truncate top 3 bits
-                vkey_hash = Bn254Fr::from_canonical_u32(word.as_canonical_u32() & 0x1fffffffu32);
-            } else {
-                vkey_hash *= Bn254Fr::from_canonical_u64(1 << 32);
-                vkey_hash += Bn254Fr::from_canonical_u32(word.as_canonical_u32());
-            }
-        }
-
-        // Convert pv.committed_value_digest to a bn254 field element
-        let mut committed_values_digest = Bn254Fr::zero();
-        for (i, word) in pv.committed_value_digest.iter().enumerate() {
-            for (j, byte) in word.0.iter().enumerate() {
-                if i == 0 && j == 0 {
-                    // Truncate top 3 bits
-                    committed_values_digest =
-                        Bn254Fr::from_canonical_u32(byte.as_canonical_u32() & 0x1f);
-                } else {
-                    committed_values_digest *= Bn254Fr::from_canonical_u32(256);
-                    committed_values_digest += Bn254Fr::from_canonical_u32(byte.as_canonical_u32());
-                }
-            }
-        }
+    pub fn wrap_groth16(&self, proof: SP1ReduceProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
+        let vkey_digest = proof.sp1_vkey_digest_bn254();
+        let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
         let mut witness = Witness::default();
-        proof.write(&mut witness);
-        witness.commited_values_digest = committed_values_digest;
-        witness.vkey_hash = vkey_hash;
+        proof.proof.write(&mut witness);
+        witness.write_commited_values_digest(commited_values_digest);
+        witness.write_vkey_hash(vkey_digest);
 
-        let mut prover = Groth16Prover::new(build_dir);
-        let proof = prover.prove(witness);
-        prover.shutdown();
+        let prover = Groth16Prover::new();
+        let proof = prover.prove(witness, build_dir.clone());
+
+        // Verify the proof.
+        prover.verify::<OuterConfig>(
+            proof.clone(),
+            vkey_digest,
+            commited_values_digest,
+            build_dir,
+        );
+
         proof
     }
 
@@ -641,9 +623,14 @@ impl SP1Prover {
 #[cfg(test)]
 mod tests {
 
+    use std::fs::File;
+    use std::io::{Read, Write};
+
+    use crate::build::{build_groth16_artifacts, get_groth16_artifacts_dir};
+
     use super::*;
-    use crate::build::build_constraints;
     use p3_field::PrimeField32;
+    use serial_test::serial;
     use sp1_core::io::SP1Stdin;
     use sp1_core::stark::MachineVerificationError;
     use sp1_core::utils::setup_logger;
@@ -653,6 +640,7 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
+    #[serial]
     fn test_e2e() {
         setup_logger();
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
@@ -694,6 +682,18 @@ mod tests {
 
         tracing::info!("wrap bn254");
         let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof);
+        let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
+
+        // Save the proof.
+        let mut file = File::create("proof-with-pis.json").unwrap();
+        file.write_all(bytes.as_slice()).unwrap();
+
+        // Load the proof.
+        let mut file = File::open("proof-with-pis.json").unwrap();
+        let mut bytes = Vec::new();
+        file.read_to_end(&mut bytes).unwrap();
+
+        let wrapped_bn254_proof = bincode::deserialize(&bytes).unwrap();
 
         tracing::info!("verify wrap bn254");
         let result = prover.verify_wrap_bn254(&wrapped_bn254_proof, &vk);
@@ -703,10 +703,19 @@ mod tests {
             result.unwrap();
         }
 
-        // TODO: replace this with real groth16 proof generation.
+        tracing::info!("checking vkey hash babybear");
+        let vk_digest_babybear = wrapped_bn254_proof.sp1_vkey_digest_babybear();
+        assert_eq!(vk_digest_babybear, vk.hash_babybear());
+
+        tracing::info!("checking vkey hash bn254");
+        let vk_digest_bn254 = wrapped_bn254_proof.sp1_vkey_digest_bn254();
+        assert_eq!(vk_digest_bn254, vk.hash_bn254());
+
         tracing::info!("generate groth16 proof");
-        let (constraints, witness) = build_constraints(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        Groth16Prover::test(constraints.clone(), witness.clone());
+        let artifacts_dir = get_groth16_artifacts_dir();
+        build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
+        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
+        println!("{:?}", groth16_proof);
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
@@ -714,7 +723,7 @@ mod tests {
     ///
     /// TODO: Remove the fact that we ignore [MachineVerificationError::NonZeroCumulativeSum].
     #[test]
-    #[ignore]
+    #[serial]
     fn test_e2e_with_deferred_proofs() {
         setup_logger();
 
@@ -760,7 +769,7 @@ mod tests {
 
         // Run verify program with keccak vkey, subproofs, and their committed values.
         let mut stdin = SP1Stdin::new();
-        let vkey_digest = keccak_vk.hash();
+        let vkey_digest = keccak_vk.hash_babybear();
         let vkey_digest: [u32; 8] = vkey_digest
             .iter()
             .map(|n| n.as_canonical_u32())
