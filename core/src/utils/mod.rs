@@ -67,8 +67,8 @@ pub fn limbs_from_access<T: Copy, N: ArrayLength, M: MemoryCols<T>>(cols: &[M]) 
 pub fn pad_rows<T: Clone, const N: usize>(rows: &mut Vec<[T; N]>, row_fn: impl Fn() -> [T; N]) {
     let nb_rows = rows.len();
     let mut padded_nb_rows = nb_rows.next_power_of_two();
-    if padded_nb_rows == 2 || padded_nb_rows == 1 {
-        padded_nb_rows = 4;
+    if padded_nb_rows < 16 {
+        padded_nb_rows = 16;
     }
     if padded_nb_rows == nb_rows {
         return;
@@ -104,8 +104,8 @@ pub fn pad_rows_fixed<R: Clone>(
         }
         None => {
             let mut padded_nb_rows = nb_rows.next_power_of_two();
-            if padded_nb_rows < 8 {
-                padded_nb_rows = 8;
+            if padded_nb_rows < 16 {
+                padded_nb_rows = 16;
             }
             rows.resize(padded_nb_rows, dummy_row);
         }
