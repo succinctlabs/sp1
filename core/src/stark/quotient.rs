@@ -46,7 +46,12 @@ where
 
     let ext_degree = SC::Challenge::D;
 
-    assert!(quotient_size >= PackedVal::<SC>::WIDTH);
+    assert!(
+        quotient_size >= PackedVal::<SC>::WIDTH,
+        "quotient size is too small: got {}, expected at least {}",
+        quotient_size,
+        PackedVal::<SC>::WIDTH
+    );
 
     (0..quotient_size)
         .into_par_iter()
