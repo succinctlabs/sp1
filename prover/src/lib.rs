@@ -556,6 +556,7 @@ impl SP1Prover {
         runtime.witness_stream = witness_stream.into();
         runtime.run();
         let mut checkpoint = runtime.memory.clone();
+        let checkpoint_uninit = runtime.uninitialized_memory.clone();
 
         // Execute runtime.
         let machine = RecursionAirWideDeg3::machine(InnerSC::default());
@@ -567,6 +568,7 @@ impl SP1Prover {
             e.1.timestamp = BabyBear::zero();
         });
         runtime.memory = checkpoint;
+        runtime.uninitialized_memory = checkpoint_uninit;
         runtime.run();
         runtime.print_stats();
         tracing::info!(
