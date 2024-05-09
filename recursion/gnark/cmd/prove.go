@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -85,6 +86,10 @@ var proveCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Println("prove(verify): proof", proof)
+		fmt.Println("prove(verify): publicWitness", publicWitness)
+		fmt.Println("prove(verify): vk", vk)
 
 		// Verify proof.
 		err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
