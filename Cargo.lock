@@ -4661,6 +4661,7 @@ dependencies = [
  "p3-merkle-tree",
  "p3-poseidon2",
  "p3-symmetric",
+ "rand",
  "serde",
  "serde_with",
  "sp1-core",

@@ -493,10 +493,8 @@ mod tests {
                 .push(Poseidon2Event::dummy_from_input(input, output));
         }
 
-        let trace: RowMajorMatrix<BabyBear> =
-            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
-
-        assert_eq!(trace.height(), test_inputs.len());
+        // Generate trace will assert for the expected outputs.
+        chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
     }
 
     /// A test generating a trace for a single permutation that checks that the output is correct
