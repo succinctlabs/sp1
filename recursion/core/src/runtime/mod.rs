@@ -231,6 +231,9 @@ where
 
     // Write to uninitialized memory.
     fn mw_uninitialized(&mut self, addr: usize, value: Block<F>) {
+        if addr == 16780421 {
+            println!("16780421 uninitialized write: {:?}", value);
+        }
         // Write it to uninitialized memory for creating MemoryInit table later.
         self.uninitialized_memory
             .entry(addr)
@@ -273,6 +276,10 @@ where
             timestamp,
         };
         self.track_memory_range_checks(&record);
+        if addr == F::from_canonical_u32(16780421) {
+            println!("16780421 read record: {:?}", record);
+        }
+
         (record, prev_value)
     }
 
@@ -300,6 +307,9 @@ where
             timestamp,
         };
         self.track_memory_range_checks(&record);
+        if addr == F::from_canonical_u32(16780421) {
+            println!("16780421 write record: {:?}", record);
+        }
         record
     }
 
@@ -519,6 +529,11 @@ where
                     let addr = Self::calculate_address(b_val, c_val, &instruction);
                     let a_val = self.mr_cpu(a_ptr, MemoryAccessPosition::A);
                     self.mw_cpu(addr, a_val, MemoryAccessPosition::Memory);
+
+                    if addr == F::from_canonical_u32(16780421) {
+                        println!("16780421 store: {:?}", self.access.memory.unwrap());
+                    }
+
                     (a, b, c) = (a_val, b_val, c_val);
                 }
                 Opcode::BEQ => {
@@ -828,12 +843,26 @@ where
             }
         }
 
+        for event in self.record.cpu_events.iter() {
+            if let Some(record) = &event.memory_record {
+                if record.addr == F::from_canonical_u32(16780421) {
+                    println!(
+                        "in run, trace gen, record is {:?} and clk is {:?} and instr is {:?}",
+                        record, event.clk, event.instruction
+                    );
+                }
+            }
+        }
+
         let zero_block = Block::from(F::zero());
         // Collect all used memory addresses.
         for (addr, entry) in self.memory.iter() {
             // Get the initial value of the memory address from either the uninitialized memory
             // or set it as a default to 0.
             let init_value = self.uninitialized_memory.get(addr).unwrap_or(&zero_block);
+            if addr == &16780421 {
+                println!("16780421 init_value: {:?}", init_value);
+            }
             self.record
                 .first_memory_record
                 .push((F::from_canonical_usize(*addr), *init_value));

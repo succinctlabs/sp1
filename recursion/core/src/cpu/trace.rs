@@ -34,6 +34,17 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>> MachineAir<F> for CpuChip<F> {
         input: &ExecutionRecord<F>,
         _: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
+        for event in input.cpu_events.iter() {
+            if let Some(record) = &event.memory_record {
+                if record.addr == F::from_canonical_u32(16780421) {
+                    println!(
+                        "trace gen, record is {:?} and clk is {:?} and instr is {:?}",
+                        record, event.clk, event.instruction
+                    );
+                }
+            }
+        }
+
         let mut rows = input
             .cpu_events
             .iter()
