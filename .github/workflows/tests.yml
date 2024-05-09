@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   test:
-    name: SP1 Prover E2E
+    name: SP1 PR Tests
     runs-on: warp-ubuntu-latest-arm64-32x
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -32,6 +32,16 @@ jobs:
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
 
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --all-targets --all-features
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_LOG: info
+          RUST_BACKTRACE: 1
+
       - name: Run cargo test
         uses: actions-rs/cargo@v1
         with:
@@ -41,7 +51,6 @@ jobs:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: info
           RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
           SP1_DEV: 1
 
