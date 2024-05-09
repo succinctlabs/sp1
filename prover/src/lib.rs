@@ -836,6 +836,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_e2e_with_deferred_proofs() {
+        env::set_var("SHARD_BATCH_SIZE", "1");
         setup_logger();
 
         // Test program which proves the Keccak-256 hash of various inputs.
