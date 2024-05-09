@@ -2427,25 +2427,13 @@ dependencies = [
 
 [[package]]
 name = "indicatif"
-version = "0.15.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7baab56125e25686df467fe470785512329883aab42696d661247aca2a2896e4"
-dependencies = [
- "console",
- "lazy_static",
- "number_prefix 0.3.0",
- "regex",
-]
-
-[[package]]
-name = "indicatif"
 version = "0.17.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "763a5a8f45087d6bcea4222e7b72c291a054edf80e4ef6efd2a4979878c7bea3"
 dependencies = [
  "console",
  "instant",
- "number_prefix 0.4.0",
+ "number_prefix",
  "portable-atomic",
  "unicode-width",
 ]
@@ -2905,12 +2893,6 @@ checksum = "5c7398b9c8b70908f6371f47ed36737907c87c52af34c268fed0bf0ceb92ead9"
 dependencies = [
  "libc",
 ]
-
-[[package]]
-name = "number_prefix"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17b02fc0ff9a9e4b35b3342880f48e896ebf69f2967921fe8646bf5b7125956a"
 
 [[package]]
 name = "number_prefix"
@@ -4395,7 +4377,7 @@ dependencies = [
  "flate2",
  "futures-util",
  "hex",
- "indicatif 0.15.0",
+ "indicatif",
  "rand",
  "reqwest 0.11.27",
  "serde",
@@ -4539,7 +4521,7 @@ dependencies = [
  "dirs 5.0.1",
  "futures",
  "hex",
- "indicatif 0.17.8",
+ "indicatif",
  "itertools 0.12.1",
  "p3-baby-bear",
  "p3-bn254-fr",
@@ -4724,7 +4706,7 @@ dependencies = [
  "dotenv",
  "futures",
  "hex",
- "indicatif 0.17.8",
+ "indicatif",
  "log",
  "p3-commit",
  "p3-field",
