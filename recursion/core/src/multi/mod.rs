@@ -66,7 +66,7 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let fri_fold_chip = FriFoldChip::<DEGREE>::default();
+        let fri_fold_chip = FriFoldChip::<3>::default();
         let poseidon2 = Poseidon2Chip::default();
         let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
         let mut poseidon2_trace = poseidon2.generate_trace(input, output);
@@ -85,9 +85,9 @@ impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
 
                     let fri_fold_cols = *cols.fri_fold();
                     cols.fri_fold_receive_table =
-                        FriFoldChip::<DEGREE>::do_receive_table(&fri_fold_cols);
+                        FriFoldChip::<3>::do_receive_table(&fri_fold_cols);
                     cols.fri_fold_memory_access =
-                        FriFoldChip::<DEGREE>::do_memory_access(&fri_fold_cols);
+                        FriFoldChip::<3>::do_memory_access(&fri_fold_cols);
                 } else {
                     cols.is_poseidon2 = F::one();
 
@@ -157,17 +157,15 @@ where
 
         let fri_columns_local = local.fri_fold();
         sub_builder.assert_eq(
-            local.is_fri_fold
-                * FriFoldChip::<DEGREE>::do_memory_access::<AB::Var>(fri_columns_local),
+            local.is_fri_fold * FriFoldChip::<3>::do_memory_access::<AB::Var>(fri_columns_local),
             local.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local.is_fri_fold
-                * FriFoldChip::<DEGREE>::do_receive_table::<AB::Var>(fri_columns_local),
+            local.is_fri_fold * FriFoldChip::<3>::do_receive_table::<AB::Var>(fri_columns_local),
             local.fri_fold_receive_table,
         );
 
-        let fri_fold_chip = FriFoldChip::<DEGREE>::default();
+        let fri_fold_chip = FriFoldChip::<3>::default();
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,
             local.fri_fold(),
