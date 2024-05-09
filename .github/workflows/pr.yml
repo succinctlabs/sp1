@@ -23,7 +23,7 @@ concurrency:
 jobs:
   test:
     name: Test
-    runs-on: warp-ubuntu-latest-arm64-32x
+    runs-on: runs-on,cpu=64,ram=256,family=m7i+m7g,image=ubuntu22-full-x64
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
