@@ -254,7 +254,10 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> StarkMachine<SC, A> {
 
         // Display some statistics about the workload.
         let stats = record.stats();
-        for (k, v) in stats {
+        // Sort by value descending then by key ascending.
+        let mut entries = stats.iter().collect::<Vec<_>>();
+        entries.sort_by_key(|(k, v)| (Reverse(*v), *k));
+        for (k, v) in entries.iter() {
             log::info!("{} = {}", k, v);
         }
 
