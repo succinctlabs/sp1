@@ -45,7 +45,7 @@ pub fn build_constraints_and_witness(
     let constraints = tracing::info_span!("wrap circuit")
         .in_scope(|| build_wrap_circuit(template_vk, template_proof.clone()));
 
-    let pv = RecursionPublicValues::from_vec(template_proof.public_values.clone());
+    let pv: &RecursionPublicValues<BabyBear> = template_proof.public_values.as_slice().borrow();
     let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
     let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
         .try_into()

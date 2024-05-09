@@ -31,7 +31,7 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     Poseidon2Skinny(Poseidon2Chip),
     FriFold(FriFoldChip<DEGREE>),
     RangeCheck(RangeCheckChip<F>),
-    Multi(MultiChip),
+    Multi(MultiChip<DEGREE>),
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {

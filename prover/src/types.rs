@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::{fs::File, path::Path};
 
 use anyhow::Result;
@@ -61,7 +62,7 @@ pub trait HashableKey {
 }
 
 impl HashableKey for SP1VerifyingKey {
-    fn hash(&self) -> [BabyBear; DIGEST_SIZE] {
+    fn hash_babybear(&self) -> [BabyBear; DIGEST_SIZE] {
         self.vk.hash_babybear()
     }
 
@@ -165,17 +166,10 @@ pub struct SP1ReduceProof<SC: StarkGenericConfig> {
     pub proof: ShardProof<SC>,
 }
 
-/// A proof that can be reduced along with other proofs into one proof.
-#[derive(Serialize, Deserialize)]
-pub enum SP1ReduceProofWrapper {
-    Core(SP1ReduceProof<CoreSC>),
-    Recursive(SP1ReduceProof<InnerSC>),
-}
-
 impl SP1ReduceProof<BabyBearPoseidon2Outer> {
     pub fn sp1_vkey_digest_babybear(&self) -> [BabyBear; 8] {
         let proof = &self.proof;
-        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+        let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
         pv.sp1_vk_digest
     }
 
@@ -185,11 +179,18 @@ impl SP1ReduceProof<BabyBearPoseidon2Outer> {
 
     pub fn sp1_commited_values_digest_bn254(&self) -> Bn254Fr {
         let proof = &self.proof;
-        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+        let pv: &RecursionPublicValues<BabyBear> = proof.public_values.as_slice().borrow();
         let committed_values_digest_bytes: [BabyBear; 32] =
             words_to_bytes(&pv.committed_value_digest)
                 .try_into()
                 .unwrap();
         babybear_bytes_to_bn254(&committed_values_digest_bytes)
     }
+}
+
+/// A proof that can be reduced along with other proofs into one proof.
+#[derive(Serialize, Deserialize)]
+pub enum SP1ReduceProofWrapper {
+    Core(SP1ReduceProof<CoreSC>),
+    Recursive(SP1ReduceProof<InnerSC>),
 }
