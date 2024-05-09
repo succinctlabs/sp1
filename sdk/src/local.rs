@@ -34,7 +34,7 @@ impl LocalProver {
     }
 
     /// Initialize circuit artifacts by installing or building if in dev mode.
-    pub(crate) fn initialize_circuit(&self, circuit_type: WrapCircuitType) -> PathBuf {
+    pub fn initialize_circuit(&self, circuit_type: WrapCircuitType) -> PathBuf {
         let is_dev_mode = get_dev_mode();
         let artifacts_dir = get_artifacts_dir(circuit_type, is_dev_mode);
 
