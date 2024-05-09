@@ -7,16 +7,16 @@ import (
 	"strconv"
 
 	"github.com/consensys/gnark/frontend"
-	"github.com/succinctlabs/sp1-recursion-gnark/babybear_v2"
-	"github.com/succinctlabs/sp1-recursion-gnark/poseidon2"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/babybear"
+	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
 )
 
 type Circuit struct {
 	VkeyHash             frontend.Variable `gnark:",public"`
 	CommitedValuesDigest frontend.Variable `gnark:",public"`
 	Vars                 []frontend.Variable
-	Felts                []babybear_v2.Variable
-	Exts                 []babybear_v2.ExtensionVariable
+	Felts                []babybear.Variable
+	Exts                 []babybear.ExtensionVariable
 }
 
 type Constraint struct {
@@ -32,21 +32,10 @@ type WitnessInput struct {
 	CommitedValuesDigest string     `json:"commited_values_digest"`
 }
 
-// Representation of groth16 proof for solidity verification.
-type SolidityGroth16Proof struct {
-	PublicInputs  [2]string `json:"public_inputs"`
-	SolidityProof string    `json:"solidity_proof"`
-}
-
-// Representation of groth16 proof for proof output.
 type Groth16Proof struct {
 	PublicInputs [2]string `json:"public_inputs"`
 	EncodedProof string    `json:"encoded_proof"`
-}
-
-type PlonkBn254Proof struct {
-	Proof        string    `json:"proof"`
-	PublicInputs [2]string `json:"public_inputs"`
+	RawProof     string    `json:"raw_proof"`
 }
 
 func (circuit *Circuit) Define(api frontend.API) error {
@@ -70,10 +59,10 @@ func (circuit *Circuit) Define(api frontend.API) error {
 	}
 
 	hashAPI := poseidon2.NewChip(api)
-	fieldAPI := babybear_v2.NewChip(api)
+	fieldAPI := babybear.NewChip(api)
 	vars := make(map[string]frontend.Variable)
-	felts := make(map[string]babybear_v2.Variable)
-	exts := make(map[string]babybear_v2.ExtensionVariable)
+	felts := make(map[string]babybear.Variable)
+	exts := make(map[string]babybear.ExtensionVariable)
 
 	// Iterate through the instructions and handle each opcode.
 	for _, cs := range constraints {
@@ -81,9 +70,9 @@ func (circuit *Circuit) Define(api frontend.API) error {
 		case "ImmV":
 			vars[cs.Args[0][0]] = frontend.Variable(cs.Args[1][0])
 		case "ImmF":
-			felts[cs.Args[0][0]] = babybear_v2.NewF(cs.Args[1][0])
+			felts[cs.Args[0][0]] = babybear.NewF(cs.Args[1][0])
 		case "ImmE":
-			exts[cs.Args[0][0]] = babybear_v2.NewE(cs.Args[1])
+			exts[cs.Args[0][0]] = babybear.NewE(cs.Args[1])
 		case "AddV":
 			vars[cs.Args[0][0]] = api.Add(vars[cs.Args[1][0]], vars[cs.Args[2][0]])
 		case "AddF":
@@ -187,7 +176,7 @@ func (circuit *Circuit) Define(api frontend.API) error {
 			element := vars[cs.Args[0][0]]
 			api.AssertIsEqual(circuit.CommitedValuesDigest, element)
 		case "CircuitFelts2Ext":
-			exts[cs.Args[0][0]] = babybear_v2.Felts2Ext(felts[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]], felts[cs.Args[4][0]])
+			exts[cs.Args[0][0]] = babybear.Felts2Ext(felts[cs.Args[1][0]], felts[cs.Args[2][0]], felts[cs.Args[3][0]], felts[cs.Args[4][0]])
 		default:
 			return fmt.Errorf("unhandled opcode: %s", cs.Opcode)
 		}

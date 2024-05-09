@@ -54,10 +54,6 @@ name = "fibonacci_groth16"
 path = "scripts/fibonacci_groth16.rs"
 
 [[bin]]
-name = "test_groth16_verification"
-path = "scripts/test_groth16_verification.rs"
-
-[[bin]]
 name = "build_groth16"
 path = "scripts/build_groth16.rs"
 

@@ -1,8 +1,7 @@
-package babybear_v2
+package babybear
 
 /*
-#cgo LDFLAGS: ./lib/libbabybear.a -ldl
-#include "../lib/babybear.h"
+#include "../../lib/babybear.h"
 */
 import "C"
 
