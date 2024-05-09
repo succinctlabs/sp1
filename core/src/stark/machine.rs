@@ -662,7 +662,6 @@ pub mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_fibonacci_prove() {
         setup_logger();
         let program = fibonacci_program();
@@ -670,18 +669,11 @@ pub mod tests {
     }
 
     #[test]
-    #[serial]
     fn test_fibonacci_prove_batch() {
-        std::env::set_var("SHARD_BATCH_SIZE", "1");
-        std::env::set_var("SHARD_SIZE", "16384");
-
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
         run_and_prove(program, &stdin, BabyBearPoseidon2::new());
-
-        std::env::remove_var("SHARD_BATCH_SIZE");
-        std::env::remove_var("SHARD_SIZE");
     }
 
     #[test]
