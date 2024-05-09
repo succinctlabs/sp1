@@ -13,21 +13,21 @@ mod tests {
             self,
             ec::{uint256::U256Field, utils::biguint_from_limbs},
             run_test_io,
-            tests::{UINT256_DIV, UINT256_MUL},
+            tests::{UINT256_DIV_ELF, UINT256_MUL_ELF},
         },
     };
 
     #[test]
     fn test_uint256_mul() {
         utils::setup_logger();
-        let program = Program::from(UINT256_MUL);
+        let program = Program::from(UINT256_MUL_ELF);
         run_test_io(program, SP1Stdin::new()).unwrap();
     }
 
     #[test]
     fn test_uint256_div() {
         utils::setup_logger();
-        let program = Program::from(UINT256_DIV);
+        let program = Program::from(UINT256_DIV_ELF);
         run_test_io(program, SP1Stdin::new()).unwrap();
     }
 

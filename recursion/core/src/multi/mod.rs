@@ -2,14 +2,14 @@ use std::borrow::{Borrow, BorrowMut};
 
 use itertools::Itertools;
 use p3_air::{Air, AirBuilder, BaseAir};
-use p3_field::{AbstractField, PrimeField32};
+use p3_field::PrimeField32;
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use sp1_core::air::{BaseAirBuilder, MachineAir};
 use sp1_core::utils::pad_rows_fixed;
 use sp1_derive::AlignedBorrow;
 
-use crate::air::SP1RecursionAirBuilder;
+use crate::air::{MultiBuilder, SP1RecursionAirBuilder};
 use crate::fri_fold::{FriFoldChip, FriFoldCols};
 use crate::poseidon2::{Poseidon2Chip, Poseidon2Cols};
 use crate::runtime::{ExecutionRecord, RecursionProgram};
@@ -22,10 +22,17 @@ pub struct MultiChip {
 }
 
 #[derive(AlignedBorrow, Clone, Copy)]
+#[repr(C)]
 pub struct MultiCols<T: Copy> {
     pub instruction: InstructionSpecificCols<T>,
+
     pub is_fri_fold: T,
+    pub fri_fold_receive_table: T,
+    pub fri_fold_memory_access: T,
+
     pub is_poseidon2: T,
+    pub poseidon2_receive_table: T,
+    pub poseidon2_memory_access: T,
 }
 
 #[derive(Clone, Copy)]
@@ -75,9 +82,16 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
                 let cols: &mut MultiCols<F> = row.as_mut_slice().borrow_mut();
                 if i < fri_fold_trace.height() {
                     cols.is_fri_fold = F::one();
+
+                    let fri_fold_cols = *cols.fri_fold();
+                    cols.fri_fold_receive_table = FriFoldChip::do_receive_table(&fri_fold_cols);
+                    cols.fri_fold_memory_access = FriFoldChip::do_memory_access(&fri_fold_cols);
                 } else {
-                    let cols: &mut MultiCols<F> = row.as_mut_slice().borrow_mut();
                     cols.is_poseidon2 = F::one();
+
+                    let poseidon2_cols = *cols.poseidon2();
+                    cols.poseidon2_receive_table = Poseidon2Chip::do_receive_table(&poseidon2_cols);
+                    cols.poseidon2_memory_access = Poseidon2Chip::do_memory_access(&poseidon2_cols);
                 }
                 row
             })
@@ -136,18 +150,50 @@ where
             .when(local.is_poseidon2)
             .assert_one(next.is_poseidon2);
 
+        let mut sub_builder =
+            MultiBuilder::new(builder, local.is_fri_fold.into(), next.is_fri_fold.into());
+
+        let fri_columns_local = local.fri_fold();
+        sub_builder.assert_eq(
+            local.is_fri_fold * FriFoldChip::do_memory_access::<AB::Var>(fri_columns_local),
+            local.fri_fold_memory_access,
+        );
+        sub_builder.assert_eq(
+            local.is_fri_fold * FriFoldChip::do_receive_table::<AB::Var>(fri_columns_local),
+            local.fri_fold_receive_table,
+        );
+
         let fri_fold_chip = FriFoldChip::default();
-        let mut sub_builder = builder.when(local.is_fri_fold);
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,
             local.fri_fold(),
             next.fri_fold(),
-            AB::Expr::one() - next.is_fri_fold,
+            local.fri_fold_receive_table,
+            local.fri_fold_memory_access,
+        );
+
+        let mut sub_builder =
+            MultiBuilder::new(builder, local.is_poseidon2.into(), next.is_poseidon2.into());
+
+        let poseidon2_columns = local.poseidon2();
+        sub_builder.assert_eq(
+            local.is_poseidon2 * Poseidon2Chip::do_receive_table::<AB::Var>(poseidon2_columns),
+            local.poseidon2_receive_table,
+        );
+        sub_builder.assert_eq(
+            local.is_poseidon2
+                * Poseidon2Chip::do_memory_access::<AB::Var, AB::Expr>(poseidon2_columns),
+            local.poseidon2_memory_access,
         );
 
         let poseidon2_chip = Poseidon2Chip::default();
-        let mut sub_builder = builder.when(local.is_poseidon2);
-        poseidon2_chip.eval_poseidon2(&mut sub_builder, local.poseidon2());
+        poseidon2_chip.eval_poseidon2(
+            &mut sub_builder,
+            local.poseidon2(),
+            next.poseidon2(),
+            local.poseidon2_receive_table,
+            local.poseidon2_memory_access.into(),
+        );
     }
 }
 // SAFETY: Each view is a valid interpretation of the underlying array.
@@ -158,5 +204,86 @@ impl<T: Copy> MultiCols<T> {
 
     pub fn poseidon2(&self) -> &Poseidon2Cols<T> {
         unsafe { &self.instruction.poseidon2 }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use itertools::Itertools;
+    use std::time::Instant;
+
+    use p3_baby_bear::BabyBear;
+    use p3_baby_bear::DiffusionMatrixBabyBear;
+    use p3_field::AbstractField;
+    use p3_matrix::{dense::RowMajorMatrix, Matrix};
+    use p3_poseidon2::Poseidon2;
+    use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
+    use sp1_core::stark::StarkGenericConfig;
+    use sp1_core::utils::inner_perm;
+    use sp1_core::{
+        air::MachineAir,
+        utils::{uni_stark_prove, uni_stark_verify, BabyBearPoseidon2},
+    };
+
+    use crate::multi::MultiChip;
+    use crate::{poseidon2::Poseidon2Event, runtime::ExecutionRecord};
+    use p3_symmetric::Permutation;
+
+    #[test]
+    fn prove_babybear() {
+        let config = BabyBearPoseidon2::compressed();
+        let mut challenger = config.challenger();
+
+        let chip = MultiChip {
+            fixed_log2_rows: None,
+        };
+
+        let test_inputs = (0..16)
+            .map(|i| [BabyBear::from_canonical_u32(i); 16])
+            .collect_vec();
+
+        let gt: Poseidon2<
+            BabyBear,
+            Poseidon2ExternalMatrixGeneral,
+            DiffusionMatrixBabyBear,
+            16,
+            7,
+        > = inner_perm();
+
+        let expected_outputs = test_inputs
+            .iter()
+            .map(|input| gt.permute(*input))
+            .collect::<Vec<_>>();
+
+        let mut input_exec = ExecutionRecord::<BabyBear>::default();
+        for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
+            input_exec
+                .poseidon2_events
+                .push(Poseidon2Event::dummy_from_input(input, output));
+        }
+        let trace: RowMajorMatrix<BabyBear> =
+            chip.generate_trace(&input_exec, &mut ExecutionRecord::<BabyBear>::default());
+        println!(
+            "trace dims is width: {:?}, height: {:?}",
+            trace.width(),
+            trace.height()
+        );
+
+        let start = Instant::now();
+        let proof = uni_stark_prove(&config, &chip, &mut challenger, trace);
+        let duration = start.elapsed().as_secs_f64();
+        println!("proof duration = {:?}", duration);
+
+        let mut challenger: p3_challenger::DuplexChallenger<
+            BabyBear,
+            Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>,
+            16,
+        > = config.challenger();
+        let start = Instant::now();
+        uni_stark_verify(&config, &chip, &mut challenger, &proof)
+            .expect("expected proof to be valid");
+
+        let duration = start.elapsed().as_secs_f64();
+        println!("verify duration = {:?}", duration);
     }
 }

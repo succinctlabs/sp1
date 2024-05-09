@@ -1,0 +1,92 @@
+
+/// @title SP1 Verifier
+/// @author Succinct Labs
+/// @notice This contracts implements a solidity verifier for SP1.
+contract SP1Verifier is Verifier {
+    /// @notice Deserializes a proof from the given bytes.
+    /// @param proofBytes The proof bytes.
+    function deserializeProof(
+        bytes memory proofBytes
+    )
+        public
+        pure
+        returns (
+            uint256[8] memory proof,
+            uint256[2] memory commitments,
+            uint256[2] memory commitmentPok
+        )
+    {
+        require(
+            proofBytes.length == 8 * 32 + 4 + 2 * 32 + 2 * 32,
+            "invalid proof bytes length"
+        );
+
+        uint256 offset = 32;
+        for (uint256 i = 0; i < 8; i++) {
+            assembly {
+                mstore(
+                    add(proof, add(0, mul(32, i))),
+                    mload(add(proofBytes, add(offset, mul(32, i))))
+                )
+            }
+        }
+
+        uint32 commitmentCount;
+        offset += 8 * 32;
+        assembly {
+            let dataLocation := add(proofBytes, offset)
+            let loadedData := mload(dataLocation)
+            commitmentCount := and(shr(224, loadedData), 0xFFFFFFFF)
+        }
+
+        offset += 4;
+        for (uint256 i = 0; i < 2; i++) {
+            assembly {
+                mstore(
+                    add(commitments, add(0, mul(32, i))),
+                    mload(add(proofBytes, add(offset, mul(32, i))))
+                )
+            }
+        }
+
+        offset += 2 * 32;
+        for (uint256 i = 0; i < 2; i++) {
+            assembly {
+                mstore(
+                    add(commitmentPok, add(0, mul(32, i))),
+                    mload(add(proofBytes, add(offset, mul(32, i))))
+                )
+            }
+        }
+    }
+
+    /// @notice Hashes the public values to a field elements inside Bn254.
+    /// @param publicValues The public values.
+    function hashPublicValues(
+        bytes memory publicValues
+    ) public pure returns (bytes32) {
+        return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
+    }
+
+    /// @notice Verifies a proof with given public values and vkey.
+    /// @param vkey The verification key for the RISC-V program.
+    /// @param publicValues The public values encoded as bytes.
+    /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
+    function verifyProof(
+        bytes32 vkey, 
+        bytes memory publicValues,
+        bytes memory proofBytes
+    ) public view {
+        (
+            uint256[8] memory proof,
+            uint256[2] memory commitments,
+            uint256[2] memory commitmentPok
+        ) = deserializeProof(proofBytes);
+        bytes32 publicValuesDigest = hashPublicValues(publicValues);
+        uint256[2] memory inputs = [
+            uint256(vkey),
+            uint256(publicValuesDigest)
+        ];
+        this.verifyProof(proof, commitments, commitmentPok, inputs);
+    }
+}

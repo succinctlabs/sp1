@@ -1,36 +1,32 @@
-#![allow(unused_variables)]
 use std::{env, time::Duration};
 
 use crate::proto::network::ProofMode;
 use crate::{
     client::NetworkClient,
-    local::LocalProver,
     proto::network::{ProofStatus, TransactionStatus},
     Prover,
+};
+use crate::{
+    SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::{Context, Result};
 use futures::Future;
 use serde::de::DeserializeOwned;
-use sp1_prover::{
-    SP1CoreProof, SP1Groth16Proof, SP1PlonkProof, SP1Prover, SP1ProvingKey, SP1ReducedProof,
-    SP1Stdin, SP1VerifyingKey,
-};
+use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
 use tokio::{runtime, time::sleep};
 
+use super::LocalProver;
+
+/// An implementation of [crate::ProverClient] that can generate proofs on a remote RPC server.
 pub struct NetworkProver {
     client: NetworkClient,
     local_prover: LocalProver,
 }
 
-impl Default for NetworkProver {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl NetworkProver {
+    /// Creates a new [NetworkProver].
     pub fn new() -> Self {
         let private_key = env::var("SP1_PRIVATE_KEY")
             .unwrap_or_else(|_| panic!("SP1_PRIVATE_KEY must be set for remote proving"));
@@ -51,7 +47,7 @@ impl NetworkProver {
         // Execute the runtime before creating the proof request.
         // TODO: Maybe we don't want to always do this locally, with large programs. Or we may want
         // to disable events at least.
-        let public_values = SP1Prover::execute(elf, &stdin);
+        let _public_values = SP1Prover::execute(elf, &stdin);
         println!("Simulation complete");
 
         let proof_id = client.create_proof(elf, &stdin, mode).await?;
@@ -158,51 +154,37 @@ impl NetworkProver {
 }
 
 impl Prover for NetworkProver {
+    fn id(&self) -> String {
+        "remote".to_string()
+    }
+
     fn setup(&self, elf: &[u8]) -> (SP1ProvingKey, SP1VerifyingKey) {
         self.local_prover.setup(elf)
     }
 
-    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CoreProof> {
+    fn sp1_prover(&self) -> &SP1Prover {
+        self.local_prover.sp1_prover()
+    }
+
+    fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
         self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Core))
     }
 
-    fn prove_reduced(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1ReducedProof> {
+    fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
         self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
-        // if let Ok(handle) = Handle::try_current() {
-        //     block_in_place(|| {
-        //         handle.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
-        //     })
-        // } else {
-        //     // Otherwise create a new runtime.
-        //     let rt = runtime::Runtime::new().unwrap();
-        //     rt.block_on(async {
-        //         self.prove_async(&pk.elf, stdin, ProofMode::Compressed)
-        //             .await
-        //     })
-        // }
-    }
-
-    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
         self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
     }
 
-    fn verify(&self, proof: &SP1CoreProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.local_prover.verify(proof, vkey)
+    fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
+        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
+}
 
-    fn verify_reduced(&self, proof: &SP1ReducedProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.local_prover.verify_reduced(proof, vkey)
-    }
-
-    fn verify_plonk(&self, proof: &SP1PlonkProof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.local_prover.verify_plonk(proof, vkey)
-    }
-
-    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        self.local_prover.verify_groth16(proof, vkey)
+impl Default for NetworkProver {
+    fn default() -> Self {
+        Self::new()
     }
 }

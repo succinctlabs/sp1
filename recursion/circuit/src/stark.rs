@@ -241,11 +241,6 @@ pub fn build_wrap_circuit(
     wrap_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: ShardProof<OuterSC>,
 ) -> Vec<Constraint> {
-    let dev_mode = std::env::var("SP1_DEV_WRAPPER")
-        .unwrap_or("true".to_string())
-        .to_lowercase()
-        .eq("true");
-
     let outer_config = OuterSC::new();
     let outer_machine = RecursionAirSkinnyDeg7::<OuterF>::wrap_machine(outer_config);
 
@@ -292,58 +287,57 @@ pub fn build_wrap_circuit(
             .unwrap();
     let pv_committed_values_digest: Var<_> =
         babybear_bytes_to_bn254(&mut builder, &pv_committed_values_digest_bytes);
+
     // Committed values digest must match the witnessed one that we are committing to.
     builder.assert_var_eq(pv_committed_values_digest, commited_values_digest);
 
-    if !dev_mode {
-        let chips = outer_machine
-            .shard_chips_ordered(&template_proof.chip_ordering)
-            .map(|chip| chip.name())
-            .collect::<Vec<_>>();
+    let chips = outer_machine
+        .shard_chips_ordered(&template_proof.chip_ordering)
+        .map(|chip| chip.name())
+        .collect::<Vec<_>>();
 
-        let sorted_indices = outer_machine
-            .chips()
-            .iter()
-            .map(|chip| {
-                template_proof
-                    .chip_ordering
-                    .get(&chip.name())
-                    .copied()
-                    .unwrap_or(usize::MAX)
-            })
-            .collect::<Vec<_>>();
+    let sorted_indices = outer_machine
+        .chips()
+        .iter()
+        .map(|chip| {
+            template_proof
+                .chip_ordering
+                .get(&chip.name())
+                .copied()
+                .unwrap_or(usize::MAX)
+        })
+        .collect::<Vec<_>>();
 
-        let chip_quotient_data = outer_machine
-            .shard_chips_ordered(&template_proof.chip_ordering)
-            .map(|chip| {
-                let log_quotient_degree = chip.log_quotient_degree();
-                QuotientDataValues {
-                    log_quotient_degree,
-                    quotient_size: 1 << log_quotient_degree,
-                }
-            })
-            .collect();
+    let chip_quotient_data = outer_machine
+        .shard_chips_ordered(&template_proof.chip_ordering)
+        .map(|chip| {
+            let log_quotient_degree = chip.log_quotient_degree();
+            QuotientDataValues {
+                log_quotient_degree,
+                quotient_size: 1 << log_quotient_degree,
+            }
+        })
+        .collect();
 
-        let ShardCommitment { main_commit, .. } = &proof.commitment;
-        challenger.observe_commitment(&mut builder, *main_commit);
-        let pv_slice = proof.public_values.slice(
-            &mut builder,
-            Usize::Const(0),
-            Usize::Const(outer_machine.num_pv_elts()),
-        );
-        challenger.observe_slice(&mut builder, pv_slice);
+    let ShardCommitment { main_commit, .. } = &proof.commitment;
+    challenger.observe_commitment(&mut builder, *main_commit);
+    let pv_slice = proof.public_values.slice(
+        &mut builder,
+        Usize::Const(0),
+        Usize::Const(outer_machine.num_pv_elts()),
+    );
+    challenger.observe_slice(&mut builder, pv_slice);
 
-        StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
-            &mut builder,
-            wrap_vk,
-            &outer_machine,
-            &mut challenger.clone(),
-            &proof,
-            chip_quotient_data,
-            chips,
-            sorted_indices,
-        );
-    }
+    StarkVerifierCircuit::<OuterC, OuterSC>::verify_shard(
+        &mut builder,
+        wrap_vk,
+        &outer_machine,
+        &mut challenger.clone(),
+        &proof,
+        chip_quotient_data,
+        chips,
+        sorted_indices,
+    );
 
     // TODO: Ensure lookup bus is zero.
     // let zero_ext: Ext<_, _> = builder.constant(EF::zero());

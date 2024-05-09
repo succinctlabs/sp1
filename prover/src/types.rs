@@ -2,7 +2,9 @@ use std::{fs::File, path::Path};
 
 use anyhow::Result;
 use p3_baby_bear::BabyBear;
+use p3_bn254_fr::Bn254Fr;
 use p3_commit::{Pcs, TwoAdicMultiplicativeCoset};
+use p3_field::PrimeField;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::{
@@ -12,10 +14,12 @@ use sp1_core::{
     utils::DIGEST_SIZE,
 };
 use sp1_primitives::poseidon2_hash;
-use sp1_recursion_core::air::RecursionPublicValues;
+use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{plonk_bn254::PlonkBn254Proof, Groth16Proof};
 
-use crate::{CoreSC, InnerSC};
+use crate::utils::words_to_bytes_be;
+use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
+use crate::{utils::babybears_to_bn254, CoreSC, InnerSC};
 
 /// The information necessary to generate a proof for a given RISC-V program.
 pub struct SP1ProvingKey {
@@ -33,16 +37,31 @@ pub struct SP1VerifyingKey {
 
 /// A trait for keys that can be hashed into a digest.
 pub trait HashableKey {
-    /// Hash the key into a digest of 8 BabyBear elements.
-    fn hash(&self) -> [BabyBear; 8];
+    fn hash_babybear(&self) -> [BabyBear; 8];
+
+    fn hash_bn254(&self) -> Bn254Fr {
+        babybears_to_bn254(&self.hash_babybear())
+    }
+
+    fn bytes32(&self) -> String {
+        let vkey_digest_bn254 = self.hash_bn254();
+        format!(
+            "0x{:0>64}",
+            vkey_digest_bn254.as_canonical_biguint().to_str_radix(16)
+        )
+    }
+
+    fn hash_u32(&self) -> [u32; 8];
 
     /// Hash the key into a digest of 8 u32 elements.
-    fn hash_u32(&self) -> [u32; 8];
+    fn hash_bytes(&self) -> [u8; 32] {
+        words_to_bytes_be(&self.hash_u32())
+    }
 }
 
 impl HashableKey for SP1VerifyingKey {
-    fn hash(&self) -> [BabyBear; 8] {
-        self.vk.hash()
+    fn hash_babybear(&self) -> [BabyBear; 8] {
+        self.vk.hash_babybear()
     }
 
     fn hash_u32(&self) -> [u32; 8] {
@@ -55,7 +74,7 @@ impl<SC: StarkGenericConfig<Val = BabyBear, Domain = TwoAdicMultiplicativeCoset<
 where
     <SC::Pcs as Pcs<SC::Challenge, SC::Challenger>>::Commitment: AsRef<[BabyBear; DIGEST_SIZE]>,
 {
-    fn hash(&self) -> [BabyBear; 8] {
+    fn hash_babybear(&self) -> [BabyBear; 8] {
         let prep_domains = self.chip_information.iter().map(|(_, domain, _)| domain);
         let num_inputs = DIGEST_SIZE + 1 + (4 * prep_domains.len());
         let mut inputs = Vec::with_capacity(num_inputs);
@@ -74,7 +93,7 @@ where
     }
 
     fn hash_u32(&self) -> [u32; 8] {
-        self.hash()
+        self.hash_babybear()
             .into_iter()
             .map(|n| n.as_canonical_u32())
             .collect::<Vec<_>>()
@@ -162,6 +181,28 @@ pub struct ReduceState {
     pub exit_code: Val<CoreSC>,
     pub start_shard: Val<CoreSC>,
     pub reconstruct_deferred_digest: [Val<CoreSC>; POSEIDON_NUM_WORDS],
+}
+
+impl SP1ReduceProof<BabyBearPoseidon2Outer> {
+    pub fn sp1_vkey_digest_babybear(&self) -> [BabyBear; 8] {
+        let proof = &self.proof;
+        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+        pv.sp1_vk_digest
+    }
+
+    pub fn sp1_vkey_digest_bn254(&self) -> Bn254Fr {
+        babybears_to_bn254(&self.sp1_vkey_digest_babybear())
+    }
+
+    pub fn sp1_commited_values_digest_bn254(&self) -> Bn254Fr {
+        let proof = &self.proof;
+        let pv = RecursionPublicValues::from_vec(proof.public_values.clone());
+        let committed_values_digest_bytes: [BabyBear; 32] =
+            words_to_bytes(&pv.committed_value_digest)
+                .try_into()
+                .unwrap();
+        babybear_bytes_to_bn254(&committed_values_digest_bytes)
+    }
 }
 
 impl ReduceState {

@@ -9,7 +9,6 @@ use crate::runtime::RecursionProgram;
 use crate::runtime::Runtime;
 use crate::stark::RecursionAirSkinnyDeg7;
 use p3_field::PrimeField32;
-use sp1_core::stark::ProgramVerificationError;
 use sp1_core::utils::run_test_machine;
 use std::collections::VecDeque;
 
@@ -18,6 +17,7 @@ pub enum TestConfig {
     All,
     WideDeg3,
     SkinnyDeg7,
+    SkinnyDeg7Wrap,
 }
 
 type Val = <BabyBearPoseidon2 as StarkGenericConfig>::Val;
@@ -49,11 +49,7 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            if let ProgramVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
-                // For now we ignore this error, as the cumulative sum checking is expected to fail.
-            } else {
-                panic!("Verification failed: {:?}", e);
-            }
+            panic!("Verification failed: {:?}", e);
         }
     }
 
@@ -63,11 +59,32 @@ pub fn run_test_recursion(
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
         if let Err(e) = result {
-            if let ProgramVerificationError::<BabyBearPoseidon2>::NonZeroCumulativeSum = e {
-                // For now we ignore this error, as the cumulative sum checking is expected to fail.
-            } else {
-                panic!("Verification failed: {:?}", e);
-            }
+            panic!("Verification failed: {:?}", e);
         }
     }
+
+    if test_config == TestConfig::All || test_config == TestConfig::SkinnyDeg7Wrap {
+        let machine = RecursionAirSkinnyDeg7::wrap_machine(BabyBearPoseidon2::compressed());
+        let (pk, vk) = machine.setup(&program);
+        let record = runtime.record.clone();
+        let result = run_test_machine(record, machine, pk, vk);
+        if let Err(e) = result {
+            panic!("Verification failed: {:?}", e);
+        }
+    }
+}
+
+/// Returns whether the `SP1_DEV` environment variable is enabled or disabled.
+///
+/// This variable controls whether a smaller version of the circuit will be used for generating the
+/// Groth16 proofs. This is useful for development and testing purposes.
+///
+/// By default, the variable is disabled.
+pub fn sp1_dev_mode() -> bool {
+    let value = std::env::var("SP1_DEV").unwrap_or_else(|_| "false".to_string());
+    let enabled = value == "1" || value.to_lowercase() == "true";
+    if enabled {
+        tracing::warn!("SP1_DEV enviroment variable is enabled. do not enable this in production");
+    }
+    enabled
 }

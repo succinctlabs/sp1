@@ -32,7 +32,7 @@ pub trait FieldParameters:
 {
     const NB_BITS_PER_LIMB: usize = NB_BITS_PER_LIMB;
     const NB_LIMBS: usize = Self::Limbs::USIZE;
-    const NB_WITNESS_LIMBS: usize = 2 * Self::NB_LIMBS - 2;
+    const NB_WITNESS_LIMBS: usize = Self::Witness::USIZE;
     const WITNESS_OFFSET: usize;
 
     /// The bytes of the modulus in little-endian order.
