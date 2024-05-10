@@ -11,7 +11,7 @@ impl<F: Field> CpuChip<F> {
     /// Eval the system instructions (TRAP, HALT).
     ///
     /// This method will contrain the following:
-    /// 1) Ensure that none of the instructions where TRAP.
+    /// 1) Ensure that none of the instructions are TRAP.
     /// 2) Ensure that the last real instruction is a HALT.
     pub fn eval_system_instructions<AB>(
         &self,
