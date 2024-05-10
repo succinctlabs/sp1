@@ -456,6 +456,10 @@ impl<C: Config> Builder<C> {
     pub fn cycle_tracker(&mut self, name: &str) {
         self.operations.push(DslIr::CycleTracker(name.to_string()));
     }
+
+    pub fn halt(&mut self) {
+        self.operations.push(DslIr::Halt);
+    }
 }
 
 /// A builder for the DSL that handles if statements.

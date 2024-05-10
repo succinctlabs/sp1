@@ -135,5 +135,7 @@ where
         for value in public_values_elements {
             builder.commit_public_value(value);
         }
+
+        builder.halt();
     }
 }

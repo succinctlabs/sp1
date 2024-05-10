@@ -471,5 +471,7 @@ where
         for value in reduce_public_values_stream {
             builder.commit_public_value(value);
         }
+
+        builder.halt();
     }
 }

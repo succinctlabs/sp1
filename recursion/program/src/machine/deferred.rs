@@ -287,5 +287,7 @@ where
         for value in deferred_public_values_stream {
             builder.commit_public_value(value);
         }
+
+        builder.halt();
     }
 }
