@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::path::PathBuf;
 
 use p3_baby_bear::BabyBear;
@@ -44,7 +45,7 @@ pub fn build_constraints_and_witness(
     let constraints = tracing::info_span!("wrap circuit")
         .in_scope(|| build_wrap_circuit(template_vk, template_proof.clone()));
 
-    let pv = RecursionPublicValues::from_vec(template_proof.public_values.clone());
+    let pv: &RecursionPublicValues<BabyBear> = template_proof.public_values.as_slice().borrow();
     let vkey_hash = babybears_to_bn254(&pv.sp1_vk_digest);
     let committed_values_digest_bytes: [BabyBear; 32] = words_to_bytes(&pv.committed_value_digest)
         .try_into()
@@ -80,10 +81,10 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let compressed_proof = prover.compress(&vk, core_proof, vec![]);
 
     tracing::info!("shrink");
-    let shrink_proof = prover.shrink(&vk, compressed_proof);
+    let shrink_proof = prover.shrink(compressed_proof);
 
     tracing::info!("wrap");
-    let wrapped_proof = prover.wrap_bn254(&vk, shrink_proof);
+    let wrapped_proof = prover.wrap_bn254(shrink_proof);
 
     (prover.wrap_vk, wrapped_proof.proof)
 }
