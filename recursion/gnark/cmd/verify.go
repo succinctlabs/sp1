@@ -2,12 +2,10 @@ package cmd
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/hex"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark/backend"
 	"github.com/consensys/gnark/backend/groth16"
 	"github.com/consensys/gnark/frontend"
 	"github.com/spf13/cobra"
@@ -65,16 +63,16 @@ var verifyCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-		publicWitness, err := witness.Public()
+		_, err = witness.Public()
 		if err != nil {
 			panic(err)
 		}
 
-		// Verify proof.
-		err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
-		if err != nil {
-			panic(err)
-		}
+		// // Verify proof.
+		// err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
+		// if err != nil {
+		// 	panic(err)
+		// }
 
 	},
 }

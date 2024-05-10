@@ -11,6 +11,7 @@ p3-field = { workspace = true }
 p3-commit = { workspace = true }
 p3-fri = { workspace = true }
 p3-matrix = { workspace = true }
+p3-maybe-rayon = { workspace = true }
 p3-util = { workspace = true }
 p3-symmetric = { workspace = true }
 p3-challenger = { workspace = true }
@@ -26,7 +27,3 @@ serde = { version = "1.0.201", features = ["derive"] }
 rand = "0.8.5"
 array-macro = "2.1.8"
 tracing = "0.1.40"
-
-[[bin]]
-name = "fri_sweep"
-path = "experiments/fri_sweep.rs"

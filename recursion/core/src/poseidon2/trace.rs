@@ -115,7 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                         // Apply the round constants.
                         for j in 0..WIDTH {
                             computation_cols.add_rc[j] = computation_cols.input[j]
-                                + F::from_wrapped_u32(RC_16_30_U32[r - 1][j]);
+                                + F::from_wrapped_u32(RC_16_30_U32[r - 2][j]);
                         }
                     } else {
                         // Apply the round constants only on the first element.
@@ -123,7 +123,7 @@ impl<F: PrimeField32> MachineAir<F> for Poseidon2Chip {
                             .add_rc
                             .copy_from_slice(&computation_cols.input);
                         computation_cols.add_rc[0] =
-                            computation_cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 1][0]);
+                            computation_cols.input[0] + F::from_wrapped_u32(RC_16_30_U32[r - 2][0]);
                     };
 
                     // Apply the sbox.
