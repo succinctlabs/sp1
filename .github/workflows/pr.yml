@@ -113,6 +113,7 @@ jobs:
         run: |
           curl -L https://sp1.succinct.xyz | bash
           ~/.sp1/bin/sp1up
+          source /home/runner/.bashrc
           cargo prove --version
 
       - name: Run cargo check
