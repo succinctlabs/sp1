@@ -161,14 +161,10 @@ jobs:
         run: |
           cargo prove new fibonacci
       
-      - name: Build program
+      - name: Build program and run script
         run: |
           cd fibonacci
           cd program
           cargo prove build
-          cd ../
-
-      - name: Run script
-        run: |
-          cd script
-          SP1_DEV=1 RUST_LOG=info cargo run --release
+          cd ../script
+          SP1_DEV=1 RUST_LOG=info cargo run --release 
