@@ -17,25 +17,25 @@ Note that to use the macro, you must add the `sp1-derive` crate to your dependen
 sp1-derive = { git = "https://github.com/succinctlabs/sp1.git" }
 ```
 
-In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=debug cargo run --release`. You should see the following output:
+In the script for proof generation, setup the logger with `utils::setup_logger()` and run the script with `RUST_LOG=info cargo run --release`. You should see the following output:
 
 ```
-$ RUST_LOG=debug cargo run --release
+$ RUST_LOG=info cargo run --release
     Finished release [optimized] target(s) in 0.21s
      Running `target/release/cycle-tracking-script`
 2024-03-13T02:03:40.567500Z  INFO execute: loading memory image
 2024-03-13T02:03:40.567751Z  INFO execute: starting execution
 2024-03-13T02:03:40.567760Z  INFO execute: clk = 0 pc = 0x2013b8    
-2024-03-13T02:03:40.567822Z DEBUG execute: ┌╴setup    
-2024-03-13T02:03:40.568095Z DEBUG execute: └╴4,398 cycles    
-2024-03-13T02:03:40.568122Z DEBUG execute: ┌╴main-body    
-2024-03-13T02:03:40.568149Z DEBUG execute: │ ┌╴expensive_function    
-2024-03-13T02:03:40.568250Z DEBUG execute: │ └╴1,368 cycles    
+2024-03-13T02:03:40.567822Z  INFO execute: ┌╴setup    
+2024-03-13T02:03:40.568095Z  INFO execute: └╴4,398 cycles    
+2024-03-13T02:03:40.568122Z  INFO execute: ┌╴main-body    
+2024-03-13T02:03:40.568149Z  INFO execute: │ ┌╴expensive_function    
+2024-03-13T02:03:40.568250Z  INFO execute: │ └╴1,368 cycles    
 stdout: result: 5561
-2024-03-13T02:03:40.568373Z DEBUG execute: │ ┌╴expensive_function    
-2024-03-13T02:03:40.568470Z DEBUG execute: │ └╴1,368 cycles    
+2024-03-13T02:03:40.568373Z  INFO execute: │ ┌╴expensive_function    
+2024-03-13T02:03:40.568470Z  INFO execute: │ └╴1,368 cycles    
 stdout: result: 2940
-2024-03-13T02:03:40.568556Z DEBUG execute: └╴5,766 cycles    
+2024-03-13T02:03:40.568556Z  INFO execute: └╴5,766 cycles    
 2024-03-13T02:03:40.568566Z  INFO execute: finished execution clk = 11127 pc = 0x0
 2024-03-13T02:03:40.569251Z  INFO execute: close time.busy=1.78ms time.idle=21.1µs
 ```

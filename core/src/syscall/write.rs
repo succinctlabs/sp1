@@ -48,7 +48,7 @@ impl Syscall for SyscallWrite {
                     let (start, depth) = rt.cycle_tracker.remove(fn_name).unwrap_or((0, 0));
                     // Leftpad by 2 spaces for each depth.
                     let padding = (0..depth).map(|_| "│ ").collect::<String>();
-                    log::debug!(
+                    log::info!(
                         "{}└╴{} cycles",
                         padding,
                         num_to_comma_separated(rt.state.global_clk - start as u64)
