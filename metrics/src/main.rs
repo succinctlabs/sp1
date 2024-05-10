@@ -46,6 +46,8 @@ fn main() {
 
     let logs = contents.split('\n').collect::<Vec<_>>();
 
+    // TOOD: these imports are done just to get the chip names
+    // Switch to just extracting the chip name directly so we don't have to check against these chip names
     let config = BabyBearPoseidon2::new();
     let machine = RiscvAir::machine(config);
     let chips = machine.chips();
