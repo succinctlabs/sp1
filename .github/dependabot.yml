@@ -1,0 +1,12 @@
+version: 2
+updates:
+  - package-ecosystem: "cargo"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"
+  - package-ecosystem: "docker"
+    directory: "/cli/docker"
+    schedule:
+      interval: "weekly"
+    target-branch: "dev"

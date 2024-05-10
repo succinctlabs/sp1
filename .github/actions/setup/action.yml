@@ -45,8 +45,3 @@ runs:
       shell: bash
       run: |
         curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- --default-toolchain nightly-2024-04-17 -y
-        source $HOME/.cargo/env
-        rustup set profile minimal
-        rustup component add rustfmt clippy
-        rustup show
-        echo "$HOME/.cargo/bin" >> $GITHUB_PATH
