@@ -70,3 +70,12 @@ pub async fn download_file(
     pb.finish_with_message(msg);
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_verifier_export() {
+        crate::artifacts::export_solidity_groth16_verifier(tempfile::tempdir().unwrap().path())
+            .expect("failed to export verifier");
+    }
+}

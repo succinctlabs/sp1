@@ -10,7 +10,7 @@ In this section, we cover how you pass inputs and outputs to the zkVM and create
 
 ## Reading Data
 
-For most use cases, use the `sp1_zkvm::io::read::<T>` method:
+Data that is read is not public to the verifier by default. Use the `sp1_zkvm::io::read::<T>` method:
 
 ```rust,noplayground
 let a = sp1_zkvm::io::read::<u32>();
@@ -24,21 +24,21 @@ Note that `T` must implement the `serde::Serialize` and `serde::Deserialize` tra
 let my_vec = sp1_zkvm::io::read_vec();
 ```
 
-## Writing Data
+## Commiting Data
 
-For most usecases, use the `sp1_zkvm::io::write::<T>` method:
+Committing to data makes the data public to the verifier. Use the `sp1_zkvm::io::commit::<T>` method:
 
 ```rust,noplayground
-sp1_zkvm::io::write::<u32>(&a);
-sp1_zkvm::io::write::<u64>(&b);
-sp1_zkvm::io::write::<String>(&c);
+sp1_zkvm::io::commit::<u32>(&a);
+sp1_zkvm::io::commit::<u64>(&b);
+sp1_zkvm::io::commit::<String>(&c);
 ```
 
 Note that `T` must implement the `Serialize` and `Deserialize` trait. If you want to write bytes directly, you can also use `sp1_zkvm::io::write_slice` method:
 
 ```rust,noplayground
 let mut my_slice = [0_u8; 32];
-sp1_zkvm::io::write_slice(&my_slice);
+sp1_zkvm::io::commit_slice(&my_slice);
 ```
 
 ## Creating Serializable Types
