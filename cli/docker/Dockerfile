@@ -1,4 +1,4 @@
-FROM ubuntu:22.04@sha256:bcc511d82482900604524a8e8d64bf4c53b2461868dac55f4d04d660e61983cb
+FROM ubuntu:24.04@sha256:3f85b7caad41a95462cf5b787d8a04604c8262cdcdf9a472b8c52ef83375fe15
 
 RUN apt-get update
 RUN apt-get install -y --no-install-recommends ca-certificates clang curl libssl-dev pkg-config git dialog
