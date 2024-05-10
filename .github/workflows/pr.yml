@@ -11,6 +11,7 @@ on:
       - "core/**"
       - "prover/**"
       - "recursion/**"
+      - "derive/**"
       - "sdk/**"
       - ".github/workflows/**"
   merge_group:
