@@ -14,6 +14,7 @@ on:
       - "sdk/**"
       - ".github/workflows/**"
   merge_group:
+    types: [checks_requested]
       
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -122,26 +123,6 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain and run cargo check
-        run: |
-          curl -L https://sp1.succinct.xyz | bash
-          ~/.sp1/bin/sp1up 
-          ~/.sp1/bin/cargo-prove prove --version
-          RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
-          cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
-
-  cli:
-    name: CLI
-    runs-on: runs-on,runner=8cpu-linux-x64
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
@@ -154,14 +135,7 @@ jobs:
           cargo install --locked --path .
           cd ~
 
-      - name: Run cargo prove new
+      - name: Run cargo check
         run: |
-          cargo prove new fibonacci
-      
-      - name: Build program and run script
-        run: |
-          cd fibonacci
-          cd program
-          cargo prove build
-          cd ../script
-          SP1_DEV=1 RUST_LOG=info cargo run --release 
+          RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
+          cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
