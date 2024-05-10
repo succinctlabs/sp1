@@ -14,6 +14,7 @@ use sp1_core::stark::MachineVerificationError;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1Prover;
+use sp1_prover::SP1ReduceProof;
 use sp1_prover::{SP1ProvingKey, SP1Stdin, SP1VerifyingKey};
 
 /// An implementation of [crate::ProverClient].
@@ -61,13 +62,14 @@ pub trait Prover: Send + Sync {
     fn verify_compressed(&self, proof: &SP1CompressedProof, vkey: &SP1VerifyingKey) -> Result<()> {
         // TODO: implement verification of the digest of the public values matching
         let sp1_prover = self.sp1_prover();
-        let machine_proof = MachineProof {
-            shard_proofs: vec![proof.proof.clone()],
-        };
-        let mut challenger = sp1_prover.compress_machine.config().challenger();
-        Ok(sp1_prover
-            .compress_machine
-            .verify(&vkey.vk, &machine_proof, &mut challenger)?)
+        sp1_prover
+            .verify_compressed(
+                &SP1ReduceProof {
+                    proof: proof.proof.clone(),
+                },
+                vkey,
+            )
+            .map_err(|e| e.into())
     }
 
     /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
