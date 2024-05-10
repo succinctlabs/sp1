@@ -912,10 +912,9 @@ impl Runtime {
         while !self.execute() {}
     }
 
-    pub fn dry_run(&mut self) -> u64 {
+    pub fn dry_run(&mut self) {
         self.emit_events = false;
         while !self.execute() {}
-        self.state.global_clk
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
