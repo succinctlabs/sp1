@@ -667,18 +667,8 @@ pub mod tests {
     #[serial]
     // Can run Fibonacci test.
     // RUST_LOG=debug cargo test stark::machine::tests::test_fibonacci_prove --release -- --nocapture
+    // Make sure that `SP1_LOG_DIR` is set if we want to write to file
     fn test_fibonacci_prove() {
-        // let temp_directory = tempdir().expect("could not create a temporary directory");
-        // let temp_directory = temp_directory.path().to_path_buf();
-        // let path = temp_directory.join("sp1-core").with_extension("log");
-
-        let path_dir = PathBuf::from("/Users/maximvezenov/Documents/dev/succinctlabs/.sp1-logs");
-        let log_path = path_dir
-            .join("sp1-core")
-            .join("fibonacci")
-            .with_extension("log");
-        std::env::set_var("SP1_LOG_DIR", log_path.as_os_str());
-
         setup_logger();
         let program = fibonacci_program();
         run_test(program).unwrap();

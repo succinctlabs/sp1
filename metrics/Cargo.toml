@@ -5,3 +5,4 @@ edition = "2021"
 
 [dependencies]
 sp1-core = { path = "../core" }
+regex = "1.10.4"
