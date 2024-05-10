@@ -60,8 +60,8 @@ impl Prover for LocalProver {
         let deferred_proofs = stdin.proofs.iter().map(|p| p.0.clone()).collect();
         let public_values = proof.public_values.clone();
         let reduce_proof = self.prover.compress(&pk.vk, proof, deferred_proofs);
-        let compress_proof = self.prover.shrink(&pk.vk, reduce_proof);
-        let outer_proof = self.prover.wrap_bn254(&pk.vk, compress_proof);
+        let compress_proof = self.prover.shrink(reduce_proof);
+        let outer_proof = self.prover.wrap_bn254(compress_proof);
         let artifacts_dir = sp1_prover::build::get_groth16_artifacts_dir();
         let proof = self.prover.wrap_groth16(outer_proof, artifacts_dir);
         Ok(SP1ProofWithPublicValues {

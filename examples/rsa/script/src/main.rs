@@ -13,7 +13,7 @@ const RSA_2048_PUB_DER: &[u8] = include_bytes!("rsa2048-pub.der");
 
 fn main() {
     // Setup a tracer for logging.
-    utils::setup_tracer();
+    utils::setup_logger();
 
     // Create a new stdin with the input for the program.
     let mut stdin = SP1Stdin::new();

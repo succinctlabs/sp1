@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::marker::PhantomData;
 
 use crate::fri::verify_two_adic_pcs;
@@ -269,7 +270,7 @@ pub fn build_wrap_circuit(
         let element = builder.get(&proof.public_values, i);
         pv_elements.push(element);
     }
-    let pv = RecursionPublicValues::from_vec(pv_elements);
+    let pv: &RecursionPublicValues<_> = pv_elements.as_slice().borrow();
     let one_felt: Felt<_> = builder.constant(BabyBear::one());
     // Proof must be complete. In the reduce program, this will ensure that the SP1 proof has been
     // fully accumulated.

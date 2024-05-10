@@ -81,7 +81,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
         pad_rows_fixed(
             &mut rows,
             || [F::zero(); NUM_PROGRAM_PREPROCESSED_COLS],
-            Some(20),
+            None,
         );
 
         // Convert the trace to a row major matrix.
@@ -130,7 +130,7 @@ impl<F: PrimeField32> MachineAir<F> for ProgramChip {
             .collect::<Vec<_>>();
 
         // Pad the trace to a power of two.
-        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], Some(20));
+        pad_rows_fixed(&mut rows, || [F::zero(); NUM_PROGRAM_MULT_COLS], None);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(

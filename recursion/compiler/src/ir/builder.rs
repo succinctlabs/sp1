@@ -227,7 +227,11 @@ impl<C: Config> Builder<C> {
     }
 
     /// Assert that two usizes are not equal.
-    pub fn assert_usize_ne(&mut self, lhs: SymbolicUsize<C::N>, rhs: SymbolicUsize<C::N>) {
+    pub fn assert_usize_ne(
+        &mut self,
+        lhs: impl Into<SymbolicUsize<C::N>>,
+        rhs: impl Into<SymbolicUsize<C::N>>,
+    ) {
         self.assert_ne::<Usize<C::N>>(lhs, rhs);
     }
 
