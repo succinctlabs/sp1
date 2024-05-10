@@ -89,7 +89,7 @@ jobs:
 
   lint:
     name: Formatting & Clippy
-    runs-on: warp-ubuntu-latest-arm64-8x
+    runs-on: runs-on,runner=8cpu-linux-x64
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
     steps:
@@ -114,3 +114,41 @@ jobs:
           args: --all-features --all-targets -- -D warnings -A incomplete-features
         env:
           CARGO_INCREMENTAL: 1
+
+  examples:
+    name: Examples
+    runs-on: runs-on,runner=8cpu-linux-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Run cargo fmt
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --manifest-path examples/Cargo.toml --all -- --check
+        env:
+          CARGO_INCREMENTAL: 1
+
+      - name: Run cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --manifest-path examples/Cargo.toml --all-features --all-targets -- -D warnings -A incomplete-features
+        env:
+          CARGO_INCREMENTAL: 1
+
+      - name: Run cargo check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --manifest-path examples/Cargo.toml --all-targets --all-features
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_LOG: info
+          RUST_BACKTRACE: 1
