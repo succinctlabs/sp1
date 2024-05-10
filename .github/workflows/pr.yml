@@ -161,6 +161,7 @@ jobs:
         run: |
           cd cli
           cargo install --locked --path .
+<<<<<<< HEAD
           cd ~
 
       - name: Run cargo prove new
@@ -174,3 +175,6 @@ jobs:
           cargo prove build
           cd ../script
           SP1_DEV=1 RUST_LOG=info cargo run --release 
+=======
+          cd ~
+>>>>>>> dev
