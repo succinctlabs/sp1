@@ -35,3 +35,9 @@
 # Verifying Proofs
 
 - [Solidity & EVM](./verifying-proofs/solidity-and-evm.md)
+
+# Developers
+
+- [Recommended Settings](./developers/recommended-settings.md)
+
+- [Building Groth16 Artifacts](./developers/building-groth16-artifacts.md)
