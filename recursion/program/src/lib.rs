@@ -1,3 +1,5 @@
+#![allow(incomplete_features)]
+#![feature(generic_const_exprs)]
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 
