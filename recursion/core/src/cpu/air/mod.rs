@@ -104,6 +104,17 @@ impl<F: Field> CpuChip<F> {
             .when(local.is_real)
             .when_not(next.is_real)
             .assert_one(local.selectors.is_halt);
+
+        builder.assert_bool(local.is_real);
+
+        builder.when_first_row().assert_one(local.is_real);
+
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
+
+        builder.when_last_row().assert_zero(next.is_real);
     }
 
     /// Eval the clk.
