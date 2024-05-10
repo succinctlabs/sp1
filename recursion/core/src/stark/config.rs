@@ -18,6 +18,7 @@ use serde::Serialize;
 use sp1_core::stark::StarkGenericConfig;
 
 use super::poseidon2::bn254_poseidon2_rc3;
+use super::utils;
 
 /// A configuration for outer recursion.
 pub type OuterVal = BabyBear;
@@ -68,9 +69,13 @@ pub fn outer_fri_config() -> FriConfig<OuterChallengeMmcs> {
     let hash = OuterHash::new(perm.clone()).unwrap();
     let compress = OuterCompress::new(perm.clone());
     let challenge_mmcs = OuterChallengeMmcs::new(OuterValMmcs::new(hash, compress));
-    let num_queries = match std::env::var("FRI_QUERIES") {
-        Ok(value) => value.parse().unwrap(),
-        Err(_) => 50,
+    let num_queries = if utils::sp1_dev_mode() {
+        1
+    } else {
+        match std::env::var("FRI_QUERIES") {
+            Ok(value) => value.parse().unwrap(),
+            Err(_) => 50,
+        }
     };
     FriConfig {
         log_blowup: 2,

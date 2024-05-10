@@ -421,7 +421,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
         &mut self,
         shard: impl Into<Self::Expr> + Copy,
         clk: impl Into<Self::Expr> + Clone,
-        initial_addr: impl Into<Self::Expr> + Copy,
+        initial_addr: impl Into<Self::Expr> + Clone,
         memory_access_slice: &[impl MemoryCols<E>],
         verify_memory_access: impl Into<Self::Expr> + Copy,
     ) {
@@ -429,7 +429,7 @@ pub trait MemoryAirBuilder: BaseAirBuilder {
             self.eval_memory_access(
                 shard,
                 clk.clone(),
-                initial_addr.into() + Self::Expr::from_canonical_usize(i * 4),
+                initial_addr.clone().into() + Self::Expr::from_canonical_usize(i * 4),
                 access_slice,
                 verify_memory_access,
             );
@@ -601,7 +601,7 @@ pub trait ExtensionAirBuilder: BaseAirBuilder {
     ) {
         let base_slice = element.as_base_slice();
         let degree = base_slice.len();
-        base_slice[1..degree - 1].iter().for_each(|coeff| {
+        base_slice[1..degree].iter().for_each(|coeff| {
             self.assert_zero(coeff.clone().into());
         });
     }

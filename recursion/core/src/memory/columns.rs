@@ -8,7 +8,8 @@ pub struct MemoryInitCols<T> {
     pub addr: T,
     pub timestamp: T,
     pub value: Block<T>,
-    pub is_real: T,
+    pub is_initialize: T,
+    pub is_finalize: T,
 }
 
 /// NOTE: These are very similar to core/src/memory/columns.rs

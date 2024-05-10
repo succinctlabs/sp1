@@ -32,6 +32,14 @@ sha2 = "0.10.8"
 hex = "0.4.3"
 anyhow = "1.0.82"
 size = "0.4.1"
+dirs = "5.0.1"
+tempfile = "3.10.1"
+tokio = { version = "1.36.0", features = ["full"] }
+reqwest = { version = "0.11.25", features = ["rustls-tls", "trust-dns", "stream"] }
+indicatif = "0.17.8"
+futures = "0.3.30"
+subtle-encoding = "0.5.1"
+serial_test = "3.1.1"
 
 [[bin]]
 name = "fibonacci_sweep"
@@ -46,8 +54,8 @@ name = "fibonacci_groth16"
 path = "scripts/fibonacci_groth16.rs"
 
 [[bin]]
-name = "e2e"
-path = "scripts/e2e.rs"
+name = "build_groth16"
+path = "scripts/build_groth16.rs"
 
 [features]
 neon = ["sp1-core/neon"]

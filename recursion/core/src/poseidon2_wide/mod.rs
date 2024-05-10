@@ -5,6 +5,7 @@ use p3_baby_bear::{MONTY_INVERSE, POSEIDON2_INTERNAL_MATRIX_DIAG_16_BABYBEAR_MON
 use p3_field::AbstractField;
 use p3_field::PrimeField32;
 
+mod columns;
 pub mod external;
 
 pub use external::Poseidon2WideChip;

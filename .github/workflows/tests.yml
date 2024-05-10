@@ -10,7 +10,7 @@ on:
       - "core/**"
       - "recursion/**"
       - "sdk/**"
-      - "examples/fibonacci-io/**"
+      - "examples/fibonacci/**"
       - ".github/workflows/**"
 
 concurrency:
@@ -19,7 +19,7 @@ concurrency:
 
 jobs:
   test:
-    name: Core
+    name: SP1 Prover E2E
     runs-on: warp-ubuntu-latest-arm64-32x
     env:
       CARGO_NET_GIT_FETCH_WITH_CLI: "true"
@@ -36,94 +36,40 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: -p sp1-core -p sp1-recursion-compiler -p sp1-recursion-program -p sp1-recursion-circuit --release
+          args: -p sp1-prover --release
+        env:
+          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+          RUST_LOG: info
+          RUST_BACKTRACE: 1
+          CARGO_INCREMENTAL: 1
+          FRI_QUERIES: 1
+          SP1_DEV: 1
+
+  test-main:
+    name: SP1 Tests
+    runs-on: warp-ubuntu-latest-arm64-32x
+    if: github.ref == 'refs/heads/main'
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+        with:
+          pull_token: ${{ secrets.PULL_TOKEN }}
+
+      - name: Run cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: -p sp1-core -p sp1-recursion-compiler -p sp1-recursion-program -p sp1-recursion-circuit -p sp1-prover --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
           RUST_LOG: 1
           RUST_BACKTRACE: 1
           CARGO_INCREMENTAL: 1
           FRI_QUERIES: 1
-
-  e2e:
-    name: E2E
-    runs-on: warp-ubuntu-latest-arm64-8x
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PULL_TOKEN }}
-
-      - name: Install sp1 toolchain
-        run: |
-          curl -L https://sp1.succinct.xyz | bash
-          echo "/root/.sp1/bin" >> $GITHUB_PATH
-          /root/.sp1/bin/sp1up
-
-      - name: Run fibonacci-io example
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
-
-      - name: Run cargo prove new
-        run: |
-          cargo prove new cargo-prove-test
-          cd cargo-prove-test
-          cd script
-          cargo run --release
-
-
-  misc:
-    name: Miscellaneous
-    runs-on: warp-ubuntu-latest-arm64-8x
-    env:
-      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Setup CI
-        uses: ./.github/actions/setup
-        with:
-          pull_token: ${{ secrets.PULL_TOKEN }}
-          
-      - name: Run cargo test with no default features
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: -p sp1-core --release --no-default-features --features debug -- cpu::trace::tests::generate_trace
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
-
-      - name: Install sp1 toolchain
-        run: |
-          curl -L https://sp1.succinct.xyz | bash
-          echo "/root/.sp1/bin" >> $GITHUB_PATH
-          /root/.sp1/bin/sp1up
-
-      - name: Run fibonacci-io example
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --release --manifest-path examples/fibonacci-io/script/Cargo.toml
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -Ctarget-cpu=native
-          RUST_LOG: 1
-          RUST_BACKTRACE: 1
-          CARGO_INCREMENTAL: 1
+          SP1_DEV: true
 
   lints:
     name: Formatting & Clippy
