@@ -364,7 +364,8 @@ where
                 .into_par_iter()
                 .enumerate()
                 .map(|(i, quotient_domain)| {
-                    tracing::debug_span!(parent: &parent_span, "compute quotient values for domain")
+                    let chip_name = chips[i].name();
+                    tracing::debug_span!(parent: &parent_span, "compute quotient values for domain", %chip_name)
                         .in_scope(|| {
                             let preprocessed_trace_on_quotient_domains = pk
                                 .chip_ordering
@@ -432,8 +433,9 @@ where
                 .sum::<usize>()
         );
 
-        let (quotient_commit, quotient_data) = tracing::debug_span!("commit to quotient traces")
-            .in_scope(|| pcs.commit(quotient_domains_and_chunks));
+        let (quotient_commit, quotient_data) =
+            tracing::debug_span!("pcs.commit to quotient traces")
+                .in_scope(|| pcs.commit(quotient_domains_and_chunks));
         challenger.observe(quotient_commit.clone());
 
         // Compute the quotient argument.

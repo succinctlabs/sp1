@@ -16,6 +16,7 @@ use std::cmp::Reverse;
 use std::collections::HashMap;
 use std::fmt::Debug;
 use tracing::instrument;
+use web_time::Instant;
 
 use super::debug_constraints;
 use super::Dom;
