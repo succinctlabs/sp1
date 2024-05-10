@@ -3,10 +3,7 @@
 SP1 currently runs on Linux and macOS. You can either use prebuilt binaries through sp1up or
 build the toolchain and CLI from source.
 
-## Requirements
-
-- [Rust (Nightly)](https://www.rust-lang.org/tools/install)
-- [Go 1.22](https://go.dev/doc/install)
+Make sure you have [Rust](https://www.rust-lang.org/tools/install) installed.
 
 ## Option 1: Prebuilt Binaries (Recommended)
 

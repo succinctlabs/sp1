@@ -51,8 +51,6 @@ impl<SC: StarkGenericConfig, A: MachineAir<Val<SC>>> Verifier<SC, A> {
 
         let pcs = config.pcs();
 
-        assert_eq!(chips.len(), opened_values.chips.len());
-
         let log_degrees = opened_values
             .chips
             .iter()

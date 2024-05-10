@@ -2,7 +2,7 @@ use sp1_recursion_compiler::prelude::*;
 
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
 
-pub type DigestVariable<C> = Array<C, Felt<<C as Config>::F>>;
+pub type DigestVariable<C: Config> = Array<C, Felt<C::F>>;
 
 #[derive(DslVariable, Clone)]
 pub struct FriConfigVariable<C: Config> {

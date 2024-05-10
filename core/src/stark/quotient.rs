@@ -9,8 +9,6 @@ use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
 use p3_util::log2_strict_usize;
 
-use crate::air::MachineAir;
-
 use super::folder::ProverConstraintFolder;
 use super::Chip;
 use super::Domain;
@@ -33,7 +31,7 @@ pub fn quotient_values<SC, A, Mat>(
     public_values: &[Val<SC>],
 ) -> Vec<SC::Challenge>
 where
-    A: for<'a> Air<ProverConstraintFolder<'a, SC>> + MachineAir<Val<SC>>,
+    A: for<'a> Air<ProverConstraintFolder<'a, SC>>,
     SC: StarkGenericConfig,
     Mat: Matrix<Val<SC>> + Sync,
 {
@@ -48,13 +46,7 @@ where
 
     let ext_degree = SC::Challenge::D;
 
-    assert!(
-        quotient_size >= PackedVal::<SC>::WIDTH,
-        "quotient size is too small: got {}, expected at least {} for chip {}",
-        quotient_size,
-        PackedVal::<SC>::WIDTH,
-        chip.name()
-    );
+    assert!(quotient_size >= PackedVal::<SC>::WIDTH);
 
     (0..quotient_size)
         .into_par_iter()
