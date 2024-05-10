@@ -3,6 +3,7 @@ mod branch;
 mod jump;
 mod memory;
 mod operands;
+mod system;
 
 use std::borrow::Borrow;
 
@@ -78,45 +79,13 @@ where
 
         // Constrain the system instructions (TRAP, HALT).
         self.eval_system_instructions(builder, local, next);
+
+        // Constrain the is_real_flag.
+        self.eval_is_real(builder, local, next);
     }
 }
 
 impl<F: Field> CpuChip<F> {
-    /// Eval the system instructions (TRAP, HALT).
-    ///
-    /// This method will contrain the following:
-    /// 1) Ensure that none of the instructions where TRAP.
-    /// 2) Ensure that the last real instruction is a HALT.
-    pub fn eval_system_instructions<AB>(
-        &self,
-        builder: &mut AB,
-        local: &CpuCols<AB::Var>,
-        next: &CpuCols<AB::Var>,
-    ) where
-        AB: SP1RecursionAirBuilder,
-    {
-        builder
-            .when(local.is_real)
-            .assert_zero(local.selectors.is_trap);
-
-        builder
-            .when_transition()
-            .when(local.is_real)
-            .when_not(next.is_real)
-            .assert_one(local.selectors.is_halt);
-
-        builder.assert_bool(local.is_real);
-
-        builder.when_first_row().assert_one(local.is_real);
-
-        builder
-            .when_transition()
-            .when_not(local.is_real)
-            .assert_zero(next.is_real);
-
-        builder.when_last_row().assert_zero(local.is_real);
-    }
-
     /// Eval the clk.
     ///
     /// For all instructions except for FRI fold, the next clk is the current clk + 4.
@@ -137,6 +106,27 @@ impl<F: Field> CpuChip<F> {
             .when(next.is_real)
             .when(local.selectors.is_fri_fold)
             .assert_eq(local.clk.into() + local.a.value()[0], next.clk);
+    }
+
+    /// Eval the is_real flag.
+    pub fn eval_is_real<AB>(
+        &self,
+        builder: &mut AB,
+        local: &CpuCols<AB::Var>,
+        next: &CpuCols<AB::Var>,
+    ) where
+        AB: SP1RecursionAirBuilder,
+    {
+        builder.assert_bool(local.is_real);
+
+        // First row should be real.
+        builder.when_first_row().assert_one(local.is_real);
+
+        // Once rows transition to not real, then they should stay not real.
+        builder
+            .when_transition()
+            .when_not(local.is_real)
+            .assert_zero(next.is_real);
     }
 
     /// Expr to check for alu instructions.
