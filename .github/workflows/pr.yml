@@ -122,14 +122,11 @@ jobs:
       - name: Setup CI
         uses: ./.github/actions/setup
 
-      - name: Install SP1 toolchain
+      - name: Install SP1 toolchain and run cargo check
         run: |
           curl -L https://sp1.succinct.xyz | bash
           ~/.sp1/bin/sp1up 
           ~/.sp1/bin/cargo-prove prove --version
-
-      - name: Run cargo check
-        run: |
           RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
           cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
 
