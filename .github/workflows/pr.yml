@@ -138,3 +138,27 @@ jobs:
         run: |
           RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
           cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
+        
+  template:
+    name: Examples
+    runs-on: runs-on,runner=8cpu-linux-x64
+    env:
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Setup CI
+        uses: ./.github/actions/setup
+
+      - name: Install SP1 toolchain
+        run: |
+          curl -L https://sp1.succinct.xyz | bash
+          ~/.sp1/bin/sp1up 
+          ~/.sp1/bin/cargo-prove prove --version
+
+      - name: Install SP1 CLI
+        run: |
+          cd cli
+          cargo install --locked --path .
+          cd ~
