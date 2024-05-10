@@ -66,8 +66,8 @@ fn execute_build_cmd(
     cmd.current_dir(program_dir)
         .args(["prove", "build"])
         .env_remove("RUSTC")
-        .stdout(Stdio::inherit())
-        .stderr(Stdio::inherit());
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
     let mut child = cmd.spawn()?;
 
     let stdout = BufReader::new(child.stdout.take().unwrap());
