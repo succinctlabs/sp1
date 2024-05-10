@@ -594,7 +594,10 @@ impl CpuChip {
     }
 
     fn pad_to_power_of_two<F: PrimeField>(values: &mut Vec<F>) {
-        let n_real_rows = values.len() / NUM_CPU_COLS;
+        let mut n_real_rows = values.len() / NUM_CPU_COLS;
+        if n_real_rows < 16 {
+            n_real_rows = 16;
+        }
 
         values.resize(n_real_rows.next_power_of_two() * NUM_CPU_COLS, F::zero());
 
