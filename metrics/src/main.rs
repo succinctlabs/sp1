@@ -1,8 +1,7 @@
 use sp1_core::air::MachineAir;
 use sp1_core::stark::RiscvAir;
 use sp1_core::utils::BabyBearPoseidon2;
-use std::collections::{BTreeMap, HashMap};
-use std::path::PathBuf;
+use std::collections::BTreeMap;
 
 use regex::Regex;
 
@@ -225,7 +224,6 @@ fn fetch_time_from_log(log: &str) -> f64 {
 
 fn fetch_shard_index(log: &str) -> u32 {
     if log.contains("shard_index") {
-        let start = log.rfind("shard_index=").unwrap();
         let shard_index_str = Regex::new(r"shard_index=[0-9]+")
             .unwrap()
             .find(log)
