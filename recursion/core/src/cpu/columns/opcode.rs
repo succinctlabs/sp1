@@ -35,6 +35,7 @@ pub struct OpcodeSelectorCols<T> {
     // System instructions.
     pub is_trap: T,
     pub is_noop: T,
+    pub is_halt: T,
 
     pub is_poseidon: T,
     pub is_fri_fold: T,
@@ -101,6 +102,7 @@ impl<T: Copy> IntoIterator for &OpcodeSelectorCols<T> {
             self.is_jal,
             self.is_jalr,
             self.is_trap,
+            self.is_halt,
             self.is_noop,
             self.is_poseidon,
             self.is_fri_fold,
