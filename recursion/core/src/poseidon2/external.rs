@@ -9,6 +9,7 @@ use sp1_primitives::RC_16_30_U32;
 use std::ops::Add;
 
 use crate::air::{RecursionInteractionAirBuilder, RecursionMemoryAirBuilder};
+use crate::memory::MemoryCols;
 use crate::poseidon2_wide::{apply_m_4, internal_linear_layer};
 use crate::runtime::Opcode;
 
@@ -37,6 +38,7 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        next: &Poseidon2Cols<AB::Var>,
         receive_table: AB::Var,
         memory_access: AB::Expr,
     ) {
@@ -65,6 +67,7 @@ impl Poseidon2Chip {
         self.eval_mem(
             builder,
             local,
+            next,
             is_memory_read,
             is_memory_write,
             memory_access,
@@ -73,6 +76,7 @@ impl Poseidon2Chip {
         self.eval_computation(
             builder,
             local,
+            next,
             is_initial.into(),
             is_external_layer.clone(),
             is_internal_layer.clone(),
@@ -94,12 +98,12 @@ impl Poseidon2Chip {
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        next: &Poseidon2Cols<AB::Var>,
         is_memory_read: AB::Var,
         is_memory_write: AB::Var,
         memory_access: AB::Expr,
     ) {
         let memory_access_cols = local.round_specific_cols.memory_access();
-
         builder
             .when(is_memory_read)
             .assert_eq(local.left_input, memory_access_cols.addr_first_half);
@@ -128,12 +132,24 @@ impl Poseidon2Chip {
                 memory_access.clone(),
             );
         }
+
+        // For the memory read round, need to connect the memory val to the input of the next
+        // computation round.
+        let next_computation_col = next.round_specific_cols.computation();
+        for i in 0..WIDTH {
+            builder.when_transition().when(is_memory_read).assert_eq(
+                *memory_access_cols.mem_access[i].value(),
+                next_computation_col.input[i],
+            );
+        }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn eval_computation<AB: BaseAirBuilder + ExtensionAirBuilder>(
         &self,
         builder: &mut AB,
         local: &Poseidon2Cols<AB::Var>,
+        next: &Poseidon2Cols<AB::Var>,
         is_initial: AB::Expr,
         is_external_layer: AB::Expr,
         is_internal_layer: AB::Expr,
@@ -158,11 +174,11 @@ impl Poseidon2Chip {
             let mut result: AB::Expr = computation_cols.input[i].into();
             for r in 0..rounds {
                 if i == 0 {
-                    result += local.rounds[r + 1]
+                    result += local.rounds[r + 2]
                         * constants[r][i]
                         * (is_external_layer.clone() + is_internal_layer.clone());
                 } else {
-                    result += local.rounds[r + 1] * constants[r][i] * is_external_layer.clone();
+                    result += local.rounds[r + 2] * constants[r][i] * is_external_layer.clone();
                 }
             }
             builder
@@ -251,8 +267,25 @@ impl Poseidon2Chip {
             let mut state: [AB::Expr; WIDTH] = sbox_result.clone();
             internal_linear_layer(&mut state);
             builder
-                .when(is_internal_layer)
+                .when(is_internal_layer.clone())
                 .assert_all_eq(state.clone(), computation_cols.output);
+        }
+
+        // Assert that the round's output values are equal the the next round's input values.  For the
+        // last computation round, assert athat the output values are equal to the output memory values.
+        let next_row_computation = next.round_specific_cols.computation();
+        let next_row_memory_access = next.round_specific_cols.memory_access();
+        for i in 0..WIDTH {
+            let next_round_value = builder.if_else(
+                local.rounds[22],
+                *next_row_memory_access.mem_access[i].value(),
+                next_row_computation.input[i],
+            );
+
+            builder
+                .when_transition()
+                .when(is_initial.clone() + is_external_layer.clone() + is_internal_layer.clone())
+                .assert_eq(computation_cols.output[i], next_round_value);
         }
     }
 
@@ -295,9 +328,13 @@ where
         let main = builder.main();
         let local = main.row_slice(0);
         let local: &Poseidon2Cols<AB::Var> = (*local).borrow();
+        let next = main.row_slice(1);
+        let next: &Poseidon2Cols<AB::Var> = (*next).borrow();
+
         self.eval_poseidon2::<AB>(
             builder,
             local,
+            next,
             Self::do_receive_table::<AB::Var>(local),
             Self::do_memory_access::<AB::Var, AB::Expr>(local),
         );
@@ -309,10 +346,10 @@ mod tests {
     use itertools::Itertools;
     use std::borrow::Borrow;
     use std::time::Instant;
+    use zkhash::ark_ff::UniformRand;
 
     use p3_baby_bear::BabyBear;
     use p3_baby_bear::DiffusionMatrixBabyBear;
-    use p3_field::AbstractField;
     use p3_matrix::{dense::RowMajorMatrix, Matrix};
     use p3_poseidon2::Poseidon2;
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
@@ -324,7 +361,7 @@ mod tests {
     };
 
     use crate::{
-        poseidon2::{Poseidon2Chip, Poseidon2Event, WIDTH},
+        poseidon2::{Poseidon2Chip, Poseidon2Event},
         runtime::ExecutionRecord,
     };
     use p3_symmetric::Permutation;
@@ -338,12 +375,12 @@ mod tests {
         let chip = Poseidon2Chip {
             fixed_log2_rows: None,
         };
-        let test_inputs = vec![
-            [BabyBear::from_canonical_u32(1); WIDTH],
-            [BabyBear::from_canonical_u32(2); WIDTH],
-            [BabyBear::from_canonical_u32(3); WIDTH],
-            [BabyBear::from_canonical_u32(4); WIDTH],
-        ];
+
+        let rng = &mut rand::thread_rng();
+
+        let test_inputs: Vec<[BabyBear; 16]> = (0..16)
+            .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
+            .collect_vec();
 
         let gt: Poseidon2<
             BabyBear,
@@ -384,9 +421,10 @@ mod tests {
         let chip = Poseidon2Chip {
             fixed_log2_rows: None,
         };
+        let rng = &mut rand::thread_rng();
 
-        let test_inputs = (0..16)
-            .map(|i| [BabyBear::from_canonical_u32(i); WIDTH])
+        let test_inputs: Vec<[BabyBear; 16]> = (0..16)
+            .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
             .collect_vec();
 
         let gt: Poseidon2<

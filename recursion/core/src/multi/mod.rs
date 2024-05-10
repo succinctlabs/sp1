@@ -17,7 +17,7 @@ use crate::runtime::{ExecutionRecord, RecursionProgram};
 pub const NUM_MULTI_COLS: usize = core::mem::size_of::<MultiCols<u8>>();
 
 #[derive(Default)]
-pub struct MultiChip {
+pub struct MultiChip<const DEGREE: usize> {
     pub fixed_log2_rows: Option<usize>,
 }
 
@@ -42,13 +42,13 @@ pub union InstructionSpecificCols<T: Copy> {
     poseidon2: Poseidon2Cols<T>,
 }
 
-impl<F> BaseAir<F> for MultiChip {
+impl<F, const DEGREE: usize> BaseAir<F> for MultiChip<DEGREE> {
     fn width(&self) -> usize {
         NUM_MULTI_COLS
     }
 }
 
-impl<F: PrimeField32> MachineAir<F> for MultiChip {
+impl<F: PrimeField32, const DEGREE: usize> MachineAir<F> for MultiChip<DEGREE> {
     type Record = ExecutionRecord<F>;
 
     type Program = RecursionProgram<F>;
@@ -66,7 +66,7 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
         input: &ExecutionRecord<F>,
         output: &mut ExecutionRecord<F>,
     ) -> RowMajorMatrix<F> {
-        let fri_fold_chip = FriFoldChip::default();
+        let fri_fold_chip = FriFoldChip::<3>::default();
         let poseidon2 = Poseidon2Chip::default();
         let fri_fold_trace = fri_fold_chip.generate_trace(input, output);
         let mut poseidon2_trace = poseidon2.generate_trace(input, output);
@@ -84,8 +84,10 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
                     cols.is_fri_fold = F::one();
 
                     let fri_fold_cols = *cols.fri_fold();
-                    cols.fri_fold_receive_table = FriFoldChip::do_receive_table(&fri_fold_cols);
-                    cols.fri_fold_memory_access = FriFoldChip::do_memory_access(&fri_fold_cols);
+                    cols.fri_fold_receive_table =
+                        FriFoldChip::<3>::do_receive_table(&fri_fold_cols);
+                    cols.fri_fold_memory_access =
+                        FriFoldChip::<3>::do_memory_access(&fri_fold_cols);
                 } else {
                     cols.is_poseidon2 = F::one();
 
@@ -113,7 +115,7 @@ impl<F: PrimeField32> MachineAir<F> for MultiChip {
     }
 }
 
-impl<AB> Air<AB> for MultiChip
+impl<AB, const DEGREE: usize> Air<AB> for MultiChip<DEGREE>
 where
     AB: SP1RecursionAirBuilder,
 {
@@ -155,15 +157,15 @@ where
 
         let fri_columns_local = local.fri_fold();
         sub_builder.assert_eq(
-            local.is_fri_fold * FriFoldChip::do_memory_access::<AB::Var>(fri_columns_local),
+            local.is_fri_fold * FriFoldChip::<3>::do_memory_access::<AB::Var>(fri_columns_local),
             local.fri_fold_memory_access,
         );
         sub_builder.assert_eq(
-            local.is_fri_fold * FriFoldChip::do_receive_table::<AB::Var>(fri_columns_local),
+            local.is_fri_fold * FriFoldChip::<3>::do_receive_table::<AB::Var>(fri_columns_local),
             local.fri_fold_receive_table,
         );
 
-        let fri_fold_chip = FriFoldChip::default();
+        let fri_fold_chip = FriFoldChip::<3>::default();
         fri_fold_chip.eval_fri_fold(
             &mut sub_builder,
             local.fri_fold(),
@@ -190,6 +192,7 @@ where
         poseidon2_chip.eval_poseidon2(
             &mut sub_builder,
             local.poseidon2(),
+            next.poseidon2(),
             local.poseidon2_receive_table,
             local.poseidon2_memory_access.into(),
         );
@@ -233,7 +236,7 @@ mod tests {
         let config = BabyBearPoseidon2::compressed();
         let mut challenger = config.challenger();
 
-        let chip = MultiChip {
+        let chip = MultiChip::<5> {
             fixed_log2_rows: None,
         };
 

@@ -9,9 +9,9 @@ use p3_air::Air;
 use p3_challenger::{CanObserve, FieldChallenger};
 use p3_commit::Pcs;
 use p3_commit::PolynomialSpace;
-use p3_field::AbstractField;
 use p3_field::ExtensionField;
 use p3_field::PrimeField32;
+use p3_field::{AbstractExtensionField, AbstractField};
 use p3_matrix::dense::RowMajorMatrix;
 use p3_matrix::Matrix;
 use p3_maybe_rayon::prelude::*;
@@ -302,12 +302,13 @@ where
         for i in 0..chips.len() {
             let trace_width = traces[i].width();
             let permutation_width = permutation_traces[i].width();
-            let total_width = trace_width + permutation_width;
+            let total_width = trace_width
+                + permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D;
             tracing::debug!(
                 "{:<15} | Main Cols = {:<5} | Perm Cols = {:<5} | Rows = {:<5} | Cells = {:<10}",
                 chips[i].name(),
                 trace_width,
-                permutation_width,
+                permutation_width * <SC::Challenge as AbstractExtensionField<SC::Val>>::D,
                 traces[i].height(),
                 total_width * traces[i].height(),
             );
