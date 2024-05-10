@@ -116,6 +116,9 @@ fn main() {
         // If no chips were found the ANSI encoding on the tracing logger may have been turned to true.
         // ANSI encoding should always be turned to false for parsing the logs
         // TODO: switch these trace names to constants. Any project using these metrics should use these constants as well
+        // TODO: Also consider a way to make these logs into a better nested structure
+        // If we could form some type of graph based upon the logs that would be ideal.
+        // We could then parse the graph for all the data we need (looking parallel vs. serial, time spent in different graph children, etc.)
         if let Some(chip_name) = Regex::new(r"chip_name=[a-zA-Z]+").unwrap().find(log) {
             let chip_name = &chip_name.as_str()[10..];
             let shard_index = fetch_shard_index(log);
@@ -203,24 +206,11 @@ fn main() {
     }
     dbg!(total_trace_time);
 
-    let mut total_pcs_commit_time = 0f64;
-    for pcs_commit_metric in pcs_commit_metrics.iter() {
-        total_pcs_commit_time += pcs_commit_metric.time;
-    }
-    dbg!(total_pcs_commit_time);
+    // let mut total_pcs_commit_time = 0f64;
+    // for pcs_commit_metric in pcs_commit_metrics.iter() {
+    //     total_pcs_commit_time += pcs_commit_metric.time;
+    // }
 
-    dbg!(total_trace_time + total_pcs_commit_time);
-
-    dbg!(total_generate_trace_time);
-    dbg!(total_permutation_trace_time);
-    dbg!(total_quotient_values_time);
-    dbg!(total_generate_trace_time + total_permutation_trace_time);
-    dbg!(
-        total_pcs_commit_time
-            + total_generate_trace_time
-            + total_permutation_trace_time
-            + total_quotient_values_time
-    );
     dbg!(total_prove_time);
 
     let mut chip_trace_table =
