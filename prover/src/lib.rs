@@ -57,8 +57,10 @@ use sp1_recursion_gnark_ffi::Groth16Prover;
 use sp1_recursion_program::hints::Hintable;
 pub use sp1_recursion_program::machine::ReduceProgramType;
 use sp1_recursion_program::machine::{
-    SP1CompressVerifier, SP1DeferredMemoryLayout, SP1DeferredVerifier, SP1RecursionMemoryLayout,
-    SP1RecursiveVerifier, SP1ReduceMemoryLayout, SP1RootMemoryLayout, SP1RootVerifier,
+    SP1CompressVerifier, SP1DeferredVerifier, SP1RecursiveVerifier, SP1RootVerifier,
+};
+pub use sp1_recursion_program::machine::{
+    SP1DeferredMemoryLayout, SP1RecursionMemoryLayout, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
 };
 use std::env;
 use std::path::PathBuf;
@@ -426,27 +428,12 @@ impl SP1Prover {
                         is_complete,
                     };
 
-                    let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+                    let proof = self.compress_machine_proof(
+                        input,
                         &self.compress_program,
-                        self.compress_machine.config().perm.clone(),
-                    );
-
-                    let mut witness_stream = Vec::new();
-                    witness_stream.extend(input.write());
-
-                    runtime.witness_stream = witness_stream.into();
-                    runtime.run();
-                    runtime.print_stats();
-
-                    let mut recursive_challenger = self.compress_machine.config().challenger();
-                    let mut proof = self.compress_machine.prove::<LocalProver<_, _>>(
                         &self.compress_pk,
-                        runtime.record,
-                        &mut recursive_challenger,
                     );
-
-                    debug_assert_eq!(proof.shard_proofs.len(), 1);
-                    (proof.shard_proofs.pop().unwrap(), ReduceProgramType::Reduce)
+                    (proof, ReduceProgramType::Reduce)
                 })
                 .collect();
 
@@ -463,6 +450,32 @@ impl SP1Prover {
         SP1ReduceProof {
             proof: reduce_proof.0,
         }
+    }
+
+    pub fn compress_machine_proof(
+        &self,
+        input: impl Hintable<InnerConfig>,
+        program: &RecursionProgram<BabyBear>,
+        pk: &StarkProvingKey<InnerSC>,
+    ) -> ShardProof<InnerSC> {
+        let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
+            program,
+            self.compress_machine.config().perm.clone(),
+        );
+
+        let mut witness_stream = Vec::new();
+        witness_stream.extend(input.write());
+
+        runtime.witness_stream = witness_stream.into();
+        runtime.run();
+        runtime.print_stats();
+
+        let mut recursive_challenger = self.compress_machine.config().challenger();
+        self.compress_machine
+            .prove::<LocalProver<_, _>>(pk, runtime.record, &mut recursive_challenger)
+            .shard_proofs
+            .pop()
+            .unwrap()
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
