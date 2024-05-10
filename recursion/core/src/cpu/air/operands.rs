@@ -13,6 +13,8 @@ impl<F: Field> CpuChip<F> {
     where
         AB: SP1RecursionAirBuilder<F = F>,
     {
+        test change
+
         // Constraint the case of immediates for the b and c operands.
         builder
             .when(local.instruction.imm_b)
