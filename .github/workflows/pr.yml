@@ -128,12 +128,6 @@ jobs:
           ~/.sp1/bin/sp1up 
           ~/.sp1/bin/cargo-prove prove --version
 
-      - name: Install SP1 CLI
-        run: |
-          cd cli
-          cargo install --locked --path .
-          cd ~
-
       - name: Run cargo check
         run: |
           RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
@@ -171,7 +165,7 @@ jobs:
         run: |
           cd fibonacci
           cd program
-          cargo prove build fibonacci
+          cargo prove build
           cd ../
 
       - name: Run script
