@@ -1,6 +1,7 @@
 use sp1_core::air::MachineAir;
 use sp1_core::stark::RiscvAir;
 use sp1_core::utils::BabyBearPoseidon2;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 
 use regex::Regex;
@@ -126,6 +127,35 @@ fn main() {
     dbg!(chip_trace_times.len());
 
     dbg!(pcs_commit_metric.clone());
+
+    // Let's get some basic metrics here in Rust
+    // Probably will want to convert it into JSON to be ported for deeper data analysis in python or something
+    // Using BTreeMaps for my own debugging purposes so things do not get re-ordered
+    let mut commit_phase_time_per_chip: BTreeMap<String, f64> = BTreeMap::new();
+    let mut prove_phase_time_per_chip: BTreeMap<String, f64> = BTreeMap::new();
+    for chip_trace in chip_trace_times.into_iter() {
+        match chip_trace.phase {
+            // TOOD: DRY, both match statements do the same thing
+            Phase::Commit => {
+                if let Some(accumulated_time) = commit_phase_time_per_chip.get_mut(&chip_trace.chip)
+                {
+                    *accumulated_time += chip_trace.time
+                } else {
+                    commit_phase_time_per_chip.insert(chip_trace.chip, chip_trace.time);
+                }
+            }
+            Phase::Prove => {
+                if let Some(accumulated_time) = prove_phase_time_per_chip.get_mut(&chip_trace.chip)
+                {
+                    *accumulated_time += chip_trace.time
+                } else {
+                    prove_phase_time_per_chip.insert(chip_trace.chip, chip_trace.time);
+                }
+            }
+        }
+    }
+    dbg!(commit_phase_time_per_chip.clone());
+    dbg!(prove_phase_time_per_chip.clone());
 }
 
 fn fetch_time_from_log(log: &str) -> f64 {
