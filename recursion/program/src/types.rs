@@ -17,6 +17,8 @@ pub struct ShardProofVariable<C: Config> {
     pub opened_values: ShardOpenedValuesVariable<C>,
     pub opening_proof: TwoAdicPcsProofVariable<C>,
     pub public_values: Array<C, Felt<C::F>>,
+    pub quotient_data: Array<C, QuotientData<C>>,
+    pub sorted_idxs: Array<C, Var<C::N>>,
 }
 
 #[derive(DslVariable, Clone, Copy)]
@@ -36,6 +38,8 @@ pub struct QuotientDataValues {
 pub struct VerifyingKeyVariable<C: Config> {
     pub commitment: DigestVariable<C>,
     pub pc_start: Felt<C::F>,
+    pub preprocessed_sorted_idxs: Array<C, Var<C::N>>,
+    pub prep_domains: Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
 }
 
 /// Reference: [sp1_core::stark::ShardCommitment]

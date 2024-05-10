@@ -3,14 +3,14 @@ use p3_challenger::DuplexChallenger;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::TwoAdicField;
 use p3_field::{AbstractExtensionField, AbstractField};
-use sp1_core::air::{Word, PV_DIGEST_NUM_WORDS};
+use sp1_core::air::{MachineAir, Word, PV_DIGEST_NUM_WORDS};
+use sp1_core::stark::StarkGenericConfig;
 use sp1_core::stark::{
-    AirOpenedValues, ChipOpenedValues, Com, ShardCommitment, ShardOpenedValues, ShardProof,
+    AirOpenedValues, ChipOpenedValues, Com, RiscvAir, ShardCommitment, ShardOpenedValues,
 };
-use sp1_core::stark::{StarkGenericConfig, StarkVerifyingKey};
 use sp1_core::utils::{
-    BabyBearPoseidon2, BabyBearPoseidon2Inner, InnerChallenge, InnerDigest, InnerDigestHash,
-    InnerPcsProof, InnerPerm, InnerVal,
+    BabyBearPoseidon2, InnerChallenge, InnerDigest, InnerDigestHash, InnerPcsProof, InnerPerm,
+    InnerVal,
 };
 use sp1_recursion_compiler::{
     config::InnerConfig,
@@ -21,11 +21,14 @@ use sp1_recursion_core::runtime::PERMUTATION_WIDTH;
 
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
+use crate::machine::*;
+use crate::stark::{ShardProofHint, VerifyingKeyHint};
 use crate::types::{
     AirOpenedValuesVariable, ChipOpenedValuesVariable, Sha256DigestVariable,
     ShardCommitmentVariable, ShardOpenedValuesVariable, ShardProofVariable, VerifyingKeyVariable,
 };
 use crate::types::{QuotientData, QuotientDataValues};
+use crate::utils::{get_chip_quotient_data, get_preprocessed_data, get_sorted_indices};
 
 pub trait Hintable<C: Config> {
     type HintVariable: MemVariable<C>;
@@ -146,12 +149,12 @@ impl Hintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {
 
 trait VecAutoHintable<C: Config>: Hintable<C> {}
 
-impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2> {}
-impl VecAutoHintable<C> for ShardProof<BabyBearPoseidon2Inner> {}
+impl<'a, A: MachineAir<BabyBear>> VecAutoHintable<C> for ShardProofHint<'a, BabyBearPoseidon2, A> {}
 impl VecAutoHintable<C> for TwoAdicMultiplicativeCoset<InnerVal> {}
 impl VecAutoHintable<C> for Vec<usize> {}
 impl VecAutoHintable<C> for QuotientDataValues {}
 impl VecAutoHintable<C> for Vec<QuotientDataValues> {}
+impl VecAutoHintable<C> for Vec<InnerVal> {}
 
 impl<I: VecAutoHintable<C>> VecAutoHintable<C> for &I {}
 
@@ -417,41 +420,53 @@ impl Hintable<C> for DuplexChallenger<InnerVal, InnerPerm, 16> {
 }
 
 impl<
+        'a,
         SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-    > Hintable<C> for StarkVerifyingKey<SC>
+        A: MachineAir<SC::Val>,
+    > Hintable<C> for VerifyingKeyHint<'a, SC, A>
 {
     type HintVariable = VerifyingKeyVariable<C>;
 
     fn read(builder: &mut Builder<C>) -> Self::HintVariable {
         let commitment = InnerDigest::read(builder);
         let pc_start = InnerVal::read(builder);
+        let preprocessed_sorted_idxs = Vec::<usize>::read(builder);
+        let prep_domains = Vec::<TwoAdicMultiplicativeCoset<InnerVal>>::read(builder);
         VerifyingKeyVariable {
             commitment,
             pc_start,
+            preprocessed_sorted_idxs,
+            prep_domains,
         }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let (preprocessed_sorted_idxs, prep_domains) = get_preprocessed_data(self.machine, self.vk);
+
         let mut stream = Vec::new();
-        let h: InnerDigest = self.commit.into();
+        let h: InnerDigest = self.vk.commit.into();
         stream.extend(h.write());
-        stream.extend(self.pc_start.write());
+        stream.extend(self.vk.pc_start.write());
+        stream.extend(preprocessed_sorted_idxs.write());
+        stream.extend(prep_domains.write());
         stream
     }
 }
 
 // Implement Hintable<C> for ShardProof where SC is equivalent to BabyBearPoseidon2
 impl<
+        'a,
         SC: StarkGenericConfig<
             Pcs = <BabyBearPoseidon2 as StarkGenericConfig>::Pcs,
             Challenge = <BabyBearPoseidon2 as StarkGenericConfig>::Challenge,
             Challenger = <BabyBearPoseidon2 as StarkGenericConfig>::Challenger,
         >,
-    > Hintable<C> for ShardProof<SC>
+        A: MachineAir<SC::Val>,
+    > Hintable<C> for ShardProofHint<'a, SC, A>
 where
     ShardCommitment<Com<SC>>: Hintable<C>,
 {
@@ -462,20 +477,205 @@ where
         let opened_values = ShardOpenedValues::read(builder);
         let opening_proof = InnerPcsProof::read(builder);
         let public_values = Vec::<InnerVal>::read(builder);
+        let quotient_data = Vec::<QuotientDataValues>::read(builder);
+        let sorted_idxs = Vec::<usize>::read(builder);
         ShardProofVariable {
             commitment,
             opened_values,
             opening_proof,
             public_values,
+            quotient_data,
+            sorted_idxs,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let quotient_data = get_chip_quotient_data(self.machine, self.proof);
+        let sorted_indices = get_sorted_indices(self.machine, self.proof);
+
+        let mut stream = Vec::new();
+        stream.extend(self.proof.commitment.write());
+        stream.extend(self.proof.opened_values.write());
+        stream.extend(self.proof.opening_proof.write());
+        stream.extend(self.proof.public_values.write());
+        stream.extend(quotient_data.write());
+        stream.extend(sorted_indices.write());
+
+        stream
+    }
+}
+
+impl<'a, A: MachineAir<BabyBear>> Hintable<C>
+    for SP1RecursionMemoryLayout<'a, BabyBearPoseidon2, A>
+{
+    type HintVariable = SP1RecursionMemoryLayoutVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
+        let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
+        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let initial_reconstruct_challenger =
+            DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let is_complete = builder.hint_var();
+
+        SP1RecursionMemoryLayoutVariable {
+            vk,
+            shard_proofs,
+            leaf_challenger,
+            initial_reconstruct_challenger,
+            is_complete,
         }
     }
 
     fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
         let mut stream = Vec::new();
-        stream.extend(self.commitment.write());
-        stream.extend(self.opened_values.write());
-        stream.extend(self.opening_proof.write());
-        stream.extend(self.public_values.write());
+
+        let vk_hint = VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(self.machine, self.vk);
+
+        let proof_hints = self
+            .shard_proofs
+            .iter()
+            .map(|proof| ShardProofHint::<BabyBearPoseidon2, A>::new(self.machine, proof))
+            .collect::<Vec<_>>();
+
+        stream.extend(vk_hint.write());
+        stream.extend(proof_hints.write());
+        stream.extend(self.leaf_challenger.write());
+        stream.extend(self.initial_reconstruct_challenger.write());
+        stream.extend((self.is_complete as usize).write());
+
+        stream
+    }
+}
+
+impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1ReduceMemoryLayout<'a, BabyBearPoseidon2, A> {
+    type HintVariable = SP1ReduceMemoryLayoutVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let compress_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
+        let shard_proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
+        let kinds = Vec::<usize>::read(builder);
+        let is_complete = builder.hint_var();
+
+        SP1ReduceMemoryLayoutVariable {
+            compress_vk,
+            shard_proofs,
+            kinds,
+            is_complete,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let compress_vk_hint = VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(
+            self.recursive_machine,
+            self.compress_vk,
+        );
+
+        let proof_hints = self
+            .shard_proofs
+            .iter()
+            .map(|proof| ShardProofHint::<BabyBearPoseidon2, A>::new(self.recursive_machine, proof))
+            .collect::<Vec<_>>();
+
+        let kinds = self.kinds.iter().map(|k| *k as usize).collect::<Vec<_>>();
+
+        stream.extend(compress_vk_hint.write());
+        stream.extend(proof_hints.write());
+        stream.extend(kinds.write());
+        stream.extend((self.is_complete as usize).write());
+
+        stream
+    }
+}
+
+impl<'a, A: MachineAir<BabyBear>> Hintable<C> for SP1RootMemoryLayout<'a, BabyBearPoseidon2, A> {
+    type HintVariable = SP1RootMemoryLayoutVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let proof = ShardProofHint::<'a, BabyBearPoseidon2, A>::read(builder);
+        let is_reduce = builder.hint_var();
+
+        SP1RootMemoryLayoutVariable { proof, is_reduce }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let proof_hint = ShardProofHint::<BabyBearPoseidon2, A>::new(self.machine, &self.proof);
+
+        stream.extend(proof_hint.write());
+        stream.extend((self.is_reduce as usize).write());
+
+        stream
+    }
+}
+
+impl<'a, A: MachineAir<BabyBear>> Hintable<C>
+    for SP1DeferredMemoryLayout<'a, BabyBearPoseidon2, A>
+{
+    type HintVariable = SP1DeferredMemoryLayoutVariable<C>;
+
+    fn read(builder: &mut Builder<C>) -> Self::HintVariable {
+        let compress_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, A>::read(builder);
+        let proofs = Vec::<ShardProofHint<'a, BabyBearPoseidon2, A>>::read(builder);
+        let start_reconstruct_deferred_digest = Vec::<BabyBear>::read(builder);
+        let is_complete = builder.hint_var();
+
+        let sp1_vk = VerifyingKeyHint::<'a, BabyBearPoseidon2, RiscvAir<_>>::read(builder);
+        let committed_value_digest = Vec::<Vec<InnerVal>>::read(builder);
+        let deferred_proofs_digest = Vec::<InnerVal>::read(builder);
+        let leaf_challenger = DuplexChallenger::<InnerVal, InnerPerm, 16>::read(builder);
+        let end_pc = InnerVal::read(builder);
+        let end_shard = InnerVal::read(builder);
+
+        SP1DeferredMemoryLayoutVariable {
+            compress_vk,
+            proofs,
+            start_reconstruct_deferred_digest,
+            is_complete,
+            sp1_vk,
+            committed_value_digest,
+            deferred_proofs_digest,
+            leaf_challenger,
+            end_pc,
+            end_shard,
+        }
+    }
+
+    fn write(&self) -> Vec<Vec<Block<<C as Config>::F>>> {
+        let mut stream = Vec::new();
+
+        let sp1_vk_hint =
+            VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(self.sp1_machine, self.sp1_vk);
+
+        let compress_vk_hint =
+            VerifyingKeyHint::<'a, BabyBearPoseidon2, _>::new(self.machine, self.compress_vk);
+
+        let proof_hints = self
+            .proofs
+            .iter()
+            .map(|proof| ShardProofHint::<BabyBearPoseidon2, A>::new(self.machine, proof))
+            .collect::<Vec<_>>();
+
+        let committed_value_digest = self
+            .committed_value_digest
+            .iter()
+            .map(|w| w.0.to_vec())
+            .collect::<Vec<_>>();
+
+        stream.extend(compress_vk_hint.write());
+        stream.extend(proof_hints.write());
+        stream.extend(self.start_reconstruct_deferred_digest.write());
+        stream.extend((self.is_complete as usize).write());
+
+        stream.extend(sp1_vk_hint.write());
+        stream.extend(committed_value_digest.write());
+        stream.extend(self.deferred_proofs_digest.write());
+        stream.extend(self.leaf_challenger.write());
+        stream.extend(self.end_pc.write());
+        stream.extend(self.end_shard.write());
 
         stream
     }

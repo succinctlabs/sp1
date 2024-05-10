@@ -43,7 +43,6 @@ pub struct ExecutionState {
     pub input_stream_ptr: usize,
 
     /// A stream of proofs inputted to the program.
-    #[serde(skip)] // TODO: fix serialization for VerifyingKey
     pub proof_stream: Vec<(
         ShardProof<BabyBearPoseidon2>,
         StarkVerifyingKey<BabyBearPoseidon2>,

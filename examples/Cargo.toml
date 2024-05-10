@@ -1,0 +1,15 @@
+[workspace]
+members = [
+  "aggregation/script",
+  "chess/script",
+  "cycle-tracking/script",
+  "fibonacci/script",
+  "io/script",
+  "is-prime/script",
+  "json/lib",
+  "json/script",
+  "regex/script",
+  "rsa/script",
+  "ssz-withdrawals/script",
+  "tendermint/script",
+]
