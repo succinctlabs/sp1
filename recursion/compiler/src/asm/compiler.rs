@@ -538,6 +538,9 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                 DslIr::CycleTracker(name) => {
                     self.push(AsmInstruction::CycleTracker(name.clone()), trace);
                 }
+                DslIr::Halt => {
+                    self.push(AsmInstruction::Halt, trace);
+                }
                 _ => unimplemented!(),
             }
         }
