@@ -115,11 +115,6 @@ jobs:
           ~/.sp1/bin/sp1up
 
       - name: Run cargo check
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --manifest-path examples/Cargo.toml --all-targets --all-features
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_LOG: info
-          RUST_BACKTRACE: 1
+        run: |
+          RUSTFLAGS="-Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native" \
+          cargo check --manifest-path examples/Cargo.toml --all-targets --all-features
