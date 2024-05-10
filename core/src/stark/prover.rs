@@ -63,6 +63,7 @@ where
     ShardMainData<SC>: Serialize + DeserializeOwned,
     A: MachineAir<Val<SC>>,
 {
+    #[tracing::instrument(level = "debug", skip(machine, pk, shards, challenger))]
     fn prove_shards(
         machine: &StarkMachine<SC, A>,
         pk: &StarkProvingKey<SC>,
@@ -113,11 +114,11 @@ where
                         .into_iter()
                         .zip(shards)
                         .map(|(data, shard)| {
-                            tracing::debug_span!(parent: &parent_span, "prove shard opening")
+                            let shard_index = shard.index() as usize;
+                            tracing::debug_span!(parent: &parent_span, "prove shard opening", %shard_index)
                                 .in_scope(|| {
-                                    let idx = shard.index() as usize;
                                     let data = if reconstruct_commitments {
-                                        Self::commit_main(config, machine, &shard, idx)
+                                        Self::commit_main(config, machine, &shard, shard_index)
                                     } else {
                                         data.materialize()
                                             .expect("failed to materialize shard main data")
@@ -203,7 +204,8 @@ where
 
         // Profile how much time is spent in pcs.commit overall per shard.
         // Commit to the batch of traces.
-        let (main_commit, main_data) = pcs.commit(domains_and_traces);
+        let (main_commit, main_data) = tracing::debug_span!("pcs.commit to traces")
+            .in_scope(|| pcs.commit(domains_and_traces));
 
         // Get the chip ordering.
         let chip_ordering = named_traces
@@ -280,7 +282,8 @@ where
         // Generate the permutation traces.
         let mut permutation_traces = Vec::with_capacity(chips.len());
         let mut cumulative_sums = Vec::with_capacity(chips.len());
-        tracing::debug_span!("generate permutation traces").in_scope(|| {
+        let parent_span = tracing::debug_span!("generate permutation traces");
+        parent_span.in_scope(|| {
             chips
                 .par_iter()
                 .zip(traces.par_iter_mut())
@@ -289,11 +292,15 @@ where
                         .chip_ordering
                         .get(&chip.name())
                         .map(|&index| &pk.traces[index]);
-                    let perm_trace = chip.generate_permutation_trace(
-                        preprocessed_trace,
-                        main_trace,
-                        &permutation_challenges,
-                    );
+                    let chip_name = chip.name();
+                    let perm_trace = tracing::debug_span!(parent: &parent_span, "permuation trace for chip", %chip_name)
+                        .in_scope(|| {
+                            chip.generate_permutation_trace(
+                                preprocessed_trace,
+                                main_trace,
+                                &permutation_challenges,
+                            )
+                        });
                     let cumulative_sum = perm_trace
                         .row_slice(main_trace.height() - 1)
                         .last()
@@ -334,7 +341,7 @@ where
         let pcs = config.pcs();
 
         let (permutation_commit, permutation_data) =
-            tracing::debug_span!("commit to permutation traces")
+            tracing::debug_span!("pcs.commit to permutation traces")
                 .in_scope(|| pcs.commit(domains_and_perm_traces));
         challenger.observe(permutation_commit.clone());
 
@@ -546,6 +553,7 @@ where
     }
 
     // Commit_shards is the function we care about profiling
+    #[tracing::instrument(level = "debug", skip(machine, shards))]
     pub fn commit_shards<F, EF>(
         machine: &StarkMachine<SC, A>,
         shards: &[A::Record],
@@ -575,12 +583,12 @@ where
                     shard_batch
                         .iter()
                         .map(|shard| {
-                            tracing::debug_span!(parent: &parent_span, "commit to shard").in_scope(
-                                || {
-                                    let index = shard.index();
+                            let shard_index = shard.index();
+                            tracing::debug_span!(parent: &parent_span, "commit to shard", %shard_index)
+                                .in_scope(|| {
                                     // How much time are we spending per-shard commiting, let's evaluate whether it is balanced
                                     let data =
-                                        Self::commit_main(config, machine, shard, index as usize);
+                                        Self::commit_main(config, machine, shard, shard_index as usize);
                                     finished.fetch_add(1, Ordering::Relaxed);
                                     let commitment = data.main_commit.clone();
                                     let data = if reconstruct_commitments {
@@ -589,8 +597,7 @@ where
                                         data.to_in_memory()
                                     };
                                     (commitment, data)
-                                },
-                            )
+                                })
                         })
                         .collect::<Vec<_>>()
                 })

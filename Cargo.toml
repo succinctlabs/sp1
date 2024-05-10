@@ -4,7 +4,7 @@ members = [
   "core",
   "derive",
   "eval",
-  "helper",
+  "helper", "metrics",
   "primitives",
   "prover",
   "recursion/circuit",

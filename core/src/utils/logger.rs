@@ -1,3 +1,4 @@
+use std::fs::File;
 use std::sync::Once;
 
 use tracing_forest::ForestLayer;
@@ -23,7 +24,7 @@ pub fn setup_logger() {
 
         // if the RUST_LOGGER environment variable is set, use it to determine which logger to configure
         // (tracing_forest or tracing_subscriber)
-        // otherwise, default to 'forest'
+        // otherwise, default to 'flat'
         let logger_type = std::env::var("RUST_LOGGER").unwrap_or_else(|_| "flat".to_string());
         match logger_type.as_str() {
             "forest" => {
@@ -33,15 +34,35 @@ pub fn setup_logger() {
                     .init();
             }
             "flat" => {
-                tracing_subscriber::fmt::Subscriber::builder()
-                    .compact()
-                    .with_file(false)
-                    .with_target(false)
-                    .with_thread_names(false)
-                    .with_env_filter(env_filter)
-                    .with_span_events(FmtSpan::CLOSE)
-                    .finish()
-                    .init();
+                // Write to file if the SP1_LOG_DIR env variable is set
+                if let Ok(log_dir) = std::env::var("SP1_LOG_DIR") {
+                    dbg!(log_dir.clone());
+                    let file = File::create(log_dir).expect("failed to create log file");
+                    dbg!("created file");
+                    tracing_subscriber::fmt::Subscriber::builder()
+                        .compact()
+                        .with_ansi(false)
+                        .with_file(false)
+                        .with_target(false)
+                        .with_thread_names(false)
+                        .with_env_filter(env_filter)
+                        .with_writer(file)
+                        .with_span_events(FmtSpan::CLOSE)
+                        .finish()
+                        .init();
+                } else {
+                    dbg!("no log dir");
+                    tracing_subscriber::fmt::Subscriber::builder()
+                        .compact()
+                        .with_file(false)
+                        .with_target(false)
+                        .with_thread_names(false)
+                        .with_env_filter(env_filter)
+                        // .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
+                        .with_span_events(FmtSpan::CLOSE)
+                        .finish()
+                        .init();
+                }
             }
             _ => {
                 panic!("Invalid logger type: {}", logger_type);

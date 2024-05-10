@@ -103,7 +103,7 @@ where
         let record_clone = record.clone();
         machine.debug_constraints(&pk, record_clone, &mut challenger_clone);
     }
-    let stats = record.stats().clone();
+    let stats = record.stats();
     let cycles = stats.get("cpu_events").unwrap();
 
     let start = Instant::now();
