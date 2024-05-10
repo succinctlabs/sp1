@@ -26,7 +26,7 @@ let my_vec = sp1_zkvm::io::read_vec();
 
 ## Commiting Data
 
-Comitting to data makes the data public to the verifier. Use the `sp1_zkvm::io::commit::<T>` method:
+Committing to data makes the data public to the verifier. Use the `sp1_zkvm::io::commit::<T>` method:
 
 ```rust,noplayground
 sp1_zkvm::io::commit::<u32>(&a);
