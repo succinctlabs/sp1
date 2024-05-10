@@ -10,12 +10,9 @@ use crate::{
     SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::{Context, Result};
-use futures::Future;
 use serde::de::DeserializeOwned;
 use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
-use tokio::runtime::Handle;
-use tokio::task::block_in_place;
 use tokio::{runtime, time::sleep};
 
 use super::LocalProver;
