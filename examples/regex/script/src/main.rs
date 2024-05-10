@@ -5,7 +5,7 @@ const REGEX_IO_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct
 
 fn main() {
     // Setup a tracer for logging.
-    utils::setup_logger();
+    utils::setup_tracer();
 
     // Create a new stdin with d the input for the program.
     let mut stdin = SP1Stdin::new();

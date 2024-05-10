@@ -29,9 +29,9 @@ pub enum RecursionAir<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: u
     MemoryGlobal(MemoryGlobalChip),
     Poseidon2Wide(Poseidon2WideChip<DEGREE>),
     Poseidon2Skinny(Poseidon2Chip),
-    FriFold(FriFoldChip<DEGREE>),
+    FriFold(FriFoldChip),
     RangeCheck(RangeCheckChip<F>),
-    Multi(MultiChip<DEGREE>),
+    Multi(MultiChip),
 }
 
 impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAir<F, DEGREE> {
@@ -67,7 +67,7 @@ impl<F: PrimeField32 + BinomiallyExtendable<D>, const DEGREE: usize> RecursionAi
             > {
                 fixed_log2_rows: None,
             })))
-            .chain(once(RecursionAir::FriFold(FriFoldChip::<DEGREE> {
+            .chain(once(RecursionAir::FriFold(FriFoldChip {
                 fixed_log2_rows: None,
             })))
             .chain(once(RecursionAir::RangeCheck(RangeCheckChip::default())))

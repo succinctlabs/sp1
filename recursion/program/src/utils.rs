@@ -6,8 +6,7 @@ use p3_fri::FriConfig;
 use p3_merkle_tree::FieldMerkleTreeMmcs;
 use p3_poseidon2::{Poseidon2, Poseidon2ExternalMatrixGeneral};
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
-use sp1_core::air::MachineAir;
-use sp1_core::stark::{Dom, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey};
+use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils::BabyBearPoseidon2;
 use sp1_recursion_compiler::asm::AsmConfig;
 use sp1_recursion_compiler::ir::{Array, Builder, Config, Felt, MemVariable, Var};
@@ -17,8 +16,7 @@ use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 use crate::challenger::DuplexChallengerVariable;
 use crate::fri::types::FriConfigVariable;
 use crate::fri::TwoAdicMultiplicativeCosetVariable;
-use crate::stark::EMPTY;
-use crate::types::{QuotientDataValues, VerifyingKeyVariable};
+use crate::types::VerifyingKeyVariable;
 
 type SC = BabyBearPoseidon2;
 type F = <SC as StarkGenericConfig>::Val;
@@ -37,7 +35,7 @@ type RecursionBuilder = Builder<RecursionConfig>;
 
 pub fn const_fri_config(
     builder: &mut RecursionBuilder,
-    config: &FriConfig<ChallengeMmcs>,
+    config: FriConfig<ChallengeMmcs>,
 ) -> FriConfigVariable<RecursionConfig> {
     let two_addicity = Val::TWO_ADICITY;
     let mut generators = builder.dyn_array(two_addicity);
@@ -167,32 +165,15 @@ pub fn commit_challenger<C: Config>(builder: &mut Builder<C>, var: &DuplexChalle
     }
 }
 
-pub fn get_challenger_public_values<C: Config>(
-    builder: &mut Builder<C>,
-    var: &DuplexChallengerVariable<C>,
-) -> ChallengerPublicValues<Felt<C::F>> {
-    let sponge_state = core::array::from_fn(|i| builder.get(&var.sponge_state, i));
-    let num_inputs = var2felt(builder, var.nb_inputs);
-    let input_buffer = core::array::from_fn(|i| builder.get(&var.input_buffer, i));
-    let num_outputs = var2felt(builder, var.nb_outputs);
-    let output_buffer = core::array::from_fn(|i| builder.get(&var.output_buffer, i));
-
-    ChallengerPublicValues {
-        sponge_state,
-        num_inputs,
-        input_buffer,
-        num_outputs,
-        output_buffer,
-    }
-}
-
 /// Hash the verifying key + prep domains into a single digest.
 /// poseidon2( commit[0..8] || pc_start || prep_domains[N].{log_n, .size, .shift, .g})
 pub fn hash_vkey<C: Config>(
     builder: &mut Builder<C>,
     vk: &VerifyingKeyVariable<C>,
+    prep_domains: &Array<C, TwoAdicMultiplicativeCosetVariable<C>>,
+    prep_sorted_indices: &Array<C, Var<C::N>>,
 ) -> Array<C, Felt<C::F>> {
-    let domain_slots: Var<_> = builder.eval(vk.prep_domains.len() * 4);
+    let domain_slots: Var<_> = builder.eval(prep_domains.len() * 4);
     let vkey_slots: Var<_> = builder.constant(C::N::from_canonical_usize(DIGEST_SIZE + 1));
     let total_slots: Var<_> = builder.eval(vkey_slots + domain_slots);
     let mut inputs = builder.dyn_array(total_slots);
@@ -203,68 +184,19 @@ pub fn hash_vkey<C: Config>(
     builder.set(&mut inputs, DIGEST_SIZE, vk.pc_start);
     let four: Var<_> = builder.constant(C::N::from_canonical_usize(4));
     let one: Var<_> = builder.constant(C::N::one());
-    builder
-        .range(0, vk.prep_domains.len())
-        .for_each(|i, builder| {
-            let sorted_index = builder.get(&vk.preprocessed_sorted_idxs, i);
-            let domain = builder.get(&vk.prep_domains, i);
-            let log_n_index: Var<_> = builder.eval(vkey_slots + sorted_index * four);
-            let size_index: Var<_> = builder.eval(log_n_index + one);
-            let shift_index: Var<_> = builder.eval(size_index + one);
-            let g_index: Var<_> = builder.eval(shift_index + one);
-            let log_n_felt = var2felt(builder, domain.log_n);
-            let size_felt = var2felt(builder, domain.size);
-            builder.set(&mut inputs, log_n_index, log_n_felt);
-            builder.set(&mut inputs, size_index, size_felt);
-            builder.set(&mut inputs, shift_index, domain.shift);
-            builder.set(&mut inputs, g_index, domain.g);
-        });
+    builder.range(0, prep_domains.len()).for_each(|i, builder| {
+        let sorted_index = builder.get(prep_sorted_indices, i);
+        let domain = builder.get(prep_domains, i);
+        let log_n_index: Var<_> = builder.eval(vkey_slots + sorted_index * four);
+        let size_index: Var<_> = builder.eval(log_n_index + one);
+        let shift_index: Var<_> = builder.eval(size_index + one);
+        let g_index: Var<_> = builder.eval(shift_index + one);
+        let log_n_felt = var2felt(builder, domain.log_n);
+        let size_felt = var2felt(builder, domain.size);
+        builder.set(&mut inputs, log_n_index, log_n_felt);
+        builder.set(&mut inputs, size_index, size_felt);
+        builder.set(&mut inputs, shift_index, domain.shift);
+        builder.set(&mut inputs, g_index, domain.g);
+    });
     builder.poseidon2_hash(&inputs)
-}
-
-pub(crate) fn get_sorted_indices<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
-    machine: &StarkMachine<SC, A>,
-    proof: &ShardProof<SC>,
-) -> Vec<usize> {
-    machine
-        .chips_sorted_indices(proof)
-        .into_iter()
-        .map(|x| match x {
-            Some(x) => x,
-            None => EMPTY,
-        })
-        .collect()
-}
-
-pub(crate) fn get_preprocessed_data<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
-    machine: &StarkMachine<SC, A>,
-    vk: &StarkVerifyingKey<SC>,
-) -> (Vec<usize>, Vec<Dom<SC>>) {
-    let chips = machine.chips();
-    let (prep_sorted_indices, prep_domains) = machine
-        .preprocessed_chip_ids()
-        .into_iter()
-        .map(|chip_idx| {
-            let name = chips[chip_idx].name().clone();
-            let prep_sorted_idx = vk.chip_ordering[&name];
-            (prep_sorted_idx, vk.chip_information[prep_sorted_idx].1)
-        })
-        .unzip();
-    (prep_sorted_indices, prep_domains)
-}
-
-pub(crate) fn get_chip_quotient_data<SC: StarkGenericConfig, A: MachineAir<SC::Val>>(
-    machine: &StarkMachine<SC, A>,
-    proof: &ShardProof<SC>,
-) -> Vec<QuotientDataValues> {
-    machine
-        .shard_chips_ordered(&proof.chip_ordering)
-        .map(|chip| {
-            let log_quotient_degree = chip.log_quotient_degree();
-            QuotientDataValues {
-                log_quotient_degree,
-                quotient_size: 1 << log_quotient_degree,
-            }
-        })
-        .collect()
 }

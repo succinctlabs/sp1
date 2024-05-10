@@ -7,7 +7,7 @@ const JSON_ELF: &[u8] = include_bytes!("../../program/elf/riscv32im-succinct-zkv
 
 fn main() {
     // setup tracer for logging.
-    utils::setup_logger();
+    utils::setup_tracer();
 
     // Generate proof.
     let mut stdin = SP1Stdin::new();
