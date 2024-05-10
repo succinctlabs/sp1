@@ -12,6 +12,7 @@ use crate::{
 use anyhow::{Context, Result};
 use futures::Future;
 use serde::de::DeserializeOwned;
+use sp1_prover::utils::block_on;
 use sp1_prover::{SP1Prover, SP1Stdin};
 use tokio::runtime::Handle;
 use tokio::task::block_in_place;
@@ -140,17 +141,6 @@ impl NetworkProver {
             Ok(tx_ids)
         })
     }
-
-    fn block_on<T>(&self, fut: impl Future<Output = T>) -> T {
-        // Handle case if we're already in an tokio runtime.
-        if let Ok(handle) = Handle::try_current() {
-            block_in_place(|| handle.block_on(fut))
-        } else {
-            // Otherwise create a new runtime.
-            let rt = runtime::Runtime::new().unwrap();
-            rt.block_on(fut)
-        }
-    }
 }
 
 impl Prover for NetworkProver {
@@ -167,19 +157,19 @@ impl Prover for NetworkProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Core))
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Core))
     }
 
     fn prove_compressed(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1CompressedProof> {
-        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Compressed))
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Groth16))
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
-        self.block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
+        block_on(self.prove_async(&pk.elf, stdin, ProofMode::Plonk))
     }
 }
 
