@@ -11,6 +11,7 @@ fn current_datetime() -> String {
 }
 
 pub fn build_program(path: &str) {
+    println!("path: {:?}", path);
     let program_dir = std::path::Path::new(path);
 
     // Tell cargo to rerun the script only if program/{src, Cargo.toml, Cargo.lock} changes
@@ -65,8 +66,8 @@ fn execute_build_cmd(
     cmd.current_dir(program_dir)
         .args(["prove", "build"])
         .env_remove("RUSTC")
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped());
+        .stdout(Stdio::inherit())
+        .stderr(Stdio::inherit());
     let mut child = cmd.spawn()?;
 
     let stdout = BufReader::new(child.stdout.take().unwrap());
