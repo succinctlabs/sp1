@@ -26,9 +26,8 @@ pub use provers::{LocalProver, MockProver, NetworkProver, Prover};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use sp1_core::stark::{MachineVerificationError, ShardProof};
 pub use sp1_prover::{
-    CoreSC, Groth16Proof, InnerSC, OuterSC, PlonkBn254Proof, SP1CoreProof, SP1CoreProofData,
-    SP1Groth16ProofData, SP1PlonkProofData, SP1ProofWithMetadata, SP1Prover, SP1ProvingKey,
-    SP1PublicValues, SP1ReducedProof, SP1Stdin, SP1VerifyingKey,
+    CoreSC, Groth16Proof, InnerSC, OuterSC, PlonkBn254Proof, SP1Prover, SP1ProvingKey,
+    SP1PublicValues, SP1Stdin, SP1VerifyingKey,
 };
 
 /// A client for interacting with SP1.
