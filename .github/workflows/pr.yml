@@ -37,6 +37,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+          toolchain: nightly-2024-04-17
           args: --release -- --nocapture
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
@@ -60,6 +61,7 @@ jobs:
         uses: actions-rs/cargo@v1
         with:
           command: test
+          toolchain: nightly-2024-04-17
           args: --release
         env:
           RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
