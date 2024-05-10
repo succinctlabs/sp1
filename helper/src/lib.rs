@@ -61,9 +61,9 @@ fn execute_build_cmd(
         return Ok(std::process::ExitStatus::default());
     }
 
-    let mut cmd = Command::new("cargo");
+    let mut cmd = Command::new("~/.sp1/bin/cargo-prove");
     cmd.current_dir(program_dir)
-        .args(["prove", "build"])
+        .args(["build"])
         .env("CARGO_MANIFEST_DIR", program_dir.as_ref())
         .env_remove("RUSTC")
         .stdout(Stdio::piped())
