@@ -1,4 +1,3 @@
-use crate::stark::RecursionAirWideDeg3;
 use p3_baby_bear::BabyBear;
 use sp1_core::stark::StarkGenericConfig;
 use sp1_core::utils;
@@ -7,6 +6,7 @@ use sp1_core::utils::BabyBearPoseidon2;
 use crate::air::Block;
 use crate::runtime::RecursionProgram;
 use crate::runtime::Runtime;
+use crate::stark::RecursionAir;
 use crate::stark::RecursionAirSkinnyDeg7;
 use p3_field::PrimeField32;
 use sp1_core::utils::run_test_machine;
@@ -44,7 +44,7 @@ pub fn run_test_recursion(
     );
 
     if test_config == TestConfig::All || test_config == TestConfig::WideDeg3 {
-        let machine = RecursionAirWideDeg3::machine(BabyBearPoseidon2::default());
+        let machine = RecursionAir::<_, 3>::machine(BabyBearPoseidon2::default());
         let (pk, vk) = machine.setup(&program);
         let record = runtime.record.clone();
         let result = run_test_machine(record, machine, pk, vk);
