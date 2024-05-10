@@ -130,8 +130,7 @@ jobs:
       - name: Install SP1 toolchain
         run: |
           curl -L https://sp1.succinct.xyz | bash
-          source /home/runner/.bashrc
-          sp1up
+          ~/.sp1/bin/sp1up
 
       - name: Run cargo check
         uses: actions-rs/cargo@v1
