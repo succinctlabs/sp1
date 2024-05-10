@@ -51,17 +51,24 @@ fn main() {
     let machine = RiscvAir::machine(config);
     let chips = machine.chips();
     let chip_names = chips.iter().map(|chip| chip.name()).collect::<Vec<_>>();
-
+    dbg!(chip_names.len());
     let mut chip_trace_times = Vec::new();
 
     let mut pcs_commit_metric = Vec::new();
+
+    // TODO: consider better names for these?
+    let mut total_commit_time = 0f64;
+    let mut total_prove_time = 0f64;
+    let mut total_commit_and_prove_time = 0f64;
     for log in logs {
-        println!("{}", log);
+        // println!("{}", log);
         // If no chips were found the ANSI encoding on the tracing logger may have been turned to true.
         // ANSI encoding should always be turned to false for parsing the logs
         if log.contains("chip_name=") {
             for chip_name in chip_names.iter() {
-                if log.contains(chip_name) {
+                // Some chips also have the same substrings contained within them so
+                // we precede the match with an equal sign so that we do not match twice.
+                if log.contains(&format!("={}", chip_name)) {
                     let shard_index = fetch_shard_index(log);
                     let time = fetch_time_from_log(log);
                     if log.contains("commit_shards") {
@@ -92,8 +99,7 @@ fn main() {
                         }
                     }
                     // If we have found the chip name we do not need to keep going through the loop
-                    // Some chips also have the same substrings contained within them so we want to make sure
-                    // that we do not match twice
+
                     break;
                 }
             }
@@ -119,14 +125,24 @@ fn main() {
                     permutation: false,
                 });
             }
+        } else if log.contains("prove_shards:commit_shards: close") {
+            total_commit_time = fetch_time_from_log(log);
+        } else if log.contains("prove_shards:open_shards: close") {
+            total_prove_time = fetch_time_from_log(log);
+        } else if log.contains("prove_shards: close") {
+            total_commit_and_prove_time = fetch_time_from_log(log);
         }
     }
 
-    // TODO: switch debug output to something actually readable
-    dbg!(chip_trace_times.clone());
-    dbg!(chip_trace_times.len());
+    dbg!(total_commit_time);
+    dbg!(total_prove_time);
+    dbg!(total_commit_time + total_prove_time);
+    dbg!(total_commit_and_prove_time);
 
-    dbg!(pcs_commit_metric.clone());
+    // TODO: switch debug output to something actually readable
+    // dbg!(chip_trace_times.clone());
+    dbg!(chip_trace_times.len());
+    // dbg!(pcs_commit_metric.clone());
 
     // Let's get some basic metrics here in Rust
     // Probably will want to convert it into JSON to be ported for deeper data analysis in python or something
@@ -156,6 +172,30 @@ fn main() {
     }
     dbg!(commit_phase_time_per_chip.clone());
     dbg!(prove_phase_time_per_chip.clone());
+
+    println!("Some commit phase numbers: ");
+    for (commit_chip, commit_time) in commit_phase_time_per_chip.iter() {
+        let percent_of_commit = commit_time / total_commit_time;
+        let percent_of_total = commit_time / total_commit_and_prove_time;
+
+        println!("Chip: {}", commit_chip);
+        println!(
+            "percent_of_commit: {}, percent_of_total: {}",
+            percent_of_commit, percent_of_total
+        );
+    }
+
+    println!("Some prove phase numbers: ");
+    for (prove_chip, prove_time) in prove_phase_time_per_chip.iter() {
+        let percent_of_prove = prove_time / total_prove_time;
+        let percent_of_total = prove_time / total_commit_and_prove_time;
+
+        println!("Chip: {}", prove_chip);
+        println!(
+            "percent_of_prove: {}, percent_of_total: {}",
+            percent_of_prove, percent_of_total
+        );
+    }
 }
 
 fn fetch_time_from_log(log: &str) -> f64 {
@@ -186,7 +226,6 @@ fn fetch_time_from_log(log: &str) -> f64 {
 fn fetch_shard_index(log: &str) -> u32 {
     if log.contains("shard_index") {
         let start = log.rfind("shard_index=").unwrap();
-        let shard_index = &log[start..];
         let shard_index_str = Regex::new(r"shard_index=[0-9]+")
             .unwrap()
             .find(log)
