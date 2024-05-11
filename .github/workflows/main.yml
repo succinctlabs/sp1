@@ -20,7 +20,7 @@ concurrency:
 jobs:
     groth16:
         name: Groth16
-        runs-on: runs-on,runner=64cpu-linux-x64
+        runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
         env:
           CARGO_NET_GIT_FETCH_WITH_CLI: "true"
         steps:
