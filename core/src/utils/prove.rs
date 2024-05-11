@@ -128,7 +128,8 @@ fn trace_checkpoint(program: Program, file: &File) -> ExecutionRecord {
     let mut reader = std::io::BufReader::new(file);
     let state = bincode::deserialize_from(&mut reader).expect("failed to deserialize state");
     let mut runtime = Runtime::recover(program.clone(), state);
-    let (events, _) = tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record());
+    let (events, _) =
+        tracing::debug_span!("runtime.trace").in_scope(|| runtime.execute_record().unwrap());
     events
 }
 
@@ -181,7 +182,7 @@ where
     let (public_values_stream, public_values) =
         tracing::info_span!("runtime.state").in_scope(|| loop {
             // Get checkpoint + move to next checkpoint, then save checkpoint to temp file
-            let (state, done) = runtime.execute_state();
+            let (state, done) = runtime.execute_state().unwrap();
             let mut tempfile = tempfile::tempfile().expect("failed to create tempfile");
             let mut writer = std::io::BufWriter::new(&mut tempfile);
             bincode::serialize_into(&mut writer, &state).expect("failed to serialize state");

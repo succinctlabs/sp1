@@ -28,13 +28,15 @@ use std::io::Write;
 use std::rc::Rc;
 use std::sync::Arc;
 
+use thiserror::Error;
+
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
 pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
 
-/// An implementation of a runtime for the SP1 VM.
+/// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur
 /// during execution (i.e., memory reads, alu operations, etc).
@@ -83,6 +85,14 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
+}
+
+#[derive(Error, Debug)]
+pub enum RuntimeError {
+    #[error("invalid alignment for address {0}")]
+    InvalidAddressAlignment(u32),
+    #[error("got unimplemented as opcode")]
+    Unimplemented(),
 }
 
 impl Runtime {
@@ -362,7 +372,6 @@ impl Runtime {
     }
 
     /// Emit a CPU event.
-    #[allow(clippy::too_many_arguments)]
     fn emit_cpu(
         &mut self,
         shard: u32,
@@ -502,7 +511,7 @@ impl Runtime {
     }
 
     /// Execute the given instruction over the current state of the runtime.
-    fn execute_instruction(&mut self, instruction: Instruction) {
+    fn execute_instruction(&mut self, instruction: Instruction) -> Result<(), RuntimeError> {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
@@ -578,7 +587,9 @@ impl Runtime {
             }
             Opcode::LH => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                assert_eq!(addr % 2, 0, "addr is not aligned");
+                if addr % 2 != 0 {
+                    return Err(RuntimeError::InvalidAddressAlignment(addr));
+                }
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
                     1 => (memory_read_value & 0xFFFF0000) >> 16,
@@ -590,7 +601,9 @@ impl Runtime {
             }
             Opcode::LW => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                assert_eq!(addr % 4, 0, "addr is not aligned");
+                if addr % 4 != 0 {
+                    return Err(RuntimeError::InvalidAddressAlignment(addr));
+                }
                 a = memory_read_value;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
@@ -604,7 +617,9 @@ impl Runtime {
             }
             Opcode::LHU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                assert_eq!(addr % 2, 0, "addr is not aligned");
+                if addr % 2 != 0 {
+                    return Err(RuntimeError::InvalidAddressAlignment(addr));
+                }
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
                     1 => (memory_read_value & 0xFFFF0000) >> 16,
@@ -630,7 +645,9 @@ impl Runtime {
             }
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
-                assert_eq!(addr % 2, 0, "addr is not aligned");
+                if addr % 2 != 0 {
+                    return Err(RuntimeError::InvalidAddressAlignment(addr));
+                }
                 let value = match (addr >> 1) % 2 {
                     0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
                     1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
@@ -641,7 +658,9 @@ impl Runtime {
             }
             Opcode::SW => {
                 (a, b, c, addr, _) = self.store_rr(instruction);
-                assert_eq!(addr % 4, 0, "addr is not aligned");
+                if addr % 4 != 0 {
+                    return Err(RuntimeError::InvalidAddressAlignment(addr));
+                }
                 let value = a;
                 memory_store_value = Some(value);
                 self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
@@ -840,12 +859,14 @@ impl Runtime {
                 self.memory_accesses,
                 exit_code,
             );
-        }
+        };
+
+        Ok(())
     }
 
     /// Executes one cycle of the program, returning whether the program has finished.
     #[inline]
-    fn execute_cycle(&mut self) -> bool {
+    fn execute_cycle(&mut self) -> Result<bool, RuntimeError> {
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch();
 
@@ -865,23 +886,23 @@ impl Runtime {
             self.state.clk = 0;
         }
 
-        self.state.pc.wrapping_sub(self.program.pc_base)
-            >= (self.program.instructions.len() * 4) as u32
+        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
+            >= (self.program.instructions.len() * 4) as u32)
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
-    pub fn execute_record(&mut self) -> (ExecutionRecord, bool) {
+    pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), RuntimeError> {
         self.emit_events = true;
-        let done = self.execute();
-        (std::mem::take(&mut self.record), done)
+        let done = self.execute()?;
+        Ok((std::mem::take(&mut self.record), done))
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
-    pub fn execute_state(&mut self) -> (ExecutionState, bool) {
+    pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), RuntimeError> {
         self.emit_events = false;
         let state = self.state.clone();
-        let done = self.execute();
-        (state, done)
+        let done = self.execute()?;
+        Ok((state, done))
     }
 
     fn initialize(&mut self) {
@@ -907,13 +928,14 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), RuntimeError> {
         self.emit_events = true;
-        while !self.execute() {}
+        while !self.execute()? {}
+        Ok(())
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
-    fn execute(&mut self) -> bool {
+    fn execute(&mut self) -> Result<bool, RuntimeError> {
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
             self.initialize();
@@ -924,7 +946,7 @@ impl Runtime {
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
         loop {
-            if self.execute_cycle() {
+            if self.execute_cycle()? {
                 done = true;
                 break;
             }
@@ -942,7 +964,7 @@ impl Runtime {
             self.postprocess();
         }
 
-        done
+        Ok(done)
     }
 
     fn postprocess(&mut self) {
