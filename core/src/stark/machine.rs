@@ -677,26 +677,17 @@ pub mod tests {
 
     // #[test]
     // #[serial]
-    // fn test_fibonacci_prove_batch() {
-    //     std::env::set_var("SHARD_BATCH_SIZE", "1");
-    //     std::env::set_var("SHARD_SIZE", "16384");
-    //     // Stuff to set up a temp dir
-    //     // let temp_directory = tempdir().expect("could not create a temporary directory");
-    //     // let temp_directory = temp_directory.path().to_path_buf();
-    //     // let path = temp_directory.join("sp1-core").with_extension("log");
-    //     let path_dir = PathBuf::from("/Users/maximvezenov/Documents/dev/succinctlabs/.sp1-logs");
-    //     let log_path = path_dir
-    //         .join("sp1-core")
-    //         .join("fibonacci-batch")
-    //         .with_extension("log");
-    //     std::env::set_var("SP1_LOG_DIR", log_path.as_os_str());
-    //     setup_logger();
-    //     let program = fibonacci_program();
-    //     let stdin = SP1Stdin::new();
-    //     run_and_prove(program, &stdin, BabyBearPoseidon2::new());
-    //     std::env::remove_var("SHARD_BATCH_SIZE");
-    //     std::env::remove_var("SHARD_SIZE");
-    // }
+    fn test_fibonacci_prove_batch() {
+        std::env::set_var("SHARD_BATCH_SIZE", "1");
+        std::env::set_var("SHARD_SIZE", "16384");
+
+        setup_logger();
+        let program = fibonacci_program();
+        let stdin = SP1Stdin::new();
+        run_and_prove(program, &stdin, BabyBearPoseidon2::new());
+        std::env::remove_var("SHARD_BATCH_SIZE");
+        std::env::remove_var("SHARD_SIZE");
+    }
 
     #[test]
     fn test_simple_memory_program_prove() {
