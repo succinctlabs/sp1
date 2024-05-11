@@ -267,6 +267,7 @@ pub(crate) mod tests {
                 domain_assertions(&mut builder, &dom, dom_val, zeta_val);
             }
         }
+        builder.halt();
 
         let program = builder.compile_program();
         run_test_recursion(program, None, TestConfig::All);

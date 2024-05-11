@@ -497,6 +497,7 @@ pub(crate) mod tests {
                 permutation_challenges[i].cons(),
             );
         }
+        builder.halt();
 
         let program = builder.compile_program();
         run_test_recursion(program, Some(witness_stream.into()), TestConfig::All);
@@ -521,6 +522,7 @@ pub(crate) mod tests {
         let a_plus_b_ext = builder.eval(a_ext + b_ext);
         builder.print_f(a_plus_b);
         builder.print_e(a_plus_b_ext);
+        builder.halt();
 
         let program = builder.compile_program();
         let elapsed = time.elapsed();

@@ -333,6 +333,7 @@ mod tests {
         };
         let one: Felt<_> = builder.eval(F::one());
         let two: Felt<_> = builder.eval(F::two());
+        builder.halt();
         challenger.observe(&mut builder, one);
         challenger.observe(&mut builder, two);
         challenger.observe(&mut builder, two);
