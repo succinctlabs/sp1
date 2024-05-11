@@ -108,7 +108,6 @@ where
 
     let start = Instant::now();
     let mut challenger = machine.config().challenger();
-    // Instantiate some sort of client and pass it into this function.
     let proof = machine.prove::<LocalProver<SC, A>>(&pk, record, &mut challenger);
     let time = start.elapsed().as_millis();
     let nb_bytes = bincode::serialize(&proof).unwrap().len();

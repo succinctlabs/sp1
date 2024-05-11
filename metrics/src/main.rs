@@ -1,5 +1,5 @@
 use prettytable::{row, table, Row};
-use std::{collections::BTreeMap, fmt::Display};
+use std::fmt::Display;
 
 use regex::Regex;
 
@@ -89,7 +89,7 @@ impl Display for Phase {
 }
 
 fn main() {
-    let log_path = std::env::var("SP1_LOG_DIR").unwrap();
+    let log_path = std::env::var("SP1_LOG_PATH").unwrap();
     let contents =
         std::fs::read_to_string(log_path).expect("Should have been able to read the file");
 
@@ -112,7 +112,6 @@ fn main() {
     // This is the complete total time to generate a proof for all shards
     let mut total_prove_time = 0f64;
     for log in logs {
-        println!("{}", log);
         // If no chips were found the ANSI encoding on the tracing logger may have been turned to true.
         // ANSI encoding should always be turned to false for parsing the logs
         // TODO: switch these trace names to constants. Any project using these metrics should use these constants as well
@@ -200,31 +199,12 @@ fn main() {
         }
     }
 
-    let mut total_trace_time = 0f64;
-    for chip_trace in chip_trace_times.iter() {
-        total_trace_time += chip_trace.time;
-    }
-    dbg!(total_trace_time);
-
-    // let mut total_pcs_commit_time = 0f64;
-    // for pcs_commit_metric in pcs_commit_metrics.iter() {
-    //     total_pcs_commit_time += pcs_commit_metric.time;
-    // }
-
-    dbg!(total_prove_time);
-
+    // Let's get some basic metrics here in Rust
+    // We probably also want to port these to a JSON file to be ported for deeper data analysis in python or another tool
     let mut chip_trace_table =
         table!([Fc->"Phase", Fc->"Shard", Fc->"Chip", Fc->"Permutation Trace", Fc->"Time (mus)"]);
-
-    // Let's get some basic metrics here in Rust
-    // Probably will want to convert it into JSON to be ported for deeper data analysis in python or something
-    // Using BTreeMaps for my own debugging purposes so things do not get re-ordered
-    // TODO: Also some of the computation inside of these loops are reported
-
-    let mut total_percent = 0f64;
     let mut chip_commit_report_table = table!([Fc->"Chip", Fc->"Shard", Fc->"Percent of Generate Trace Time", Fc->"Percent of Phase One", Fc->"Percent of Total Time"]);
     let mut chip_prove_report_table = table!([Fc->"Chip", Fc->"Shard", Fc->"Permutation Trace", Fc->"Percent of Generate Trace Time", Fc->"Percent of Phase Two", Fc->"Percent of Total Time"]);
-
     for chip_trace in chip_trace_times.into_iter() {
         let chip_row: Row = chip_trace.clone().into();
         chip_trace_table.add_row(chip_row);
@@ -235,7 +215,6 @@ fn main() {
                 let percent_of_generate_trace = commit_time / total_generate_trace_time * 100f64;
                 let percent_of_phase_one = commit_time / total_phase_one * 100f64;
                 let percent_of_total = commit_time / total_prove_time * 100f64;
-                total_percent += percent_of_total;
 
                 let commit_report = ChipCommitReport {
                     chip: chip_trace.chip,
@@ -251,8 +230,6 @@ fn main() {
                 let percent_of_perm_trace = prove_time / total_permutation_trace_time * 100f64;
                 let percent_of_phase_two = prove_time / total_phase_two * 100f64;
                 let percent_of_total = prove_time / total_prove_time * 100f64;
-
-                total_percent += percent_of_total;
 
                 let prove_report = ChipProveReport {
                     chip: chip_trace.chip,
@@ -306,8 +283,6 @@ fn main() {
     }
     println!("\x1B[1;31mpcs.commit table\x1B[0m");
     pcs_metrics_table.printstd();
-
-    dbg!(total_percent);
 }
 
 struct ChipCommitReport {
@@ -396,7 +371,7 @@ fn fetch_time_from_log(log: &str) -> f64 {
     let end = log.rfind(" time.idle").unwrap();
     let time_with_unit = &log[start..end];
     // We transform everything into microseconds to have one unit of measurement
-    // TODO: Figure out how to get the tracing logs to always use one unit of time
+    // TODO: Figure out how to get the tracing logs to always display one unit of time (or confirm this feature is not supported)
     let (end_offset, multiplier) = if time_with_unit.contains("µs") {
         // `µ` is two characters so the offset for `µs` is 3
         (3, 1f64)

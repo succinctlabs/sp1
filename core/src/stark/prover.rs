@@ -554,7 +554,7 @@ where
         }
     }
 
-    // Commit_shards is the function we care about profiling
+    // This function iterates through the shards and calls `commit_main` on each of them.
     #[tracing::instrument(level = "debug", skip(machine, shards))]
     pub fn commit_shards<F, EF>(
         machine: &StarkMachine<SC, A>,
@@ -569,8 +569,6 @@ where
         ShardMainData<SC>: Serialize + DeserializeOwned,
     {
         let config = machine.config();
-
-        // This function iterates through the shards and calls `commit_main` on each of them.
 
         // Get the number of shards that is the threshold for saving shards to disk instead of
         // keeping all the shards in memory.

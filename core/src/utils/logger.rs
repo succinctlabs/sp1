@@ -34,11 +34,9 @@ pub fn setup_logger() {
                     .init();
             }
             "flat" => {
-                // Write to file if the SP1_LOG_DIR env variable is set
-                if let Ok(log_dir) = std::env::var("SP1_LOG_DIR") {
-                    dbg!(log_dir.clone());
+                // Write to file if the SP1_LOG_PATH env variable is set
+                if let Ok(log_dir) = std::env::var("SP1_LOG_PATH") {
                     let file = File::create(log_dir).expect("failed to create log file");
-                    dbg!("created file");
                     tracing_subscriber::fmt::Subscriber::builder()
                         .compact()
                         .with_ansi(false)
@@ -58,7 +56,6 @@ pub fn setup_logger() {
                         .with_target(false)
                         .with_thread_names(false)
                         .with_env_filter(env_filter)
-                        // .with_span_events(FmtSpan::ENTER | FmtSpan::CLOSE)
                         .with_span_events(FmtSpan::CLOSE)
                         .finish()
                         .init();
