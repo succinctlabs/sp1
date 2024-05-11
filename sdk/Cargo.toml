@@ -27,7 +27,7 @@ indicatif = "0.17.8"
 tracing = "0.1.40"
 hex = "0.4.3"
 log = "0.4.21"
-axum = "=0.7.4"
+axum = "=0.7.5"
 alloy = { git = "https://github.com/alloy-rs/alloy", rev = "bfd0fda", features = [
     "contract",
     "signer-wallet",
