@@ -28,7 +28,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use sp1_core::air::PublicValues;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::runtime::{Runtime, RuntimeError};
+use sp1_core::runtime::{ExecutionError, Runtime};
 use sp1_core::stark::MachineVerificationError;
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::utils::DIGEST_SIZE;
@@ -37,7 +37,7 @@ use sp1_core::{
     stark::{
         LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val,
     },
-    utils::{run_and_prove, BabyBearPoseidon2},
+    utils::{run_and_prove, BabyBearPoseidon2, SP1CoreProvingError},
 };
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
@@ -217,7 +217,7 @@ impl SP1Prover {
 
     /// Generate a proof of an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
-    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> Result<SP1PublicValues, RuntimeError> {
+    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> Result<SP1PublicValues, ExecutionError> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&stdin.buffer);
@@ -231,16 +231,20 @@ impl SP1Prover {
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
     /// the core prover.
     #[instrument(name = "prove_core", level = "info", skip_all)]
-    pub fn prove_core(&self, pk: &SP1ProvingKey, stdin: &SP1Stdin) -> SP1CoreProof {
+    pub fn prove_core(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+    ) -> Result<SP1CoreProof, SP1CoreProvingError> {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
-        let (proof, public_values_stream) = run_and_prove(program, stdin, config);
+        let (proof, public_values_stream) = run_and_prove(program, stdin, config)?;
         let public_values = SP1PublicValues::from(&public_values_stream);
-        SP1CoreProof {
+        Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
             public_values,
-        }
+        })
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
@@ -648,7 +652,7 @@ mod tests {
 
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
-        let core_proof = prover.prove_core(&pk, &stdin);
+        let core_proof = prover.prove_core(&pk, &stdin).unwrap();
 
         tracing::info!("verify core");
         prover.verify(&core_proof.proof, &vk).unwrap();

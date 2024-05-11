@@ -115,6 +115,6 @@ pub mod tests {
         runtime.write_stdin(&points.1);
         runtime.run().unwrap();
         let config = BabyBearBlake3::new();
-        prove_core(config, runtime);
+        prove_core(config, runtime).unwrap();
     }
 }

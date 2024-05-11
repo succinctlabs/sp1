@@ -669,7 +669,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        run_and_prove(program, &stdin, BabyBearPoseidon2::new());
+        run_and_prove(program, &stdin, BabyBearPoseidon2::new()).unwrap();
     }
 
     #[test]
