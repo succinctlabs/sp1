@@ -588,6 +588,10 @@ where
                     }
                     exit(1);
                 }
+                Opcode::HALT => {
+                    let (a_val, b_val, c_val) = self.all_rr(&instruction);
+                    (a, b, c) = (a_val, b_val, c_val);
+                }
                 Opcode::Ext2Felt => {
                     let (a_val, b_val, c_val) = self.all_rr(&instruction);
                     let dst = a_val[0].as_canonical_u32() as usize;
@@ -808,7 +812,7 @@ where
                 clk: self.clk,
                 pc: self.pc,
                 fp: self.fp,
-                instruction,
+                instruction: instruction.clone(),
                 a,
                 a_record: self.access.a,
                 b,
@@ -823,7 +827,7 @@ where
             self.timestamp += 1;
             self.access = CpuRecord::default();
 
-            if self.timestamp >= early_exit_ts {
+            if self.timestamp >= early_exit_ts || instruction.opcode == Opcode::HALT {
                 break;
             }
         }

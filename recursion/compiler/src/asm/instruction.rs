@@ -134,6 +134,9 @@ pub enum AsmInstruction<F, EF> {
     /// Trap.
     Trap,
 
+    /// Halt.
+    Halt,
+
     /// Break(label)
     Break(F),
 
@@ -703,6 +706,17 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 false,
                 "".to_string(),
             ),
+            AsmInstruction::Halt => Instruction::new(
+                Opcode::HALT,
+                F::zero(),
+                zero,
+                zero,
+                F::zero(),
+                F::zero(),
+                false,
+                false,
+                "".to_string(),
+            ),
             AsmInstruction::HintBits(dst, src) => Instruction::new(
                 Opcode::HintBits,
                 i32_f(dst),
@@ -1071,6 +1085,7 @@ impl<F: PrimeField32, EF: ExtensionField<F>> AsmInstruction<F, EF> {
                 )
             }
             AsmInstruction::Trap => write!(f, "trap"),
+            AsmInstruction::Halt => write!(f, "halt"),
             AsmInstruction::HintBits(dst, src) => write!(f, "hint_bits ({})fp, ({})fp", dst, src),
             AsmInstruction::Poseidon2Permute(dst, src) => {
                 write!(f, "poseidon2_permute ({})fp, ({})fp", dst, src)

@@ -364,7 +364,7 @@ pub mod tests {
 
         // Test the recursive Pcs.
         let mut builder = Builder::<InnerConfig>::default();
-        let config = const_fri_config(&mut builder, compressed_fri_config());
+        let config = const_fri_config(&mut builder, &compressed_fri_config());
         let pcs = TwoAdicFriPcsVariable { config };
         let rounds =
             builder.constant::<Array<_, TwoAdicPcsRoundVariable<_>>>(vec![(commit, os.clone())]);
@@ -394,6 +394,7 @@ pub mod tests {
         challenger.observe(&mut builder, commit);
         challenger.sample_ext(&mut builder);
         pcs.verify(&mut builder, rounds, proofvar, &mut challenger);
+        builder.halt();
 
         let program = builder.compile_program();
         let mut witness_stream = VecDeque::new();

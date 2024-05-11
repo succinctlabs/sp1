@@ -7,8 +7,9 @@ use sp1_recursion_compiler::prelude::{Array, Builder, Config, DslVariable, Ext, 
 use sp1_recursion_core::runtime::{DIGEST_SIZE, PERMUTATION_WIDTH};
 
 use crate::fri::types::DigestVariable;
-use crate::utils::felt2var;
+use crate::types::VerifyingKeyVariable;
 
+/// Reference: [p3_challenger::CanObserve].
 pub trait CanObserveVariable<C: Config, V> {
     fn observe(&mut self, builder: &mut Builder<C>, value: V);
 
@@ -19,6 +20,7 @@ pub trait CanSampleVariable<C: Config, V> {
     fn sample(&mut self, builder: &mut Builder<C>) -> V;
 }
 
+/// Reference: [p3_challenger::FieldChallenger].
 pub trait FeltChallenger<C: Config>:
     CanObserveVariable<C, Felt<C::F>> + CanSampleVariable<C, Felt<C::F>> + CanSampleBitsVariable<C>
 {
@@ -90,23 +92,17 @@ impl<C: Config> DuplexChallengerVariable<C> {
         builder.range(0, PERMUTATION_WIDTH).for_each(|i, builder| {
             let element = builder.get(&self.sponge_state, i);
             let other_element = builder.get(&other.sponge_state, i);
-            let element = felt2var(builder, element);
-            let other_element = felt2var(builder, other_element);
-            builder.assert_var_eq(element, other_element);
+            builder.assert_felt_eq(element, other_element);
         });
         builder.range(0, self.nb_inputs).for_each(|i, builder| {
             let element = builder.get(&self.input_buffer, i);
             let other_element = builder.get(&other.input_buffer, i);
-            let element = felt2var(builder, element);
-            let other_element = felt2var(builder, other_element);
-            builder.assert_var_eq(element, other_element);
+            builder.assert_felt_eq(element, other_element);
         });
         builder.range(0, self.nb_outputs).for_each(|i, builder| {
             let element = builder.get(&self.output_buffer, i);
             let other_element = builder.get(&other.output_buffer, i);
-            let element = felt2var(builder, element);
-            let other_element = felt2var(builder, other_element);
-            builder.assert_var_eq(element, other_element);
+            builder.assert_felt_eq(element, other_element);
         });
     }
 
@@ -271,6 +267,21 @@ impl<C: Config> CanObserveVariable<C, DigestVariable<C>> for DuplexChallengerVar
     }
 }
 
+impl<C: Config> CanObserveVariable<C, VerifyingKeyVariable<C>> for DuplexChallengerVariable<C> {
+    fn observe(&mut self, builder: &mut Builder<C>, value: VerifyingKeyVariable<C>) {
+        self.observe_commitment(builder, value.commitment);
+        self.observe(builder, value.pc_start)
+    }
+
+    fn observe_slice(
+        &mut self,
+        _builder: &mut Builder<C>,
+        _values: Array<C, VerifyingKeyVariable<C>>,
+    ) {
+        todo!()
+    }
+}
+
 impl<C: Config> FeltChallenger<C> for DuplexChallengerVariable<C> {
     fn sample_ext(&mut self, builder: &mut Builder<C>) -> Ext<C::F, C::EF> {
         DuplexChallengerVariable::sample_ext(self, builder)
@@ -322,6 +333,7 @@ mod tests {
         };
         let one: Felt<_> = builder.eval(F::one());
         let two: Felt<_> = builder.eval(F::two());
+        builder.halt();
         challenger.observe(&mut builder, one);
         challenger.observe(&mut builder, two);
         challenger.observe(&mut builder, two);
