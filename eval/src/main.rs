@@ -139,7 +139,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
         HashFnId::Blake3 => {
             let mut runtime = Runtime::new(program.clone());
             let execution_start = Instant::now();
-            runtime.run();
+            runtime.run().unwrap();
             let execution_duration = execution_start.elapsed().as_secs_f64();
 
             let config = BabyBearBlake3::new();
@@ -156,7 +156,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
         HashFnId::Poseidon => {
             let mut runtime = Runtime::new(program.clone());
             let execution_start = Instant::now();
-            runtime.run();
+            runtime.run().unwrap();
             let execution_duration = execution_start.elapsed().as_secs_f64();
 
             let config = BabyBearPoseidon2::new();
@@ -173,7 +173,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
         HashFnId::Keccak256 => {
             let mut runtime = Runtime::new(program.clone());
             let execution_start = Instant::now();
-            runtime.run();
+            runtime.run().unwrap();
             let execution_duration = execution_start.elapsed().as_secs_f64();
 
             let config = BabyBearKeccak::new();

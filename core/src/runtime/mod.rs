@@ -372,6 +372,7 @@ impl Runtime {
     }
 
     /// Emit a CPU event.
+    #[allow(clippy::too_many_arguments)]
     fn emit_cpu(
         &mut self,
         shard: u32,
@@ -874,7 +875,7 @@ impl Runtime {
         self.log(&instruction);
 
         // Execute the instruction.
-        self.execute_instruction(instruction);
+        self.execute_instruction(instruction)?;
 
         // Increment the clock.
         self.state.global_clk += 1;
@@ -1062,7 +1063,7 @@ pub mod tests {
     fn test_simple_program_run() {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
     }
 
@@ -1079,7 +1080,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
     }
 
@@ -1096,7 +1097,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 32);
     }
 
@@ -1113,7 +1114,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 32);
     }
 
@@ -1131,7 +1132,7 @@ pub mod tests {
 
         let mut runtime = Runtime::new(program);
 
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 37);
     }
 
@@ -1148,7 +1149,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 5);
     }
 
@@ -1165,7 +1166,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1184);
     }
 
@@ -1182,7 +1183,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1);
     }
 
@@ -1199,7 +1200,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1);
     }
 
@@ -1216,7 +1217,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1233,7 +1234,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1250,7 +1251,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 84);
     }
 
@@ -1266,7 +1267,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 5 - 1 + 4);
     }
 
@@ -1282,7 +1283,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 10);
     }
 
@@ -1298,7 +1299,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 47);
     }
 
@@ -1314,7 +1315,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1328,7 +1329,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 80);
     }
 
@@ -1342,7 +1343,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 2);
     }
 
@@ -1356,7 +1357,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 2);
     }
 
@@ -1370,7 +1371,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1384,7 +1385,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1403,7 +1404,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
         assert_eq!(runtime.state.pc, 108);
@@ -1417,7 +1418,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
     }
 
@@ -1635,7 +1636,7 @@ pub mod tests {
     fn test_simple_memory_program_run() {
         let program = simple_memory_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
 
         // Assert SW & LW case
         assert_eq!(runtime.register(Register::X28), 0x12348765);

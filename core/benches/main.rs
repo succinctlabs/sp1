@@ -13,7 +13,7 @@ pub fn criterion_benchmark(c: &mut Criterion) {
         let program = Program::from_elf(&elf_path);
         let cycles = {
             let mut runtime = Runtime::new(program.clone());
-            runtime.run();
+            runtime.run().unwrap();
             runtime.state.global_clk
         };
         group.bench_function(

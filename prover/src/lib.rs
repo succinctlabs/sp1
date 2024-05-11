@@ -28,7 +28,7 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use sp1_core::air::PublicValues;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::runtime::Runtime;
+use sp1_core::runtime::{Runtime, RuntimeError};
 use sp1_core::stark::MachineVerificationError;
 use sp1_core::stark::{Challenge, StarkProvingKey};
 use sp1_core::utils::DIGEST_SIZE;
@@ -217,15 +217,15 @@ impl SP1Prover {
 
     /// Generate a proof of an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
-    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> SP1PublicValues {
+    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> Result<SP1PublicValues, RuntimeError> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
-        runtime.run();
-        SP1PublicValues::from(&runtime.state.public_values_stream)
+        runtime.run()?;
+        Ok(SP1PublicValues::from(&runtime.state.public_values_stream))
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with

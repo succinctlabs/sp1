@@ -173,7 +173,7 @@ impl ProverClient {
     /// let public_values = client.execute(elf, stdin).unwrap();
     /// ```
     pub fn execute(&self, elf: &[u8], stdin: SP1Stdin) -> Result<SP1PublicValues> {
-        Ok(SP1Prover::execute(elf, &stdin))
+        Ok(SP1Prover::execute(elf, &stdin)?)
     }
 
     /// Setup a program to be proven and verified by the SP1 RISC-V zkVM by computing the proving

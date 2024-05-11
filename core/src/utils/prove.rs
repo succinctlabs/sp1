@@ -37,7 +37,7 @@ pub fn run_test_io(
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&inputs.buffer);
-        runtime.run();
+        runtime.run().unwrap();
         runtime
     });
     let public_values = SP1PublicValues::from(&runtime.state.public_values_stream);
@@ -53,7 +53,7 @@ pub fn run_test(
 > {
     let runtime = tracing::info_span!("runtime.run(...)").in_scope(|| {
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         runtime
     });
     run_test_core(runtime)
@@ -164,7 +164,7 @@ where
 
     // If we don't need to batch, we can just run the program normally and prove it.
     if !should_batch {
-        runtime.run();
+        runtime.run().unwrap();
         #[cfg(feature = "debug")]
         {
             let record_clone = runtime.record.clone();
