@@ -29,8 +29,8 @@ use rayon::prelude::*;
 use sp1_core::air::PublicValues;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
 use sp1_core::runtime::Runtime;
-use sp1_core::stark::MachineVerificationError;
 use sp1_core::stark::{Challenge, StarkProvingKey};
+use sp1_core::stark::{Challenger, MachineVerificationError};
 use sp1_core::utils::DIGEST_SIZE;
 use sp1_core::{
     runtime::Program,
@@ -245,33 +245,17 @@ impl SP1Prover {
         }
     }
 
-    /// Reduce shards proofs to a single shard proof using the recursion prover.
-    #[instrument(name = "compress", level = "info", skip_all)]
-    pub fn compress(
-        &self,
-        vk: &SP1VerifyingKey,
-        proof: SP1CoreProof,
-        deferred_proofs: Vec<ShardProof<InnerSC>>,
-    ) -> SP1ReduceProof<InnerSC> {
-        // Set the batch size for the reduction tree.
-        let batch_size = 2;
-
-        let shard_proofs = &proof.proof.0;
-
-        // Setup the reconstruct commitments flags to false and save its state.
-        let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
-        env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
-
-        // Get the leaf challenger.
-        let mut leaf_challenger = self.core_machine.config().challenger();
-        vk.vk.observe_into(&mut leaf_challenger);
-        shard_proofs.iter().for_each(|proof| {
-            leaf_challenger.observe(proof.commitment.main_commit);
-            leaf_challenger.observe_slice(&proof.public_values[0..self.core_machine.num_pv_elts()]);
-        });
-        // Make sure leaf challenger is not mutable anymore.
-        let leaf_challenger = leaf_challenger;
-
+    pub fn get_first_layer_inputs<'a>(
+        &'a self,
+        vk: &'a SP1VerifyingKey,
+        leaf_challenger: &'a Challenger<InnerSC>,
+        shard_proofs: &[ShardProof<InnerSC>],
+        deferred_proofs: &[ShardProof<InnerSC>],
+        batch_size: usize,
+    ) -> (
+        Vec<SP1RecursionMemoryLayout<'a, InnerSC, RiscvAir<BabyBear>>>,
+        Vec<SP1DeferredMemoryLayout<'a, InnerSC, RecursionAir<BabyBear, 3>>>,
+    ) {
         let mut core_inputs = Vec::new();
 
         let mut reconstruct_challenger = self.core_machine.config().challenger();
@@ -286,7 +270,7 @@ impl SP1Prover {
                 vk: &vk.vk,
                 machine: &self.core_machine,
                 shard_proofs: proofs,
-                leaf_challenger: &leaf_challenger,
+                leaf_challenger,
                 initial_reconstruct_challenger: reconstruct_challenger.clone(),
                 is_complete,
             });
@@ -342,10 +326,45 @@ impl SP1Prover {
             deferred_digest = Self::hash_deferred_proofs(deferred_digest, batch);
         }
 
+        (core_inputs, deferred_inputs)
+    }
+
+    /// Reduce shards proofs to a single shard proof using the recursion prover.
+    #[instrument(name = "compress", level = "info", skip_all)]
+    pub fn compress(
+        &self,
+        vk: &SP1VerifyingKey,
+        proof: SP1CoreProof,
+        deferred_proofs: Vec<ShardProof<InnerSC>>,
+    ) -> SP1ReduceProof<InnerSC> {
+        // Set the batch size for the reduction tree.
+        let batch_size = 2;
+
+        let shard_proofs = &proof.proof.0;
+        // Get the leaf challenger.
+        let mut leaf_challenger = self.core_machine.config().challenger();
+        vk.vk.observe_into(&mut leaf_challenger);
+        shard_proofs.iter().for_each(|proof| {
+            leaf_challenger.observe(proof.commitment.main_commit);
+            leaf_challenger.observe_slice(&proof.public_values[0..self.core_machine.num_pv_elts()]);
+        });
+
+        // Setup the reconstruct commitments flags to false and save its state.
+        let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
+        env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
+
         // Run the recursion and reduce programs.
 
         // Run the recursion programs.
         let mut records = Vec::new();
+
+        let (core_inputs, deferred_inputs) = self.get_first_layer_inputs(
+            vk,
+            &leaf_challenger,
+            shard_proofs,
+            &deferred_proofs,
+            batch_size,
+        );
 
         for input in core_inputs {
             let mut runtime = RecursionRuntime::<Val<InnerSC>, Challenge<InnerSC>, _>::new(
@@ -613,7 +632,7 @@ impl SP1Prover {
     }
 
     /// Accumulate deferred proofs into a single digest.
-    fn hash_deferred_proofs(
+    pub fn hash_deferred_proofs(
         prev_digest: [Val<CoreSC>; DIGEST_SIZE],
         deferred_proofs: &[ShardProof<InnerSC>],
     ) -> [Val<CoreSC>; 8] {
