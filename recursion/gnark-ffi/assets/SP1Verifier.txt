@@ -6,64 +6,33 @@ contract SP1Verifier is Verifier {
     /// @notice Deserializes a proof from the given bytes.
     /// @param proofBytes The proof bytes.
     function deserializeProof(
-        bytes memory proofBytes
+        bytes calldata proofBytes
     )
         public
         pure
         returns (
-            uint256[8] memory proof,
-            uint256[2] memory commitments,
-            uint256[2] memory commitmentPok
+            uint256[8] calldata proof,
+            uint256[2] calldata commitments,
+            uint256[2] calldata commitmentPok
         )
     {
         require(
             proofBytes.length == 8 * 32 + 4 + 2 * 32 + 2 * 32,
             "invalid proof bytes length"
         );
-
-        uint256 offset = 32;
-        for (uint256 i = 0; i < 8; i++) {
-            assembly {
-                mstore(
-                    add(proof, add(0, mul(32, i))),
-                    mload(add(proofBytes, add(offset, mul(32, i))))
-                )
-            }
-        }
-
-        uint32 commitmentCount;
-        offset += 8 * 32;
+        
+        // Map the calldata pointers.
         assembly {
-            let dataLocation := add(proofBytes, offset)
-            let loadedData := mload(dataLocation)
-            commitmentCount := and(shr(224, loadedData), 0xFFFFFFFF)
-        }
-
-        offset += 4;
-        for (uint256 i = 0; i < 2; i++) {
-            assembly {
-                mstore(
-                    add(commitments, add(0, mul(32, i))),
-                    mload(add(proofBytes, add(offset, mul(32, i))))
-                )
-            }
-        }
-
-        offset += 2 * 32;
-        for (uint256 i = 0; i < 2; i++) {
-            assembly {
-                mstore(
-                    add(commitmentPok, add(0, mul(32, i))),
-                    mload(add(proofBytes, add(offset, mul(32, i))))
-                )
-            }
+            proof := proofBytes.offset
+            commitments := add(add(mul(8, 0x20), 0x4), proofBytes.offset)
+            commitmentPok := add(mul(2, 0x20), commitments)
         }
     }
 
     /// @notice Hashes the public values to a field elements inside Bn254.
     /// @param publicValues The public values.
     function hashPublicValues(
-        bytes memory publicValues
+        bytes calldata publicValues
     ) public pure returns (bytes32) {
         return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     }
@@ -74,13 +43,13 @@ contract SP1Verifier is Verifier {
     /// @param proofBytes The proof of the program execution the SP1 zkVM encoded as bytes.
     function verifyProof(
         bytes32 vkey, 
-        bytes memory publicValues,
-        bytes memory proofBytes
+        bytes calldata publicValues,
+        bytes calldata proofBytes
     ) public view {
         (
-            uint256[8] memory proof,
-            uint256[2] memory commitments,
-            uint256[2] memory commitmentPok
+            uint256[8] calldata proof,
+            uint256[2] calldata commitments,
+            uint256[2] calldata commitmentPok
         ) = deserializeProof(proofBytes);
         bytes32 publicValuesDigest = hashPublicValues(publicValues);
         uint256[2] memory inputs = [
