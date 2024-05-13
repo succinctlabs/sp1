@@ -38,6 +38,9 @@ pub fn try_install_groth16_artifacts() -> PathBuf {
 }
 
 /// Tries to build the Groth16 artifacts inside the development directory.
+///
+/// TODO: Maybe add some additional logic here to handle rebuilding the artifacts if they are
+/// already built.
 pub fn try_build_groth16_artifacts_dev(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,
