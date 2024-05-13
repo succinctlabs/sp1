@@ -18,11 +18,7 @@ use crate::{OuterSC, SP1Prover};
 
 /// Tries to install the Groth16 artifacts if they are not already installed.
 pub fn try_install_groth16_artifacts() -> PathBuf {
-    let build_dir = dirs::home_dir()
-        .unwrap()
-        .join(".sp1")
-        .join("circuits")
-        .join(GROTH16_ARTIFACTS_COMMIT);
+    let build_dir = groth16_artifacts_dir();
 
     if build_dir.exists() {
         println!("[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
@@ -45,14 +41,28 @@ pub fn try_build_groth16_artifacts_dev(
     template_vk: &StarkVerifyingKey<OuterSC>,
     template_proof: &ShardProof<OuterSC>,
 ) -> PathBuf {
-    let build_dir = dirs::home_dir()
-        .unwrap()
-        .join(".sp1")
-        .join("circuits")
-        .join("dev");
+    let build_dir = groth16_artifacts_dev_dir();
     println!("[sp1] building groth16 artifacts in development mode");
     build_groth16_artifacts(template_vk, template_proof, &build_dir);
     build_dir
+}
+
+/// Gets the directory where the Groth16 artifacts are installed.
+pub fn groth16_artifacts_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap()
+        .join(".sp1")
+        .join("circuits")
+        .join(GROTH16_ARTIFACTS_COMMIT)
+}
+
+/// Gets the directory where the Groth16 artifacts are installed in development mode.
+pub fn groth16_artifacts_dev_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap()
+        .join(".sp1")
+        .join("circuits")
+        .join("dev")
 }
 
 /// Build the groth16 artifacts to the given directory for the given verification key and template

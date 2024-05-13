@@ -8,11 +8,15 @@ pub use sp1_prover::build::{build_groth16_artifacts_with_dummy, try_install_grot
 
 /// Exports the soliditiy verifier for Groth16 proofs to the specified output directory.
 ///
-/// WARNING: This function may take some time to complete if `SP1_DEV` is enabled (which
-/// is the default) as it needs to generate an end-to-end dummy proof to export the verifier.
+/// WARNING: If you are on development mode, this function assumes that the Groth16 artifacts have
+/// already been built.
 pub fn export_solidity_groth16_verifier(output_dir: impl Into<PathBuf>) -> Result<()> {
     let output_dir: PathBuf = output_dir.into();
-    let artifacts_dir = sp1_prover::build::try_install_groth16_artifacts();
+    let artifacts_dir = if sp1_prover::build::sp1_dev_mode() {
+        sp1_prover::build::groth16_artifacts_dev_dir()
+    } else {
+        sp1_prover::build::try_install_groth16_artifacts()
+    };
     let verifier_path = artifacts_dir.join("SP1Verifier.sol");
 
     if !verifier_path.exists() {
