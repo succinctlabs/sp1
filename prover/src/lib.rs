@@ -624,7 +624,7 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use crate::build::{build_groth16_artifacts, get_groth16_artifacts_dir};
+    use self::build::try_build_groth16_artifacts_dev;
 
     use super::*;
     use p3_field::PrimeField32;
@@ -692,8 +692,8 @@ mod tests {
         assert_eq!(vk_digest_bn254, vk.hash_bn254());
 
         tracing::info!("generate groth16 proof");
-        let artifacts_dir = get_groth16_artifacts_dir();
-        build_groth16_artifacts(&prover.wrap_vk, &wrapped_bn254_proof.proof, &artifacts_dir);
+        let artifacts_dir =
+            try_build_groth16_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
         let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
         println!("{:?}", groth16_proof);
     }
