@@ -58,7 +58,6 @@ use sp1_recursion_program::machine::{
     SP1RecursionMemoryLayout, SP1RecursiveVerifier, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
     SP1RootVerifier,
 };
-use thiserror::Error;
 use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
@@ -139,9 +138,6 @@ pub struct SP1Prover {
     /// The machine used for proving the wrapping step.
     pub wrap_machine: StarkMachine<OuterSC, WrapAir<<OuterSC as StarkGenericConfig>::Val>>,
 }
-
-#[derive(Error, Debug)]
-pub enum SP1RecursionProverError {}
 
 impl SP1Prover {
     /// Initializes a new [SP1Prover].
@@ -255,9 +251,7 @@ impl SP1Prover {
         proof: SP1CoreProof,
         deferred_proofs: Vec<ShardProof<InnerSC>>,
     ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
-        // Set the batch size for the reduction tree.
         let batch_size = 2;
-
         let shard_proofs = &proof.proof.0;
 
         // Setup the reconstruct commitments flags to false and save its state.
@@ -271,11 +265,10 @@ impl SP1Prover {
             leaf_challenger.observe(proof.commitment.main_commit);
             leaf_challenger.observe_slice(&proof.public_values[0..self.core_machine.num_pv_elts()]);
         });
+
         // Make sure leaf challenger is not mutable anymore.
         let leaf_challenger = leaf_challenger;
-
         let mut core_inputs = Vec::new();
-
         let mut reconstruct_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut reconstruct_challenger);
 
