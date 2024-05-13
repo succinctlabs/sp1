@@ -72,8 +72,10 @@ pub fn build_groth16_artifacts(
     template_proof: &ShardProof<OuterSC>,
     build_dir: impl Into<PathBuf>,
 ) {
+    let build_dir = build_dir.into();
+    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
     let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof);
-    Groth16Prover::build(constraints, witness, build_dir.into());
+    Groth16Prover::build(constraints, witness, build_dir);
 }
 
 /// Builds the groth16 artifacts to the given directory.
