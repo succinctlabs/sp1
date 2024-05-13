@@ -174,5 +174,5 @@ jobs:
           cd program
           cargo prove build
           cd ../script
-          cargo add sp1-sdk --path $GITHUB_WORKSPACE/sp1
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE
           SP1_DEV=1 RUST_LOG=info cargo run --release
