@@ -120,7 +120,7 @@ impl Runtime {
             program,
             memory_accesses: MemoryAccessRecord::default(),
             shard_size: shard_size * 4,
-            shard_batch_size: env::shard_batch_size() as u32 * shard_size,
+            shard_batch_size: env::shard_batch_size() as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
@@ -933,10 +933,10 @@ impl Runtime {
                 break;
             }
 
-            if env::shard_batch_size() > 0 && current_shard != self.state.current_shard {
+            if self.shard_batch_size > 0 && current_shard != self.state.current_shard {
                 num_shards_executed += 1;
                 current_shard = self.state.current_shard;
-                if num_shards_executed == env::shard_batch_size() {
+                if num_shards_executed == self.shard_batch_size {
                     break;
                 }
             }
