@@ -46,6 +46,7 @@ curve25519-dalek = { version = "4.1.2" }
 elliptic-curve = "0.13.8"
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["expose-field"] }
+p256 = { version = "0.13.2", features = ["expose-field"] } 
 num_cpus = "1.16.0"
 serde_with = "3.8.1"
 size = "0.4.1"

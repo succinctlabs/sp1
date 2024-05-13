@@ -486,7 +486,9 @@ pub mod tests {
         runtime::Program,
         utils::{
             run_test, setup_logger,
-            tests::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF},
+            tests::{
+                BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF, SECP256R1_DOUBLE_ELF,
+            },
         },
     };
 
@@ -508,6 +510,13 @@ pub mod tests {
     fn test_bls12381_double_simple() {
         setup_logger();
         let program = Program::from(BLS12381_DOUBLE_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_secp256r1_double_simple() {
+        setup_logger();
+        let program = Program::from(SECP256R1_DOUBLE_ELF);
         run_test(program).unwrap();
     }
 }

@@ -6,6 +6,7 @@ pub mod bls12381;
 pub mod bn254;
 pub mod io;
 pub mod secp256k1;
+pub mod secp256r1;
 pub mod uint256_div;
 pub mod unconstrained;
 pub mod utils;
@@ -23,6 +24,9 @@ extern "C" {
     pub fn syscall_secp256k1_add(p: *mut u32, q: *const u32);
     pub fn syscall_secp256k1_double(p: *mut u32);
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
+    pub fn syscall_secp256r1_add(p: *mut u32, q: *const u32);
+    pub fn syscall_secp256r1_double(p: *mut u32);
+    pub fn syscall_secp256r1_decompress(point: &mut [u8; 64], is_odd: bool);
     pub fn syscall_bn254_add(p: *mut u32, q: *const u32);
     pub fn syscall_bn254_double(p: *mut u32);
     pub fn syscall_bls12381_add(p: *mut u32, q: *const u32);

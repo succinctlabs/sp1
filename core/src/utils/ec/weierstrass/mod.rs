@@ -11,6 +11,7 @@ use crate::utils::ec::{AffinePoint, EllipticCurve, EllipticCurveParameters};
 pub mod bls12_381;
 pub mod bn254;
 pub mod secp256k1;
+pub mod secp256r1;
 
 /// Parameters that specify a short Weierstrass curve : y^2 = x^3 + ax + b.
 pub trait WeierstrassParameters: EllipticCurveParameters {

@@ -64,6 +64,15 @@ pub mod tests {
     pub const SECP256K1_DOUBLE_ELF: &[u8] =
         include_bytes!("../../../tests/secp256k1-double/elf/riscv32im-succinct-zkvm-elf");
 
+    pub const SECP256R1_ADD_ELF: &[u8] =
+        include_bytes!("../../../tests/secp256r1-add/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SECP256R1_DECOMPRESS_ELF: &[u8] =
+        include_bytes!("../../../tests/secp256r1-decompress/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SECP256R1_DOUBLE_ELF: &[u8] =
+        include_bytes!("../../../tests/secp256r1-double/elf/riscv32im-succinct-zkvm-elf");
+
     pub const SHA_COMPRESS_ELF: &[u8] =
         include_bytes!("../../../tests/sha-compress/elf/riscv32im-succinct-zkvm-elf");
 
@@ -84,6 +93,9 @@ pub mod tests {
 
     pub const SECP256K1_MUL_ELF: &[u8] =
         include_bytes!("../../../tests/secp256k1-mul/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const SECP256R1_MUL_ELF: &[u8] =
+        include_bytes!("../../../tests/secp256r1-mul/elf/riscv32im-succinct-zkvm-elf");
 
     pub const BLS12381_ADD_ELF: &[u8] =
         include_bytes!("../../../tests/bls12381-add/elf/riscv32im-succinct-zkvm-elf");

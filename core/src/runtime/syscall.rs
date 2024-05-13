@@ -18,8 +18,9 @@ use crate::syscall::{
     SyscallHalt, SyscallHintLen, SyscallHintRead, SyscallVerifySP1Proof, SyscallWrite,
 };
 use crate::utils::ec::edwards::ed25519::{Ed25519, Ed25519Parameters};
-use crate::utils::ec::weierstrass::bls12_381::Bls12381;
-use crate::utils::ec::weierstrass::{bn254::Bn254, secp256k1::Secp256k1};
+use crate::utils::ec::weierstrass::{
+    bls12_381::Bls12381, bn254::Bn254, secp256k1::Secp256k1, secp256r1::Secp256r1,
+};
 use crate::{runtime::ExecutionRecord, runtime::MemoryReadRecord, runtime::MemoryWriteRecord};
 
 /// A system call is invoked by the the `ecall` instruction with a specific value in register t0.
@@ -102,6 +103,15 @@ pub enum SyscallCode {
 
     /// Executes the `BLS12381_DOUBLE` precompile.
     BLS12381_DOUBLE = 0x00_00_01_1F,
+
+    /// Executes the `SECP256R1_ADD` precompile.
+    SECP256R1_ADD = 0x00_01_01_10,
+
+    /// Executes the `SECP256R1_DOUBLE` precompile.
+    SECP256R1_DOUBLE = 0x00_00_01_11,
+
+    /// Executes the `SECP256R1_DECOMPRESS` precompile.
+    SECP256R1_DECOMPRESS = 0x00_00_01_12,
 }
 
 impl SyscallCode {
@@ -132,6 +142,9 @@ impl SyscallCode {
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             0x00_00_01_1D => SyscallCode::UINT256_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
+            0x00_01_01_10 => SyscallCode::SECP256R1_ADD,
+            0x00_00_01_11 => SyscallCode::SECP256R1_DOUBLE,
+            0x00_00_01_12 => SyscallCode::SECP256R1_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
@@ -287,6 +300,18 @@ pub fn default_syscall_map() -> HashMap<SyscallCode, Rc<dyn Syscall>> {
         Rc::new(WeierstrassDecompressChip::<Secp256k1>::new()),
     );
     syscall_map.insert(
+        SyscallCode::SECP256R1_ADD,
+        Rc::new(WeierstrassAddAssignChip::<Secp256r1>::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::SECP256R1_DOUBLE,
+        Rc::new(WeierstrassDoubleAssignChip::<Secp256r1>::new()),
+    );
+    syscall_map.insert(
+        SyscallCode::SECP256R1_DECOMPRESS,
+        Rc::new(WeierstrassDecompressChip::<Secp256r1>::new()),
+    );
+    syscall_map.insert(
         SyscallCode::BN254_ADD,
         Rc::new(WeierstrassAddAssignChip::<Bn254>::new()),
     );
@@ -402,6 +427,12 @@ mod tests {
                 SyscallCode::SECP256K1_DOUBLE => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DOUBLE)
                 }
+                SyscallCode::SECP256R1_ADD => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256R1_ADD)
+                }
+                SyscallCode::SECP256R1_DOUBLE => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256R1_DOUBLE)
+                }
                 SyscallCode::BLAKE3_COMPRESS_INNER => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::BLAKE3_COMPRESS_INNER)
                 }
@@ -413,6 +444,9 @@ mod tests {
                 }
                 SyscallCode::SECP256K1_DECOMPRESS => {
                     assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256K1_DECOMPRESS)
+                }
+                SyscallCode::SECP256R1_DECOMPRESS => {
+                    assert_eq!(code as u32, sp1_zkvm::syscalls::SECP256R1_DECOMPRESS)
                 }
                 SyscallCode::BN254_ADD => assert_eq!(code as u32, sp1_zkvm::syscalls::BN254_ADD),
                 SyscallCode::BN254_DOUBLE => {

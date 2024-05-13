@@ -7,6 +7,7 @@ mod io;
 mod keccak_permute;
 mod memory;
 mod secp256k1;
+mod secp256r1;
 mod sha_compress;
 mod sha_extend;
 mod sys;
@@ -23,6 +24,7 @@ pub use io::*;
 pub use keccak_permute::*;
 pub use memory::*;
 pub use secp256k1::*;
+pub use secp256r1::*;
 pub use sha_compress::*;
 pub use sha_extend::*;
 pub use sys::*;
@@ -105,3 +107,12 @@ pub const BLS12381_ADD: u32 = 0x00_01_01_1E;
 
 /// Executes the `BLS12381_DOUBLE` precompile.
 pub const BLS12381_DOUBLE: u32 = 0x00_00_01_1F;
+
+/// Executes the `SECP256R1_ADD` precompile.
+pub const SECP256R1_ADD: u32 = 0x00_01_01_10;
+
+/// Executes the `SECP256R1_DOUBLE` precompile.
+pub const SECP256R1_DOUBLE: u32 = 0x00_00_01_11;
+
+/// Executes the `SECP256R1_DECOMPRESS` precompile.
+pub const SECP256R1_DECOMPRESS: u32 = 0x00_00_01_12;

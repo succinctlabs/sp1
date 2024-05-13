@@ -81,11 +81,17 @@ pub struct ExecutionRecord {
 
     pub secp256k1_double_events: Vec<ECDoubleEvent>,
 
+    pub secp256r1_add_events: Vec<ECAddEvent>,
+
+    pub secp256r1_double_events: Vec<ECDoubleEvent>,
+
     pub bn254_add_events: Vec<ECAddEvent>,
 
     pub bn254_double_events: Vec<ECDoubleEvent>,
 
     pub k256_decompress_events: Vec<ECDecompressEvent>,
+
+    pub p256_decompress_events: Vec<ECDecompressEvent>,
 
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
@@ -119,6 +125,9 @@ pub struct ShardingConfig {
     pub keccak_len: usize,
     pub secp256k1_add_len: usize,
     pub secp256k1_double_len: usize,
+    pub secp256r1_add_len: usize,
+    pub secp256r1_double_len: usize,
+
     pub bn254_add_len: usize,
     pub bn254_double_len: usize,
     pub bls12381_add_len: usize,
@@ -149,6 +158,8 @@ impl Default for ShardingConfig {
             keccak_len: shard_size,
             secp256k1_add_len: shard_size,
             secp256k1_double_len: shard_size,
+            secp256r1_add_len: shard_size,
+            secp256r1_double_len: shard_size,
             bn254_add_len: shard_size,
             bn254_double_len: shard_size,
             bls12381_add_len: shard_size,
@@ -211,6 +222,14 @@ impl MachineRecord for ExecutionRecord {
             "secp256k1_double_events".to_string(),
             self.secp256k1_double_events.len(),
         );
+        stats.insert(
+            "secp256r1_add_events".to_string(),
+            self.secp256r1_add_events.len(),
+        );
+        stats.insert(
+            "secp256r1_double_events".to_string(),
+            self.secp256r1_double_events.len(),
+        );
         stats.insert("bn254_add_events".to_string(), self.bn254_add_events.len());
         stats.insert(
             "bn254_double_events".to_string(),
@@ -219,6 +238,10 @@ impl MachineRecord for ExecutionRecord {
         stats.insert(
             "k256_decompress_events".to_string(),
             self.k256_decompress_events.len(),
+        );
+        stats.insert(
+            "p256_decompress_events".to_string(),
+            self.p256_decompress_events.len(),
         );
         stats.insert(
             "blake3_compress_inner_events".to_string(),
@@ -267,11 +290,17 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.secp256k1_add_events);
         self.secp256k1_double_events
             .append(&mut other.secp256k1_double_events);
+        self.secp256r1_add_events
+            .append(&mut other.secp256r1_add_events);
+        self.secp256r1_double_events
+            .append(&mut other.secp256r1_double_events);
         self.bn254_add_events.append(&mut other.bn254_add_events);
         self.bn254_double_events
             .append(&mut other.bn254_double_events);
         self.k256_decompress_events
             .append(&mut other.k256_decompress_events);
+        self.p256_decompress_events
+            .append(&mut other.p256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
         self.bls12381_add_events
@@ -452,6 +481,26 @@ impl MachineRecord for ExecutionRecord {
                 .extend_from_slice(secp256k1_double_chunk);
         }
 
+        // secp256r1 curve add events.
+        for (secp256r1_add_chunk, shard) in take(&mut self.secp256r1_add_events)
+            .chunks_mut(config.secp256r1_add_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .secp256r1_add_events
+                .extend_from_slice(secp256r1_add_chunk);
+        }
+
+        // secp256r1 curve double events.
+        for (secp256r1_double_chunk, shard) in take(&mut self.secp256r1_double_events)
+            .chunks_mut(config.secp256r1_double_len)
+            .zip(shards.iter_mut())
+        {
+            shard
+                .secp256r1_double_events
+                .extend_from_slice(secp256r1_double_chunk);
+        }
+
         // bn254 curve add events.
         for (bn254_add_chunk, shard) in take(&mut self.bn254_add_events)
             .chunks_mut(config.bn254_add_len)
@@ -507,6 +556,9 @@ impl MachineRecord for ExecutionRecord {
 
         // K256 curve decompress events.
         first.k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
+
+        // P256 curve decompress events.
+        first.p256_decompress_events = std::mem::take(&mut self.p256_decompress_events);
 
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);
