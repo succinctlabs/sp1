@@ -81,6 +81,7 @@ impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssi
             CurveType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event),
             CurveType::Bn254 => rt.record_mut().bn254_double_events.push(event),
             CurveType::Bls12381 => rt.record_mut().bls12381_double_events.push(event),
+            CurveType::Secp256r1 => rt.record_mut().secp256r1_double_events.push(event),
             _ => panic!("Unsupported curve"),
         }
         None
@@ -203,6 +204,7 @@ where
             CurveType::Secp256k1 => "Secp256k1DoubleAssign".to_string(),
             CurveType::Bn254 => "Bn254DoubleAssign".to_string(),
             CurveType::Bls12381 => "Bls12381DoubleAssign".to_string(),
+            CurveType::Secp256r1 => "Secp256r1DoubleAssign".to_string(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -217,6 +219,7 @@ where
             CurveType::Secp256k1 => &input.secp256k1_double_events,
             CurveType::Bn254 => &input.bn254_double_events,
             CurveType::Bls12381 => &input.bls12381_double_events,
+            CurveType::Secp256r1 => &input.secp256r1_double_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -296,6 +299,7 @@ where
             CurveType::Secp256k1 => !shard.secp256k1_double_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_double_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_double_events.is_empty(),
+            CurveType::Secp256r1 => !shard.secp256r1_double_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -314,6 +318,7 @@ where
 {
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
+
         let row = main.row_slice(0);
         let row: &WeierstrassDoubleAssignCols<AB::Var, E::BaseField> = (*row).borrow();
 
@@ -464,6 +469,9 @@ where
             CurveType::Bn254 => AB::F::from_canonical_u32(SyscallCode::BN254_DOUBLE.syscall_id()),
             CurveType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_DOUBLE.syscall_id())
+            }
+            CurveType::Secp256r1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256R1_DOUBLE.syscall_id())
             }
             _ => panic!("Unsupported curve"),
         };

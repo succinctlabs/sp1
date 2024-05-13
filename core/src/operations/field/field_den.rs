@@ -113,7 +113,7 @@ where
         V: Into<AB::Expr>,
     {
         let p_a = Polynomial::from(*a);
-        // let p_b = (*b).into(); // TODO: is this correct?
+        // let p_b = (*b).into();
         let p_b = Polynomial::from(*b);
         let p_result = self.result.into();
         // let p_carry = self.carry.into();

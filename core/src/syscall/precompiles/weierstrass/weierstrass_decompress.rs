@@ -324,6 +324,9 @@ where
             CurveType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_DECOMPRESS.syscall_id())
             }
+            CurveType::Secp256r1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP256R1_DECOMPRESS.syscall_id())
+            }
             _ => panic!("Unsupported curve"),
         };
 

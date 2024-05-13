@@ -36,6 +36,7 @@ pub(crate) mod riscv_chips {
     pub use crate::utils::ec::weierstrass::bls12_381::Bls12381Parameters;
     pub use crate::utils::ec::weierstrass::bn254::Bn254Parameters;
     pub use crate::utils::ec::weierstrass::secp256k1::Secp256k1Parameters;
+    pub use crate::utils::ec::weierstrass::secp256r1::Secp256r1Parameters;
     pub use crate::utils::ec::weierstrass::SwCurve;
 }
 
@@ -86,6 +87,12 @@ pub enum RiscvAir<F: PrimeField32> {
     Secp256k1Add(WeierstrassAddAssignChip<SwCurve<Secp256k1Parameters>>),
     /// A precompile for doubling a point on the Elliptic curve secp256k1.
     Secp256k1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256k1Parameters>>),
+    /// A precompile for addition on the Elliptic curve secp256r1.
+    Secp256r1Add(WeierstrassAddAssignChip<SwCurve<Secp256r1Parameters>>),
+    /// A precompile for doubling a point on the Elliptic curve secp256r1.
+    Secp256r1Double(WeierstrassDoubleAssignChip<SwCurve<Secp256r1Parameters>>),
+    /// A precompile for decompressing a point on the P256 curve.
+    P256Decompress(WeierstrassDecompressChip<SwCurve<Secp256r1Parameters>>),
     /// A precompile for the Keccak permutation.
     KeccakP(KeccakPermuteChip),
     /// A precompile for the Blake3 compression function. (Disabled by default.)
@@ -138,6 +145,13 @@ impl<F: PrimeField32> RiscvAir<F> {
         let secp256k1_double_assign =
             WeierstrassDoubleAssignChip::<SwCurve<Secp256k1Parameters>>::new();
         chips.push(RiscvAir::Secp256k1Double(secp256k1_double_assign));
+        let secp256r1_add_assign = WeierstrassAddAssignChip::<SwCurve<Secp256r1Parameters>>::new();
+        chips.push(RiscvAir::Secp256r1Add(secp256r1_add_assign));
+        let secp256r1_double_assign =
+            WeierstrassDoubleAssignChip::<SwCurve<Secp256r1Parameters>>::new();
+        chips.push(RiscvAir::Secp256r1Double(secp256r1_double_assign));
+        let p256_decompress = WeierstrassDecompressChip::<SwCurve<Secp256r1Parameters>>::new();
+        chips.push(RiscvAir::P256Decompress(p256_decompress));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let bn254_add_assign = WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new();
