@@ -473,7 +473,18 @@ mod tests {
             include_bytes!("../../examples/fibonacci/program/elf/riscv32im-succinct-zkvm-elf");
         let mut stdin = SP1Stdin::new();
         stdin.write(&10usize);
-        let _ = client.execute(elf, stdin).unwrap();
+        client.execute(elf, stdin).unwrap();
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_execute_panic() {
+        utils::setup_logger();
+        let client = ProverClient::local();
+        let elf = include_bytes!("../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
+        let mut stdin = SP1Stdin::new();
+        stdin.write(&10usize);
+        client.execute(elf, stdin).unwrap();
     }
 
     #[test]
