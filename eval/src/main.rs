@@ -5,7 +5,7 @@ use clap::{command, Parser};
 use csv::WriterBuilder;
 use serde::Serialize;
 use sp1_core::runtime::{Program, Runtime};
-use sp1_core::utils::{prove_core, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
+use sp1_core::utils::{prove_simple, BabyBearBlake3, BabyBearKeccak, BabyBearPoseidon2};
 use sp1_prover::utils::get_cycles;
 use sp1_prover::SP1Stdin;
 use std::fmt;
@@ -144,7 +144,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
 
             let config = BabyBearBlake3::new();
             let prove_start = Instant::now();
-            let _proof = prove_core(config.clone(), runtime);
+            let _proof = prove_simple(config.clone(), runtime);
             let prove_duration = prove_start.elapsed().as_secs_f64();
 
             let verify_start = Instant::now();
@@ -161,7 +161,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
 
             let config = BabyBearPoseidon2::new();
             let prove_start = Instant::now();
-            let _proof = prove_core(config.clone(), runtime);
+            let _proof = prove_simple(config.clone(), runtime);
             let prove_duration = prove_start.elapsed().as_secs_f64();
 
             let verify_start = Instant::now();
@@ -178,7 +178,7 @@ fn run_evaluation(hashfn: &HashFnId, program: &Program, _elf: &[u8]) -> (f64, f6
 
             let config = BabyBearKeccak::new();
             let prove_start = Instant::now();
-            let _proof = prove_core(config.clone(), runtime);
+            let _proof = prove_simple(config.clone(), runtime);
             let prove_duration = prove_start.elapsed().as_secs_f64();
 
             let verify_start = Instant::now();

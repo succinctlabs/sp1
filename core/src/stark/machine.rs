@@ -518,7 +518,7 @@ pub mod tests {
     use crate::runtime::Opcode;
     use crate::runtime::Program;
     use crate::utils;
-    use crate::utils::run_and_prove;
+    use crate::utils::prove;
     use crate::utils::run_test;
     use crate::utils::setup_logger;
     use crate::utils::BabyBearPoseidon2;
@@ -669,7 +669,7 @@ pub mod tests {
         setup_logger();
         let program = fibonacci_program();
         let stdin = SP1Stdin::new();
-        run_and_prove(program, &stdin, BabyBearPoseidon2::new()).unwrap();
+        prove(program, &stdin, BabyBearPoseidon2::new()).unwrap();
     }
 
     #[test]

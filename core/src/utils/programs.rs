@@ -105,4 +105,7 @@ pub mod tests {
 
     pub const VERIFY_PROOF_ELF: &[u8] =
         include_bytes!("../../../tests/verify-proof/elf/riscv32im-succinct-zkvm-elf");
+
+    pub const PANIC_ELF: &[u8] =
+        include_bytes!("../../../tests/panic/elf/riscv32im-succinct-zkvm-elf");
 }

@@ -60,7 +60,7 @@ pub mod tests {
     use super::*;
     use crate::runtime::Program;
     use crate::utils::tests::IO_ELF;
-    use crate::utils::{self, prove_core, BabyBearBlake3};
+    use crate::utils::{self, prove_simple, BabyBearBlake3};
     use serde::Deserialize;
 
     #[derive(Serialize, Deserialize, Debug, PartialEq)]
@@ -115,6 +115,6 @@ pub mod tests {
         runtime.write_stdin(&points.1);
         runtime.run().unwrap();
         let config = BabyBearBlake3::new();
-        prove_core(config, runtime).unwrap();
+        prove_simple(config, runtime).unwrap();
     }
 }

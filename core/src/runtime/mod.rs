@@ -34,8 +34,6 @@ use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
-pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
-
 /// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur
@@ -70,10 +68,8 @@ pub struct Runtime {
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
-    /// Whether the runtime should fail on panic or not.
-    pub fail_on_panic: bool,
-
     /// Whether the runtime is in constrained mode or not.
+    ///
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
     /// the unconstrained block. The only thing preserved is writes to the input stream.
     pub unconstrained: bool,
@@ -89,8 +85,14 @@ pub struct Runtime {
 
 #[derive(Error, Debug)]
 pub enum ExecutionError {
-    #[error("invalid alignment for address {0}")]
-    InvalidAddressAlignment(u32),
+    #[error("execution failed with exit code {0}")]
+    HaltWithNonZeroExitCode(u32),
+    #[error("invalid memory access for opcode {0} and address {1}")]
+    InvalidMemoryAccess(Opcode, u32),
+    #[error("unimplemented syscall {0}")]
+    UnsupportedSyscall(u32),
+    #[error("breakpoint encountered")]
+    Breakpoint(),
     #[error("got unimplemented as opcode")]
     Unimplemented(),
 }
@@ -115,8 +117,8 @@ impl Runtime {
             None
         };
 
-        let syscall_map = default_syscall_map();
         // Determine the maximum number of cycles for any syscall.
+        let syscall_map = default_syscall_map();
         let max_syscall_cycles = syscall_map
             .values()
             .map(|syscall| syscall.num_extra_cycles())
@@ -124,7 +126,6 @@ impl Runtime {
             .unwrap_or(0);
 
         let shard_size = env::shard_size() as u32;
-
         Self {
             record,
             state: ExecutionState::new(program.pc_start),
@@ -135,7 +136,6 @@ impl Runtime {
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
-            fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map,
@@ -225,6 +225,7 @@ impl Runtime {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+
                 // Do not emit memory initialize events for address 0 as that is done in initialize.
                 if addr != 0 {
                     self.record
@@ -272,6 +273,7 @@ impl Runtime {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+
                 // Do not emit memory initialize events for address 0 as that is done in initialize.
                 if addr != 0 {
                     self.record
@@ -589,7 +591,7 @@ impl Runtime {
             Opcode::LH => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidAddressAlignment(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
                 }
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
@@ -603,7 +605,7 @@ impl Runtime {
             Opcode::LW => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidAddressAlignment(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
                 }
                 a = memory_read_value;
                 memory_store_value = Some(memory_read_value);
@@ -619,7 +621,7 @@ impl Runtime {
             Opcode::LHU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidAddressAlignment(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
                 }
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
@@ -647,7 +649,7 @@ impl Runtime {
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
                 if addr % 2 != 0 {
-                    return Err(ExecutionError::InvalidAddressAlignment(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
                 }
                 let value = match (addr >> 1) % 2 {
                     0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
@@ -660,7 +662,7 @@ impl Runtime {
             Opcode::SW => {
                 (a, b, c, addr, _) = self.store_rr(instruction);
                 if addr % 4 != 0 {
-                    return Err(ExecutionError::InvalidAddressAlignment(addr));
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
                 }
                 let value = a;
                 memory_store_value = Some(value);
@@ -731,9 +733,9 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
+                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
+                // register is that we write to it later.
                 let t0 = Register::X5;
-                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this register
-                // is that we write to it later.
                 let syscall_id = self.register(t0);
                 c = self.rr(Register::X11, MemoryAccessPosition::C);
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
@@ -741,7 +743,6 @@ impl Runtime {
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
-
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
@@ -750,16 +751,23 @@ impl Runtime {
                         if let Some(val) = res {
                             a = val;
                         } else {
-                            // Default to syscall_id if no value is returned from syscall execution.
                             a = syscall_id;
                         }
+
+                        // If the syscall is `HALT` and the exit code is non-zero, return an error.
+                        if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
+                            return Err(ExecutionError::HaltWithNonZeroExitCode(
+                                precompile_rt.exit_code,
+                            ));
+                        }
+
                         (
                             precompile_rt.next_pc,
                             syscall_impl.num_extra_cycles(),
                             precompile_rt.exit_code,
                         )
                     } else {
-                        panic!("Unsupported syscall: {:?}", syscall);
+                        return Err(ExecutionError::UnsupportedSyscall(syscall_id));
                     };
 
                 // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
@@ -771,9 +779,8 @@ impl Runtime {
                 self.state.clk += precompile_cycles;
                 exit_code = returned_exit_code;
             }
-
             Opcode::EBREAK => {
-                todo!()
+                return Err(ExecutionError::Breakpoint());
             }
 
             // Multiply instructions.
@@ -834,14 +841,15 @@ impl Runtime {
                 self.alu_rw(instruction, rd, a, b, c);
             }
 
+            // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
             Opcode::UNIMP => {
-                // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
-                panic!("UNIMP encountered, we should never get here.");
+                return Err(ExecutionError::Unimplemented());
             }
         }
 
         // Update the program counter.
         self.state.pc = next_pc;
+
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
@@ -933,6 +941,11 @@ impl Runtime {
         self.emit_events = true;
         while !self.execute()? {}
         Ok(())
+    }
+
+    pub fn dry_run(&mut self) {
+        self.emit_events = false;
+        while !self.execute().unwrap() {}
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
@@ -1037,7 +1050,7 @@ pub mod tests {
 
     use crate::{
         runtime::Register,
-        utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
+        utils::tests::{FIBONACCI_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
     use super::{Instruction, Opcode, Program, Runtime};
@@ -1059,12 +1072,24 @@ pub mod tests {
         Program::from(SSZ_WITHDRAWALS_ELF)
     }
 
+    pub fn panic_program() -> Program {
+        Program::from(PANIC_ELF)
+    }
+
     #[test]
     fn test_simple_program_run() {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
         runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic() {
+        let program = panic_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run().unwrap();
     }
 
     #[test]

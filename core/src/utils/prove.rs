@@ -34,7 +34,7 @@ use crate::{
 const LOG_DEGREE_BOUND: usize = 31;
 
 #[derive(Error, Debug)]
-pub enum SP1CoreProvingError {
+pub enum SP1CoreProverError {
     #[error("failed to execute program: {0}")]
     ExecutionError(ExecutionError),
     #[error("io error: {0}")]
@@ -43,10 +43,10 @@ pub enum SP1CoreProvingError {
     SerializationError(bincode::Error),
 }
 
-pub fn prove_core<SC: StarkGenericConfig>(
+pub fn prove_simple<SC: StarkGenericConfig>(
     config: SC,
     runtime: Runtime,
-) -> Result<MachineProof<SC>, SP1CoreProvingError>
+) -> Result<MachineProof<SC>, SP1CoreProverError>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -78,11 +78,11 @@ where
     Ok(proof)
 }
 
-pub fn run_and_prove<SC: StarkGenericConfig + Send + Sync>(
+pub fn prove<SC: StarkGenericConfig + Send + Sync>(
     program: Program,
     stdin: &SP1Stdin,
     config: SC,
-) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProvingError>
+) -> Result<(MachineProof<SC>, Vec<u8>), SP1CoreProverError>
 where
     SC::Challenger: Clone,
     OpeningProof<SC>: Send + Sync,
@@ -107,7 +107,7 @@ where
     // If we don't need to batch, we can just run the program normally and prove it.
     if env::shard_batch_size() == 0 {
         // Execute the runtime and collect all the events..
-        runtime.run().map_err(SP1CoreProvingError::ExecutionError)?;
+        runtime.run().map_err(SP1CoreProverError::ExecutionError)?;
 
         // If debugging is enabled, we will also debug the constraints.
         #[cfg(feature = "debug")]
@@ -118,7 +118,7 @@ where
 
         // Generate the proof and return the proof and public values.
         let public_values = std::mem::take(&mut runtime.state.public_values_stream);
-        let proof = prove_core(machine.config().clone(), runtime)?;
+        let proof = prove_simple(machine.config().clone(), runtime)?;
         return Ok((proof, public_values));
     }
 
@@ -128,18 +128,18 @@ where
         // Execute the runtime until we reach a checkpoint.
         let (checkpoint, done) = runtime
             .execute_state()
-            .map_err(SP1CoreProvingError::ExecutionError)?;
+            .map_err(SP1CoreProverError::ExecutionError)?;
 
         // Save the checkpoint to a temp file.
-        let mut tempfile = tempfile::tempfile().map_err(SP1CoreProvingError::IoError)?;
+        let mut tempfile = tempfile::tempfile().map_err(SP1CoreProverError::IoError)?;
         let mut writer = std::io::BufWriter::new(&mut tempfile);
         bincode::serialize_into(&mut writer, &checkpoint)
-            .map_err(SP1CoreProvingError::SerializationError)?;
-        writer.flush().map_err(SP1CoreProvingError::IoError)?;
+            .map_err(SP1CoreProverError::SerializationError)?;
+        writer.flush().map_err(SP1CoreProverError::IoError)?;
         drop(writer);
         tempfile
             .seek(std::io::SeekFrom::Start(0))
-            .map_err(SP1CoreProvingError::IoError)?;
+            .map_err(SP1CoreProverError::IoError)?;
         checkpoints.push(tempfile);
 
         // If we've reached the final checkpoint, break out of the loop.
