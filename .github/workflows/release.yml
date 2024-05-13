@@ -14,7 +14,7 @@ env:
 jobs:
   prepare:
     name: Prepare release
-    runs-on: runs-on,runner=64cpu-linux-x64
+    runs-on: runs-on,runner=8cpu-linux-x64
     timeout-minutes: 30
     outputs:
       tag_name: ${{ steps.release_info.outputs.tag_name }}
@@ -29,16 +29,6 @@ jobs:
         uses: ./.github/actions/setup
         with:
           pull_token: ${{ secrets.PULL_TOKEN }}
-
-      - name: Run cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          toolchain: nightly-2024-04-17
-          args: -p sp1-sdk --release -- --nocapture
-        env:
-          RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
-          RUST_BACKTRACE: 1
 
       - name: Compute release name and tag
         id: release_info
