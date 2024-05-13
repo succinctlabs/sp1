@@ -1,17 +1,20 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, str::FromStr};
 
 use anyhow::Result;
+use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField};
 use sp1_core::{
     air::PublicValues,
     stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
+use sp1_recursion_gnark_ffi::Groth16Prover;
 
 use crate::{
-    CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
+    build::get_groth16_artifacts_dir, CoreSC, HashableKey, OuterSC, SP1CoreProofData,
+    SP1Groth16Proof, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
 };
 
 impl SP1Prover {
@@ -199,4 +202,46 @@ impl SP1Prover {
 
         Ok(())
     }
+
+    // /// Verify a Groth16 proof.
+    // pub fn verify_groth16(&self, proof: &SP1Groth16Proof, vk: &SP1VerifyingKey) -> Result<()> {
+    //     let prover = Groth16Prover::new();
+
+    //     let public_inputs = proof.proof.0.public_inputs;
+
+    //     let vkey_hash = BigUint::from_str(&public_inputs[0])?;
+    //     let committed_values_digest = BigUint::from_str(&public_inputs[1])?;
+
+    //     let build_dir = get_groth16_artifacts_dir();
+    //     // Verify that the public inputs are equivalent to the proof public values.
+    //     prover.verify(proof.proof.0, vk.hash_babybear(), proof.proof.0.build_dir);
+
+    //     let mut challenger = self.wrap_machine.config().challenger();
+    //     let machine_proof = MachineProof {
+    //         shard_proofs: vec![proof.proof.clone()],
+    //     };
+    //     self.wrap_machine
+    //         .verify(&self.wrap_vk, &machine_proof, &mut challenger)?;
+
+    //     // Validate public values
+    //     let public_values: &RecursionPublicValues<_> =
+    //         proof.proof.public_values.as_slice().borrow();
+
+    //     // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
+    //     if public_values.is_complete != BabyBear::one() {
+    //         return Err(MachineVerificationError::InvalidPublicValues(
+    //             "is_complete is not 1",
+    //         ));
+    //     }
+
+    //     // Verify that the proof is for the sp1 vkey we are expecting.
+    //     let vkey_hash = vk.hash_babybear();
+    //     if public_values.sp1_vk_digest != vkey_hash {
+    //         return Err(MachineVerificationError::InvalidPublicValues(
+    //             "sp1 vk hash mismatch",
+    //         ));
+    //     }
+
+    //     Ok(())
+    // }
 }
