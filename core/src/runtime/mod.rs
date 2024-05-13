@@ -912,6 +912,11 @@ impl Runtime {
         while !self.execute() {}
     }
 
+    pub fn dry_run(&mut self) {
+        self.emit_events = false;
+        while !self.execute() {}
+    }
+
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
     fn execute(&mut self) -> bool {
         // If it's the first cycle, initialize the program.
