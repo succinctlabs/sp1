@@ -116,7 +116,7 @@ where
         let p_a_vec: Vec<Polynomial<AB::Expr>> = a.iter().map(|x| (*x).into()).collect();
         let p_b_vec: Vec<Polynomial<AB::Expr>> = b.iter().map(|x| (*x).into()).collect();
         let p_result = self.result.into();
-        let p_carry = self.carry.into();
+        let p_carry = self.carry.into(); // klee-error
 
         let p_zero = Polynomial::<AB::Expr>::new(vec![AB::Expr::zero()]);
 
