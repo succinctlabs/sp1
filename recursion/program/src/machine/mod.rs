@@ -82,8 +82,7 @@ mod tests {
 
         let mut challenger = machine.config().challenger();
         let time = std::time::Instant::now();
-        let (proof, _) =
-            sp1_core::utils::prove(program, &SP1Stdin::new(), SC::default()).unwrap();
+        let (proof, _) = sp1_core::utils::prove(program, &SP1Stdin::new(), SC::default()).unwrap();
         machine.verify(&vk, &proof, &mut challenger).unwrap();
         tracing::info!("Proof generated successfully");
         let elapsed = time.elapsed();
