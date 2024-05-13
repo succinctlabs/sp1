@@ -25,7 +25,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use crate::memory::MemoryInitializeFinalizeEvent;
@@ -78,7 +77,7 @@ pub struct Runtime {
 
     pub(crate) unconstrained_state: ForkState,
 
-    pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
+    pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
 
     pub max_syscall_cycles: u32,
 
@@ -1009,7 +1008,7 @@ impl Runtime {
         }
     }
 
-    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
+    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
         self.syscall_map.get(&code)
     }
 }
