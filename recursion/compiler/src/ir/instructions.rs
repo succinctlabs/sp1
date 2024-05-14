@@ -8,44 +8,67 @@ use super::{Config, Ext, Felt, Usize, Var};
 #[derive(Debug, Clone)]
 pub enum DslIr<C: Config> {
     // Immediates.
-    // Assign immediate (2nd field) to a variable (1st field).
+    /// Assign immediate (2nd field) to a variable (1st field).
     ImmV(Var<C::N>, C::N),
-    // Assign field immediate (2nd field) to a field variable (1st field).
+    /// Assign field immediate (2nd field) to a field variable (1st field).
     ImmF(Felt<C::F>, C::F),
-    // Assign extension field immediate (2nd field) to an extension field variable (1st field).
+    /// Assign extension field immediate (2nd field) to an extension field variable (1st field).
     ImmE(Ext<C::F, C::EF>, C::EF),
 
     // Additions.
-    // Add two variables (2nd and 3rd field) and assign to a variable (1st field).
+    /// Add two variables (2nd and 3rd field) and assigns result to a variable (1st field).
     AddV(Var<C::N>, Var<C::N>, Var<C::N>),
-    // Add a variable (2nd field) and an immediate (3rd field) and assign to a variable (1st field).
+    /// Add a variable (2nd field) and an immediate (3rd field) and assigns result to a variable (1st field).
     AddVI(Var<C::N>, Var<C::N>, C::N),
-    // Add two field variables (2nd and 3rd field) and assign to a field variable (1st field).
+    /// Add two field variables (2nd and 3rd field) and assigns result to a field variable (1st field).
     AddF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    // Add a field variable (2nd field) and a field immediate (3rd field) and assign to a field variable (1st field).
+    /// Add a field variable (2nd field) and a field immediate (3rd field) and assigns result to a
+    /// field variable (1st field).
     AddFI(Felt<C::F>, Felt<C::F>, C::F),
-    // Add two extension field variables (2nd and 3rd field) and assign to a field extension variable (1st field).
+    /// Add two extension field variables (2nd and 3rd field) and assigns result to a field extension
+    /// variable (1st field).
     AddE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    // Add an extension field variable (2nd field) and an extension field immediate (3rd field) and assign to an extension field variable (1st field).
+    /// Add an extension field variable (2nd field) and an extension field immediate (3rd field) and
+    /// assigns result to an extension field variable (1st field).
     AddEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
-    // Add an extension field variable (2nd field) and a field variable (3rd field) and assign to an extension field element (1st field).
+    /// Add an extension field variable (2nd field) and a field variable (3rd field) and assigns result
+    /// to an extension field element (1st field).
     AddEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
-    // Add an extension field variable (2nd field) and a field immediate (3rd field) and assign to an extension field variable (1st field).
+    /// Add an extension field variable (2nd field) and a field immediate (3rd field) and assigns
+    /// result to an extension field variable (1st field).
     AddEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
-    // Add an field variable (2nd field) and an extension field immediate (3rd field) and assign to an extension field variable (1st field).
+    /// Add an field variable (2nd field) and an extension field immediate (3rd field) and assigns
+    /// result to an extension field variable (1st field).
     AddEFFI(Ext<C::F, C::EF>, Felt<C::F>, C::EF),
 
     // Subtractions.
+    /// Subtracts two variables (2nd and 3rd field) and assigns result to a variable (1st field).
     SubV(Var<C::N>, Var<C::N>, Var<C::N>),
+    /// Subtracts a variables (2nd field) and an immediate (3rd field) and assigns result to a variable (1st field).
     SubVI(Var<C::N>, Var<C::N>, C::N),
+    /// Subtracts an immediate (2nd field) and a variable (2nd field) and assigns result to a variable (1st field).
     SubVIN(Var<C::N>, C::N, Var<C::N>),
+    /// Subtracts two field variables (2nd and 3rd field) and assigns result to a field variable (1st field).
     SubF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    /// Subtracts a field variable (2nd field) and a field immediate and assigns result to a field variable (1st field).
     SubFI(Felt<C::F>, Felt<C::F>, C::F),
+    /// Subtracts a field immendate (2nd field) and a field variable (3rd field) and assigns result
+    /// to a field variable (1st field).
     SubFIN(Felt<C::F>, C::F, Felt<C::F>),
+    /// Subtracts two extension field variables (2nd and 3rd field) and assigns result to a extension
+    /// field variable (1st field).
     SubE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    /// Subtracts an extension field variable (2nd field) and an extension field immediate (2nd field) and assigns result
+    /// to an extension field variable (1st field).
     SubEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
+    /// Subtracts an extension field immediate (2nd field) and an extension field variable (2nd field) and assigns result
+    /// to an extension field variable (1st field).
     SubEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
+    /// Subtracts an extension field variable (2nd field) and a field immediate (2nd field) and assigns result to
+    /// an extension field variable (1st field).
     SubEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
+    /// Subtracts an extension field variable (2nd field) and a field variable (2nd field) and assigns result to
+    /// an extension field variable (1st field).
     SubEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
 
     // Multiplications.
