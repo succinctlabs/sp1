@@ -105,13 +105,13 @@ pub enum SyscallCode {
     BLS12381_DOUBLE = 0x00_00_01_1F,
 
     /// Executes the `SECP256R1_ADD` precompile.
-    SECP256R1_ADD = 0x00_01_01_10,
+    SECP256R1_ADD = 0x00_01_01_11,
 
     /// Executes the `SECP256R1_DOUBLE` precompile.
-    SECP256R1_DOUBLE = 0x00_00_01_11,
+    SECP256R1_DOUBLE = 0x00_00_01_12,
 
     /// Executes the `SECP256R1_DECOMPRESS` precompile.
-    SECP256R1_DECOMPRESS = 0x00_00_01_12,
+    SECP256R1_DECOMPRESS = 0x00_00_01_13,
 }
 
 impl SyscallCode {
