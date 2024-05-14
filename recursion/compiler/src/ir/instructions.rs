@@ -40,7 +40,7 @@ pub enum DslIr<C: Config> {
     SubV(Var<C::N>, Var<C::N>, Var<C::N>),
     /// Subtracts a variable and an immediate (var = var - imm).
     SubVI(Var<C::N>, Var<C::N>, C::N),
-    /// Subtracts an immediate and a variable (var = imm - var).    
+    /// Subtracts an immediate and a variable (var = imm - var).
     SubVIN(Var<C::N>, C::N, Var<C::N>),
     /// Subtracts two field elements (felt = felt - felt).
     SubF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
@@ -184,41 +184,59 @@ pub enum DslIr<C: Config> {
     StoreE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
 
     // Bits.
-    Num2BitsV(Array<C, Var<C::N>>, Usize<C::N>),
-    Num2BitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    /// Decompose a variable into size bits (bits = num2bits(var, size)). Should only be used when target is a gnark circuit.
     CircuitNum2BitsV(Var<C::N>, usize, Vec<Var<C::N>>),
+    /// Decompose a field element into bits (bits = num2bits(felt)). Should only be used when target is a gnark circuit.
     CircuitNum2BitsF(Felt<C::F>, Vec<Var<C::N>>),
-    ReverseBitsLen(Usize<C::N>, Usize<C::N>, Usize<C::N>),
 
     // Hashing.
+    /// Permutes an array of baby bear elements using Poseidon2 (output = p2_permute(array)).
     Poseidon2PermuteBabyBear(Array<C, Felt<C::F>>, Array<C, Felt<C::F>>),
+    /// Compresses two baby bear element arrays using Poseidon2 (output = p2_compress(array1, array2)).
     Poseidon2CompressBabyBear(
         Array<C, Felt<C::F>>,
         Array<C, Felt<C::F>>,
         Array<C, Felt<C::F>>,
     ),
+    /// Permutes an array of Bn254 elements using Poseidon2 (output = p2_permute(array)). Should only
+    /// be used when target is a gnark circuit.
     CircuitPoseidon2Permute([Var<C::N>; 3]),
 
     // Miscellaneous instructions.
+    /// Decompose hint operation of a usize into an array. (output = num2bits(usize)).
     HintBitsU(Array<C, Var<C::N>>, Usize<C::N>),
+    /// Decompose hint operation of a variable into an array. (output = num2bits(var)).
     HintBitsV(Array<C, Var<C::N>>, Var<C::N>),
+    /// Decompose hint operation of a field element into an array. (output = num2bits(felt)).
     HintBitsF(Array<C, Var<C::N>>, Felt<C::F>),
+    /// Prints a variable.
     PrintV(Var<C::N>),
+    /// Prints a field element.
     PrintF(Felt<C::F>),
+    /// Prints an extension field element.
     PrintE(Ext<C::F, C::EF>),
+    /// Throws an error.
     Error(),
-    TwoAdicGenerator(Felt<C::F>, Usize<C::N>),
-    ExpUsizeV(Var<C::N>, Var<C::N>, Usize<C::N>),
-    ExpUsizeF(Felt<C::F>, Felt<C::F>, Usize<C::N>),
+    /// Converts an ext to a slice of felts.
     Ext2Felt(Array<C, Felt<C::F>>, Ext<C::F, C::EF>),
+
+    /// Hint the length of the next array.
     HintLen(Var<C::N>),
+    /// Hint an array of variables.
     HintVars(Array<C, Var<C::N>>),
+    /// Hint an array of field elements.
     HintFelts(Array<C, Felt<C::F>>),
+    /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
+    /// Witness a variable. Should only be used in the gnark circuit.
     WitnessVar(Var<C::N>, u32),
+    /// Witness a field element. Should only be used in the gnark circuit.
     WitnessFelt(Felt<C::F>, u32),
+    /// Witness an extension field element. Should only be used in the gnark circuit.
     WitnessExt(Ext<C::F, C::EF>, u32),
+    /// Label a field element as the ith public input.
     Commit(Felt<C::F>, Var<C::N>),
+    /// Operation to halt the program. Should be the last instruction in the program.
     Halt,
 
     // Public inputs for circuits.
@@ -227,6 +245,7 @@ pub enum DslIr<C: Config> {
 
     // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
+    /// Does a
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
     CircuitSelectE(
