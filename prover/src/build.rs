@@ -53,6 +53,7 @@ pub fn groth16_artifacts_dir() -> PathBuf {
         .unwrap()
         .join(".sp1")
         .join("circuits")
+        .join("groth16")
         .join(GROTH16_ARTIFACTS_COMMIT)
 }
 
@@ -62,6 +63,7 @@ pub fn groth16_artifacts_dev_dir() -> PathBuf {
         .unwrap()
         .join(".sp1")
         .join("circuits")
+        .join("groth16")
         .join("dev")
 }
 
