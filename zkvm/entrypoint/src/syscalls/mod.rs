@@ -109,10 +109,10 @@ pub const BLS12381_ADD: u32 = 0x00_01_01_1E;
 pub const BLS12381_DOUBLE: u32 = 0x00_00_01_1F;
 
 /// Executes the `SECP256R1_ADD` precompile.
-pub const SECP256R1_ADD: u32 = 0x00_01_01_10;
+pub const SECP256R1_ADD: u32 = 0x00_01_01_11;
 
 /// Executes the `SECP256R1_DOUBLE` precompile.
-pub const SECP256R1_DOUBLE: u32 = 0x00_00_01_11;
+pub const SECP256R1_DOUBLE: u32 = 0x00_00_01_12;
 
 /// Executes the `SECP256R1_DECOMPRESS` precompile.
-pub const SECP256R1_DECOMPRESS: u32 = 0x00_00_01_12;
+pub const SECP256R1_DECOMPRESS: u32 = 0x00_00_01_13;

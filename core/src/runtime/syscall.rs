@@ -142,9 +142,9 @@ impl SyscallCode {
             0x00_00_00_F1 => SyscallCode::HINT_READ,
             0x00_00_01_1D => SyscallCode::UINT256_MUL,
             0x00_00_01_1C => SyscallCode::BLS12381_DECOMPRESS,
-            0x00_01_01_10 => SyscallCode::SECP256R1_ADD,
-            0x00_00_01_11 => SyscallCode::SECP256R1_DOUBLE,
-            0x00_00_01_12 => SyscallCode::SECP256R1_DECOMPRESS,
+            0x00_01_01_11 => SyscallCode::SECP256R1_ADD,
+            0x00_00_01_12 => SyscallCode::SECP256R1_DOUBLE,
+            0x00_00_01_13 => SyscallCode::SECP256R1_DECOMPRESS,
             _ => panic!("invalid syscall number: {}", value),
         }
     }
