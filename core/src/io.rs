@@ -2,6 +2,7 @@ use crate::{
     stark::{ShardProof, StarkVerifyingKey},
     utils::{BabyBearPoseidon2, Buffer},
 };
+use k256::sha2::{Digest, Sha256};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
@@ -126,6 +127,20 @@ impl SP1PublicValues {
     /// Write a slice of bytes to the buffer.
     pub fn write_slice(&mut self, slice: &[u8]) {
         self.buffer.write_slice(slice);
+    }
+
+    /// Hash the public values to get a Bn254 value.
+    pub fn hash_public_values(&self) -> Bn254Fr {
+        let mut hasher = Sha256::new();
+        hasher.update(self.buffer.data.as_slice());
+        let hash_result = hasher.finalize();
+
+        let mut hash = hash_result.to_vec();
+
+        // Mask the top 3 bits.
+        hash[0] &= 0b00111111;
+
+        BabyBearPoseidon2::from_bytes(hasher.finalize().as_slice()).unwrap()
     }
 }
 
