@@ -137,15 +137,16 @@ impl SP1PublicValues {
     /// return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     /// ```
     pub fn hash_public_values(&self) -> BigUint {
+        // Hash the public values.
         let mut hasher = Sha256::new();
         hasher.update(self.buffer.data.as_slice());
         let hash_result = hasher.finalize();
-
         let mut hash = hash_result.to_vec();
 
         // Mask the top 3 bits.
         hash[0] &= 0b00011111;
 
+        // Return the masked hash as a BigUint.
         BigUint::from_bytes_be(&hash)
     }
 }
