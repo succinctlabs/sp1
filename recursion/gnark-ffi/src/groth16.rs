@@ -175,7 +175,7 @@ impl Groth16Prover {
 
     pub fn verify(
         &self,
-        proof: Groth16Proof,
+        proof: &Groth16Proof,
         vkey_hash: &BigUint,
         commited_values_digest: &BigUint,
         build_dir: &PathBuf,
@@ -195,7 +195,7 @@ impl Groth16Prover {
                 "--data".to_string(),
                 cwd.join(build_dir).to_str().unwrap().to_string(),
                 "--proof".to_string(),
-                proof.raw_proof,
+                proof.raw_proof.clone(),
                 "--vkey-hash".to_string(),
                 vkey_hash.to_string(),
                 "--commited-values-digest".to_string(),

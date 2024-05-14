@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -54,8 +53,6 @@ var verifyCmd = &cobra.Command{
 		vk := groth16.NewVerifyingKey(ecc.BN254)
 		vk.ReadFrom(vkFile)
 
-		fmt.Println("(Verify Gnark Proof): Vk", vk)
-
 		// Compute the public witness.
 		circuit := sp1.Circuit{
 			Vars:                 []frontend.Variable{},
@@ -72,8 +69,6 @@ var verifyCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
-
-		fmt.Println("(Verify Gnark Proof) Public Witness: ", publicWitness)
 
 		// Verify proof.
 		err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))

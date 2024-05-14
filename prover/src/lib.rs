@@ -628,7 +628,7 @@ impl SP1Prover {
 
         // Verify the proof.
         prover.verify(
-            proof.clone(),
+            &proof,
             &vkey_digest.as_canonical_biguint(),
             &commited_values_digest.as_canonical_biguint(),
             build_dir,
@@ -680,8 +680,9 @@ mod tests {
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
-    /// Add `SP1_DEV`=1 and `FRI_QUERIES`=1 to your environment for faster execution. Should only
-    /// take a few minutes on a Mac M2.
+    // Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
+    // on a Mac M2. Note: This test always re-builds the groth16 artifacts, so setting SP1_DEV is
+    // not needed.
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {

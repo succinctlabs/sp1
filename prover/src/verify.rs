@@ -211,28 +211,13 @@ impl SP1Prover {
     ) -> Result<()> {
         let prover = Groth16Prover::new();
 
-        let public_inputs = &proof.public_inputs;
+        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
+        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
 
-        println!("public inputs: {:?}", public_inputs);
+        // Verify the proof with the corresponding public inputs.
+        prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
-        let vkey_hash = BigUint::from_str(&public_inputs[0])?;
-        println!("vkey hash: {:?}", vkey_hash);
-
-        let committed_values_digest = BigUint::from_str(&public_inputs[1])?;
-        println!("committed values digest: {:?}", committed_values_digest);
-
-        // Verify that the vkey hash of the verifying key matches the vkey hash in the proof.
-        // TODO: How do we guarantee this is the same VK as the one read by the prover?
-        // TODO: Specifically, the user could read the VK from a different artifacts directory than
-        // the one where the proof was created.
-        prover.verify(
-            proof.clone(),
-            &vkey_hash,
-            &committed_values_digest,
-            build_dir,
-        );
-
-        // Verify that the vk hash of the SP1VerifyingKey matches the vk hash of the Groth16 proof.
+        // Verify that the vk hash of the SP1VerifyingKey matches the vk hash specified in the proof.
         let vk_hash = vk.hash_bn254().as_canonical_biguint();
         if vk_hash != vkey_hash {
             return Err(anyhow::Error::msg("vk hash mismatch"));
