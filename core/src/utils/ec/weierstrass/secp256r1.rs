@@ -130,7 +130,7 @@ mod tests {
     use rand::thread_rng;
 
     #[test]
-    fn test_weierstrass_biguint_scalar_mul() {
+    fn test_weierstrass_biguint_scalar_mul_p256() {
         assert_eq!(
             biguint_from_limbs(Secp256r1BaseField::MODULUS),
             Secp256r1BaseField::modulus()
