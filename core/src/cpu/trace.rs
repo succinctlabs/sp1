@@ -662,7 +662,7 @@ mod tests {
     fn generate_trace_simple_program() {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         let chip = CpuChip::default();
         let trace: RowMajorMatrix<BabyBear> =
             chip.generate_trace(&runtime.record, &mut ExecutionRecord::default());

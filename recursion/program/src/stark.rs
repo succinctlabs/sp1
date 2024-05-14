@@ -447,7 +447,7 @@ pub(crate) mod tests {
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
         let (proof, _) =
-            sp1_core::utils::run_and_prove(Program::from(elf), &SP1Stdin::new(), SC::default());
+            sp1_core::utils::prove(Program::from(elf), &SP1Stdin::new(), SC::default()).unwrap();
         let proofs = proof.shard_proofs;
         println!("Proof generated successfully");
 
