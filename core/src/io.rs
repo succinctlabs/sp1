@@ -146,6 +146,8 @@ impl SP1PublicValues {
         // Mask the top 3 bits.
         hash[0] &= 0b00011111;
 
+        println!("{:?}", hex::encode(&hash));
+
         BigUint::from_bytes_be(&hash)
     }
 }
@@ -191,5 +193,25 @@ pub mod proof_serde {
         } else {
             MachineProof::<SC>::deserialize(deserializer)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_public_values() {
+        let random_hex = "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
+        let random_bytes = hex::decode(random_hex).unwrap();
+
+        let expected_hash = "1ce987d0a7fcc2636fe87e69295ba12b1cc46c256b369ae7401c51b805ee91bd";
+        let expected_hash_biguint = BigUint::from_bytes_be(&hex::decode(expected_hash).unwrap());
+
+        let mut public_values = SP1PublicValues::new();
+        public_values.write_slice(&random_bytes);
+        let hash = public_values.hash_public_values();
+
+        assert_eq!(hash, expected_hash_biguint);
     }
 }
