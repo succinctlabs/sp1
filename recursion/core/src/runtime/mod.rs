@@ -670,7 +670,7 @@ where
                     // Get the src value.
                     let num = b_val[0].as_canonical_u32();
 
-                    // Decompose the num into bits.
+                    // Decompose the num into LE bits.
                     let bits = (0..NUM_BITS).map(|i| (num >> i) & 1).collect::<Vec<_>>();
                     // Write the bits to the array at dst.
                     for (i, bit) in bits.iter().enumerate() {
