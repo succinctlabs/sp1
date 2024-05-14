@@ -53,10 +53,10 @@ pub const SHA_EXTEND: u32 = 0x00_30_01_05;
 pub const SHA_COMPRESS: u32 = 0x00_01_01_06;
 
 /// Executes `SHA512_COMPRESS`.
-pub const SHA512_COMPRESS: u32 = 0x00_30_01_14;
+pub const SHA512_COMPRESS: u32 = 0x00_01_01_14;
 
 /// Executes `SHA512_EXTEND`.
-pub const SHA512_EXTEND: u32 = 0x00_01_01_11;
+pub const SHA512_EXTEND: u32 = 0x00_30_01_11;
 
 /// Executes `ED_ADD`.
 pub const ED_ADD: u32 = 0x00_01_01_07;
