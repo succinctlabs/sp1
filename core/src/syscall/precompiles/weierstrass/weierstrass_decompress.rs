@@ -394,7 +394,6 @@ mod tests {
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
             let compressed = public_key.to_sec1_bytes();
-
             let inputs = SP1Stdin::from(&compressed);
 
             let mut public_values =
@@ -418,14 +417,19 @@ mod tests {
             let public_key = secret_key.public_key();
             let encoded = public_key.to_encoded_point(false);
             let decompressed = encoded.as_bytes();
-            let compressed = public_key.to_sec1_bytes();
-
+            println!("decompressed: {:?}", decompressed);
+            // let compressed = public_key.to_sec1_bytes();
+            let compressed_enc = public_key.to_encoded_point(true);
+            let compressed = compressed_enc.to_bytes();
+            println!("compressed: {:?}", compressed);
             let inputs = SP1Stdin::from(&compressed);
 
             let mut public_values =
                 run_test_io(Program::from(SECP256R1_DECOMPRESS_ELF), inputs).unwrap();
+
             let mut result = [0; 65];
             public_values.read_slice(&mut result);
+            // println!("decompressed: {:?}", decompressed.clone());
             assert_eq!(result, decompressed);
         }
     }

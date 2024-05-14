@@ -12,6 +12,7 @@ bincode = "1.3.3"
 cfg-if = "1.0.0"
 getrandom = { version = "0.2.15", features = ["custom"] }
 k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
+p256 = { version = "0.13.2", features = ["ecdsa", "std", "bits"] }
 once_cell = "1.19.0"
 rand = "0.8.5"
 serde = { version = "1.0.201", features = ["derive"] }

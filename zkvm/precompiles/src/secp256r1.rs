@@ -31,7 +31,6 @@ impl CurveOperations<NUM_WORDS> for Secp256r1Operations {
         1796723186, 935285237, 3417718888, 1798397646, 734933847, 2081398294, 2397563722,
         4263149467, 1340293858,
     ];
-
     fn add_assign(limbs: &mut [u32; NUM_WORDS], other: &[u32; NUM_WORDS]) {
         unsafe {
             syscall_secp256r1_add(limbs.as_mut_ptr(), other.as_ptr());

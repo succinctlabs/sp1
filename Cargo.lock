@@ -4684,6 +4684,7 @@ dependencies = [
  "k256",
  "libm",
  "once_cell",
+ "p256",
  "p3-baby-bear",
  "p3-field",
  "rand",

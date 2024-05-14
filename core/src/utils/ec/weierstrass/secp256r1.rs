@@ -86,12 +86,12 @@ impl WeierstrassParameters for Secp256r1Parameters {
         ])
     }
 
-    fn a_int() -> BigUint {
+       fn a_int() -> BigUint {
         BigUint::from_slice(&[
-            0xFC632551, 0xF3B9CAC2, 0xA7179E84, 0xBCE6FAAD, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000,
+            0xFFFFFFFC, 0xFFFFFFFF, 0xFFFFFFFF, 0x00000000, 0x00000000, 0x00000000, 0x00000001,
             0xFFFFFFFF,
         ])
-    }
+    } 
 
     fn b_int() -> BigUint {
         BigUint::from_slice(&[

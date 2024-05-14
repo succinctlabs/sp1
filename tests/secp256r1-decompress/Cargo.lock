@@ -655,6 +655,7 @@ dependencies = [
  "k256",
  "libm",
  "once_cell",
+ "p256",
  "rand",
  "serde",
  "sha2",
