@@ -8,88 +8,93 @@ use super::{Config, Ext, Felt, Usize, Var};
 #[derive(Debug, Clone)]
 pub enum DslIr<C: Config> {
     // Immediates.
-    /// Assign immediate (2nd field) to a variable (1st field).
+    /// Assign immediate to a variable (var = imm).
     ImmV(Var<C::N>, C::N),
-    /// Assign field immediate (2nd field) to a field variable (1st field).
+    /// Assign field immediate to a field element (felt = field imm).
     ImmF(Felt<C::F>, C::F),
-    /// Assign extension field immediate (2nd field) to an extension field variable (1st field).
+    /// Assign ext field immediate to an extension field element (ext = ext field imm).
     ImmE(Ext<C::F, C::EF>, C::EF),
 
     // Additions.
-    /// Add two variables (2nd and 3rd field) and assigns result to a variable (1st field).
+    /// Add two variables (var = var + var).
     AddV(Var<C::N>, Var<C::N>, Var<C::N>),
-    /// Add a variable (2nd field) and an immediate (3rd field) and assigns result to a variable (1st field).
+    /// Add a variable and an immediate (var = var + imm).
     AddVI(Var<C::N>, Var<C::N>, C::N),
-    /// Add two field variables (2nd and 3rd field) and assigns result to a field variable (1st field).
+    /// Add two field elements (felt = felt + felt).
     AddF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    /// Add a field variable (2nd field) and a field immediate (3rd field) and assigns result to a
-    /// field variable (1st field).
+    /// Add a field element and a field immediate (felt = felt + field imm).
     AddFI(Felt<C::F>, Felt<C::F>, C::F),
-    /// Add two extension field variables (2nd and 3rd field) and assigns result to a field extension
-    /// variable (1st field).
+    /// Add two extension field elements (ext = ext + ext).
     AddE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    /// Add an extension field variable (2nd field) and an extension field immediate (3rd field) and
-    /// assigns result to an extension field variable (1st field).
+    /// Add an extension field element and an ext field immediate (ext = ext + ext field imm).
     AddEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
-    /// Add an extension field variable (2nd field) and a field variable (3rd field) and assigns result
-    /// to an extension field element (1st field).
+    /// Add an extension field element and a field element (ext = ext + felt).
     AddEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
-    /// Add an extension field variable (2nd field) and a field immediate (3rd field) and assigns
-    /// result to an extension field variable (1st field).
+    /// Add an extension field element and a field immediate (ext = ext + field imm).
     AddEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
-    /// Add an field variable (2nd field) and an extension field immediate (3rd field) and assigns
-    /// result to an extension field variable (1st field).
+    /// Add a field element and an ext field immediate (ext = felt + ext field imm).
     AddEFFI(Ext<C::F, C::EF>, Felt<C::F>, C::EF),
 
     // Subtractions.
-    /// Subtracts two variables (2nd and 3rd field) and assigns result to a variable (1st field).
+    /// Subtracts two variables (var = var - var).
     SubV(Var<C::N>, Var<C::N>, Var<C::N>),
-    /// Subtracts a variables (2nd field) and an immediate (3rd field) and assigns result to a variable (1st field).
+    /// Subtracts a variable and an immediate (var = var - imm).
     SubVI(Var<C::N>, Var<C::N>, C::N),
-    /// Subtracts an immediate (2nd field) and a variable (2nd field) and assigns result to a variable (1st field).
+    /// Subtracts an immediate and a variable (var = imm - var).    
     SubVIN(Var<C::N>, C::N, Var<C::N>),
-    /// Subtracts two field variables (2nd and 3rd field) and assigns result to a field variable (1st field).
+    /// Subtracts two field elements (felt = felt - felt).
     SubF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
-    /// Subtracts a field variable (2nd field) and a field immediate and assigns result to a field variable (1st field).
+    /// Subtracts a field element and a field immediate (felt = felt - field imm).
     SubFI(Felt<C::F>, Felt<C::F>, C::F),
-    /// Subtracts a field immendate (2nd field) and a field variable (3rd field) and assigns result
-    /// to a field variable (1st field).
+    /// Subtracts a field immediate and a field element (felt = field imm - felt).
     SubFIN(Felt<C::F>, C::F, Felt<C::F>),
-    /// Subtracts two extension field variables (2nd and 3rd field) and assigns result to a extension
-    /// field variable (1st field).
+    /// Subtracts two extension field elements (ext = ext - ext).
     SubE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
-    /// Subtracts an extension field variable (2nd field) and an extension field immediate (2nd field) and assigns result
-    /// to an extension field variable (1st field).
+    /// Subtrancts an extension field element and an extension field immediate (ext = ext - ext field imm).
     SubEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
-    /// Subtracts an extension field immediate (2nd field) and an extension field variable (2nd field) and assigns result
-    /// to an extension field variable (1st field).
+    /// Subtracts an extension field immediate and an extension field element (ext = ext field imm - ext).
     SubEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
-    /// Subtracts an extension field variable (2nd field) and a field immediate (2nd field) and assigns result to
-    /// an extension field variable (1st field).
+    /// Subtracts an extension field element and a field immediate (ext = ext - field imm).
     SubEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
-    /// Subtracts an extension field variable (2nd field) and a field variable (2nd field) and assigns result to
-    /// an extension field variable (1st field).
+    /// Subtracts an extension field element and a field element (ext = ext - felt).
     SubEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
 
     // Multiplications.
+    /// Multiplies two variables (var = var * var).
     MulV(Var<C::N>, Var<C::N>, Var<C::N>),
+    /// Multiplies a variable and an immediate (var = var * imm).
     MulVI(Var<C::N>, Var<C::N>, C::N),
+    /// Multiplies two field elements (felt = felt * felt).
     MulF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    /// Multiplies a field element and a field immediate (felt = felt * field imm).
     MulFI(Felt<C::F>, Felt<C::F>, C::F),
+    /// Multiplies two extension field elements (ext = ext * ext).
     MulE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    /// Multiplies an extension field element and an extension field immediate (ext = ext * ext field imm).
     MulEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
+    /// Multiplies an extension field element and a field immediate (ext = ext * field imm).
     MulEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
+    /// Multiplies an extension field element and a field element (ext = ext * felt).
     MulEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
 
     // Divisions.
+    /// Divides two variables (var = var / var).
     DivF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    /// Divides a field element and a field immediate (felt = felt / field imm).
     DivFI(Felt<C::F>, Felt<C::F>, C::F),
+    /// Divides a field immediate and a field element (felt = field imm / felt).
     DivFIN(Felt<C::F>, C::F, Felt<C::F>),
+    /// Divides two extension field elements (ext = ext / ext).
     DivE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    /// Divides an extension field element and an extension field immediate (ext = ext / ext field imm).
     DivEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
+    /// Divides and extension field immediate and an extension field element (ext = ext field imm / ext).
     DivEIN(Ext<C::F, C::EF>, C::EF, Ext<C::F, C::EF>),
+    /// Divides an extension field element and a field immediate (ext = ext / field imm).
     DivEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
+    /// Divides a field immediate and an extension field element (ext = field imm / ext).
     DivEFIN(Ext<C::F, C::EF>, C::F, Ext<C::F, C::EF>),
+    /// Divides an extension field element and a field element (ext = ext / felt).
     DivEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
 
     // Negations.
@@ -149,9 +154,9 @@ pub enum DslIr<C: Config> {
     LoadE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
     /// Store variable at address
     StoreV(Var<C::N>, Ptr<C::N>, MemIndex<C::N>),
-    /// Store field element at adress
+    /// Store field element at address
     StoreF(Felt<C::F>, Ptr<C::N>, MemIndex<C::N>),
-    /// Store extension field at adress
+    /// Store extension field at address
     StoreE(Ext<C::F, C::EF>, Ptr<C::N>, MemIndex<C::N>),
 
     // Bits.
