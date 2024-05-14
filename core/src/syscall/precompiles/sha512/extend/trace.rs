@@ -33,7 +33,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512ExtendChip {
             let shard = event.shard;
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA_EXTEND_COLS];
-                let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut Sha512ExtendCols<F> = row.as_mut_slice().borrow_mut();
                 cols.is_real = F::one();
                 cols.populate_flags(j);
                 cols.shard = F::from_canonical_u32(event.shard);
@@ -113,7 +113,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512ExtendChip {
         }
         for i in nb_rows..padded_nb_rows {
             let mut row = [F::zero(); NUM_SHA512_EXTEND_COLS];
-            let cols: &mut ShaExtendCols<F> = row.as_mut_slice().borrow_mut();
+            let cols: &mut Sha512ExtendCols<F> = row.as_mut_slice().borrow_mut();
             cols.populate_flags(i);
             rows.push(row);
         }
