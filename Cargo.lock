@@ -4606,6 +4606,7 @@ dependencies = [
  "hex",
  "indicatif",
  "log",
+ "num-bigint 0.4.5",
  "p3-commit",
  "p3-field",
  "p3-matrix",

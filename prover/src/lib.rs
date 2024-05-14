@@ -741,6 +741,8 @@ mod tests {
         let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
         println!("{:?}", groth16_proof);
 
+        prover.verify_groth16(&groth16_proof, &vk)?;
+
         Ok(())
     }
 

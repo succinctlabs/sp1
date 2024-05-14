@@ -6,7 +6,6 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::{
     air::PublicValues,
-    io::SP1PublicValues,
     stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
@@ -205,18 +204,18 @@ impl SP1Prover {
     }
 
     /// Verify a Groth16 proof.
-    pub fn verify_groth16(
-        &self,
-        proof: &Groth16Proof,
-        public_values: &SP1PublicValues,
-        vk: &SP1VerifyingKey,
-    ) -> Result<()> {
+    pub fn verify_groth16(&self, proof: &Groth16Proof, vk: &SP1VerifyingKey) -> Result<()> {
         let prover = Groth16Prover::new();
 
         let public_inputs = &proof.public_inputs;
 
+        println!("public inputs: {:?}", public_inputs);
+
         let vkey_hash = BigUint::from_str(&public_inputs[0])?;
+        println!("vkey hash: {:?}", vkey_hash);
+
         let committed_values_digest = BigUint::from_str(&public_inputs[1])?;
+        println!("committed values digest: {:?}", committed_values_digest);
 
         let build_dir = groth16_artifacts_dir();
 
@@ -230,13 +229,6 @@ impl SP1Prover {
             &committed_values_digest,
             build_dir,
         );
-
-        // Verify that the public values of the SP1ProofWithMetadata match the committed values
-        // of the Groth16 proof.
-        let pv_biguint = public_values.hash();
-        if pv_biguint != committed_values_digest {
-            return Err(anyhow::Error::msg("public values hash mismatch"));
-        }
 
         // Verify that the vk hash of the SP1VerifyingKey matches the vk hash of the Groth16 proof.
         let vk_hash = vk.hash_bn254().as_canonical_biguint();

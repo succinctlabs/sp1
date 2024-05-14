@@ -2,11 +2,14 @@ mod local;
 mod mock;
 mod network;
 
+use std::str::FromStr;
+
 use crate::{SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof};
 use anyhow::Result;
 pub use local::LocalProver;
 pub use mock::MockProver;
 pub use network::NetworkProver;
+use num_bigint::BigUint;
 use sp1_core::stark::MachineVerificationError;
 use sp1_prover::CoreSC;
 use sp1_prover::SP1CoreProofData;
@@ -59,7 +62,17 @@ pub trait Prover: Send + Sync {
     /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
-        sp1_prover.verify_groth16(&proof.proof, &proof.public_values, vkey)?;
+        sp1_prover.verify_groth16(&proof.proof, vkey)?;
+
+        // Verify that the public values of the SP1ProofWithMetadata match the committed values
+        // of the Groth16 proof.
+        let pv_biguint = proof.public_values.hash();
+        let committed_values_digest = BigUint::from_str(&proof.proof.public_inputs[1])?;
+
+        if pv_biguint != committed_values_digest {
+            return Err(anyhow::Error::msg("public values hash mismatch"));
+        }
+
         Ok(())
     }
 
