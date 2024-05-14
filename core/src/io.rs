@@ -3,6 +3,7 @@ use crate::{
     utils::{BabyBearPoseidon2, Buffer},
 };
 use k256::sha2::{Digest, Sha256};
+use num_bigint::BigUint;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 /// Standard input for the prover.
@@ -129,8 +130,13 @@ impl SP1PublicValues {
         self.buffer.write_slice(slice);
     }
 
-    /// Hash the public values to get a Bn254 value.
-    pub fn hash_public_values(&self) -> Bn254Fr {
+    /// Hash the public values, mask the top 3 bits and return a BigUint.
+    /// Matches the implementation of hashPublicValues in the Solidity verifier.
+    ///
+    /// ```
+    /// return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
+    /// ```
+    pub fn hash_public_values(&self) -> BigUint {
         let mut hasher = Sha256::new();
         hasher.update(self.buffer.data.as_slice());
         let hash_result = hasher.finalize();
@@ -138,9 +144,9 @@ impl SP1PublicValues {
         let mut hash = hash_result.to_vec();
 
         // Mask the top 3 bits.
-        hash[0] &= 0b00111111;
+        hash[0] &= 0b00011111;
 
-        BabyBearPoseidon2::from_bytes(hasher.finalize().as_slice()).unwrap()
+        BigUint::from_bytes_be(&hash)
     }
 }
 
