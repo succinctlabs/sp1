@@ -15,18 +15,6 @@ pub const GROTH16_ARTIFACTS_COMMIT: &str = "1eee43b6";
 /// This function will download the latest groth16 artifacts from the S3 bucket and extract them to
 /// the directory specified by [groth16_artifacts_dir()].
 pub fn install_groth16_artifacts(build_dir: PathBuf) {
-    // If build directory already exists, skip the download.
-    if build_dir.exists() {
-        println!("[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
-        return;
-    } else {
-        println!(
-            "[sp1] groth16 artifacts for commit {} do not exist at {}. downloading...",
-            GROTH16_ARTIFACTS_COMMIT,
-            build_dir.display()
-        );
-    }
-
     // Create the build directory.
     std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
 

@@ -9,12 +9,63 @@ pub use sp1_recursion_circuit::witness::Witnessable;
 pub use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_compiler::{config::OuterConfig, constraints::Constraint};
 use sp1_recursion_core::air::RecursionPublicValues;
-use sp1_recursion_core::stark::utils::sp1_dev_mode;
+pub use sp1_recursion_core::stark::utils::sp1_dev_mode;
 use sp1_recursion_gnark_ffi::Groth16Prover;
 
 use crate::install::{install_groth16_artifacts, GROTH16_ARTIFACTS_COMMIT};
 use crate::utils::{babybear_bytes_to_bn254, babybears_to_bn254, words_to_bytes};
 use crate::{OuterSC, SP1Prover};
+
+/// Tries to install the Groth16 artifacts if they are not already installed.
+pub fn try_install_groth16_artifacts() -> PathBuf {
+    let build_dir = groth16_artifacts_dir();
+
+    if build_dir.exists() {
+        println!("[sp1] groth16 artifacts already seem to exist at {}. if you want to re-download them, delete the directory", build_dir.display());
+    } else {
+        println!(
+            "[sp1] groth16 artifacts for commit {} do not exist at {}. downloading...",
+            GROTH16_ARTIFACTS_COMMIT,
+            build_dir.display()
+        );
+        install_groth16_artifacts(build_dir.clone());
+    }
+    build_dir
+}
+
+/// Tries to build the Groth16 artifacts inside the development directory.
+///
+/// TODO: Maybe add some additional logic here to handle rebuilding the artifacts if they are
+/// already built.
+pub fn try_build_groth16_artifacts_dev(
+    template_vk: &StarkVerifyingKey<OuterSC>,
+    template_proof: &ShardProof<OuterSC>,
+) -> PathBuf {
+    let build_dir = groth16_artifacts_dev_dir();
+    println!("[sp1] building groth16 artifacts in development mode");
+    build_groth16_artifacts(template_vk, template_proof, &build_dir);
+    build_dir
+}
+
+/// Gets the directory where the Groth16 artifacts are installed.
+pub fn groth16_artifacts_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap()
+        .join(".sp1")
+        .join("circuits")
+        .join("groth16")
+        .join(GROTH16_ARTIFACTS_COMMIT)
+}
+
+/// Gets the directory where the Groth16 artifacts are installed in development mode.
+pub fn groth16_artifacts_dev_dir() -> PathBuf {
+    dirs::home_dir()
+        .unwrap()
+        .join(".sp1")
+        .join("circuits")
+        .join("groth16")
+        .join("dev")
+}
 
 /// Build the groth16 artifacts to the given directory for the given verification key and template
 /// proof.
@@ -23,8 +74,10 @@ pub fn build_groth16_artifacts(
     template_proof: &ShardProof<OuterSC>,
     build_dir: impl Into<PathBuf>,
 ) {
+    let build_dir = build_dir.into();
+    std::fs::create_dir_all(&build_dir).expect("failed to create build directory");
     let (constraints, witness) = build_constraints_and_witness(template_vk, template_proof);
-    Groth16Prover::build(constraints, witness, build_dir.into());
+    Groth16Prover::build(constraints, witness, build_dir);
 }
 
 /// Builds the groth16 artifacts to the given directory.
@@ -87,38 +140,4 @@ pub fn dummy_proof() -> (StarkVerifyingKey<OuterSC>, ShardProof<OuterSC>) {
     let wrapped_proof = prover.wrap_bn254(shrink_proof).unwrap();
 
     (prover.wrap_vk, wrapped_proof.proof)
-}
-
-/// Gets the artifacts directory for Groth16 based on the current environment variables.
-///
-/// - If `SP1_DEV` is enabled, we will use a smaller version of the final
-/// circuit and rebuild it for every proof. This is useful for development and testing purposes, as
-/// it allows us to test the end-to-end proving without having to wait for the circuit to compile or
-/// download.
-///
-/// - Otherwise, assume this is an official release and download the artifacts from the official
-/// download url.
-pub fn get_groth16_artifacts_dir() -> PathBuf {
-    if sp1_dev_mode() {
-        let build_dir = dirs::home_dir()
-            .unwrap()
-            .join(".sp1")
-            .join("circuits")
-            .join("dev");
-        if let Err(err) = std::fs::create_dir_all(&build_dir) {
-            panic!(
-                "failed to create build directory for groth16 artifacts: {}",
-                err
-            );
-        }
-        build_dir
-    } else {
-        let build_dir = dirs::home_dir()
-            .unwrap()
-            .join(".sp1")
-            .join("circuits")
-            .join(GROTH16_ARTIFACTS_COMMIT);
-        install_groth16_artifacts(build_dir.clone());
-        build_dir
-    }
 }

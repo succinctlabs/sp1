@@ -25,7 +25,6 @@ use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufWriter;
 use std::io::Write;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use thiserror::Error;
@@ -76,7 +75,7 @@ pub struct Runtime {
 
     pub(crate) unconstrained_state: ForkState,
 
-    pub syscall_map: HashMap<SyscallCode, Rc<dyn Syscall>>,
+    pub syscall_map: HashMap<SyscallCode, Arc<dyn Syscall>>,
 
     pub max_syscall_cycles: u32,
 
@@ -132,7 +131,7 @@ impl Runtime {
             program,
             memory_accesses: MemoryAccessRecord::default(),
             shard_size: shard_size * 4,
-            shard_batch_size: env::shard_batch_size() as u32 * shard_size,
+            shard_batch_size: env::shard_batch_size() as u32,
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
@@ -937,6 +936,12 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
+    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
+        self.emit_events = false;
+        while !self.execute()? {}
+        Ok(())
+    }
+
     pub fn run(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = true;
         while !self.execute()? {}
@@ -965,10 +970,10 @@ impl Runtime {
                 break;
             }
 
-            if env::shard_batch_size() > 0 && current_shard != self.state.current_shard {
+            if self.shard_batch_size > 0 && current_shard != self.state.current_shard {
                 num_shards_executed += 1;
                 current_shard = self.state.current_shard;
-                if num_shards_executed == env::shard_batch_size() {
+                if num_shards_executed == self.shard_batch_size {
                     break;
                 }
             }
@@ -1040,7 +1045,7 @@ impl Runtime {
         }
     }
 
-    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Rc<dyn Syscall>> {
+    fn get_syscall(&mut self, code: SyscallCode) -> Option<&Arc<dyn Syscall>> {
         self.syscall_map.get(&code)
     }
 }
