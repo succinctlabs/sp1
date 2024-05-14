@@ -10,7 +10,6 @@ use std::{
 use crate::witness::GnarkWitness;
 
 use num_bigint::BigUint;
-use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::{
     constraints::Constraint,
@@ -174,11 +173,11 @@ impl Groth16Prover {
         deserialized
     }
 
-    pub fn verify<C: Config>(
+    pub fn verify(
         &self,
         proof: Groth16Proof,
-        vkey_hash: BigUint,
-        commited_values_digest: BigUint,
+        vkey_hash: &BigUint,
+        commited_values_digest: &BigUint,
         build_dir: PathBuf,
     ) {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));

@@ -6,15 +6,16 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::{
     air::PublicValues,
+    io::SP1PublicValues,
     stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
-use sp1_recursion_gnark_ffi::Groth16Prover;
+use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
 
 use crate::{
-    build::get_groth16_artifacts_dir, CoreSC, HashableKey, OuterSC, SP1CoreProofData,
-    SP1Groth16Proof, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
+    build::groth16_artifacts_dir, CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover,
+    SP1ReduceProof, SP1VerifyingKey,
 };
 
 impl SP1Prover {
@@ -204,19 +205,44 @@ impl SP1Prover {
     }
 
     /// Verify a Groth16 proof.
-    pub fn verify_groth16(&self, proof: &SP1Groth16Proof, vk: &SP1VerifyingKey) -> Result<()> {
+    pub fn verify_groth16(
+        &self,
+        proof: &Groth16Proof,
+        public_values: &SP1PublicValues,
+        vk: &SP1VerifyingKey,
+    ) -> Result<()> {
         let prover = Groth16Prover::new();
 
-        let public_inputs = proof.proof.0.public_inputs;
+        let public_inputs = &proof.public_inputs;
 
         let vkey_hash = BigUint::from_str(&public_inputs[0])?;
         let committed_values_digest = BigUint::from_str(&public_inputs[1])?;
 
-        let build_dir = get_groth16_artifacts_dir();
-        // Verify that the public inputs are equivalent to the proof public values.
-        prover.verify(proof.proof.0, vkey_hash, committed_values_digest, build_dir);
+        let build_dir = groth16_artifacts_dir();
 
-        // TODO: Hash the public values
+        // Verify that the vkey hash of the verifying key matches the vkey hash in the proof.
+        // TODO: How do we guarantee this is the same VK as the one read by the prover?
+        // TODO: Specifically, the user could read the VK from a different artifacts directory than
+        // the one where the proof was created.
+        prover.verify(
+            proof.clone(),
+            &vkey_hash,
+            &committed_values_digest,
+            build_dir,
+        );
+
+        // Verify that the public values of the SP1ProofWithMetadata match the committed values
+        // of the Groth16 proof.
+        let pv_biguint = public_values.hash();
+        if pv_biguint != committed_values_digest {
+            return Err(anyhow::Error::msg("public values hash mismatch"));
+        }
+
+        // Verify that the vk hash of the SP1VerifyingKey matches the vk hash of the Groth16 proof.
+        let vk_hash = vk.hash_bn254().as_canonical_biguint();
+        if vk_hash != vkey_hash {
+            return Err(anyhow::Error::msg("vk hash mismatch"));
+        }
 
         Ok(())
     }

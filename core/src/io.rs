@@ -136,7 +136,7 @@ impl SP1PublicValues {
     /// ```solidity
     /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     /// ```
-    pub fn hash_public_values(&self) -> BigUint {
+    pub fn hash(&self) -> BigUint {
         // Hash the public values.
         let mut hasher = Sha256::new();
         hasher.update(self.buffer.data.as_slice());
@@ -206,7 +206,7 @@ mod tests {
 
         let mut public_values = SP1PublicValues::new();
         public_values.write_slice(&test_bytes);
-        let hash = public_values.hash_public_values();
+        let hash = public_values.hash();
 
         let expected_hash = "1ce987d0a7fcc2636fe87e69295ba12b1cc46c256b369ae7401c51b805ee91bd";
         let expected_hash_biguint = BigUint::from_bytes_be(&hex::decode(expected_hash).unwrap());

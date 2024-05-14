@@ -43,7 +43,7 @@ use sp1_core::{
 };
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::config::{InnerConfig, OuterConfig};
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::{
     air::RecursionPublicValues,
@@ -623,10 +623,10 @@ impl SP1Prover {
         let proof = prover.prove(witness, build_dir.clone());
 
         // Verify the proof.
-        prover.verify::<OuterConfig>(
+        prover.verify(
             proof.clone(),
-            vkey_digest.as_canonical_biguint(),
-            commited_values_digest.as_canonical_biguint(),
+            &vkey_digest.as_canonical_biguint(),
+            &commited_values_digest.as_canonical_biguint(),
             build_dir,
         );
 
