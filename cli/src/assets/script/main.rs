@@ -11,7 +11,7 @@ fn main() {
     stdin.write(&n);
     let client = ProverClient::new();
     let (pk, vk) = client.setup(ELF);
-    let mut proof = client.prove(&pk, stdin).expect("proving failed");
+    let mut proof = client.prove_compressed(&pk, stdin).expect("proving failed");
 
     // Read output.
     let a = proof.public_values.read::<u128>();
@@ -20,7 +20,9 @@ fn main() {
     println!("b: {}", b);
 
     // Verify proof.
-    client.verify(&proof, &vk).expect("verification failed");
+    client
+        .verify_compressed(&proof, &vk)
+        .expect("verification failed");
 
     // Save proof.
     proof
