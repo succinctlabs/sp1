@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use sp1_core::air::PublicValues;
@@ -43,7 +43,7 @@ use sp1_core::{
 };
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::config::{InnerConfig, OuterConfig};
+use sp1_recursion_compiler::config::InnerConfig;
 use sp1_recursion_compiler::ir::Witness;
 use sp1_recursion_core::{
     air::RecursionPublicValues,
@@ -610,7 +610,11 @@ impl SP1Prover {
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(&self, proof: SP1ReduceProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
+    pub fn wrap_groth16(
+        &self,
+        proof: SP1ReduceProof<OuterSC>,
+        build_dir: &PathBuf,
+    ) -> Groth16Proof {
         let vkey_digest = proof.sp1_vkey_digest_bn254();
         let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
@@ -623,10 +627,10 @@ impl SP1Prover {
         let proof = prover.prove(witness, build_dir.clone());
 
         // Verify the proof.
-        prover.verify::<OuterConfig>(
-            proof.clone(),
-            vkey_digest,
-            commited_values_digest,
+        prover.verify(
+            &proof,
+            &vkey_digest.as_canonical_biguint(),
+            &commited_values_digest.as_canonical_biguint(),
             build_dir,
         );
 
@@ -676,6 +680,10 @@ mod tests {
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
+    ///
+    /// Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
+    /// on a Mac M2. Note: This test always re-builds the groth16 artifacts, so setting SP1_DEV is
+    /// not needed.
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {
@@ -736,8 +744,10 @@ mod tests {
         tracing::info!("generate groth16 proof");
         let artifacts_dir =
             try_build_groth16_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
+        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, &artifacts_dir);
         println!("{:?}", groth16_proof);
+
+        prover.verify_groth16(&groth16_proof, &vk, &artifacts_dir)?;
 
         Ok(())
     }

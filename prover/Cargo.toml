@@ -35,11 +35,16 @@ size = "0.4.1"
 dirs = "5.0.1"
 tempfile = "3.10.1"
 tokio = { version = "1.37.0", features = ["full"] }
-reqwest = { version = "0.12.4", features = ["rustls-tls", "trust-dns", "stream"] }
+reqwest = { version = "0.12.4", features = [
+    "rustls-tls",
+    "trust-dns",
+    "stream",
+] }
 indicatif = "0.17.8"
 futures = "0.3.30"
 subtle-encoding = "0.5.1"
 serial_test = "3.1.1"
+num-bigint = "0.4.5"
 thiserror = "1.0.60"
 
 [[bin]]

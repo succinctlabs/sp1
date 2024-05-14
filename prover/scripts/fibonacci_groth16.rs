@@ -62,7 +62,7 @@ fn main() {
             proofs: vec![],
         };
         let leaf_proving_start = Instant::now();
-        let proof = prover.prove_core(&pk, &stdin);
+        let proof = prover.prove_core(&pk, &stdin).unwrap();
         let leaf_proving_duration = leaf_proving_start.elapsed().as_secs_f64();
         tracing::info!("leaf_proving_duration={}", leaf_proving_duration);
 

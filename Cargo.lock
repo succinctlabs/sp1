@@ -4416,6 +4416,7 @@ dependencies = [
  "hex",
  "indicatif",
  "itertools 0.12.1",
+ "num-bigint 0.4.5",
  "p3-baby-bear",
  "p3-bn254-fr",
  "p3-challenger",
@@ -4552,6 +4553,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam",
  "log",
+ "num-bigint 0.4.5",
  "p3-field",
  "rand",
  "reqwest 0.12.4",
@@ -4604,6 +4606,7 @@ dependencies = [
  "hex",
  "indicatif",
  "log",
+ "num-bigint 0.4.5",
  "p3-commit",
  "p3-field",
  "p3-matrix",

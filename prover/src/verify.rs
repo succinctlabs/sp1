@@ -1,14 +1,16 @@
-use std::borrow::Borrow;
+use std::{borrow::Borrow, path::PathBuf, str::FromStr};
 
 use anyhow::Result;
+use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField};
 use sp1_core::{
     air::PublicValues,
     stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
+use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
 
 use crate::{
     CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
@@ -195,6 +197,31 @@ impl SP1Prover {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "sp1 vk hash mismatch",
             ));
+        }
+
+        Ok(())
+    }
+
+    /// Verifies a Groth16 proof. Additionally, verifies that the hash of VK matches the VK hash
+    /// specified by the proof's public inputs.
+    pub fn verify_groth16(
+        &self,
+        proof: &Groth16Proof,
+        vk: &SP1VerifyingKey,
+        build_dir: &PathBuf,
+    ) -> Result<()> {
+        let prover = Groth16Prover::new();
+
+        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
+        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
+
+        // Verify the proof with the corresponding public inputs.
+        prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
+
+        // Verify that the vk hash of the SP1VerifyingKey matches the vk hash specified in the proof.
+        let vk_hash = vk.hash_bn254().as_canonical_biguint();
+        if vk_hash != vkey_hash {
+            return Err(anyhow::Error::msg("vk hash mismatch"));
         }
 
         Ok(())

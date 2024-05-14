@@ -9,7 +9,7 @@ use std::{
 
 use crate::witness::GnarkWitness;
 
-use p3_field::PrimeField;
+use num_bigint::BigUint;
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::{
     constraints::Constraint,
@@ -173,12 +173,12 @@ impl Groth16Prover {
         deserialized
     }
 
-    pub fn verify<C: Config>(
+    pub fn verify(
         &self,
-        proof: Groth16Proof,
-        vkey_hash: C::N,
-        commited_values_digest: C::N,
-        build_dir: PathBuf,
+        proof: &Groth16Proof,
+        vkey_hash: &BigUint,
+        commited_values_digest: &BigUint,
+        build_dir: &PathBuf,
     ) {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");
@@ -195,11 +195,11 @@ impl Groth16Prover {
                 "--data".to_string(),
                 cwd.join(build_dir).to_str().unwrap().to_string(),
                 "--proof".to_string(),
-                proof.raw_proof,
+                proof.raw_proof.clone(),
                 "--vkey-hash".to_string(),
-                vkey_hash.as_canonical_biguint().to_string(),
+                vkey_hash.to_string(),
                 "--commited-values-digest".to_string(),
-                commited_values_digest.as_canonical_biguint().to_string(),
+                commited_values_digest.to_string(),
             ],
         );
     }
