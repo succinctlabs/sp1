@@ -610,7 +610,11 @@ impl SP1Prover {
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
     #[instrument(name = "wrap_groth16", level = "info", skip_all)]
-    pub fn wrap_groth16(&self, proof: SP1ReduceProof<OuterSC>, build_dir: PathBuf) -> Groth16Proof {
+    pub fn wrap_groth16(
+        &self,
+        proof: SP1ReduceProof<OuterSC>,
+        build_dir: &PathBuf,
+    ) -> Groth16Proof {
         let vkey_digest = proof.sp1_vkey_digest_bn254();
         let commited_values_digest = proof.sp1_commited_values_digest_bn254();
 
@@ -665,7 +669,7 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use crate::build::try_install_groth16_artifacts;
+    use crate::build::{groth16_artifacts_dev_dir, groth16_artifacts_dir};
 
     use self::build::try_build_groth16_artifacts_dev;
     use super::*;
@@ -675,24 +679,31 @@ mod tests {
     use serial_test::serial;
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
+    use sp1_recursion_core::stark::utils::sp1_dev_mode;
 
     #[test]
     #[serial]
     fn test_groth16_proof_e2e() -> Result<()> {
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
         let prover = SP1Prover::new();
-        let (pk, vk) = prover.setup(elf);
+        let (_, vk) = prover.setup(elf);
 
         // Proof as JSON:
         let proof_json = r#"
-        { "public_inputs": ["321100341846284666757463362998425259383476203736086834630293843310972221210", "6935654347041297417471496895290476465473963385284063402258178463670808886780"], "encoded_proof": "151dabd81c117caef87d6baecbbc09b1954f6cfc7f6d33a31e194151ba9ef9c118bca3000a7663624d6e9d0724956bfce88b6e23d7dc03eaa5539a8673cea52e03f8db411228805cdcff14df047d20579e3f858cc1f8a5a3c65fcfd5f8f3f820069c7b3eba7878c8312f8f4fe4aae29caf0fe549a668998e7fd054f7bd045376152e63e9d9fde6da093e0ead31a297c60ad0ccbcf0cfb10616d0b1a4b357dec2104a773d678630c3f9274802ee745e13fddce24d07fed39fcf0e8008a4191d69272a2730f90b75290c3747cd8f9d5028a25e46594096897345612d468417598218edbc3fb665d588ef5bd51197e73f88693b589bc500f839955a8e8252c529bb0000000111e79bd4d355b39a14b63c18b484630ffd3e4010937b8b4765330cf7bad4f28c082ea48133e1863f5b3228557371ea94de17e69c011e9d7288b5cbdf9d6ceb5728be06391b6d14753749248df768d4d3c2304fbc5e9c09e8c4de3f1f0f51d17212af4543bc41f12db62f4e077f523c7f5840f0e5f9c521d5497606d6a7056b57", "raw_proof": "151dabd81c117caef87d6baecbbc09b1954f6cfc7f6d33a31e194151ba9ef9c118bca3000a7663624d6e9d0724956bfce88b6e23d7dc03eaa5539a8673cea52e03f8db411228805cdcff14df047d20579e3f858cc1f8a5a3c65fcfd5f8f3f820069c7b3eba7878c8312f8f4fe4aae29caf0fe549a668998e7fd054f7bd045376152e63e9d9fde6da093e0ead31a297c60ad0ccbcf0cfb10616d0b1a4b357dec2104a773d678630c3f9274802ee745e13fddce24d07fed39fcf0e8008a4191d69272a2730f90b75290c3747cd8f9d5028a25e46594096897345612d468417598218edbc3fb665d588ef5bd51197e73f88693b589bc500f839955a8e8252c529bb0000000111e79bd4d355b39a14b63c18b484630ffd3e4010937b8b4765330cf7bad4f28c082ea48133e1863f5b3228557371ea94de17e69c011e9d7288b5cbdf9d6ceb5728be06391b6d14753749248df768d4d3c2304fbc5e9c09e8c4de3f1f0f51d17212af4543bc41f12db62f4e077f523c7f5840f0e5f9c521d5497606d6a7056b57"
+        { "public_inputs": ["321100341846284666757463362998425259383476203736086834630293843310972221210", "6935654347041297417471496895290476465473963385284063402258178463670808886780"], "encoded_proof": "17c46d39ef2926dca1f16b6b6c40d88414f92567e063bad802b9ca1d67f78eaa1c3fceea601c5f3980ca9eaa07b1dbdd6f8f744094f4fd9df6b19419c8677a8802d19abcdf0672f087d2c7ab3cb153afb3f63d72c0f4297afb286811ada7747a1dda0fe57135a05c01981d5d1138a43a51ab58a23324f0f5d1ecb432784aec711ee60aa764e02303d60b441cf05264eaa9daeb8e0b7ae110647d7192f49f797c03ef33eafb7a33c57082894e43021f41924de9dea897c80210faec890b1e610317863c4d7f57de2aeb4e16ebad789ded17f23f4503d85de1a380330e5602bb3f037e18b9cacb01a70510b9d0398df9d2bd7f7b918646c1174eda1952d08820f500000001295b894e0b263337caf392a9073fb732ad1b539c24566eb7002a6033582d94ff2a668b69953574b0f52d1070e81cdbfb483823ffb6042fbe6f251c828ff6c2381ab1122275830e0cc0ec2cc5a5516e654d43b878b5a22f1c8e9f4a1995eeeaf205ea1cc93f3bcab6d74cfceb167d8d95e73775afeb45104e16e2980a45816584", "raw_proof": "17c46d39ef2926dca1f16b6b6c40d88414f92567e063bad802b9ca1d67f78eaa1c3fceea601c5f3980ca9eaa07b1dbdd6f8f744094f4fd9df6b19419c8677a8802d19abcdf0672f087d2c7ab3cb153afb3f63d72c0f4297afb286811ada7747a1dda0fe57135a05c01981d5d1138a43a51ab58a23324f0f5d1ecb432784aec711ee60aa764e02303d60b441cf05264eaa9daeb8e0b7ae110647d7192f49f797c03ef33eafb7a33c57082894e43021f41924de9dea897c80210faec890b1e610317863c4d7f57de2aeb4e16ebad789ded17f23f4503d85de1a380330e5602bb3f037e18b9cacb01a70510b9d0398df9d2bd7f7b918646c1174eda1952d08820f500000001295b894e0b263337caf392a9073fb732ad1b539c24566eb7002a6033582d94ff2a668b69953574b0f52d1070e81cdbfb483823ffb6042fbe6f251c828ff6c2381ab1122275830e0cc0ec2cc5a5516e654d43b878b5a22f1c8e9f4a1995eeeaf205ea1cc93f3bcab6d74cfceb167d8d95e73775afeb45104e16e2980a45816584"
         }"#;
 
         let deserialized: Groth16Proof =
             serde_json::from_str(proof_json).expect("Error deserializing the proof");
         println!("{:?}", deserialized);
 
-        prover.verify_groth16(&deserialized, &vk)?;
+        let artifacts_dir = if sp1_dev_mode() {
+            groth16_artifacts_dev_dir()
+        } else {
+            groth16_artifacts_dir()
+        };
+
+        prover.verify_groth16(&deserialized, &vk, &artifacts_dir)?;
 
         Ok(())
     }
@@ -761,10 +772,10 @@ mod tests {
         tracing::info!("generate groth16 proof");
         let artifacts_dir =
             try_build_groth16_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
-        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
+        let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, &artifacts_dir);
         println!("{:?}", groth16_proof);
 
-        prover.verify_groth16(&groth16_proof, &vk)?;
+        prover.verify_groth16(&groth16_proof, &vk, &artifacts_dir)?;
 
         Ok(())
     }

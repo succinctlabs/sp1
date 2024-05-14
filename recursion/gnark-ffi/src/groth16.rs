@@ -178,7 +178,7 @@ impl Groth16Prover {
         proof: Groth16Proof,
         vkey_hash: &BigUint,
         commited_values_digest: &BigUint,
-        build_dir: PathBuf,
+        build_dir: &PathBuf,
     ) {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
         let gnark_dir = manifest_dir.join("../gnark");

@@ -3,6 +3,7 @@ package cmd
 import (
 	"crypto/sha256"
 	"encoding/json"
+	"fmt"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -56,6 +57,7 @@ var proveCmd = &cobra.Command{
 		vk := groth16.NewVerifyingKey(ecc.BN254)
 		vk.ReadFrom(vkFile)
 
+		fmt.Println("(Generate Gnark Proof): Vk", vk)
 		// Read the file.
 		data, err := os.ReadFile(proveCmdDataDir + "/" + WITNESS_JSON_FILE)
 		if err != nil {
@@ -79,6 +81,8 @@ var proveCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Println("(Generate Gnark Proof) Public Witness: ", publicWitness)
 
 		// Generate the proof.
 		proof, err := groth16.Prove(r1cs, pk, witness, backend.WithProverHashToFieldFunction(sha256.New()))

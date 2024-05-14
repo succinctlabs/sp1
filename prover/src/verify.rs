@@ -1,4 +1,4 @@
-use std::{borrow::Borrow, str::FromStr};
+use std::{borrow::Borrow, path::PathBuf, str::FromStr};
 
 use anyhow::Result;
 use num_bigint::BigUint;
@@ -13,8 +13,7 @@ use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPose
 use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
 
 use crate::{
-    build::groth16_artifacts_dir, CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover,
-    SP1ReduceProof, SP1VerifyingKey,
+    CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
 };
 
 impl SP1Prover {
@@ -204,7 +203,12 @@ impl SP1Prover {
     }
 
     /// Verify a Groth16 proof.
-    pub fn verify_groth16(&self, proof: &Groth16Proof, vk: &SP1VerifyingKey) -> Result<()> {
+    pub fn verify_groth16(
+        &self,
+        proof: &Groth16Proof,
+        vk: &SP1VerifyingKey,
+        build_dir: &PathBuf,
+    ) -> Result<()> {
         let prover = Groth16Prover::new();
 
         let public_inputs = &proof.public_inputs;
@@ -216,8 +220,6 @@ impl SP1Prover {
 
         let committed_values_digest = BigUint::from_str(&public_inputs[1])?;
         println!("committed values digest: {:?}", committed_values_digest);
-
-        let build_dir = groth16_artifacts_dir();
 
         // Verify that the vkey hash of the verifying key matches the vkey hash in the proof.
         // TODO: How do we guarantee this is the same VK as the one read by the prover?
