@@ -25,7 +25,7 @@ use std::path::PathBuf;
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
 use p3_challenger::CanObserve;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField};
 use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use sp1_core::air::PublicValues;
@@ -587,8 +587,8 @@ impl SP1Prover {
         // Verify the proof.
         prover.verify::<OuterConfig>(
             proof.clone(),
-            vkey_digest,
-            commited_values_digest,
+            vkey_digest.as_canonical_biguint(),
+            commited_values_digest.as_canonical_biguint(),
             build_dir,
         );
 
@@ -638,6 +638,8 @@ mod tests {
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
+    /// Add `SP1_DEV`=1 and `FRI_QUERIES`=1 to your environment for faster execution. Should only
+    /// take a few minutes on a Mac M2.
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {

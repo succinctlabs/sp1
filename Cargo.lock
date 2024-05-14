@@ -4552,6 +4552,7 @@ version = "0.1.0"
 dependencies = [
  "crossbeam",
  "log",
+ "num-bigint 0.4.5",
  "p3-field",
  "rand",
  "reqwest 0.12.4",

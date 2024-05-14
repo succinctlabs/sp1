@@ -9,6 +9,7 @@ use std::{
 
 use crate::witness::GnarkWitness;
 
+use num_bigint::BigUint;
 use p3_field::PrimeField;
 use serde::{Deserialize, Serialize};
 use sp1_recursion_compiler::{
@@ -176,8 +177,8 @@ impl Groth16Prover {
     pub fn verify<C: Config>(
         &self,
         proof: Groth16Proof,
-        vkey_hash: C::N,
-        commited_values_digest: C::N,
+        vkey_hash: BigUint,
+        commited_values_digest: BigUint,
         build_dir: PathBuf,
     ) {
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
@@ -197,9 +198,9 @@ impl Groth16Prover {
                 "--proof".to_string(),
                 proof.raw_proof,
                 "--vkey-hash".to_string(),
-                vkey_hash.as_canonical_biguint().to_string(),
+                vkey_hash.to_string(),
                 "--commited-values-digest".to_string(),
-                commited_values_digest.as_canonical_biguint().to_string(),
+                commited_values_digest.to_string(),
             ],
         );
     }
