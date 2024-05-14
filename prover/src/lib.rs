@@ -680,9 +680,10 @@ mod tests {
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
-    // Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
-    // on a Mac M2. Note: This test always re-builds the groth16 artifacts, so setting SP1_DEV is
-    // not needed.
+    ///
+    /// Add `FRI_QUERIES`=1 to your environment for faster execution. Should only take a few minutes
+    /// on a Mac M2. Note: This test always re-builds the groth16 artifacts, so setting SP1_DEV is
+    /// not needed.
     #[test]
     #[serial]
     fn test_e2e() -> Result<()> {
