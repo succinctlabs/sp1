@@ -36,9 +36,9 @@ pub struct Sha512CompressCols<T> {
 
     /// This will specify which octet we are currently processing.
     ///  - The first octet is for initialize.
-    ///  - The next 8 octets are for compress.
+    ///  - The next 16 octets are for compress.
     ///  - The last octet is for finalize.
-    pub octet_num: [T; 10],
+    pub octet_num: [T; 18],
 
     /// Memory access. During init and compression, this is read only. During finalize, this is
     /// used to write the result into memory.

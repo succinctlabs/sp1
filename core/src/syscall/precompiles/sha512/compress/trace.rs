@@ -89,7 +89,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
                 cols.h_ptr = F::from_canonical_u32(event.h_ptr);
                 cols.mem
                     .populate_read(event.w_i_read_records[j], &mut new_byte_lookup_events);
-                cols.mem_addr = F::from_canonical_u32(event.w_ptr + (j * 4) as u64);
+                cols.mem_addr = F::from_canonical_u32(event.w_ptr + (j * 4) as u32);
 
                 let a = event.h[0];
                 let b = event.h[1];
@@ -161,7 +161,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
                 rows.push(row);
             }
 
-            let mut v: [u64; 8] = (0..8)
+            let mut v: [u32; 8] = (0..8)
                 .map(|i| event.h[i])
                 .collect::<Vec<_>>()
                 .try_into()

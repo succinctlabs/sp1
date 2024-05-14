@@ -23,7 +23,7 @@ impl Syscall for Sha512CompressChip {
         let mut h_write_records = Vec::new();
 
         // Execute the "initialize" phase where we read in the h values.
-        let mut hx = [0u64; 8];
+        let mut hx = [0u32; 8];
         for i in 0..8 {
             let (record, value) = rt.mr(h_ptr + i as u32 * 4);
             h_read_records.push(record);
@@ -71,14 +71,14 @@ impl Syscall for Sha512CompressChip {
         // Execute the "finalize" phase.
         let v = [a, b, c, d, e, f, g, h];
         for i in 0..8 {
-            let record = rt.mw(h_ptr + i as u64 * 4, hx[i].wrapping_add(v[i]));
+            let record = rt.mw(h_ptr + i as u32 * 4, hx[i].wrapping_add(v[i]));
             h_write_records.push(record);
         }
 
         // Push the SHA extend event.
         let shard = rt.current_shard();
         rt.record_mut()
-            .sha_compress_events
+            .sha512_compress_events
             .push(Sha512CompressEvent {
                 shard,
                 clk: start_clk,

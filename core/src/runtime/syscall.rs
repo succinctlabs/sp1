@@ -51,10 +51,10 @@ pub enum SyscallCode {
     SHA_COMPRESS = 0x00_01_01_06,
 
     /// Executes the `SHA512_EXTEND` precompile.
-    SHA512_EXTEND = 0x00_00_01_06,
+    SHA512_EXTEND = 0x00_01_01_11,
 
     /// Executes the `SHA512_COMPRESS` precompile.
-    SHA512_COMPRESS = 0x00_00_01_07,
+    SHA512_COMPRESS = 0x00_00_01_14,
 
     /// Executes the `ED_ADD` precompile.
     ED_ADD = 0x00_01_01_07,
@@ -121,8 +121,8 @@ impl SyscallCode {
             0x00_00_00_04 => SyscallCode::EXIT_UNCONSTRAINED,
             0x00_30_01_05 => SyscallCode::SHA_EXTEND,
             0x00_01_01_06 => SyscallCode::SHA_COMPRESS,
-            0x00_00_01_06 => SyscallCode::SHA512_EXTEND,
-            0x00_00_01_07 => SyscallCode::SHA512_COMPRESS,
+            0x00_01_01_11 => SyscallCode::SHA512_EXTEND,
+            0x00_00_01_14 => SyscallCode::SHA512_COMPRESS,
             0x00_01_01_07 => SyscallCode::ED_ADD,
             0x00_00_01_08 => SyscallCode::ED_DECOMPRESS,
             0x00_01_01_09 => SyscallCode::KECCAK_PERMUTE,

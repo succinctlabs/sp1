@@ -35,7 +35,7 @@ impl Sha512ExtendChip {
     }
 }
 
-pub fn sha_extend(w: &mut [u64]) {
+pub fn sha_extend(w: &mut [u32]) {
     for i in 16..80 {
         let s0 = w[i - 15].rotate_right(1) ^ w[i - 15].rotate_right(8) ^ (w[i - 15] >> 7);
         let s1 = w[i - 2].rotate_right(19) ^ w[i - 2].rotate_right(61) ^ (w[i - 2] >> 6);
