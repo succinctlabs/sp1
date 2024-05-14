@@ -375,6 +375,9 @@ mod tests {
     fn test_syscall_num_cycles_encoding() {
         for (syscall_code, syscall_impl) in default_syscall_map().iter() {
             let encoded_num_cycles = syscall_code.num_cycles();
+            if encoded_num_cycles != syscall_impl.num_extra_cycles() {
+                println!("Failing on {:?}", syscall_code);
+            }
             assert_eq!(syscall_impl.num_extra_cycles(), encoded_num_cycles);
         }
     }
