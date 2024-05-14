@@ -202,7 +202,8 @@ impl SP1Prover {
         Ok(())
     }
 
-    /// Verify a Groth16 proof.
+    /// Verifies a Groth16 proof. Additionally, verifies that the hash of VK matches the VK hash
+    /// specified by the proof's public inputs.
     pub fn verify_groth16(
         &self,
         proof: &Groth16Proof,
