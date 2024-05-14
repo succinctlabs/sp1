@@ -22,29 +22,9 @@ impl<C: Config> Builder<C> {
             self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
         }
 
+        self.babybear_modulus_less_than(output.clone());
+
         self.assert_var_eq(sum, num);
-
-        let false_v: Var<_> = self.eval(C::N::zero());
-        let true_v: Var<_> = self.eval(C::N::one());
-        let mut is_less_than = false_v;
-        for i in (0..NUM_BITS).rev() {
-            let mod_bit: Var<_> =
-                self.eval(C::N::from_canonical_usize(BABY_BEAR_MODULUS_LE_BITS[i]));
-            let num_bit = self.get(&output, i);
-            let bit_diff: Var<_> = self.eval(mod_bit - num_bit);
-
-            self.if_ne(is_less_than, true_v).then(|builder| {
-                builder.if_eq(bit_diff, C::N::one()).then(|_| {
-                    is_less_than = true_v;
-                });
-
-                builder.if_eq(bit_diff, C::N::neg_one()).then(|builder| {
-                    builder.error();
-                });
-            });
-        }
-
-        self.assert_var_eq(is_less_than, true_v);
 
         output
     }
@@ -75,9 +55,9 @@ impl<C: Config> Builder<C> {
             });
         }
 
-        // TODO: There is an edge case where the witnessed bits may slightly overflow and cause
-        // the output to be incorrect. This is a known issue and will be fixed in the future.
         self.assert_felt_eq(sum, num);
+
+        self.babybear_modulus_less_than(output.clone());
 
         output
     }
@@ -85,11 +65,14 @@ impl<C: Config> Builder<C> {
     /// Converts a felt to bits inside a circuit.
     pub fn num2bits_f_circuit(&mut self, num: Felt<C::F>) -> Vec<Var<C::N>> {
         let mut output = Vec::new();
-        for _ in 0..32 {
+        for _ in 0..NUM_BITS {
             output.push(self.uninit());
         }
 
         self.push(DslIr::CircuitNum2BitsF(num, output.clone()));
+
+        let output_array = self.vec(output.clone());
+        self.babybear_modulus_less_than(output_array);
 
         output
     }
@@ -174,5 +157,29 @@ impl<C: Config> Builder<C> {
             result_bits.push(index_bits[idx]);
         }
         result_bits
+    }
+
+    fn babybear_modulus_less_than(&mut self, num_bits: Array<C, Var<C::N>>) {
+        let false_v: Var<_> = self.eval(C::N::zero());
+        let true_v: Var<_> = self.eval(C::N::one());
+        let mut is_less_than = false_v;
+        for i in (0..NUM_BITS).rev() {
+            let mod_bit: Var<_> =
+                self.eval(C::N::from_canonical_usize(BABY_BEAR_MODULUS_LE_BITS[i]));
+            let num_bit = self.get(&num_bits, i);
+            let bit_diff: Var<_> = self.eval(mod_bit - num_bit);
+
+            self.if_ne(is_less_than, true_v).then(|builder| {
+                builder.if_eq(bit_diff, C::N::one()).then(|_| {
+                    is_less_than = true_v;
+                });
+
+                builder.if_eq(bit_diff, C::N::neg_one()).then(|builder| {
+                    builder.error();
+                });
+            });
+        }
+
+        self.assert_var_eq(is_less_than, true_v);
     }
 }
