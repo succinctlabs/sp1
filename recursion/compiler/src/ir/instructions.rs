@@ -142,17 +142,29 @@ pub enum DslIr<C: Config> {
     Break,
 
     // Assertions.
+    /// Assert that two variables are equal (var == var).
     AssertEqV(Var<C::N>, Var<C::N>),
+    /// Assert that two variables are not equal (var != var).
     AssertNeV(Var<C::N>, Var<C::N>),
+    /// Assert that two field elements are equal (felt == felt).
     AssertEqF(Felt<C::F>, Felt<C::F>),
+    /// Assert that two field elements are not equal (felt != felt).
     AssertNeF(Felt<C::F>, Felt<C::F>),
+    /// Assert that two extension field elements are equal (ext == ext).
     AssertEqE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    /// Assert that two extension field elements are not equal (ext != ext).
     AssertNeE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    /// Assert that a variable is equal to an immediate (var == imm).
     AssertEqVI(Var<C::N>, C::N),
+    /// Assert that a variable is not equal to an immediate (var != imm).
     AssertNeVI(Var<C::N>, C::N),
+    /// Assert that a field element is equal to a field immediate (felt == field imm).
     AssertEqFI(Felt<C::F>, C::F),
+    /// Assert that a field element is not equal to a field immediate (felt != field imm).
     AssertNeFI(Felt<C::F>, C::F),
+    /// Assert that an extension field element is equal to an extension field immediate (ext == ext field imm).
     AssertEqEI(Ext<C::F, C::EF>, C::EF),
+    /// Assert that an extension field element is not equal to an extension field immediate (ext != ext field imm).
     AssertNeEI(Ext<C::F, C::EF>, C::EF),
 
     // Memory instructions.
