@@ -134,7 +134,7 @@ mod test {
     use crate::io::{SP1PublicValues, SP1Stdin};
     use crate::runtime::Program;
     use crate::stark::{RiscvAir, StarkGenericConfig};
-    use crate::utils::{run_and_prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
+    use crate::utils::{prove, setup_logger, tests::KECCAK256_ELF, BabyBearPoseidon2};
 
     use rand::Rng;
     use rand::SeedableRng;
@@ -169,7 +169,7 @@ mod test {
         let config = BabyBearPoseidon2::new();
 
         let program = Program::from(KECCAK256_ELF);
-        let (proof, public_values) = run_and_prove(program, &stdin, config);
+        let (proof, public_values) = prove(program, &stdin, config).unwrap();
         let mut public_values = SP1PublicValues::from(&public_values);
 
         let config = BabyBearPoseidon2::new();
