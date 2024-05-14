@@ -475,9 +475,6 @@ impl<F: PrimeField32 + TwoAdicField, EF: ExtensionField<F> + TwoAdicField> AsmCo
                     }
                     _ => unimplemented!(),
                 },
-                DslIr::TwoAdicGenerator(_, _) => unimplemented!(),
-                DslIr::ExpUsizeV(_, _, _) => unimplemented!(),
-                DslIr::ExpUsizeF(_, _, _) => unimplemented!(),
                 DslIr::Error() => self.push(AsmInstruction::Trap, trace),
                 DslIr::PrintF(dst) => self.push(AsmInstruction::PrintF(dst.fp()), trace),
                 DslIr::PrintV(dst) => self.push(AsmInstruction::PrintV(dst.fp()), trace),
