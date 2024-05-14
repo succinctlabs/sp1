@@ -146,8 +146,6 @@ impl SP1PublicValues {
         // Mask the top 3 bits.
         hash[0] &= 0b00011111;
 
-        println!("{:?}", hex::encode(&hash));
-
         BigUint::from_bytes_be(&hash)
     }
 }
