@@ -130,8 +130,8 @@ impl SP1PublicValues {
         self.buffer.write_slice(slice);
     }
 
-    /// Hash the public values, mask the top 3 bits and return a BigUint.
-    /// Matches the implementation of `hashPublicValues` in the Solidity verifier.
+    /// Hash the public values, mask the top 3 bits and return a BigUint. Matches the implementation
+    /// of `hashPublicValues` in the Solidity verifier.
     ///
     /// ```solidity
     /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
