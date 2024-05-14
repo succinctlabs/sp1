@@ -2,6 +2,7 @@ pub mod blake3;
 pub mod edwards;
 pub mod keccak256;
 pub mod sha256;
+pub mod sha512;
 pub mod uint256;
 pub mod weierstrass;
 use crate::operations::field::params::{NumLimbs, NumWords};

@@ -1,6 +1,6 @@
 use crate::{
     runtime::Syscall,
-    syscall::precompiles::{sha256::Sha512ExtendEvent, SyscallContext},
+    syscall::precompiles::{sha512::Sha512ExtendEvent, SyscallContext},
 };
 
 use super::ShaExtendChip;

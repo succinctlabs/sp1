@@ -2,7 +2,7 @@ use super::ShaCompressChip;
 use crate::{
     runtime::Syscall,
     syscall::precompiles::{
-        sha256::{Sha512CompressEvent, SHA512_COMPRESS_K},
+        sha512::{Sha512CompressEvent, SHA512_COMPRESS_K},
         SyscallContext,
     },
 };

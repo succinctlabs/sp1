@@ -21,6 +21,7 @@ use crate::syscall::precompiles::blake3::Blake3CompressInnerEvent;
 use crate::syscall::precompiles::edwards::EdDecompressEvent;
 use crate::syscall::precompiles::keccak256::KeccakPermuteEvent;
 use crate::syscall::precompiles::sha256::{ShaCompressEvent, ShaExtendEvent};
+use crate::syscall::precompiles::sha512::{Sha512CompressEvent, Sha512ExtendEvent};
 use crate::syscall::precompiles::uint256::Uint256MulEvent;
 use crate::syscall::precompiles::ECDecompressEvent;
 use crate::syscall::precompiles::{ECAddEvent, ECDoubleEvent};
@@ -70,6 +71,10 @@ pub struct ExecutionRecord {
     pub sha_extend_events: Vec<ShaExtendEvent>,
 
     pub sha_compress_events: Vec<ShaCompressEvent>,
+
+    pub sha512_extend_events: Vec<Sha512ExtendEvent>,
+
+    pub sha512_compress_events: Vec<Sha512CompressEvent>,
 
     pub keccak_permute_events: Vec<KeccakPermuteEvent>,
 
