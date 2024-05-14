@@ -29,7 +29,7 @@ pub struct Sha512ExtendEvent {
 #[derive(Default)]
 pub struct Sha512ExtendChip;
 
-impl ShaExtendChip {
+impl Sha512ExtendChip {
     pub fn new() -> Self {
         Self {}
     }

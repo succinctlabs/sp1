@@ -3,9 +3,9 @@ use crate::{
     syscall::precompiles::{sha512::Sha512ExtendEvent, SyscallContext},
 };
 
-use super::ShaExtendChip;
+use super::Sha512ExtendChip;
 
-impl Syscall for ShaExtendChip {
+impl Syscall for Sha512ExtendChip {
     fn num_extra_cycles(&self) -> u32 {
         48
     }
