@@ -8,19 +8,31 @@ use super::{Config, Ext, Felt, Usize, Var};
 #[derive(Debug, Clone)]
 pub enum DslIr<C: Config> {
     // Immediates.
+    // Assign immediate (2nd field) to a variable (1st field).
     ImmV(Var<C::N>, C::N),
+    // Assign field immediate (2nd field) to a field variable (1st field).
     ImmF(Felt<C::F>, C::F),
+    // Assign extension field immediate (2nd field) to an extension field variable (1st field).
     ImmE(Ext<C::F, C::EF>, C::EF),
 
     // Additions.
+    // Add two variables (2nd and 3rd field) and assign to a variable (1st field).
     AddV(Var<C::N>, Var<C::N>, Var<C::N>),
+    // Add a variable (2nd field) and an immediate (3rd field) and assign to a variable (1st field).
     AddVI(Var<C::N>, Var<C::N>, C::N),
+    // Add two field variables (2nd and 3rd field) and assign to a field variable (1st field).
     AddF(Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    // Add a field variable (2nd field) and a field immediate (3rd field) and assign to a field variable (1st field).
     AddFI(Felt<C::F>, Felt<C::F>, C::F),
+    // Add two extension field variables (2nd and 3rd field) and assign to a field extension variable (1st field).
     AddE(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    // Add an extension field variable (2nd field) and an extension field immediate (3rd field) and assign to an extension field variable (1st field).
     AddEI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::EF),
+    // Add an extension field variable (2nd field) and a field variable (3rd field) and assign to an extension field element (1st field).
     AddEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
+    // Add an extension field variable (2nd field) and a field immediate (3rd field) and assign to an extension field variable (1st field).
     AddEFI(Ext<C::F, C::EF>, Ext<C::F, C::EF>, C::F),
+    // Add an field variable (2nd field) and an extension field immediate (3rd field) and assign to an extension field variable (1st field).
     AddEFFI(Ext<C::F, C::EF>, Felt<C::F>, C::EF),
 
     // Subtractions.
