@@ -1,0 +1,41 @@
+name: Main
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "cli/**"
+      - "core/**"
+      - "prover/**"
+      - "recursion/**"
+      - "derive/**"
+      - "sdk/**"
+      - ".github/workflows/**"
+
+concurrency:
+    group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    groth16:
+        name: Groth16
+        runs-on: runs-on,cpu=64,ram=256,family=m7i+m7a,hdd=80,image=ubuntu22-full-x64
+        env:
+          CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+        steps:
+          - name: Checkout sources
+            uses: actions/checkout@v2
+    
+          - name: Setup CI
+            uses: ./.github/actions/setup
+    
+          - name: Run cargo test
+            uses: actions-rs/cargo@v1
+            with:
+              command: test
+              toolchain: nightly-2024-04-17
+              args: --release -p sp1-sdk -- test_e2e_prove_groth16 --nocapture
+            env:
+              RUSTFLAGS: -Copt-level=3 -Cdebug-assertions -Coverflow-checks=y -Cdebuginfo=0 -C target-cpu=native
+              RUST_BACKTRACE: 1

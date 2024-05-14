@@ -2,7 +2,7 @@ name: PR
 
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
   pull_request:
     branches:
       - "**"
@@ -15,7 +15,7 @@ on:
       - "sdk/**"
       - ".github/workflows/**"
   merge_group:
-      
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -132,7 +132,7 @@ jobs:
       - name: Install SP1 CLI
         run: |
           cd cli
-          cargo install --locked --path .
+          cargo install --force --locked --path .
           cd ~
 
       - name: Run cargo check
@@ -161,21 +161,18 @@ jobs:
       - name: Install SP1 CLI
         run: |
           cd cli
-          cargo install --locked --path .
-<<<<<<< HEAD
+          cargo install --force --locked --path .
           cd ~
 
       - name: Run cargo prove new
         run: |
           cargo prove new fibonacci
-      
+
       - name: Build program and run script
         run: |
           cd fibonacci
           cd program
           cargo prove build
           cd ../script
-          SP1_DEV=1 RUST_LOG=info cargo run --release 
-=======
-          cd ~
->>>>>>> dev
+          cargo add sp1-sdk --path $GITHUB_WORKSPACE/sdk
+          SP1_DEV=1 RUST_LOG=info cargo run --release

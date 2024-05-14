@@ -75,7 +75,7 @@ pub mod permute_tests {
         utils::setup_logger();
         let program = keccak_permute_program();
         let mut runtime = Runtime::new(program);
-        runtime.run()
+        runtime.run().unwrap();
     }
 
     #[test]

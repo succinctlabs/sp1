@@ -447,7 +447,7 @@ pub(crate) mod tests {
         let (_, vk) = machine.setup(&Program::from(elf));
         let mut challenger_val = machine.config().challenger();
         let (proof, _) =
-            sp1_core::utils::run_and_prove(Program::from(elf), &SP1Stdin::new(), SC::default());
+            sp1_core::utils::prove(Program::from(elf), &SP1Stdin::new(), SC::default()).unwrap();
         let proofs = proof.shard_proofs;
         println!("Proof generated successfully");
 
@@ -497,6 +497,7 @@ pub(crate) mod tests {
                 permutation_challenges[i].cons(),
             );
         }
+        builder.halt();
 
         let program = builder.compile_program();
         run_test_recursion(program, Some(witness_stream.into()), TestConfig::All);
@@ -521,6 +522,7 @@ pub(crate) mod tests {
         let a_plus_b_ext = builder.eval(a_ext + b_ext);
         builder.print_f(a_plus_b);
         builder.print_e(a_plus_b_ext);
+        builder.halt();
 
         let program = builder.compile_program();
         let elapsed = time.elapsed();

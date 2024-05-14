@@ -27,13 +27,13 @@ use std::io::BufWriter;
 use std::io::Write;
 use std::sync::Arc;
 
+use thiserror::Error;
+
 use crate::memory::MemoryInitializeFinalizeEvent;
 use crate::utils::env;
 use crate::{alu::AluEvent, cpu::CpuEvent};
 
-pub const MAX_SHARD_CLK: usize = (1 << 24) - 1;
-
-/// An implementation of a runtime for the SP1 VM.
+/// An implementation of a runtime for the SP1 RISC-V zkVM.
 ///
 /// The runtime is responsible for executing a user program and tracing important events which occur
 /// during execution (i.e., memory reads, alu operations, etc).
@@ -67,10 +67,8 @@ pub struct Runtime {
     /// A buffer for writing trace events to a file.
     pub trace_buf: Option<BufWriter<File>>,
 
-    /// Whether the runtime should fail on panic or not.
-    pub fail_on_panic: bool,
-
     /// Whether the runtime is in constrained mode or not.
+    ///
     /// In unconstrained mode, any events, clock, register, or memory changes are reset after leaving
     /// the unconstrained block. The only thing preserved is writes to the input stream.
     pub unconstrained: bool,
@@ -82,6 +80,20 @@ pub struct Runtime {
     pub max_syscall_cycles: u32,
 
     pub emit_events: bool,
+}
+
+#[derive(Error, Debug)]
+pub enum ExecutionError {
+    #[error("execution failed with exit code {0}")]
+    HaltWithNonZeroExitCode(u32),
+    #[error("invalid memory access for opcode {0} and address {1}")]
+    InvalidMemoryAccess(Opcode, u32),
+    #[error("unimplemented syscall {0}")]
+    UnsupportedSyscall(u32),
+    #[error("breakpoint encountered")]
+    Breakpoint(),
+    #[error("got unimplemented as opcode")]
+    Unimplemented(),
 }
 
 impl Runtime {
@@ -104,8 +116,8 @@ impl Runtime {
             None
         };
 
-        let syscall_map = default_syscall_map();
         // Determine the maximum number of cycles for any syscall.
+        let syscall_map = default_syscall_map();
         let max_syscall_cycles = syscall_map
             .values()
             .map(|syscall| syscall.num_extra_cycles())
@@ -113,7 +125,6 @@ impl Runtime {
             .unwrap_or(0);
 
         let shard_size = env::shard_size() as u32;
-
         Self {
             record,
             state: ExecutionState::new(program.pc_start),
@@ -124,7 +135,6 @@ impl Runtime {
             cycle_tracker: HashMap::new(),
             io_buf: HashMap::new(),
             trace_buf,
-            fail_on_panic: true,
             unconstrained: false,
             unconstrained_state: ForkState::default(),
             syscall_map,
@@ -214,6 +224,7 @@ impl Runtime {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+
                 // Do not emit memory initialize events for address 0 as that is done in initialize.
                 if addr != 0 {
                     self.record
@@ -261,6 +272,7 @@ impl Runtime {
             Entry::Vacant(entry) => {
                 // If addr has a specific value to be initialized with, use that, otherwise 0.
                 let value = self.state.uninitialized_memory.remove(&addr).unwrap_or(0);
+
                 // Do not emit memory initialize events for address 0 as that is done in initialize.
                 if addr != 0 {
                     self.record
@@ -501,7 +513,7 @@ impl Runtime {
     }
 
     /// Execute the given instruction over the current state of the runtime.
-    fn execute_instruction(&mut self, instruction: Instruction) {
+    fn execute_instruction(&mut self, instruction: Instruction) -> Result<(), ExecutionError> {
         let mut pc = self.state.pc;
         let mut clk = self.state.clk;
         let mut exit_code = 0u32;
@@ -577,7 +589,9 @@ impl Runtime {
             }
             Opcode::LH => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                assert_eq!(addr % 2, 0, "addr is not aligned");
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LH, addr));
+                }
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
                     1 => (memory_read_value & 0xFFFF0000) >> 16,
@@ -589,7 +603,9 @@ impl Runtime {
             }
             Opcode::LW => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                assert_eq!(addr % 4, 0, "addr is not aligned");
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LW, addr));
+                }
                 a = memory_read_value;
                 memory_store_value = Some(memory_read_value);
                 self.rw(rd, a);
@@ -603,7 +619,9 @@ impl Runtime {
             }
             Opcode::LHU => {
                 (rd, b, c, addr, memory_read_value) = self.load_rr(instruction);
-                assert_eq!(addr % 2, 0, "addr is not aligned");
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::LHU, addr));
+                }
                 let value = match (addr >> 1) % 2 {
                     0 => memory_read_value & 0x0000FFFF,
                     1 => (memory_read_value & 0xFFFF0000) >> 16,
@@ -629,7 +647,9 @@ impl Runtime {
             }
             Opcode::SH => {
                 (a, b, c, addr, memory_read_value) = self.store_rr(instruction);
-                assert_eq!(addr % 2, 0, "addr is not aligned");
+                if addr % 2 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SH, addr));
+                }
                 let value = match (addr >> 1) % 2 {
                     0 => (a & 0x0000FFFF) + (memory_read_value & 0xFFFF0000),
                     1 => ((a & 0x0000FFFF) << 16) + (memory_read_value & 0x0000FFFF),
@@ -640,7 +660,9 @@ impl Runtime {
             }
             Opcode::SW => {
                 (a, b, c, addr, _) = self.store_rr(instruction);
-                assert_eq!(addr % 4, 0, "addr is not aligned");
+                if addr % 4 != 0 {
+                    return Err(ExecutionError::InvalidMemoryAccess(Opcode::SW, addr));
+                }
                 let value = a;
                 memory_store_value = Some(value);
                 self.mw_cpu(align(addr), value, MemoryAccessPosition::Memory);
@@ -710,9 +732,9 @@ impl Runtime {
 
             // System instructions.
             Opcode::ECALL => {
+                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this
+                // register is that we write to it later.
                 let t0 = Register::X5;
-                // We peek at register x5 to get the syscall id. The reason we don't `self.rr` this register
-                // is that we write to it later.
                 let syscall_id = self.register(t0);
                 c = self.rr(Register::X11, MemoryAccessPosition::C);
                 b = self.rr(Register::X10, MemoryAccessPosition::B);
@@ -720,7 +742,6 @@ impl Runtime {
 
                 let syscall_impl = self.get_syscall(syscall).cloned();
                 let mut precompile_rt = SyscallContext::new(self);
-
                 let (precompile_next_pc, precompile_cycles, returned_exit_code) =
                     if let Some(syscall_impl) = syscall_impl {
                         // Executing a syscall optionally returns a value to write to the t0 register.
@@ -729,16 +750,23 @@ impl Runtime {
                         if let Some(val) = res {
                             a = val;
                         } else {
-                            // Default to syscall_id if no value is returned from syscall execution.
                             a = syscall_id;
                         }
+
+                        // If the syscall is `HALT` and the exit code is non-zero, return an error.
+                        if syscall == SyscallCode::HALT && precompile_rt.exit_code != 0 {
+                            return Err(ExecutionError::HaltWithNonZeroExitCode(
+                                precompile_rt.exit_code,
+                            ));
+                        }
+
                         (
                             precompile_rt.next_pc,
                             syscall_impl.num_extra_cycles(),
                             precompile_rt.exit_code,
                         )
                     } else {
-                        panic!("Unsupported syscall: {:?}", syscall);
+                        return Err(ExecutionError::UnsupportedSyscall(syscall_id));
                     };
 
                 // Allow the syscall impl to modify state.clk/pc (exit unconstrained does this)
@@ -750,9 +778,8 @@ impl Runtime {
                 self.state.clk += precompile_cycles;
                 exit_code = returned_exit_code;
             }
-
             Opcode::EBREAK => {
-                todo!()
+                return Err(ExecutionError::Breakpoint());
             }
 
             // Multiply instructions.
@@ -813,14 +840,15 @@ impl Runtime {
                 self.alu_rw(instruction, rd, a, b, c);
             }
 
+            // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
             Opcode::UNIMP => {
-                // See https://github.com/riscv-non-isa/riscv-asm-manual/blob/master/riscv-asm.md#instruction-aliases
-                panic!("UNIMP encountered, we should never get here.");
+                return Err(ExecutionError::Unimplemented());
             }
         }
 
         // Update the program counter.
         self.state.pc = next_pc;
+
         // Update the clk to the next cycle.
         self.state.clk += 4;
 
@@ -839,12 +867,14 @@ impl Runtime {
                 self.memory_accesses,
                 exit_code,
             );
-        }
+        };
+
+        Ok(())
     }
 
     /// Executes one cycle of the program, returning whether the program has finished.
     #[inline]
-    fn execute_cycle(&mut self) -> bool {
+    fn execute_cycle(&mut self) -> Result<bool, ExecutionError> {
         // Fetch the instruction at the current program counter.
         let instruction = self.fetch();
 
@@ -852,7 +882,7 @@ impl Runtime {
         self.log(&instruction);
 
         // Execute the instruction.
-        self.execute_instruction(instruction);
+        self.execute_instruction(instruction)?;
 
         // Increment the clock.
         self.state.global_clk += 1;
@@ -864,23 +894,23 @@ impl Runtime {
             self.state.clk = 0;
         }
 
-        self.state.pc.wrapping_sub(self.program.pc_base)
-            >= (self.program.instructions.len() * 4) as u32
+        Ok(self.state.pc.wrapping_sub(self.program.pc_base)
+            >= (self.program.instructions.len() * 4) as u32)
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning the events emitted and whether the program ended.
-    pub fn execute_record(&mut self) -> (ExecutionRecord, bool) {
+    pub fn execute_record(&mut self) -> Result<(ExecutionRecord, bool), ExecutionError> {
         self.emit_events = true;
-        let done = self.execute();
-        (std::mem::take(&mut self.record), done)
+        let done = self.execute()?;
+        Ok((std::mem::take(&mut self.record), done))
     }
 
     /// Execute up to `self.shard_batch_size` cycles, returning a copy of the prestate and whether the program ended.
-    pub fn execute_state(&mut self) -> (ExecutionState, bool) {
+    pub fn execute_state(&mut self) -> Result<(ExecutionState, bool), ExecutionError> {
         self.emit_events = false;
         let state = self.state.clone();
-        let done = self.execute();
-        (state, done)
+        let done = self.execute()?;
+        Ok((state, done))
     }
 
     fn initialize(&mut self) {
@@ -906,18 +936,25 @@ impl Runtime {
         tracing::info!("starting execution");
     }
 
-    pub fn run_untraced(&mut self) {
+    pub fn run_untraced(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = false;
-        while !self.execute() {}
+        while !self.execute()? {}
+        Ok(())
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> Result<(), ExecutionError> {
         self.emit_events = true;
-        while !self.execute() {}
+        while !self.execute()? {}
+        Ok(())
+    }
+
+    pub fn dry_run(&mut self) {
+        self.emit_events = false;
+        while !self.execute().unwrap() {}
     }
 
     /// Executes up to `self.shard_batch_size` cycles of the program, returning whether the program has finished.
-    fn execute(&mut self) -> bool {
+    fn execute(&mut self) -> Result<bool, ExecutionError> {
         // If it's the first cycle, initialize the program.
         if self.state.global_clk == 0 {
             self.initialize();
@@ -928,7 +965,7 @@ impl Runtime {
         let mut current_shard = self.state.current_shard;
         let mut num_shards_executed = 0;
         loop {
-            if self.execute_cycle() {
+            if self.execute_cycle()? {
                 done = true;
                 break;
             }
@@ -946,7 +983,7 @@ impl Runtime {
             self.postprocess();
         }
 
-        done
+        Ok(done)
     }
 
     fn postprocess(&mut self) {
@@ -1018,7 +1055,7 @@ pub mod tests {
 
     use crate::{
         runtime::Register,
-        utils::tests::{FIBONACCI_ELF, SSZ_WITHDRAWALS_ELF},
+        utils::tests::{FIBONACCI_ELF, PANIC_ELF, SSZ_WITHDRAWALS_ELF},
     };
 
     use super::{Instruction, Opcode, Program, Runtime};
@@ -1040,12 +1077,24 @@ pub mod tests {
         Program::from(SSZ_WITHDRAWALS_ELF)
     }
 
+    pub fn panic_program() -> Program {
+        Program::from(PANIC_ELF)
+    }
+
     #[test]
     fn test_simple_program_run() {
         let program = simple_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
+    }
+
+    #[test]
+    #[should_panic]
+    fn test_panic() {
+        let program = panic_program();
+        let mut runtime = Runtime::new(program);
+        runtime.run().unwrap();
     }
 
     #[test]
@@ -1061,7 +1110,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 42);
     }
 
@@ -1078,7 +1127,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 32);
     }
 
@@ -1095,7 +1144,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 32);
     }
 
@@ -1113,7 +1162,7 @@ pub mod tests {
 
         let mut runtime = Runtime::new(program);
 
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 37);
     }
 
@@ -1130,7 +1179,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 5);
     }
 
@@ -1147,7 +1196,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1184);
     }
 
@@ -1164,7 +1213,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1);
     }
 
@@ -1181,7 +1230,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 1);
     }
 
@@ -1198,7 +1247,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1215,7 +1264,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1232,7 +1281,7 @@ pub mod tests {
         let program = Program::new(instructions, 0, 0);
 
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 84);
     }
 
@@ -1248,7 +1297,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 5 - 1 + 4);
     }
 
@@ -1264,7 +1313,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 10);
     }
 
@@ -1280,7 +1329,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 47);
     }
 
@@ -1296,7 +1345,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1310,7 +1359,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 80);
     }
 
@@ -1324,7 +1373,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 2);
     }
 
@@ -1338,7 +1387,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 2);
     }
 
@@ -1352,7 +1401,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1366,7 +1415,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.register(Register::X31), 0);
     }
 
@@ -1385,7 +1434,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.registers()[Register::X5 as usize], 8);
         assert_eq!(runtime.registers()[Register::X11 as usize], 100);
         assert_eq!(runtime.state.pc, 108);
@@ -1399,7 +1448,7 @@ pub mod tests {
         ];
         let program = Program::new(instructions, 0, 0);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         assert_eq!(runtime.registers()[Register::X12 as usize], expected);
     }
 
@@ -1617,7 +1666,7 @@ pub mod tests {
     fn test_simple_memory_program_run() {
         let program = simple_memory_program();
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
 
         // Assert SW & LW case
         assert_eq!(runtime.register(Register::X28), 0x12348765);
