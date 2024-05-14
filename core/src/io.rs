@@ -131,10 +131,10 @@ impl SP1PublicValues {
     }
 
     /// Hash the public values, mask the top 3 bits and return a BigUint.
-    /// Matches the implementation of hashPublicValues in the Solidity verifier.
+    /// Matches the implementation of `hashPublicValues` in the Solidity verifier.
     ///
-    /// ```
-    /// return sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
+    /// ```solidity
+    /// sha256(publicValues) & bytes32(uint256((1 << 253) - 1));
     /// ```
     pub fn hash_public_values(&self) -> BigUint {
         // Hash the public values.
