@@ -8,6 +8,7 @@ use p3_air::Air;
 use p3_baby_bear::BabyBear;
 use p3_commit::TwoAdicMultiplicativeCoset;
 use p3_field::{AbstractField, PrimeField32, TwoAdicField};
+use serde::{Deserialize, Serialize};
 use sp1_core::air::MachineAir;
 use sp1_core::air::{Word, POSEIDON_NUM_WORDS, PV_DIGEST_NUM_WORDS};
 use sp1_core::stark::StarkMachine;
@@ -41,7 +42,7 @@ pub struct SP1CompressVerifier<C: Config, SC: StarkGenericConfig, A> {
 }
 
 /// The different types of programs that can be verified by the `SP1ReduceVerifier`.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub enum ReduceProgramType {
     /// A batch of proofs that are all SP1 Core proofs.
     Core = 0,

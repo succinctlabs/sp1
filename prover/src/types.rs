@@ -31,7 +31,7 @@ pub struct SP1ProvingKey {
 }
 
 /// The information necessary to verify a proof for a given RISC-V program.
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct SP1VerifyingKey {
     pub vk: StarkVerifyingKey<CoreSC>,
 }
@@ -160,7 +160,7 @@ pub struct SP1Groth16ProofData(pub Groth16Proof);
 pub struct SP1PlonkProofData(pub PlonkBn254Proof);
 
 /// An intermediate proof which proves the execution over a range of shards.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 #[serde(bound(serialize = "ShardProof<SC>: Serialize"))]
 #[serde(bound(deserialize = "ShardProof<SC>: Deserialize<'de>"))]
 pub struct SP1ReduceProof<SC: StarkGenericConfig> {
@@ -190,7 +190,7 @@ impl SP1ReduceProof<BabyBearPoseidon2Outer> {
 }
 
 /// A proof that can be reduced along with other proofs into one proof.
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum SP1ReduceProofWrapper {
     Core(SP1ReduceProof<CoreSC>),
     Recursive(SP1ReduceProof<InnerSC>),
