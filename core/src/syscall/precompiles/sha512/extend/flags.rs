@@ -44,8 +44,8 @@ impl Sha512ExtendChip {
     pub fn eval_flags<AB: SP1AirBuilder>(&self, builder: &mut AB) {
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
-        let local: &ShaExtendCols<AB::Var> = (*local).borrow();
-        let next: &ShaExtendCols<AB::Var> = (*next).borrow();
+        let local: &Sha512ExtendCols<AB::Var> = (*local).borrow();
+        let next: &Sha512ExtendCols<AB::Var> = (*next).borrow();
 
         let one = AB::Expr::from(AB::F::one());
 

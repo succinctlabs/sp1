@@ -103,6 +103,16 @@ impl<F: AbstractField> From<u32> for Word<F> {
     }
 }
 
+impl<F: AbstractField> From<u64> for Word<F> {
+    fn from(value: u64) -> Vec<Self> {
+        let bytes = value.to_le_bytes();
+        bytes
+            .chunks_exact(WORD_SIZE)
+            .map(|chunk| Word(chunk.map(F::from_canonical_u8)))
+            .collect()
+    }
+}
+
 impl<T> IntoIterator for Word<T> {
     type Item = T;
     type IntoIter = IntoIter<T, WORD_SIZE>;

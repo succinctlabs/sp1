@@ -59,18 +59,20 @@ impl Syscall for Sha512ExtendChip {
             rt.clk += 1;
         }
 
-        // Push the SHA extend event.
+        // Push the SHA-512 extend event.
         let shard = rt.current_shard();
-        rt.record_mut().sha_extend_events.push(Sha512ExtendEvent {
-            shard,
-            clk: clk_init,
-            w_ptr: w_ptr_init,
-            w_i_minus_15_reads,
-            w_i_minus_2_reads,
-            w_i_minus_16_reads,
-            w_i_minus_7_reads,
-            w_i_writes,
-        });
+        rt.record_mut()
+            .sha512_extend_events
+            .push(Sha512ExtendEvent {
+                shard,
+                clk: clk_init,
+                w_ptr: w_ptr_init,
+                w_i_minus_15_reads,
+                w_i_minus_2_reads,
+                w_i_minus_16_reads,
+                w_i_minus_7_reads,
+                w_i_writes,
+            });
 
         None
     }

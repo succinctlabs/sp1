@@ -25,7 +25,7 @@ impl Syscall for Sha512CompressChip {
         // Execute the "initialize" phase where we read in the h values.
         let mut hx = [0u64; 8];
         for i in 0..8 {
-            let (record, value) = rt.mr(h_ptr + i as u64 * 4);
+            let (record, value) = rt.mr(h_ptr + i as u32 * 4);
             h_read_records.push(record);
             hx[i] = value;
         }

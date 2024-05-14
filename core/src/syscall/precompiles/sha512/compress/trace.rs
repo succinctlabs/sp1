@@ -31,8 +31,8 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
         let mut rows = Vec::new();
 
         let mut new_byte_lookup_events = Vec::new();
-        for i in 0..input.sha_compress_events.len() {
-            let mut event = input.sha_compress_events[i].clone();
+        for i in 0..input.sha512_compress_events.len() {
+            let mut event = input.sha512_compress_events[i].clone();
             let shard = event.shard;
 
             let og_h = event.h;
@@ -54,7 +54,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
 
                 cols.mem
                     .populate_read(event.h_read_records[j], &mut new_byte_lookup_events);
-                cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u64);
+                cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 
                 cols.a = Word::from(event.h_read_records[0].value);
                 cols.b = Word::from(event.h_read_records[1].value);
@@ -108,8 +108,8 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
                 cols.g = Word::from(g);
                 cols.h = Word::from(h);
 
-                let e_rr_6 = cols.e_rr_14.populate(output, shard, e, 14);
-                let e_rr_11 = cols.e_rr_18.populate(output, shard, e, 18);
+                let e_rr_14 = cols.e_rr_14.populate(output, shard, e, 14);
+                let e_rr_18 = cols.e_rr_18.populate(output, shard, e, 18);
                 let e_rr_41 = cols.e_rr_41.populate(output, shard, e, 41);
                 let s1_intermediate = cols
                     .s1_intermediate
@@ -185,7 +185,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
                     .populate(output, shard, og_h[j], event.h[j]);
                 cols.mem
                     .populate_write(event.h_write_records[j], &mut new_byte_lookup_events);
-                cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u64);
+                cols.mem_addr = F::from_canonical_u32(event.h_ptr + (j * 4) as u32);
 
                 v[j] = event.h[j];
                 cols.a = Word::from(v[0]);
