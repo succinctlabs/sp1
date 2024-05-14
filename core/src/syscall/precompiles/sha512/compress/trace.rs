@@ -171,7 +171,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
             // Store a, b, c, d, e, f, g, h.
             for j in 0..8usize {
                 let mut row = [F::zero(); NUM_SHA512_COMPRESS_COLS];
-                let cols: &mut ShaCompressCols<F> = row.as_mut_slice().borrow_mut();
+                let cols: &mut Sha512CompressCols<F> = row.as_mut_slice().borrow_mut();
 
                 cols.shard = F::from_canonical_u32(event.shard);
                 cols.clk = F::from_canonical_u32(event.clk);

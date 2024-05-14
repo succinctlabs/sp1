@@ -2,7 +2,7 @@ use p3_air::{Air, AirBuilder, BaseAir};
 use p3_field::AbstractField;
 use p3_matrix::Matrix;
 
-use super::{Sha512ExtendCols, ShaExtend512Chip, NUM_SHA512_EXTEND_COLS};
+use super::{Sha512ExtendChip, Sha512ExtendCols, NUM_SHA512_EXTEND_COLS};
 use crate::air::{BaseAirBuilder, SP1AirBuilder};
 use crate::memory::MemoryCols;
 use crate::operations::{

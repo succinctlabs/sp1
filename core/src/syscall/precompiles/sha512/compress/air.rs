@@ -27,8 +27,8 @@ where
     fn eval(&self, builder: &mut AB) {
         let main = builder.main();
         let (local, next) = (main.row_slice(0), main.row_slice(1));
-        let local: &ShaCompressCols<AB::Var> = (*local).borrow();
-        let next: &ShaCompressCols<AB::Var> = (*next).borrow();
+        let local: &Sha512CompressCols<AB::Var> = (*local).borrow();
+        let next: &Sha512CompressCols<AB::Var> = (*next).borrow();
 
         self.eval_control_flow_flags(builder, local, next);
 
@@ -57,8 +57,8 @@ impl Sha512CompressChip {
     fn eval_control_flow_flags<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &ShaCompressCols<AB::Var>,
-        next: &ShaCompressCols<AB::Var>,
+        local: &Sha512CompressCols<AB::Var>,
+        next: &Sha512CompressCols<AB::Var>,
     ) {
         // Verify that all of the octet columns are bool.
         for i in 0..8 {
@@ -198,7 +198,11 @@ impl Sha512CompressChip {
     }
 
     /// Constrains that memory address is correct and that memory is correctly written/read.
-    fn eval_memory<AB: SP1AirBuilder>(&self, builder: &mut AB, local: &ShaCompressCols<AB::Var>) {
+    fn eval_memory<AB: SP1AirBuilder>(
+        &self,
+        builder: &mut AB,
+        local: &Sha512CompressCols<AB::Var>,
+    ) {
         let is_initialize = local.octet_num[0];
         let is_finalize = local.octet_num[9];
         builder.eval_memory_access(
@@ -272,8 +276,8 @@ impl Sha512CompressChip {
     fn eval_compression_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &ShaCompressCols<AB::Var>,
-        next: &ShaCompressCols<AB::Var>,
+        local: &Sha512CompressCols<AB::Var>,
+        next: &Sha512CompressCols<AB::Var>,
     ) {
         // Constrain k column which loops over 80 constant values.
         for i in 0..80 {
@@ -552,7 +556,7 @@ impl Sha512CompressChip {
     fn eval_finalize_ops<AB: SP1AirBuilder>(
         &self,
         builder: &mut AB,
-        local: &ShaCompressCols<AB::Var>,
+        local: &Sha512CompressCols<AB::Var>,
     ) {
         let is_finalize = local.octet_num[9];
         // In the finalize phase, need to execute h[0] + a, h[1] + b, ..., h[7] + h, for each of the
