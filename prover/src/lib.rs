@@ -245,6 +245,8 @@ impl SP1Prover {
         }
     }
 
+    /// Generate the inputs for the first layer of recursive proofs.
+    #[allow(clippy::type_complexity)]
     pub fn get_first_layer_inputs<'a>(
         &'a self,
         vk: &'a SP1VerifyingKey,
