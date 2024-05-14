@@ -113,9 +113,9 @@ where
         V: Into<AB::Expr>,
     {
         let p_a = Polynomial::from(*a);
-        let p_b = (*b).into(); // klee-error
+        let p_b: Polynomial<AB::Expr> = (*b).into();
         let p_result = self.result.into();
-        let p_carry = self.carry.into(); // klee-error
+        let p_carry: Polynomial<AB::Expr> = self.carry.into();
 
         // Compute the vanishing polynomial:
         //      lhs(x) = sign * (b(x) * result(x) + result(x)) + (1 - sign) * (b(x) * result(x) + a(x))
@@ -136,7 +136,13 @@ where
         let p_witness_low = self.witness_low.0.iter().into();
         let p_witness_high = self.witness_high.0.iter().into();
 
-        eval_field_operation::<AB, P>(builder, &p_vanishing, &p_witness_low, &p_witness_high);
+        eval_field_operation::<AB, P>(
+            builder,
+            &p_vanishing,
+            &p_witness_low,
+            &p_witness_high,
+            is_real.clone(),
+        );
 
         // Range checks for the result, carry, and witness columns.
         builder.slice_range_check_u8(&self.result.0, shard.clone(), is_real.clone());

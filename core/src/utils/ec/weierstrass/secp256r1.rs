@@ -106,8 +106,8 @@ pub fn secp256r1_decompress<E: EllipticCurve>(bytes_be: &[u8], sign: u32) -> Aff
         p256::AffinePoint::decompress(bytes_be.into(), Choice::from(sign as u8)).unwrap();
     let point = computed_point.to_encoded_point(false);
 
-    let x = BigUint::from_bytes_be(point.x().unwrap());
-    let y = BigUint::from_bytes_be(point.y().unwrap());
+    let x = BigUint::from_bytes_be(point.x().unwrap().as_slice());
+    let y = BigUint::from_bytes_be(point.y().unwrap().as_slice());
     AffinePoint::<E>::new(x, y)
 }
 

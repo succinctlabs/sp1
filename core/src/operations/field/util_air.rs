@@ -3,12 +3,14 @@ use p3_field::AbstractField;
 use crate::air::Polynomial;
 use crate::air::SP1AirBuilder;
 use crate::operations::field::params::FieldParameters;
+use p3_air::AirBuilder;
 
 pub fn eval_field_operation<AB: SP1AirBuilder, P: FieldParameters>(
     builder: &mut AB,
     p_vanishing: &Polynomial<AB::Expr>,
     p_witness_low: &Polynomial<AB::Expr>,
     p_witness_high: &Polynomial<AB::Expr>,
+    is_real: impl Into<AB::Expr> + Clone,
 ) {
     // Reconstruct and shift back the witness polynomial
     let limb: AB::Expr = AB::F::from_canonical_u32(2u32.pow(P::NB_BITS_PER_LIMB as u32)).into();
@@ -26,6 +28,6 @@ pub fn eval_field_operation<AB: SP1AirBuilder, P: FieldParameters>(
 
     let constraints = p_vanishing - &(p_witness * root_monomial);
     for constr in constraints.as_coefficients() {
-        builder.assert_zero(constr);
+        builder.when(is_real.clone()).assert_zero(constr);
     }
 }
