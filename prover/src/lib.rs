@@ -669,8 +669,6 @@ mod tests {
     use std::fs::File;
     use std::io::{Read, Write};
 
-    use crate::build::{groth16_artifacts_dev_dir, groth16_artifacts_dir};
-
     use self::build::try_build_groth16_artifacts_dev;
     use super::*;
 
@@ -679,7 +677,6 @@ mod tests {
     use serial_test::serial;
     use sp1_core::io::SP1Stdin;
     use sp1_core::utils::setup_logger;
-    use sp1_recursion_core::stark::utils::sp1_dev_mode;
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
