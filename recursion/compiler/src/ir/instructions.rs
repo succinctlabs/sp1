@@ -98,14 +98,21 @@ pub enum DslIr<C: Config> {
     DivEF(Ext<C::F, C::EF>, Ext<C::F, C::EF>, Felt<C::F>),
 
     // Negations.
+    /// Negates a variable (var = -var).
     NegV(Var<C::N>, Var<C::N>),
+    /// Negates a field element (felt = -felt).
     NegF(Felt<C::F>, Felt<C::F>),
+    /// Negates an extension field element (ext = -ext).
     NegE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
+    /// Inverts a variable (var = 1 / var).
     InvV(Var<C::N>, Var<C::N>),
+    /// Inverts a field element (felt = 1 / felt).
     InvF(Felt<C::F>, Felt<C::F>),
+    /// Inverts an extension field element (ext = 1 / ext).
     InvE(Ext<C::F, C::EF>, Ext<C::F, C::EF>),
 
     // Control flow.
+    /// Executes a for loop with the parameters (start step value, end step value, step size, step variable, body).
     For(
         Usize<C::N>,
         Usize<C::N>,
@@ -113,20 +120,25 @@ pub enum DslIr<C: Config> {
         Var<C::N>,
         TracedVec<DslIr<C>>,
     ),
+    /// Executes an equal conditional branch with the parameters (lhs var, rhs var, then body, else body).
     IfEq(
         Var<C::N>,
         Var<C::N>,
         TracedVec<DslIr<C>>,
         TracedVec<DslIr<C>>,
     ),
+    /// Executes a not equal conditional branch with the parameters (lhs var, rhs var, then body, else body).
     IfNe(
         Var<C::N>,
         Var<C::N>,
         TracedVec<DslIr<C>>,
         TracedVec<DslIr<C>>,
     ),
+    /// Executes an equal conditional branch with the parameters (lhs var, rhs imm, then body, else body).
     IfEqI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    /// Executes a not equal conditional branch with the parameters (lhs var, rhs imm, then body, else body).
     IfNeI(Var<C::N>, C::N, TracedVec<DslIr<C>>, TracedVec<DslIr<C>>),
+    /// Break out of a for loop.
     Break,
 
     // Assertions.
