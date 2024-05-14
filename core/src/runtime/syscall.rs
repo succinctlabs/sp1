@@ -54,7 +54,7 @@ pub enum SyscallCode {
     SHA512_EXTEND = 0x00_01_01_11,
 
     /// Executes the `SHA512_COMPRESS` precompile.
-    SHA512_COMPRESS = 0x00_00_01_14,
+    SHA512_COMPRESS = 0x00_30_01_14,
 
     /// Executes the `ED_ADD` precompile.
     ED_ADD = 0x00_01_01_07,
