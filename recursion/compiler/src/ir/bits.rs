@@ -10,6 +10,7 @@ const BABY_BEAR_MODULUS_LE_BITS: [usize; NUM_BITS] = [
 impl<C: Config> Builder<C> {
     /// Converts a variable to LE bits.
     pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
+        // This function is only used when the native field is Babybear.
         assert!(C::N::bits() == NUM_BITS);
 
         let output = self.dyn_array::<Var<_>>(NUM_BITS);
@@ -22,7 +23,7 @@ impl<C: Config> Builder<C> {
             self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
         }
 
-        self.babybear_modulus_less_than(output.clone());
+        self.less_than_modulus(output.clone());
 
         self.assert_var_eq(sum, num);
 
@@ -57,7 +58,7 @@ impl<C: Config> Builder<C> {
 
         self.assert_felt_eq(sum, num);
 
-        self.babybear_modulus_less_than(output.clone());
+        self.less_than_modulus(output.clone());
 
         output
     }
@@ -72,7 +73,7 @@ impl<C: Config> Builder<C> {
         self.push(DslIr::CircuitNum2BitsF(num, output.clone()));
 
         let output_array = self.vec(output.clone());
-        self.babybear_modulus_less_than(output_array);
+        self.less_than_modulus(output_array);
 
         output
     }
@@ -159,7 +160,8 @@ impl<C: Config> Builder<C> {
         result_bits
     }
 
-    fn babybear_modulus_less_than(&mut self, num_bits: Array<C, Var<C::N>>) {
+    /// Checks that the bit decomposition of a number (in little-endian) is less than the babybear modulus.
+    fn less_than_modulus(&mut self, num_bits: Array<C, Var<C::N>>) {
         let false_v: Var<_> = self.eval(C::N::zero());
         let true_v: Var<_> = self.eval(C::N::one());
         let mut is_less_than = false_v;
