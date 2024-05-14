@@ -20,7 +20,7 @@ impl<F> BaseAir<F> for Sha512CompressChip {
     }
 }
 
-impl<AB> Air<AB> for ShaCompressChip
+impl<AB> Air<AB> for Sha512CompressChip
 where
     AB: SP1AirBuilder,
 {

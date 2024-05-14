@@ -1,4 +1,4 @@
-use super::ShaCompressChip;
+use super::Sha512CompressChip;
 use crate::{
     runtime::Syscall,
     syscall::precompiles::{
