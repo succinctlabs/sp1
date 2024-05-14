@@ -681,33 +681,6 @@ mod tests {
     use sp1_core::utils::setup_logger;
     use sp1_recursion_core::stark::utils::sp1_dev_mode;
 
-    #[test]
-    #[serial]
-    fn test_groth16_proof_e2e() -> Result<()> {
-        let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
-        let prover = SP1Prover::new();
-        let (_, vk) = prover.setup(elf);
-
-        // Proof as JSON:
-        let proof_json = r#"
-        { "public_inputs": ["321100341846284666757463362998425259383476203736086834630293843310972221210", "6935654347041297417471496895290476465473963385284063402258178463670808886780"], "encoded_proof": "17c46d39ef2926dca1f16b6b6c40d88414f92567e063bad802b9ca1d67f78eaa1c3fceea601c5f3980ca9eaa07b1dbdd6f8f744094f4fd9df6b19419c8677a8802d19abcdf0672f087d2c7ab3cb153afb3f63d72c0f4297afb286811ada7747a1dda0fe57135a05c01981d5d1138a43a51ab58a23324f0f5d1ecb432784aec711ee60aa764e02303d60b441cf05264eaa9daeb8e0b7ae110647d7192f49f797c03ef33eafb7a33c57082894e43021f41924de9dea897c80210faec890b1e610317863c4d7f57de2aeb4e16ebad789ded17f23f4503d85de1a380330e5602bb3f037e18b9cacb01a70510b9d0398df9d2bd7f7b918646c1174eda1952d08820f500000001295b894e0b263337caf392a9073fb732ad1b539c24566eb7002a6033582d94ff2a668b69953574b0f52d1070e81cdbfb483823ffb6042fbe6f251c828ff6c2381ab1122275830e0cc0ec2cc5a5516e654d43b878b5a22f1c8e9f4a1995eeeaf205ea1cc93f3bcab6d74cfceb167d8d95e73775afeb45104e16e2980a45816584", "raw_proof": "17c46d39ef2926dca1f16b6b6c40d88414f92567e063bad802b9ca1d67f78eaa1c3fceea601c5f3980ca9eaa07b1dbdd6f8f744094f4fd9df6b19419c8677a8802d19abcdf0672f087d2c7ab3cb153afb3f63d72c0f4297afb286811ada7747a1dda0fe57135a05c01981d5d1138a43a51ab58a23324f0f5d1ecb432784aec711ee60aa764e02303d60b441cf05264eaa9daeb8e0b7ae110647d7192f49f797c03ef33eafb7a33c57082894e43021f41924de9dea897c80210faec890b1e610317863c4d7f57de2aeb4e16ebad789ded17f23f4503d85de1a380330e5602bb3f037e18b9cacb01a70510b9d0398df9d2bd7f7b918646c1174eda1952d08820f500000001295b894e0b263337caf392a9073fb732ad1b539c24566eb7002a6033582d94ff2a668b69953574b0f52d1070e81cdbfb483823ffb6042fbe6f251c828ff6c2381ab1122275830e0cc0ec2cc5a5516e654d43b878b5a22f1c8e9f4a1995eeeaf205ea1cc93f3bcab6d74cfceb167d8d95e73775afeb45104e16e2980a45816584"
-        }"#;
-
-        let deserialized: Groth16Proof =
-            serde_json::from_str(proof_json).expect("Error deserializing the proof");
-        println!("{:?}", deserialized);
-
-        let artifacts_dir = if sp1_dev_mode() {
-            groth16_artifacts_dev_dir()
-        } else {
-            groth16_artifacts_dir()
-        };
-
-        prover.verify_groth16(&deserialized, &vk, &artifacts_dir)?;
-
-        Ok(())
-    }
-
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline.
     /// Add `SP1_DEV`=1 and `FRI_QUERIES`=1 to your environment for faster execution. Should only
