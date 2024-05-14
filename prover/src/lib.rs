@@ -1,4 +1,4 @@
-//! An end-to-end-prover implementation for SP1.
+//! An end-to-end-prover implementation for the SP1 RISC-V zkVM.
 //!
 //! Seperates the proof generation process into multiple stages:
 //!
@@ -14,11 +14,13 @@
 
 pub mod build;
 pub mod install;
-mod types;
+pub mod types;
 pub mod utils;
-mod verify;
+pub mod verify;
 
 use std::borrow::Borrow;
+use std::env;
+use std::path::PathBuf;
 
 use crate::utils::RECONSTRUCT_COMMITMENTS_ENV_VAR;
 use p3_baby_bear::BabyBear;
@@ -28,27 +30,23 @@ use rayon::iter::{IntoParallelIterator, ParallelIterator};
 use rayon::prelude::*;
 use sp1_core::air::PublicValues;
 pub use sp1_core::io::{SP1PublicValues, SP1Stdin};
-use sp1_core::runtime::Runtime;
-use sp1_core::stark::MachineVerificationError;
-use sp1_core::stark::{Challenge, StarkProvingKey};
-use sp1_core::utils::DIGEST_SIZE;
+use sp1_core::runtime::{ExecutionError, Runtime};
+use sp1_core::stark::{Challenge, MachineVerificationError, StarkProvingKey};
 use sp1_core::{
     runtime::Program,
     stark::{
         LocalProver, RiscvAir, ShardProof, StarkGenericConfig, StarkMachine, StarkVerifyingKey, Val,
     },
-    utils::{run_and_prove, BabyBearPoseidon2},
+    utils::{BabyBearPoseidon2, SP1CoreProverError, DIGEST_SIZE},
 };
 use sp1_primitives::hash_deferred_proof;
 use sp1_recursion_circuit::witness::Witnessable;
-use sp1_recursion_compiler::config::InnerConfig;
-use sp1_recursion_compiler::config::OuterConfig;
+use sp1_recursion_compiler::config::{InnerConfig, OuterConfig};
 use sp1_recursion_compiler::ir::Witness;
-use sp1_recursion_core::runtime::RecursionProgram;
-use sp1_recursion_core::stark::RecursionAir;
 use sp1_recursion_core::{
-    air::RecursionPublicValues, runtime::Runtime as RecursionRuntime,
-    stark::config::BabyBearPoseidon2Outer,
+    air::RecursionPublicValues,
+    runtime::{RecursionProgram, Runtime as RecursionRuntime},
+    stark::{config::BabyBearPoseidon2Outer, RecursionAir},
 };
 pub use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Proof;
 use sp1_recursion_gnark_ffi::plonk_bn254::PlonkBn254Prover;
@@ -60,8 +58,6 @@ use sp1_recursion_program::machine::{
     SP1RecursionMemoryLayout, SP1RecursiveVerifier, SP1ReduceMemoryLayout, SP1RootMemoryLayout,
     SP1RootVerifier,
 };
-use std::env;
-use std::path::PathBuf;
 use tracing::instrument;
 pub use types::*;
 use utils::words_to_bytes;
@@ -83,7 +79,7 @@ pub type ReduceAir<F> = RecursionAir<F, REDUCE_DEGREE>;
 pub type CompressAir<F> = RecursionAir<F, COMPRESS_DEGREE>;
 pub type WrapAir<F> = RecursionAir<F, WRAP_DEGREE>;
 
-/// A end-to-end prover implementation for SP1.
+/// A end-to-end prover implementation for the SP1 RISC-V zkVM.
 pub struct SP1Prover {
     /// The program that can recursively verify a set of proofs into a single proof.
     pub recursion_program: RecursionProgram<BabyBear>,
@@ -217,30 +213,34 @@ impl SP1Prover {
 
     /// Generate a proof of an SP1 program with the specified inputs.
     #[instrument(name = "execute", level = "info", skip_all)]
-    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> SP1PublicValues {
+    pub fn execute(elf: &[u8], stdin: &SP1Stdin) -> Result<SP1PublicValues, ExecutionError> {
         let program = Program::from(elf);
         let mut runtime = Runtime::new(program);
         runtime.write_vecs(&stdin.buffer);
         for (proof, vkey) in stdin.proofs.iter() {
             runtime.write_proof(proof.clone(), vkey.clone());
         }
-        runtime.run();
-        SP1PublicValues::from(&runtime.state.public_values_stream)
+        runtime.run()?;
+        Ok(SP1PublicValues::from(&runtime.state.public_values_stream))
     }
 
     /// Generate shard proofs which split up and prove the valid execution of a RISC-V program with
     /// the core prover.
     #[instrument(name = "prove_core", level = "info", skip_all)]
-    pub fn prove_core(&self, pk: &SP1ProvingKey, stdin: &SP1Stdin) -> SP1CoreProof {
+    pub fn prove_core(
+        &self,
+        pk: &SP1ProvingKey,
+        stdin: &SP1Stdin,
+    ) -> Result<SP1CoreProof, SP1CoreProverError> {
         let config = CoreSC::default();
         let program = Program::from(&pk.elf);
-        let (proof, public_values_stream) = run_and_prove(program, stdin, config);
+        let (proof, public_values_stream) = sp1_core::utils::prove(program, stdin, config)?;
         let public_values = SP1PublicValues::from(&public_values_stream);
-        SP1CoreProof {
+        Ok(SP1CoreProof {
             proof: SP1CoreProofData(proof.shard_proofs),
             stdin: stdin.clone(),
             public_values,
-        }
+        })
     }
 
     /// Reduce shards proofs to a single shard proof using the recursion prover.
@@ -250,10 +250,8 @@ impl SP1Prover {
         vk: &SP1VerifyingKey,
         proof: SP1CoreProof,
         deferred_proofs: Vec<ShardProof<InnerSC>>,
-    ) -> SP1ReduceProof<InnerSC> {
-        // Set the batch size for the reduction tree.
+    ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         let batch_size = 2;
-
         let shard_proofs = &proof.proof.0;
 
         // Setup the reconstruct commitments flags to false and save its state.
@@ -267,11 +265,10 @@ impl SP1Prover {
             leaf_challenger.observe(proof.commitment.main_commit);
             leaf_challenger.observe_slice(&proof.public_values[0..self.core_machine.num_pv_elts()]);
         });
+
         // Make sure leaf challenger is not mutable anymore.
         let leaf_challenger = leaf_challenger;
-
         let mut core_inputs = Vec::new();
-
         let mut reconstruct_challenger = self.core_machine.config().challenger();
         vk.vk.observe_into(&mut reconstruct_challenger);
 
@@ -460,14 +457,17 @@ impl SP1Prover {
         // Restore the prover parameters.
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, rc);
 
-        SP1ReduceProof {
+        Ok(SP1ReduceProof {
             proof: reduce_proof.0,
-        }
+        })
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
     #[instrument(name = "shrink", level = "info", skip_all)]
-    pub fn shrink(&self, reduced_proof: SP1ReduceProof<InnerSC>) -> SP1ReduceProof<InnerSC> {
+    pub fn shrink(
+        &self,
+        reduced_proof: SP1ReduceProof<InnerSC>,
+    ) -> Result<SP1ReduceProof<InnerSC>, SP1RecursionProverError> {
         // Setup the prover parameters.
         let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
@@ -504,14 +504,17 @@ impl SP1Prover {
         // Restore the prover parameters.
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, rc);
 
-        SP1ReduceProof {
+        Ok(SP1ReduceProof {
             proof: compress_proof.shard_proofs.pop().unwrap(),
-        }
+        })
     }
 
     /// Wrap a reduce proof into a STARK proven over a SNARK-friendly field.
     #[instrument(name = "wrap_bn254", level = "info", skip_all)]
-    pub fn wrap_bn254(&self, compressed_proof: SP1ReduceProof<InnerSC>) -> SP1ReduceProof<OuterSC> {
+    pub fn wrap_bn254(
+        &self,
+        compressed_proof: SP1ReduceProof<InnerSC>,
+    ) -> Result<SP1ReduceProof<OuterSC>, SP1RecursionProverError> {
         // Setup the prover parameters.
         let rc = env::var(RECONSTRUCT_COMMITMENTS_ENV_VAR).unwrap_or_default();
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, "false");
@@ -562,9 +565,9 @@ impl SP1Prover {
         // Restore the prover parameters.
         env::set_var(RECONSTRUCT_COMMITMENTS_ENV_VAR, rc);
 
-        SP1ReduceProof {
+        Ok(SP1ReduceProof {
             proof: wrap_proof.shard_proofs.pop().unwrap(),
-        }
+        })
     }
 
     /// Wrap the STARK proven over a SNARK-friendly field into a Groth16 proof.
@@ -625,8 +628,9 @@ mod tests {
     use std::io::{Read, Write};
 
     use self::build::try_build_groth16_artifacts_dev;
-
     use super::*;
+
+    use anyhow::Result;
     use p3_field::PrimeField32;
     use serial_test::serial;
     use sp1_core::io::SP1Stdin;
@@ -636,7 +640,7 @@ mod tests {
     /// pipeline.
     #[test]
     #[serial]
-    fn test_e2e() {
+    fn test_e2e() -> Result<()> {
         setup_logger();
         let elf = include_bytes!("../../tests/fibonacci/elf/riscv32im-succinct-zkvm-elf");
 
@@ -648,25 +652,25 @@ mod tests {
 
         tracing::info!("prove core");
         let stdin = SP1Stdin::new();
-        let core_proof = prover.prove_core(&pk, &stdin);
+        let core_proof = prover.prove_core(&pk, &stdin)?;
 
         tracing::info!("verify core");
-        prover.verify(&core_proof.proof, &vk).unwrap();
+        prover.verify(&core_proof.proof, &vk)?;
 
         tracing::info!("compress");
-        let compressed_proof = prover.compress(&vk, core_proof, vec![]);
+        let compressed_proof = prover.compress(&vk, core_proof, vec![])?;
 
         tracing::info!("verify compressed");
-        prover.verify_compressed(&compressed_proof, &vk).unwrap();
+        prover.verify_compressed(&compressed_proof, &vk)?;
 
         tracing::info!("shrink");
-        let shrink_proof = prover.shrink(compressed_proof);
+        let shrink_proof = prover.shrink(compressed_proof)?;
 
         tracing::info!("verify shrink");
-        prover.verify_shrink(&shrink_proof, &vk).unwrap();
+        prover.verify_shrink(&shrink_proof, &vk)?;
 
         tracing::info!("wrap bn254");
-        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof);
+        let wrapped_bn254_proof = prover.wrap_bn254(shrink_proof)?;
         let bytes = bincode::serialize(&wrapped_bn254_proof).unwrap();
 
         // Save the proof.
@@ -696,13 +700,15 @@ mod tests {
             try_build_groth16_artifacts_dev(&prover.wrap_vk, &wrapped_bn254_proof.proof);
         let groth16_proof = prover.wrap_groth16(wrapped_bn254_proof, artifacts_dir);
         println!("{:?}", groth16_proof);
+
+        Ok(())
     }
 
     /// Tests an end-to-end workflow of proving a program across the entire proof generation
     /// pipeline in addition to verifying deferred proofs.
     #[test]
     #[serial]
-    fn test_e2e_with_deferred_proofs() {
+    fn test_e2e_with_deferred_proofs() -> Result<()> {
         setup_logger();
 
         // Test program which proves the Keccak-256 hash of various inputs.
@@ -724,7 +730,7 @@ mod tests {
         let mut stdin = SP1Stdin::new();
         stdin.write(&1usize);
         stdin.write(&vec![0u8, 0, 0]);
-        let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin);
+        let deferred_proof_1 = prover.prove_core(&keccak_pk, &stdin)?;
         let pv_1 = deferred_proof_1.public_values.as_slice().to_vec().clone();
 
         // Generate a second proof of keccak of various inputs.
@@ -734,16 +740,16 @@ mod tests {
         stdin.write(&vec![0u8, 1, 2]);
         stdin.write(&vec![2, 3, 4]);
         stdin.write(&vec![5, 6, 7]);
-        let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin);
+        let deferred_proof_2 = prover.prove_core(&keccak_pk, &stdin)?;
         let pv_2 = deferred_proof_2.public_values.as_slice().to_vec().clone();
 
         // Generate recursive proof of first subproof.
         tracing::info!("compress subproof 1");
-        let deferred_reduce_1 = prover.compress(&keccak_vk, deferred_proof_1, vec![]);
+        let deferred_reduce_1 = prover.compress(&keccak_vk, deferred_proof_1, vec![])?;
 
         // Generate recursive proof of second subproof.
         tracing::info!("compress subproof 2");
-        let deferred_reduce_2 = prover.compress(&keccak_vk, deferred_proof_2, vec![]);
+        let deferred_reduce_2 = prover.compress(&keccak_vk, deferred_proof_2, vec![])?;
 
         // Run verify program with keccak vkey, subproofs, and their committed values.
         let mut stdin = SP1Stdin::new();
@@ -761,7 +767,7 @@ mod tests {
         stdin.write_proof(deferred_reduce_2.proof.clone(), keccak_vk.vk.clone());
 
         tracing::info!("proving verify program (core)");
-        let verify_proof = prover.prove_core(&verify_pk, &stdin);
+        let verify_proof = prover.prove_core(&verify_pk, &stdin)?;
 
         // Generate recursive proof of verify program
         tracing::info!("compress verify program");
@@ -773,15 +779,15 @@ mod tests {
                 deferred_reduce_2.proof.clone(),
                 deferred_reduce_2.proof,
             ],
-        );
+        )?;
         let reduce_pv: &RecursionPublicValues<_> =
             verify_reduce.proof.public_values.as_slice().borrow();
         println!("deferred_hash: {:?}", reduce_pv.deferred_proofs_digest);
         println!("complete: {:?}", reduce_pv.is_complete);
 
         tracing::info!("verify verify program");
-        prover
-            .verify_compressed(&verify_reduce, &verify_vk)
-            .unwrap();
+        prover.verify_compressed(&verify_reduce, &verify_vk)?;
+
+        Ok(())
     }
 }

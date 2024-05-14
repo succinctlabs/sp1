@@ -16,6 +16,7 @@ use sp1_core::{
 use sp1_primitives::poseidon2_hash;
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{plonk_bn254::PlonkBn254Proof, Groth16Proof};
+use thiserror::Error;
 
 use crate::utils::words_to_bytes_be;
 use crate::{utils::babybear_bytes_to_bn254, words_to_bytes};
@@ -194,3 +195,6 @@ pub enum SP1ReduceProofWrapper {
     Core(SP1ReduceProof<CoreSC>),
     Recursive(SP1ReduceProof<InnerSC>),
 }
+
+#[derive(Error, Debug)]
+pub enum SP1RecursionProverError {}
