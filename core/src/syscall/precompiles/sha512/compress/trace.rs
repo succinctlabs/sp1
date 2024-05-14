@@ -123,7 +123,7 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
 
                 let temp1 =
                     cols.temp1
-                        .populate(output, shard, h, s1, ch, event.w[j], SHA_COMPRESS_K[j]);
+                        .populate(output, shard, h, s1, ch, event.w[j], SHA512_COMPRESS_K[j]);
 
                 let a_rr_28 = cols.a_rr_28.populate(output, shard, a, 28);
                 let a_rr_34 = cols.a_rr_34.populate(output, shard, a, 39);
