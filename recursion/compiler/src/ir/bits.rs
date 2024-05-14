@@ -3,10 +3,6 @@ use sp1_recursion_core::runtime::NUM_BITS;
 
 use super::{Array, Builder, Config, DslIr, Felt, Usize, Var};
 
-const BABY_BEAR_MODULUS_LE_BITS: [usize; NUM_BITS] = [
-    1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
-];
-
 impl<C: Config> Builder<C> {
     /// Converts a variable to LE bits.
     pub fn num2bits_v(&mut self, num: Var<C::N>) -> Array<C, Var<C::N>> {
@@ -23,9 +19,9 @@ impl<C: Config> Builder<C> {
             self.assign(sum, sum + bit * C::N::from_canonical_u32(1 << i));
         }
 
-        self.less_than_modulus(output.clone());
-
         self.assert_var_eq(sum, num);
+
+        self.less_than_bb_modulus(output.clone());
 
         output
     }
@@ -58,7 +54,7 @@ impl<C: Config> Builder<C> {
 
         self.assert_felt_eq(sum, num);
 
-        self.less_than_modulus(output.clone());
+        self.less_than_bb_modulus(output.clone());
 
         output
     }
@@ -73,7 +69,7 @@ impl<C: Config> Builder<C> {
         self.push(DslIr::CircuitNum2BitsF(num, output.clone()));
 
         let output_array = self.vec(output.clone());
-        self.less_than_modulus(output_array);
+        self.less_than_bb_modulus(output_array);
 
         output
     }
@@ -160,28 +156,31 @@ impl<C: Config> Builder<C> {
         result_bits
     }
 
-    /// Checks that the bit decomposition of a number (in little-endian) is less than the babybear modulus.
-    fn less_than_modulus(&mut self, num_bits: Array<C, Var<C::N>>) {
-        let false_v: Var<_> = self.eval(C::N::zero());
-        let true_v: Var<_> = self.eval(C::N::one());
-        let mut is_less_than = false_v;
-        for i in (0..NUM_BITS).rev() {
-            let mod_bit: Var<_> =
-                self.eval(C::N::from_canonical_usize(BABY_BEAR_MODULUS_LE_BITS[i]));
-            let num_bit = self.get(&num_bits, i);
-            let bit_diff: Var<_> = self.eval(mod_bit - num_bit);
+    /// Checks that the LE bit decomposition of a number is less than the babybear modulus.
+    ///
+    /// SAFETY: This function assumes that the num_bits values are already verified to be boolean.
+    ///
+    /// The babybear modulus in LE bits is: 100_000_000_000_000_000_000_000_000_111_1.
+    /// To check that the num_bits array is less than that value, we first check if the most significant
+    /// bits are all 1.  If it is, then we assert that the other bits are all 0.
+    fn less_than_bb_modulus(&mut self, num_bits: Array<C, Var<C::N>>) {
+        let one: Var<_> = self.eval(C::N::one());
+        let zero: Var<_> = self.eval(C::N::zero());
 
-            self.if_ne(is_less_than, true_v).then(|builder| {
-                builder.if_eq(bit_diff, C::N::one()).then(|_| {
-                    is_less_than = true_v;
-                });
-
-                builder.if_eq(bit_diff, C::N::neg_one()).then(|builder| {
-                    builder.error();
-                });
-            });
+        let mut most_sig_4_bits = one;
+        for i in (NUM_BITS - 4)..NUM_BITS {
+            let bit = self.get(&num_bits, i);
+            most_sig_4_bits = self.eval(bit * most_sig_4_bits);
         }
 
-        self.assert_var_eq(is_less_than, true_v);
+        let mut sum_least_sig_bits = zero;
+        for i in 0..(NUM_BITS - 4) {
+            let bit = self.get(&num_bits, i);
+            sum_least_sig_bits = self.eval(bit + sum_least_sig_bits);
+        }
+
+        // If the most significant 4 bits are all 1, then check the sum of the least significant bits, else return zero.
+        let check = self.select_v(most_sig_4_bits, sum_least_sig_bits, zero);
+        self.assert_var_eq(check, zero);
     }
 }
