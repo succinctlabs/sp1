@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"os"
 
 	"github.com/consensys/gnark-crypto/ecc"
@@ -69,6 +70,8 @@ var verifyCmd = &cobra.Command{
 		if err != nil {
 			panic(err)
 		}
+
+		fmt.Println("Verify Gnark Proof", publicWitness)
 
 		// Verify proof.
 		err = groth16.Verify(proof, vk, publicWitness, backend.WithVerifierHashToFieldFunction(sha256.New()))
