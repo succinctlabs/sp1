@@ -180,7 +180,8 @@ impl<C: Config> Builder<C> {
         }
 
         // If the most significant 4 bits are all 1, then check the sum of the least significant bits, else return zero.
-        let check = self.select_v(most_sig_4_bits, sum_least_sig_bits, zero);
+        let check: Var<_> =
+            self.eval(most_sig_4_bits * sum_least_sig_bits + (one - most_sig_4_bits) * zero);
         self.assert_var_eq(check, zero);
     }
 }
