@@ -219,12 +219,12 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
 
         output.add_byte_lookup_events(new_byte_lookup_events);
 
-        pad_rows(&mut rows, || [F::zero(); NUM_SHA_COMPRESS_COLS]);
+        pad_rows(&mut rows, || [F::zero(); NUM_SHA512_COMPRESS_COLS]);
 
         // Convert the trace to a row major matrix.
         RowMajorMatrix::new(
             rows.into_iter().flatten().collect::<Vec<_>>(),
-            NUM_SHA_COMPRESS_COLS,
+            NUM_SHA512_COMPRESS_COLS,
         )
     }
 
