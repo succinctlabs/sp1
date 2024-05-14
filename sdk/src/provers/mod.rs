@@ -59,7 +59,8 @@ pub trait Prover: Send + Sync {
             .map_err(|e| e.into())
     }
 
-    /// Verify that a SP1 Groth16 proof is valid given its vkey and metadata.
+    /// Verify that a SP1 Groth16 proof is valid. Additionally, verify the public inputs of the Groth16Proof match
+    /// the hash of the VK and the committed public values of the SP1ProofWithPublicValues.
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
         let sp1_prover = self.sp1_prover();
 
@@ -70,8 +71,8 @@ pub trait Prover: Send + Sync {
         };
         sp1_prover.verify_groth16(&proof.proof, vkey, &groth16_aritfacts)?;
 
-        // Verify that the public values of the SP1ProofWithMetadata match the committed values
-        // of the Groth16 proof.
+        // Verify that the public values of the SP1ProofWithPublicValues match the committed public
+        // values of the Groth16 proof.
         let pv_biguint = proof.public_values.hash();
         let committed_values_digest = BigUint::from_str(&proof.proof.public_inputs[1])?;
 
