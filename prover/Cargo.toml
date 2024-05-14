@@ -48,24 +48,8 @@ num-bigint = "0.4.5"
 thiserror = "1.0.60"
 
 [[bin]]
-name = "fibonacci_sweep"
-path = "scripts/fibonacci_sweep.rs"
-
-[[bin]]
-name = "tendermint_sweep"
-path = "scripts/tendermint_sweep.rs"
-
-[[bin]]
-name = "fibonacci_groth16"
-path = "scripts/fibonacci_groth16.rs"
-
-[[bin]]
 name = "build_groth16"
 path = "scripts/build_groth16.rs"
-
-# [[bin]]
-# name = "e2e"
-# path = "scripts/e2e.rs"
 
 [features]
 neon = ["sp1-core/neon"]
