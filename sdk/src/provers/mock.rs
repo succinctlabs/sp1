@@ -1,9 +1,12 @@
 #![allow(unused_variables)]
+use std::str::FromStr;
+
 use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof,
     SP1ProofVerificationError, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
+use num_bigint::BigUint;
 use p3_field::PrimeField;
 use sp1_prover::{Groth16Proof, HashableKey, SP1Prover, SP1Stdin};
 
@@ -86,7 +89,27 @@ impl Prover for MockProver {
         Ok(())
     }
 
-    fn verify_groth16(&self, _proof: &SP1Groth16Proof, _vkey: &SP1VerifyingKey) -> Result<()> {
+    fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
+        // Verify the public values and the vkey matches.
+        let public_values_hash = proof.public_values.hash();
+        let vk_hash = vkey.vk.hash_bn254().as_canonical_biguint();
+
+        // Get the public inputs from the inner Groth16Proof.
+        let groth16_vkey_hash = BigUint::from_str(&proof.proof.public_inputs[0])?;
+        let groth16_committed_values_digest = BigUint::from_str(&proof.proof.public_inputs[1])?;
+
+        if groth16_vkey_hash != vk_hash {
+            return Err(anyhow::anyhow!(
+                "The supplied verifying key does not match the inner Groth16 proof's verifying key."
+            ));
+        }
+        if groth16_committed_values_digest != public_values_hash {
+            return Err(anyhow::anyhow!(
+                "The public values in the SP1 proof do not match the public values in the inner 
+                Groth16 proof."
+            ));
+        }
+
         Ok(())
     }
 
