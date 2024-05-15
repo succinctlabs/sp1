@@ -42,26 +42,26 @@ impl Poseidon2Chip {
         receive_table: AB::Var,
         memory_access: AB::Expr,
     ) {
-        let num_rounds_f = 8;
-        let num_rounds_p = 13;
-        let rounds_f_1_beginning = 2; // Previous rounds are memory read and initial.
-        let rounds_p_beginning = rounds_f_1_beginning + num_rounds_f / 2;
-        let rounds_p_end = rounds_p_beginning + num_rounds_p;
-        let rounds_f_2_end = rounds_p_end + num_rounds_f / 2;
+        const NUM_ROUNDS_F: usize = 8;
+        const NUM_ROUNDS_P: usize = 13;
+        const ROUNDS_F_1_BEGINNING: usize = 2; // Previous rounds are memory read and initial.
+        const ROUNDS_P_BEGINNING: usize = ROUNDS_F_1_BEGINNING + NUM_ROUNDS_F / 2;
+        const ROUNDS_P_END: usize = ROUNDS_P_BEGINNING + NUM_ROUNDS_P;
+        const ROUND_F_2_END: usize = ROUNDS_P_END + NUM_ROUNDS_F / 2;
 
         let is_memory_read = local.rounds[0];
         let is_initial = local.rounds[1];
 
         // First half of the external rounds.
-        let mut is_external_layer = (rounds_f_1_beginning..rounds_p_beginning)
+        let mut is_external_layer = (ROUNDS_F_1_BEGINNING..ROUNDS_P_BEGINNING)
             .map(|i| local.rounds[i].into())
             .sum::<AB::Expr>();
 
         // Second half of the external rounds.
-        is_external_layer += (rounds_p_end..rounds_f_2_end)
+        is_external_layer += (ROUNDS_P_END..ROUND_F_2_END)
             .map(|i| local.rounds[i].into())
             .sum::<AB::Expr>();
-        let is_internal_layer = (rounds_p_beginning..rounds_p_end)
+        let is_internal_layer = (ROUNDS_P_BEGINNING..ROUNDS_P_END)
             .map(|i| local.rounds[i].into())
             .sum::<AB::Expr>();
         let is_memory_write = local.rounds[local.rounds.len() - 1];
@@ -82,7 +82,7 @@ impl Poseidon2Chip {
             is_initial.into(),
             is_external_layer.clone(),
             is_internal_layer.clone(),
-            num_rounds_f + num_rounds_p + 1,
+            NUM_ROUNDS_F + NUM_ROUNDS_P + 1,
         );
 
         self.eval_syscall(builder, local, receive_table);
