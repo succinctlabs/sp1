@@ -3,6 +3,7 @@ mod branch;
 mod jump;
 mod memory;
 mod operands;
+mod public_values;
 mod system;
 
 use std::borrow::Borrow;
@@ -174,5 +175,13 @@ impl<F: Field> CpuChip<F> {
             + local.selectors.is_fri_fold
             + local.selectors.is_poseidon
             + local.selectors.is_store
+    }
+
+    /// Expr to check for instructions that are commit instructions.
+    pub fn is_commit_instruction<AB>(&self, local: &CpuCols<AB::Var>) -> AB::Expr
+    where
+        AB: SP1RecursionAirBuilder<F = F>,
+    {
+        local.selectors.is_commit.into()
     }
 }
