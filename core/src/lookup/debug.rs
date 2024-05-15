@@ -223,7 +223,7 @@ mod test {
         let machine = RiscvAir::machine(config);
         let (pk, _) = machine.setup(&program);
         let mut runtime = Runtime::new(program);
-        runtime.run();
+        runtime.run().unwrap();
         let shards = machine.shard(runtime.record, &ShardingConfig::default());
         let ok =
             debug_interactions_with_all_chips(&machine, &pk, &shards, InteractionKind::all_kinds());

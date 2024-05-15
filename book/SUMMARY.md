@@ -8,6 +8,8 @@
 
 - [Quickstart](./getting-started/quickstart.md)
 
+- [Project Template](./getting-started/project-template.md)
+
 # Writing Programs
 
 - [Setup](./writing-programs/setup.md)
@@ -29,3 +31,13 @@
 - [Basics](./generating-proofs/basics.md)
 
 - [Advanced](./generating-proofs/advanced.md)
+
+# Verifying Proofs
+
+- [Solidity & EVM](./verifying-proofs/solidity-and-evm.md)
+
+# Developers
+
+- [Recommended Settings](./developers/recommended-settings.md)
+
+- [Building Groth16 Artifacts](./developers/building-groth16-artifacts.md)

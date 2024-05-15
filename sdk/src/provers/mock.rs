@@ -33,7 +33,7 @@ impl Prover for MockProver {
     }
 
     fn prove(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Proof> {
-        let public_values = SP1Prover::execute(&pk.elf, &stdin);
+        let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
         Ok(SP1ProofWithPublicValues {
             proof: vec![],
             stdin,

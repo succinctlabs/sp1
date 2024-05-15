@@ -1,12 +1,16 @@
+use std::{borrow::Borrow, path::PathBuf, str::FromStr};
+
 use anyhow::Result;
+use num_bigint::BigUint;
 use p3_baby_bear::BabyBear;
-use p3_field::AbstractField;
+use p3_field::{AbstractField, PrimeField};
 use sp1_core::{
     air::PublicValues,
     stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
+use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
 
 use crate::{
     CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
@@ -99,7 +103,8 @@ impl SP1Prover {
             .verify(&self.compress_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
-        let public_values = RecursionPublicValues::from_vec(proof.proof.public_values.clone());
+        let public_values: &RecursionPublicValues<_> =
+            proof.proof.public_values.as_slice().borrow();
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
         if public_values.is_complete != BabyBear::one() {
@@ -118,7 +123,7 @@ impl SP1Prover {
 
         // Verify that the reduce program is the one we are expecting.
         let recursion_vkey_hash = self.compress_vk.hash_babybear();
-        if public_values.recursion_vk_digest != recursion_vkey_hash {
+        if public_values.compress_vk_digest != recursion_vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "recursion vk hash mismatch",
             ));
@@ -141,7 +146,8 @@ impl SP1Prover {
             .verify(&self.shrink_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
-        let public_values = RecursionPublicValues::from_vec(proof.proof.public_values.clone());
+        let public_values: &RecursionPublicValues<_> =
+            proof.proof.public_values.as_slice().borrow();
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
         if public_values.is_complete != BabyBear::one() {
@@ -155,14 +161,6 @@ impl SP1Prover {
         if public_values.sp1_vk_digest != vkey_hash {
             return Err(MachineVerificationError::InvalidPublicValues(
                 "sp1 vk hash mismatch",
-            ));
-        }
-
-        // Verify that the reduce program is the one we are expecting.
-        let recursion_vkey_hash = self.shrink_vk.hash_babybear();
-        if public_values.recursion_vk_digest != recursion_vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "recursion vk hash mismatch",
             ));
         }
 
@@ -183,7 +181,8 @@ impl SP1Prover {
             .verify(&self.wrap_vk, &machine_proof, &mut challenger)?;
 
         // Validate public values
-        let public_values = RecursionPublicValues::from_vec(proof.proof.public_values.clone());
+        let public_values: &RecursionPublicValues<_> =
+            proof.proof.public_values.as_slice().borrow();
 
         // `is_complete` should be 1. In the reduce program, this ensures that the proof is fully reduced.
         if public_values.is_complete != BabyBear::one() {
@@ -200,12 +199,29 @@ impl SP1Prover {
             ));
         }
 
-        // Verify that the reduce program is the one we are expecting.
-        let recursion_vkey_hash = self.shrink_vk.hash_babybear();
-        if public_values.recursion_vk_digest != recursion_vkey_hash {
-            return Err(MachineVerificationError::InvalidPublicValues(
-                "recursion vk hash mismatch",
-            ));
+        Ok(())
+    }
+
+    /// Verifies a Groth16 proof. Additionally, verifies that the hash of VK matches the VK hash
+    /// specified by the proof's public inputs.
+    pub fn verify_groth16(
+        &self,
+        proof: &Groth16Proof,
+        vk: &SP1VerifyingKey,
+        build_dir: &PathBuf,
+    ) -> Result<()> {
+        let prover = Groth16Prover::new();
+
+        let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
+        let committed_values_digest = BigUint::from_str(&proof.public_inputs[1])?;
+
+        // Verify the proof with the corresponding public inputs.
+        prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
+
+        // Verify that the vk hash of the SP1VerifyingKey matches the vk hash specified in the proof.
+        let vk_hash = vk.hash_bn254().as_canonical_biguint();
+        if vk_hash != vkey_hash {
+            return Err(anyhow::Error::msg("vk hash mismatch"));
         }
 
         Ok(())
