@@ -208,7 +208,6 @@ impl SP1Prover {
                 "sp1 vk hash mismatch",
             ));
         }
-
         Ok(())
     }
 
@@ -245,7 +244,6 @@ fn verify_vkey_hash(vk: &SP1VerifyingKey, expected_vk_hash: BigUint) -> Result<(
     if vk_hash != expected_vk_hash {
         return Err(Groth16VerificationError::InvalidVerificationKey.into());
     }
-
     Ok(())
 }
 
@@ -258,6 +256,5 @@ fn verify_public_values(
     if public_values_hash != expected_public_values_hash {
         return Err(Groth16VerificationError::InvalidPublicValues.into());
     }
-
     Ok(())
 }
