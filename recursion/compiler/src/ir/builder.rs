@@ -96,13 +96,12 @@ pub struct Builder<C: Config> {
     pub(crate) ext_count: u32,
     pub(crate) var_count: u32,
     pub operations: TracedVec<DslIr<C>>,
-    pub nb_public_values: Option<Var<C::N>>,
-    pub public_values_buffer: Option<Array<C, Felt<C::F>>>,
-    pub witness_var_count: u32,
-    pub witness_felt_count: u32,
-    pub witness_ext_count: u32,
-    pub debug: bool,
-    pub po2_table: Option<Array<C, Var<C::N>>>,
+    pub(crate) nb_public_values: Option<Var<C::N>>,
+    pub(crate) witness_var_count: u32,
+    pub(crate) witness_felt_count: u32,
+    pub(crate) witness_ext_count: u32,
+    pub(crate) debug: bool,
+    pub(crate) is_sub_builder: bool,
 }
 
 impl<C: Config> Builder<C> {
@@ -112,6 +111,8 @@ impl<C: Config> Builder<C> {
         felt_count: u32,
         ext_count: u32,
         nb_public_values: Option<Var<C::N>>,
+        debug: bool,
+        is_sub_builder: bool,
     ) -> Self {
         Self {
             felt_count,
@@ -122,9 +123,8 @@ impl<C: Config> Builder<C> {
             witness_ext_count: 0,
             operations: Default::default(),
             nb_public_values,
-            public_values_buffer: None,
-            debug: false,
-            po2_table: None,
+            debug,
+            is_sub_builder,
         }
     }
 
@@ -388,6 +388,10 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn witness_var(&mut self) -> Var<C::N> {
+        assert!(
+            !self.is_sub_builder,
+            "Cannot create a witness var with a sub builder"
+        );
         let witness = self.uninit();
         self.operations
             .push(DslIr::WitnessVar(witness, self.witness_var_count));
@@ -396,6 +400,10 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn witness_felt(&mut self) -> Felt<C::F> {
+        assert!(
+            !self.is_sub_builder,
+            "Cannot create a witness felt with a sub builder"
+        );
         let witness = self.uninit();
         self.operations
             .push(DslIr::WitnessFelt(witness, self.witness_felt_count));
@@ -404,6 +412,10 @@ impl<C: Config> Builder<C> {
     }
 
     pub fn witness_ext(&mut self) -> Ext<C::F, C::EF> {
+        assert!(
+            !self.is_sub_builder,
+            "Cannot create a witness ext with a sub builder"
+        );
         let witness = self.uninit();
         self.operations
             .push(DslIr::WitnessExt(witness, self.witness_ext_count));
@@ -426,6 +438,10 @@ impl<C: Config> Builder<C> {
 
     /// Commits a felt in public values.
     pub fn commit_public_value(&mut self, val: Felt<C::F>) {
+        assert!(
+            !self.is_sub_builder,
+            "Cannot commit to a public value with a sub builder"
+        );
         if self.nb_public_values.is_none() {
             self.nb_public_values = Some(self.eval(C::N::zero()));
         }
@@ -437,6 +453,10 @@ impl<C: Config> Builder<C> {
 
     /// Commits an array of felts in public values.
     pub fn commit_public_values(&mut self, vals: &Array<C, Felt<C::F>>) {
+        assert!(
+            !self.is_sub_builder,
+            "Cannot commit to public values with a sub builder"
+        );
         let len = vals.len();
         self.range(0, len).for_each(|i, builder| {
             let val = builder.get(vals, i);
@@ -491,6 +511,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.debug,
+            true,
         );
         f(&mut f_builder);
         let then_instructions = f_builder.operations;
@@ -538,6 +560,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.debug,
+            true,
         );
 
         // Execute the `then` and `else_then` blocks and collect the instructions.
@@ -549,6 +573,8 @@ impl<'a, C: Config> IfBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.debug,
+            true,
         );
         else_f(&mut else_builder);
         let else_instructions = else_builder.operations;
@@ -682,6 +708,8 @@ impl<'a, C: Config> RangeBuilder<'a, C> {
             self.builder.felt_count,
             self.builder.ext_count,
             self.builder.nb_public_values,
+            self.builder.debug,
+            true,
         );
 
         f(loop_variable, &mut loop_body_builder);
