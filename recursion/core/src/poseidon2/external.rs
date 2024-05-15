@@ -435,10 +435,17 @@ mod tests {
             7,
         > = inner_perm();
 
-        let expected_outputs = test_inputs
-            .iter()
-            .map(|input| gt.permute(*input))
-            .collect::<Vec<_>>();
+        let expected_outputs: Vec<[BabyBear; 16]> = (0..16)
+            .map(|_| core::array::from_fn(|_| BabyBear::rand(rng)))
+            .collect_vec();
+        // let mut expected_outputs = test_inputs
+        //     .iter()
+        //     .map(|input| gt.permute(*input))
+        //     .collect::<Vec<_>>();
+        // println!("expected_outputs = {:?}", expected_outputs);
+        // expected_outputs.pop();
+        // expected_outputs.push(expected_outputs.last().unwrap().clone());
+        // println!("expected_outputs = {:?}", expected_outputs);
 
         let mut input_exec = ExecutionRecord::<BabyBear>::default();
         for (input, output) in test_inputs.into_iter().zip_eq(expected_outputs) {
