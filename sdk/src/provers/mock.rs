@@ -4,7 +4,8 @@ use crate::{
     SP1ProofVerificationError, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
-use sp1_prover::{SP1Prover, SP1Stdin};
+use p3_field::PrimeField;
+use sp1_prover::{Groth16Proof, HashableKey, SP1Prover, SP1Stdin};
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
 pub struct MockProver {
@@ -50,7 +51,19 @@ impl Prover for MockProver {
     }
 
     fn prove_groth16(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1Groth16Proof> {
-        todo!()
+        let public_values = SP1Prover::execute(&pk.elf, &stdin)?;
+        Ok(SP1Groth16Proof {
+            proof: Groth16Proof {
+                public_inputs: [
+                    public_values.hash().to_string(),
+                    pk.vk.hash_bn254().as_canonical_biguint().to_string(),
+                ],
+                encoded_proof: "".to_string(),
+                raw_proof: "".to_string(),
+            },
+            stdin,
+            public_values,
+        })
     }
 
     fn prove_plonk(&self, pk: &SP1ProvingKey, stdin: SP1Stdin) -> Result<SP1PlonkProof> {
