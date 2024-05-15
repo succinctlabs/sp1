@@ -81,6 +81,10 @@ pub struct ExecutionRecord {
 
     pub secp256k1_double_events: Vec<ECDoubleEvent>,
 
+    pub secp384r1_add_events: Vec<ECAddEvent>,
+
+    pub secp384r1_double_events: Vec<ECDoubleEvent>,
+
     pub bn254_add_events: Vec<ECAddEvent>,
 
     pub bn254_double_events: Vec<ECDoubleEvent>,
@@ -119,6 +123,8 @@ pub struct ShardingConfig {
     pub keccak_len: usize,
     pub secp256k1_add_len: usize,
     pub secp256k1_double_len: usize,
+    pub secp384r1_add_len: usize,
+    pub secp384r1_double_len: usize,
     pub bn254_add_len: usize,
     pub bn254_double_len: usize,
     pub bls12381_add_len: usize,
@@ -149,6 +155,8 @@ impl Default for ShardingConfig {
             keccak_len: shard_size,
             secp256k1_add_len: shard_size,
             secp256k1_double_len: shard_size,
+            secp384r1_add_len: shard_size,
+            secp384r1_double_len: shard_size,
             bn254_add_len: shard_size,
             bn254_double_len: shard_size,
             bls12381_add_len: shard_size,
@@ -210,6 +218,14 @@ impl MachineRecord for ExecutionRecord {
         stats.insert(
             "secp256k1_double_events".to_string(),
             self.secp256k1_double_events.len(),
+        );
+        stats.insert(
+            "secp384r1_add_events".to_string(),
+            self.secp384r1_add_events.len(),
+        );
+        stats.insert(
+            "secp384r1_double_events".to_string(),
+            self.secp384r1_double_events.len(),
         );
         stats.insert("bn254_add_events".to_string(), self.bn254_add_events.len());
         stats.insert(

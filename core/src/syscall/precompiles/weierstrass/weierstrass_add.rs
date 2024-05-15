@@ -80,6 +80,7 @@ impl<E: EllipticCurve> Syscall for WeierstrassAddAssignChip<E> {
             CurveType::Secp256k1 => rt.record_mut().secp256k1_add_events.push(event),
             CurveType::Bn254 => rt.record_mut().bn254_add_events.push(event),
             CurveType::Bls12381 => rt.record_mut().bls12381_add_events.push(event),
+            CurveType::Secp384r1 => rt.record_mut().secp384r1_add_events.push(event),
             _ => panic!("Unsupported curve"),
         }
         None
@@ -181,6 +182,7 @@ where
             CurveType::Secp256k1 => "Secp256k1AddAssign".to_string(),
             CurveType::Bn254 => "Bn254AddAssign".to_string(),
             CurveType::Bls12381 => "Bls12381AddAssign".to_string(),
+            CurveType::Secp384r1 => "Secp384r1AddAssign".to_string(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -194,6 +196,7 @@ where
             CurveType::Secp256k1 => &input.secp256k1_add_events,
             CurveType::Bn254 => &input.bn254_add_events,
             CurveType::Bls12381 => &input.bls12381_add_events,
+            CurveType::Secp384r1 => &input.secp384r1_add_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -273,6 +276,7 @@ where
             CurveType::Secp256k1 => !shard.secp256k1_add_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_add_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_add_events.is_empty(),
+            CurveType::Secp384r1 => !shard.secp384r1_add_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -432,6 +436,9 @@ where
             CurveType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_ADD.syscall_id())
             }
+            CurveType::Secp384r1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP384R1_ADD.syscall_id())
+            }
             _ => panic!("Unsupported curve"),
         };
 
@@ -455,7 +462,8 @@ mod tests {
             run_test, setup_logger,
             tests::{
                 BLS12381_ADD_ELF, BLS12381_DOUBLE_ELF, BLS12381_MUL_ELF, BN254_ADD_ELF,
-                BN254_MUL_ELF, SECP256K1_ADD_ELF, SECP256K1_MUL_ELF,
+                BN254_MUL_ELF, SECP256K1_ADD_ELF, SECP256K1_MUL_ELF, SECP384R1_ADD_ELF,
+                SECP384R1_MUL_ELF,
             },
         },
     };
@@ -464,6 +472,13 @@ mod tests {
     fn test_secp256k1_add_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_ADD_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_secp384r1_add_simple() {
+        setup_logger();
+        let program = Program::from(SECP384R1_ADD_ELF);
         run_test(program).unwrap();
     }
 
@@ -485,6 +500,13 @@ mod tests {
     fn test_secp256k1_mul_simple() {
         setup_logger();
         let program = Program::from(SECP256K1_MUL_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_secp384r1_mul_simple() {
+        setup_logger();
+        let program = Program::from(SECP384R1_MUL_ELF);
         run_test(program).unwrap();
     }
 

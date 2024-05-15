@@ -81,6 +81,7 @@ impl<E: EllipticCurve + WeierstrassParameters> Syscall for WeierstrassDoubleAssi
             CurveType::Secp256k1 => rt.record_mut().secp256k1_double_events.push(event),
             CurveType::Bn254 => rt.record_mut().bn254_double_events.push(event),
             CurveType::Bls12381 => rt.record_mut().bls12381_double_events.push(event),
+            CurveType::Secp384r1 => rt.record_mut().secp384r1_double_events.push(event),
             _ => panic!("Unsupported curve"),
         }
         None
@@ -203,6 +204,7 @@ where
             CurveType::Secp256k1 => "Secp256k1DoubleAssign".to_string(),
             CurveType::Bn254 => "Bn254DoubleAssign".to_string(),
             CurveType::Bls12381 => "Bls12381DoubleAssign".to_string(),
+            CurveType::Secp384r1 => "Secp384r1DoubleAssign".to_string(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -217,6 +219,7 @@ where
             CurveType::Secp256k1 => &input.secp256k1_double_events,
             CurveType::Bn254 => &input.bn254_double_events,
             CurveType::Bls12381 => &input.bls12381_double_events,
+            CurveType::Secp384r1 => &input.secp384r1_double_events,
             _ => panic!("Unsupported curve"),
         };
 
@@ -296,6 +299,7 @@ where
             CurveType::Secp256k1 => !shard.secp256k1_double_events.is_empty(),
             CurveType::Bn254 => !shard.bn254_double_events.is_empty(),
             CurveType::Bls12381 => !shard.bls12381_double_events.is_empty(),
+            CurveType::Secp384r1 => !shard.secp384r1_double_events.is_empty(),
             _ => panic!("Unsupported curve"),
         }
     }
@@ -465,6 +469,9 @@ where
             CurveType::Bls12381 => {
                 AB::F::from_canonical_u32(SyscallCode::BLS12381_DOUBLE.syscall_id())
             }
+            CurveType::Secp384r1 => {
+                AB::F::from_canonical_u32(SyscallCode::SECP384R1_DOUBLE.syscall_id())
+            }
             _ => panic!("Unsupported curve"),
         };
 
@@ -486,7 +493,9 @@ pub mod tests {
         runtime::Program,
         utils::{
             run_test, setup_logger,
-            tests::{BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF},
+            tests::{
+                BLS12381_DOUBLE_ELF, BN254_DOUBLE_ELF, SECP256K1_DOUBLE_ELF, SECP384R1_DOUBLE_ELF,
+            },
         },
     };
 
@@ -508,6 +517,13 @@ pub mod tests {
     fn test_bls12381_double_simple() {
         setup_logger();
         let program = Program::from(BLS12381_DOUBLE_ELF);
+        run_test(program).unwrap();
+    }
+
+    #[test]
+    fn test_secp384r1_double_simple() {
+        setup_logger();
+        let program = Program::from(SECP384R1_DOUBLE_ELF);
         run_test(program).unwrap();
     }
 }

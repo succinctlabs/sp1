@@ -11,6 +11,7 @@ cfg-if = "1.0.0"
 getrandom = { version = "0.2.15", features = ["custom"] }
 hex = "0.4.3"
 k256 = { version = "0.13.3", features = ["ecdsa", "std", "bits"] }
+p384 = { version = "0.13.0", features = ["ecdsa", "std", "bits"] }
 rand = "0.8.5"
 serde = { version = "1.0.201", features = ["derive"] }
 num = {version = "0.4.3"}
