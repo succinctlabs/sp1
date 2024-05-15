@@ -1,5 +1,4 @@
 #![allow(unused_variables)]
-
 use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof,
     SP1ProofVerificationError, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
