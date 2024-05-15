@@ -229,9 +229,7 @@ impl SP1Prover {
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
         // Verify that the vk hash of the SP1VerifyingKey matches the vk hash specified in the proof.
-        // Note: If this is called from the SDK, this check is repeated.
-        // TODO: Should we remove this check? It's not necessary if users only need to be secure
-        // calling this from the SDK.
+        // TODO: To verify the proof, we don't even need to pass in the vk. Should we remove this as a parameter?
         verify_vkey_hash(vk, vkey_hash)?;
 
         Ok(())
