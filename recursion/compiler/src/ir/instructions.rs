@@ -248,6 +248,8 @@ pub enum DslIr<C: Config> {
     CircuitCommitCommitedValuesDigest(Var<C::N>),
 
     // FRI specific instructions.
+    /// Executes a FRI fold operation. 1st field is the size of the fri fold input array.  2nd field
+    /// is the fri fold input array.  See [`FriFoldInput`] for more details.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
     /// Select's a variable based on a condition. (select(cond, true_val, false_val) => output).
     /// Should only be used when target is a gnark circuit.
