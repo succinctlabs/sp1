@@ -6,15 +6,25 @@ use p3_baby_bear::BabyBear;
 use p3_field::{AbstractField, PrimeField};
 use sp1_core::{
     air::PublicValues,
+    io::SP1PublicValues,
     stark::{MachineProof, MachineVerificationError, StarkGenericConfig},
     utils::BabyBearPoseidon2,
 };
 use sp1_recursion_core::{air::RecursionPublicValues, stark::config::BabyBearPoseidon2Outer};
 use sp1_recursion_gnark_ffi::{Groth16Proof, Groth16Prover};
+use thiserror::Error;
 
 use crate::{
     CoreSC, HashableKey, OuterSC, SP1CoreProofData, SP1Prover, SP1ReduceProof, SP1VerifyingKey,
 };
+
+#[derive(Error, Debug)]
+pub enum Groth16VerificationError {
+    #[error("The verifying key does not match the Groth16 proof's verifying key.")]
+    InvalidVerificationKey,
+    #[error("The public values in the SP1 proof do not match the public values in the inner Groth16 proof.")]
+    InvalidPublicValues,
+}
 
 impl SP1Prover {
     /// Verify a core proof by verifying the shards, verifying lookup bus, verifying that the
@@ -219,11 +229,34 @@ impl SP1Prover {
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
 
         // Verify that the vk hash of the SP1VerifyingKey matches the vk hash specified in the proof.
-        let vk_hash = vk.hash_bn254().as_canonical_biguint();
-        if vk_hash != vkey_hash {
-            return Err(anyhow::Error::msg("vk hash mismatch"));
-        }
+        // Note: If this is called from the SDK, this check is repeated.
+        // TODO: Should we remove this check? It's not necessary if users only need to be secure
+        // calling this from the SDK.
+        verify_vkey_hash(vk, vkey_hash)?;
 
         Ok(())
     }
+}
+
+/// Verify that the hash of vk matches the expected vk hash.
+pub fn verify_vkey_hash(vk: &SP1VerifyingKey, expected_vk_hash: BigUint) -> Result<()> {
+    let vk_hash = vk.hash_bn254().as_canonical_biguint();
+    if vk_hash != expected_vk_hash {
+        return Err(Groth16VerificationError::InvalidVerificationKey.into());
+    }
+
+    Ok(())
+}
+
+/// Verify that the hash of the public values matches the expected public values hash.
+pub fn verify_public_values(
+    public_values: &SP1PublicValues,
+    expected_public_values_hash: BigUint,
+) -> Result<()> {
+    let public_values_hash = public_values.hash();
+    if public_values_hash != expected_public_values_hash {
+        return Err(Groth16VerificationError::InvalidPublicValues.into());
+    }
+
+    Ok(())
 }
