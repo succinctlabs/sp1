@@ -91,8 +91,6 @@ pub struct ExecutionRecord {
 
     pub k256_decompress_events: Vec<ECDecompressEvent>,
 
-    pub p256_decompress_events: Vec<ECDecompressEvent>,
-
     pub blake3_compress_inner_events: Vec<Blake3CompressInnerEvent>,
 
     pub bls12381_add_events: Vec<ECAddEvent>,
@@ -240,10 +238,6 @@ impl MachineRecord for ExecutionRecord {
             self.k256_decompress_events.len(),
         );
         stats.insert(
-            "p256_decompress_events".to_string(),
-            self.p256_decompress_events.len(),
-        );
-        stats.insert(
             "blake3_compress_inner_events".to_string(),
             self.blake3_compress_inner_events.len(),
         );
@@ -299,8 +293,6 @@ impl MachineRecord for ExecutionRecord {
             .append(&mut other.bn254_double_events);
         self.k256_decompress_events
             .append(&mut other.k256_decompress_events);
-        self.p256_decompress_events
-            .append(&mut other.p256_decompress_events);
         self.blake3_compress_inner_events
             .append(&mut other.blake3_compress_inner_events);
         self.bls12381_add_events
@@ -556,9 +548,6 @@ impl MachineRecord for ExecutionRecord {
 
         // K256 curve decompress events.
         first.k256_decompress_events = std::mem::take(&mut self.k256_decompress_events);
-
-        // P256 curve decompress events.
-        first.p256_decompress_events = std::mem::take(&mut self.p256_decompress_events);
 
         // Blake3 compress events .
         first.blake3_compress_inner_events = std::mem::take(&mut self.blake3_compress_inner_events);

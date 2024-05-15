@@ -26,7 +26,6 @@ extern "C" {
     pub fn syscall_secp256k1_decompress(point: &mut [u8; 64], is_odd: bool);
     pub fn syscall_secp256r1_add(p: *mut u32, q: *const u32);
     pub fn syscall_secp256r1_double(p: *mut u32);
-    pub fn syscall_secp256r1_decompress(point: &mut [u8; 64], is_odd: bool);
     pub fn syscall_bn254_add(p: *mut u32, q: *const u32);
     pub fn syscall_bn254_double(p: *mut u32);
     pub fn syscall_bls12381_add(p: *mut u32, q: *const u32);

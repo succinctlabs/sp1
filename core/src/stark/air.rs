@@ -150,8 +150,6 @@ impl<F: PrimeField32> RiscvAir<F> {
         let secp256r1_double_assign =
             WeierstrassDoubleAssignChip::<SwCurve<Secp256r1Parameters>>::new();
         chips.push(RiscvAir::Secp256r1Double(secp256r1_double_assign));
-        let p256_decompress = WeierstrassDecompressChip::<SwCurve<Secp256r1Parameters>>::new();
-        chips.push(RiscvAir::P256Decompress(p256_decompress));
         let keccak_permute = KeccakPermuteChip::new();
         chips.push(RiscvAir::KeccakP(keccak_permute));
         let bn254_add_assign = WeierstrassAddAssignChip::<SwCurve<Bn254Parameters>>::new();

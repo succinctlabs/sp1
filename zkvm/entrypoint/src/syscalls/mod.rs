@@ -113,6 +113,3 @@ pub const SECP256R1_ADD: u32 = 0x00_01_01_11;
 
 /// Executes the `SECP256R1_DOUBLE` precompile.
 pub const SECP256R1_DOUBLE: u32 = 0x00_00_01_14;
-
-/// Executes the `SECP256R1_DECOMPRESS` precompile.
-pub const SECP256R1_DECOMPRESS: u32 = 0x00_00_01_15;

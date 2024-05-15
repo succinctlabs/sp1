@@ -1,6 +1,6 @@
 #![allow(unused)]
 use crate::utils::{AffinePoint, CurveOperations};
-use crate::{syscall_secp256r1_add, syscall_secp256r1_decompress, syscall_secp256r1_double};
+use crate::{syscall_secp256r1_add, syscall_secp256r1_double};
 use anyhow::Context;
 use anyhow::{anyhow, Result};
 use core::convert::TryInto;
@@ -40,35 +40,6 @@ impl CurveOperations<NUM_WORDS> for Secp256r1Operations {
     fn double(limbs: &mut [u32; NUM_WORDS]) {
         unsafe {
             syscall_secp256r1_double(limbs.as_mut_ptr());
-        }
-    }
-}
-
-/// Decompresses a compressed public key using secp256r1_decompress precompile.
-pub fn decompress_pubkey(compressed_key: &[u8; 33]) -> Result<[u8; 65]> {
-    cfg_if::cfg_if! {
-        if #[cfg(all(target_os = "zkvm", target_vendor = "succinct"))] {
-            let mut decompressed_key: [u8; 64] = [0; 64];
-            decompressed_key[..32].copy_from_slice(&compressed_key[1..]);
-            let is_odd = match compressed_key[0] {
-                2 => false,
-                3 => true,
-                _ => return Err(anyhow!("Invalid compressed key")),
-            };
-            unsafe {
-                syscall_secp256r1_decompress(&mut decompressed_key, is_odd);
-            }
-
-            let mut result: [u8; 65] = [0; 65];
-            result[0] = 4;
-            result[1..].copy_from_slice(&decompressed_key);
-            Ok(result)
-        } else {
-            let public_key = PublicKey::from_sec1_bytes(compressed_key).context("invalid pubkey")?;
-            let bytes = public_key.to_encoded_point(false).to_bytes();
-            let mut result: [u8; 65] = [0; 65];
-            result.copy_from_slice(&bytes);
-            Ok(result)
         }
     }
 }
