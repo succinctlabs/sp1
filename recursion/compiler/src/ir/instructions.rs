@@ -8,11 +8,11 @@ use super::{Config, Ext, Felt, Usize, Var};
 #[derive(Debug, Clone)]
 pub enum DslIr<C: Config> {
     // Immediates.
-    /// Assign immediate to a variable (var = imm).
+    /// Assigns an immediate to a variable (var = imm).
     ImmV(Var<C::N>, C::N),
-    /// Assign field immediate to a field element (felt = field imm).
+    /// Assigns a field immediate to a field element (felt = field imm).
     ImmF(Felt<C::F>, C::F),
-    /// Assign ext field immediate to an extension field element (ext = ext field imm).
+    /// Assigns an ext field immediate to an extension field element (ext = ext field imm).
     ImmE(Ext<C::F, C::EF>, C::EF),
 
     // Additions.
