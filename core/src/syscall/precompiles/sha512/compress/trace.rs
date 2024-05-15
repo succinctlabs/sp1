@@ -229,6 +229,6 @@ impl<F: PrimeField32> MachineAir<F> for Sha512CompressChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.sha_compress_events.is_empty()
+        !shard.sha512_compress_events.is_empty()
     }
 }
