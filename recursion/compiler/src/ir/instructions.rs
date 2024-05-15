@@ -228,11 +228,11 @@ pub enum DslIr<C: Config> {
     HintFelts(Array<C, Felt<C::F>>),
     /// Hint an array of extension field elements.
     HintExts(Array<C, Ext<C::F, C::EF>>),
-    /// Witness a variable. Should only be used in the gnark circuit.
+    /// Witness a variable. Should only be used when target is a gnark circuit.
     WitnessVar(Var<C::N>, u32),
-    /// Witness a field element. Should only be used in the gnark circuit.
+    /// Witness a field element. Should only be used when target is a gnark circuit.
     WitnessFelt(Felt<C::F>, u32),
-    /// Witness an extension field element. Should only be used in the gnark circuit.
+    /// Witness an extension field element. Should only be used when target is a gnark circuit.
     WitnessExt(Ext<C::F, C::EF>, u32),
     /// Label a field element as the ith public input.
     Commit(Felt<C::F>, Var<C::N>),
@@ -240,24 +240,37 @@ pub enum DslIr<C: Config> {
     Halt,
 
     // Public inputs for circuits.
+    /// Asserts that the inputted var is equal the circuit's vkey hash public input. Should only be
+    /// used when target is a gnark circuit.
     CircuitCommitVkeyHash(Var<C::N>),
+    /// Asserts that the inputted var is equal the circuit's commited values digest public input. Should
+    /// only be used when target is a gnark circuit.
     CircuitCommitCommitedValuesDigest(Var<C::N>),
 
     // FRI specific instructions.
     FriFold(Var<C::N>, Array<C, FriFoldInput<C>>),
-    /// Does a
+    /// Select's a variable based on a condition.  output (4th field) = select(cond (1st field), true_val (2nd field), false_val (3rd field)).
+    /// Should only be used when target is a gnark circuit.
     CircuitSelectV(Var<C::N>, Var<C::N>, Var<C::N>, Var<C::N>),
+    /// Select's a field element based on a condition.  output (4th field) = select(cond (1st field), true_val (2nd field), false_val (3rd field)).
+    /// Should only be used when target is a gnark circuit.
     CircuitSelectF(Var<C::N>, Felt<C::F>, Felt<C::F>, Felt<C::F>),
+    /// Select's an extension field element based on a condition.  output (4th field) = select(cond (1st field), true_val (2nd field), false_val (3rd field)).
+    /// Should only be used when target is a gnark circuit.
     CircuitSelectE(
         Var<C::N>,
         Ext<C::F, C::EF>,
         Ext<C::F, C::EF>,
         Ext<C::F, C::EF>,
     ),
+    /// Converts an ext to a slice of felts. Should only be used when target is a gnark circuit.
     CircuitExt2Felt([Felt<C::F>; 4], Ext<C::F, C::EF>),
+    /// Converts a slice of felts to an ext. Should only be used when target is a gnark circuit.
     CircuitFelts2Ext([Felt<C::F>; 4], Ext<C::F, C::EF>),
 
     // Debugging instructions.
+    /// Executes less than (var = var < var).  This operation is NOT constrained.
     LessThan(Var<C::N>, Var<C::N>, Var<C::N>),
+    /// Tracks the number of cycles used by a block of code annotated by the string input.
     CycleTracker(String),
 }
