@@ -1,16 +1,13 @@
 #![allow(unused_variables)]
-use std::str::FromStr;
 
 use crate::{
     Prover, SP1CompressedProof, SP1Groth16Proof, SP1PlonkProof, SP1Proof,
     SP1ProofVerificationError, SP1ProofWithPublicValues, SP1ProvingKey, SP1VerifyingKey,
 };
 use anyhow::Result;
-use num_bigint::BigUint;
 use p3_field::PrimeField;
 use sp1_prover::{
-    verify::{verify_public_values, verify_vkey_hash},
-    Groth16Proof, HashableKey, SP1Prover, SP1Stdin,
+    verify::verify_groth16_public_inputs, Groth16Proof, HashableKey, SP1Prover, SP1Stdin,
 };
 
 /// An implementation of [crate::ProverClient] that can generate mock proofs.
@@ -93,12 +90,7 @@ impl Prover for MockProver {
     }
 
     fn verify_groth16(&self, proof: &SP1Groth16Proof, vkey: &SP1VerifyingKey) -> Result<()> {
-        let expected_vk_hash = BigUint::from_str(&proof.proof.public_inputs[0])?;
-        let expected_public_values_hash = BigUint::from_str(&proof.proof.public_inputs[1])?;
-
-        verify_vkey_hash(vkey, expected_vk_hash)?;
-        verify_public_values(&proof.public_values, expected_public_values_hash)?;
-
+        verify_groth16_public_inputs(vkey, &proof.public_values, &proof.proof.public_inputs)?;
         Ok(())
     }
 

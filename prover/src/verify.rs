@@ -212,14 +212,8 @@ impl SP1Prover {
         Ok(())
     }
 
-    /// Verifies a Groth16 proof. Additionally, verifies that the hash of VK matches the VK hash
-    /// specified by the proof's public inputs.
-    pub fn verify_groth16(
-        &self,
-        proof: &Groth16Proof,
-        vk: &SP1VerifyingKey,
-        build_dir: &PathBuf,
-    ) -> Result<()> {
+    /// Verifies a Groth16 proof.
+    pub fn verify_groth16(&self, proof: &Groth16Proof, build_dir: &PathBuf) -> Result<()> {
         let prover = Groth16Prover::new();
 
         let vkey_hash = BigUint::from_str(&proof.public_inputs[0])?;
@@ -227,17 +221,26 @@ impl SP1Prover {
 
         // Verify the proof with the corresponding public inputs.
         prover.verify(proof, &vkey_hash, &committed_values_digest, build_dir);
-
-        // Verify that the vk hash of the SP1VerifyingKey matches the vk hash specified in the proof.
-        // TODO: To verify the proof, we don't even need to pass in the vk. Should we remove this as a parameter?
-        verify_vkey_hash(vk, vkey_hash)?;
-
         Ok(())
     }
 }
 
+/// Verify the vk and public_values in the public inputs of the Groth16Proof match the expected values.
+pub fn verify_groth16_public_inputs(
+    vk: &SP1VerifyingKey,
+    public_values: &SP1PublicValues,
+    groth16_public_inputs: &[String],
+) -> Result<()> {
+    let expected_vk_hash = BigUint::from_str(&groth16_public_inputs[0])?;
+    let expected_public_values_hash = BigUint::from_str(&groth16_public_inputs[1])?;
+
+    verify_vkey_hash(vk, expected_vk_hash)?;
+    verify_public_values(public_values, expected_public_values_hash)?;
+    Ok(())
+}
+
 /// Verify that the hash of vk matches the expected vk hash.
-pub fn verify_vkey_hash(vk: &SP1VerifyingKey, expected_vk_hash: BigUint) -> Result<()> {
+fn verify_vkey_hash(vk: &SP1VerifyingKey, expected_vk_hash: BigUint) -> Result<()> {
     let vk_hash = vk.hash_bn254().as_canonical_biguint();
     if vk_hash != expected_vk_hash {
         return Err(Groth16VerificationError::InvalidVerificationKey.into());
@@ -247,7 +250,7 @@ pub fn verify_vkey_hash(vk: &SP1VerifyingKey, expected_vk_hash: BigUint) -> Resu
 }
 
 /// Verify that the hash of the public values matches the expected public values hash.
-pub fn verify_public_values(
+fn verify_public_values(
     public_values: &SP1PublicValues,
     expected_public_values_hash: BigUint,
 ) -> Result<()> {
