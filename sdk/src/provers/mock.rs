@@ -58,8 +58,8 @@ impl Prover for MockProver {
         Ok(SP1Groth16Proof {
             proof: Groth16Proof {
                 public_inputs: [
-                    public_values.hash().to_string(),
                     pk.vk.hash_bn254().as_canonical_biguint().to_string(),
+                    public_values.hash().to_string(),
                 ],
                 encoded_proof: "".to_string(),
                 raw_proof: "".to_string(),
