@@ -26,7 +26,7 @@ fn main() {
             "-o",
             dest.to_str().unwrap(),
             "-buildmode=c-archive",
-            "main.go",
+            ".",
         ])
         .status()
         .expect("Failed to build Go library");
@@ -34,12 +34,9 @@ fn main() {
         panic!("Go build failed");
     }
 
-    // Copy go/lib/babybear.h to OUT_DIR/lib/babybear.h
-    let header_src = PathBuf::from("go/lib/babybear.h");
-    let header_dest_dir = dest_path.join("lib/");
-    let header_dest = header_dest_dir.join("babybear.h");
-    // mkdirs
-    std::fs::create_dir_all(&header_dest_dir).unwrap();
+    // Copy go/lib/babybear.h to OUT_DIR/babybear.h
+    let header_src = PathBuf::from("go/babybear.h");
+    let header_dest = dest_path.join("babybear.h");
     std::fs::copy(header_src, header_dest).unwrap();
 
     // Generate bindings using bindgen

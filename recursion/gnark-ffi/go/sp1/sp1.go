@@ -11,6 +11,13 @@ import (
 	"github.com/succinctlabs/sp1-recursion-gnark/sp1/poseidon2"
 )
 
+var CONSTRAINTS_JSON_FILE string = "constraints_groth16.json"
+var WITNESS_JSON_FILE string = "witness_groth16.json"
+var VERIFIER_CONTRACT_PATH string = "SP1Verifier.sol"
+var CIRCUIT_PATH string = "circuit_groth16.bin"
+var VK_PATH string = "vk_groth16.bin"
+var PK_PATH string = "pk_groth16.bin"
+
 type Circuit struct {
 	VkeyHash             frontend.Variable `gnark:",public"`
 	CommitedValuesDigest frontend.Variable `gnark:",public"`

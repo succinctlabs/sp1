@@ -21,12 +21,10 @@ pub extern "C" fn babybearinv(a: u32) -> u32 {
 
 #[cfg(test)]
 pub mod test {
-    use crate::babybearextinv;
+    use super::babybearextinv;
 
     #[test]
     fn test_babybearextinv() {
-        unsafe {
-            babybearextinv(1, 2, 3, 4, 0);
-        }
+        babybearextinv(1, 2, 3, 4, 0);
     }
 }

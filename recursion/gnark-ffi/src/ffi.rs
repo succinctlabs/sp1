@@ -4,26 +4,22 @@ use std::ffi::{c_char, CString};
 mod bind {
     include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 }
-
 use bind::*;
 
 pub fn prove_groth16(data_dir: &str, witness_path: &str) -> Groth16Proof {
     let data_dir = CString::new(data_dir).expect("CString::new failed");
     let witness_path = CString::new(witness_path).expect("CString::new failed");
 
-    println!("proving");
     let proof = unsafe {
         let proof = bind::ProveGroth16(
             data_dir.as_ptr() as *mut i8,
             witness_path.as_ptr() as *mut i8,
         ) as *mut C_Groth16Proof;
-        println!("proof: {:?}", proof);
-        println!("got proof");
+        // Safety: The pointer is returned from the go code and is guaranteed to be valid.
         unsafe { *proof }
     };
-    println!("done proving");
 
-    let result = proof.into();
+    let result = proof.into_rust();
     println!("result: {:?}", result);
     result
 }
@@ -36,57 +32,60 @@ pub fn build_groth16(data_dir: &str) {
     }
 }
 
-fn string_to_c_char_ptr(input: String) -> *mut c_char {
-    let c_string = CString::new(input).expect("CString::new failed");
-    c_string.into_raw() // Converts CString into a pointer that C can use
-}
+pub fn verify_groth16(
+    data_dir: &str,
+    proof: &str,
+    vkey_hash: &str,
+    committed_values_digest: &str,
+) -> Result<(), String> {
+    let data_dir = CString::new(data_dir).expect("CString::new failed");
+    let proof = CString::new(proof).expect("CString::new failed");
+    let vkey_hash = CString::new(vkey_hash).expect("CString::new failed");
+    let committed_values_digest =
+        CString::new(committed_values_digest).expect("CString::new failed");
 
-fn c_char_ptr_to_string(input: *mut c_char) -> String {
-    unsafe {
-        CString::from_raw(input) // Converts a pointer that C uses into a CString
-            .to_str()
-            .expect("CString::to_str failed")
-            .to_string()
+    let err_ptr = unsafe {
+        bind::VerifyGroth16(
+            data_dir.as_ptr() as *mut i8,
+            proof.as_ptr() as *mut i8,
+            vkey_hash.as_ptr() as *mut i8,
+            committed_values_digest.as_ptr() as *mut i8,
+        )
+    };
+    if err_ptr.is_null() {
+        Ok(())
+    } else {
+        // Safety: The error message is returned from the go code and is guaranteed to be valid.
+        let err = unsafe { CString::from_raw(err_ptr) };
+        Err(err.into_string().unwrap())
     }
 }
 
-impl From<Groth16Proof> for C_Groth16Proof {
-    fn from(proof: Groth16Proof) -> Self {
-        // Convert Rust String to *c_char
-        Self {
-            PublicInputs: [
-                string_to_c_char_ptr(proof.public_inputs[0].clone()),
-                string_to_c_char_ptr(proof.public_inputs[1].clone()),
-            ],
-            EncodedProof: string_to_c_char_ptr(proof.encoded_proof),
-            RawProof: string_to_c_char_ptr(proof.raw_proof),
-        }
+/// Converts a C string into a Rust String.
+///
+/// # Safety
+/// This function consumes the input pointer, so the caller must ensure that the pointer is not used
+/// after this function is called.
+unsafe fn c_char_ptr_to_string(input: *mut c_char) -> String {
+    unsafe {
+        CString::from_raw(input) // Converts a pointer that C uses into a CString
+            .into_string()
+            .expect("CString::into_string failed")
     }
 }
 
 impl C_Groth16Proof {
-    pub fn free(self) {
+    fn into_rust(self) -> Groth16Proof {
+        // Safety: The raw pointers are not used anymore after converted into Rust strings.
         unsafe {
-            // Convert *c_char to CString and free it
-            CString::from_raw(self.PublicInputs[0]);
-            CString::from_raw(self.PublicInputs[1]);
-            CString::from_raw(self.EncodedProof);
-            CString::from_raw(self.RawProof);
+            Groth16Proof {
+                public_inputs: [
+                    c_char_ptr_to_string(self.PublicInputs[0]),
+                    c_char_ptr_to_string(self.PublicInputs[1]),
+                ],
+                encoded_proof: c_char_ptr_to_string(self.EncodedProof),
+                raw_proof: c_char_ptr_to_string(self.RawProof),
+            }
         }
-    }
-}
-
-impl From<C_Groth16Proof> for Groth16Proof {
-    fn from(proof: C_Groth16Proof) -> Self {
-        let res = Self {
-            public_inputs: [
-                c_char_ptr_to_string(proof.PublicInputs[0]),
-                c_char_ptr_to_string(proof.PublicInputs[1]),
-            ],
-            encoded_proof: c_char_ptr_to_string(proof.EncodedProof),
-            raw_proof: c_char_ptr_to_string(proof.RawProof),
-        };
-        proof.free();
-        res
     }
 }
