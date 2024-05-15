@@ -403,7 +403,7 @@ pub mod baby_bear_poseidon2 {
     use p3_poseidon2::Poseidon2ExternalMatrixGeneral;
     use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
     use serde::{Deserialize, Serialize};
-    use sp1_primitives::RC_24_29;
+    use sp1_primitives::{RC_24_29, RC_16_30};
 
     use crate::stark::StarkGenericConfig;
 
@@ -411,8 +411,9 @@ pub mod baby_bear_poseidon2 {
     pub type Challenge = BinomialExtensionField<Val, 4>;
 
     pub type Perm = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>;
+    pub type Perm16 = Poseidon2<Val, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
     pub type MyHash = PaddingFreeSponge<Perm, 24, 16, 8>;
-    pub type MyCompress = TruncatedPermutation<Perm, 2, 8, 24>;
+    pub type MyCompress = TruncatedPermutation<Perm16, 2, 8, 16>;
     pub type ValMmcs = FieldMerkleTreeMmcs<
         <Val as Field>::Packing,
         <Val as Field>::Packing,
@@ -445,11 +446,34 @@ pub mod baby_bear_poseidon2 {
             DiffusionMatrixBabyBear,
         )
     }
+    
+    pub fn my_perm16() -> Perm16 {
+        const ROUNDS_F: usize = 8;
+        const ROUNDS_P: usize = 13;
+        let mut round_constants = RC_16_30.to_vec();
+        let internal_start = ROUNDS_F / 2;
+        let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+        let internal_round_constants = round_constants
+            .drain(internal_start..internal_end)
+            .map(|vec| vec[0])
+            .collect::<Vec<_>>();
+        let external_round_constants = round_constants;
+        Perm16::new(
+            ROUNDS_F,
+            external_round_constants,
+            Poseidon2ExternalMatrixGeneral,
+            ROUNDS_P,
+            internal_round_constants,
+            DiffusionMatrixBabyBear,
+        )
+    }
+
 
     pub fn default_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = my_perm();
+        let perm16 = my_perm16();
         let hash = MyHash::new(perm.clone());
-        let compress = MyCompress::new(perm.clone());
+        let compress = MyCompress::new(perm16.clone());
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
@@ -465,8 +489,9 @@ pub mod baby_bear_poseidon2 {
 
     pub fn compressed_fri_config() -> FriConfig<ChallengeMmcs> {
         let perm = my_perm();
+        let perm16 = my_perm16();
         let hash = MyHash::new(perm.clone());
-        let compress = MyCompress::new(perm.clone());
+        let compress = MyCompress::new(perm16.clone());
         let challenge_mmcs = ChallengeMmcs::new(ValMmcs::new(hash, compress));
         let num_queries = match std::env::var("FRI_QUERIES") {
             Ok(value) => value.parse().unwrap(),
@@ -496,8 +521,9 @@ pub mod baby_bear_poseidon2 {
     impl BabyBearPoseidon2 {
         pub fn new() -> Self {
             let perm = my_perm();
+            let perm16 = my_perm16();
             let hash = MyHash::new(perm.clone());
-            let compress = MyCompress::new(perm.clone());
+            let compress = MyCompress::new(perm16.clone());
             let val_mmcs = ValMmcs::new(hash, compress);
             let dft = Dft {};
             let fri_config = default_fri_config();
@@ -511,8 +537,9 @@ pub mod baby_bear_poseidon2 {
 
         pub fn compressed() -> Self {
             let perm = my_perm();
+            let perm16 = my_perm16();
             let hash = MyHash::new(perm.clone());
-            let compress = MyCompress::new(perm.clone());
+            let compress = MyCompress::new(perm16.clone());
             let val_mmcs = ValMmcs::new(hash, compress);
             let dft = Dft {};
             let fri_config = compressed_fri_config();

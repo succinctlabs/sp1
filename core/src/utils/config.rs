@@ -15,7 +15,7 @@ use p3_symmetric::Hash;
 use p3_symmetric::{PaddingFreeSponge, TruncatedPermutation};
 use serde::Deserialize;
 use serde::Serialize;
-use sp1_primitives::poseidon2_init;
+use sp1_primitives::{poseidon2_16_init, poseidon2_24_init};
 
 pub const DIGEST_SIZE: usize = 8;
 
@@ -24,10 +24,12 @@ pub type InnerVal = BabyBear;
 pub type InnerChallenge = BinomialExtensionField<InnerVal, 4>;
 pub type InnerPerm =
     Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>;
+pub type InnerPerm16 =
+    Poseidon2<InnerVal, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7>;
 pub type InnerHash = PaddingFreeSponge<InnerPerm, 24, 16, 8>;
 pub type InnerDigestHash = Hash<InnerVal, InnerVal, DIGEST_SIZE>;
 pub type InnerDigest = [InnerVal; DIGEST_SIZE];
-pub type InnerCompress = TruncatedPermutation<InnerPerm, 2, 8, 24>;
+pub type InnerCompress = TruncatedPermutation<InnerPerm16, 2, 8, 16>;
 pub type InnerValMmcs = FieldMerkleTreeMmcs<
     <InnerVal as Field>::Packing,
     <InnerVal as Field>::Packing,
@@ -48,14 +50,19 @@ pub type InnerPcsProof =
 
 /// The permutation for inner recursion.
 pub fn inner_perm() -> InnerPerm {
-    poseidon2_init()
+    poseidon2_24_init()
+}
+
+pub fn inner_perm16() -> InnerPerm16 {
+    poseidon2_16_init()
 }
 
 /// The FRI config for sp1 proofs.
 pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
+    let perm16 = inner_perm16();
     let hash = InnerHash::new(perm.clone());
-    let compress = InnerCompress::new(perm.clone());
+    let compress = InnerCompress::new(perm16.clone());
     let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
     let num_queries = match std::env::var("FRI_QUERIES") {
         Ok(value) => value.parse().unwrap(),
@@ -72,8 +79,9 @@ pub fn sp1_fri_config() -> FriConfig<InnerChallengeMmcs> {
 /// The FRI config for inner recursion.
 pub fn inner_fri_config() -> FriConfig<InnerChallengeMmcs> {
     let perm = inner_perm();
+    let perm16 = inner_perm16();
     let hash = InnerHash::new(perm.clone());
-    let compress = InnerCompress::new(perm.clone());
+    let compress = InnerCompress::new(perm16.clone());
     let challenge_mmcs = InnerChallengeMmcs::new(InnerValMmcs::new(hash, compress));
     let num_queries = match std::env::var("FRI_QUERIES") {
         Ok(value) => value.parse().unwrap(),
@@ -119,8 +127,9 @@ impl From<std::marker::PhantomData<BabyBearPoseidon2Inner>> for BabyBearPoseidon
 impl BabyBearPoseidon2Inner {
     pub fn new() -> Self {
         let perm = inner_perm();
+        let perm16 = inner_perm16();
         let hash = InnerHash::new(perm.clone());
-        let compress = InnerCompress::new(perm.clone());
+        let compress = InnerCompress::new(perm16.clone());
         let val_mmcs = InnerValMmcs::new(hash, compress);
         let dft = InnerDft {};
         let fri_config = inner_fri_config();

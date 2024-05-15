@@ -1137,7 +1137,29 @@ lazy_static! {
     };
 }
 
-pub fn poseidon2_init(
+pub fn poseidon2_16_init(
+) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 16, 7> {
+    const ROUNDS_F: usize = 8;
+    const ROUNDS_P: usize = 13;
+    let mut round_constants = RC_16_30.to_vec();
+    let internal_start = ROUNDS_F / 2;
+    let internal_end = (ROUNDS_F / 2) + ROUNDS_P;
+    let internal_round_constants = round_constants
+        .drain(internal_start..internal_end)
+        .map(|vec| vec[0])
+        .collect::<Vec<_>>();
+    let external_round_constants = round_constants;
+    Poseidon2::new(
+        ROUNDS_F,
+        external_round_constants,
+        Poseidon2ExternalMatrixGeneral,
+        ROUNDS_P,
+        internal_round_constants,
+        DiffusionMatrixBabyBear,
+    )
+}
+
+pub fn poseidon2_24_init(
 ) -> Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7> {
     const ROUNDS_F: usize = 8;
     const ROUNDS_P: usize = 21;
@@ -1166,7 +1188,7 @@ mod tests {
 
     #[test]
     fn test_24_permutation() {
-        let h1 = poseidon2_init();
+        let h1 = poseidon2_24_init();
 
         type Perm = Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>;
         let h2 = Perm::new_from_rng_128(
@@ -1209,7 +1231,7 @@ pub fn poseidon2_hasher() -> PaddingFreeSponge<
     16,
     8,
 > {
-    let hasher = poseidon2_init();
+    let hasher = poseidon2_24_init();
     PaddingFreeSponge::<
         Poseidon2<BabyBear, Poseidon2ExternalMatrixGeneral, DiffusionMatrixBabyBear, 24, 7>,
         24,
