@@ -28,8 +28,8 @@ impl<F: PrimeField32> MachineAir<F> for Sha512ExtendChip {
         let mut rows = Vec::new();
 
         let mut new_byte_lookup_events = Vec::new();
-        for i in 0..input.sha_extend_events.len() {
-            let event = input.sha_extend_events[i].clone();
+        for i in 0..input.sha512_extend_events.len() {
+            let event = input.sha512_extend_events[i].clone();
             let shard = event.shard;
             for j in 0..48usize {
                 let mut row = [F::zero(); NUM_SHA512_EXTEND_COLS];
@@ -126,6 +126,6 @@ impl<F: PrimeField32> MachineAir<F> for Sha512ExtendChip {
     }
 
     fn included(&self, shard: &Self::Record) -> bool {
-        !shard.sha_extend_events.is_empty()
+        !shard.sha512_extend_events.is_empty()
     }
 }
